@@ -1,47 +1,44 @@
 /**
- * PYTHH HOMEPAGE v1.0 — HUMAN-SMART SURFACE
- * ==========================================
- * DESIGN: Dark theme, centered hero, live activity feed
- * LANGUAGE: Human-smart (per PYTHH_DESIGN_LANGUAGE_CONTRACT.md)
+ * PYTHH HOMEPAGE — CANONICAL SURFACE (FROZEN)
+ * ============================================
+ * Authority: Founder-declared immutable
+ * Status: Product surface, not design
+ * See: PYTHH_HOMEPAGE_CANONICAL_SURFACE.md
  * 
- * See: PYTHH_HOMEPAGE_HUMANSPEC.md
- * See: PYTHH_DESIGN_LANGUAGE_CONTRACT.md
- * 
- * VISUAL STRUCTURE:
- * • Top: Header with logo + sign in
- * • Hero: Centered headline + subhead + input
- * • Micro-trust line below input
- * • Live activity feed (investor matching happening now)
- * • Bottom: Social proof examples
- * 
- * INVARIANTS:
- * • Dark theme (black background)
- * • No async input behavior (submit only)
- * • Human-smart language (no mysticism)
- * • Activity feed shows real-time matching
+ * This is an intelligence aperture into a living capital system.
+ * Replica from founder-provided HTML/CSS.
  */
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { HOME_CONTENT } from "@/config/homeContent";
+import "../styles/landing.css";
 
-// Mock live activity data (replace with real data later)
+// Mock live activity data
 const LIVE_ACTIVITY = [
   {
-    text: "AI infrastructure startup matched with operator-focused seed funds",
+    text: "AI infra startup flagged for agent-first adoption",
     godScore: 88,
     timeAgo: "just now",
   },
   {
-    text: "Clean energy startup gaining traction with climate tech investors",
+    text: "Clean energy startup actively appearing in discovery",
     godScore: 85,
     timeAgo: "2m ago",
   },
   {
-    text: "EdTech platform matched with education-focused seed funds",
+    text: "EdTech platform showing consistent forward motion",
     godScore: 71,
     timeAgo: "5m ago",
   },
+];
+
+const TICKER_ITEMS = [
+  { icon: "🟢", text: "LIVE joia active in developer tools — 2h ago", highlight: "LIVE" },
+  { icon: "🟡", text: "Greylock Series B activity in B2B SaaS — just now", highlight: "Greylock" },
+  { icon: "🔥", text: "Khosla thesis convergence in climate — today", highlight: "Khosla" },
+  { icon: "🟣", text: "Sequoia deep tech partner mention — 1h ago", highlight: "Sequoia" },
+  { icon: "🔵", text: "Accel seed velocity spike — 20m ago", highlight: "Accel" },
+  { icon: "🟡", text: "Greylock Series B activity in B2B SaaS — just now", highlight: "Greylock" },
 ];
 
 export default function HomePage() {
@@ -55,119 +52,133 @@ export default function HomePage() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSubmit(e as any);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* HEADER */}
-      <header className="flex items-center justify-between px-8 py-6 border-b border-neutral-800">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold">pythh.ai</span>
-        </div>
-        <button className="text-sm text-neutral-400 hover:text-white transition-colors">
-          Sign in
-        </button>
-      </header>
+    <div className="landing-bg">
+      <div className="landing-grain"></div>
 
-      {/* MAIN CONTENT */}
-      <main className="max-w-4xl mx-auto px-8 py-16">
-        
-        {/* HERO SECTION */}
-        <div className="text-center mb-12">
-          <h1 className="text-6xl font-bold mb-6 leading-tight">
-            {HOME_CONTENT.hero.headline}
-          </h1>
-          <p className="text-xl text-neutral-400 mb-3">
-            {HOME_CONTENT.hero.subheadline.split('—')[0].trim()}.
-          </p>
-          <p className="text-xl text-neutral-400">
-            {HOME_CONTENT.hero.subheadline.split('—')[1].trim()}.
-          </p>
+      {/* Top ticker */}
+      <div className="landing-ticker" aria-hidden="true">
+        <div className="landing-tickerTrack">
+          {TICKER_ITEMS.map((item, i) => (
+            <span key={i}>
+              {item.icon === "🟢" && <span className="landing-dot"></span>}
+              {item.icon !== "🟢" && `${item.icon} `}
+              <b>{item.highlight}</b> {item.text.replace(item.highlight, "").trim()}
+            </span>
+          ))}
         </div>
+      </div>
 
-        {/* INPUT SECTION */}
-        <div className="mb-6">
-          <form onSubmit={handleSubmit}>
-            <label className="block text-sm text-neutral-400 mb-3">
-              {HOME_CONTENT.input.label}
-            </label>
-            <div className="flex gap-3">
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={HOME_CONTENT.input.placeholder}
-                className="flex-1 px-6 py-4 bg-neutral-900 border border-neutral-700 rounded text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                required
-              />
-              <button
-                type="submit"
-                className="px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded transition-colors"
-              >
-                {HOME_CONTENT.input.buttonLabel}
-              </button>
-            </div>
-          </form>
+      {/* Nav */}
+      <header className="landing-nav">
+        <div className="landing-brand">
+          <div className="landing-name">pythh.ai</div>
+          <div className="landing-tag">SIGNAL SCIENCE</div>
         </div>
-
-        {/* MICRO-TRUST LINE */}
-        <div className="text-center mb-3">
-          <p className="text-sm text-neutral-500">
-            No pitch deck · No warm intro · Just signals
-          </p>
-        </div>
-
-        {/* SECONDARY ACTION (SUBTLE) */}
-        <div className="flex justify-center gap-4 mb-16">
-          <button className="text-sm text-neutral-400 hover:text-white transition-colors px-4 py-2 border border-neutral-700 rounded">
-            What you get
+        <div className="landing-navRight">
+          <button className="landing-btnGhost" type="button">Sign in</button>
+          <button className="landing-btnIcon" type="button" aria-label="Menu">
+            <span className="landing-hamburger"><i></i></span>
           </button>
         </div>
+      </header>
 
-        {/* LIVE ACTIVITY FEED */}
-        <div className="mb-12">
-          <h2 className="text-xs uppercase tracking-wider text-neutral-500 mb-4">
-            Investor Matching Happening Now
-          </h2>
-          <div className="space-y-3">
+      {/* Main content */}
+      <main className="landing-wrap">
+        <section className="landing-hero">
+          <h1 className="landing-h1">Find my investors.</h1>
+
+          <div className="landing-subhead">
+            Investor signals that matter to you.<br />
+            No guessing. Just alignment.
+          </div>
+
+          <div className="landing-label">Enter your startup URL</div>
+
+          <form className="landing-searchRow" onSubmit={handleSubmit}>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://yourstartup.com"
+              aria-label="Startup URL"
+              autoComplete="url"
+              spellCheck={false}
+            />
+            <button className="landing-cta" type="submit">Find my investors</button>
+          </form>
+
+          <div className="landing-pills">
+            <button className="landing-pill" type="button">See a live match →</button>
+            <button className="landing-pill landing-primary" type="button">See how signals flow →</button>
+          </div>
+
+          <div className="landing-microTrust">No pitch deck · No warm intro · No brokers · Just signals and timing</div>
+
+          {/* MATCH PREVIEW PANEL - Static example showing navigation output */}
+          <div className="landing-matchPreview">
+            <div className="landing-previewTitle">Example Output:</div>
+            <div className="landing-previewCard">
+              <div className="landing-previewHeader">Your Capital Navigation Snapshot</div>
+              
+              <div className="landing-previewMetrics">
+                <div className="landing-metric">
+                  <span className="landing-metricLabel">GOD Score:</span>
+                  <span className="landing-metricValue">81</span>
+                  <span className="landing-metricDelta">↑ +6 in 14 days</span>
+                </div>
+                <div className="landing-metric">
+                  <span className="landing-metricLabel">Velocity:</span>
+                  <span className="landing-metricValue">Accelerating</span>
+                </div>
+                <div className="landing-metric">
+                  <span className="landing-metricLabel">FOMO State:</span>
+                  <span className="landing-metricValue">Warming</span>
+                </div>
+                <div className="landing-metric">
+                  <span className="landing-metricLabel">Phase Change:</span>
+                  <span className="landing-metricValue">Product → Market Fit</span>
+                </div>
+              </div>
+
+              <div className="landing-previewSection">
+                <div className="landing-sectionTitle">Aligned Investor Signals</div>
+                <ul className="landing-signalList">
+                  <li>Accel — seed velocity spike</li>
+                  <li>Greylock — thesis convergence in infra</li>
+                  <li>Khosla — climate deep tech alignment</li>
+                  <li>Sequoia — partner mention in agent tooling</li>
+                </ul>
+              </div>
+
+              <div className="landing-previewAction">
+                <div className="landing-actionTitle">Recommended Action:</div>
+                <ul className="landing-actionList">
+                  <li>→ Do not raise yet</li>
+                  <li>→ Introduce narrative positioning</li>
+                  <li>→ Surface traction proof</li>
+                  <li>→ Target 3 thesis-aligned funds</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="landing-feed">
+            <div className="landing-feedTitle">INVESTOR MATCHING HAPPENING NOW</div>
+
             {LIVE_ACTIVITY.map((item, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 p-4 bg-neutral-900 border border-neutral-800 rounded"
-              >
-                <div className="flex-1">
-                  <p className="text-neutral-300 text-sm">
-                    • {item.text}{" "}
-                    <span className="text-orange-400 font-mono">
-                      (GOD: {item.godScore})
-                    </span>
-                  </p>
-                  <p className="text-xs text-neutral-600 mt-1">{item.timeAgo}</p>
+              <div key={i} className="landing-item">
+                <div className="landing-bullet"></div>
+                <div>
+                  {item.text} <span className="landing-god">(GOD: {item.godScore})</span>
+                  <span className="landing-time">{item.timeAgo}</span>
                 </div>
               </div>
             ))}
-          </div>
-        </div>
 
-        {/* SOCIAL PROOF (BOTTOM) */}
-        <div className="text-center">
-          <p className="text-sm text-neutral-500 mb-2">
-            {HOME_CONTENT.socialProof.label}
-          </p>
-          <div className="flex justify-center gap-8 text-sm text-neutral-400">
-            {HOME_CONTENT.socialProof.examples.map((example, i) => (
-              <span key={i}>
-                {example.startup} → {example.investor}
-              </span>
-            ))}
+            <div className="landing-footerLine">This is how discovery happens before pitch decks.</div>
           </div>
-        </div>
-
+        </section>
       </main>
     </div>
   );
