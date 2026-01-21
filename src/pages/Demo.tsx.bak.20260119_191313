@@ -1,0 +1,542 @@
+import { useState, useEffect } from 'react';
+import { demoScenarios, defaultScenario, type DemoScenario } from '../data/demoScenarios';
+import DemoRevealTimeline from '../components/DemoRevealTimeline';
+
+export default function Demo() {
+  const [selectedUrl, setSelectedUrl] = useState('autoops.ai');
+  const [scenarioId, setScenarioId] = useState('breakout');
+  const [isScanning, setIsScanning] = useState(false);
+  const [showTriad, setShowTriad] = useState(false);
+  const [showConvergence, setShowConvergence] = useState(false);
+  const [showControls, setShowControls] = useState(false);
+  const [fastMode, setFastMode] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
+
+  const scenario: DemoScenario = demoScenarios[scenarioId] || defaultScenario;
+
+  const presetUrls = [
+    { url: 'autoops.ai', scenario: 'breakout' },
+    { url: 'vanta.com', scenario: 'forming' },
+    { url: 'ramp.com', scenario: 'crowded' },
+  ];
+
+  const handleRunScan = () => {
+    setIsScanning(true);
+    setShowTriad(false);
+    setShowConvergence(false);
+
+    const scanDuration = fastMode ? 500 : 2000;
+
+    setTimeout(() => {
+      setIsScanning(false);
+    }, scanDuration);
+  };
+
+  const handleTimelineComplete = () => {
+    setTimeout(() => {
+      setShowTriad(true);
+      setTimeout(() => {
+        setShowConvergence(true);
+      }, fastMode ? 300 : 800);
+    }, fastMode ? 200 : 600);
+  };
+
+  // Auto-run on mount for instant demo
+  useEffect(() => {
+    handleRunScan();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a]">
+      {/* Compact Header */}
+      <div className="bg-black/40 border-b border-white/10">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Capital Navigation Demo</h1>
+              <p className="text-white/60 text-sm mt-0.5">
+                60-second reveal: Watch intent become direction
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <div className="px-2 py-1 bg-blue-500/20 text-blue-400 font-semibold rounded">
+                LIVE
+              </div>
+              <div className="text-white/40">
+                Confidence: <span className="text-green-400 font-semibold">{scenario.triad.confidence}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Explanation Banner */}
+      <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border-b border-white/10">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">🧭</div>
+            <div>
+              <div className="text-white font-semibold text-sm mb-1">
+                This is not matching. This is capital physics.
+              </div>
+              <div className="text-white/60 text-xs leading-relaxed">
+                We detect when investors are already converging on startups — <span className="text-white/80 italic">before any outreach happens</span>. 
+                Watch the 4-beat reveal: Orientation → Heartbeat → Observer count → Direction badge. 
+                Each element shows you <span className="text-white/80">where capital is moving</span>, not just who to email.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+        {/* Compact Demo URL Input */}
+        <div className="bg-white/5 rounded-lg border border-white/10 p-4">
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              {presetUrls.map((preset) => (
+                <button
+                  key={preset.url}
+                  onClick={() => {
+                    setSelectedUrl(preset.url);
+                    setScenarioId(preset.scenario);
+                  }}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    selectedUrl === preset.url
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                  }`}
+                >
+                  {preset.url}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={selectedUrl}
+                onChange={(e) => setSelectedUrl(e.target.value)}
+                placeholder="Enter startup URL..."
+                className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded text-white text-sm placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleRunScan}
+                disabled={isScanning}
+                className="px-4 py-2 bg-blue-500 text-white text-sm font-semibold rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              >
+                {isScanning ? 'Scanning...' : 'Run Scan'}
+              </button>
+            </div>
+
+            <p className="text-xs text-white/50 italic">
+              Signals represent investor intent. Clusters reveal where capital is going.
+            </p>
+          </div>
+        </div>
+
+        {/* Magic Reveal Timeline */}
+        {!isScanning && (
+          <DemoRevealTimeline
+            observers={scenario.triad.position.observers_7d}
+            heartbeat={scenario.triad.flow.latest_signal_age}
+            direction={scenario.triad.trajectory.direction}
+            onComplete={handleTimelineComplete}
+          />
+        )}
+
+        {/* Capital Navigation Triad */}
+        {showTriad && (
+          <div className="animate-fade-in">
+            <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <span className="text-xl">🧭</span>
+                CAPITAL NAVIGATION
+              </h2>
+
+              <div className="grid grid-cols-3 gap-4">
+                {/* Column 1: Position */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-white/70 uppercase">
+                      Your Position
+                    </h3>
+                    <DriverModal drivers={scenario.drivers.position} label="Position" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-3 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-lg border border-blue-500/30">
+                      <div className="text-xl font-bold text-blue-400">
+                        {scenario.triad.position.badge}
+                      </div>
+                      <div className="text-xs text-blue-400/70 mt-1">
+                        Score: {(scenario.triad.position.score * 100).toFixed(0)}
+                      </div>
+                    </div>
+
+                    <MetricRow
+                      label="Observers (7d)"
+                      value={scenario.triad.position.observers_7d.toString()}
+                    />
+                    <MetricRow
+                      label="Momentum"
+                      value={scenario.triad.position.momentum}
+                      badge
+                    />
+                    <MetricRow
+                      label="Comparable Tier"
+                      value={scenario.triad.position.comparable_tier}
+                      small
+                    />
+                  </div>
+                </div>
+
+                {/* Column 2: Flow */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-white/70 uppercase">
+                      Capital Flow (Now)
+                    </h3>
+                    <DriverModal drivers={scenario.drivers.flow} label="Flow" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-3 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-lg border border-green-500/30">
+                      <div className="text-xl font-bold text-green-400">
+                        {scenario.triad.flow.state}
+                      </div>
+                      <div className="text-xs text-green-400/70 mt-1">
+                        Score: {(scenario.triad.flow.score * 100).toFixed(0)}
+                      </div>
+                    </div>
+
+                    <MetricRow
+                      label="Active Investors"
+                      value={`${scenario.triad.flow.active_investors.visible} / ${scenario.triad.flow.active_investors.total}`}
+                    />
+                    <MetricRow
+                      label="Latest Signal"
+                      value={scenario.triad.flow.latest_signal_age}
+                    />
+                    <MetricRow
+                      label="Crowd Density"
+                      value={scenario.triad.flow.crowd_density}
+                      badge
+                    />
+                  </div>
+                </div>
+
+                {/* Column 3: Trajectory */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-white/70 uppercase">
+                      Capital Trajectory
+                    </h3>
+                    <DriverModal drivers={scenario.drivers.trajectory} label="Trajectory" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="p-3 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-lg border border-purple-500/30">
+                      <div className="text-xl font-bold text-purple-400">
+                        {scenario.triad.trajectory.direction}
+                      </div>
+                      <div className="text-xs text-purple-400/70 mt-1">
+                        Speed: {scenario.triad.trajectory.speed}
+                      </div>
+                    </div>
+
+                    <MetricRow
+                      label="Forecast Window"
+                      value={scenario.triad.trajectory.forecast_window}
+                    />
+                    <MetricRow
+                      label="Outreach Probability"
+                      value={`${scenario.triad.trajectory.outreach_probability}%`}
+                      highlight
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Flow Alignment */}
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold text-white/70 uppercase">Flow Alignment</h3>
+                  <span className="text-sm font-bold text-white">
+                    {scenario.triad.alignment.level} ({(scenario.triad.alignment.score * 100).toFixed(0)}%)
+                  </span>
+                </div>
+                <p className="text-xs text-white/60">
+                  Measures how well this startup fits the current direction of capital
+                </p>
+              </div>
+
+              {debugMode && (
+                <div className="mt-4 p-4 bg-gray-100 rounded text-xs font-mono">
+                  <pre>{JSON.stringify(scenario.triad, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Convergence Reveal Strip */}
+        {showConvergence && (
+          <div className="animate-fade-in">
+            <div className="bg-white/5 rounded-lg border border-white/10 p-6">
+              <h2 className="text-lg font-bold text-white mb-4">Convergence Reveal</h2>
+
+              <div className="grid grid-cols-2 gap-6">
+                {/* Visible Investors */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-white/70">
+                    Visible Investors ({scenario.convergence.visible_investors.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {scenario.convergence.visible_investors.map((investor, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 border border-white/10 rounded-lg hover:border-blue-500/50 transition-colors bg-white/5"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{investor.logo}</span>
+                            <span className="font-semibold text-white">{investor.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-blue-600">
+                              {investor.match_score}
+                            </span>
+                            <span
+                              className={`text-xs px-2 py-1 rounded ${
+                                investor.state === 'breakout'
+                                  ? 'bg-red-100 text-red-700'
+                                  : investor.state === 'surge'
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {investor.state}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-xs text-white/60">{investor.evidence}</div>
+                        <div className="text-xs text-white/40 mt-1">{investor.signal_age}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Blurred Pool Teaser */}
+                <div className="relative">
+                  <div className="sticky top-6">
+                    <div className="p-8 bg-gradient-to-br from-white/5 to-white/10 rounded-lg border-2 border-dashed border-white/20 text-center">
+                      <div className="text-5xl font-bold text-white mb-2">
+                        +{scenario.convergence.hidden_count}
+                      </div>
+                      <div className="text-sm text-white/70 font-medium mb-4">
+                        more investors detected
+                      </div>
+                      <button className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors">
+                        Unlock Full Signal Map
+                      </button>
+                      <p className="text-xs text-white/60 mt-4 italic">
+                        Most founders never get to see this layer.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Next Best Move */}
+        {showConvergence && (
+          <div className="animate-fade-in">
+            <div className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-500/30 p-6">
+              <h2 className="text-lg font-bold text-white mb-4">Next Best Move</h2>
+
+              <div className="mb-4">
+                <div className="text-sm text-white/60 mb-2">
+                  Trajectory Alignment:{' '}
+                  <span className="font-bold text-white">{scenario.triad.alignment.level}</span>{' '}
+                  ({(scenario.triad.alignment.score * 100).toFixed(0)}%)
+                </div>
+                <div className="text-base text-white font-medium">
+                  {scenario.triad.alignment.next_best_move}
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                {scenario.triad.alignment.impact.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="px-3 py-2 bg-white/10 rounded-lg border border-white/20 text-sm text-white/80"
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* One-Liner Panel */}
+        {showConvergence && (
+          <div className="bg-black/40 border border-white/20 text-white rounded-lg p-8 text-center">
+            <p className="text-xl font-medium mb-4">
+              We don't match founders to investors — we detect when capital is already converging
+              and show founders how to amplify that signal.
+            </p>
+            <div className="text-sm text-white/50 space-x-6">
+              <span>Signals = intent</span>
+              <span>•</span>
+              <span>Intent clusters = direction</span>
+              <span>•</span>
+              <span>Direction = timing advantage</span>
+            </div>
+          </div>
+        )}
+
+        {/* Presenter Controls */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <button
+            onClick={() => setShowControls(!showControls)}
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg shadow-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+          >
+            {showControls ? 'Hide' : 'Show'} Controls
+          </button>
+
+          {showControls && (
+            <div className="mt-2 p-4 bg-black/90 rounded-lg shadow-xl border border-white/20 space-y-3 w-64">
+              <h3 className="font-bold text-white text-sm">Presenter Controls</h3>
+
+              <div>
+                <label className="block text-xs text-white/60 mb-1">Scenario</label>
+                <select
+                  value={scenarioId}
+                  onChange={(e) => {
+                    setScenarioId(e.target.value);
+                    const preset = presetUrls.find((p) => p.scenario === e.target.value);
+                    if (preset) setSelectedUrl(preset.url);
+                  }}
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-sm text-white"
+                >
+                  <option value="breakout">Breakout (Strongly Incoming)</option>
+                  <option value="forming">Forming (Incoming)</option>
+                  <option value="quiet">Quiet (Stable)</option>
+                  <option value="crowded">Crowded (Saturated)</option>
+                </select>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={fastMode}
+                  onChange={(e) => setFastMode(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Fast mode</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={debugMode}
+                  onChange={(e) => setDebugMode(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Show debug overlay</span>
+              </label>
+
+              <button
+                onClick={handleRunScan}
+                className="w-full px-3 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+              >
+                Replay Demo
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper Components
+
+function MetricRow({
+  label,
+  value,
+  badge = false,
+  small = false,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  badge?: boolean;
+  small?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-white/60">{label}</span>
+      {badge ? (
+        <span className="px-2 py-1 bg-white/10 text-white/80 text-xs font-medium rounded">
+          {value}
+        </span>
+      ) : (
+        <span
+          className={`${small ? 'text-xs' : 'text-sm'} ${
+            highlight ? 'font-bold text-blue-400' : 'font-medium text-white'
+          }`}
+        >
+          {value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DriverModal({ drivers, label }: { drivers: string[]; label: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setIsOpen(true)}
+        className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+      >
+        Why?
+      </button>
+
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+          onClick={() => setIsOpen(false)}
+        >
+          <div
+            className="bg-[#1a1a1a] border border-white/20 rounded-lg p-6 max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-white mb-4">{label} Drivers</h3>
+            <ul className="space-y-2">
+              {drivers.map((driver, idx) => (
+                <li key={idx} className="text-sm text-white/80">
+                  • {driver}
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="mt-4 px-4 py-2 bg-white/10 text-white rounded hover:bg-white/20 w-full transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

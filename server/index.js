@@ -56,7 +56,7 @@ app.use(cors({
   origin: true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID']
 }));
 app.use(express.json());
 
@@ -5922,6 +5922,30 @@ try {
     }, DIGEST_INTERVAL_MS);
     
     console.log(`📊 Daily digest check scheduled every ${DIGEST_INTERVAL_MS / 1000 / 60} minutes`);
+  });
+
+  // 404 handler for missing endpoints
+  app.use((req, res, next) => {
+    // Don't log static asset 404s
+    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
+      return res.status(404).end();
+    }
+    
+    console.log(`[404] Not found: ${req.method} ${req.path} [${req.requestId}]`);
+    res.status(404).json({ 
+      error: 'Not found', 
+      path: req.path,
+      requestId: req.requestId 
+    });
+  });
+
+  // Error handler
+  app.use((err, req, res, next) => {
+    console.error(`[error] ${err.message} [${req.requestId}]`);
+    res.status(500).json({ 
+      error: 'Internal server error', 
+      requestId: req.requestId 
+    });
   });
 
   // Handle server errors

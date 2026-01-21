@@ -38,6 +38,14 @@ export function useLivePairings(
       });
 
       if (!response.ok) {
+        // If 404, endpoint doesn't exist - fail silently in production
+        if (response.status === 404) {
+          console.warn('[useLivePairings] Endpoint not found (404) - feature may not be deployed');
+          setData([]);
+          setError(null); // Don't show error to user
+          setLastUpdatedAt(new Date());
+          return;
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 

@@ -5,24 +5,25 @@ import { markUrlSubmitted } from '../lib/routeGuards';
 import { useLivePairings } from '../hooks/useLivePairings';
 import { getPlan, getLivePairingsLimit, getPlanVisibility, getUpgradeCTA, getPlanFootnote, PlanTier } from '../utils/plan';
 import { useAuth } from '../contexts/AuthContext';
+import { MicroQuoteWhisper } from './MicroQuoteWhisper';
 
 // Pool of anonymized feed items - mixed positive/negative signals per spec
 // REQUIRED FORMAT: No names, no logos, no links. Mix positive + negative. GOD appears with no explanation.
 const FEED_POOL = [
-  { text: 'Seed robotics startup matched to 2 deep-tech funds', score: 81, positive: true },
+  { text: 'Seed robotics startup surfacing to 2 deep-tech funds', score: 81, positive: true },
   { text: 'Capital-heavy startup losing investor attention', score: null, positive: false },
   { text: 'Climate startup resurfacing after new technical validation', score: 74, positive: true },
   { text: 'AI infra startup flagged for agent-first adoption', score: 88, positive: true },
   { text: 'B2B SaaS company showing prolonged silence', score: null, positive: false },
-  { text: 'FinTech startup matched to 3 sector specialists', score: 72, positive: true },
+  { text: 'FinTech startup entering view of 3 sector specialists', score: 72, positive: true },
   { text: 'Healthcare ML company gaining momentum', score: 79, positive: true },
   { text: 'Developer tools startup with founder departure signal', score: null, positive: false },
-  { text: 'Supply chain startup matched to logistics-focused fund', score: 67, positive: true },
+  { text: 'Supply chain startup gaining attention from logistics-focused fund', score: 67, positive: true },
   { text: 'EdTech platform showing consistent forward motion', score: 71, positive: true },
   { text: 'Cybersecurity startup weakening — capital without follow-through', score: null, positive: false },
   { text: 'Clean energy startup actively appearing in discovery', score: 85, positive: true },
   { text: 'PropTech company surfacing after pilot announcement', score: 69, positive: true },
-  { text: 'Biotech AI startup matched to 4 life science investors', score: 82, positive: true },
+  { text: 'Biotech AI startup surfacing to 4 life science investors', score: 82, positive: true },
   { text: 'Gaming infrastructure startup not yet circulating', score: null, positive: false },
 ];
 
@@ -149,7 +150,8 @@ const SplitScreenHero: React.FC = () => {
     }
     // Mark session state BEFORE navigating so guards recognize the scan
     markUrlSubmitted(cleanUrl);
-    navigate(`/instant-matches?url=${encodeURIComponent(cleanUrl)}`);
+    // Navigate to new Discovery experience
+    navigate(`/discovery?url=${encodeURIComponent(cleanUrl)}`);
     setTimeout(() => setIsAnalyzing(false), 800);
   };
 
@@ -179,20 +181,14 @@ const SplitScreenHero: React.FC = () => {
       {/* Main content with vertical spine */}
       <div className="relative z-10 flex-1 flex flex-col justify-center max-w-[1100px] mx-auto w-full px-8 sm:px-12 py-8">
         
-        {/* HEADLINE - Core Promise: "Find my investors." */}
+        {/* PRIMARY HEADLINE - Dominant, action-oriented */}
         <h1 className={`text-5xl sm:text-6xl md:text-7xl font-bold text-white tracking-tight mb-4 transition-all duration-700 ${showHeadline ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          Find my investors.
+          Find My Investors
         </h1>
         
-        {/* SUBHEADLINE - Founder-first clarity */}
-        <p className={`text-xl text-gray-400 mb-10 max-w-lg transition-all duration-700 delay-100 ${showHeadline ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          Pythh finds investors that align with your thesis<br />
-          ...and next steps.
-        </p>
-        
-        {/* PRIMARY CTA LABEL - Above the input */}
-        <p className={`text-sm text-gray-400 mb-4 transition-all duration-700 delay-150 ${showCommand ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          Enter your startup URL
+        {/* SECONDARY LINE - Context and clarity */}
+        <p className={`text-xl text-gray-400 mb-12 max-w-lg transition-all duration-700 delay-100 ${showHeadline ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          Discover investors aligned with your signals.
         </p>
 
         {/* COMMAND BAR + READOUT wrapper */}
@@ -200,9 +196,13 @@ const SplitScreenHero: React.FC = () => {
           {/* COMMAND BAR - instrument, not form */}
           <div className={`relative mb-3 transition-all duration-700 ${showCommand ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             {!isAnalyzing ? (
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} className="relative">
+                {/* Micro quote whisper above button */}
+                <MicroQuoteWhisper />
+                
                 {/* Input wrapper with layered glow system */}
                 <div 
+                  id="url-input"
                   className={`
                     relative flex items-stretch
                     bg-[#0a0a0a]
@@ -253,14 +253,14 @@ const SplitScreenHero: React.FC = () => {
                     onChange={(e) => setUrl(e.target.value)}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
-                    placeholder="https://yourstartup.com"
+                    placeholder="Enter your url"
                     className="flex-1 px-6 py-5 bg-transparent text-white placeholder-gray-600 focus:outline-none text-base font-mono relative z-10 border-0 focus:ring-0"
                   />
                   <button
                     type="submit"
                     className="group px-10 py-5 bg-gradient-to-b from-amber-500 to-amber-600 text-black text-sm font-bold font-mono tracking-wide whitespace-nowrap relative z-10 transition-shadow duration-200 hover:shadow-[0_0_0_1px_rgba(56,189,248,0.35),0_0_24px_rgba(168,85,247,0.25)] active:shadow-[0_0_0_1px_rgba(56,189,248,0.55),0_0_32px_rgba(168,85,247,0.35)]"
                   >
-                    Find my investors
+                    Find My Investors
                   </button>
                 </div>
               </form>
@@ -280,10 +280,13 @@ const SplitScreenHero: React.FC = () => {
             )}
           </div>
           
-          {/* MICROCOPY moved to under CTAs */}
+          {/* MICRO-TRUST LINE */}
+          <p className={`text-xs text-gray-400 mt-3 mb-4 transition-all duration-500 delay-300 ${showCommand ? 'opacity-100' : 'opacity-0'}`}>
+            Private • Anonymized • No messaging • No exposure
+          </p>
           
-          {/* SECONDARY CTA - Demo-first, benefits-first (Fix #2 + #3) */}
-          <div className={`flex flex-wrap items-center gap-3 transition-all duration-500 delay-200 ${showCommand ? 'opacity-100' : 'opacity-0'}`}>
+          {/* SECONDARY CTA */}
+          <div className={`flex flex-wrap items-center gap-3 mb-8 transition-all duration-500 delay-400 ${showCommand ? 'opacity-100' : 'opacity-0'}`}>
             <Link
               to="/value"
               className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white/85 hover:bg-white/10 hover:text-white transition"
@@ -297,16 +300,11 @@ const SplitScreenHero: React.FC = () => {
               How it works →
             </Link>
           </div>
-          
-          {/* MICROCOPY under CTAs */}
-          <p className={`mt-2 text-xs text-white/45 mb-10 transition-all duration-500 delay-300 ${showCommand ? 'opacity-100' : 'opacity-0'}`}>
-            No pitch deck • No warm intro • Just signals
-          </p>
 
           {/* LIVE FEED - Anonymized, mixed positive/negative signals */}
           <div className={`flex gap-12 mb-10 transition-all duration-700 ${showReadout ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <div className="flex-1">
-              <p className="text-[9px] text-gray-600 uppercase tracking-[0.2em] mb-4 font-mono">Investor matching happening now</p>
+              <p className="text-[9px] text-gray-600 uppercase tracking-[0.2em] mb-4 font-mono">🔒 DISCOVERY SIGNALS (LIVE)</p>
               <div className="space-y-3">
                 {feedItems.map((item, i) => (
                   <div key={`${item.text}-${i}`} className="font-mono transition-opacity duration-500">
@@ -317,12 +315,7 @@ const SplitScreenHero: React.FC = () => {
                     </p>
                     <p className="text-[10px] text-gray-600 ml-2">{item.time}</p>
                   </div>
-                ))}
-              </div>
-              {/* Line under feed per spec */}
-              <p className="text-xs text-gray-500 mt-4 italic">
-                This is how discovery happens before pitch decks.
-              </p>
+                ))}              </div>
             </div>
           </div>
         </div>
@@ -335,7 +328,7 @@ const SplitScreenHero: React.FC = () => {
           <div className="h-px bg-gray-800/60 mb-6"></div>
           <div className="flex items-baseline justify-between mb-4">
             <div className="flex items-center gap-3">
-              <p className="text-[9px] text-gray-600 uppercase tracking-[0.2em] font-mono">Investor matching happening now</p>
+              <p className="text-[9px] text-gray-600 uppercase tracking-[0.2em] font-mono">🔒 DISCOVERY ACTIVITY (LIVE)</p>
               {upgradeCTA.show && (
                 <Link 
                   to="/pricing" 

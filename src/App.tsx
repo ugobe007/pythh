@@ -1,12 +1,16 @@
 /**
- * V5.1 App Router
+ * V5.2 App Router (Doctrine-aligned)
  * 
- * State-based navigation, not page browsing.
+ * DOCTRINE CHANGES:
+ * - / remains public homepage (LandingPage) — content refactors to Power Score + Investor scorecards
+ * - /results becomes canonical Results Page (Core Product)
+ * - /instant-matches and /match/results redirect to /results
+ * - /demo redirects to / (homepage is the demo)
  * 
  * ROUTE HIERARCHY:
- * - L0 (public): /, /login, /pricing, /checkout, /about, /privacy
- * - L1 (signals): /feed, /demo → requires login OR post-submit session
- * - L2 (matches): /instant-matches, /saved-matches, /startup/:id, /investor/:id → requires scan
+ * - L0 (public): /, /results, /login, /pricing, /checkout, /about, /privacy
+ * - L1 (signals): /feed → requires login OR post-submit session
+ * - L2 (matches): /results, /saved-matches, /startup/:id, /investor/:id → requires scan
  * - L4 (connect): /invite-investor, /contact → requires phase >= 4
  * - L5 (admin): /admin/* → requires role === admin
  */
@@ -18,6 +22,7 @@ import { L1Guard, L2Guard, L4Guard, L5Guard, AuthGuard } from './lib/routeGuards
 import { trackEvent } from './lib/analytics';
 import './App.css';
 import LogoDropdownMenu from './components/LogoDropdownMenu';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 
 // L0: Public Oracle Surface
 import LandingPage from './pages/LandingPage';
@@ -26,6 +31,7 @@ import SignupFounder from './pages/SignupFounder';
 import SignalConfirmation from './pages/SignalConfirmation';
 import WhyPythhExists from './pages/WhyPythhExists';
 import HowItWorksPage from './pages/HowItWorksPage';
+import HowPythhWorks from './pages/HowPythhWorks';
 import ValuePage from './pages/ValuePage';
 import SharedSignalView from './pages/SharedSignalView';
 import PricingPage from './pages/PricingPage';
@@ -37,6 +43,7 @@ import Privacy from './pages/Privacy';
 import Feed from './pages/Feed';
 import LiveDemo from './pages/LiveDemo';
 import MetricsDashboard from './pages/MetricsDashboard';
+import Dashboard from './pages/Dashboard';
 
 // L2: Match Surfaces (gated)
 import InstantMatches from './pages/InstantMatches';
@@ -101,6 +108,12 @@ import MarketTrends from './pages/MarketTrends';
 import DataIntelligence from './pages/DataIntelligence';
 import Analytics from './pages/Analytics';
 import SocialSignalsDashboard from './components/SocialSignalsDashboard';
+import DiscoveryPage from './pages/DiscoveryPage';
+import DiscoveryResultsPageV2 from './pages/DiscoveryResultsPageV2';
+import InvestorLensPage from './pages/InvestorLensPage';
+import DiscoveryGalleryPage from './pages/DiscoveryGalleryPage';
+import MyLearningPage from './pages/MyLearningPage';
+import InvestorDashboard from './pages/InvestorDashboard';
 
 // Legacy redirect component
 function LegacyRedirect(): React.ReactElement {
@@ -121,12 +134,13 @@ const App: React.FC = () => {
   }, [location.pathname, location.search]);
 
   return (
-    <AuthProvider>
-      <div className="min-h-screen bg-[#0a0a0a]">
-        {/* LogoDropdownMenu is now rendered by each page that needs it */}
-        
-        <main>
-          <Routes>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <div className="min-h-screen bg-[#0a0a0a]">
+          {/* LogoDropdownMenu is now rendered by each page that needs it */}
+          
+          <main>
+            <Routes>
             {/* L0: PUBLIC ORACLE SURFACE */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/get-matched" element={<Navigate to="/" replace />} />
@@ -139,6 +153,7 @@ const App: React.FC = () => {
             <Route path="/signal-confirmation" element={<SignalConfirmation />} />
             <Route path="/why" element={<WhyPythhExists />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
+            <Route path="/how-pythh-works" element={<HowPythhWorks />} />
             <Route path="/value" element={<ValuePage />} />
             <Route path="/shared/:shareToken" element={<SharedSignalView />} />
             <Route path="/pricing" element={<PricingPage />} />
@@ -147,14 +162,30 @@ const App: React.FC = () => {
             <Route path="/about" element={<Navigate to="/why" replace />} />
             <Route path="/privacy" element={<Privacy />} />
 
+            {/* NEW: Canonical Results Page (Core Product) */}
+            {/* For now, reuse InstantMatches while we refactor it into Results Page spec */}
+            <Route path="/results" element={<L2Guard><InstantMatches /></L2Guard>} />
+
             {/* L1: SIGNAL SURFACES (requires login OR post-submit) */}
             <Route path="/feed" element={<L1Guard><Feed /></L1Guard>} />
-            <Route path="/demo" element={<L1Guard><LiveDemo /></L1Guard>} />
+            
+            {/* Doctrine: /demo should behave like the homepage demo */}
+            <Route path="/demo" element={<Navigate to="/" replace />} />
+            
+            <Route path="/dashboard" element={<L1Guard><Dashboard /></L1Guard>} />
+            <Route path="/live-demo" element={<L1Guard><LiveDemo /></L1Guard>} />
             <Route path="/metrics" element={<MetricsDashboard />} />
+            <Route path="/discovery" element={<DiscoveryResultsPageV2 />} />
+            <Route path="/investor-lens/:id" element={<InvestorLensPage />} />
+            <Route path="/gallery" element={<DiscoveryGalleryPage />} />
+            <Route path="/how-startups-align" element={<DiscoveryGalleryPage />} />
+            <Route path="/my-learning" element={<MyLearningPage />} />
+            <Route path="/investor-dashboard" element={<InvestorDashboard />} />
 
             {/* L2: MATCH SURFACES (requires scan OR login) */}
-            <Route path="/instant-matches" element={<L2Guard><InstantMatches /></L2Guard>} />
-            <Route path="/match/results" element={<Navigate to="/instant-matches" replace />} />
+            {/* Redirect old results routes to the new canonical /results */}
+            <Route path="/instant-matches" element={<Navigate to="/results" replace />} />
+            <Route path="/match/results" element={<Navigate to="/results" replace />} />
             <Route path="/saved-matches" element={<L2Guard><SavedMatches /></L2Guard>} />
             <Route path="/startup/:id" element={<L2Guard><StartupDetail /></L2Guard>} />
             <Route path="/startup/:id/matches" element={<L2Guard><StartupMatches /></L2Guard>} />
@@ -232,7 +263,6 @@ const App: React.FC = () => {
             <Route path="/deals" element={<LegacyRedirect />} />
             <Route path="/portfolio" element={<LegacyRedirect />} />
             <Route path="/startups" element={<LegacyRedirect />} />
-            <Route path="/dashboard" element={<LegacyRedirect />} />
             <Route path="/investors" element={<LegacyRedirect />} />
             <Route path="/services" element={<LegacyRedirect />} />
             <Route path="/strategies" element={<LegacyRedirect />} />
@@ -252,6 +282,7 @@ const App: React.FC = () => {
         </main>
       </div>
     </AuthProvider>
+    </AppErrorBoundary>
   );
 };
 

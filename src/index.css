@@ -29,6 +29,27 @@
   animation: ticker 60s linear infinite;
 }
 
+/* Shimmer animation for locked cards */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Fade-in animation */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 1s ease-out;
+}
+
+/* Capital flow animation for Demo page */
+@keyframes capital-flow {
+  from { transform: translateX(-40%); }
+  to { transform: translateX(240%); }
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    [pyth] ai - ORACLE OF TRUTH - AMBER/ORANGE & CYAN/BLUE PALETTE
    ════════════════════════════════════════════════════════════════════════════ */

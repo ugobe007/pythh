@@ -153,12 +153,14 @@ export default function InvestorSignup() {
           </div>
           
           <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
-            Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-400">Perfect Match in Seconds</span>
+            Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-400">Intelligence Layer</span> for Early-Stage Discovery
           </h1>
           
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Get <span className="text-cyan-400 font-semibold">pre-qualified matches</span> with startups that actually fit your thesis. 
-            Powered by the <span className="text-cyan-400 font-semibold">GOD Algorithm™</span>.
+          <p className="text-xl text-gray-300 max-w-2xl mx-auto mb-2">
+            Everyone sees the surface.
+          </p>
+          <p className="text-2xl font-semibold text-white max-w-2xl mx-auto">
+            You see the patterns.
           </p>
         </div>
 
@@ -190,27 +192,27 @@ export default function InvestorSignup() {
               <div className="space-y-4">
                 {[
                   {
-                    icon: <Filter className="w-5 h-5" />,
-                    title: 'Pre-Qualified Deal Flow',
-                    desc: 'Only see startups that match your sectors, stage, and check size',
-                    color: 'cyan'
-                  },
-                  {
                     icon: <Brain className="w-5 h-5" />,
-                    title: 'GOD Score™ Rankings',
-                    desc: 'Every startup scored on 8 dimensions using 20+ VC frameworks',
+                    title: 'Pattern Recognition at Scale',
+                    desc: 'See signals forming before they become obvious to the market',
                     color: 'cyan'
                   },
                   {
-                    icon: <Bell className="w-5 h-5" />,
-                    title: 'Real-Time Alerts',
-                    desc: 'Get notified when hot startups match your criteria',
+                    icon: <Filter className="w-5 h-5" />,
+                    title: 'Your Personal Observatory',
+                    desc: 'Track how discovery is forming around your investment thesis',
                     color: 'purple'
                   },
                   {
                     icon: <BarChart3 className="w-5 h-5" />,
-                    title: 'Deep Intelligence',
-                    desc: 'Team analysis, traction metrics, market timing signals',
+                    title: 'Intelligence Without Noise',
+                    desc: 'Anonymized insights that surface trends, not individual pitches',
+                    color: 'cyan'
+                  },
+                  {
+                    icon: <Bell className="w-5 h-5" />,
+                    title: 'Timing Signals',
+                    desc: 'Know when sectors align with your mandate before the crowd',
                     color: 'green'
                   },
                 ].map((item, idx) => (

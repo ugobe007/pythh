@@ -239,6 +239,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
             <div className="p-2 max-h-[72vh] overflow-y-auto space-y-1">
               {/* DEMO FIRST - Before anything else */}
               <MenuItem to="/" label="Home" sub="Find your investor matches" onClose={handleClose} />
+              <MenuItem to="/demo" label="Live Demo" sub="Capital navigation in 60 seconds" onClose={handleClose} />
               <MenuItem to="/how-it-works" label="How it works" sub="GOD scoring + investor matching" onClose={handleClose} />
               <MenuItem to="/value" label="What you get" sub="Free vs paid features" onClose={handleClose} />
 

@@ -25,6 +25,7 @@ import EducationalMatchModal from './EducationalMatchModal';
 import GetMatchedPopup from './GetMatchedPopup';
 import { saveMatch, unsaveMatch, isMatchSaved } from '../lib/savedMatches';
 import { StartupComponent, InvestorComponent } from '../types';
+import HomeProofFeed from './home/HomeProofFeed';
 
 // SIMPLIFIED MATCHING: Uses pre-calculated GOD scores from database
 // This aligns with Architecture Document Option A (Recommended)
@@ -147,6 +148,7 @@ export default function MatchingEngine() {
   useEffect(() => {
     if (batchMatches.length > 0 && batchMatches[currentIndex]) {
       const match = batchMatches[currentIndex];
+      if (!match) return;
       setIsSaved(isMatchSaved(match.startup.id, match.investor.id));
     }
   }, [currentIndex, batchMatches]);
@@ -847,8 +849,20 @@ export default function MatchingEngine() {
         </div>
       </div>
 
-      {/* Match results will go here - SplitScreenHero removed, belongs on landing page only */}
+      {/* Landing Hero */}
       <SplitScreenHero />
+
+      {/* Founder Proof Feed (demo mode only: show social proof before scanning) */}
+      {!urlParam && (
+        <div className="relative z-10 w-full max-w-6xl mx-auto px-6 py-12">
+          <HomeProofFeed
+            onRunMySignals={() => {
+              const urlInput = document.getElementById('url-input');
+              if (urlInput) urlInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+          />
+        </div>
+      )}
 
     </div>
   );
