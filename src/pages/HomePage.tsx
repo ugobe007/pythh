@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "../styles/landing.css";
 
 // Mock live activity data
@@ -108,8 +108,12 @@ export default function HomePage() {
           </form>
 
           <div className="landing-pills">
-            <button className="landing-pill" type="button">See a live match →</button>
-            <button className="landing-pill landing-primary" type="button">See how signals flow →</button>
+            <Link to="/live-match" className="landing-pill">
+              See a live match →
+            </Link>
+            <Link to="/signals-flow" className="landing-pill landing-primary">
+              See how signals flow →
+            </Link>
           </div>
 
           <div className="landing-microTrust">No pitch deck · No warm intro · No brokers · Just signals and timing</div>

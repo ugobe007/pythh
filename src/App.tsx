@@ -32,6 +32,8 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 
 // L0: Public Oracle Surface (Doctrine v1.0)
 import HomePage from './pages/HomePage';
+import LiveMatch from './pages/LiveMatch';
+import SignalsFlow from './pages/SignalsFlow';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
@@ -160,6 +162,8 @@ const App: React.FC = () => {
             <Routes>
             {/* L0: PUBLIC ORACLE SURFACE (Doctrine v1.0) */}
             <Route path="/" element={<HomePage />} />
+            <Route path="/live-match" element={<LiveMatch />} />
+            <Route path="/signals-flow" element={<SignalsFlow />} />
             <Route path="/demo" element={<DemoPageDoctrine />} />
             <Route path="/landing" element={<LandingPage />} />
             <Route path="/get-matched" element={<Navigate to="/" replace />} />
