@@ -1,14 +1,21 @@
 /**
- * INSTANT MATCHES PAGE
- * ====================
- * Shows instant investor matches after URL submission
- * NOW WITH TIER GATING:
- * - Free: top 3, masked names (show firm/logo), no reasons
+ * RESULTS PAGE (Doctrine-Aligned)
+ * ==============================
+ * Canonical outputs:
+ * - Power Score (Signal Strength × Readiness)
+ * - Fundraising Window (Too Early / Forming / Prime / Cooling)
+ * - Distance to Targets (alignment % per investor + trend placeholder)
+ * - Investors Aligned With You (tier gated)
+ * - Market Signals (context)
+ * - Strategy & Next Steps (actionable)
+ *
+ * Tier gating (unchanged):
+ * - Free: top 3, masked names, no reasons
  * - Pro: top 10, full names, no reasons
  * - Elite: top 50, full names + reasons + confidence + export
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Loader2, 
@@ -38,11 +45,14 @@ import {
 import { supabase } from '../lib/supabase';
 import { resolveStartupFromUrl, ResolveResult } from '../lib/startupResolver';
 import { useAuth } from '../contexts/AuthContext';
-import { useMatches, InvestorMatch as GatedInvestorMatch, formatCheckSize, getScoreStyle } from '../hooks/useMatches';
-import { getPlan, getMatchVisibility, getMatchUpgradeCTA, getMatchFootnote, PlanTier } from '../utils/plan';
+import { useMatches, getScoreStyle } from '../hooks/useMatches';
+import { getPlan, getMatchVisibility } from '../utils/plan';
 import { analytics } from '../analytics';
 import UpgradeModal from '../components/UpgradeModal';
 import { UpgradeMoment } from '../lib/upgradeMoments';
+import InvestorAlignmentCard from '../components/InvestorAlignmentCard';
+import { useSignalHistory } from '../hooks/useSignalHistory';
+import PowerScoreSparkline from '../components/PowerScoreSparkline';
 
 interface AnalyzedStartup {
   id?: string;
@@ -52,8 +62,8 @@ interface AnalyzedStartup {
   description?: string; // AI-generated summary
   sectors?: string[];
   stage?: string;
-  total_god_score?: number;
-  signals?: string[]; // What we detected (e.g., "Has Revenue", "Ex-Google team")
+  total_god_score?: number; // Readiness
+  signals?: string[]; // Detected signals
 }
 
 // Legacy interface kept for similar startups
@@ -78,13 +88,30 @@ const ANALYSIS_STEPS = [
   { icon: Globe, text: 'Scanning website...', duration: 1500, isBrain: false },
   { icon: Brain, text: 'Running inference engine...', duration: 2500, isBrain: true },
   { icon: Target, text: 'Analyzing market signals...', duration: 1500, isBrain: false },
-  { icon: Zap, text: 'Calculating GOD Score...', duration: 2000, isBrain: true },
+  { icon: Zap, text: 'Calculating readiness...', duration: 2000, isBrain: true },
   { icon: Sparkles, text: 'Finding investor matches...', duration: 1500, isBrain: false },
 ];
 
 // API base URL
 const API_BASE = import.meta.env.VITE_API_URL || 
   (import.meta.env.DEV ? 'http://localhost:3002' : '');
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function computeFundraisingWindow(powerScore: number) {
+  if (powerScore >= 85) return { label: "Prime", tone: "emerald", guidance: "Start outreach now. This is your highest conversion window." };
+  if (powerScore >= 65) return { label: "Forming", tone: "amber", guidance: "Warm outreach now. Stronger conversion likely in 3–6 weeks." };
+  if (powerScore >= 40) return { label: "Too Early", tone: "gray", guidance: "Build proof and signals. Target seed scouts / smaller funds first." };
+  return { label: "Too Early", tone: "gray", guidance: "You're not circulating yet. Focus on traction + independent validation." };
+}
+
+function tonePill(tone: string) {
+  if (tone === "emerald") return "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+  if (tone === "amber") return "bg-amber-500/20 text-amber-400 border border-amber-500/30";
+  return "bg-gray-500/20 text-gray-400 border border-gray-500/30";
+}
 
 // Get auth headers for API calls
 async function getAuthHeaders(): Promise<HeadersInit> {
@@ -321,6 +348,9 @@ export default function InstantMatches() {
     total,
     upgradeCTA
   } = useMatches(startupId);
+
+  // Fetch signal history for daily deltas + sparklines
+  const signalHistory = useSignalHistory(startupId, 14);
 
   // Run analysis on mount - reset state when URL changes
   useEffect(() => {
@@ -584,6 +614,33 @@ export default function InstantMatches() {
   const matches = gatedMatches;
   const displayPlan = serverPlan || plan;
 
+  // ================================
+  // DOCTRINE METRICS (Founder GPS)
+  // ================================
+
+  // Readiness = GOD score (reframed)
+  const readiness = clamp(Math.round(startup?.total_god_score ?? 60), 0, 100);
+
+  // Signal Strength = mean of top 5 alignment scores (proxy for "how investors will respond")
+  const signalStrength = useMemo(() => {
+    if (!matches?.length) return 50;
+    const top = matches.slice(0, Math.min(5, matches.length));
+    const avg = top.reduce((acc, m) => acc + (m.match_score || 0), 0) / top.length;
+    return clamp(Math.round(avg), 0, 100);
+  }, [matches]);
+
+  // Power Score = SignalStrength × Readiness normalized
+  const powerScore = useMemo(() => {
+    return clamp(Math.round((signalStrength * readiness) / 100), 0, 100);
+  }, [signalStrength, readiness]);
+
+  const fundraisingWindow = useMemo(() => computeFundraisingWindow(powerScore), [powerScore]);
+
+  // Daily progress visibility (REAL DATA)
+  const dailyDelta = signalHistory.deltaToday;
+  const lastUpdatedLabel = signalHistory.lastUpdatedLabel;
+  const windowTransition = signalHistory.transition;
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* Header with plan badge */}
@@ -598,10 +655,10 @@ export default function InstantMatches() {
               <div>
                 <h1 className="text-xl font-bold text-white flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-violet-400" />
-                  Your investor discovery snapshot
+                  Your top investors — ranked by timing + fit
                 </h1>
                 <p className="text-sm text-gray-400">
-                  This isn't a score. It's a read on how investors typically discover startups like yours.
+                  Know who to target, when to raise, and how close you are.
                 </p>
               </div>
             </div>
@@ -719,6 +776,151 @@ export default function InstantMatches() {
             )}
           </div>
         )}
+
+        {/* ================================
+            RESULTS FIRST (Founder GPS)
+           ================================ */}
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          {/* Power Score */}
+          <div className="p-4 bg-[#0f0f0f] border border-gray-800 rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">Power Score</h3>
+              </div>
+              <span className="text-[10px] text-gray-500">{lastUpdatedLabel}</span>
+            </div>
+
+            <div className="flex items-end justify-between">
+              <div className="text-3xl font-extrabold text-white">{powerScore}</div>
+              <div className="text-xs text-gray-500">
+                {dailyDelta === 0 ? "—" : dailyDelta > 0 ? `+${dailyDelta}` : `${dailyDelta}`} today
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500 mt-1">
+              Signal Strength ({signalStrength}) × Readiness ({readiness})
+            </div>
+
+            {/* Sparkline (7-day trend) */}
+            {signalHistory.sparklineData.length >= 2 && (
+              <div className="mt-2 flex items-center gap-2">
+                <PowerScoreSparkline 
+                  data={signalHistory.sparklineData} 
+                  width={60} 
+                  height={20}
+                  color={powerScore >= 85 ? '#10b981' : powerScore >= 65 ? '#f59e0b' : '#6b7280'}
+                />
+                <span className="text-[10px] text-gray-500">7-day trend</span>
+              </div>
+            )}
+
+            <div className="mt-3 text-sm text-gray-300 leading-relaxed">
+              {powerScore >= 85
+                ? "You're in a high-conversion window. Send outreach this week."
+                : powerScore >= 65
+                ? "You're close. Warm outreach now; your best window is forming."
+                : "You're early. Build proof + signal visibility before pitching broadly."}
+            </div>
+          </div>
+
+          {/* Fundraising Window */}
+          <div className="p-4 bg-[#0f0f0f] border border-gray-800 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-violet-400" />
+              <h3 className="text-sm font-bold text-white">Fundraising Window</h3>
+            </div>
+
+            <div className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${tonePill(fundraisingWindow.tone)}`}>
+              {fundraisingWindow.label}
+            </div>
+
+            {/* Window transition (THE DOPAMINE HIT) */}
+            {windowTransition && (
+              <div className="mt-2 text-xs text-cyan-400">
+                Window changed: {windowTransition.from} → {windowTransition.to} 
+                <span className="text-gray-500">({windowTransition.daysAgo === 0 ? 'today' : `${windowTransition.daysAgo} day${windowTransition.daysAgo > 1 ? 's' : ''} ago`})</span>
+              </div>
+            )}
+            {!windowTransition && signalHistory.history.length > 0 && (
+              <div className="mt-2 text-xs text-gray-500">
+                Window steady: {fundraisingWindow.label} (last {signalHistory.history.length} day{signalHistory.history.length > 1 ? 's' : ''})
+              </div>
+            )}
+
+            <div className="mt-3 text-sm text-gray-300 leading-relaxed">
+              {fundraisingWindow.guidance}
+            </div>
+
+            <div className="mt-3 text-xs text-gray-500">
+              This is timing. It changes as signals + readiness change.
+            </div>
+          </div>
+
+          {/* Distance to Targets */}
+          <div className="p-4 bg-[#0f0f0f] border border-gray-800 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="w-4 h-4 text-cyan-400" />
+              <h3 className="text-sm font-bold text-white">Top Targets This Week</h3>
+            </div>
+
+            {!matches?.length ? (
+              <div className="text-sm text-gray-400">No targets yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {matches.slice(0, 3).map((m, idx) => (
+                  <div key={m.investor_id} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-300 truncate mr-2">
+                      {m.investor_name_masked
+                        ? m.firm
+                          ? `Investor at ${m.firm}`
+                          : `Investor #${idx + 1}`
+                        : m.investor_name || m.firm || `Investor #${idx + 1}`}
+                    </span>
+                    <span className="text-gray-200 font-semibold">{m.match_score}%</span>
+                  </div>
+                ))}
+                <div className="text-[11px] text-gray-500 pt-2 border-t border-gray-800">
+                  Pick 3. Reach out with precision. Don't spray-and-pray.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* What to do this week (GUIDE voice) */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-violet-500/5 via-[#0f0f0f] to-cyan-500/5 border border-violet-500/20 rounded-xl">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
+              <Brain className="w-5 h-5 text-violet-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white mb-2">What to do this week</h3>
+              {powerScore >= 85 ? (
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li>• Send outreach to your top 3 targets above.</li>
+                  <li>• Ask for one warm intro per target (advisor / operator / portfolio founder).</li>
+                  <li>• Keep momentum visible: ship + announce + close one proof point.</li>
+                </ul>
+              ) : powerScore >= 65 ? (
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li>• Warm up your top 3 targets: soft outreach + "here's what's coming next."</li>
+                  <li>• Add one independent validation signal (pilot, LOI, partnership, benchmark).</li>
+                  <li>• Tighten your story: 1-sentence wedge + proof + why now.</li>
+                </ul>
+              ) : (
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li>• Don't pitch broad VC lists yet. Increase proof + signals first.</li>
+                  <li>• Create one sharp validation event (pilot/customer/benchmark).</li>
+                  <li>• Target "early conviction" investors or angels aligned with your sector.</li>
+                </ul>
+              )}
+              <div className="mt-3 text-xs text-gray-500">
+                Pythh gives situational awareness — you make the moves.
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* PRIMARY CTA - Unlock Full Signal Map (Screen A - Post-Results Lock) */}
         {isLoggedIn ? (
@@ -866,159 +1068,19 @@ export default function InstantMatches() {
           </div>
 
           <div className="grid gap-3">
-            {matches.map((match, index) => {
-              const isMasked = match.investor_name_masked;
-              const displayName = isMasked 
-                ? (match.firm ? `Investor at ${match.firm}` : `Investor #${index + 1}`) 
-                : (match.investor_name || 'Unknown Investor');
-              
-              return (
-                <div 
-                  key={match.investor_id}
-                  className={`p-4 bg-gradient-to-r from-[#0f0f0f] via-[#131313] to-[#0f0f0f] border rounded-xl transition-all ${
-                    isMasked 
-                      ? 'border-gray-700/30 cursor-default' 
-                      : 'border-gray-700/50 hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/10'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      {/* Rank badge + Photo */}
-                      <div className="relative">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden ${
-                          index === 0 ? 'bg-amber-500/20 border border-amber-500/30' :
-                          index === 1 ? 'bg-gray-400/20 border border-gray-400/30' :
-                          index === 2 ? 'bg-orange-700/20 border border-orange-700/30' :
-                          'bg-violet-500/20 border border-violet-500/30'
-                        }`}>
-                          {match.photo_url ? (
-                            <img src={match.photo_url} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className={`${
-                              index === 0 ? 'text-amber-400' :
-                              index === 1 ? 'text-gray-300' :
-                              index === 2 ? 'text-orange-400' :
-                              'text-violet-400'
-                            }`}>#{index + 1}</span>
-                          )}
-                        </div>
-                        {/* Masked indicator */}
-                        {isMasked && (
-                          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500/80 rounded-full flex items-center justify-center">
-                            <EyeOff className="w-2.5 h-2.5 text-black" />
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className={`text-base font-semibold ${isMasked ? 'text-gray-400' : 'text-white'}`}>
-                            {displayName}
-                          </h4>
-                          {isMasked && (
-                            <span className="px-1.5 py-0.5 text-[9px] bg-amber-500/20 text-amber-400 rounded border border-amber-500/30">
-                              Upgrade to reveal
-                            </span>
-                          )}
-                          {!isMasked && match.linkedin_url && (
-                            <a href={match.linkedin_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                              <ExternalLink className="w-3.5 h-3.5 text-gray-500 hover:text-cyan-400" />
-                            </a>
-                          )}
-                        </div>
-                        
-                        {/* Firm name (always visible) */}
-                        {match.firm && (
-                          <p className="text-sm text-gray-400 mb-2">{match.firm}</p>
-                        )}
-                        
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 mb-3">
-                          {match.type && (
-                            <span className="flex items-center gap-1">
-                              <Building2 className="w-3.5 h-3.5" />
-                              {match.type}
-                            </span>
-                          )}
-                          {/* Check size - hidden for free */}
-                          {visibility.showCheckSize && (match.check_size_min || match.check_size_max) && (
-                            <span className="flex items-center gap-1">
-                              <Target className="w-3.5 h-3.5" />
-                              {formatCheckSize(match.check_size_min, match.check_size_max)}
-                            </span>
-                          )}
-                          {match.stage && match.stage.length > 0 && (
-                            <span className="flex items-center gap-1">
-                              <TrendingUp className="w-3.5 h-3.5" />
-                              {Array.isArray(match.stage) ? match.stage.slice(0, 2).join(', ') : match.stage}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Sectors */}
-                        {match.sectors && match.sectors.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {match.sectors.slice(0, 4).map((sector, i) => (
-                              <span key={i} className="px-2 py-0.5 text-[10px] bg-gray-800 text-gray-400 rounded-full">
-                                {sector}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* WHY THIS MATCH - Elite only */}
-                        {visibility.showReason && match.reasoning && (
-                          <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                              <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Why This Match</span>
-                              {visibility.showConfidence && match.confidence_level && (
-                                <span className={`ml-2 px-1.5 py-0.5 text-[9px] rounded ${
-                                  match.confidence_level === 'high' ? 'bg-emerald-500/20 text-emerald-400' :
-                                  match.confidence_level === 'medium' ? 'bg-amber-500/20 text-amber-400' :
-                                  'bg-gray-500/20 text-gray-400'
-                                }`}>
-                                  {match.confidence_level} confidence
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-emerald-300/90">{match.reasoning}</p>
-                            {match.match_score >= 85 && (
-                              <p className="text-[10px] text-emerald-500/80 mt-2 border-t border-emerald-500/20 pt-2">
-                                Aligns more strongly than 90%+ of comparable startups
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Reason locked indicator - Pro tier */}
-                        {displayPlan === 'pro' && !visibility.showReason && (
-                          <div className="mt-3 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-2">
-                            <Lock className="w-3.5 h-3.5 text-amber-400" />
-                            <span className="text-[10px] text-amber-400">Match reasoning available in Elite</span>
-                          </div>
-                        )}
-
-                        {/* Notable investments - Pro+ */}
-                        {visibility.showNotableInvestments && match.notable_investments && match.notable_investments.length > 0 && (
-                          <p className="mt-1.5 text-[11px] text-gray-500">
-                            Portfolio: {Array.isArray(match.notable_investments) 
-                              ? match.notable_investments.slice(0, 3).join(', ')
-                              : match.notable_investments}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Match score */}
-                    <div className={`px-2.5 py-1.5 rounded-lg border shrink-0 ${getScoreStyle(match.match_score)}`}>
-                      <div className="text-lg font-bold">{match.match_score}%</div>
-                      <div className="text-[8px] uppercase tracking-wider opacity-70">Match</div>
-                      <div className="text-[7px] text-gray-500 mt-0.5 opacity-80">thesis alignment</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {matches.map((match, index) => (
+              <InvestorAlignmentCard
+                key={match.investor_id}
+                match={match}
+                index={index}
+                visibility={{
+                  showCheckSize: visibility.showCheckSize,
+                  showReason: visibility.showReason,
+                  showConfidence: visibility.showConfidence,
+                  showNotableInvestments: visibility.showNotableInvestments,
+                }}
+              />
+            ))}
           </div>
         </div>
 
