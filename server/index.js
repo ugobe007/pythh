@@ -60,9 +60,13 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Request ID middleware (for tracing)
+const { requestIdMiddleware } = require('./middleware/requestId');
+app.use(requestIdMiddleware);
+
 // Request logging
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} ${req.method} ${req.path} [${req.requestId}]`);
   next();
 });
 
