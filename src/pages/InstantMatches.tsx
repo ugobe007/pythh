@@ -645,8 +645,103 @@ export default function InstantMatches() {
   const lastUpdatedLabel = signalHistory.lastUpdatedLabel;
   const windowTransition = signalHistory.transition;
 
+  // V5.5: Verdict copy based on window
+  const verdictCopy = useMemo(() => {
+    if (powerScore >= 85) return {
+      headline: "You're in a Prime window",
+      subtext: "Conversion probability is highest now. Move with a focused raise narrative.",
+      confidence: "High",
+      action: "Send outreach this week"
+    };
+    if (powerScore >= 65) return {
+      headline: "Your window is Forming",
+      subtext: "Signals are building. Start warm intros to your top targets.",
+      confidence: "Medium",
+      action: "Begin warm outreach"
+    };
+    if (powerScore >= 40) return {
+      headline: "You're Too Early",
+      subtext: "Strengthen proof before broad outreach. Target seed scouts first.",
+      confidence: "Low",
+      action: "Build proof signals"
+    };
+    return {
+      headline: "You're not circulating yet",
+      subtext: "Focus on traction and independent validation before investor outreach.",
+      confidence: "Low",
+      action: "Create proof points"
+    };
+  }, [powerScore]);
+
+  // V5.5: Trust proof signals (detected from startup data)
+  const trustSignals = useMemo(() => {
+    const signals: string[] = [];
+    if (startup?.signals?.length) {
+      signals.push(...startup.signals.slice(0, 4));
+    }
+    // Add inferred signals based on data
+    if (matches?.length >= 10) signals.push("Portfolio adjacency");
+    if (powerScore >= 65) signals.push("Category heat");
+    if (readiness >= 70) signals.push("Execution cadence");
+    return signals.slice(0, 5);
+  }, [startup, matches, powerScore, readiness]);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
+      {/* ================================
+          V5.5 VERDICT BAR (Plot Anchor)
+         ================================ */}
+      <div className={`border-b ${
+        powerScore >= 85 ? 'bg-emerald-950/50 border-emerald-800' :
+        powerScore >= 65 ? 'bg-amber-950/50 border-amber-800' :
+        'bg-gray-900/50 border-gray-800'
+      }`}>
+        <div className="max-w-5xl mx-auto px-4 py-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-4">
+              {/* Big Power Score */}
+              <div className={`text-5xl font-black ${
+                powerScore >= 65 ? 'text-emerald-400' :
+                powerScore >= 40 ? 'text-amber-400' :
+                'text-red-400'
+              }`}>
+                {powerScore}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${
+                    powerScore >= 85 ? 'bg-emerald-500/30 text-emerald-300' :
+                    powerScore >= 65 ? 'bg-amber-500/30 text-amber-300' :
+                    'bg-gray-500/30 text-gray-300'
+                  }`}>
+                    {fundraisingWindow.label}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    Confidence: {verdictCopy.confidence}
+                  </span>
+                </div>
+                <h1 className="text-lg font-bold text-white mt-1">{verdictCopy.headline}</h1>
+                <p className="text-sm text-gray-400">{verdictCopy.subtext}</p>
+              </div>
+            </div>
+            {/* Daily delta + action hint */}
+            <div className="flex items-center gap-4">
+              {dailyDelta !== 0 && (
+                <div className={`text-sm font-semibold ${dailyDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {dailyDelta > 0 ? `+${dailyDelta}` : dailyDelta} today
+                </div>
+              )}
+              <div className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                powerScore >= 65 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+              }`}>
+                → {verdictCopy.action}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header with plan badge */}
       <div className="border-b border-gray-800 bg-[#0f0f0f]">
         <div className="max-w-6xl mx-auto px-4 py-6">
@@ -900,88 +995,133 @@ export default function InstantMatches() {
           </div>
         </div>
 
-        {/* What to do this week (GUIDE voice) */}
-        <div className="mb-6 p-4 bg-gradient-to-r from-violet-500/5 via-[#0f0f0f] to-cyan-500/5 border border-violet-500/20 rounded-xl">
-          <div className="flex items-start gap-3">
+        {/* V5.5: TRUST PROOF SIGNALS (Compact Row) */}
+        {trustSignals.length > 0 && (
+          <div className="mb-6 p-3 bg-[#0f0f0f] border border-gray-800 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-gray-400 font-medium">Signals Detected</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {trustSignals.map((signal, i) => (
+                <span key={i} className="px-2 py-1 text-xs bg-emerald-500/10 text-emerald-300 rounded border border-emerald-500/20">
+                  {signal}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* V5.5: THIS WEEK PLAN (Enhanced with reasons) */}
+        <div className="mb-6 p-5 bg-gradient-to-r from-violet-500/5 via-[#0f0f0f] to-cyan-500/5 border border-violet-500/30 rounded-xl">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-cyan-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
               <Brain className="w-5 h-5 text-violet-400" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white mb-2">What to do this week</h3>
-              {powerScore >= 85 ? (
-                <ul className="space-y-2 text-sm text-gray-300">
-                  <li>• Send outreach to your top 3 targets above.</li>
-                  <li>• Ask for one warm intro per target (advisor / operator / portfolio founder).</li>
-                  <li>• Keep momentum visible: ship + announce + close one proof point.</li>
-                </ul>
-              ) : powerScore >= 65 ? (
-                <ul className="space-y-2 text-sm text-gray-300">
-                  <li>• Warm up your top 3 targets: soft outreach + "here's what's coming next."</li>
-                  <li>• Add one independent validation signal (pilot, LOI, partnership, benchmark).</li>
-                  <li>• Tighten your story: 1-sentence wedge + proof + why now.</li>
-                </ul>
-              ) : (
-                <ul className="space-y-2 text-sm text-gray-300">
-                  <li>• Don't pitch broad VC lists yet. Increase proof + signals first.</li>
-                  <li>• Create one sharp validation event (pilot/customer/benchmark).</li>
-                  <li>• Target "early conviction" investors or angels aligned with your sector.</li>
-                </ul>
-              )}
-              <div className="mt-3 text-xs text-gray-500">
-                Pythh gives situational awareness — you make the moves.
-              </div>
+              <h3 className="text-base font-bold text-white">This Week Plan</h3>
+              <p className="text-xs text-gray-500">3 actions to move your fundraise forward</p>
             </div>
+          </div>
+          
+          <div className="space-y-3">
+            {powerScore >= 85 ? (
+              <>
+                <div className="flex items-start gap-3 p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Send outreach to your top 3 targets</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Prime windows are short. These investors are warm now.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-violet-500/5 border border-violet-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Get one warm intro per target</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Warm intros convert 8× better than cold outreach.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-cyan-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Ship + announce one proof point</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Momentum visibility keeps your window open longer.</p>
+                  </div>
+                </div>
+              </>
+            ) : powerScore >= 65 ? (
+              <>
+                <div className="flex items-start gap-3 p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Soft outreach to top 3: "here's what's coming"</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Warm them up before your window opens fully.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-violet-500/5 border border-violet-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Add one validation signal (pilot, LOI, benchmark)</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Independent proof is what moves investors from curious to committed.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-cyan-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Tighten your 1-sentence wedge + why now</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Clear narrative converts 3× better in soft outreach.</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-3 p-3 bg-gray-500/5 border border-gray-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Don't pitch broad VC lists yet</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: Low signal = low conversion. Build proof first.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-violet-500/5 border border-violet-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-violet-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Create one sharp validation event</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: A pilot, customer, or benchmark is worth 100 cold emails.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-cyan-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">Target early-conviction angels in your sector</p>
+                    <p className="text-xs text-gray-500 mt-1">Why: They bet on category + team, not just traction.</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        {/* PRIMARY CTA - Unlock Full Signal Map (Screen A - Post-Results Lock) */}
-        {isLoggedIn ? (
-          <Link
-            to={`/saved-matches`}
-            className="mb-6 flex items-center justify-between p-5 bg-gradient-to-r from-emerald-600/20 via-emerald-600/10 to-cyan-600/20 border border-emerald-500/40 hover:border-emerald-400 rounded-xl transition-all group cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white group-hover:text-emerald-200 transition-colors">
-                  ✓ All {matches.length} signals unlocked
-                </h3>
-                <p className="text-xs text-gray-400">View your full signal map with thesis fit and outreach guidance</p>
-              </div>
-            </div>
-            <ChevronRight className="w-5 h-5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
-          </Link>
-        ) : (
-          <Link
-            to={`/signup?url=${encodeURIComponent(urlParam)}&matches=${matches.length}`}
-            className="mb-6 p-5 bg-gradient-to-r from-amber-600/10 via-[#0f0f0f] to-violet-600/10 border border-amber-500/40 hover:border-amber-400 rounded-xl transition-all group cursor-pointer block"
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                <Lock className="w-5 h-5 text-amber-400" />
-              </div>
-              <h3 className="text-lg font-bold text-white group-hover:text-amber-200 transition-colors">
-                🔒 Unlock Your Full Signal Map
-              </h3>
-            </div>
-            <p className="text-gray-300 text-sm mb-4 pl-[52px]">
-              <span className="text-amber-400 font-semibold">{matches.length} investors</span> are aligned with your startup based on live market and investor signals.
-            </p>
-            <div className="flex items-center justify-between pl-[52px]">
-              <div>
-                <span className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg transition-all text-sm">
-                  Create free account →
-                </span>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-3 pl-[52px]">
-              See warm-intro likelihoods, thesis fit, and outreach guidance.
-            </p>
-          </Link>
-        )}
-        <p className="text-xs text-gray-600 text-center -mt-2 mb-4">No pitch deck. No spam. No intros sent.</p>
+        {/* V5.5: SINGLE PRIMARY CTA */}
+        <div className="mb-6">
+          {isLoggedIn ? (
+            <Link
+              to={`/saved-matches`}
+              className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 rounded-xl transition-all group"
+            >
+              <span className="text-white font-bold text-lg">View Full Target List</span>
+              <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
+            </Link>
+          ) : (
+            <Link
+              to={`/signup?url=${encodeURIComponent(urlParam)}&matches=${matches.length}`}
+              className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl transition-all group"
+            >
+              <span className="text-black font-bold text-lg">Unlock Your {matches.length} Investor Matches</span>
+              <ArrowRight className="w-5 h-5 text-black group-hover:translate-x-1 transition-transform" />
+            </Link>
+          )}
+          <p className="text-xs text-gray-600 text-center mt-2">No pitch deck. No spam. No intros sent without your approval.</p>
+        </div>
 
         {/* WHAT THIS MEANS FOR YOU - Dynamic copy based on backend state */}
         <div className="mb-6 p-4 bg-gradient-to-r from-violet-500/5 via-[#0f0f0f] to-cyan-500/5 border border-violet-500/20 rounded-xl">
