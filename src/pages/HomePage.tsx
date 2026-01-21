@@ -118,43 +118,30 @@ export default function HomePage() {
 
           <div className="landing-microTrust">No pitch deck · No warm intro · No brokers · Just signals and timing</div>
 
-          {/* LIVE INVESTOR SIGNALS - Intrigue block */}
+          {/* LIVE SIGNALS - Tight intrigue block */}
           <div className="landing-liveSignals">
-            <div className="landing-liveTitle">Live investor signals</div>
-            <div className="landing-liveSubline">Investor signals detected right now.</div>
+            <div className="landing-liveTitle">Live signals</div>
             
             <div className="landing-signalsFeed">
-              <div className="landing-signalItem">
-                <div className="landing-signalText">
-                  <span className="landing-signalFirm">Sequoia</span> — Partner mention: agent infrastructure
-                </div>
-                <div className="landing-signalTime">1h ago</div>
+              <div className="landing-signalRow">
+                <span className="landing-signalFirm">Sequoia</span> · Partner mention: agent infrastructure
+                <span className="landing-signalTime">1h ago</span>
               </div>
 
-              <div className="landing-signalItem">
-                <div className="landing-signalText">
-                  <span className="landing-signalFirm">Accel</span> — Seed velocity spike in agent tooling
-                </div>
-                <div className="landing-signalTime">20m ago</div>
+              <div className="landing-signalRow">
+                <span className="landing-signalFirm">Accel</span> · Seed velocity spike in agent tooling
+                <span className="landing-signalTime">20m ago</span>
               </div>
 
-              <div className="landing-signalItem">
-                <div className="landing-signalText">
-                  <span className="landing-signalFirm">Greylock</span> — Thesis published: developer automation
-                </div>
-                <div className="landing-signalTime">today</div>
+              <div className="landing-signalRow">
+                <span className="landing-signalFirm">Greylock</span> · Thesis published: developer automation
+                <span className="landing-signalTime">today</span>
               </div>
 
-              <div className="landing-signalItem">
-                <div className="landing-signalText">
-                  <span className="landing-signalFirm">Khosla</span> — Thesis convergence: compute efficiency
-                </div>
-                <div className="landing-signalTime">today</div>
+              <div className="landing-signalRow">
+                <span className="landing-signalFirm">Khosla</span> · Thesis convergence: compute efficiency
+                <span className="landing-signalTime">today</span>
               </div>
-            </div>
-
-            <div className="landing-signalFooter">
-              Signals are observable investor movements.
             </div>
           </div>
 

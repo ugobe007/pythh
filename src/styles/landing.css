@@ -268,54 +268,36 @@
   color:rgba(233,238,247,.55);
 }
 
-/* --- Live Investor Signals --- */
+/* --- Live Signals (Tight, Console-Style) --- */
 .landing-liveSignals{
-  margin-top:48px;
+  margin-top:16px;
   max-width:720px;
 }
 .landing-liveTitle{
-  font-size:20px;
-  font-weight:700;
-  color:rgba(233,238,247,.90);
+  font-size:13px;
+  font-weight:500;
+  color:rgba(233,238,247,.65);
   margin-bottom:8px;
+  letter-spacing:0.02em;
 }
-.landing-liveSubline{
+.landing-signalRow{
+  display:flex;
+  align-items:baseline;
+  padding:10px 0;
   font-size:14px;
-  color:rgba(233,238,247,.55);
-  margin-bottom:20px;
-}
-.landing-signalsFeed{
-  background:rgba(0,0,0,.25);
-  border:1px solid rgba(233,238,247,.08);
-  border-radius:10px;
-  padding:8px;
-}
-.landing-signalItem{
-  padding:14px 16px;
-  border-bottom:1px solid rgba(233,238,247,.06);
-}
-.landing-signalItem:last-child{
-  border-bottom:none;
-}
-.landing-signalText{
-  font-size:15px;
-  color:rgba(233,238,247,.75);
-  line-height:1.5;
+  color:rgba(233,238,247,.70);
+  line-height:1.4;
 }
 .landing-signalFirm{
-  color:rgba(233,238,247,.95);
+  color:rgba(233,238,247,.90);
   font-weight:600;
 }
 .landing-signalTime{
+  margin-left:auto;
+  padding-left:16px;
   font-size:12px;
   color:rgba(233,238,247,.40);
-  margin-top:6px;
-}
-.landing-signalFooter{
-  margin-top:16px;
-  font-size:13px;
-  color:rgba(233,238,247,.45);
-  font-style:italic;
+  white-space:nowrap;
 }
 
 /* --- Live feed --- */
