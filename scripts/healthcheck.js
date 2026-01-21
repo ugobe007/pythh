@@ -324,6 +324,99 @@ async function checkPipeline() {
 }
 
 // =============================================================================
+// 4. GUARDRAILS SANITY
+// =============================================================================
+async function checkGuardrails() {
+  console.log('\n🛡️  GUARDRAILS SANITY\n');
+  
+  const serverUrl = process.env.SERVER_URL || 'http://localhost:3002';
+  const http = require('http');
+  const https = require('https');
+  
+  // Helper to make requests
+  function makeRequest(url) {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      client.get(url, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => resolve({ statusCode: res.statusCode, headers: res.headers, body: data }));
+      }).on('error', reject);
+    });
+  }
+  
+  // Check request ID middleware
+  try {
+    const response = await makeRequest(`${serverUrl}/api/health`);
+    if (response.headers['x-request-id']) {
+      pass('Request ID middleware active');
+    } else {
+      fail('Request ID middleware missing');
+      failureCount++;
+    }
+  } catch (err) {
+    fail(`Could not verify request ID middleware: ${err.message}`);
+    failureCount++;
+  }
+  
+  // Check rate limiting headers
+  try {
+    const response = await makeRequest(`${serverUrl}/api/health`);
+    if (response.headers['x-ratelimit-limit']) {
+      pass('Rate limiting active');
+    } else {
+      warn('Rate limiting headers not detected (might be endpoint-specific)');
+    }
+  } catch (err) {
+    warn(`Could not verify rate limiting: ${err.message}`);
+  }
+  
+  // Check cache headers on a real endpoint (if we can access it)
+  try {
+    // This will likely fail without auth, but we can check headers
+    const testStartupId = '11cd88ad-d464-4f5c-9e65-82da8ffe7e8a';
+    const response = await makeRequest(`${serverUrl}/api/matches?startup_id=${testStartupId}`);
+    
+    // Even if 401/429, we can check headers
+    if (response.headers['cache-control']) {
+      pass('Cache-Control headers set');
+    } else {
+      warn('Cache-Control headers not found');
+    }
+  } catch (err) {
+    warn(`Could not verify cache (endpoint might be protected): ${err.message}`);
+  }
+  
+  // Check timeout configuration exists
+  try {
+    const timeoutFile = fs.readFileSync('server/utils/withTimeout.js', 'utf8');
+    if (timeoutFile.includes('TIMEOUTS') && timeoutFile.includes('SUPABASE_READ')) {
+      pass('Timeout configuration exists');
+    } else {
+      fail('Timeout configuration incomplete');
+      failureCount++;
+    }
+  } catch (err) {
+    fail(`Could not verify timeout configuration: ${err.message}`);
+    failureCount++;
+  }
+  
+  // Check safe logger exists
+  try {
+    const logFile = fs.readFileSync('server/utils/safeLog.js', 'utf8');
+    if (logFile.includes('redact') && logFile.includes('maskEmail')) {
+      pass('Safe logger with redaction exists');
+    } else {
+      fail('Safe logger incomplete');
+      failureCount++;
+    }
+  } catch (err) {
+    fail(`Could not verify safe logger: ${err.message}`);
+    failureCount++;
+  }
+}
+
+// =============================================================================
 // MAIN
 // =============================================================================
 async function main() {
@@ -333,6 +426,7 @@ async function main() {
   await checkFrontend();
   await checkServer();
   await checkSupabase();
+  await checkGuardrails();
   await checkPipeline();
   
   console.log('\n' + '='.repeat(50));
