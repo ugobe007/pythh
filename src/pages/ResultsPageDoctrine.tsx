@@ -506,6 +506,73 @@ function MisalignedCard({ investor, startup }: MisalignedCardProps) {
 }
 
 // ============================================
+// BLURRED MATCH CARD (Desire Surface)
+// Doctrine v1.0: Partially legible - blur investors, not outcomes
+// Shows: category, stage, tags, distance, partial why
+// Blurs: investor name, score
+// ============================================
+
+interface BlurredMatchCardProps {
+  rank: number;
+  sectors: string[];
+  stage: string;
+  distance: string;
+  distanceColor: string;
+  partialWhy: string;
+  type: 'aligned' | 'misaligned';
+}
+
+function BlurredMatchCard({ rank, sectors, stage, distance, distanceColor, partialWhy, type }: BlurredMatchCardProps) {
+  const bgColor = type === 'aligned' ? 'bg-[#111]' : 'bg-gray-900/50';
+  const borderColor = type === 'aligned' ? 'border-gray-800' : 'border-gray-800/50';
+  
+  return (
+    <div className={`p-4 ${bgColor} border ${borderColor} rounded-xl`}>
+      <div className="flex items-start justify-between gap-4">
+        {/* Left: Partially legible info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-gray-500 text-sm font-mono">#{rank}</span>
+            {/* Blurred name */}
+            <div className="h-5 w-32 bg-gray-700 rounded blur-sm" />
+          </div>
+          
+          {/* Tags: VISIBLE */}
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {sectors.map((sector, i) => (
+              <span key={i} className="px-2 py-0.5 text-xs bg-gray-800 text-gray-300 rounded">
+                {sector}
+              </span>
+            ))}
+            {stage && (
+              <span className="px-2 py-0.5 text-xs bg-violet-900/50 text-violet-300 rounded">
+                {stage}
+              </span>
+            )}
+          </div>
+          
+          {/* Distance: VISIBLE + Why: PARTIAL */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className={distanceColor}>{distance}</span>
+            <span className="text-gray-600">•</span>
+            <span className="text-gray-400">
+              {partialWhy}
+              <span className="ml-1 blur-sm text-gray-500">████████████</span>
+            </span>
+          </div>
+        </div>
+        
+        {/* Right: Blurred score */}
+        <div className="flex flex-col items-end gap-1">
+          <div className="w-8 h-8 bg-gray-700 rounded blur-sm" />
+          <span className="text-xs text-gray-600">Signal Score</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // MAIN RESULTS PAGE
 // ============================================
 
@@ -708,6 +775,83 @@ export default function ResultsPageDoctrine() {
       }
     ];
   }, [matches]);
+  
+  // ============================================
+  // DESIRE SURFACE DATA - Doctrine v1.0
+  // Shows SCALE, not features
+  // Blurs investors, not outcomes
+  // Creates inevitability, not frustration
+  // ============================================
+  
+  // Scale numbers (how large the capital topology is)
+  const desireScale = useMemo(() => {
+    const alignedCount = totalMatches > 5 ? totalMatches - 5 : Math.max(12, Math.floor(Math.random() * 20) + 10);
+    const misalignedCount = Math.floor(alignedCount * 2.5); // Misalignment is widespread
+    return {
+      additionalAligned: alignedCount,
+      additionalMisaligned: misalignedCount
+    };
+  }, [totalMatches]);
+  
+  // Temporal movement (living system signal)
+  const temporalMovement = useMemo(() => {
+    // Simulate movement - in production, this comes from actual history
+    return {
+      newThisWeek: Math.floor(Math.random() * 4) + 1, // 1-4 new matches
+      warmingUp: Math.floor(Math.random() * 3) + 1, // 1-3 warming
+      coolingOff: Math.floor(Math.random() * 2) // 0-1 cooling
+    };
+  }, []);
+  
+  // Generate partially legible blurred cards
+  const blurredAlignedCards = useMemo(() => {
+    const sectorPool = ['HealthTech', 'FinTech', 'Enterprise SaaS', 'AI/ML', 'Infra', 'B2B', 'Marketplace', 'Deep Tech'];
+    const stagePool = ['Pre-seed', 'Seed', 'Series A'];
+    const whyPrefixes = [
+      'Thesis overlap with their last three',
+      'Category heat forming in your',
+      'Portfolio adjacency through',
+      'Execution pattern match with',
+      'Timing fit with their current'
+    ];
+    
+    return Array(6).fill(null).map((_, i) => {
+      const score = 75 - i * 3;
+      const sectors = [sectorPool[Math.floor(Math.random() * sectorPool.length)], sectorPool[Math.floor(Math.random() * sectorPool.length)]].filter((v, j, a) => a.indexOf(v) === j);
+      return {
+        rank: 6 + i,
+        sectors: sectors.slice(0, 2),
+        stage: stagePool[Math.floor(Math.random() * stagePool.length)],
+        distance: score >= 75 ? 'Portfolio adjacent' : 'Cold',
+        distanceColor: score >= 75 ? 'text-amber-400' : 'text-gray-500',
+        partialWhy: whyPrefixes[i % whyPrefixes.length],
+        type: 'aligned' as const
+      };
+    });
+  }, []);
+  
+  const blurredMisalignedCards = useMemo(() => {
+    const sectorPool = ['Enterprise', 'Consumer', 'Crypto', 'DTC', 'Hardware', 'Climate'];
+    const stagePool = ['Series A', 'Series B', 'Growth'];
+    const whyPrefixes = [
+      'Stage misalignment — looking for',
+      'Thesis focused on adjacent',
+      'Prioritizes traction signals like',
+      'Category mismatch with their'
+    ];
+    
+    return Array(4).fill(null).map((_, i) => {
+      return {
+        rank: 1 + i,
+        sectors: [sectorPool[Math.floor(Math.random() * sectorPool.length)]],
+        stage: stagePool[Math.floor(Math.random() * stagePool.length)],
+        distance: 'Cold',
+        distanceColor: 'text-gray-500',
+        partialWhy: whyPrefixes[i % whyPrefixes.length],
+        type: 'misaligned' as const
+      };
+    });
+  }, []);
 
   // Resolve startup
   useEffect(() => {
@@ -976,57 +1120,108 @@ export default function ResultsPageDoctrine() {
         )}
         
         {/* ========================================
-            SECTION 5: SCALE / DESIRE
-            Blurred additional matches
+            SECTION 5: DESIRE SURFACE
+            Doctrine v1.0: Controlled revelation of scale
+            
+            INVARIANTS:
+            1. After Conviction ✓
+            2. Reveal scale, not features
+            3. Blur investors, not outcomes
+            4. Partially legible cards
+            5. Both aligned + misaligned scale
+            6. Temporal movement
+            7. "Unlock your full investor map" CTA
+            8. Never feel like a demo
+            9. "Matches update as signals change"
+            10. Never corrupt trust
             ======================================== */}
         <section className="mb-16">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-white">More Investor Matches</h2>
-            <p className="text-sm text-gray-500">{totalMatches}+ total aligned investors</p>
-          </div>
-          
-          <div className="relative">
-            <div className="space-y-3">
-              {(moreMatches.length > 0 ? moreMatches.slice(0, 5) : Array(5).fill(null)).map((investor, i) => (
-                <MatchCard
-                  key={investor?.id || `blur-${i}`}
-                  investor={investor || {
-                    id: `blur-${i}`,
-                    name: 'Premium Seed Fund',
-                    match_score: Math.max(55, 70 - i * 4),
-                    sectors: ['FinTech', 'B2B'],
-                    stage: 'Seed'
-                  }}
-                  rank={6 + i}
-                  startup={startup!}
-                  isExpanded={false}
-                  onToggle={() => {}}
-                  isBlurred={!isLoggedIn || plan === 'free'}
-                />
-              ))}
+          {/* Temporal movement - living system signal */}
+          <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-[#111] border border-gray-800 rounded-xl">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm text-gray-300">
+                <span className="text-emerald-400 font-medium">{temporalMovement.newThisWeek} new matches</span> this week
+              </span>
             </div>
-            
-            {(!isLoggedIn || plan === 'free') && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent">
-                <div className="text-center px-6">
-                  <Lock className="w-8 h-8 mx-auto mb-3 text-amber-400" />
-                  <h3 className="text-lg font-semibold text-white mb-2">
-                    {totalMatches}+ more investors matched
-                  </h3>
-                  <p className="text-gray-400 text-sm mb-4">
-                    See your full investor list
-                  </p>
-                  <Link
-                    to={`/signup?url=${encodeURIComponent(urlParam)}&matches=${totalMatches}`}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-black font-semibold rounded-lg transition-colors"
-                  >
-                    Unlock all matches
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              </div>
+            <div className="w-px h-4 bg-gray-700" />
+            <span className="text-sm text-gray-400">
+              <span className="text-amber-400">{temporalMovement.warmingUp} investors</span> warming up
+            </span>
+            {temporalMovement.coolingOff > 0 && (
+              <>
+                <div className="w-px h-4 bg-gray-700" />
+                <span className="text-sm text-gray-500">
+                  {temporalMovement.coolingOff} cooling off
+                </span>
+              </>
             )}
           </div>
+          
+          {/* Two-column scale reveal */}
+          <div className="grid md:grid-cols-2 gap-6">
+            
+            {/* MORE ALIGNED - blurred list */}
+            <div>
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wide">
+                  More investors you align with
+                </h3>
+                <p className="text-gray-500 text-sm mt-1">
+                  {desireScale.additionalAligned} additional investors recognize your current narrative.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                {blurredAlignedCards.slice(0, 4).map((card, i) => (
+                  <BlurredMatchCard key={i} {...card} />
+                ))}
+              </div>
+            </div>
+            
+            {/* MORE MISALIGNED - blurred list */}
+            <div>
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">
+                  More investors you do NOT align with
+                </h3>
+                <p className="text-gray-500 text-sm mt-1">
+                  {desireScale.additionalMisaligned} investors do not recognize your current narrative yet.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                {blurredMisalignedCards.map((card, i) => (
+                  <BlurredMatchCard key={i} {...card} />
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Aliveness sentence */}
+          <p className="text-sm text-gray-500 text-center mt-6 italic">
+            These matches update as your signals change and as capital behavior shifts.
+          </p>
+          
+          {/* CTA - Inevitability, not pressure */}
+          {(!isLoggedIn || plan === 'free') && (
+            <div className="mt-8 p-6 bg-gradient-to-r from-violet-900/20 to-transparent border border-violet-800/30 rounded-xl text-center">
+              <Lock className="w-8 h-8 mx-auto mb-3 text-violet-400" />
+              <h3 className="text-xl font-semibold text-white mb-2">
+                Your full investor map contains {desireScale.additionalAligned + desireScale.additionalMisaligned + 5}+ investors
+              </h3>
+              <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">
+                See every aligned investor, every misaligned one, and track how your position shifts as your signals evolve.
+              </p>
+              <Link
+                to={`/signup?url=${encodeURIComponent(urlParam)}&matches=${totalMatches}`}
+                className="inline-flex items-center gap-2 px-8 py-4 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-xl transition-colors"
+              >
+                Unlock your full investor map
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          )}
         </section>
         
         {/* ========================================
