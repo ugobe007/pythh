@@ -13,8 +13,8 @@ export function IntentVelocitySparkline({
   values: number[]; // any length (e.g. 24 points hourly)
   label?: string;
 }) {
-  const w = 260;
-  const h = 64;
+  const width = 260;
+  const height = 64;
   const pad = 6;
 
   const maxVal = useMemo(() => Math.max(1, ...values), [values]);
@@ -22,8 +22,8 @@ export function IntentVelocitySparkline({
   const points: Point[] = useMemo(() => {
     if (!values.length) return [];
     return values.map((v, i) => {
-      const x = pad + (i * (w - pad * 2)) / Math.max(1, values.length - 1);
-      const y = h - pad - (clamp01(v / maxVal) * (h - pad * 2));
+      const x = pad + (i * (width - pad * 2)) / Math.max(1, values.length - 1);
+      const y = height - pad - (clamp01(v / maxVal) * (height - pad * 2));
       return { x, y };
     });
   }, [values, maxVal]);
@@ -41,13 +41,21 @@ export function IntentVelocitySparkline({
     return () => clearTimeout(t);
   }, [pathD]);
 
+  // Pulse animation for the trailing dot
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    const t = setInterval(() => setPulse((p) => !p), 800);
+    return () => clearInterval(t);
+  }, []);
+
   const last = points[points.length - 1];
+  const lastY = last?.y ?? height - pad;
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
       <div className="mb-2 flex items-center justify-between">
         <div className="text-[11px] uppercase tracking-wider text-white/50">
-          Intent Velocity (24h)
+          {label}
         </div>
         <div className={`h-2 w-2 rounded-full bg-emerald-400 transition-opacity ${pulse ? 'opacity-100' : 'opacity-40'}`} />
       </div>
@@ -65,27 +73,29 @@ export function IntentVelocitySparkline({
 
         {/* Animated path */}
         <path
-          d={pathData}
+          d={pathD}
           fill="none"
           stroke="rgba(16, 185, 129, 0.6)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeDasharray="1000"
-          strokeDashoffset={progress === 100 ? 0 : 1000}
+          strokeDashoffset={draw ? 0 : 1000}
           style={{
             transition: "stroke-dashoffset 1.5s ease-out",
           }}
         />
 
         {/* Pulse dot at end */}
-        <circle
-          cx={width - step}
-          cy={lastY}
-          r="3"
-          fill="rgba(16, 185, 129, 0.8)"
-          className={`transition-opacity ${pulse ? 'opacity-100' : 'opacity-60'}`}
-        />
+        {last && (
+          <circle
+            cx={last.x}
+            cy={lastY}
+            r="3"
+            fill="rgba(16, 185, 129, 0.8)"
+            className={`transition-opacity ${pulse ? 'opacity-100' : 'opacity-60'}`}
+          />
+        )}
       </svg>
 
       <div className="mt-1 text-[10px] text-white/40">
