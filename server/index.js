@@ -109,6 +109,66 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// ============================================================
+// SIGNAL HISTORY HELPERS
+// Track Power Score, Signal Strength, Readiness over time
+// ============================================================
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function computeFundraisingWindow(powerScore) {
+  if (powerScore >= 85) return 'Prime';
+  if (powerScore >= 65) return 'Forming';
+  return 'Too Early';
+}
+
+function computeSignalMetrics(rawMatches, godScore) {
+  const top = (rawMatches || [])
+    .slice()
+    .sort((a, b) => (b.match_score || 0) - (a.match_score || 0))
+    .slice(0, 5);
+
+  const signalStrength =
+    top.length > 0
+      ? Math.round(top.reduce((acc, m) => acc + (m.match_score || 0), 0) / top.length)
+      : 50;
+
+  const readiness = clamp(Math.round(godScore ?? 60), 0, 100);
+  const powerScore = clamp(Math.round((signalStrength * readiness) / 100), 0, 100);
+  const fundraisingWindow = computeFundraisingWindow(powerScore);
+
+  return { signalStrength, readiness, powerScore, fundraisingWindow };
+}
+
+async function recordSignalHistory({ supabase, startupId, rawMatches, godScore, source = 'scan', meta = {} }) {
+  try {
+    const { signalStrength, readiness, powerScore, fundraisingWindow } =
+      computeSignalMetrics(rawMatches, godScore);
+
+    const { error } = await supabase.rpc('upsert_signal_history', {
+      p_startup_id: startupId,
+      p_signal_strength: signalStrength,
+      p_readiness: readiness,
+      p_power_score: powerScore,
+      p_fundraising_window: fundraisingWindow,
+      p_source: source,
+      p_meta: { ...meta, match_count: rawMatches?.length || 0 }
+    });
+
+    if (error) {
+      console.error('[matches] Failed to record signal history:', error);
+    } else {
+      console.log(`[matches] Recorded signal history: ${powerScore} (${fundraisingWindow})`);
+    }
+  } catch (err) {
+    console.error('[matches] Signal history recording error:', err);
+  }
+}
+
+// Import convergence endpoint
+const { convergenceEndpoint } = require('./routes/convergence.js');
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -118,6 +178,13 @@ app.get('/api/health', (req, res) => {
     version: '0.1.0'
   });
 });
+
+// ============================================================
+// CONVERGENCE ENDPOINT - Capital Intelligence Surface
+// GET /api/discovery/convergence?url=https://example.com
+// Returns: status, investors (5 visible + hidden preview), comparable startups, coaching
+// ============================================================
+app.get('/api/discovery/convergence', convergenceEndpoint);
 
 // ============================================================
 // Helper: Extract plan from request (JWT verified, DB cached)
@@ -641,7 +708,7 @@ app.get('/api/matches', async (req, res) => {
     // Step 1: Get startup details for context
     const { data: startup, error: startupError } = await supabase
       .from('startup_uploads')
-      .select('id, name, sectors, stage, tagline')
+      .select('id, name, sectors, stage, tagline, total_god_score')
       .eq('id', startupId)
       .single();
     
@@ -664,6 +731,17 @@ app.get('/api/matches', async (req, res) => {
       console.error('[matches] Match query error:', matchError);
       return res.status(500).json({ error: 'Failed to fetch matches' });
     }
+    
+    // Step 2.5: Record signal history (BEFORE tier gating)
+    // Use full match list (not tier-gated) for accurate Power Score tracking
+    await recordSignalHistory({
+      supabase,
+      startupId: startup.id,
+      rawMatches: matchData || [],
+      godScore: startup.total_god_score,
+      source: 'scan',
+      meta: { endpoint: '/api/matches' }
+    });
     
     // Step 3: Get total count (for "X more matches" CTA)
     const { count: totalMatches } = await supabase
@@ -4322,6 +4400,10 @@ app.post('/api/documents', upload.single('file'), (req, res) => {
 // Match API routes
 const matchesRouter = require('./routes/matches');
 app.use('/api/matches', matchesRouter);
+
+// Startup API routes (including signal history)
+const startupsRouter = require('./routes/startups');
+app.use('/api/startups', startupsRouter);
 
 // Talent matching API routes
 const talentRouter = require('./routes/talent');
