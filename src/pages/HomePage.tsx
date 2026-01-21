@@ -114,62 +114,49 @@ export default function HomePage() {
 
           <div className="landing-microTrust">No pitch deck · No warm intro · No brokers · Just signals and timing</div>
 
-          {/* MATCH PREVIEW PANEL - Static example showing navigation output */}
+          {/* SIGNAL ALIGNMENT PREVIEW - Human-readable WOW block */}
           <div className="landing-matchPreview">
-            <div className="landing-previewTitle">Example Output:</div>
+            <div className="landing-previewTitle">What a Match Looks Like</div>
             <div className="landing-previewCard">
-              <div className="landing-previewHeader">Your Capital Navigation Snapshot</div>
-              
-              <div className="landing-previewMetrics">
-                <div className="landing-metric">
-                  <span className="landing-metricLabel">GOD Score:</span>
-                  <span className="landing-metricValue">81</span>
-                  <span className="landing-metricDelta">↑ +6 in 14 days</span>
-                </div>
-                <div className="landing-metric">
-                  <span className="landing-metricLabel">Velocity:</span>
-                  <span className="landing-metricValue">Accelerating</span>
-                </div>
-                <div className="landing-metric">
-                  <span className="landing-metricLabel">FOMO State:</span>
-                  <span className="landing-metricValue">Warming</span>
-                </div>
-                <div className="landing-metric">
-                  <span className="landing-metricLabel">Phase Change:</span>
-                  <span className="landing-metricValue">Product → Market Fit</span>
-                </div>
+              <div className="landing-exampleStartup">
+                <span className="landing-exampleLabel">Your startup</span>
+                <div className="landing-exampleValue">AI infrastructure for autonomous agents</div>
               </div>
 
-              <div className="landing-previewSection">
-                <div className="landing-sectionTitle">Aligned Investor Signals</div>
-                <ul className="landing-signalList">
-                  <li>Accel — seed velocity spike</li>
-                  <li>Greylock — thesis convergence in infra</li>
-                  <li>Khosla — climate deep tech alignment</li>
-                  <li>Sequoia — partner mention in agent tooling</li>
+              <div className="landing-exampleDetection">
+                <span className="landing-exampleLabel">Pythh detected:</span>
+                <ul className="landing-detectionList">
+                  <li>Accel partners discussing agent tooling trends</li>
+                  <li>Sequoia partner mentioning autonomous infra on X</li>
+                  <li>Greylock publishing a thesis on developer automation</li>
+                  <li>Khosla climate partner tracking compute efficiency</li>
                 </ul>
               </div>
 
-              <div className="landing-previewAction">
-                <div className="landing-actionTitle">Recommended Action:</div>
-                <ul className="landing-actionList">
-                  <li>→ Do not raise yet</li>
-                  <li>→ Introduce narrative positioning</li>
-                  <li>→ Surface traction proof</li>
-                  <li>→ Target 3 thesis-aligned funds</li>
-                </ul>
+              <div className="landing-exampleInterpretation">
+                <span className="landing-exampleLabel">What this means:</span>
+                <p className="landing-interpretationText">
+                  These investors are moving into your thesis space right now.<br/>
+                  Your category timing is improving.<br/>
+                  Your narrative is beginning to align with their capital deployment behavior.
+                </p>
+              </div>
+
+              <div className="landing-wowLine">
+                These are not leads.<br/>
+                These are investors already signaling interest in your problem space.
               </div>
             </div>
           </div>
 
           <div className="landing-feed">
-            <div className="landing-feedTitle">INVESTOR MATCHING HAPPENING NOW</div>
+            <div className="landing-feedTitle">INVESTOR SIGNALS HAPPENING NOW</div>
 
             {LIVE_ACTIVITY.map((item, i) => (
               <div key={i} className="landing-item">
                 <div className="landing-bullet"></div>
                 <div>
-                  {item.text} <span className="landing-god">(GOD: {item.godScore})</span>
+                  {item.text}
                   <span className="landing-time">{item.timeAgo}</span>
                 </div>
               </div>

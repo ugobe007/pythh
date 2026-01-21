@@ -262,100 +262,80 @@
   color:rgba(233,238,247,.55);
 }
 
-/* --- Match Preview Panel --- */
+/* --- Signal Alignment Preview --- */
 .landing-matchPreview{
-  margin-top:32px;
+  margin-top:40px;
   max-width:720px;
 }
 .landing-previewTitle{
-  font-size:11px;
-  letter-spacing:.22em;
-  color:rgba(233,238,247,.45);
-  margin-bottom:10px;
+  font-size:15px;
+  font-weight:600;
+  color:rgba(233,238,247,.75);
+  margin-bottom:14px;
 }
 .landing-previewCard{
   background:rgba(0,0,0,.35);
   border:1px solid rgba(233,238,247,.10);
   border-radius:10px;
-  padding:20px;
+  padding:24px;
   box-shadow: 0 8px 32px rgba(0,0,0,.3);
 }
-.landing-previewHeader{
-  font-size:15px;
-  font-weight:700;
-  color:rgba(233,238,247,.85);
-  margin-bottom:16px;
-}
-.landing-previewMetrics{
-  display:grid;
-  grid-template-columns:repeat(2, 1fr);
-  gap:12px;
-  margin-bottom:18px;
-  padding-bottom:18px;
+.landing-exampleStartup{
+  margin-bottom:20px;
+  padding-bottom:20px;
   border-bottom:1px solid rgba(233,238,247,.08);
 }
-.landing-metric{
-  display:flex;
-  align-items:baseline;
-  gap:6px;
-  font-size:13px;
-}
-.landing-metricLabel{
+.landing-exampleLabel{
+  display:block;
+  font-size:11px;
+  letter-spacing:.15em;
   color:rgba(233,238,247,.50);
+  margin-bottom:8px;
 }
-.landing-metricValue{
+.landing-exampleValue{
+  font-size:16px;
+  font-weight:600;
   color:rgba(233,238,247,.85);
-  font-weight:600;
 }
-.landing-metricDelta{
-  color:#22c55e;
-  font-size:12px;
-  font-weight:600;
-}
-.landing-previewSection{
-  margin-bottom:18px;
-  padding-bottom:18px;
+.landing-exampleDetection{
+  margin-bottom:20px;
+  padding-bottom:20px;
   border-bottom:1px solid rgba(233,238,247,.08);
 }
-.landing-sectionTitle{
-  font-size:13px;
-  font-weight:600;
-  color:rgba(233,238,247,.75);
-  margin-bottom:10px;
-}
-.landing-signalList{
-  margin:0;
+.landing-detectionList{
+  margin:10px 0 0 0;
   padding:0;
   list-style:none;
   font-size:14px;
   color:rgba(233,238,247,.70);
 }
-.landing-signalList li{
+.landing-detectionList li{
   padding:6px 0;
   padding-left:16px;
   position:relative;
 }
-.landing-signalList li:before{
+.landing-detectionList li:before{
   content:"•";
   position:absolute;
   left:0;
   color:rgba(233,238,247,.35);
 }
-.landing-actionTitle{
-  font-size:13px;
-  font-weight:600;
-  color:rgba(233,238,247,.75);
-  margin-bottom:10px;
+.landing-exampleInterpretation{
+  margin-bottom:20px;
+  padding-bottom:20px;
+  border-bottom:1px solid rgba(233,238,247,.08);
 }
-.landing-actionList{
-  margin:0;
-  padding:0;
-  list-style:none;
+.landing-interpretationText{
+  margin:10px 0 0 0;
   font-size:14px;
+  line-height:1.65;
   color:rgba(233,238,247,.70);
 }
-.landing-actionList li{
-  padding:4px 0;
+.landing-wowLine{
+  font-size:14px;
+  line-height:1.65;
+  color:rgba(34,199,199,.85);
+  font-style:italic;
 }
 
 /* --- Live feed --- */
