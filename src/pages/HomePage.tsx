@@ -89,8 +89,7 @@ export default function HomePage() {
           <h1 className="landing-h1">Find my investors.</h1>
 
           <div className="landing-subhead">
-            Investor signals that matter to you.<br />
-            No guessing. Just alignment.
+            We show you who matters and why.
           </div>
 
           <div className="landing-label">Enter your startup URL</div>
