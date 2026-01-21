@@ -694,14 +694,27 @@ app.get('/api/trending', async (req, res) => {
 // Plan limits for investor matches endpoint
 const MATCH_LIMITS = { free: 3, pro: 10, elite: 50 };
 
+// Import guardrails utilities
+const { rateLimitMatches } = require('./middleware/rateLimit');
+const { safeLog } = require('./utils/safeLog');
+const { withTimeout, TimeoutError, TIMEOUTS } = require('./utils/withTimeout');
+const { matchesCache } = require('./utils/cache');
+
 // ============================================================
 // GET /api/matches - Startup → Investor matches with tier gating
 // Core conversion endpoint - the page people pay for
+// HARDENED: rate limit + cache + timeout + degradation
 // ============================================================
-app.get('/api/matches', async (req, res) => {
+app.get('/api/matches', rateLimitMatches((req) => req.user?.id || null), async (req, res) => {
+  const requestId = req.requestId;
+  const startTime = Date.now();
+  let degraded = false;
+  const degradationReasons = [];
+  
   try {
     const startupId = req.query.startup_id;
     if (!startupId) {
+      safeLog('warn', 'matches.missing_id', { requestId });
       return res.status(400).json({ error: 'startup_id is required' });
     }
     
@@ -709,73 +722,170 @@ app.get('/api/matches', async (req, res) => {
     const plan = await getPlanFromRequest(req);
     const maxLimit = MATCH_LIMITS[plan] || 3;
     const requestedLimit = parseInt(req.query.limit) || maxLimit;
-    const limit = Math.min(Math.max(requestedLimit, 1), maxLimit, 50); // Double clamp
+    const limit = Math.min(Math.max(requestedLimit, 1), maxLimit, 50);
+    
+    // Check cache first
+    const cacheKey = `matches:v1:${startupId}:${plan}`;
+    const cached = matchesCache.get(cacheKey);
+    if (cached) {
+      safeLog('info', 'matches.cache_hit', {
+        requestId,
+        startupId,
+        plan,
+        duration_ms: Date.now() - startTime,
+      });
+      res.set('X-Cache', 'HIT');
+      res.set('X-Request-ID', requestId);
+      return res.json({ ...cached, cached: true });
+    }
     
     const supabase = getSupabaseClient();
     
-    // Step 1: Get startup details for context
-    const { data: startup, error: startupError } = await supabase
-      .from('startup_uploads')
-      .select('id, name, sectors, stage, tagline, total_god_score')
-      .eq('id', startupId)
-      .single();
-    
-    if (startupError || !startup) {
-      console.error('[matches] Startup not found:', startupId, startupError);
-      return res.status(404).json({ error: 'Startup not found' });
+    // Step 1: Get startup details (with timeout)
+    let startup;
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('startup_uploads')
+          .select('id, name, sectors, stage, tagline, total_god_score')
+          .eq('id', startupId)
+          .single(),
+        TIMEOUTS.SUPABASE_READ,
+        'startup query'
+      );
+      
+      if (error || !data) {
+        safeLog('error', 'matches.startup_not_found', {
+          requestId,
+          startupId,
+          error: error?.message,
+        });
+        return res.status(404).json({ error: 'Startup not found' });
+      }
+      
+      startup = data;
+    } catch (timeoutError) {
+      safeLog('error', 'matches.startup_timeout', {
+        requestId,
+        startupId,
+        error: timeoutError.message,
+      });
+      return res.status(504).json({ error: 'Startup query timed out', request_id: requestId });
     }
     
-    // Step 2: Get pre-computed matches from startup_investor_matches
-    // This is the SSOT for matches - calculated by match-regenerator.js
-    const { data: matchData, error: matchError } = await supabase
-      .from('startup_investor_matches')
-      .select('investor_id, match_score, confidence_level, reasoning, why_you_match, fit_analysis')
-      .eq('startup_id', startupId)
-      .gte('match_score', 20) // Quality floor
-      .order('match_score', { ascending: false })
-      .limit(limit);
-    
-    if (matchError) {
-      console.error('[matches] Match query error:', matchError);
-      return res.status(500).json({ error: 'Failed to fetch matches' });
+    // Step 2: Get matches (with timeout + graceful degradation)
+    let matchData;
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('startup_investor_matches')
+          .select('investor_id, match_score, confidence_level, reasoning, why_you_match, fit_analysis')
+          .eq('startup_id', startupId)
+          .gte('match_score', 20)
+          .order('match_score', { ascending: false })
+          .limit(limit),
+        TIMEOUTS.SUPABASE_READ,
+        'matches query'
+      );
+      
+      if (error) {
+        throw error;
+      }
+      
+      matchData = data || [];
+    } catch (matchError) {
+      // GRACEFUL DEGRADATION: Return partial results instead of failing
+      safeLog('error', 'matches.query_failed', {
+        requestId,
+        startupId,
+        error: matchError.message,
+      });
+      
+      degraded = true;
+      degradationReasons.push('match query failed');
+      matchData = [];
     }
     
-    // Step 2.5: Record signal history (BEFORE tier gating)
-    // Use full match list (not tier-gated) for accurate Power Score tracking
-    await recordSignalHistory({
-      supabase,
-      startupId: startup.id,
-      rawMatches: matchData || [],
-      godScore: startup.total_god_score,
-      source: 'scan',
-      meta: { endpoint: '/api/matches' }
-    });
+    // Step 2.5: Record signal history (BEFORE tier gating, non-blocking)
+    try {
+      await withTimeout(
+        recordSignalHistory({
+          supabase,
+          startupId: startup.id,
+          rawMatches: matchData,
+          godScore: startup.total_god_score,
+          source: 'scan',
+          meta: { endpoint: '/api/matches', request_id: requestId }
+        }),
+        TIMEOUTS.SUPABASE_WRITE,
+        'signal history recording'
+      );
+    } catch (historyError) {
+      // Log but don't fail the request
+      safeLog('warn', 'matches.history_failed', {
+        requestId,
+        startupId,
+        error: historyError.message,
+      });
+      degraded = true;
+      degradationReasons.push('history recording failed');
+    }
     
-    // Step 3: Get total count (for "X more matches" CTA)
-    const { count: totalMatches } = await supabase
-      .from('startup_investor_matches')
-      .select('id', { count: 'exact', head: true })
-      .eq('startup_id', startupId)
-      .gte('match_score', 20);
+    // Step 3: Get total count (with timeout, non-critical)
+    let totalMatches = matchData.length;
+    try {
+      const { count } = await withTimeout(
+        supabase
+          .from('startup_investor_matches')
+          .select('id', { count: 'exact', head: true })
+          .eq('startup_id', startupId)
+          .gte('match_score', 20),
+        TIMEOUTS.SUPABASE_READ,
+        'match count query'
+      );
+      totalMatches = count || matchData.length;
+    } catch (countError) {
+      // Non-critical - use fallback
+      safeLog('warn', 'matches.count_failed', {
+        requestId,
+        startupId,
+        error: countError.message,
+      });
+      degraded = true;
+      degradationReasons.push('count query failed');
+    }
     
-    // Step 4: Get investor details for matched investors
-    const investorIds = (matchData || []).map(m => m.investor_id).filter(Boolean);
+    // Step 4: Get investor details (with timeout + graceful degradation)
+    const investorIds = matchData.map(m => m.investor_id).filter(Boolean);
     let investors = [];
+    
     if (investorIds.length > 0) {
-      const { data: investorData } = await supabase
-        .from('investors')
-        .select('id, name, firm, photo_url, linkedin_url, sectors, stage, check_size_min, check_size_max, type, notable_investments, investment_thesis')
-        .in('id', investorIds);
-      investors = investorData || [];
+      try {
+        const { data } = await withTimeout(
+          supabase
+            .from('investors')
+            .select('id, name, firm, photo_url, linkedin_url, sectors, stage, check_size_min, check_size_max, type, notable_investments, investment_thesis')
+            .in('id', investorIds),
+          TIMEOUTS.SUPABASE_READ,
+          'investor query'
+        );
+        investors = data || [];
+      } catch (investorError) {
+        // GRACEFUL DEGRADATION: Show matches without investor details
+        safeLog('warn', 'matches.investors_failed', {
+          requestId,
+          startupId,
+          error: investorError.message,
+        });
+        degraded = true;
+        degradationReasons.push('investor details unavailable');
+      }
     }
     
     const investorMap = new Map(investors.map(inv => [inv.id, inv]));
     
     // Step 5: Apply field masking based on plan
-    // free: mask investor_name (show photo/firm hint), hide reason/confidence
-    // pro: show investor_name + firm, limited reasons, hide confidence
-    // elite: show everything including reason + confidence + dimensions
-    const maskedMatches = (matchData || []).map(m => {
+    const maskedMatches = matchData.map(m => {
       const investor = investorMap.get(m.investor_id) || {};
       
       // Base fields (all tiers) - always include score + firm hint
@@ -845,12 +955,8 @@ app.get('/api/matches', async (req, res) => {
       };
     });
     
-    // Set caching headers (shorter for elite - more frequent updates)
-    const cacheMaxAge = plan === 'elite' ? 60 : 300;
-    res.set('Cache-Control', `private, max-age=${cacheMaxAge}`);
-    res.set('X-Plan', plan);
-    
-    res.json({
+    // Build response
+    const response = {
       plan,
       startup: {
         id: startup.id,
@@ -861,13 +967,51 @@ app.get('/api/matches', async (req, res) => {
       },
       limit,
       showing: maskedMatches.length,
-      total: totalMatches || maskedMatches.length,
+      total: totalMatches,
       data: maskedMatches,
+      degraded,
+      degradation_reasons: degraded ? degradationReasons : undefined,
+    };
+    
+    // Cache the response (even if degraded - prevents retry storms)
+    matchesCache.set(cacheKey, response);
+    
+    // Set headers
+    const cacheMaxAge = plan === 'elite' ? 60 : 300;
+    res.set('Cache-Control', `private, max-age=${cacheMaxAge}`);
+    res.set('X-Plan', plan);
+    res.set('X-Cache', 'MISS');
+    res.set('X-Request-ID', requestId);
+    if (degraded) {
+      res.set('X-Degraded', 'true');
+    }
+    
+    // Log success
+    safeLog('info', 'matches.success', {
+      requestId,
+      startupId,
+      plan,
+      showing: maskedMatches.length,
+      total: totalMatches,
+      degraded,
+      duration_ms: Date.now() - startTime,
     });
     
+    res.json(response);
+    
   } catch (error) {
-    console.error('[matches] Error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    safeLog('error', 'matches.error', {
+      requestId,
+      error: error.message,
+      stack: error.stack,
+      duration_ms: Date.now() - startTime,
+    });
+    
+    res.status(500).json({ 
+      error: 'Failed to fetch matches',
+      request_id: requestId,
+      degraded: true,
+    });
   }
 });
 
