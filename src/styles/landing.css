@@ -268,79 +268,53 @@
   color:rgba(233,238,247,.55);
 }
 
-/* --- Signal Alignment Preview --- */
-.landing-matchPreview{
-  margin-top:40px;
+/* --- Live Investor Signals --- */
+.landing-liveSignals{
+  margin-top:48px;
   max-width:720px;
 }
-.landing-previewTitle{
-  font-size:15px;
-  font-weight:600;
-  color:rgba(233,238,247,.75);
-  margin-bottom:14px;
-}
-.landing-previewCard{
-  background:rgba(0,0,0,.35);
-  border:1px solid rgba(233,238,247,.10);
-  border-radius:10px;
-  padding:24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.3);
-}
-.landing-exampleStartup{
-  margin-bottom:20px;
-  padding-bottom:20px;
-  border-bottom:1px solid rgba(233,238,247,.08);
-}
-.landing-exampleLabel{
-  display:block;
-  font-size:11px;
-  letter-spacing:.15em;
-  color:rgba(233,238,247,.50);
+.landing-liveTitle{
+  font-size:20px;
+  font-weight:700;
+  color:rgba(233,238,247,.90);
   margin-bottom:8px;
 }
-.landing-exampleValue{
-  font-size:16px;
+.landing-liveSubline{
+  font-size:14px;
+  color:rgba(233,238,247,.55);
+  margin-bottom:20px;
+}
+.landing-signalsFeed{
+  background:rgba(0,0,0,.25);
+  border:1px solid rgba(233,238,247,.08);
+  border-radius:10px;
+  padding:8px;
+}
+.landing-signalItem{
+  padding:14px 16px;
+  border-bottom:1px solid rgba(233,238,247,.06);
+}
+.landing-signalItem:last-child{
+  border-bottom:none;
+}
+.landing-signalText{
+  font-size:15px;
+  color:rgba(233,238,247,.75);
+  line-height:1.5;
+}
+.landing-signalFirm{
+  color:rgba(233,238,247,.95);
   font-weight:600;
-  color:rgba(233,238,247,.85);
 }
-.landing-exampleDetection{
-  margin-bottom:20px;
-  padding-bottom:20px;
-  border-bottom:1px solid rgba(233,238,247,.08);
+.landing-signalTime{
+  font-size:12px;
+  color:rgba(233,238,247,.40);
+  margin-top:6px;
 }
-.landing-detectionList{
-  margin:10px 0 0 0;
-  padding:0;
-  list-style:none;
-  font-size:14px;
-  color:rgba(233,238,247,.70);
-}
-.landing-detectionList li{
-  padding:6px 0;
-  padding-left:16px;
-  position:relative;
-}
-.landing-detectionList li:before{
-  content:"•";
-  position:absolute;
-  left:0;
-  color:rgba(233,238,247,.35);
-}
-.landing-exampleInterpretation{
-  margin-bottom:20px;
-  padding-bottom:20px;
-  border-bottom:1px solid rgba(233,238,247,.08);
-}
-.landing-interpretationText{
-  margin:10px 0 0 0;
-  font-size:14px;
-  line-height:1.65;
-  color:rgba(233,238,247,.70);
-}
-.landing-wowLine{
-  font-size:14px;
-  line-height:1.65;
-  color:rgba(34,199,199,.85);
+.landing-signalFooter{
+  margin-top:16px;
+  font-size:13px;
+  color:rgba(233,238,247,.45);
   font-style:italic;
 }
 

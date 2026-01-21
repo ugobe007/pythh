@@ -118,38 +118,43 @@ export default function HomePage() {
 
           <div className="landing-microTrust">No pitch deck · No warm intro · No brokers · Just signals and timing</div>
 
-          {/* SIGNAL ALIGNMENT PREVIEW - Human-readable WOW block */}
-          <div className="landing-matchPreview">
-            <div className="landing-previewTitle">What a Match Looks Like</div>
-            <div className="landing-previewCard">
-              <div className="landing-exampleStartup">
-                <span className="landing-exampleLabel">Your startup</span>
-                <div className="landing-exampleValue">AI infrastructure for autonomous agents</div>
+          {/* LIVE INVESTOR SIGNALS - Intrigue block */}
+          <div className="landing-liveSignals">
+            <div className="landing-liveTitle">Live investor signals</div>
+            <div className="landing-liveSubline">Investor signals detected right now.</div>
+            
+            <div className="landing-signalsFeed">
+              <div className="landing-signalItem">
+                <div className="landing-signalText">
+                  <span className="landing-signalFirm">Sequoia</span> — Partner mention: agent infrastructure
+                </div>
+                <div className="landing-signalTime">1h ago</div>
               </div>
 
-              <div className="landing-exampleDetection">
-                <span className="landing-exampleLabel">Pythh detected:</span>
-                <ul className="landing-detectionList">
-                  <li>Accel partners discussing agent tooling trends</li>
-                  <li>Sequoia partner mentioning autonomous infra on X</li>
-                  <li>Greylock publishing a thesis on developer automation</li>
-                  <li>Khosla climate partner tracking compute efficiency</li>
-                </ul>
+              <div className="landing-signalItem">
+                <div className="landing-signalText">
+                  <span className="landing-signalFirm">Accel</span> — Seed velocity spike in agent tooling
+                </div>
+                <div className="landing-signalTime">20m ago</div>
               </div>
 
-              <div className="landing-exampleInterpretation">
-                <span className="landing-exampleLabel">What this means:</span>
-                <p className="landing-interpretationText">
-                  These investors are moving into your thesis space right now.<br/>
-                  Your category timing is improving.<br/>
-                  Your narrative is beginning to align with their capital deployment behavior.
-                </p>
+              <div className="landing-signalItem">
+                <div className="landing-signalText">
+                  <span className="landing-signalFirm">Greylock</span> — Thesis published: developer automation
+                </div>
+                <div className="landing-signalTime">today</div>
               </div>
 
-              <div className="landing-wowLine">
-                These are not leads.<br/>
-                These are investors already signaling interest in your problem space.
+              <div className="landing-signalItem">
+                <div className="landing-signalText">
+                  <span className="landing-signalFirm">Khosla</span> — Thesis convergence: compute efficiency
+                </div>
+                <div className="landing-signalTime">today</div>
               </div>
+            </div>
+
+            <div className="landing-signalFooter">
+              Signals are observable investor movements.
             </div>
           </div>
 
