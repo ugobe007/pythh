@@ -1,68 +1,85 @@
 /**
- * FROZEN CONTENT CONFIG — Front Page Contract
- * ============================================
+ * FROZEN CONTENT CONFIG — Human-Smart Homepage v1.0
+ * ==================================================
+ * 
+ * DESIGN LANGUAGE: Human-smart, not mystical
+ * See: PYTHH_DESIGN_LANGUAGE_CONTRACT.md
+ * See: PYTHH_HOMEPAGE_HUMANSPEC.md
  * 
  * INVARIANTS:
- * • No explanation copy
- * • No onboarding copy
- * • No product narration
- * • No "how it works"
- * • No marketing slogans
- * • No AI language
+ * • No mystical language
+ * • No oracle theater
+ * • No machine-speak
+ * • No "AI-powered" claims
+ * • No "capital posture" framing
+ * • No patronizing guidance
+ * • Direct, grounded, ambitious
  * 
  * This file is the SINGLE SOURCE OF TRUTH for all front-page copy.
  * No copy scattered through JSX. No "just tweak this string" chaos.
  */
 
 export const HOME_CONTENT = {
-  cta: {
-    headline: "Find My Investors",
-    subtext: "Paste your startup website. We'll show you who recognizes you right now.",
-    inputPlaceholder: "Paste your website",
+  hero: {
+    headline: "Find My Investors.",
+    subheadline: "Discover which investors match your company right now — and why.",
+  },
+
+  input: {
+    label: "Your startup website",
+    placeholder: "https://yourcompany.com",
     buttonLabel: "Find My Investors",
   },
 
-  proofStrip: [
+  socialProof: {
+    label: "Recently matched:",
+    examples: [
+      { startup: "Rovi Health", investor: "Health Infra Partners" },
+      { startup: "Flux Robotics", investor: "US Seed Operator Fund" },
+      { startup: "Argo AI Tools", investor: "Enterprise Seed Capital" },
+    ],
+  },
+
+  intelligenceTeaser: {
+    paragraphs: [
+      "We track how investors behave, what they fund, and how companies like yours are being recognized over time.",
+      "That's how we show you who's aligned with you now — and who's likely to be aligned next.",
+    ],
+  },
+
+  livePreview: [
     {
-      startup: "Rovi Health",
-      matches: [
-        { name: "US Seed Operator Fund", score: 72 },
-        { name: "Health Infra Partners", score: 69 },
-        { name: "Seed Stage Capital", score: 66 },
-      ],
-      why: [
-        "Portfolio adjacency detected",
-        "Market signals forming",
-        "Execution cadence improving",
-      ],
+      name: "US Seed Operator Fund",
+      score: 72,
+      state: "warming",
+      why: "Portfolio adjacency + operator bias",
     },
     {
-      startup: "Atlas Robotics",
-      matches: [
-        { name: "DeepTech Ventures", score: 74 },
-        { name: "Industrial AI Fund", score: 71 },
-        { name: "Future Mobility Capital", score: 68 },
-      ],
-      why: [
-        "Category convergence emerging",
-        "Technical credibility increasing",
-        "Customer proof forming",
-      ],
+      name: "Health Infra Partners",
+      score: 69,
+      state: "forming",
+      why: "Category convergence detected",
+    },
+    {
+      name: "Seed Stage Capital",
+      score: 66,
+      state: "adjacent",
+      why: "Similar winners in portfolio",
     },
   ],
 
-  curiosityLines: [
-    "Some startups are being discovered before they raise.",
-    "Some investors are warming up to categories you don't expect.",
-    "Your narrative is legible to some funds and invisible to others.",
-    "Capital moves before founders notice.",
-    "Your signals change your odds.",
-  ],
-
-  credibilityAnchor: "Built from real investor behavior, not pitch decks.",
+  valueProps: {
+    heading: "What you'll see:",
+    bullets: [
+      "The investors that match your company right now",
+      "Why they're aligned with you",
+      "Which investors are starting to warm up",
+      "What you can do to increase your odds",
+    ],
+  },
 } as const;
 
 // Type exports for strict typing
 export type HomeContent = typeof HOME_CONTENT;
-export type ProofStripItem = HomeContent["proofStrip"][number];
-export type MatchItem = ProofStripItem["matches"][number];
+export type SocialProofExample = HomeContent["socialProof"]["examples"][number];
+export type LivePreviewMatch = HomeContent["livePreview"][number];
