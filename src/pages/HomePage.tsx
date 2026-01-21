@@ -1,59 +1,54 @@
 /**
- * PYTHH HOME PAGE — FROZEN STRUCTURE
- * ===================================
+ * PYTHH HOMEPAGE — LEAKING MAP
+ * =============================
+ * Frozen Layout v1.0
  * 
- * This file must NEVER become a SaaS hero again.
+ * This is the ONLY allowed homepage shape.
+ * 
+ * GRID STRUCTURE:
+ * • 12-column grid
+ * • Left (5 cols) = Invocation Panel
+ * • Center-right (7 cols) = Intelligence Leak
+ * • Bottom-left = Curiosity Anchor
  * 
  * INVARIANTS:
- * • Only these four foreground components
- * • In this order
- * • No right-hand panels
- * • No extra sections
- * • No marketing components
- * • No onboarding components
+ * • Wide, left-weighted, asymmetric
+ * • No center stacking
+ * • No right-hand widget
+ * • No marketing sections
+ * • No SaaS hero
  * 
- * CAN:
- * • promise
- * • tease
- * • prove (thinly)
- * • intrigue
- * 
- * CANNOT:
- * • explain
- * • onboard
- * • market
- * • sell
- * • educate
- * • look like SaaS
- * • look like a tool
+ * PHILOSOPHY:
+ * The homepage is a capital desk leaking intelligence.
+ * Not a marketing page. Not a form. Not a SaaS hero.
  */
 
-import { PrimaryCTA } from "@/components/home/PrimaryCTA";
-import { ProofStrip } from "@/components/home/ProofStrip";
-import { CuriosityStrip } from "@/components/home/CuriosityStrip";
-import { CredibilityAnchor } from "@/components/home/CredibilityAnchor";
+import { InvocationPanel } from "@/components/home/InvocationPanel";
+import { IntelligenceLeak } from "@/components/home/IntelligenceLeak";
+import { CuriosityAnchor } from "@/components/home/CuriosityAnchor";
 import { BackgroundIntelligence } from "@/components/home/BackgroundIntelligence";
 
 export default function HomePage() {
   return (
     <div className="relative min-h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
-      {/* BACKGROUND — intelligence only */}
       <BackgroundIntelligence />
 
-      {/* FOREGROUND — content contract */}
-      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 text-center">
+      <main className="relative z-10 grid min-h-screen grid-cols-12 gap-6 px-10 py-10">
 
-        {/* SECTION 1 — PRIMARY CTA */}
-        <PrimaryCTA />
+        {/* LEFT — INVOCATION */}
+        <section className="col-span-12 md:col-span-5">
+          <InvocationPanel />
+        </section>
 
-        {/* SECTION 2 — THIN PROOF STRIP */}
-        <ProofStrip />
+        {/* CENTER-RIGHT — INTELLIGENCE LEAK */}
+        <section className="col-span-12 md:col-span-7 flex items-start pt-24">
+          <IntelligenceLeak />
+        </section>
 
-        {/* SECTION 3 — CURIOSITY STRIP */}
-        <CuriosityStrip />
-
-        {/* SECTION 4 — CREDIBILITY ANCHOR (OPTIONAL) */}
-        <CredibilityAnchor />
+        {/* BOTTOM-LEFT — CURIOSITY */}
+        <section className="col-span-12 md:col-span-5 mt-12">
+          <CuriosityAnchor />
+        </section>
 
       </main>
     </div>

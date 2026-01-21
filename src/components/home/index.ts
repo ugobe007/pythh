@@ -1,13 +1,13 @@
 /**
  * HOME COMPONENTS — Barrel Export
  * ================================
+ * LEAKING MAP LAYOUT
  * 
- * ONLY these five components are allowed on the front page.
+ * ONLY these four components are allowed on the front page.
  * This is the complete set. No additions.
  */
 
-export { PrimaryCTA } from "./PrimaryCTA";
-export { ProofStrip } from "./ProofStrip";
-export { CuriosityStrip } from "./CuriosityStrip";
-export { CredibilityAnchor } from "./CredibilityAnchor";
+export { InvocationPanel } from "./InvocationPanel";
+export { IntelligenceLeak } from "./IntelligenceLeak";
+export { CuriosityAnchor } from "./CuriosityAnchor";
 export { BackgroundIntelligence } from "./BackgroundIntelligence";

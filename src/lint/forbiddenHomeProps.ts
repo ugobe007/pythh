@@ -45,14 +45,14 @@ export const FORBIDDEN_HOME_STRINGS = [
 /**
  * ALLOWED HOME IMPORTS — Component Whitelist
  * ==========================================
+ * LEAKING MAP LAYOUT
  * 
  * HomePage.tsx may ONLY import these components.
  * Anything else = lint error.
  */
 export const ALLOWED_HOME_IMPORTS = [
-  "PrimaryCTA",
-  "ProofStrip", 
-  "CuriosityStrip",
-  "CredibilityAnchor",
+  "InvocationPanel",
+  "IntelligenceLeak",
+  "CuriosityAnchor",
   "BackgroundIntelligence",
 ] as const;
