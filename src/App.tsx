@@ -1,11 +1,11 @@
 /**
- * V5.3 App Router (Doctrine-aligned)
+ * V5.4 App Router (Doctrine-aligned)
  * 
- * DOCTRINE CHANGES (Dec 2024):
- * - / remains public homepage (LandingPage) — URL submission form
+ * PRODUCT CONTRACT (Jan 2026):
+ * - /match?url=... is a controller: scan → redirect to /results?url=...
  * - /results is the canonical Results Page (Power Score + Investor Scorecards)
- * - /demo redirects to /results?url=https://sequencing.com (canned demo scan)
- * - /instant-matches and /match/results redirect to /results
+ * - /demo renders canned InstantMatches immediately (no scan, no redirect)
+ * - /why is for diagnostics (linked from Results, not a destination)
  * - /discovery is internal diagnostic (convergence UI) — NOT founder-facing
  * 
  * ROUTE HIERARCHY:
@@ -14,6 +14,11 @@
  * - L2 (matches): /results, /saved-matches, /startup/:id, /investor/:id → requires scan
  * - L4 (connect): /invite-investor, /contact → requires phase >= 4
  * - L5 (admin): /admin/* → requires role === admin
+ * 
+ * INVARIANTS:
+ * - /match never renders results or diagnostics — only redirects
+ * - /demo always shows "WOW" immediately — no scan required
+ * - Diagnostics is subordinate, never primary
  */
 
 import React, { useEffect } from 'react';
@@ -45,6 +50,11 @@ import Feed from './pages/Feed';
 import LiveDemo from './pages/LiveDemo';
 import MetricsDashboard from './pages/MetricsDashboard';
 import Dashboard from './pages/Dashboard';
+
+// Match Controller (scan → redirect)
+import MatchController from './pages/MatchController';
+// Demo Page (canned results, no scan)
+import DemoPage from './pages/DemoPage';
 
 // L2: Match Surfaces (gated)
 import InstantMatches from './pages/InstantMatches';
@@ -146,13 +156,16 @@ const App: React.FC = () => {
             <Route path="/" element={<LandingPage />} />
             <Route path="/get-matched" element={<Navigate to="/" replace />} />
             <Route path="/home" element={<Navigate to="/" replace />} />
-            <Route path="/match" element={<Navigate to="/" replace />} />
+            
+            {/* MATCH CONTROLLER: scan → redirect to /results (never renders results) */}
+            <Route path="/match" element={<MatchController />} />
+            
             <Route path="/matching" element={<Navigate to="/" replace />} />
             <Route path="/matching-engine" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignupFounder />} />
             <Route path="/signal-confirmation" element={<SignalConfirmation />} />
-            <Route path="/why" element={<WhyPythhExists />} />
+            <Route path="/why-pythh" element={<WhyPythhExists />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/how-pythh-works" element={<HowPythhWorks />} />
             <Route path="/value" element={<ValuePage />} />
@@ -160,23 +173,26 @@ const App: React.FC = () => {
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/get-matched/success" element={<SubscriptionSuccessPage />} />
-            <Route path="/about" element={<Navigate to="/why" replace />} />
+            <Route path="/about" element={<Navigate to="/why-pythh" replace />} />
             <Route path="/privacy" element={<Privacy />} />
 
-            {/* NEW: Canonical Results Page (Core Product) */}
-            {/* For now, reuse InstantMatches while we refactor it into Results Page spec */}
+            {/* CANONICAL RESULTS PAGE (Core Product) */}
             <Route path="/results" element={<L2Guard><InstantMatches /></L2Guard>} />
+
+            {/* DEMO PAGE: Canned results, no scan required (immediate WOW) */}
+            <Route path="/demo" element={<DemoPage />} />
 
             {/* L1: SIGNAL SURFACES (requires login OR post-submit) */}
             <Route path="/feed" element={<L1Guard><Feed /></L1Guard>} />
             
-            {/* Doctrine: /demo renders a canned InstantMatches scan result */}
-            <Route path="/demo" element={<Navigate to="/results?url=https://sequencing.com" replace />} />
-            
             <Route path="/dashboard" element={<L1Guard><Dashboard /></L1Guard>} />
             <Route path="/live-demo" element={<L1Guard><LiveDemo /></L1Guard>} />
             <Route path="/metrics" element={<MetricsDashboard />} />
+            
+            {/* DIAGNOSTICS: Internal convergence UI (linked from /results, not a destination) */}
+            <Route path="/why" element={<DiscoveryResultsPageV2 />} />
             <Route path="/discovery" element={<DiscoveryResultsPageV2 />} />
+            
             <Route path="/investor-lens/:id" element={<InvestorLensPage />} />
             <Route path="/gallery" element={<DiscoveryGalleryPage />} />
             <Route path="/how-startups-align" element={<DiscoveryGalleryPage />} />

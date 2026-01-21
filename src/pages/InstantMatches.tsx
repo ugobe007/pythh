@@ -1143,7 +1143,7 @@ export default function InstantMatches() {
                 </li>
               </ul>
               <Link
-                to={`/discovery?url=${encodeURIComponent(urlParam)}`}
+                to={`/why?url=${encodeURIComponent(urlParam)}`}
                 className="inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300 transition-colors"
               >
                 View full diagnostic

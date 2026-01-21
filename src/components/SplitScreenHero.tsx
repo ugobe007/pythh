@@ -151,8 +151,8 @@ const SplitScreenHero: React.FC = () => {
     }
     // Mark session state BEFORE navigating so guards recognize the scan
     markUrlSubmitted(cleanUrl);
-    // Navigate to the doctrine-aligned Results Page (not discovery/convergence UI)
-    navigate(`/results?url=${encodeURIComponent(cleanUrl)}`);
+    // Navigate to MatchController (scan → redirect to /results)
+    navigate(`/match?url=${encodeURIComponent(cleanUrl)}`);
     setTimeout(() => setIsAnalyzing(false), 800);
   };
 
