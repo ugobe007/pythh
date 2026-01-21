@@ -64,6 +64,10 @@ app.use(express.json());
 const { requestIdMiddleware } = require('./middleware/requestId');
 app.use(requestIdMiddleware);
 
+// Rate limiting (general API protection)
+const { rateLimitGeneral } = require('./middleware/rateLimit');
+app.use(rateLimitGeneral);
+
 // Request logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path} [${req.requestId}]`);
