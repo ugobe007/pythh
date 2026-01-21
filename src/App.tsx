@@ -55,6 +55,8 @@ import Dashboard from './pages/Dashboard';
 import MatchController from './pages/MatchController';
 // Demo Page (canned results, no scan)
 import DemoPage from './pages/DemoPage';
+// New Doctrine-aligned Results Page
+import ResultsPage from './pages/ResultsPage';
 
 // L2: Match Surfaces (gated)
 import InstantMatches from './pages/InstantMatches';
@@ -176,8 +178,8 @@ const App: React.FC = () => {
             <Route path="/about" element={<Navigate to="/why-pythh" replace />} />
             <Route path="/privacy" element={<Privacy />} />
 
-            {/* CANONICAL RESULTS PAGE (Core Product) */}
-            <Route path="/results" element={<L2Guard><InstantMatches /></L2Guard>} />
+            {/* CANONICAL RESULTS PAGE (Core Product - Doctrine v1.0) */}
+            <Route path="/results" element={<L2Guard><ResultsPage /></L2Guard>} />
 
             {/* DEMO PAGE: Canned results, no scan required (immediate WOW) */}
             <Route path="/demo" element={<DemoPage />} />
