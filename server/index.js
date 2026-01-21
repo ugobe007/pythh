@@ -795,14 +795,20 @@ app.get('/api/matches', rateLimitMatches((req) => req.user?.id || null), async (
       matchData = data || [];
     } catch (matchError) {
       // GRACEFUL DEGRADATION: Return partial results instead of failing
+      const isPostgresTimeout = matchError.message?.includes('statement timeout') || 
+                                matchError.message?.includes('canceling statement') ||
+                                matchError.code === '57014'; // Postgres query_canceled
+      
       safeLog('error', 'matches.query_failed', {
         requestId,
         startupId,
         error: matchError.message,
+        code: matchError.code,
+        is_postgres_timeout: isPostgresTimeout,
       });
       
       degraded = true;
-      degradationReasons.push('match query failed');
+      degradationReasons.push(isPostgresTimeout ? 'database query timeout' : 'match query failed');
       matchData = [];
     }
     
