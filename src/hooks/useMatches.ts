@@ -108,7 +108,8 @@ export function useMatches(startupId: string | null | undefined): UseMatchesResu
       // DEV ONLY: Send plan header for testing (ignored in production)
       if (import.meta.env.DEV) {
         const devPlan = getPlan(user);
-        headers['x-user-plan'] = devPlan;
+        // Server derives plan from JWT - removed x-user-plan header
+        // headers['x-user-plan'] = devPlan;
       }
       
       const res = await fetch(

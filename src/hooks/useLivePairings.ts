@@ -32,8 +32,7 @@ export function useLivePairings(
       const response = await fetch(`${baseUrl}/api/live-pairings?limit=${limit}`, {
         headers: {
           'Accept': 'application/json',
-          // Pass plan via header for dev/testing (server also checks JWT in prod)
-          'x-user-plan': plan,
+          // Server derives plan from JWT/session - no need for x-user-plan header
         },
       });
 

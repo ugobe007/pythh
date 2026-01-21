@@ -371,11 +371,13 @@ export default function MatchingEngine() {
     console.log('[findOrCreate] Looking for domain:', domain);
 
     // Check if startup exists - use ilike to find candidates, then filter by exact domain
-    const { data: candidates } = await supabase
+    const candidatesRes = await supabase
       .from('startup_uploads')
       .select('id, website')
       .ilike('website', `%${domain}%`)
       .limit(10);
+    
+    const candidates = candidatesRes?.data ?? [];
     
     // Pick best match by exact hostname equality
     const best = (candidates || []).find(s => {
@@ -395,7 +397,7 @@ export default function MatchingEngine() {
     // Create new startup
     const companyName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
     
-    const { data: newStartup, error } = await supabase
+    const insertRes = await supabase
       .from('startup_uploads')
       .insert({
         name: companyName,
@@ -410,6 +412,9 @@ export default function MatchingEngine() {
       })
       .select('id')
       .single();
+    
+    const newStartup = insertRes?.data ?? null;
+    const error = insertRes?.error ?? null;
 
     if (newStartup && !error) {
       return newStartup.id;
@@ -465,7 +470,9 @@ export default function MatchingEngine() {
         matchQuery = matchQuery.eq('startup_id', targetStartupId);
       }
 
-      const { data: matchIds, error: matchError } = await matchQuery.limit(500);
+      const matchRes = await matchQuery.limit(500);
+      const matchIds = matchRes?.data ?? [];
+      const matchError = matchRes?.error ?? null;
       
       if (matchError) {
         console.error('❌ Error fetching match IDs:', matchError);
@@ -563,9 +570,11 @@ export default function MatchingEngine() {
         console.warn('⚠️ No matches found in startup_investor_matches table');
         
         // Check if there are ANY matches at all (different status)
-        const { count: totalMatches } = await supabase
+        const countRes = await supabase
           .from('startup_investor_matches')
           .select('*', { count: 'exact', head: true });
+        
+        const totalMatches = countRes?.count ?? 0;
         
         if (totalMatches === 0) {
           setLoadError('No matches found in database. The queue processor needs to generate matches first. Check /admin/dashboard for queue processor status.');

@@ -72,8 +72,7 @@ export function useTrending(
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
-          // Pass plan via header for dev/testing (server verifies JWT in prod)
-          'x-user-plan': plan,
+          // Server derives plan from JWT - removed x-user-plan header
         },
       });
 
