@@ -30,7 +30,9 @@ import './App.css';
 import LogoDropdownMenu from './components/LogoDropdownMenu';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 
-// L0: Public Oracle Surface
+// L0: Public Oracle Surface (Doctrine v1.0)
+import HomePage from './pages/HomePage';
+import DemoPageDoctrine from './pages/DemoPageDoctrine';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import SignupFounder from './pages/SignupFounder';
@@ -53,7 +55,7 @@ import Dashboard from './pages/Dashboard';
 
 // Match Controller (scan → redirect)
 import MatchController from './pages/MatchController';
-// Demo Page (canned results, no scan)
+// Legacy Demo Page (replaced by DemoPageDoctrine)
 import DemoPage from './pages/DemoPage';
 // New Doctrine-aligned Results Page
 import ResultsPage from './pages/ResultsPage';
@@ -154,8 +156,10 @@ const App: React.FC = () => {
           
           <main>
             <Routes>
-            {/* L0: PUBLIC ORACLE SURFACE */}
-            <Route path="/" element={<LandingPage />} />
+            {/* L0: PUBLIC ORACLE SURFACE (Doctrine v1.0) */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/demo" element={<DemoPageDoctrine />} />
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/get-matched" element={<Navigate to="/" replace />} />
             <Route path="/home" element={<Navigate to="/" replace />} />
             
