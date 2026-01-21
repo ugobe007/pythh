@@ -32,6 +32,8 @@ import {
   Brain,
   ExternalLink,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   AlertCircle,
   Download,
   Crown,
@@ -40,7 +42,8 @@ import {
   FileText,
   Share2,
   Copy,
-  Check
+  Check,
+  HelpCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { resolveStartupFromUrl, ResolveResult } from '../lib/startupResolver';
@@ -333,6 +336,7 @@ export default function InstantMatches() {
   const [startupId, setStartupId] = useState<string | null>(null);
   const [similarStartups, setSimilarStartups] = useState<SimilarStartup[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [whyExpanded, setWhyExpanded] = useState(false); // "Why we matched" toggle
   
   // Get plan tier for UI decisions
   const plan = getPlan(user);
@@ -785,15 +789,23 @@ export default function InstantMatches() {
           <div className="p-4 bg-[#0f0f0f] border border-gray-800 rounded-xl">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-emerald-400" />
+                <Zap className={`w-4 h-4 ${powerScore >= 65 ? 'text-emerald-400' : powerScore >= 40 ? 'text-amber-400' : 'text-red-400'}`} />
                 <h3 className="text-sm font-bold text-white">Power Score</h3>
               </div>
               <span className="text-[10px] text-gray-500">{lastUpdatedLabel}</span>
             </div>
 
             <div className="flex items-end justify-between">
-              <div className="text-3xl font-extrabold text-white">{powerScore}</div>
-              <div className="text-xs text-gray-500">
+              <div className={`text-4xl font-extrabold ${
+                powerScore >= 65 
+                  ? 'text-emerald-400' 
+                  : powerScore >= 40 
+                    ? 'text-amber-400' 
+                    : 'text-red-400'
+              }`}>{powerScore}</div>
+              <div className={`text-xs ${
+                dailyDelta > 0 ? 'text-emerald-400' : dailyDelta < 0 ? 'text-red-400' : 'text-gray-500'
+              }`}>
                 {dailyDelta === 0 ? "—" : dailyDelta > 0 ? `+${dailyDelta}` : `${dailyDelta}`} today
               </div>
             </div>
@@ -809,7 +821,7 @@ export default function InstantMatches() {
                   data={signalHistory.sparklineData} 
                   width={60} 
                   height={20}
-                  color={powerScore >= 85 ? '#10b981' : powerScore >= 65 ? '#f59e0b' : '#6b7280'}
+                  color={powerScore >= 65 ? '#10b981' : powerScore >= 40 ? '#f59e0b' : '#ef4444'}
                 />
                 <span className="text-[10px] text-gray-500">7-day trend</span>
               </div>
@@ -1082,6 +1094,63 @@ export default function InstantMatches() {
               />
             ))}
           </div>
+        </div>
+
+        {/* WHY WE MATCHED YOU - Collapsible diagnostic toggle */}
+        <div className="mb-6">
+          <button
+            onClick={() => setWhyExpanded(!whyExpanded)}
+            className="w-full p-4 bg-[#0f0f0f] border border-gray-800 rounded-xl hover:border-gray-700 transition-colors group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
+                  <HelpCircle className="w-4 h-4 text-violet-400" />
+                </div>
+                <span className="text-sm font-semibold text-gray-300 group-hover:text-white transition-colors">
+                  Why we matched you
+                </span>
+              </div>
+              {whyExpanded ? (
+                <ChevronUp className="w-5 h-5 text-gray-500 group-hover:text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-500 group-hover:text-gray-400" />
+              )}
+            </div>
+          </button>
+          
+          {whyExpanded && (
+            <div className="mt-3 p-4 bg-[#0a0a0a] border border-gray-800 rounded-xl">
+              <p className="text-sm text-gray-400 mb-4">
+                We analyzed your startup against <strong className="text-white">{total || matches.length} investors</strong> based on:
+              </p>
+              <ul className="space-y-2 text-sm text-gray-400 mb-4">
+                <li className="flex items-start gap-2">
+                  <span className="text-violet-400 mt-0.5">•</span>
+                  <strong className="text-gray-300">Sector alignment</strong> — Do they invest in your space?
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-violet-400 mt-0.5">•</span>
+                  <strong className="text-gray-300">Stage fit</strong> — Are they writing checks at your stage?
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-violet-400 mt-0.5">•</span>
+                  <strong className="text-gray-300">Signal strength</strong> — Are they actively looking at similar deals?
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-violet-400 mt-0.5">•</span>
+                  <strong className="text-gray-300">Readiness (GOD Score)</strong> — Is your startup ready for their attention?
+                </li>
+              </ul>
+              <Link
+                to={`/discovery?url=${encodeURIComponent(urlParam)}`}
+                className="inline-flex items-center gap-2 text-sm text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                View full diagnostic
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* UPGRADE CTA - Only if not elite */}
