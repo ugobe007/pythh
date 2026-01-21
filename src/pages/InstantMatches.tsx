@@ -529,6 +529,83 @@ export default function InstantMatches() {
     return 'text-gray-400 bg-gray-500/20 border-gray-500/30';
   };
 
+  // ================================
+  // ALL HOOKS MUST BE DECLARED BEFORE EARLY RETURNS
+  // (React hooks invariant: same number/order every render)
+  // ================================
+
+  // Use gated matches from server
+  const matches = gatedMatches;
+  const displayPlan = serverPlan || plan;
+
+  // Readiness = GOD score (reframed)
+  const readiness = clamp(Math.round(startup?.total_god_score ?? 60), 0, 100);
+
+  // Signal Strength = mean of top 5 alignment scores
+  const signalStrength = useMemo(() => {
+    if (!matches?.length) return 50;
+    const top = matches.slice(0, Math.min(5, matches.length));
+    const avg = top.reduce((acc, m) => acc + (m.match_score || 0), 0) / top.length;
+    return clamp(Math.round(avg), 0, 100);
+  }, [matches]);
+
+  // Power Score = SignalStrength × Readiness normalized
+  const powerScore = useMemo(() => {
+    return clamp(Math.round((signalStrength * readiness) / 100), 0, 100);
+  }, [signalStrength, readiness]);
+
+  const fundraisingWindow = useMemo(() => computeFundraisingWindow(powerScore), [powerScore]);
+
+  // Daily progress visibility (REAL DATA)
+  const dailyDelta = signalHistory.deltaToday;
+  const lastUpdatedLabel = signalHistory.lastUpdatedLabel;
+  const windowTransition = signalHistory.transition;
+
+  // V5.5: Verdict copy based on window
+  const verdictCopy = useMemo(() => {
+    if (powerScore >= 85) return {
+      headline: "You're in a Prime window",
+      subtext: "Conversion probability is highest now. Move with a focused raise narrative.",
+      confidence: "High",
+      action: "Send outreach this week"
+    };
+    if (powerScore >= 65) return {
+      headline: "Your window is Forming",
+      subtext: "Signals are building. Start warm intros to your top targets.",
+      confidence: "Medium",
+      action: "Begin warm outreach"
+    };
+    if (powerScore >= 40) return {
+      headline: "You're Too Early",
+      subtext: "Strengthen proof before broad outreach. Target seed scouts first.",
+      confidence: "Low",
+      action: "Build proof signals"
+    };
+    return {
+      headline: "You're not circulating yet",
+      subtext: "Focus on traction and independent validation before investor outreach.",
+      confidence: "Low",
+      action: "Create proof points"
+    };
+  }, [powerScore]);
+
+  // V5.5: Trust proof signals (detected from startup data)
+  const trustSignals = useMemo(() => {
+    const signals: string[] = [];
+    if (startup?.signals?.length) {
+      signals.push(...startup.signals.slice(0, 4));
+    }
+    // Add inferred signals based on data
+    if (matches?.length >= 10) signals.push("Portfolio adjacency");
+    if (powerScore >= 65) signals.push("Category heat");
+    if (readiness >= 70) signals.push("Execution cadence");
+    return signals.slice(0, 5);
+  }, [startup, matches, powerScore, readiness]);
+
+  // ================================
+  // EARLY RETURNS (safe now - all hooks declared above)
+  // ================================
+
   // Loading state - wait for both startup resolution AND match fetching
   if (isAnalyzing || matchesLoading) {
     const currentStep = ANALYSIS_STEPS[analysisStep];
@@ -614,77 +691,9 @@ export default function InstantMatches() {
     );
   }
 
-  // Use gated matches from server
-  const matches = gatedMatches;
-  const displayPlan = serverPlan || plan;
-
   // ================================
-  // DOCTRINE METRICS (Founder GPS)
+  // MAIN RENDER (all hooks already declared above)
   // ================================
-
-  // Readiness = GOD score (reframed)
-  const readiness = clamp(Math.round(startup?.total_god_score ?? 60), 0, 100);
-
-  // Signal Strength = mean of top 5 alignment scores (proxy for "how investors will respond")
-  const signalStrength = useMemo(() => {
-    if (!matches?.length) return 50;
-    const top = matches.slice(0, Math.min(5, matches.length));
-    const avg = top.reduce((acc, m) => acc + (m.match_score || 0), 0) / top.length;
-    return clamp(Math.round(avg), 0, 100);
-  }, [matches]);
-
-  // Power Score = SignalStrength × Readiness normalized
-  const powerScore = useMemo(() => {
-    return clamp(Math.round((signalStrength * readiness) / 100), 0, 100);
-  }, [signalStrength, readiness]);
-
-  const fundraisingWindow = useMemo(() => computeFundraisingWindow(powerScore), [powerScore]);
-
-  // Daily progress visibility (REAL DATA)
-  const dailyDelta = signalHistory.deltaToday;
-  const lastUpdatedLabel = signalHistory.lastUpdatedLabel;
-  const windowTransition = signalHistory.transition;
-
-  // V5.5: Verdict copy based on window
-  const verdictCopy = useMemo(() => {
-    if (powerScore >= 85) return {
-      headline: "You're in a Prime window",
-      subtext: "Conversion probability is highest now. Move with a focused raise narrative.",
-      confidence: "High",
-      action: "Send outreach this week"
-    };
-    if (powerScore >= 65) return {
-      headline: "Your window is Forming",
-      subtext: "Signals are building. Start warm intros to your top targets.",
-      confidence: "Medium",
-      action: "Begin warm outreach"
-    };
-    if (powerScore >= 40) return {
-      headline: "You're Too Early",
-      subtext: "Strengthen proof before broad outreach. Target seed scouts first.",
-      confidence: "Low",
-      action: "Build proof signals"
-    };
-    return {
-      headline: "You're not circulating yet",
-      subtext: "Focus on traction and independent validation before investor outreach.",
-      confidence: "Low",
-      action: "Create proof points"
-    };
-  }, [powerScore]);
-
-  // V5.5: Trust proof signals (detected from startup data)
-  const trustSignals = useMemo(() => {
-    const signals: string[] = [];
-    if (startup?.signals?.length) {
-      signals.push(...startup.signals.slice(0, 4));
-    }
-    // Add inferred signals based on data
-    if (matches?.length >= 10) signals.push("Portfolio adjacency");
-    if (powerScore >= 65) signals.push("Category heat");
-    if (readiness >= 70) signals.push("Execution cadence");
-    return signals.slice(0, 5);
-  }, [startup, matches, powerScore, readiness]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">

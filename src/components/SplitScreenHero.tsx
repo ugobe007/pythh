@@ -145,14 +145,36 @@ const SplitScreenHero: React.FC = () => {
     const trimmed = url.trim();
     if (!trimmed) return;
     setIsAnalyzing(true);
-    let cleanUrl = trimmed;
-    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
-      cleanUrl = 'https://' + cleanUrl;
+    
+    // Robust URL normalization
+    // Handles: www.rovi.health, rovi.health, https://rovi.health/, rovi.health?x=y
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    let normalizedUrl: string | null = null;
+    
+    try {
+      const parsed = new URL(withScheme);
+      // Basic sanity: must have a hostname with a dot
+      if (parsed.hostname && parsed.hostname.includes('.')) {
+        parsed.hash = ''; // Strip hash for cleaner cache keys
+        normalizedUrl = parsed.toString();
+      }
+    } catch {
+      // Invalid URL - will fall through to null check
     }
+    
+    if (!normalizedUrl) {
+      setIsAnalyzing(false);
+      // Could show error toast here, but for now just return
+      console.error('[HOME] Invalid URL:', trimmed);
+      return;
+    }
+    
+    console.log('[HOME] raw=', trimmed, 'normalized=', normalizedUrl);
+    
     // Mark session state BEFORE navigating so guards recognize the scan
-    markUrlSubmitted(cleanUrl);
+    markUrlSubmitted(normalizedUrl);
     // Navigate to MatchController (scan → redirect to /results)
-    navigate(`/match?url=${encodeURIComponent(cleanUrl)}`);
+    navigate(`/match?url=${encodeURIComponent(normalizedUrl)}`);
     setTimeout(() => setIsAnalyzing(false), 800);
   };
 
