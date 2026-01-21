@@ -1,14 +1,15 @@
 /**
- * V5.2 App Router (Doctrine-aligned)
+ * V5.3 App Router (Doctrine-aligned)
  * 
- * DOCTRINE CHANGES:
- * - / remains public homepage (LandingPage) — content refactors to Power Score + Investor scorecards
- * - /results becomes canonical Results Page (Core Product)
+ * DOCTRINE CHANGES (Dec 2024):
+ * - / remains public homepage (LandingPage) — URL submission form
+ * - /results is the canonical Results Page (Power Score + Investor Scorecards)
+ * - /demo redirects to /results?url=https://sequencing.com (canned demo scan)
  * - /instant-matches and /match/results redirect to /results
- * - /demo redirects to / (homepage is the demo)
+ * - /discovery is internal diagnostic (convergence UI) — NOT founder-facing
  * 
  * ROUTE HIERARCHY:
- * - L0 (public): /, /results, /login, /pricing, /checkout, /about, /privacy
+ * - L0 (public): /, /results, /demo, /login, /pricing, /checkout, /about, /privacy
  * - L1 (signals): /feed → requires login OR post-submit session
  * - L2 (matches): /results, /saved-matches, /startup/:id, /investor/:id → requires scan
  * - L4 (connect): /invite-investor, /contact → requires phase >= 4
@@ -169,8 +170,8 @@ const App: React.FC = () => {
             {/* L1: SIGNAL SURFACES (requires login OR post-submit) */}
             <Route path="/feed" element={<L1Guard><Feed /></L1Guard>} />
             
-            {/* Doctrine: /demo should behave like the homepage demo */}
-            <Route path="/demo" element={<Navigate to="/" replace />} />
+            {/* Doctrine: /demo renders a canned InstantMatches scan result */}
+            <Route path="/demo" element={<Navigate to="/results?url=https://sequencing.com" replace />} />
             
             <Route path="/dashboard" element={<L1Guard><Dashboard /></L1Guard>} />
             <Route path="/live-demo" element={<L1Guard><LiveDemo /></L1Guard>} />
