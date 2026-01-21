@@ -86,7 +86,8 @@ const SplitScreenHero: React.FC = () => {
   const { data: livePairings, loading: pairingsLoading, error: pairingsError } = useLivePairings(plan, false);
   
   // Server already slices to tier limit, but UI can slice again for safety
-  const visiblePairings = livePairings.slice(0, visibleLimit);
+  // DEFENSIVE: always coerce to array to prevent .slice() crash
+  const visiblePairings = (livePairings || []).slice(0, visibleLimit);
   const totalPairingsCount = 10; // Always show "of 10" to create FOMO
   
   const [scores, setScores] = useState({
@@ -385,8 +386,8 @@ const SplitScreenHero: React.FC = () => {
               </div>
             )}
             
-            {/* Empty state */}
-            {!pairingsLoading && !pairingsError && livePairings.length === 0 && (
+            {/* Empty state - DEFENSIVE: use optional chaining */}
+            {!pairingsLoading && !pairingsError && (livePairings?.length ?? 0) === 0 && (
               <div className="py-4 text-center">
                 <p className="text-xs text-gray-600 font-mono">No live pairings yet</p>
               </div>
