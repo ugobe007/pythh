@@ -57,7 +57,9 @@ import Dashboard from './pages/Dashboard';
 import MatchController from './pages/MatchController';
 // Legacy Demo Page (replaced by DemoPageDoctrine)
 import DemoPage from './pages/DemoPage';
-// New Doctrine-aligned Results Page
+// Doctrine v2.0 Results Page (Trust → Belief → Conviction)
+import ResultsPageDoctrine from './pages/ResultsPageDoctrine';
+// Legacy Results Page
 import ResultsPage from './pages/ResultsPage';
 
 // L2: Match Surfaces (gated)
@@ -182,11 +184,10 @@ const App: React.FC = () => {
             <Route path="/about" element={<Navigate to="/why-pythh" replace />} />
             <Route path="/privacy" element={<Privacy />} />
 
-            {/* CANONICAL RESULTS PAGE (Core Product - Doctrine v1.0) */}
-            <Route path="/results" element={<L2Guard><ResultsPage /></L2Guard>} />
-
-            {/* DEMO PAGE: Canned results, no scan required (immediate WOW) */}
-            <Route path="/demo" element={<DemoPage />} />
+            {/* CANONICAL RESULTS PAGE (Doctrine v2.0 - Trust → Belief → Conviction) */}
+            <Route path="/results" element={<L2Guard><ResultsPageDoctrine /></L2Guard>} />
+            {/* Legacy results page preserved at /results-v1 */}
+            <Route path="/results-v1" element={<L2Guard><ResultsPage /></L2Guard>} />
 
             {/* L1: SIGNAL SURFACES (requires login OR post-submit) */}
             <Route path="/feed" element={<L1Guard><Feed /></L1Guard>} />
