@@ -615,25 +615,76 @@ export default function ResultsPageDoctrine() {
     return `This is why ${topName} is warming up to you while ${bottomName} isn't engaging yet.`;
   }, [matches, misalignedInvestors, top1, startup]);
   
-  // Conviction surface: closest flip
+  // Conviction surface: closest flip - Doctrine v1.0
+  // Must be: investor-specific, near-miss causality, blocking signals, collateral effects
+  // No moral language, no motivation, no product narration
   const closestFlip = useMemo(() => {
     if (!matches.length) return null;
-    // Find investor in 65-79 range (close to aligned)
+    
+    // Find investor in 65-79 range (close to aligned but not there yet)
     const almostAligned = matches.find(m => 
       (m.match_score || 0) >= 65 && (m.match_score || 0) < 80
     );
     if (!almostAligned) return null;
     
     const name = almostAligned?.investor?.name || almostAligned?.name || 'Investor';
-    const gap = 80 - (almostAligned.match_score || 0);
+    const investorSectors = almostAligned?.investor?.sectors || almostAligned?.sectors || [];
+    const score = almostAligned.match_score || 0;
+    const gap = 80 - score;
+    
+    // Generate blocking signals based on what's missing
+    const blockingSignals: string[] = [];
+    if (score < 75) {
+      blockingSignals.push('External proof not yet visible');
+    }
+    if (score < 72) {
+      blockingSignals.push('Execution cadence not surfaced publicly');
+    }
+    if (investorSectors.length > 0 && startup?.sectors?.length) {
+      const hasOverlap = startup.sectors.some(s => 
+        investorSectors.some(is => is?.toLowerCase().includes(s?.toLowerCase()))
+      );
+      if (!hasOverlap) {
+        blockingSignals.push('Category positioning unclear');
+      }
+    }
+    if (blockingSignals.length === 0) {
+      blockingSignals.push('Narrative framing not matching their thesis lens');
+    }
+    
+    // Generate specific leverage actions for THIS investor
+    const leverageActions: string[] = [];
+    if (investorSectors.some(s => s?.toLowerCase().includes('health'))) {
+      leverageActions.push('Publish a clinical or technical benchmark');
+      leverageActions.push('Ship a named pilot with a health system');
+    } else if (investorSectors.some(s => s?.toLowerCase().includes('fin'))) {
+      leverageActions.push('Add a credible fintech angel');
+      leverageActions.push('Release a compliance case study');
+    } else {
+      leverageActions.push('Publish a technical case study');
+      leverageActions.push('Ship a named pilot');
+    }
+    leverageActions.push('Reframe homepage toward their thesis language');
+    leverageActions.push('Add external validation (press or angel)');
+    
+    // Collateral effects - other investors this would flip
+    const collateral = matches
+      .filter(m => {
+        const s = m.match_score || 0;
+        return s >= 60 && s < 80 && (m?.investor?.name || m?.name) !== name;
+      })
+      .slice(0, 3)
+      .map(m => m?.investor?.name || m?.name || 'Fund');
     
     return {
       investor: name,
+      score,
       gap,
-      signals: ['Customer case study', 'Public benchmark', 'Named pilot'],
-      unlocks: matches.slice(0, 3).map(m => m?.investor?.name || m?.name || 'Fund').filter(n => n !== name)
+      blockingSignals: blockingSignals.slice(0, 3),
+      leverageActions: leverageActions.slice(0, 3),
+      collateral
     };
-  }, [matches]);
+  }, [matches, startup]);
   
   // Actions (leverage-based)
   const actionItems = useMemo(() => {
@@ -856,30 +907,69 @@ export default function ResultsPageDoctrine() {
         
         {/* ========================================
             SECTION 4: CONVICTION SURFACE
-            "You are X% away from aligning with..."
+            Doctrine v1.0: Leverage + Agency Engine
+            - Investor-specific (not generic advice)
+            - Near-miss causality: blocking signals
+            - Smallest viable changes
+            - Collateral effects
+            - No moral language, no motivation
             ======================================== */}
         {closestFlip && (
           <section className="mb-16">
             <div className="p-6 bg-gradient-to-r from-amber-900/20 to-transparent border border-amber-800/30 rounded-xl">
-              <h2 className="text-lg font-semibold text-white mb-2">
-                You are {closestFlip.gap}% away from aligning with:
+              {/* Header: How to move closer */}
+              <h2 className="text-lg font-semibold text-white mb-1">
+                How to move closer to this investor
               </h2>
-              <p className="text-2xl font-bold text-amber-400 mb-4">{closestFlip.investor}</p>
+              <p className="text-3xl font-bold text-amber-400 mb-6">{closestFlip.investor}</p>
               
-              <p className="text-gray-400 mb-3">If you add one of these signals, you will likely enter their recognition window:</p>
-              <ul className="space-y-2 mb-6">
-                {closestFlip.signals.map((signal, i) => (
-                  <li key={i} className="flex items-center gap-2 text-gray-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    {signal}
-                  </li>
-                ))}
-              </ul>
-              
-              {closestFlip.unlocks.length > 0 && (
-                <p className="text-sm text-gray-500 border-t border-amber-800/30 pt-4">
-                  This change would also improve alignment with: {closestFlip.unlocks.join(', ')}
+              {/* Near-miss causality */}
+              <div className="mb-6">
+                <p className="text-sm text-gray-500 mb-1">Current alignment</p>
+                <p className="text-white">
+                  <span className="text-2xl font-bold text-amber-400">{closestFlip.score}</span>
+                  <span className="text-gray-400 ml-2">→ {closestFlip.gap} points from recognition threshold</span>
                 </p>
+              </div>
+              
+              {/* Blocking signals */}
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  What's blocking recognition
+                </h3>
+                <ul className="space-y-2">
+                  {closestFlip.blockingSignals.map((signal, i) => (
+                    <li key={i} className="flex items-center gap-2 text-gray-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      {signal}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* Leverage actions - smallest viable changes */}
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  Signals that flip this investor
+                </h3>
+                <ul className="space-y-2">
+                  {closestFlip.leverageActions.map((action, i) => (
+                    <li key={i} className="flex items-center gap-2 text-gray-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      {action}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* Collateral effects */}
+              {closestFlip.collateral.length > 0 && (
+                <div className="border-t border-amber-800/30 pt-4">
+                  <p className="text-sm text-gray-400">
+                    <span className="text-gray-500">This change would also improve alignment with:</span>{' '}
+                    <span className="text-white">{closestFlip.collateral.join(', ')}</span>
+                  </p>
+                </div>
               )}
             </div>
           </section>
