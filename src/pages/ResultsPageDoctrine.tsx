@@ -547,36 +547,73 @@ export default function ResultsPageDoctrine() {
     return sorted.slice(0, 5);
   }, [matches]);
   
-  // Capital reading (Trust Mirror)
+  // Capital reading (Trust Mirror) - Doctrine v1.0
+  // Must be: 4-6 neutral statements, "You are being read as..." format
+  // No scores, no judgment, no advice
   const capitalReading = useMemo(() => {
     if (!startup) return [];
     const readings: string[] = [];
+    const sectors = startup.sectors || [];
+    const godScore = startup.total_god_score || 0;
+    const matchCount = matches.length;
     
-    if (startup.sectors?.includes('HealthTech') || startup.sectors?.includes('Health')) {
-      readings.push('Health infrastructure focus');
-    } else if (startup.sectors?.length) {
-      readings.push(`${startup.sectors[0]} category`);
-    }
-    
-    if ((startup.total_god_score || 0) >= 70) {
-      readings.push('Execution-heavy');
-      readings.push('Strong technical credibility');
-    } else if ((startup.total_god_score || 0) >= 55) {
-      readings.push('Emerging proof signals');
-      readings.push('Narrative forming');
+    // Sector positioning (always first)
+    if (sectors.includes('HealthTech') || sectors.includes('Health')) {
+      readings.push('early-category infrastructure in health tech');
+    } else if (sectors.includes('FinTech') || sectors.includes('Finance')) {
+      readings.push('emerging infrastructure in financial services');
+    } else if (sectors.length > 0) {
+      readings.push(`${sectors[0].toLowerCase()}-focused with a technical bent`);
     } else {
-      readings.push('Early-stage positioning');
-      readings.push('Proof-light');
+      readings.push('category-agnostic with an infrastructure approach');
     }
     
-    if (matches.length >= 20) {
-      readings.push('Portfolio adjacency detected in seed funds');
+    // Execution vs narrative positioning
+    if (godScore >= 70) {
+      readings.push('execution-heavy and product-forward');
+    } else if (godScore >= 55) {
+      readings.push('narrative-first with emerging execution proof');
     } else {
-      readings.push('Narrow recognition window');
+      readings.push('early-stage with a forming narrative');
     }
     
-    return readings;
+    // Proof positioning
+    if (godScore >= 65) {
+      readings.push('having visible technical credibility');
+    } else {
+      readings.push('having limited external proof yet');
+    }
+    
+    // Recognition window
+    if (matchCount >= 30) {
+      readings.push('having broad recognition across seed-stage funds');
+    } else if (matchCount >= 15) {
+      readings.push('having emerging recognition in specialist funds');
+    } else {
+      readings.push('not yet legible to generalist seed funds');
+    }
+    
+    // Stage positioning
+    const stage = startup.stage;
+    if (stage === 'Pre-seed' || stage === 'Seed') {
+      readings.push('at a stage where operator-led funds engage');
+    }
+    
+    return readings.slice(0, 6); // Enforce max 6
   }, [startup, matches]);
+  
+  // Trust Mirror synthesis sentence
+  const synthesisSentence = useMemo(() => {
+    if (!matches.length || !misalignedInvestors.length) return null;
+    const topName = top1?.investor?.name || top1?.name || 'your top match';
+    const bottomName = misalignedInvestors[0]?.investor?.name || misalignedInvestors[0]?.name || 'some funds';
+    const sectors = startup?.sectors || [];
+    
+    if (sectors.includes('HealthTech') || sectors.includes('Health')) {
+      return `This is why health infra funds like ${topName} are warming up while generalist funds like ${bottomName} aren't returning your emails.`;
+    }
+    return `This is why ${topName} is warming up to you while ${bottomName} isn't engaging yet.`;
+  }, [matches, misalignedInvestors, top1, startup]);
   
   // Conviction surface: closest flip
   const closestFlip = useMemo(() => {
@@ -749,35 +786,9 @@ export default function ResultsPageDoctrine() {
         </section>
         
         {/* ========================================
-            SECTION 2: TRUST MIRROR
-            "How capital currently reads your startup"
-            ======================================== */}
-        <section className="mb-16">
-          <div className="p-6 bg-[#111] border border-gray-800 rounded-xl">
-            <h2 className="text-lg font-semibold text-white mb-4">How capital currently sees you</h2>
-            <p className="text-gray-400 mb-4">You are being read as:</p>
-            <ul className="space-y-2 mb-6">
-              {capitalReading.map((reading, i) => (
-                <li key={i} className="flex items-center gap-2 text-gray-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                  {reading}
-                </li>
-              ))}
-            </ul>
-            {matches.length > 0 && (
-              <p className="text-sm text-gray-500 border-t border-gray-800 pt-4">
-                This is why <span className="text-white">{top1?.investor?.name || top1?.name}</span> is warming up
-                {misalignedInvestors[0] && (
-                  <> and <span className="text-white">{misalignedInvestors[0]?.investor?.name || misalignedInvestors[0]?.name}</span> isn't</>
-                )}.
-              </p>
-            )}
-          </div>
-        </section>
-        
-        {/* ========================================
-            SECTION 3: BELIEF SURFACE
+            SECTION 2: BELIEF SURFACE (Misalignment)
             Aligned vs Misaligned (side by side)
+            Must come BEFORE Trust Mirror per doctrine.
             ======================================== */}
         <section className="mb-16">
           <div className="grid md:grid-cols-2 gap-6">
@@ -810,6 +821,36 @@ export default function ResultsPageDoctrine() {
                 ))}
               </div>
             </div>
+          </div>
+        </section>
+        
+        {/* ========================================
+            SECTION 3: TRUST MIRROR
+            "How capital currently reads your startup"
+            Doctrine v1.0: Orientation, not judgment.
+            - No scores, numbers, or grades
+            - 4-6 neutral "You are being read as..." statements
+            - One synthesis sentence "This is why..."
+            - No advice, no leverage, no next steps
+            ======================================== */}
+        <section className="mb-16">
+          <div className="p-6 bg-[#111] border border-gray-800 rounded-xl">
+            <h2 className="text-lg font-semibold text-white mb-6">How capital currently reads you</h2>
+            
+            <ul className="space-y-3 mb-6">
+              {capitalReading.map((reading, i) => (
+                <li key={i} className="text-gray-300">
+                  <span className="text-gray-500">You are being read as</span>{' '}
+                  <span className="text-white">{reading}</span>.
+                </li>
+              ))}
+            </ul>
+            
+            {synthesisSentence && (
+              <p className="text-gray-400 border-t border-gray-800 pt-4">
+                {synthesisSentence}
+              </p>
+            )}
           </div>
         </section>
         
