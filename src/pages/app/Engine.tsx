@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useState } from "react";
 
 type HealthTile = {
   label: string;
@@ -13,6 +13,17 @@ type EventRow = {
   action: string;
   status: "ok" | "warn" | "error";
   note: string;
+};
+
+type EngineStatus = {
+  tiles: HealthTile[];
+  timestamp: string;
+};
+
+type EventsResponse = {
+  events: EventRow[];
+  total: number;
+  timestamp: string;
 };
 
 function StatusDot({ status }: { status: HealthTile["status"] }) {
@@ -40,76 +51,67 @@ function Badge({ status }: { status: EventRow["status"] }) {
 }
 
 export default function Engine() {
-  const tiles: HealthTile[] = useMemo(
-    () => [
-      {
-        label: "Scraper",
-        status: "ok",
-        primary: "Throughput: 42/min",
-        secondary: "Queue: 118 · Error rate: 0.8% · Last ok: 2m ago",
-      },
-      {
-        label: "GOD Scoring",
-        status: "ok",
-        primary: "Recalc: 1,284 startups / 24h",
-        secondary: "Last run: 6m ago · Drift: none detected",
-      },
-      {
-        label: "Matching",
-        status: "warn",
-        primary: "Generated: 9,410 matches / 24h",
-        secondary: "Coverage: 71% · Guardian triggered regen: 1h ago",
-      },
-      {
-        label: "ML Learning",
-        status: "ok",
-        primary: "Model: v0.7 · Train set: 182k",
-        secondary: "Last train: 9h ago · Feature deltas: stable",
-      },
-    ],
-    []
-  );
+  const [status, setStatus] = useState<EngineStatus | null>(null);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const events: EventRow[] = useMemo(
-    () => [
-      {
-        ts: "2026-01-21 14:08:12",
-        type: "scrape",
-        action: "mega-scraper tick",
-        status: "ok",
-        note: "fetched 38 sources · parsed 112 items",
-      },
-      {
-        ts: "2026-01-21 14:01:03",
-        type: "score",
-        action: "score-recalculator run",
-        status: "ok",
-        note: "updated 86 startups · 14 changed materially",
-      },
-      {
-        ts: "2026-01-21 13:58:47",
-        type: "guardian",
-        action: "health check",
-        status: "warn",
-        note: "matching coverage dipped below threshold",
-      },
-      {
-        ts: "2026-01-21 13:58:52",
-        type: "match",
-        action: "match-regenerator trigger",
-        status: "ok",
-        note: "regenerated 1,120 matches for affected cohort",
-      },
-      {
-        ts: "2026-01-21 13:50:10",
-        type: "ml",
-        action: "training ingest",
-        status: "ok",
-        note: "ingested 2,409 labeled outcomes",
-      },
-    ],
-    []
-  );
+  useEffect(() => {
+    fetchEngineData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchEngineData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function fetchEngineData() {
+    try {
+      const [statusRes, eventsRes] = await Promise.all([
+        fetch('http://localhost:3002/api/engine/status'),
+        fetch('http://localhost:3002/api/events?limit=20')
+      ]);
+
+      if (!statusRes.ok || !eventsRes.ok) {
+        throw new Error('API request failed');
+      }
+
+      const statusData: EngineStatus = await statusRes.json();
+      const eventsData: EventsResponse = await eventsRes.json();
+
+      setStatus(statusData);
+      setEvents(eventsData.events);
+      setError(null);
+    } catch (err) {
+      console.error('[Engine] Fetch error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-white/60">Loading engine status...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-rose-400/30 bg-rose-400/10 p-6">
+        <div className="text-sm font-semibold text-rose-200">Connection Error</div>
+        <div className="mt-2 text-sm text-rose-300/80">
+          {error}
+        </div>
+        <button
+          onClick={fetchEngineData}
+          className="mt-4 px-4 py-2 rounded-lg border border-rose-400/30 bg-rose-400/20 text-rose-200 hover:bg-rose-400/30 transition"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -119,13 +121,13 @@ export default function Engine() {
         </div>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Command Center</h1>
         <div className="mt-2 text-sm text-white/60">
-          You should always know what the scraper, scoring, matching, and learning systems are doing.
+          Live telemetry from scraper, scoring, matching, and ML systems.
         </div>
       </header>
 
       {/* Tiles */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {tiles.map((t) => (
+        {status?.tiles.map((t) => (
           <div
             key={t.label}
             className="rounded-2xl border border-white/10 bg-white/5 p-5"
@@ -145,7 +147,7 @@ export default function Engine() {
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
             <div className="text-sm font-semibold text-white/85">Recent engine events</div>
-            <div className="text-xs text-white/45">Mocked now · wire to ai_logs in Phase B</div>
+            <div className="text-xs text-white/45">Auto-refreshes every 30s · Last update: {status?.timestamp ? new Date(status.timestamp).toLocaleTimeString() : 'unknown'}</div>
           </div>
           <div className="text-xs text-white/40">types: scrape · score · match · ml · guardian</div>
         </div>
@@ -178,10 +180,9 @@ export default function Engine() {
         </div>
       </div>
 
-      {/* Next wiring note */}
+      {/* Wiring note */}
       <div className="mt-6 text-sm text-white/60">
-        Phase B wiring targets: <span className="text-white/80 font-semibold">ai_logs</span> (event stream) and
-        <span className="text-white/80 font-semibold"> system-guardian</span> (health summary).
+        ✅ Phase B: Wired to <span className="text-white/80 font-semibold">ai_logs</span> table · Auto-refresh: 30s
       </div>
     </div>
   );

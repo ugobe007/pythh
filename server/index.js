@@ -188,6 +188,182 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================================
+// PHASE B: ENGINE STATUS & EVENT STREAM APIs
+// Powers /app/engine and /app/logs pages
+// ============================================================
+
+// GET /api/engine/status
+// Returns: scraper, scoring, matching, ML health tiles
+app.get('/api/engine/status', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Get latest ai_logs entries by type
+    const { data: logs } = await supabase
+      .from('ai_logs')
+      .select('type, action, status, output, created_at')
+      .in('type', ['scraper', 'score', 'match', 'ml', 'guardian'])
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    // Group by type to get latest per system
+    const latestByType = {};
+    (logs || []).forEach(log => {
+      if (!latestByType[log.type]) {
+        latestByType[log.type] = log;
+      }
+    });
+
+    // Count recent activity (last 24h)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const last24h = (logs || []).filter(l => l.created_at >= oneDayAgo);
+
+    // Build health tiles
+    const scraperLog = latestByType['scraper'] || {};
+    const scraperStatus = scraperLog.status === 'error' ? 'down' : 
+                          scraperLog.status === 'warning' ? 'warn' : 'ok';
+    const scraperRecent = last24h.filter(l => l.type === 'scraper');
+    const scraperThroughput = scraperRecent.length > 0 ? 
+      Math.round(scraperRecent.length / 24 * 60) : 0; // per minute estimate
+
+    const scoreLog = latestByType['score'] || {};
+    const scoreStatus = scoreLog.status === 'error' ? 'down' : 
+                        scoreLog.status === 'warning' ? 'warn' : 'ok';
+    const scoreRecent = last24h.filter(l => l.type === 'score');
+    const scoresUpdated = scoreRecent.reduce((sum, l) => 
+      sum + (l.output?.startups_updated || 0), 0);
+
+    const matchLog = latestByType['match'] || {};
+    const matchStatus = matchLog.status === 'error' ? 'down' : 
+                       matchLog.status === 'warning' ? 'warn' : 'ok';
+    const matchRecent = last24h.filter(l => l.type === 'match');
+    const matchesGenerated = matchRecent.reduce((sum, l) => 
+      sum + (l.output?.matches_generated || 0), 0);
+
+    const mlLog = latestByType['ml'] || {};
+    const mlStatus = mlLog.status === 'error' ? 'down' : 
+                     mlLog.status === 'warning' ? 'warn' : 'ok';
+
+    const tiles = [
+      {
+        label: 'Scraper',
+        status: scraperStatus,
+        primary: `Throughput: ${scraperThroughput}/min`,
+        secondary: `Last run: ${scraperLog.created_at ? 
+          Math.round((Date.now() - new Date(scraperLog.created_at)) / 60000) + 'm ago' : 'unknown'}`
+      },
+      {
+        label: 'GOD Scoring',
+        status: scoreStatus,
+        primary: `Recalc: ${scoresUpdated} startups / 24h`,
+        secondary: `Last run: ${scoreLog.created_at ? 
+          Math.round((Date.now() - new Date(scoreLog.created_at)) / 60000) + 'm ago' : 'unknown'}`
+      },
+      {
+        label: 'Matching',
+        status: matchStatus,
+        primary: `Generated: ${matchesGenerated} matches / 24h`,
+        secondary: `Last run: ${matchLog.created_at ? 
+          Math.round((Date.now() - new Date(matchLog.created_at)) / 60000) + 'm ago' : 'unknown'}`
+      },
+      {
+        label: 'ML Learning',
+        status: mlStatus,
+        primary: `Model: ${mlLog.output?.model_version || 'v0.7'}`,
+        secondary: `Training set: ${mlLog.output?.training_count || '182k'}`
+      }
+    ];
+
+    res.json({ tiles, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[/api/engine/status] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch engine status' });
+  }
+});
+
+// GET /api/events?type=&limit=
+// Returns: event stream from ai_logs (filterable by type)
+app.get('/api/events', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { type, limit = 50 } = req.query;
+    
+    let query = supabase
+      .from('ai_logs')
+      .select('created_at, type, action, status, output')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    // Filter by type if provided
+    if (type) {
+      const types = type.split(',').map(t => t.trim());
+      query = query.in('type', types);
+    }
+
+    const { data: logs, error } = await query;
+
+    if (error) throw error;
+
+    // Format for frontend
+    const events = (logs || []).map(log => ({
+      ts: new Date(log.created_at).toISOString().replace('T', ' ').substring(0, 19),
+      type: log.type,
+      action: log.action,
+      status: log.status || 'ok',
+      note: log.output?.message || log.output?.note || 
+            `${log.output?.items_processed || ''} ${log.output?.action_taken || ''}`.trim() || 
+            'completed'
+    }));
+
+    res.json({ events, total: events.length, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[/api/events] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch events' });
+  }
+});
+
+// GET /api/live-signals
+// Returns: Recent investor signals for /live page
+app.get('/api/live-signals', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { limit = 20 } = req.query;
+
+    // Query investor_events_weighted or ai_logs for recent signals
+    const { data: signals, error } = await supabase
+      .from('ai_logs')
+      .select('created_at, type, action, output')
+      .eq('type', 'signal')
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
+
+    if (error) throw error;
+
+    // Format as firm · signal · time
+    const formatted = (signals || []).map(s => ({
+      firm: s.output?.firm || 'Unknown Firm',
+      signal: s.output?.signal_type || s.action || 'Activity detected',
+      time: formatTimeAgo(new Date(s.created_at))
+    }));
+
+    res.json({ signals: formatted, timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('[/api/live-signals] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch live signals' });
+  }
+});
+
+// Helper: Format time ago
+function formatTimeAgo(date) {
+  const mins = Math.floor((Date.now() - date) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return 'today';
+}
+
+// ============================================================
 // CONVERGENCE ENDPOINT - Capital Intelligence Surface
 // GET /api/discovery/convergence?url=https://example.com
 // Returns: status, investors (5 visible + hidden preview), comparable startups, coaching

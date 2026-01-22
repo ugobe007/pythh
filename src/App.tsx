@@ -31,7 +31,7 @@ import PublicLayout from './layouts/PublicLayout';
 import AppLayout from './layouts/AppLayout';
 
 // Public pages
-import HomePage from './pages/HomePage';
+import Home from './pages/HomePage';
 import Live from './pages/public/Live';
 import Signals from './pages/public/Signals';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
@@ -65,7 +65,7 @@ const App: React.FC = () => {
         <Routes>
           {/* PUBLIC (persuasion mode) */}
           <Route element={<PublicLayout />}>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<Home />} />
             <Route path="/live" element={<Live />} />
             <Route path="/signals" element={<Signals />} />
             <Route path="/demo" element={<DemoPageDoctrine />} />
