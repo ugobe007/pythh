@@ -1,167 +1,137 @@
 /**
- * PYTHH HOMEPAGE — CANONICAL SURFACE (FROZEN)
+ * PYTHH HOMEPAGE — CANONICAL SURFACE (Phase A)
  * ============================================
- * Authority: Founder-declared immutable
- * Status: Product surface, not design
- * See: PYTHH_HOMEPAGE_CANONICAL_SURFACE.md
- * 
- * This is an intelligence aperture into a living capital system.
- * Replica from founder-provided HTML/CSS.
+ * Minimal chrome, CTA-first, live intrigue below fold
+ * Fixed: controlled input, URL normalization, submit handler
  */
 
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import "../styles/landing.css";
+import React, { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
-// Mock live activity data
-const LIVE_ACTIVITY = [
-  {
-    text: "AI infra startup flagged for agent-first adoption",
-    godScore: 88,
-    timeAgo: "just now",
-  },
-  {
-    text: "Clean energy startup actively appearing in discovery",
-    godScore: 85,
-    timeAgo: "2m ago",
-  },
-  {
-    text: "EdTech platform showing consistent forward motion",
-    godScore: 71,
-    timeAgo: "5m ago",
-  },
-];
+function normalizeUrl(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, url: "", reason: "empty" };
 
-const TICKER_ITEMS = [
-  { icon: "🟢", text: "LIVE joia active in developer tools — 2h ago", highlight: "LIVE" },
-  { icon: "🟡", text: "Greylock Series B activity in B2B SaaS — just now", highlight: "Greylock" },
-  { icon: "🔥", text: "Khosla thesis convergence in climate — today", highlight: "Khosla" },
-  { icon: "🟣", text: "Sequoia deep tech partner mention — 1h ago", highlight: "Sequoia" },
-  { icon: "🔵", text: "Accel seed velocity spike — 20m ago", highlight: "Accel" },
-  { icon: "🟡", text: "Greylock Series B activity in B2B SaaS — just now", highlight: "Greylock" },
-];
+  // allow domain-only input
+  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
-export default function HomePage() {
-  const [url, setUrl] = useState("");
-  const navigate = useNavigate();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (url.trim()) {
-      navigate(`/results?url=${encodeURIComponent(url)}`);
+  try {
+    const u = new URL(withProto);
+    // require host at minimum
+    if (!u.hostname || u.hostname.length < 3) {
+      return { ok: false, url: "", reason: "bad_host" };
     }
-  };
+    return { ok: true, url: u.toString(), reason: "" };
+  } catch {
+    return { ok: false, url: "", reason: "invalid" };
+  }
+}
+
+export default function Home() {
+  const navigate = useNavigate();
+  const [rawUrl, setRawUrl] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const parsed = useMemo(() => normalizeUrl(rawUrl), [rawUrl]);
+  const showError = touched && !parsed.ok && rawUrl.trim().length > 0;
+
+  function onSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    setTouched(true);
+    if (!parsed.ok) return;
+
+    // Phase A: route to a placeholder startup page (Phase B: call API)
+    const encoded = encodeURIComponent(parsed.url);
+    navigate(`/app/startup/new?url=${encoded}`);
+  }
 
   return (
-    <div className="landing-bg">
-      <div className="landing-grain"></div>
+    <div className="mx-auto max-w-6xl px-6 py-14">
+      <h1 className="text-5xl md:text-7xl font-semibold tracking-tight">
+        Find my investors.
+      </h1>
 
-      {/* Top ticker */}
-      <div className="landing-ticker" aria-hidden="true">
-        <div className="landing-tickerTrack">
-          {TICKER_ITEMS.map((item, i) => (
-            <span key={i}>
-              {item.icon === "🟢" && <span className="landing-dot"></span>}
-              {item.icon !== "🟢" && `${item.icon} `}
-              <b>{item.highlight}</b> {item.text.replace(item.highlight, "").trim()}
-            </span>
-          ))}
-        </div>
+      <div className="mt-4 text-xl text-white/70">
+        We show you who matters and why.
       </div>
 
-      {/* Nav */}
-      <header className="landing-nav">
-        <div className="landing-brand">
-          <div className="landing-name">pythh.ai</div>
-          <div className="landing-tag">SIGNAL SCIENCE</div>
-        </div>
-        <div className="landing-navRight">
-          <button className="landing-btnGhost" type="button">Sign in</button>
-          <button className="landing-btnIcon" type="button" aria-label="Menu">
-            <span className="landing-hamburger"><i></i></span>
+      <form className="mt-10" onSubmit={onSubmit}>
+        <label className="block text-sm text-white/60 mb-2">Enter your startup URL</label>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1">
+            <input
+              value={rawUrl}
+              onChange={(e) => setRawUrl(e.target.value)}
+              onBlur={() => setTouched(true)}
+              placeholder="yourstartup.com"
+              className={[
+                "w-full rounded-xl border px-5 py-4 bg-black/40 text-white outline-none",
+                showError ? "border-rose-400/60" : "border-white/10",
+                "focus:border-white/25",
+              ].join(" ")}
+              autoComplete="off"
+              inputMode="url"
+            />
+            {showError && (
+              <div className="mt-2 text-sm text-rose-300/90">
+                Enter a valid URL (example: yourstartup.com)
+              </div>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="md:min-w-[260px] rounded-xl px-6 py-4 font-semibold bg-[#f2b300] text-black hover:brightness-110 transition"
+          >
+            Find my investors
           </button>
         </div>
-      </header>
+      </form>
 
-      {/* Main content */}
-      <main className="landing-wrap">
-        <section className="landing-hero">
-          <h1 className="landing-h1">Find my investors.</h1>
+      {/* Secondary links (keep, but visually subordinate) */}
+      <div className="mt-6 flex gap-3">
+        <Link
+          to="/live"
+          className="text-sm px-4 py-2 rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition"
+        >
+          See live signals →
+        </Link>
+        <Link
+          to="/signals"
+          className="text-sm px-4 py-2 rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white hover:border-white/20 transition"
+        >
+          See how signals flow →
+        </Link>
+      </div>
 
-          <div className="landing-subhead">
-            We show you who matters and why.
-          </div>
+      <div className="mt-4 text-sm text-white/45">
+        No pitch deck · No warm intro · No brokers · Just signals and timing
+      </div>
 
-          <div className="landing-label">Enter your startup URL</div>
+      {/* Below the fold seed: keep light for now */}
+      <div className="mt-10 text-sm text-white/60">
+        <span className="text-white/80 font-semibold">Live signals</span> (sample)
+      </div>
 
-          <form className="landing-searchRow" onSubmit={handleSubmit}>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://yourstartup.com"
-              aria-label="Startup URL"
-              autoComplete="url"
-              spellCheck={false}
-            />
-            <button className="landing-cta" type="submit">Find my investors</button>
-          </form>
-
-          <div className="landing-pills">
-            <Link to="/live" className="landing-pill">
-              See a live match →
-            </Link>
-            <Link to="/signals" className="landing-pill landing-primary">
-              See how signals flow →
-            </Link>
-          </div>
-
-          <div className="landing-microTrust">No pitch deck · No warm intro · No brokers · Just signals and timing</div>
-
-          {/* LIVE SIGNALS - Tight intrigue block */}
-          <div className="landing-liveSignals">
-            <div className="landing-liveTitle">Live signals</div>
-            
-            <div className="landing-signalsFeed">
-              <div className="landing-signalRow">
-                <span className="landing-signalFirm">Sequoia</span> · Partner mention: agent infrastructure
-                <span className="landing-signalTime">1h ago</span>
-              </div>
-
-              <div className="landing-signalRow">
-                <span className="landing-signalFirm">Accel</span> · Seed velocity spike in agent tooling
-                <span className="landing-signalTime">20m ago</span>
-              </div>
-
-              <div className="landing-signalRow">
-                <span className="landing-signalFirm">Greylock</span> · Thesis published: developer automation
-                <span className="landing-signalTime">today</span>
-              </div>
-
-              <div className="landing-signalRow">
-                <span className="landing-signalFirm">Khosla</span> · Thesis convergence: compute efficiency
-                <span className="landing-signalTime">today</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="landing-feed">
-            <div className="landing-feedTitle">INVESTOR SIGNALS HAPPENING NOW</div>
-
-            {LIVE_ACTIVITY.map((item, i) => (
-              <div key={i} className="landing-item">
-                <div className="landing-bullet"></div>
-                <div>
-                  {item.text}
-                  <span className="landing-time">{item.timeAgo}</span>
-                </div>
-              </div>
-            ))}
-
-            <div className="landing-footerLine">This is how discovery happens before pitch decks.</div>
-          </div>
-        </section>
-      </main>
+      <div className="mt-3 space-y-3 text-sm text-white/70">
+        <div className="flex items-baseline justify-between gap-4">
+          <div><span className="text-white/85 font-semibold">Sequoia</span> · Partner mention: agent infrastructure</div>
+          <div className="text-white/40 whitespace-nowrap">1h ago</div>
+        </div>
+        <div className="flex items-baseline justify-between gap-4">
+          <div><span className="text-white/85 font-semibold">Accel</span> · Seed velocity spike in agent tooling</div>
+          <div className="text-white/40 whitespace-nowrap">20m ago</div>
+        </div>
+        <div className="flex items-baseline justify-between gap-4">
+          <div><span className="text-white/85 font-semibold">Greylock</span> · Thesis published: developer automation</div>
+          <div className="text-white/40 whitespace-nowrap">today</div>
+        </div>
+        <div className="flex items-baseline justify-between gap-4">
+          <div><span className="text-white/85 font-semibold">Khosla</span> · Thesis convergence: compute efficiency</div>
+          <div className="text-white/40 whitespace-nowrap">today</div>
+        </div>
+      </div>
     </div>
   );
 }
