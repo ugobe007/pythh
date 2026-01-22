@@ -108,10 +108,10 @@ export default function HomePage() {
           </form>
 
           <div className="landing-pills">
-            <Link to="/live-match" className="landing-pill">
+            <Link to="/live" className="landing-pill">
               See a live match →
             </Link>
-            <Link to="/signals-flow" className="landing-pill landing-primary">
+            <Link to="/signals" className="landing-pill landing-primary">
               See how signals flow →
             </Link>
           </div>

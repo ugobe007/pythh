@@ -1,24 +1,20 @@
 /**
- * V5.4 App Router (Doctrine-aligned)
+ * Phase A Router (IA locked - Jan 2026)
  * 
- * PRODUCT CONTRACT (Jan 2026):
- * - /match?url=... is a controller: scan → redirect to /results?url=...
- * - /results is the canonical Results Page (Power Score + Investor Scorecards)
- * - /demo renders canned InstantMatches immediately (no scan, no redirect)
- * - /why is for diagnostics (linked from Results, not a destination)
- * - /discovery is internal diagnostic (convergence UI) — NOT founder-facing
+ * PUBLIC (persuasion mode):
+ * - / Home (CTA-first, intrigue signals, no explanations)
+ * - /live Live Signals (scrollable signal tape, no scores)
+ * - /signals How Signals Flow (3-step visual diagram)
+ * - /demo Demo (optional, scripted URL → sample results)
  * 
- * ROUTE HIERARCHY:
- * - L0 (public): /, /results, /demo, /login, /pricing, /checkout, /about, /privacy
- * - L1 (signals): /feed → requires login OR post-submit session
- * - L2 (matches): /results, /saved-matches, /startup/:id, /investor/:id → requires scan
- * - L4 (connect): /invite-investor, /contact → requires phase >= 4
- * - L5 (admin): /admin/* → requires role === admin
+ * APP (instrument mode):
+ * - /app Dashboard (what changed hub)
+ * - /app/engine Engine Status (command center - scraper/scoring/matching/ML telemetry)
+ * - /app/logs Event Stream (raw ai_logs feed, filterable)
+ * - /app/startup/:id Startup Intelligence (signals + matches + recommendations)
  * 
- * INVARIANTS:
- * - /match never renders results or diagnostics — only redirects
- * - /demo always shows "WOW" immediately — no scan required
- * - Diagnostics is subordinate, never primary
+ * LEGACY ADMIN:
+ * - /admin/* (preserved for Phase B cleanup)
  */
 
 import React, { useEffect } from 'react';
@@ -30,286 +26,77 @@ import './App.css';
 import LogoDropdownMenu from './components/LogoDropdownMenu';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 
-// L0: Public Oracle Surface (Doctrine v1.0)
+// Layouts
+import PublicLayout from './layouts/PublicLayout';
+import AppLayout from './layouts/AppLayout';
+
+// Public pages
 import HomePage from './pages/HomePage';
-import LiveMatch from './pages/LiveMatch';
-import SignalsFlow from './pages/SignalsFlow';
+import Live from './pages/public/Live';
+import Signals from './pages/public/Signals';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
-import LandingPage from './pages/LandingPage';
+
+// App pages (instrument mode)
+import Dashboard from './pages/app/Dashboard';
+import Engine from './pages/app/Engine';
+import Logs from './pages/app/Logs';
+import StartupIntelligence from './pages/app/StartupIntelligence';
+// Legacy pages preserved for Phase B
 import Login from './pages/Login';
-import SignupFounder from './pages/SignupFounder';
-import SignalConfirmation from './pages/SignalConfirmation';
-import WhyPythhExists from './pages/WhyPythhExists';
-import HowItWorksPage from './pages/HowItWorksPage';
-import HowPythhWorks from './pages/HowPythhWorks';
-import ValuePage from './pages/ValuePage';
-import SharedSignalView from './pages/SharedSignalView';
-import PricingPage from './pages/PricingPage';
-import CheckoutPage from './pages/CheckoutPage';
-import SubscriptionSuccessPage from './pages/SubscriptionSuccessPage';
-import Privacy from './pages/Privacy';
-
-// L1: Signal Surfaces (gated)
-import Feed from './pages/Feed';
-import LiveDemo from './pages/LiveDemo';
-import MetricsDashboard from './pages/MetricsDashboard';
-import Dashboard from './pages/Dashboard';
-
-// Match Controller (scan → redirect)
 import MatchController from './pages/MatchController';
-// Legacy Demo Page (replaced by DemoPageDoctrine)
-import DemoPage from './pages/DemoPage';
-// Doctrine v2.0 Results Page (Trust → Belief → Conviction)
 import ResultsPageDoctrine from './pages/ResultsPageDoctrine';
-// Legacy Results Page
-import ResultsPage from './pages/ResultsPage';
 
-// L2: Match Surfaces (gated)
-import InstantMatches from './pages/InstantMatches';
-import SavedMatches from './pages/SavedMatches';
-import StartupDetail from './pages/StartupDetail';
-import InvestorProfile from './pages/InvestorProfile';
-import StartupMatches from './pages/StartupMatches';
-import InvestorMatches from './pages/InvestorMatches';
-
-// L4: Connection (gated)
-import Contact from './pages/Contact';
-import InviteInvestorPage from './pages/InviteInvestorPage';
-import InvestorSignup from './pages/InvestorSignup';
-
-// Authenticated routes
-import ProfilePage from './pages/ProfilePage';
-import Settings from './pages/Settings';
-
-// L5: Admin
+// Admin routes (preserved for Phase B cleanup)
 import AdminRouteWrapper from './components/AdminRouteWrapper';
 import UnifiedAdminDashboard from './pages/UnifiedAdminDashboard';
-import ControlCenter from './pages/ControlCenter';
-import AdminReview from './pages/AdminReview';
-import RSSManager from './pages/RSSManager';
-import DiscoveredStartups from './pages/DiscoveredStartups';
-import DiscoveredInvestors from './pages/DiscoveredInvestors';
-import BulkUpload from './pages/BulkUpload';
-import GODScoresPage from './pages/GODScoresPage';
-import GODSettingsPage from './pages/GODSettingsPage';
-import IndustryRankingsPage from './pages/IndustryRankingsPage';
-import TierMatchingAdmin from './pages/TierMatchingAdmin';
-import InvestorEnrichmentPage from './pages/InvestorEnrichmentPage';
-import AILogsPage from './pages/AILogsPage';
-import DiagnosticPage from './pages/DiagnosticPage';
-import DatabaseDiagnostic from './pages/DatabaseDiagnostic';
-import AIIntelligenceDashboard from './pages/AIIntelligenceDashboard';
-import MLDashboard from './pages/MLDashboard';
-import AdminAnalytics from './pages/AdminAnalytics';
-import MatchingEngineAdmin from './pages/MatchingEngineAdmin';
-import MatchReviewPage from './pages/MatchReviewPage';
-import AgentDashboard from './components/admin/AgentDashboard';
-import EditStartups from './pages/EditStartups';
-import QuickAddInvestor from './pages/QuickAddInvestor';
-import AdminInstructions from './pages/AdminInstructions';
 import SystemHealthDashboard from './pages/SystemHealthDashboard';
-import PipelineMonitor from './pages/PipelineMonitor';
-import FundingForecasts from './pages/FundingForecasts';
-import ScriptsControlPage from './pages/ScriptsControlPage';
-import ScraperManagementPage from './pages/ScraperManagementPage';
-import CommandCenter from './components/CommandCenter';
-import DocumentUpload from './pages/DocumentUpload';
-import SetupPage from './pages/SetupPage';
-import SyncStartups from './pages/SyncStartups';
-import MigrateLocalStorage from './pages/MigrateLocalStorage';
-import MigrateStartupData from './pages/MigrateStartupData';
-import StartupBenchmarksDashboard from './pages/StartupBenchmarksDashboard';
-import EditInvestorPage from './pages/EditInvestorPage';
-import TemplateSequentialFlow from './pages/TemplateSequentialFlow';
-import Submit from './pages/Submit';
-import UploadPage from './pages/UploadPage';
-import MarketTrends from './pages/MarketTrends';
-import DataIntelligence from './pages/DataIntelligence';
-import Analytics from './pages/Analytics';
-import SocialSignalsDashboard from './components/SocialSignalsDashboard';
-import DiscoveryPage from './pages/DiscoveryPage';
-import DiscoveryResultsPageV2 from './pages/DiscoveryResultsPageV2';
-import InvestorLensPage from './pages/InvestorLensPage';
-import DiscoveryGalleryPage from './pages/DiscoveryGalleryPage';
-import MyLearningPage from './pages/MyLearningPage';
-import InvestorDashboard from './pages/InvestorDashboard';
-
-// Legacy redirect component
-function LegacyRedirect(): React.ReactElement {
-  return <Navigate to="/" replace />;
-}
+import AILogsPage from './pages/AILogsPage';
 
 const App: React.FC = () => {
   const location = useLocation();
 
-  // Track page views (includes search for scan tracking)
   useEffect(() => {
     trackEvent('page_viewed', { path: location.pathname, search: location.search });
-    
-    // Track oracle_viewed only on actual Oracle surface
-    if (location.pathname === '/') {
-      trackEvent('oracle_viewed', { path: location.pathname });
-    }
   }, [location.pathname, location.search]);
 
   return (
     <AppErrorBoundary>
       <AuthProvider>
-        <div className="min-h-screen bg-[#0a0a0a]">
-          {/* LogoDropdownMenu is now rendered by each page that needs it */}
-          
-          <main>
-            <Routes>
-            {/* L0: PUBLIC ORACLE SURFACE (Doctrine v1.0) */}
+        <Routes>
+          {/* PUBLIC (persuasion mode) */}
+          <Route element={<PublicLayout />}>
             <Route path="/" element={<HomePage />} />
-            <Route path="/live-match" element={<LiveMatch />} />
-            <Route path="/signals-flow" element={<SignalsFlow />} />
+            <Route path="/live" element={<Live />} />
+            <Route path="/signals" element={<Signals />} />
             <Route path="/demo" element={<DemoPageDoctrine />} />
-            <Route path="/landing" element={<LandingPage />} />
-            <Route path="/get-matched" element={<Navigate to="/" replace />} />
-            <Route path="/home" element={<Navigate to="/" replace />} />
-            
-            {/* MATCH CONTROLLER: scan → redirect to /results (never renders results) */}
-            <Route path="/match" element={<MatchController />} />
-            
-            <Route path="/matching" element={<Navigate to="/" replace />} />
-            <Route path="/matching-engine" element={<Navigate to="/" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<SignupFounder />} />
-            <Route path="/signal-confirmation" element={<SignalConfirmation />} />
-            <Route path="/why-pythh" element={<WhyPythhExists />} />
-            <Route path="/how-it-works" element={<HowItWorksPage />} />
-            <Route path="/how-pythh-works" element={<HowPythhWorks />} />
-            <Route path="/value" element={<ValuePage />} />
-            <Route path="/shared/:shareToken" element={<SharedSignalView />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/get-matched/success" element={<SubscriptionSuccessPage />} />
-            <Route path="/about" element={<Navigate to="/why-pythh" replace />} />
-            <Route path="/privacy" element={<Privacy />} />
+          </Route>
 
-            {/* CANONICAL RESULTS PAGE (Doctrine v2.0 - Trust → Belief → Conviction) */}
-            <Route path="/results" element={<L2Guard><ResultsPageDoctrine /></L2Guard>} />
-            {/* Legacy results page preserved at /results-v1 */}
-            <Route path="/results-v1" element={<L2Guard><ResultsPage /></L2Guard>} />
+          {/* APP (instrument mode) */}
+          <Route path="/app" element={<AppLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="engine" element={<Engine />} />
+            <Route path="logs" element={<Logs />} />
+            <Route path="startup/:id" element={<StartupIntelligence />} />
+          </Route>
 
-            {/* L1: SIGNAL SURFACES (requires login OR post-submit) */}
-            <Route path="/feed" element={<L1Guard><Feed /></L1Guard>} />
-            
-            <Route path="/dashboard" element={<L1Guard><Dashboard /></L1Guard>} />
-            <Route path="/live-demo" element={<L1Guard><LiveDemo /></L1Guard>} />
-            <Route path="/metrics" element={<MetricsDashboard />} />
-            
-            {/* DIAGNOSTICS: Internal convergence UI (linked from /results, not a destination) */}
-            <Route path="/why" element={<DiscoveryResultsPageV2 />} />
-            <Route path="/discovery" element={<DiscoveryResultsPageV2 />} />
-            
-            <Route path="/investor-lens/:id" element={<InvestorLensPage />} />
-            <Route path="/gallery" element={<DiscoveryGalleryPage />} />
-            <Route path="/how-startups-align" element={<DiscoveryGalleryPage />} />
-            <Route path="/my-learning" element={<MyLearningPage />} />
-            <Route path="/investor-dashboard" element={<InvestorDashboard />} />
+          {/* LEGACY: Redirect old routes */}
+          <Route path="/live-match" element={<Navigate to="/live" replace />} />
+          <Route path="/signals-flow" element={<Navigate to="/signals" replace />} />
+          <Route path="/match" element={<MatchController />} />
+          <Route path="/results" element={<L2Guard><ResultsPageDoctrine /></L2Guard>} />
+          <Route path="/login" element={<Login />} />
 
-            {/* L2: MATCH SURFACES (requires scan OR login) */}
-            {/* Redirect old results routes to the new canonical /results */}
-            <Route path="/instant-matches" element={<Navigate to="/results" replace />} />
-            <Route path="/match/results" element={<Navigate to="/results" replace />} />
-            <Route path="/saved-matches" element={<L2Guard><SavedMatches /></L2Guard>} />
-            <Route path="/startup/:id" element={<L2Guard><StartupDetail /></L2Guard>} />
-            <Route path="/startup/:id/matches" element={<L2Guard><StartupMatches /></L2Guard>} />
-            <Route path="/investor/:id" element={<L2Guard><InvestorProfile /></L2Guard>} />
-            <Route path="/investor/:id/matches" element={<L2Guard><InvestorMatches /></L2Guard>} />
-            <Route path="/startup/:startupId/templates" element={<L2Guard><TemplateSequentialFlow /></L2Guard>} />
+          {/* ADMIN (preserved for Phase B) */}
+          <Route path="/admin" element={<L5Guard><AdminRouteWrapper /></L5Guard>}>
+            <Route index element={<UnifiedAdminDashboard />} />
+            <Route path="health" element={<SystemHealthDashboard />} />
+            <Route path="ai-logs" element={<AILogsPage />} />
+          </Route>
 
-            {/* L4: CONNECTION (requires phase >= 4) */}
-            <Route path="/contact" element={<L4Guard><Contact /></L4Guard>} />
-            <Route path="/invite-investor" element={<L4Guard><InviteInvestorPage /></L4Guard>} />
-            <Route path="/investor/signup" element={<InvestorSignup />} />
-
-            {/* AUTHENTICATED ROUTES */}
-            <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} />
-            <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
-
-            {/* L5: ADMIN ROUTES */}
-            <Route path="/admin" element={<L5Guard><AdminRouteWrapper /></L5Guard>}>
-              <Route index element={<UnifiedAdminDashboard />} />
-              <Route path="dashboard" element={<UnifiedAdminDashboard />} />
-              <Route path="control" element={<ControlCenter />} />
-              <Route path="review" element={<AdminReview />} />
-              <Route path="rss-manager" element={<RSSManager />} />
-              <Route path="discovered-startups" element={<DiscoveredStartups />} />
-              <Route path="discovered-investors" element={<DiscoveredInvestors />} />
-              <Route path="bulk-upload" element={<BulkUpload />} />
-              <Route path="god-scores" element={<GODScoresPage />} />
-              <Route path="god-settings" element={<GODSettingsPage />} />
-              <Route path="industry-rankings" element={<IndustryRankingsPage />} />
-              <Route path="tier-matching" element={<TierMatchingAdmin />} />
-              <Route path="investor-enrichment" element={<InvestorEnrichmentPage />} />
-              <Route path="ai-logs" element={<AILogsPage />} />
-              <Route path="diagnostic" element={<DiagnosticPage />} />
-              <Route path="database-check" element={<DatabaseDiagnostic />} />
-              <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
-              <Route path="ml-dashboard" element={<MLDashboard />} />
-              <Route path="analytics" element={<AdminAnalytics />} />
-              <Route path="matching-engine" element={<MatchingEngineAdmin />} />
-              <Route path="match-review" element={<MatchReviewPage />} />
-              <Route path="agent" element={<AgentDashboard />} />
-              <Route path="edit-startups" element={<EditStartups />} />
-              <Route path="investors/add" element={<QuickAddInvestor />} />
-              <Route path="investor/:id/edit" element={<EditInvestorPage />} />
-              <Route path="instructions" element={<AdminInstructions />} />
-              <Route path="health" element={<SystemHealthDashboard />} />
-              <Route path="pipeline" element={<PipelineMonitor />} />
-              <Route path="forecasts" element={<FundingForecasts />} />
-              <Route path="scripts" element={<ScriptsControlPage />} />
-              <Route path="scrapers" element={<ScraperManagementPage />} />
-              <Route path="command-center" element={<CommandCenter />} />
-              <Route path="document-upload" element={<DocumentUpload />} />
-              <Route path="setup" element={<SetupPage />} />
-              <Route path="sync" element={<SyncStartups />} />
-              <Route path="migrate" element={<MigrateLocalStorage />} />
-              <Route path="migrate-data" element={<MigrateStartupData />} />
-              <Route path="benchmarks" element={<StartupBenchmarksDashboard />} />
-              <Route path="submit" element={<Submit />} />
-              <Route path="upload" element={<UploadPage />} />
-              <Route path="market-trends" element={<MarketTrends />} />
-              <Route path="data-intelligence" element={<DataIntelligence />} />
-              <Route path="social-signals" element={<SocialSignalsDashboard />} />
-            </Route>
-
-            {/* Admin shortcuts */}
-            <Route path="/bulkupload" element={<L5Guard><BulkUpload /></L5Guard>} />
-            <Route path="/setup" element={<L5Guard><SetupPage /></L5Guard>} />
-            <Route path="/analytics" element={<L5Guard><Analytics /></L5Guard>} />
-
-            {/* LEGACY REDIRECTS */}
-            <Route path="/vote" element={<LegacyRedirect />} />
-            <Route path="/vote-demo" element={<LegacyRedirect />} />
-            <Route path="/vote-cards" element={<LegacyRedirect />} />
-            <Route path="/trending" element={<LegacyRedirect />} />
-            <Route path="/discover" element={<LegacyRedirect />} />
-            <Route path="/deals" element={<LegacyRedirect />} />
-            <Route path="/portfolio" element={<LegacyRedirect />} />
-            <Route path="/startups" element={<LegacyRedirect />} />
-            <Route path="/investors" element={<LegacyRedirect />} />
-            <Route path="/services" element={<LegacyRedirect />} />
-            <Route path="/strategies" element={<LegacyRedirect />} />
-            <Route path="/navigation" element={<LegacyRedirect />} />
-            <Route path="/sitemap" element={<LegacyRedirect />} />
-            <Route path="/market-trends" element={<LegacyRedirect />} />
-            <Route path="/trends" element={<LegacyRedirect />} />
-            <Route path="/benchmarks" element={<LegacyRedirect />} />
-            <Route path="/data-intelligence" element={<LegacyRedirect />} />
-            <Route path="/social-signals" element={<LegacyRedirect />} />
-            <Route path="/submit" element={<LegacyRedirect />} />
-            <Route path="/upload" element={<LegacyRedirect />} />
-
-            {/* Catch-all */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
-      </div>
-    </AuthProvider>
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </AppErrorBoundary>
   );
 };
