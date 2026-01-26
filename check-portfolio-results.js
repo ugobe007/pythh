@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env.bak' });
+require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -11,11 +11,10 @@ async function checkResults() {
   const { data, error, count } = await supabase
     .from('discovered_startups')
     .select('*', { count: 'exact' })
-    .eq('source', 'vc-portfolio');
+    .like('rss_source', 'vc-portfolio:%');
   
   if (error) {
     console.log('❌ Error:', error.message);
-    console.log('Note: discovered_startups may need vc_name, logo_url columns');
     return;
   }
   
@@ -27,7 +26,7 @@ async function checkResults() {
     data.slice(0, 5).forEach(c => {
       console.log(`  - ${c.name}`);
       console.log(`    Website: ${c.website || 'N/A'}`);
-      console.log(`    VC: ${c.vc_name || 'N/A'}`);
+      console.log(`    VC: ${c.lead_investor || c.rss_source || 'N/A'}`);
       console.log('');
     });
   }

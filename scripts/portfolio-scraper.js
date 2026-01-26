@@ -11,7 +11,7 @@
  * 5. Schedule weekly via PM2
  */
 
-require('dotenv').config({ path: '.env.bak' });
+require('dotenv').config();
 const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -204,7 +204,7 @@ async function scrapeVCPortfolio(vcConfig) {
     });
     
     // Wait for content to load
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Extract company data
     const companies = await page.evaluate((selectors) => {
@@ -281,11 +281,10 @@ async function scrapeVCPortfolio(vcConfig) {
             name: cleanedName || 'Unknown',
             description: cleanedDescription,
             website: cleanedWebsite,
-            logo_url: company.logo,
-            source: 'vc-portfolio',
-            source_url: vcConfig.url,
-            vc_name: vcConfig.name,
-            status: 'pending'
+            rss_source: `vc-portfolio: ${vcConfig.name}`,
+            article_url: vcConfig.url,
+            lead_investor: vcConfig.name,
+            discovered_at: new Date().toISOString()
           });
         
         if (error) {
