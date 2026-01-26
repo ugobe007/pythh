@@ -43,3 +43,5 @@ yarn-error.log*
 tmp/
 temp/
 *.tmp
+.env.bak*
+.env.backup
