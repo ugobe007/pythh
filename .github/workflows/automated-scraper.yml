@@ -44,13 +44,23 @@ jobs:
       - name: Create logs directory
         run: mkdir -p logs
 
+      - name: Create .env.bak for scraper
+        run: |
+          cat > .env.bak << EOF
+          VITE_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          EOF
+          echo "✅ Created .env.bak file"
+
       - name: Run Automated Scraper
         id: scraper
         continue-on-error: true
         if: ${{ github.event.inputs.run_type != 'inference_only' }}
         run: |
-          echo "🚀 Starting automated scraper..." | tee logs/scraper.log
-          node automated-scraper.js 2>&1 | tee -a logs/scraper.log || {
+          echo "🚀 Starting SSOT RSS scraper..." | tee logs/scraper.log
+          npx tsx scripts/core/ssot-rss-scraper.js 2>&1 | tee -a logs/scraper.log || {
             echo "⚠️ Scraper exited with errors, but continuing..."
             echo '{"status": "partial", "scraper_exit_code": '$?'}' > logs/scraper-results.json
             exit 0
@@ -63,9 +73,9 @@ jobs:
         id: inference
         continue-on-error: true
         run: |
-          echo "🧠 Starting inference pipeline..." | tee -a logs/inference.log
-          node run-inference-pipeline.js 2>&1 | tee -a logs/inference.log || {
-            echo "⚠️ Inference pipeline exited with errors"
+          echo "🧠 Starting ML ontology agent..." | tee -a logs/inference.log
+          node scripts/ml-ontology-agent.js 2>&1 | tee -a logs/inference.log || {
+            echo "⚠️ ML agent exited with errors"
             echo '{"status": "error", "inference_exit_code": '$?'}' > logs/inference-results.json
             exit 0
           }
