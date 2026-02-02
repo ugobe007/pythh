@@ -73,21 +73,29 @@ async function fetchWebsiteContent(url: string): Promise<string | null> {
 }
 
 /**
- * Calculate GOD score from inference data
+ * ============================================================================
+ * ⛔ REMOVED: DUPLICATE GOD SCORING (Jan 31, 2026)
+ * ============================================================================
+ * 
+ * This script previously had its own calculateGodScore() function that:
+ *   - Duplicated logic from the official GOD scoring system
+ *   - Could produce different scores than startupScoringService.ts
+ *   - Risked corruption if algorithms diverged
+ * 
+ * FIX: This script now ONLY extracts and stores inference data.
+ * The official GOD scoring system (recalculate-scores.ts) handles all scoring.
+ * 
+ * To recalculate scores after enrichment:
+ *   npx tsx scripts/recalculate-scores.ts
+ * ============================================================================
  */
-function calculateGodScore(inference: any): {
-  total_god_score: number;
-  vision_score: number;
-  market_score: number;
-  traction_score: number;
-  team_score: number;
-  product_score: number;
-  data_tier: 'A' | 'B' | 'C';
-} {
-  // Determine data tier based on what the inference engine found
+
+/**
+ * Determine data tier based on inference signals (informational only)
+ */
+function determineDataTier(inference: any): 'A' | 'B' | 'C' {
   const hasRichData = !!(
     inference.funding_amount ||
-    inference.customer_count ||
     inference.has_revenue ||
     (inference.execution_signals?.length >= 3)
   );
@@ -99,103 +107,7 @@ function calculateGodScore(inference: any): {
     inference.has_customers
   );
 
-  const tier = hasRichData ? 'A' : (hasSomeData ? 'B' : 'C');
-
-  if (tier === 'A') {
-    // Full Tier A scoring (up to 100)
-    let vision = 0, market = 0, traction = 0, team = 0, product = 0;
-
-    // Vision (content quality)
-    if (inference.problem_keywords?.length > 0) vision += 10;
-    if (inference.problem_severity_estimate >= 7) vision += 10;
-    vision += 5; // Base for having data
-    vision = Math.min(25, vision);
-
-    // Market (sector hotness)
-    if (inference.sectors?.length > 0) {
-      for (const sector of inference.sectors) {
-        market = Math.max(market, SECTOR_WEIGHTS[sector] || 5);
-      }
-      market += 5;
-    }
-    market = Math.min(25, market);
-
-    // Traction (execution signals)
-    if (inference.has_revenue) traction += 15;
-    if (inference.has_customers) traction += 8;
-    if (inference.customer_count && inference.customer_count > 10) traction += 5;
-    if (inference.growth_rate) traction += 5;
-    if (inference.funding_amount) {
-      const amt = parseFloat(String(inference.funding_amount));
-      if (amt >= 10000000) traction += 10;
-      else if (amt >= 1000000) traction += 5;
-    }
-    traction = Math.min(25, traction);
-
-    // Team (credentials + GRIT)
-    if (inference.has_technical_cofounder) team += 10;
-    if (inference.credential_signals?.length > 0) {
-      team += Math.min(10, inference.credential_signals.length * 3);
-    }
-    if (inference.grit_signals?.length > 0) {
-      team += Math.min(5, inference.grit_signals.length * 2);
-    }
-    team = Math.min(25, team);
-
-    // Product
-    if (inference.is_launched) product += 15;
-    if (inference.has_demo) product += 5;
-    product = Math.min(20, product);
-
-    // Total with quality bonus
-    let total = vision + market + traction + team + product;
-    if (tier === 'A' && total >= 60) total += 5; // Quality bonus
-    total = Math.min(100, total);
-
-    return { total_god_score: total, vision_score: vision, market_score: market, traction_score: traction, team_score: team, product_score: product, data_tier: 'A' };
-
-  } else if (tier === 'B') {
-    // Tier B scoring (capped at 55)
-    let base = 40;
-    
-    // Sector bonus
-    if (inference.sectors?.length > 0) {
-      for (const sector of inference.sectors) {
-        base = Math.max(base, 40 + (SECTOR_WEIGHTS[sector] || 0) / 2);
-      }
-    }
-
-    // Execution signals
-    if (inference.is_launched) base += 4;
-    if (inference.has_demo) base += 2;
-    if (inference.has_customers) base += 3;
-    if (inference.has_technical_cofounder) base += 2;
-    if (inference.team_signals?.length > 0) base += 2;
-
-    const total = Math.min(55, Math.round(base));
-
-    return {
-      total_god_score: total,
-      vision_score: 12,
-      market_score: Math.min(20, (SECTOR_WEIGHTS[inference.sectors?.[0]] || 5)),
-      traction_score: inference.is_launched ? 15 : 8,
-      team_score: inference.has_technical_cofounder ? 15 : 8,
-      product_score: (inference.is_launched ? 10 : 5) + (inference.has_demo ? 5 : 0),
-      data_tier: 'B',
-    };
-
-  } else {
-    // Tier C (capped at 40)
-    return {
-      total_god_score: 40,
-      vision_score: 10,
-      market_score: 10,
-      traction_score: 8,
-      team_score: 8,
-      product_score: 8,
-      data_tier: 'C',
-    };
-  }
+  return hasRichData ? 'A' : (hasSomeData ? 'B' : 'C');
 }
 
 async function main() {
@@ -288,11 +200,11 @@ async function main() {
 
     console.log(`   📈 Signals Found: ${signalsFound.length > 0 ? signalsFound.join(' | ') : 'minimal'}`);
 
-    // Calculate GOD score
-    const scores = calculateGodScore(inference);
-    console.log(`   🎯 GOD Score: ${startup.total_god_score} → ${scores.total_god_score} (Tier ${scores.data_tier})`);
+    // Determine data tier (informational only - DO NOT calculate scores here)
+    const dataTier = determineDataTier(inference);
+    console.log(`   🎯 Data Tier: ${dataTier} - run recalculate-scores.ts to update GOD score`);
 
-    // Update database
+    // Update database with inference data ONLY (not scores)
     const { error: updateError } = await supabase
       .from('startup_uploads')
       .update({
@@ -300,16 +212,11 @@ async function main() {
         is_launched: inference.is_launched || false,
         has_demo: inference.has_demo || false,
         has_technical_cofounder: inference.has_technical_cofounder || false,
-        total_god_score: scores.total_god_score,
-        vision_score: scores.vision_score,
-        market_score: scores.market_score,
-        traction_score: scores.traction_score,
-        team_score: scores.team_score,
-        product_score: scores.product_score,
+        // ⛔ DO NOT SET GOD SCORES HERE - use recalculate-scores.ts
         extracted_data: {
           ...(startup.extracted_data || {}),
           ...inference,
-          data_tier: scores.data_tier,
+          data_tier: dataTier,
           inference_method: 'pyth_inference_engine',
           enriched_at: new Date().toISOString(),
         },
@@ -324,11 +231,11 @@ async function main() {
       results.push({
         name: startup.name || 'Unknown',
         before: startup.total_god_score || 60,
-        after: scores.total_god_score,
-        tier: scores.data_tier,
+        after: startup.total_god_score || 60, // Score unchanged - will be recalculated
+        tier: dataTier,
         signals: signalsFound,
       });
-      console.log(`   ✅ Updated!`);
+      console.log(`   ✅ Enriched! Run recalculate-scores.ts to update GOD score`);
     }
 
     // Small delay

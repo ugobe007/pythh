@@ -165,48 +165,82 @@ export default function FloatingSearch() {
 
     try {
       if (result.type === 'startup') {
-        const { data } = await supabase
+        // Step 1: Fetch match rows only (NO EMBEDS)
+        const { data: matchRows } = await supabase
           .from('startup_investor_matches')
-          .select(`
-            match_score,
-            investors:investor_id (id, name, firm, bio, sectors, stage)
-          `)
+          .select('investor_id, match_score')
           .eq('startup_id', result.id)
           .eq('status', 'suggested')
           .order('match_score', { ascending: false })
           .limit(12);
 
-        setMatches((data || []).filter((m: any) => m.investors).map((m: any) => ({
-          id: m.investors.id,
-          name: m.investors.name,
-          firm: m.investors.firm,
-          description: m.investors.bio,
-          sectors: m.investors.sectors,
-          stage: m.investors.stage,
-          score: m.match_score,
-          type: 'investor' as const,
-        })));
+        if (matchRows && matchRows.length > 0) {
+          // Step 2: Fetch investors by IDs
+          const investorIds = matchRows.map(m => m.investor_id).filter(Boolean);
+          const { data: investors } = await supabase
+            .from('investors')
+            .select('id, name, firm, bio, sectors, stage')
+            .in('id', investorIds);
+
+          // Step 3: Join in memory
+          const investorById = new Map((investors || []).map(inv => [inv.id, inv]));
+          setMatches(matchRows
+            .map(m => {
+              const inv = investorById.get(m.investor_id);
+              if (!inv) return null;
+              return {
+                id: inv.id,
+                name: inv.name,
+                firm: inv.firm,
+                description: inv.bio,
+                sectors: inv.sectors,
+                stage: inv.stage,
+                score: m.match_score,
+                type: 'investor' as const,
+              };
+            })
+            .filter(Boolean) as any[]);
+        } else {
+          setMatches([]);
+        }
       } else {
-        const { data } = await supabase
+        // Step 1: Fetch match rows only (NO EMBEDS)
+        const { data: matchRows } = await supabase
           .from('startup_investor_matches')
-          .select(`
-            match_score,
-            startup_uploads:startup_id (id, name, tagline, sectors, stage, total_god_score)
-          `)
+          .select('startup_id, match_score')
           .eq('investor_id', result.id)
           .eq('status', 'suggested')
           .order('match_score', { ascending: false })
           .limit(12);
 
-        setMatches((data || []).filter((m: any) => m.startup_uploads).map((m: any) => ({
-          id: m.startup_uploads.id,
-          name: m.startup_uploads.name,
-          tagline: m.startup_uploads.tagline,
-          sectors: m.startup_uploads.sectors,
-          stage: m.startup_uploads.stage,
-          score: m.match_score,
-          type: 'startup' as const,
-        })));
+        if (matchRows && matchRows.length > 0) {
+          // Step 2: Fetch startups by IDs
+          const startupIds = matchRows.map(m => m.startup_id).filter(Boolean);
+          const { data: startups } = await supabase
+            .from('startup_uploads')
+            .select('id, name, tagline, sectors, stage, total_god_score')
+            .in('id', startupIds);
+
+          // Step 3: Join in memory
+          const startupById = new Map((startups || []).map(s => [s.id, s]));
+          setMatches(matchRows
+            .map(m => {
+              const startup = startupById.get(m.startup_id);
+              if (!startup) return null;
+              return {
+                id: startup.id,
+                name: startup.name,
+                tagline: startup.tagline,
+                sectors: startup.sectors,
+                stage: startup.stage,
+                score: m.match_score,
+                type: 'startup' as const,
+              };
+            })
+            .filter(Boolean) as any[]);
+        } else {
+          setMatches([]);
+        }
       }
     } catch (err) {
       console.error('Error loading matches:', err);

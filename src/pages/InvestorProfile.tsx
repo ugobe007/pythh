@@ -1,360 +1,522 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+/**
+ * PYTHH INVESTOR PROFILE — LIFEFORM (CANONICAL)
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Investor profiles answer ONE question:
+ * "How does this investor behave over time, and when do they engage?"
+ * 
+ * They are NOT:
+ * - resumes
+ * - logos + portfolio porn
+ * - contact cards
+ * - promises of access
+ * 
+ * If a founder leaves thinking "I should email them", the page failed.
+ * If they leave thinking "I should watch them", it worked.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
 
-interface Investor {
-  id: string;
+import { useState, useEffect } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import SaveToSignalCard from '../components/SaveToSignalCard';
+import ShareButton from '../components/ShareButton';
+
+// ═══════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════
+
+type AlignmentState = 'Monitoring' | 'Warming' | 'Cooling' | 'Dormant';
+
+interface InvestorData {
   name: string;
-  firm: string;
-  title: string;
-  bio: string;
-  email: string;
-  photo_url: string;
-  stage: string[];
-  sectors: string[];
-  check_size_min: number;
-  check_size_max: number;
-  investment_thesis: string;
-  linkedin_url: string;
-  type: string;
-  total_investments: number | null; // SSOT: Database uses total_investments, not portfolio_size
+  focus: string;
+  stage: string;
+  observedSince: string;
+  // Behavioral Summary (3 bullets max)
+  behavioralPattern: string[];
+  // Recent Behavior (≤30 days)
+  recentBehavior: string[];
+  // Alignment & Timing
+  alignmentState: AlignmentState;
+  lensScore: number;
+  timing: 'Cooling' | 'Warming' | 'Active' | 'Dormant';
+  // Competitive Context
+  relativeBehavior: string[];
+  // Signals they respond to
+  signalsTheyRespondTo: string[];
+  // Quiet guidance
+  quietGuidance: string;
 }
 
-interface NewsArticle {
-  id: string;
-  title: string;
-  url: string;
-  summary: string;
-  published_date: string;
-  source: string;
-  sentiment?: string;
-}
+// ═══════════════════════════════════════════════════════════════
+// INVESTOR DATA (would come from API)
+// ═══════════════════════════════════════════════════════════════
+
+const investorData: Record<string, InvestorData> = {
+  'sequoia': {
+    name: 'Sequoia Capital',
+    focus: 'Enterprise, Infra, SaaS',
+    stage: 'Seed → Series B',
+    observedSince: '2016',
+    behavioralPattern: [
+      'Engages after sustained momentum, not spikes',
+      'Prefers category clarity over early experimentation',
+      'Historically avoids crowded entry points',
+    ],
+    recentBehavior: [
+      'Increased activity in AI Infra',
+      'Quiet in FinTech APIs',
+      'Last engagement window: ~3 weeks ago',
+    ],
+    alignmentState: 'Cooling',
+    lensScore: 84.1,
+    timing: 'Cooling',
+    relativeBehavior: [
+      'Often engages later than a16z in this category',
+      'Moves earlier than Greylock during infrastructure cycles',
+    ],
+    signalsTheyRespondTo: [
+      'Hiring acceleration',
+      'Enterprise keyword emergence',
+      'Sustained category leadership signals',
+    ],
+    quietGuidance: 'Most founders monitor this investor before engaging.',
+  },
+  'general-catalyst': {
+    name: 'General Catalyst',
+    focus: 'FinTech, Enterprise, Growth',
+    stage: 'Seed → Series B',
+    observedSince: '2018',
+    behavioralPattern: [
+      'Moves quickly when thesis aligns',
+      'Prefers warm intros but responds cold',
+      'Engages during expansion phases, not contraction',
+    ],
+    recentBehavior: [
+      'Active FinTech API scanning',
+      'Stable in AI Infrastructure',
+      'Quiet in B2B SaaS',
+    ],
+    alignmentState: 'Warming',
+    lensScore: 82.4,
+    timing: 'Active',
+    relativeBehavior: [
+      'Moves faster than Sequoia in fintech',
+      'Often co-invests with QED in this category',
+    ],
+    signalsTheyRespondTo: [
+      'Revenue acceleration',
+      'Partnership announcements',
+      'Category momentum indicators',
+    ],
+    quietGuidance: 'This investor typically engages after momentum stabilizes.',
+  },
+  'a16z': {
+    name: 'a16z Fintech',
+    focus: 'FinTech, Crypto, Infra',
+    stage: 'Seed → Series C',
+    observedSince: '2019',
+    behavioralPattern: [
+      'Engages early in category formation',
+      'Favors technical founders with infrastructure background',
+      'Moves aggressively once conviction forms',
+    ],
+    recentBehavior: [
+      'Increased activity in payments infrastructure',
+      'Active in AI-adjacent fintech',
+      'Last deployment: ~2 weeks ago',
+    ],
+    alignmentState: 'Warming',
+    lensScore: 80.2,
+    timing: 'Active',
+    relativeBehavior: [
+      'Moves earlier than Sequoia in emerging categories',
+      'Often leads rounds that Index follows',
+    ],
+    signalsTheyRespondTo: [
+      'Technical talent concentration',
+      'API/infrastructure positioning',
+      'Category creation signals',
+    ],
+    quietGuidance: 'This investor typically engages after momentum stabilizes.',
+  },
+  'ribbit': {
+    name: 'Ribbit Capital',
+    focus: 'FinTech (pure play)',
+    stage: 'Seed → Series B',
+    observedSince: '2017',
+    behavioralPattern: [
+      'Deep fintech expertise drives faster diligence',
+      'Prefers founders with financial services background',
+      'Patient with regulatory complexity',
+    ],
+    recentBehavior: [
+      'Active in embedded finance',
+      'Increased scanning of payments APIs',
+      'Quiet in crypto-adjacent fintech',
+    ],
+    alignmentState: 'Warming',
+    lensScore: 78.9,
+    timing: 'Active',
+    relativeBehavior: [
+      'Moves faster than generalists in fintech',
+      'Often competes with QED for sector deals',
+    ],
+    signalsTheyRespondTo: [
+      'Regulatory moat signals',
+      'Partnership with banks/FIs',
+      'Payment volume growth',
+    ],
+    quietGuidance: 'Founders with fintech-native positioning see stronger engagement.',
+  },
+  'index': {
+    name: 'Index Ventures',
+    focus: 'Consumer, Enterprise, FinTech',
+    stage: 'Seed → Series C',
+    observedSince: '2015',
+    behavioralPattern: [
+      'Engages steadily across market cycles',
+      'Prefers product-led growth narratives',
+      'European origin means broader geo coverage',
+    ],
+    recentBehavior: [
+      'Warming in FinTech APIs',
+      'Stable across enterprise categories',
+      'Last engagement window: ~1 week ago',
+    ],
+    alignmentState: 'Monitoring',
+    lensScore: 79.1,
+    timing: 'Warming',
+    relativeBehavior: [
+      'More patient than US-only funds',
+      'Often follows conviction from European signals',
+    ],
+    signalsTheyRespondTo: [
+      'Product-led growth metrics',
+      'European expansion signals',
+      'Developer adoption indicators',
+    ],
+    quietGuidance: 'Many founders monitor this investor before engaging.',
+  },
+  'qed': {
+    name: 'QED Investors',
+    focus: 'FinTech (pure play)',
+    stage: 'Seed → Series A',
+    observedSince: '2016',
+    behavioralPattern: [
+      'Capital One heritage = deep credit/lending expertise',
+      'Prefers data-driven founders',
+      'Patient with unit economics validation',
+    ],
+    recentBehavior: [
+      'Active in embedded lending',
+      'Stable in payments infrastructure',
+      'Quiet in B2B neobanking',
+    ],
+    alignmentState: 'Monitoring',
+    lensScore: 75.4,
+    timing: 'Warming',
+    relativeBehavior: [
+      'Often co-invests with Ribbit',
+      'Moves slower than generalists but with higher conviction',
+    ],
+    signalsTheyRespondTo: [
+      'Unit economics clarity',
+      'Data infrastructure signals',
+      'Lending/credit market positioning',
+    ],
+    quietGuidance: 'Many founders monitor this investor before engaging.',
+  },
+};
+
+// Default for unknown IDs
+const defaultInvestor: InvestorData = {
+  name: 'Unknown Investor',
+  focus: 'Unknown',
+  stage: 'Unknown',
+  observedSince: '—',
+  behavioralPattern: [
+    'Insufficient data for pattern analysis',
+  ],
+  recentBehavior: [
+    'No recent activity detected',
+  ],
+  alignmentState: 'Dormant',
+  lensScore: 0,
+  timing: 'Dormant',
+  relativeBehavior: [],
+  signalsTheyRespondTo: [],
+  quietGuidance: 'Insufficient data to provide guidance.',
+};
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════
 
 export default function InvestorProfile() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const [investor, setInvestor] = useState<Investor | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [news, setNews] = useState<NewsArticle[]>([]);
+  const investor = investorData[id || ''] || defaultInvestor;
+  const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Demo: Check if startup is claimed
+  const startupClaimed = true;
+  const startup = {
+    name: 'FinTech API',
+    stage: 'Seed',
+  };
 
+  // Lifeform breathing
   useEffect(() => {
-    async function fetchInvestor() {
-      if (!id) return;
-      const { data } = await supabase
-        .from('investors')
-        .select('*')
-        .eq('id', id)
-        .single();
-      setInvestor(data);
-      
-      // Fetch mock news for investor
-      if (data) {
-        setNews([
-          {
-            id: '1',
-            title: `${data.firm} Announces $${Math.floor(Math.random() * 500 + 100)}M New Fund`,
-            url: '#',
-            summary: 'The firm closes oversubscribed fund to back next generation of startups.',
-            published_date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            source: 'TechCrunch',
-            sentiment: 'positive'
-          },
-          {
-            id: '2',
-            title: `${data.name} Shares Investment Insights at Conference`,
-            url: '#',
-            summary: 'Key takeaways on market trends and emerging opportunities in the sector.',
-            published_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            source: 'VentureBeat',
-            sentiment: 'positive'
-          },
-          {
-            id: '3',
-            title: `${data.firm} Portfolio Company Achieves Major Milestone`,
-            url: '#',
-            summary: 'Recent investment reaches unicorn status, validating thesis.',
-            published_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-            source: 'The Information',
-            sentiment: 'positive'
-          }
-        ]);
-      }
-      
-      setLoading(false);
+    const interval = setInterval(() => {
+      setIsUpdating(true);
+      setTimeout(() => setIsUpdating(false), 1200);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Style helpers
+  const alignmentColor = (state: AlignmentState): string => {
+    switch (state) {
+      case 'Warming': return 'text-[#3ECF8E]';
+      case 'Monitoring': return 'text-[#8f8f8f]';
+      case 'Cooling': return 'text-amber-400';
+      case 'Dormant': return 'text-[#5f5f5f]';
     }
-    fetchInvestor();
-  }, [id]);
+  };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0f0729] via-[#1a0f3a] to-[#2d1558] flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
+  const timingColor = (t: string): string => {
+    if (t === 'Active') return 'text-[#3ECF8E]';
+    if (t === 'Warming') return 'text-[#8f8f8f]';
+    if (t === 'Cooling') return 'text-amber-400';
+    return 'text-[#5f5f5f]';
+  };
 
-  if (!investor) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0f0729] via-[#1a0f3a] to-[#2d1558] flex flex-col items-center justify-center gap-4">
-        <div className="text-red-400 text-xl">Investor not found</div>
-        <button 
-          onClick={() => navigate('/matching-engine')} 
-          className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition-all"
-        >
-          ← Back to Matches
-        </button>
-      </div>
-    );
-  }
-
-  // Format check size for display
-  const formatCheckSize = () => {
-    if (investor.check_size_min && investor.check_size_max) {
-      return `$${(investor.check_size_min / 1000000).toFixed(1)}M - $${(investor.check_size_max / 1000000).toFixed(1)}M`;
-    }
-    return 'Undisclosed';
+  // Score click → Score Drawer (lens locked)
+  const handleScoreClick = () => {
+    console.log('Open score drawer for', investor.name);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a0033] via-[#2d1b4e] to-[#1a0033] p-6 scrollbar-hide overflow-y-auto">
-      {/* Animated background blobs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '3s'}}></div>
-      </div>
+    <div className="min-h-screen bg-[#1c1c1c]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+      
+      {/* Lifeform animations */}
+      <style>{`
+        @keyframes profileFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes updateFade {
+          0%, 100% { opacity: 0; }
+          20%, 80% { opacity: 1; }
+        }
+      `}</style>
 
-      <div className="max-w-4xl mx-auto relative z-10">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/match')}
-          className="group mb-6 px-6 py-3 rounded-xl bg-white/5 hover:bg-emerald-500/20 transition-all flex items-center gap-2 text-gray-300 hover:text-emerald-300"
-        >
-          <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          <span className="font-medium">Back to Matches</span>
-        </button>
-
-        {/* Main Profile Card */}
-        <div className="bg-gradient-to-br from-[#1a0033]/95 via-[#2d1b4e]/90 to-[#3d1f5e]/85 backdrop-blur-xl rounded-3xl p-8 shadow-2xl shadow-emerald-600/20 mb-6">
-          {/* Header Section with Photo */}
-          <div className="flex items-start gap-6 mb-8 pb-6 border-b border-emerald-400/30">
-            {/* Avatar/Photo */}
-            <div className="relative flex-shrink-0">
-              <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 p-1 shadow-lg shadow-cyan-500/50">
-                {investor.photo_url ? (
-                  <img 
-                    src={investor.photo_url} 
-                    alt={investor.name}
-                    className="w-full h-full rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center">
-                    <span className="text-5xl font-bold text-white">
-                      {investor.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {/* Status indicator */}
-              <div className="absolute -bottom-2 -right-2 flex items-center gap-1 bg-green-500 px-3 py-1 rounded-full border-2 border-green-300 shadow-lg">
-                <div className="w-2 h-2 bg-green-200 rounded-full animate-pulse"></div>
-                <span className="text-xs font-bold text-white">Active</span>
-              </div>
-            </div>
-
-            {/* Name and Title */}
-            <div className="flex-1">
-              <h1 className="text-4xl font-extrabold bg-gradient-to-r from-emerald-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent mb-3">{investor.name}</h1>
-              <p className="text-2xl text-emerald-300 font-bold mb-3 flex items-center gap-2">
-                <span className="text-3xl">💼</span>
-                {investor.title} @ {investor.firm}
-              </p>
-              
-              {/* Quick Links */}
-              <div className="flex gap-3 mt-4">
-                {investor.linkedin_url && (
-                  <a 
-                    href={investor.linkedin_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 font-semibold border border-emerald-400/50 transition-all hover:scale-105"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                    </svg>
-                    LinkedIn
-                  </a>
-                )}
-                <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-emerald-400/30 hover:border-emerald-400/50 text-emerald-300 hover:text-emerald-200 font-semibold transition-all">
-                  <span>📧</span>
-                  Contact
-                </button>
-              </div>
-            </div>
+      {/* ═══════════════════════════════════════════════════════════════
+          HEADER
+      ═══════════════════════════════════════════════════════════════ */}
+      <header className="border-b border-[#2e2e2e]">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/app" className="text-white font-medium">pythh</Link>
+            <span className="text-[#5f5f5f]">/</span>
+            <Link to="/app/matches" className="text-[#8f8f8f] hover:text-white transition-colors">matches</Link>
+            <span className="text-[#5f5f5f]">/</span>
+            <span className="text-[#8f8f8f]">{id}</span>
           </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-            {/* Check Size */}
-            <div className="bg-gradient-to-br from-emerald-500/20 to-green-500/20 backdrop-blur-sm rounded-xl p-5 border border-emerald-400/30 shadow-lg shadow-emerald-500/10 hover:scale-105 transition-transform">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-4xl">💰</span>
-                <p className="text-emerald-300 text-sm font-bold uppercase tracking-wide">Check Size</p>
-              </div>
-              <p className="text-white text-2xl font-extrabold">{formatCheckSize()}</p>
-            </div>
-
-            {/* Total Investments */}
-            <div className="bg-gradient-to-br from-purple-500/20 to-violet-500/20 backdrop-blur-sm rounded-xl p-5 border border-purple-400/30 shadow-lg shadow-purple-500/10 hover:scale-105 transition-transform">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-4xl">📊</span>
-                <p className="text-purple-300 text-sm font-bold uppercase tracking-wide">Portfolio</p>
-              </div>
-              <p className="text-white text-2xl font-extrabold">{investor.total_investments || 'N/A'} companies</p>
-            </div>
-
-            {/* Investment Type */}
-            <div className="bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur-sm rounded-xl p-5 border border-cyan-400/30 shadow-lg shadow-cyan-500/10 hover:scale-105 transition-transform">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-4xl">🎯</span>
-                <p className="text-cyan-300 text-sm font-bold uppercase tracking-wide">Type</p>
-              </div>
-              <p className="text-white text-2xl font-extrabold">{investor.type || 'VC'}</p>
-            </div>
-          </div>
-
-          {/* Stages Section */}
-          {investor.stage && investor.stage.length > 0 && (
-            <div className="mb-8 bg-gradient-to-br from-emerald-500/10 to-green-500/10 backdrop-blur-sm rounded-xl p-6 border border-emerald-400/30 shadow-lg shadow-emerald-500/10">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">🎯</span>
-                <h3 className="text-2xl font-bold text-emerald-300">Investment Stages</h3>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {investor.stage.map((stg: string, i: number) => (
-                  <span 
-                    key={i}
-                    className="px-5 py-2.5 rounded-full bg-gradient-to-r from-emerald-500/30 to-green-500/30 text-white font-semibold border border-emerald-400/40 text-lg hover:scale-110 transition-transform"
-                  >
-                    {stg}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Sectors Section */}
-          {investor.sectors && investor.sectors.length > 0 && (
-            <div className="mb-8 bg-gradient-to-br from-purple-500/10 to-violet-500/10 backdrop-blur-sm rounded-xl p-6 border border-purple-400/30 shadow-lg shadow-purple-500/10">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">🚀</span>
-                <h3 className="text-2xl font-bold text-purple-300">Focus Sectors</h3>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {investor.sectors.map((sector: string, i: number) => (
-                  <span 
-                    key={i}
-                    className="px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-500/30 to-violet-500/30 text-white font-semibold border border-purple-400/40 text-lg hover:scale-110 transition-transform"
-                  >
-                    {sector}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Bio Section */}
-          {investor.bio && (
-            <div className="mb-8 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-sm rounded-xl p-6 border border-cyan-400/30 shadow-lg shadow-cyan-500/10">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">📝</span>
-                <h3 className="text-2xl font-bold text-cyan-300">About</h3>
-              </div>
-              <p className="text-white text-lg leading-relaxed">{investor.bio}</p>
-            </div>
-          )}
-
-          {/* Investment Thesis */}
-          {investor.investment_thesis && (
-            <div className="mb-8 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 backdrop-blur-sm rounded-xl p-6 border border-purple-400/30 shadow-lg shadow-purple-500/10">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">💡</span>
-                <h3 className="text-2xl font-bold text-purple-300">Investment Thesis</h3>
-              </div>
-              <p className="text-white text-lg leading-relaxed italic">"{investor.investment_thesis}"</p>
-            </div>
-          )}
-
-          {/* Recent News */}
-          {news.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-3xl font-extrabold bg-gradient-to-r from-emerald-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent mb-6 flex items-center gap-3">
-                <span className="text-4xl">📰</span>
-                Recent Activity
-              </h3>
-              <div className="space-y-4">
-                {news.map((article) => {
-                  const daysAgo = Math.floor((Date.now() - new Date(article.published_date).getTime()) / (1000 * 60 * 60 * 24));
-                  return (
-                    <a
-                      key={article.id}
-                      href={article.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block group bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm rounded-xl p-5 border border-emerald-400/20 hover:border-emerald-400/50 transition-all hover:bg-white/15"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0">
-                          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-2xl">
-                            📰
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <h4 className="text-white font-bold text-lg group-hover:text-emerald-300 transition-colors line-clamp-2">
-                              {article.title}
-                            </h4>
-                            <span className="flex-shrink-0 text-xs text-gray-400 bg-white/5 px-2 py-1 rounded">
-                              {daysAgo}d ago
-                            </span>
-                          </div>
-                          <p className="text-gray-400 text-sm mb-3 line-clamp-2">{article.summary}</p>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-emerald-400 font-medium">{article.source}</span>
-                            {article.sentiment === 'positive' && (
-                              <span className="text-xs text-green-400 bg-green-500/20 px-2 py-0.5 rounded">📈 Positive</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* CTA - Subtle Version */}
-          <div className="mt-8">
-            <a
-              href={`mailto:${investor.email}`}
-              className="group block w-full px-6 py-4 rounded-xl bg-white/5 hover:bg-white/10 border border-emerald-400/30 hover:border-emerald-400/50 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-left">
-                  <div className="text-emerald-300 font-semibold text-lg group-hover:text-emerald-200 transition-colors">Connect with {investor.name.split(' ')[0]}</div>
-                  <div className="text-gray-400 text-sm">Reach out via email</div>
-                </div>
-                <svg className="w-5 h-5 text-emerald-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </div>
-            </a>
-          </div>
+          <span className="text-xs text-[#5f5f5f]">
+            {isUpdating ? (
+              <span style={{ animation: 'updateFade 1.2s ease-in-out' }}>updating…</span>
+            ) : (
+              'Live'
+            )}
+          </span>
         </div>
-      </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        
+        {/* ═══════════════════════════════════════════════════════════════
+            1️⃣ IDENTITY STRIP — Minimal, human + Save/Share
+        ═══════════════════════════════════════════════════════════════ */}
+        <section className="mb-10">
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-xl text-white font-medium">{investor.name}</h1>
+            <div className="flex items-center gap-3">
+              <SaveToSignalCard
+                entityType="investor"
+                entityId={id || ''}
+                entityName={investor.name}
+                scoreValue={investor.lensScore}
+                context="from profile header"
+                size="sm"
+              />
+              <ShareButton
+                payload={{
+                  type: 'investor_brief',
+                  investorName: investor.name,
+                  behavioralPattern: investor.behavioralPattern,
+                  timing: investor.timing,
+                  signalsTheyRespondTo: investor.signalsTheyRespondTo,
+                }}
+                expandable
+                linkPayload={{
+                  share_type: 'investor_brief',
+                  investor_id: id,
+                  investor_name: investor.name,
+                  timing_state: investor.timing || 'stable',
+                  behavioral_pattern: investor.behavioralPattern?.slice(0, 3) || [],
+                  signals_respond_to: investor.signalsTheyRespondTo?.slice(0, 5) || [],
+                  recent_behavior: investor.recentBehavior?.slice(0, 3) || [],
+                  competitive_context: investor.relativeBehavior?.slice(0, 2) || [],
+                  snapshot: {
+                    investor_name: investor.name,
+                    focus: investor.focus,
+                    stage: investor.stage,
+                    timing_state: investor.timing || 'stable',
+                    behavioral_pattern: investor.behavioralPattern?.slice(0, 3) || [],
+                    signals_respond_to: investor.signalsTheyRespondTo?.slice(0, 5) || [],
+                    recent_behavior: investor.recentBehavior?.slice(0, 3) || [],
+                    competitive_context: investor.relativeBehavior?.slice(0, 2) || [],
+                  },
+                  redaction_level: 'public',
+                }}
+                size="sm"
+              />
+            </div>
+          </div>
+          <div className="text-sm text-[#8f8f8f] space-y-1">
+            <p>Focus: {investor.focus}</p>
+            <p>Stage: {investor.stage}</p>
+            <p className="text-[#5f5f5f] text-xs mt-2">Observed since: {investor.observedSince}</p>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            2️⃣ BEHAVIORAL SUMMARY — This is the soul (3 bullets max)
+        ═══════════════════════════════════════════════════════════════ */}
+        <section className="mb-10">
+          <div className="text-[#5f5f5f] text-sm mb-3">Behavioral pattern</div>
+          <div className="space-y-2">
+            {investor.behavioralPattern.map((pattern, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <span className="text-[#5f5f5f] mt-0.5">•</span>
+                <span className="text-[#c0c0c0]">{pattern}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            3️⃣ RECENT BEHAVIOR — Lifeform core (≤30 days)
+        ═══════════════════════════════════════════════════════════════ */}
+        <section className="mb-10">
+          <div className="text-[#5f5f5f] text-sm mb-3">Recent behavior</div>
+          <div className="space-y-2">
+            {investor.recentBehavior.map((item, i) => (
+              <div 
+                key={i} 
+                className="flex items-start gap-2 text-sm"
+                style={{ animation: `profileFadeIn 0.2s ease-out ${i * 0.05}s both` }}
+              >
+                <span className="text-[#5f5f5f] mt-0.5">•</span>
+                <span className="text-[#8f8f8f]">{item}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            4️⃣ ALIGNMENT & TIMING — This is discipline
+        ═══════════════════════════════════════════════════════════════ */}
+        <section className="mb-10 bg-[#232323] rounded-lg border border-[#2e2e2e] p-5">
+          {startupClaimed ? (
+            <>
+              <div className="text-[#5f5f5f] text-sm mb-4">Your alignment</div>
+              <div className="grid grid-cols-3 gap-6 text-sm">
+                <div>
+                  <span className="text-[#5f5f5f] block mb-1">Current state</span>
+                  <span className={alignmentColor(investor.alignmentState)}>
+                    {investor.alignmentState}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[#5f5f5f] block mb-1">Lens score</span>
+                  <span 
+                    className="text-white font-mono cursor-pointer hover:text-[#3ECF8E] transition-colors"
+                    onClick={handleScoreClick}
+                  >
+                    {investor.lensScore} <span className="text-[#5f5f5f] text-xs">(GOD)</span>
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[#5f5f5f] block mb-1">Timing</span>
+                  <span className={timingColor(investor.timing)}>
+                    {investor.timing}
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-[#8f8f8f] text-sm">
+              Claim your startup to see alignment and timing.
+            </div>
+          )}
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            5️⃣ COMPETITIVE CONTEXT — Relative, not flattering
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.relativeBehavior.length > 0 && (
+          <section className="mb-10">
+            <div className="text-[#5f5f5f] text-sm mb-3">Relative behavior</div>
+            <div className="space-y-2">
+              {investor.relativeBehavior.map((item, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <span className="text-[#5f5f5f] mt-0.5">•</span>
+                  <span className="text-[#8f8f8f]">{item}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            6️⃣ SIGNALS THEY RESPOND TO — Historical correlations
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.signalsTheyRespondTo.length > 0 && (
+          <section className="mb-10">
+            <div className="text-[#5f5f5f] text-sm mb-3">Signals this investor responds to</div>
+            <div className="space-y-2">
+              {investor.signalsTheyRespondTo.map((signal, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <span className="text-[#5f5f5f] mt-0.5">•</span>
+                  <span className="text-[#8f8f8f]">{signal}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            7️⃣ QUIET GUIDANCE — One line, no emphasis
+        ═══════════════════════════════════════════════════════════════ */}
+        <section className="mb-10 pl-4 border-l border-[#2e2e2e]">
+          <p className="text-sm text-[#5f5f5f]">{investor.quietGuidance}</p>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            QUIET EXIT
+        ═══════════════════════════════════════════════════════════════ */}
+        <div className="pt-4">
+          <Link 
+            to="/app/matches"
+            className="text-[#8f8f8f] hover:text-[#c0c0c0] text-sm transition-colors"
+          >
+            ← Back to matches
+          </Link>
+        </div>
+        
+      </main>
     </div>
   );
 }

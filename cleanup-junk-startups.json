@@ -1,0 +1,472 @@
+[
+  {
+    "id": "1f44af79-e4d1-4e3f-8840-718c0efd4764",
+    "name": "TrussPoint Expands",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "04a6e1d0-d65d-48e8-a766-20cf891a3ee1",
+    "name": "Plasticade Acquires",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "a9fd3b68-c1f6-4505-a69a-a318dc40c6a4",
+    "name": "Diffraqtion $42",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "b44301fd-dc21-4c77-ac31-df5eb7fcb3ba",
+    "name": "DealHubio $100",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "9b706c69-23d9-410d-82da-31e49e933412",
+    "name": "Optalysys £23",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "6bb61fcb-9d77-40e4-bb90-8480c9007864",
+    "name": "LiveKit $100",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "45684f30-53ed-4677-adb6-f14591546092",
+    "name": "Health $12",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "a2e894b6-e4c7-4c55-971c-ff34d811dcdf",
+    "name": "Cancilico €25",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "bbad3c47-3c07-4565-97c8-83820db00047",
+    "name": "Railway $100",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "19fac955-1594-4017-aade-1b0eb2d3513f",
+    "name": "$48",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "51bd2b76-7506-4071-8056-24f81984268a",
+    "name": "Amazon Loses",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "30b4f1e0-2f7c-445e-a17a-6491923bcbd1",
+    "name": "Rain $250",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "99dab10c-d06c-4977-b903-1de146e8fdfb",
+    "name": "Cambio $18",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "5e0af66a-127b-43f1-95bb-99ab42b70977",
+    "name": "GovDash $30",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "4db1ee5d-88d1-4eec-8944-c4f56415a525",
+    "name": "Konnex $15",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "99d14391-9023-4d83-8d69-ecadf098d8a7",
+    "name": "Adobe Expands",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "69062153-738d-4da3-a2b9-1238b1a3d4d6",
+    "name": "Parloa $350",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "c73466d7-4408-401d-86a6-c68891fdff87",
+    "name": "€310",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "55ebb461-0ff8-4593-ab73-5afc00dfbe06",
+    "name": "KPay, a financial management platform for SMEs,",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Incomplete sentence fragment"
+    ]
+  },
+  {
+    "id": "a162a6b5-736e-465c-b927-2762e2d15002",
+    "name": "Raises €16",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "d845ebaa-48e7-4d51-b97b-cb976404a4a8",
+    "name": "Monnai $12",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "6cd09d7a-6da2-4b95-a47e-eaf27bc98ad5",
+    "name": "$20M",
+    "tagline": "Stockholm-based Endra has raised a $20 million seed round led by Notion Capital, with strong participation from Norrsken VC, just six months after closing its pre-seed. Founded to automate one of cons",
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "a3ab91ae-ca14-4d1a-ae80-e7049c06c645",
+    "name": "HPS/PayMedix Secures",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "5497eb30-b87f-4db3-9b5a-50fbfc9c6fc5",
+    "name": "Yann LeCun's World Model Startup",
+    "tagline": "New AI startup launched by renowned AI scientist Yann LeCun focused on world models, reportedly seeking a $5B+ valuation",
+    "status": "approved",
+    "reasons": [
+      "Possessive/contraction: \"'s \""
+    ]
+  },
+  {
+    "id": "b4e79407-b080-4257-9486-369350834304",
+    "name": "SonoThera $125",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "05b8659b-a7ea-4046-97b5-3aa760236ed0",
+    "name": "$10k (What",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "b2471d6c-32d3-40d9-92f3-c72948a1df87",
+    "name": "Hydrosat $60",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "1fca9839-9eed-4c27-8f98-d4aff49f1e92",
+    "name": "DealHub $100",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "06b3dfdf-86dc-49c6-bfc2-877ebd901164",
+    "name": "GracoRoberts Acquires",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "28b62133-42dc-44aa-9122-4f2506fcaed3",
+    "name": "Klearly €12",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "443d1166-7043-4c51-9cf5-90bf104d644b",
+    "name": "Waldo $225",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "096598f9-7d80-4b10-99cc-81a1c8f2a106",
+    "name": "Klir $175",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "1eff20b0-f3a3-48a5-8271-3df7dc5a50d0",
+    "name": "Mews $300",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "2f27240c-c63b-4540-8cc8-187302dce674",
+    "name": "Salesforce",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Tech giant exact match: \"Salesforce\""
+    ]
+  },
+  {
+    "id": "d3e3dc86-de1c-4440-8111-166eed64cca3",
+    "name": "Marvell’s $38B",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "96962d26-db33-41be-bef7-609a0d2fb3fe",
+    "name": "Kenneth Cassel's AI-driven factory",
+    "tagline": "Boosts US manufacturing with AI",
+    "status": "approved",
+    "reasons": [
+      "Possessive/contraction: \"'s \""
+    ]
+  },
+  {
+    "id": "620d2268-d0e0-43e8-ac32-636bd81a666c",
+    "name": "Osaic Expands",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "46877b79-db97-42d8-a278-9638f17063c3",
+    "name": "OpenAI Acquires",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "523885ce-1a89-48b4-8520-7b970410d306",
+    "name": "Crossware Expands",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "0cd68a6a-6444-45fe-95a6-cc3294bfd48f",
+    "name": "Andela Acquires",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "46db8a96-1e60-4738-b3c8-6ff8381547fb",
+    "name": "ZBD $40",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "f5d27aea-c0bc-4451-8ddd-8b6bb129899b",
+    "name": "Luminate $21",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "a50f513d-bfbe-47bb-9bd4-cfe467f4cd23",
+    "name": "Sources say DeepSeek",
+    "tagline": "The Information:\nSources say DeepSeek will launch V4, its next-generation model, in the coming weeks and say it outperformed Anthropic's Claude and OpenAI's GPT series in coding  —  Chinese AI startup",
+    "status": "approved",
+    "reasons": [
+      "Sentence fragment: \"Sources say\""
+    ]
+  },
+  {
+    "id": "ff38bca3-1161-4bd5-88c3-95d032cfcdcb",
+    "name": "Carrum Secures",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "e80c5fc5-d0bf-468d-a066-71a8d87692f7",
+    "name": "MapmyIndia Acquires",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Ends with action verb (article headline)"
+    ]
+  },
+  {
+    "id": "86ea4b5f-a4a5-496c-9cdd-5f08fefec356",
+    "name": "€500",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "5a49a9b8-db47-476d-b1f8-a1c28ff74e4d",
+    "name": "by its",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "News pattern: \"by \"",
+      "News pattern: \"by \"",
+      "Starts with article/preposition"
+    ]
+  },
+  {
+    "id": "39e3206c-52e9-4e6f-b687-02bbaf0894ac",
+    "name": "Preserves $88",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "bda23c74-7589-460f-9a3f-a5286092e5be",
+    "name": "X",
+    "tagline": "Transforming how you manage meetings with AI!",
+    "status": "approved",
+    "reasons": [
+      "Name too short (< 2 chars)"
+    ]
+  },
+  {
+    "id": "de671d0e-3fc7-42ea-bc5c-22acd0de653a",
+    "name": "Alpaca $150",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "71673347-bc1a-4186-be73-d124a3364b07",
+    "name": "HIG €16",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  },
+  {
+    "id": "27802f37-a8f4-4de2-a12f-892c268e70ce",
+    "name": "Fleetzero $43",
+    "tagline": null,
+    "status": "approved",
+    "reasons": [
+      "Contains financial notation (e.g., $42M)"
+    ]
+  }
+]

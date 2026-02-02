@@ -47,14 +47,15 @@ async function main() {
   }
 
   // Find startups with placeholder GOD score (60) that have websites
-  console.log('🔍 Finding startups with placeholder GOD scores (60)...\n');
+  console.log('🔍 Finding startups with websites that need enrichment...\n');
   
   const { data: startups, error } = await supabase
     .from('startup_uploads')
-    .select('id, name, website, total_god_score, created_at')
-    .eq('total_god_score', 60)
+    .select('id, name, website, total_god_score, extracted_data, created_at')
+    .eq('status', 'approved')
     .not('website', 'is', null)
-    .order('created_at', { ascending: false })
+    .is('extracted_data', null)  // No extracted data yet
+    .order('total_god_score', { ascending: false })  // Prioritize higher potential
     .limit(limit);
 
   if (error) {
@@ -63,17 +64,18 @@ async function main() {
   }
 
   if (!startups || startups.length === 0) {
-    console.log('✅ No startups with placeholder scores found!');
-    console.log('   All startups have been properly scored.\n');
+    console.log('✅ No startups needing enrichment found!');
+    console.log('   All startups with websites have been enriched.\n');
     return;
   }
 
   console.log(`📋 Found ${startups.length} startups to enrich:\n`);
   
   // Display what we're about to process
-  for (const s of startups) {
+  for (const s of startups.slice(0, 10)) {
     console.log(`   • ${s.name} (${s.website}) - Current GOD: ${s.total_god_score}`);
   }
+  if (startups.length > 10) console.log(`   ... and ${startups.length - 10} more`);
   console.log('');
 
   // Process each startup

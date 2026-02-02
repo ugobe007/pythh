@@ -23,13 +23,15 @@
  */
 
 class SignalCascade {
-  constructor() {
+  constructor(supabaseClient = null) {
     this.patterns = this.initializePatterns();
     this.stats = {
       processed: 0,
       signalsFound: 0,
       byCategory: {}
     };
+    // Store supabase client if provided (for signal persistence)
+    this.supabase = supabaseClient;
   }
 
   /**
@@ -56,7 +58,79 @@ class SignalCascade {
     }
     this.stats.signalsFound += totalSignals;
 
+    // Persist signals to startup_signals table (Task 2)
+    if (context.startupId) {
+      await this.persistSignals(context.startupId, signals);
+    }
+
     return signals;
+  }
+
+  /**
+   * NEW: Persist extracted signals to startup_signals table
+   * This enables ML agent to train on signal data quality
+   */
+  async persistSignals(startupId, signals) {
+    // Skip if no supabase client provided
+    if (!this.supabase) {
+      return;
+    }
+
+    try {
+      const signalRows = [];
+      const now = new Date().toISOString();
+
+      // Convert each signal category into rows
+      for (const [category, data] of Object.entries(signals)) {
+        if (!data || typeof data !== 'object') continue;
+
+        // Each field in the category becomes a signal
+        for (const [field, value] of Object.entries(data)) {
+          if (value === null || value === undefined || value === false) continue;
+          
+          let signalType = `${category}_${field}`;
+          let weight = data.confidence || 0.5; // Use category confidence if available
+          let meta = {};
+
+          // Handle different value types
+          if (Array.isArray(value)) {
+            // Array signals (investors, mentions, keywords, etc.)
+            if (value.length === 0) continue;
+            meta = { items: value, count: value.length };
+            weight = Math.min(weight + (value.length * 0.05), 0.95); // Boost for multiple items
+          } else if (typeof value === 'object' && value !== null) {
+            // Object signals (complex data)
+            meta = value;
+          } else if (typeof value === 'number' || typeof value === 'string') {
+            // Simple value signals
+            meta = { value };
+          }
+
+          signalRows.push({
+            startup_id: startupId,
+            signal_type: signalType,
+            weight: Math.max(0.1, Math.min(weight, 1.0)), // Clamp to [0.1, 1.0]
+            occurred_at: now,
+            meta: meta
+          });
+        }
+      }
+
+      // Batch insert signals
+      if (signalRows.length > 0) {
+        const { error } = await this.supabase
+          .from('startup_signals')
+          .insert(signalRows);
+
+        if (error) {
+          console.error(`[SignalCascade] Failed to persist signals for ${startupId}:`, error);
+        } else {
+          // console.log(`[SignalCascade] Persisted ${signalRows.length} signals for ${startupId}`);
+        }
+      }
+    } catch (error) {
+      console.error(`[SignalCascade] Error persisting signals:`, error);
+    }
   }
 
   /**
@@ -355,8 +429,8 @@ class SignalCascade {
 
     for (const { pattern, confidence } of growthPatterns) {
       const match = allText.match(pattern);
-      if (match) {
-        const value = parseFloat(match[1]?.replace(/,/g, '') || '0');
+      if (match && match[1]) {
+        const value = parseFloat(match[1].replace(/,/g, ''));
         if (value > 0 || pattern.source.includes('doubled')) {
           result.growth = result.growth || { rate: value || 100, confidence };
           result.metrics.push({ type: 'growth', rate: value || 100, confidence });
@@ -426,7 +500,7 @@ class SignalCascade {
 
     for (const { pattern, confidence } of employeePatterns) {
       const match = allText.match(pattern);
-      if (match) {
+      if (match && match[1]) {
         const count = parseInt(match[1].replace(/,/g, ''));
         if (count > 0 && count < 100000) {
           result.employees = result.employees || count;

@@ -1,646 +1,919 @@
 /**
- * DISCOVERY RESULTS PAGE - Capital Convergence Interface
- * =======================================================
- * "Real-time detection of investors algorithmically converging toward your company"
+ * RESULTS PAGE (Phase 4: Job-Based Polling)
+ * =========================================
+ * Flow: / → /matches?url=...
  * 
- * Psychology: Orientation → Validation → Curiosity → Social Proof → Control → Conversion
- * 
- * Structure:
- * 1. Status Bar - "Where am I in the capital universe?"
- * 2. Detected Convergence - 5 strategically selected visible investors
- * 3. Hidden Capital Layer - 50+ blurred investors (conversion engine)
- * 4. Comparable Startups - Social proof & calibration
- * 5. Signal Alignment Breakdown - Explainability
- * 6. Improvement Suggestions - Coaching layer
+ * Implements submit → poll → ready pattern:
+ * - POST /api/discovery/submit (idempotent by URL)
+ * - GET /api/discovery/results (poll until ready/failed)
+ * - AbortController for cleanup on URL change
+ * - requestIdRef for stale-result prevention
  */
 
-import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Lock, TrendingUp, Users, Zap } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { resolveStartupFromUrl } from '../lib/startupResolver';
-import BrandMark from '../components/BrandMark';
-import { NotificationBell } from '../components/notifications';
-import DiscoveryPage from './DiscoveryPage';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { submitUrl, fetchResults, calculatePollDelay, fetchLatestDelta, diagnosePipeline, type SignalDelta, type PipelineDiagnostic } from '../lib/discoveryAPI';
+import PageShell, { ContentContainer } from '../components/layout/PageShell';
+import TopBar, { TopBarBrand } from '../components/layout/TopBar';
+import { PythhTokens } from '../lib/designTokens';
 
-type Tab = 'convergence' | 'signals';
+// Step 5+ Components
+import SignalHeroFrame from '../components/results/SignalHeroFrame';
+import StartupSignalCard from '../components/results/StartupSignalCard';
+import MatchesHeaderRow from '../components/results/MatchesHeaderRow';
+import InvestorMatchCard from '../components/results/InvestorMatchCard';
+import IntroStrategyModal from "../components/results/IntroStrategyModal";
+import NextActionBar from "../components/results/NextActionBar";
+import ProofPanel from "../components/results/ProofPanel";
+import SignalEvolutionSection from "../components/results/SignalEvolutionSection";
+import type { StartupSignal, InvestorMatch } from '../types/results.types';
 
-interface StatusMetrics {
-  velocityClass: string;
-  signalStrength: number; // 0-10
-  fomoState: string;
+// ============================================================================
+// Job State Machine
+// ============================================================================
+
+type RawSignalData = {
+  name?: string;
+  sectors?: string[] | null;
+  stage?: number | null;
+  signal_strength?: number | null;
+  phase_score?: number | null;
+  signal_band?: "low" | "med" | "high" | null;
+  tier?: string | null;
+};
+
+type JobState =
+  | { status: 'idle' }
+  | { status: 'submitting' }
+  | {
+      status: 'building';
+      backendState: 'queued' | 'building' | 'scoring' | 'matching';
+      progress: number;
+      pollCount: number;
+    }
+  | {
+      status: 'ready';
+      jobId: string;
+      startupId: string;
+      matches: MatchRow[];
+      signalData: RawSignalData | null;
+      phase5Ready?: boolean;
+    }
+  | { status: 'failed'; error: string; retryable: boolean }
+  | { status: 'unknown'; message: string };
+
+// -----------------------------
+// URL helpers
+// -----------------------------
+function normalizeUrlInput(input: string) {
+  const raw = (input || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
+function normalizeUrlForSubmit(input: string) {
+  return String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+}
+
+function safeHostname(input: string) {
+  try {
+    const u = new URL(normalizeUrlInput(input));
+    return u.hostname.replace(/^www\./, '');
+  } catch {
+    return input.replace(/^https?:\/\//i, '').replace(/^www\./, '').split('/')[0] || 'startup';
+  }
+}
+
+function extractBaseDomain(hostname: string): string {
+  // Extract the base domain without www and normalize
+  // Examples:
+  //   asidehq.com -> asidehq
+  //   spatial-ai.com -> spatial-ai
+  //   example.co.nz -> example
+  //   example.eu -> example
+  
+  const parts = hostname.replace(/^www\./, '').split('.');
+  
+  // For most TLDs (com, org, io, ai, etc.), take the first part
+  if (parts.length >= 2) {
+    return parts[0];
+  }
+  
+  return hostname;
+}
+
+function domainMatches(url1: string, url2: string): boolean {
+  try {
+    const host1 = new URL(normalizeUrlInput(url1)).hostname.replace(/^www\./, '').toLowerCase();
+    const host2 = new URL(normalizeUrlInput(url2)).hostname.replace(/^www\./, '').toLowerCase();
+    
+    // Exact match
+    if (host1 === host2) return true;
+    
+    // Base domain match (handles asidehq.com vs asidehq.co.nz)
+    const base1 = extractBaseDomain(host1);
+    const base2 = extractBaseDomain(host2);
+    
+    return base1 === base2;
+  } catch {
+    return false;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// -----------------------------
+// Types
+// -----------------------------
+type MatchRow = {
+  investor_id: string;
+  match_score: number;
+  reasoning?: any;
+  status?: string;
+  investors: {
+    id: string;
+    name: string;
+    firm?: string | null;
+    sectors?: string[] | string | null;
+    stage?: string[] | string | null;
+    check_size_min?: number | null;
+    check_size_max?: number | null;
+  } | null;
+};
+
+type StartupContext = {
+  hostname: string;
+  valueProp: string;
+  industryLabel: string;
+  stageLabel: string;
+  raiseLabel: string;
+  confidence: string;
+  fomoLabel: string;
+  velocityLabel: string;
+  signalStrengthLabel: string;
+  phaseLabel: string;
+  signalChips: string[];
+  // New fields for Signal Hero Frame
+  signalScore: number;
+  phase: number;
+  matches: number;
+  signalBand: "low" | "med" | "high";
+  heat: "cool" | "warming" | "hot";
+  tierLabel: string;
   observers7d: number;
-  comparableTier: string;
+};
+
+// -----------------------------
+// Helper to compute "why match" line from reasoning
+// -----------------------------
+function computeWhyLine(reasoning: any, investorName: string, startupIndustry: string): string {
+  if (reasoning && typeof reasoning === 'object') {
+    if (reasoning.summary) return reasoning.summary;
+    if (reasoning.why_match) return reasoning.why_match;
+  }
+  return `Strong sector alignment in ${startupIndustry || 'Technology'}, matches investment thesis.`;
 }
 
-interface InvestorMatch {
-  id: string;
-  name: string;
-  firm?: string;
-  partnerName?: string;
-  focus: string[];
-  stage: string;
-  checkSize?: string;
-  geography?: string[];
-  matchScore: number;
-  signalState: 'Watch' | 'Warming' | 'Surge' | 'Breakout';
-  fitMetrics: {
-    stageFit: string;
-    sectorFit: string;
-    portfolioAdj: string;
-    velocityAlign: string;
-  };
-  whyVisible: string[];
-  signalAge: string;
-  confidence: 'High' | 'Medium' | 'Low';
+// Helper to compute match chips
+function computeMatchChips(matchScore: number, stage: string, focus: string): string[] {
+  const chips: string[] = [];
+  
+  if (matchScore >= 70) chips.push('Strong fit');
+  else if (matchScore >= 50) chips.push('Good fit');
+  
+  if (stage && stage !== 'Any') chips.push(`${stage} focused`);
+  
+  if (focus && focus !== 'Generalist') {
+    const sectors = focus.split(',').map(s => s.trim());
+    if (sectors.length > 0) chips.push(`${sectors[0]} expert`);
+  }
+  
+  if (matchScore >= 60) chips.push('Warm intro likely');
+  
+  return chips;
 }
 
-interface ComparableStartup {
-  name: string;
-  industry: string;
-  stage: string;
-  godScore: number;
-  fomoState: string;
-  matchedInvestors: number;
-  reasonTag: string;
+// Helper to format check size
+function formatCheckSize(min?: number | null, max?: number | null): string {
+  if (!min && !max) return 'Undisclosed';
+  const fmt = (n: number) => `$${(n / 1_000).toFixed(0)}K`;
+  if (!max) return `${fmt(min!)}+`;
+  if (!min) return `<${fmt(max)}`;
+  return `${fmt(min)}–${fmt(max)}`;
 }
 
-interface AlignmentDimension {
-  name: string;
-  score: number; // 0-1
-  label: string;
+// Helper to pick focus sectors
+function pickFocus(sectors?: string[] | string | null): string {
+  const arr: string[] = Array.isArray(sectors)
+    ? sectors
+    : typeof sectors === 'string'
+      ? sectors.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+  if (!arr.length) return 'Generalist';
+  return arr.slice(0, 2).join(', ');
 }
 
-interface ImprovementAction {
-  title: string;
-  impact: string;
-  actions: string[];
+// Helper to pick stage
+function pickStage(stage?: string[] | string | number | null): string {
+  if (Array.isArray(stage)) return stage[0] || 'Any';
+  if (typeof stage === 'string') return stage.split(',')[0]?.trim() || 'Any';
+  if (typeof stage === 'number') {
+    if (stage <= 1) return 'Pre-seed';
+    if (stage === 2) return 'Seed';
+    if (stage === 3) return 'Series A';
+    return 'Growth';
+  }
+  return 'Any';
 }
 
+// -----------------------------
+// Page
+// -----------------------------
 export default function DiscoveryResultsPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const url = searchParams.get('url') || '';
-  
-  const [activeTab, setActiveTab] = useState<Tab>('convergence');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [startupName, setStartupName] = useState<string>('');
-  const [startupId, setStartupId] = useState<string | undefined>(undefined);
-  
-  // Core data
-  const [statusMetrics, setStatusMetrics] = useState<StatusMetrics | null>(null);
-  const [visibleInvestors, setVisibleInvestors] = useState<InvestorMatch[]>([]);
-  const [blurredCount, setBlurredCount] = useState(0);
-  const [comparableStartups, setComparableStartups] = useState<ComparableStartup[]>([]);
-  const [alignmentDimensions, setAlignmentDimensions] = useState<AlignmentDimension[]>([]);
-  const [improvements, setImprovements] = useState<ImprovementAction[]>([]);
+  const urlParam = searchParams.get('url') || '';
 
-  // Fetch startup and generate convergence data
+  const [jobState, setJobState] = useState<JobState>({ status: 'idle' });
+  const [selectedMatch, setSelectedMatch] = useState<InvestorMatch | null>(null);
+  const [introOpen, setIntroOpen] = useState(false);
+  const [signalDelta, setSignalDelta] = useState<SignalDelta | null>(null);
+  const [pipelineDiag, setPipelineDiag] = useState<PipelineDiagnostic | null>(null);
+
+  // requestIdRef: Prevents stale async results from overwriting newer ones
+  const requestIdRef = useRef(0);
+  // Track submitted URLs to prevent duplicate submissions
+  const submittedUrlsRef = useRef(new Set<string>());
+
+  const domain = useMemo(() => safeHostname(urlParam), [urlParam]);
+
+  // ============================================================================
+  // Core submit → poll → ready flow
+  // ============================================================================
+
   useEffect(() => {
-    if (!url) {
-      setError('No startup URL provided');
-      setIsLoading(false);
+    if (!urlParam) {
+      setJobState({ status: 'idle' });
       return;
     }
 
-    async function fetchData() {
+    // ✅ CRITICAL: Prevent duplicate submissions of same URL
+    const normalizedUrl = normalizeUrlForSubmit(urlParam);
+    if (submittedUrlsRef.current.has(normalizedUrl)) {
+      console.log('[DiscoveryResults] URL already submitted, skipping:', normalizedUrl);
+      return;
+    }
+    submittedUrlsRef.current.add(normalizedUrl);
+
+    const myReqId = ++requestIdRef.current;
+    const abortController = new AbortController();
+
+    (async () => {
       try {
-        const result = await resolveStartupFromUrl(url);
-        
-        if (!result || !result.startup) {
-          setError('Could not find startup information');
-          setIsLoading(false);
+        // STEP 1: Submit URL → get job_id
+        setJobState({ status: 'submitting' });
+        setSignalDelta(null); // Clear any stale delta from previous startup
+
+        const submitResp = await submitUrl(normalizeUrlForSubmit(urlParam));
+        if (requestIdRef.current !== myReqId) return; // Stale check
+
+        if (!submitResp.job_id) {
+          setJobState({
+            status: 'failed',
+            error: submitResp.message || 'No job ID returned',
+            retryable: false,
+          });
           return;
         }
 
-        const startup = result.startup;
-        setStartupName(startup.name || 'Your Startup');
-        if (startup.id) {
-          setStartupId(startup.id);
-        }
+        const jobId = submitResp.job_id;
+        let pollCount = 0;
 
-        // Fetch full startup data
-        let fullStartup: any = startup;
-        if (startup.id) {
-          const { data } = await supabase
-            .from('startup_uploads')
-            .select('*')
-            .eq('id', startup.id)
-            .single();
-          if (data) {
-            fullStartup = data;
+        // STEP 2: Poll /api/discovery/results until ready/failed
+        while (!abortController.signal.aborted) {
+          pollCount++;
+          const results = await fetchResults(jobId);
+          if (requestIdRef.current !== myReqId) return; // Stale check
+
+          if (results.status === 'ready') {
+            // Convert matches to frontend format
+            const startupId = results.startup_id || '';
+            const matchesRaw: MatchRow[] = results.matches || [];
+            const signalData: RawSignalData | null = results.signal || null;
+
+            setJobState({
+              status: 'ready',
+              jobId,
+              startupId,
+              matches: matchesRaw,
+              signalData,
+              phase5Ready: !!results.debug?.phase5Ready,
+            });
+            return;
           }
-        }
 
-        // Generate status metrics
-        const godScore = fullStartup.total_god_score || 45;
-        setStatusMetrics({
-          velocityClass: godScore >= 70 ? 'Fast Feedback' : godScore >= 60 ? 'Building' : 'Early',
-          signalStrength: Math.min(10, (godScore / 10)),
-          fomoState: godScore >= 75 ? '🔥 Surge' : godScore >= 65 ? '🌡 Warming' : '👀 Watch',
-          observers7d: Math.floor(Math.random() * 30) + 10, // TODO: Real observer count
-          comparableTier: godScore >= 80 ? 'Top 5%' : godScore >= 70 ? 'Top 12%' : godScore >= 60 ? 'Top 25%' : 'Emerging'
+          if (results.status === 'failed') {
+            setJobState({
+              status: 'failed',
+              error: results.error || 'Job failed',
+              retryable: results.retryable || false,
+            });
+            return;
+          }
+
+          // building, scoring, matching states → show progress
+          if (
+            results.status === 'queued' ||
+            results.status === 'building' ||
+            results.status === 'scoring' ||
+            results.status === 'matching'
+          ) {
+            setJobState({
+              status: 'building',
+              backendState: results.status,
+              progress: results.progress || 0,
+              pollCount,
+            });
+          }
+
+          // Wait before next poll (tiered backoff)
+          await sleep(calculatePollDelay(pollCount));
+        }
+      } catch (err: any) {
+        if (requestIdRef.current !== myReqId) return; // Stale check
+        setJobState({
+          status: 'failed',
+          error: err.message || 'Unknown error',
+          retryable: true,
         });
-
-        // Fetch ALL matches for smart selection
-        if (startup.id) {
-          const { data: allMatches } = await supabase
-            .from('startup_investor_matches')
-            .select(`
-              match_score,
-              investor:investors!inner(id, name, firm, sectors, stage, check_size_min, check_size_max, geography)
-            `)
-            .eq('startup_id', startup.id)
-            .gte('match_score', 50)
-            .order('match_score', { ascending: false })
-            .limit(100);
-
-          if (allMatches && allMatches.length > 0) {
-            // SMART SELECTION STRATEGY: Pick diverse 5
-            const selected = selectStrategicInvestors(allMatches, fullStartup);
-            setVisibleInvestors(selected);
-            setBlurredCount(Math.max(0, allMatches.length - 5));
-          }
-        }
-
-        // Generate alignment dimensions
-        setAlignmentDimensions([
-          { name: 'Team Signal Alignment', score: 0.82, label: 'Strong' },
-          { name: 'Market Velocity', score: 0.74, label: 'Good' },
-          { name: 'Execution Tempo', score: 0.80, label: 'Strong' },
-          { name: 'Portfolio Adjacency', score: 0.68, label: 'Moderate' },
-          { name: 'Phase Change Correlation', score: 0.88, label: 'Excellent' }
-        ]);
-
-        // Generate improvement actions
-        setImprovements([
-          {
-            title: 'Increase Technical Signal Density',
-            impact: '+12% match probability',
-            actions: ['Publish product benchmarks', 'Ship public API / SDK', 'Release technical blog']
-          },
-          {
-            title: 'Strengthen Traction Visibility',
-            impact: '+9% match probability',
-            actions: ['Publish customer proof', 'Improve website change frequency', 'Increase release cadence']
-          },
-          {
-            title: 'Accelerate Phase Change Probability',
-            impact: '+15% match probability',
-            actions: ['Announce key hire', 'Ship v2 feature', 'Show revenue signal']
-          }
-        ]);
-
-        // Generate comparable startups (mock for now)
-        setComparableStartups([
-          { name: 'NeuronStack', industry: 'AI Infra', stage: 'Seed', godScore: 84, fomoState: '🔥 Surge', matchedInvestors: 14, reasonTag: 'Similar team profile' },
-          { name: 'DataFlow', industry: 'B2B SaaS', stage: 'Seed', godScore: 78, fomoState: '🌡 Warming', matchedInvestors: 11, reasonTag: 'Comparable market velocity' },
-          { name: 'CloudSync', industry: 'Developer Tools', stage: 'Pre-seed', godScore: 71, fomoState: '👀 Watch', matchedInvestors: 8, reasonTag: 'Adjacent portfolio clustering' }
-        ]);
-
-        setIsLoading(false);
-      } catch (err) {
-        console.error('Error loading convergence data:', err);
-        setError('Failed to load investor signals');
-        setIsLoading(false);
       }
-    }
+    })();
 
-    fetchData();
-  }, [url]);
-
-  // Smart investor selection: Diverse by tier/type, not just top scores
-  function selectStrategicInvestors(allMatches: any[], startup: any): InvestorMatch[] {
-    const investors: InvestorMatch[] = [];
-    
-    // Sort by score first
-    const sorted = [...allMatches].sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
-    
-    // Strategy: 1 top-tier, 1 perfect-stage, 1 portfolio-adj, 1 high-velocity, 1 surprise
-    const used = new Set<string>();
-    
-    // 1. Top-tier prestige (highest score)
-    if (sorted[0]) {
-      investors.push(convertToInvestorMatch(sorted[0], 'High'));
-      used.add(sorted[0].investor.id);
-    }
-    
-    // 2. Perfect stage fit (exact stage match)
-    const stageFit = sorted.find(m => !used.has(m.investor.id) && m.investor.stage === startup.stage);
-    if (stageFit) {
-      investors.push(convertToInvestorMatch(stageFit, 'High'));
-      used.add(stageFit.investor.id);
-    }
-    
-    // 3. Portfolio adjacent (sector overlap)
-    const sectorFit = sorted.find(m => !used.has(m.investor.id) && m.investor.sectors?.some((s: string) => startup.sectors?.includes(s)));
-    if (sectorFit) {
-      investors.push(convertToInvestorMatch(sectorFit, 'Medium'));
-      used.add(sectorFit.investor.id);
-    }
-    
-    // 4. Fill remaining slots with next highest scores
-    for (const match of sorted) {
-      if (investors.length >= 5) break;
-      if (!used.has(match.investor.id)) {
-        investors.push(convertToInvestorMatch(match, 'Medium'));
-        used.add(match.investor.id);
+    return () => {
+      abortController.abort();
+      // Clear cache when URL changes to allow re-submission of new URLs
+      if (urlParam) {
+        const oldUrl = normalizeUrlForSubmit(urlParam);
+        submittedUrlsRef.current.delete(oldUrl);
       }
-    }
-    
-    return investors;
-  }
-
-  function convertToInvestorMatch(matchData: any, confidence: 'High' | 'Medium' | 'Low'): InvestorMatch {
-    const inv = matchData.investor;
-    const score = matchData.match_score || 0;
-    
-    // Signal state based on score
-    let signalState: 'Watch' | 'Warming' | 'Surge' | 'Breakout' = 'Watch';
-    if (score >= 80) signalState = 'Breakout';
-    else if (score >= 70) signalState = 'Surge';
-    else if (score >= 60) signalState = 'Warming';
-    
-    // Generate concrete "why visible" reasons
-    const whyVisible: string[] = [];
-    whyVisible.push(`Viewed 3 similar startups in last 72h`);
-    if (inv.sectors?.length > 0) whyVisible.push(`Invested in ${inv.sectors[0]} companies`);
-    whyVisible.push(`Phase-change correlation detected`);
-    
-    return {
-      id: inv.id,
-      name: inv.name,
-      firm: inv.firm,
-      focus: inv.sectors || [],
-      stage: inv.stage || '',
-      checkSize: inv.check_size_min ? `$${inv.check_size_min/1000}k-${inv.check_size_max/1000000}M` : undefined,
-      geography: inv.geography || [],
-      matchScore: score,
-      signalState,
-      fitMetrics: {
-        stageFit: inv.stage || 'Various',
-        sectorFit: inv.sectors?.length > 0 ? `${inv.sectors[0]} (92%)` : 'Broad',
-        portfolioAdj: score >= 70 ? 'Strong' : 'Moderate',
-        velocityAlign: score >= 75 ? 'High' : 'Medium'
-      },
-      whyVisible,
-      signalAge: '11 hours ago',
-      confidence
     };
-  }
+  }, [urlParam]); // ✅ FIX: Only re-run when URL changes, not on every status change
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <Link to="/" className="text-cyan-400 hover:text-cyan-300">← Try again</Link>
-        </div>
-      </div>
-    );
-  }
+  // ============================================================================
+  // Phase 5: Fetch signal delta when backend reports ready
+  // ============================================================================
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400 mx-auto mb-4"></div>
-          <p className="text-gray-400">Detecting investor convergence patterns...</p>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (jobState.status !== 'ready') {
+      setSignalDelta(null);
+      return;
+    }
 
-  // If "signals" tab is active, render the existing DiscoveryPage
-  if (activeTab === 'signals') {
-    return <DiscoveryPage />;
-  }
+    if (!jobState.phase5Ready) {
+      setSignalDelta(null);
+      return;
+    }
 
-  // CONVERGENCE TAB (default)
+    if (!jobState.startupId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetchLatestDelta(jobState.startupId);
+        if (cancelled) return;
+
+        if (res.status === 'ready' && res.delta) {
+          setSignalDelta(res.delta);
+        } else {
+          setSignalDelta(null);
+        }
+      } catch {
+        if (!cancelled) setSignalDelta(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    jobState.status,
+    jobState.status === 'ready' ? jobState.phase5Ready : false,
+    jobState.status === 'ready' ? jobState.startupId : null
+  ]);
+
+  // ============================================================================
+  // Dev Mode: Fetch pipeline diagnostic for visibility
+  // ============================================================================
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    if (jobState.status !== 'ready' && jobState.status !== 'building') {
+      setPipelineDiag(null);
+      return;
+    }
+    
+    const startupId = jobState.status === 'ready' ? jobState.startupId : null;
+    if (!startupId) return;
+    
+    let cancelled = false;
+    
+    (async () => {
+      try {
+        const diag = await diagnosePipeline(startupId);
+        if (!cancelled) setPipelineDiag(diag);
+      } catch {
+        if (!cancelled) setPipelineDiag(null);
+      }
+    })();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [jobState.status, jobState.status === 'ready' ? jobState.startupId : null]);
+
+  // ============================================================================
+  // Retry handler
+  // ============================================================================
+
+  const handleRetry = () => {
+    if (!urlParam) return;
+    requestIdRef.current++; // cancel any in-flight loops
+    setJobState({ status: 'submitting' });
+  };
+
+  // ============================================================================
+  // Modal handlers
+  // ============================================================================
+
+  const openIntro = (match: InvestorMatch) => {
+    setSelectedMatch(match);
+    setIntroOpen(true);
+  };
+
+  const closeIntro = () => {
+    setIntroOpen(false);
+    setSelectedMatch(null);
+  };
+
+  // ============================================================================
+  // Convert matches to InvestorMatch format
+  // ============================================================================
+
+  // Compute StartupSignal from raw signal data
+  const startupSignal = useMemo<StartupSignal | null>(() => {
+    if (jobState.status !== 'ready' || !jobState.signalData) return null;
+    
+    const rawData = jobState.signalData;
+    return {
+      name: rawData.name || 'Unknown',
+      industry: rawData.sectors?.[0] || 'Technology',
+      stageLabel: computeStageLabel(rawData.stage || 1),
+      signalScore: rawData.signal_strength || 5.0,
+      signalMax: 10,
+      phase: rawData.phase_score || 0.5,
+      velocityLabel: 'building',
+      tierLabel: rawData.tier || 'unranked',
+      observers7d: 0,
+      matches: jobState.matches.length,
+      signalBand: rawData.signal_band || 'med',
+      heat: 'warming',
+    };
+  }, [jobState]);
+
+  const investorMatches = useMemo<InvestorMatch[]>(() => {
+    if (jobState.status !== 'ready' || !startupSignal) return [];
+    
+    // CRITICAL FIX: Filter out matches where investors is null (broken FK references)
+    const validMatches = jobState.matches
+      .filter((m: any) => m.investors && m.investors.id)
+      .slice(0, 5);
+
+    return validMatches.map((m: any, idx: number) => {
+      const inv = m.investors; // Always use m.investors (from database join)
+      const focus = pickFocus(inv.sectors);
+      const stage = pickStage(inv.stage);
+      const check = formatCheckSize(inv.check_size_min, inv.check_size_max);
+      const whyLine = computeWhyLine(m.reasoning, inv.name, startupSignal.industry);
+      const chips = computeMatchChips(m.match_score || 0, stage, focus);
+
+      return {
+        id: inv.id,
+        name: inv.name,
+        subtitle: inv.firm || undefined,
+        focus,
+        stage,
+        check,
+        signal: m.match_score || 0,
+        why: whyLine,
+        chips,
+        contact: undefined,
+        portfolioCompanies: undefined,
+      };
+    });
+  }, [jobState, startupSignal]);
+
+  // ============================================================================
+  // Computed values for UI
+  // ============================================================================
+
+  const matchCount = useMemo(() => {
+    if (jobState.status !== 'ready') return 0;
+    // Count only valid matches (non-null investors)
+    return jobState.matches.filter((m: any) => m.investors && m.investors.id).length;
+  }, [jobState]);
+
+  const stageFitLabel = useMemo(() => {
+    if (jobState.status !== 'ready') return 'All stages';
+    const stages = jobState.matches
+      .filter((m: any) => m.investors && m.investors.id)
+      .slice(0, 5)
+      .map((m: any) => m.investors?.stage)
+      .filter(Boolean);
+    return stages.length > 0 ? `${stages.length} aligned` : 'All stages';
+  }, [jobState]);
+
+  const checkFitLabel = useMemo(() => {
+    if (jobState.status !== 'ready') return 'Flexible';
+    const checks = jobState.matches
+      .filter((m: any) => m.investors && m.investors.id)
+      .slice(0, 5)
+      .map((m: any) => {
+        const inv = m.investors || {};
+        return { min: inv.check_size_min, max: inv.check_size_max };
+      })
+      .filter(c => c.min || c.max);
+    return checks.length > 0 ? `${checks.length} in range` : 'Flexible';
+  }, [jobState]);
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <div className="border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <BrandMark />
-              <Link to="/" className="text-gray-400 hover:text-white transition flex items-center gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                New scan
-              </Link>
+    <PageShell variant="standard">
+      {/* Top bar */}
+      <TopBar 
+        leftContent={
+          <div className="flex items-center gap-4">
+            <TopBarBrand />
+            <Link to="/" className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white transition">
+              <ArrowLeft className="w-4 h-4" />
+              New scan
+            </Link>
+          </div>
+        }
+        rightContent={
+          domain ? (
+            <div className="text-xs text-white/50">
+              <span className="px-2 py-1 rounded border border-white/10 bg-white/5">
+                {domain}
+              </span>
             </div>
-            <NotificationBell />
-          </div>
+          ) : undefined
+        }
+      />
 
-          {/* Page Title */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2">Investor Signals Matching Your Startup</h1>
-            <p className="text-gray-400">Real-time detection of investors algorithmically converging toward your company.</p>
-          </div>
+      {/* Main */}
+      <main className={PythhTokens.spacing.page}>
+        <ContentContainer variant="standard">
+          <h1 className={PythhTokens.text.heroSmall}>pythh signals</h1>
 
-          {/* Tabs */}
-          <div className="flex gap-6 border-b border-white/10">
-            <button
-              onClick={() => setActiveTab('convergence')}
-              className={`pb-3 px-1 font-medium border-b-2 transition ${
-                activeTab === 'convergence'
-                  ? 'text-white border-cyan-400'
-                  : 'text-gray-400 border-transparent hover:text-white'
-              }`}
+          <p className={`mt-4 mb-8 ${PythhTokens.text.subhead}`}>
+            <span
+              className="text-cyan-400 font-semibold text-3xl"
+              style={{ textShadow: '0 0 20px rgba(34, 211, 238, 0.6)' }}
             >
-              Convergence
-            </button>
-            <button
-              onClick={() => setActiveTab('signals')}
-              className={`pb-3 px-1 font-medium border-b-2 transition ${
-                activeTab === 'signals'
-                  ? 'text-white border-cyan-400'
-                  : 'text-gray-400 border-transparent hover:text-white'
-              }`}
-            >
-              Signals
-            </button>
-          </div>
-        </div>
-      </div>
+              [{matchCount}]
+            </span>{' '}
+            investors aligned with your signals
+          </p>
 
-      {/* STATUS BAR - "Where Am I In The Capital Universe?" */}
-      {statusMetrics && (
-        <div className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-8 py-4">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500 text-xs mb-1">Velocity Class</p>
-                <p className="text-white font-mono">{statusMetrics.velocityClass}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs mb-1">Signal Strength</p>
-                <p className="text-cyan-400 font-mono">{statusMetrics.signalStrength.toFixed(1)} / 10</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs mb-1">FOMO State</p>
-                <p className="text-white font-mono">{statusMetrics.fomoState}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs mb-1">Observers (7d)</p>
-                <p className="text-white font-mono">{statusMetrics.observers7d} investors</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-gray-500 text-xs mb-1">Comparable Tier</p>
-                <p className="text-white font-mono">{statusMetrics.comparableTier} of startups this month</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* LEFT COLUMN: Main content */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          {/* SECTION A: Detected Convergence (5 Visible Investors) */}
-          <div>
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2">Detected Investor Convergence</h2>
-              <p className="text-gray-400 text-sm">
-                Investors whose discovery behavior, portfolio patterns, and timing signals currently align with your startup.
-              </p>
-            </div>
-
-            {visibleInvestors.length === 0 ? (
-              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
-                <p className="text-gray-400 mb-2">Building initial convergence map...</p>
-                <p className="text-sm text-gray-500">This may take a few moments as we analyze investor patterns.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {visibleInvestors.map((inv) => (
-                  <div
-                    key={inv.id}
-                    className="bg-white/5 border border-white/10 rounded-lg p-6 hover:border-cyan-400/30 transition"
-                  >
-                    {/* Top Row */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-white">{inv.name}</h3>
-                        {inv.firm && <p className="text-sm text-gray-400">{inv.firm}</p>}
-                        {inv.partnerName && <p className="text-xs text-gray-500">{inv.partnerName}</p>}
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-cyan-400 mb-1">{inv.matchScore}</div>
-                        <div className={`text-xs px-2 py-1 rounded inline-block ${
-                          inv.signalState === 'Breakout' ? 'bg-red-500/20 text-red-400' :
-                          inv.signalState === 'Surge' ? 'bg-orange-500/20 text-orange-400' :
-                          inv.signalState === 'Warming' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-blue-500/20 text-blue-400'
-                        }`}>
-                          {inv.signalState === 'Breakout' && '🚀 '}
-                          {inv.signalState === 'Surge' && '🔥 '}
-                          {inv.signalState === 'Warming' && '🌡 '}
-                          {inv.signalState === 'Watch' && '👀 '}
-                          {inv.signalState}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fit Summary */}
-                    <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Stage Fit:</span>{' '}
-                        <span className="text-gray-300">{inv.fitMetrics.stageFit}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Sector Fit:</span>{' '}
-                        <span className="text-gray-300">{inv.fitMetrics.sectorFit}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Portfolio Adj.:</span>{' '}
-                        <span className="text-gray-300">{inv.fitMetrics.portfolioAdj}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Velocity Align.:</span>{' '}
-                        <span className="text-gray-300">{inv.fitMetrics.velocityAlign}</span>
-                      </div>
-                    </div>
-
-                    {/* Why This Investor Appears */}
-                    <div className="mb-4">
-                      <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Why This Investor Appears</p>
-                      <ul className="space-y-1">
-                        {inv.whyVisible.map((reason, i) => (
-                          <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
-                            <span className="text-cyan-400 mt-0.5">•</span>
-                            <span>{reason}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Meta */}
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Signal Age: {inv.signalAge}</span>
-                      <span className={`px-2 py-1 rounded ${
-                        inv.confidence === 'High' ? 'bg-green-500/10 text-green-400' :
-                        inv.confidence === 'Medium' ? 'bg-yellow-500/10 text-yellow-400' :
-                        'bg-gray-500/10 text-gray-400'
+          {/* Debug panel - development only */}
+          {process.env.NODE_ENV === "development" && (
+            <div className="mb-6 space-y-3">
+              {/* Job State Debug */}
+              <details className="text-xs">
+                <summary className="cursor-pointer text-white/50 hover:text-white/70 font-mono">
+                  🔍 Job State Debug
+                </summary>
+                <pre className="mt-2 text-white/40 bg-black/30 p-3 rounded overflow-auto max-h-40 border border-white/10">
+                  {JSON.stringify({ 
+                    urlParam, 
+                    jobState: {
+                      status: jobState.status,
+                      ...(jobState.status === 'ready' && { 
+                        jobId: jobState.jobId,
+                        matchCount: jobState.matches.length,
+                        phase5Ready: jobState.phase5Ready
+                      }),
+                      ...(jobState.status === 'building' && {
+                        backendState: jobState.backendState,
+                        progress: jobState.progress,
+                        pollCount: jobState.pollCount
+                      }),
+                      ...(jobState.status === 'failed' && {
+                        error: jobState.error,
+                        retryable: jobState.retryable
+                      })
+                    },
+                    signalDelta: signalDelta ? 'present' : 'null'
+                  }, null, 2)}
+                </pre>
+              </details>
+              
+              {/* Pipeline Truth Panel */}
+              {pipelineDiag && (
+                <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 backdrop-blur-sm p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                    <span className="text-cyan-300 font-semibold text-sm">Pipeline Truth</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    <div>
+                      <span className="text-white/50">System State:</span>
+                      <span className={`ml-2 font-mono font-semibold ${
+                        pipelineDiag.system_state === 'ready' ? 'text-green-400' :
+                        pipelineDiag.system_state === 'matching' ? 'text-yellow-400' :
+                        'text-orange-400'
                       }`}>
-                        Confidence: {inv.confidence}
+                        {pipelineDiag.system_state}
                       </span>
                     </div>
+                    <div>
+                      <span className="text-white/50">Queue:</span>
+                      <span className="ml-2 font-mono text-white/70">{pipelineDiag.queue_status}</span>
+                    </div>
+                    <div>
+                      <span className="text-white/50">Matches:</span>
+                      <span className="ml-2 font-mono text-cyan-300">
+                        {pipelineDiag.match_count} / 1000
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-white/50">Active:</span>
+                      <span className="ml-2 font-mono text-white/70">{pipelineDiag.active_match_count}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-white/50">Diagnosis:</span>
+                      <span className="ml-2 text-white/70">{pipelineDiag.diagnosis}</span>
+                    </div>
+                    {pipelineDiag.last_error && (
+                      <div className="col-span-2 text-rose-300">
+                        <span className="text-white/50">Error:</span>
+                        <span className="ml-2">{pipelineDiag.last_error}</span>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* SECTION B: Hidden Capital Layer (Blurred Investors) */}
-          {blurredCount > 0 && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold mb-2">Additional Investors Detecting Your Signals</h2>
-                <p className="text-gray-400 text-sm">
-                  {blurredCount} investors currently exhibiting discovery or portfolio alignment patterns around your startup.
-                </p>
+          {/* ============================= */}
+          {/* STATE: submitting */}
+          {/* ============================= */}
+          {jobState.status === 'submitting' && (
+            <div className="mb-8 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 backdrop-blur-md p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                <span className="text-cyan-300 text-sm font-medium">Submitting...</span>
               </div>
+            </div>
+          )}
 
-              <div className="space-y-2">
-                {[...Array(Math.min(blurredCount, 8))].map((_, i) => (
-                  <div
-                    key={i}
-                    className="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm relative overflow-hidden"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent backdrop-blur-md"></div>
-                    <div className="relative flex items-center justify-between opacity-40">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-700 rounded"></div>
-                        <div>
-                          <div className="h-4 w-32 bg-gray-700 rounded mb-1"></div>
-                          <div className="h-3 w-24 bg-gray-700 rounded"></div>
+          {/* ============================= */}
+          {/* STATE: building */}
+          {/* ============================= */}
+          {jobState.status === 'building' && (
+            <div className="mb-8 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 backdrop-blur-md p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                <span className="text-cyan-300 text-sm font-medium">
+                  {jobState.backendState === 'scoring'
+                    ? 'Scoring startup…'
+                    : jobState.backendState === 'matching'
+                    ? 'Matching investors…'
+                    : 'Reading signals…'} {jobState.progress}%
+                </span>
+                <span className="text-white/50 text-xs">
+                  (attempt {jobState.pollCount})
+                </span>
+              </div>
+              <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-500 to-orange-500 transition-all duration-500"
+                  style={{ width: `${jobState.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ============================= */}
+          {/* STATE: failed */}
+          {/* ============================= */}
+          {jobState.status === 'failed' && (
+            <div className="mb-8 rounded-2xl border border-rose-500/30 bg-rose-500/5 backdrop-blur-md p-5">
+              <div className="text-rose-300 text-sm font-medium mb-2">Error</div>
+              <div className="text-white/70 text-sm mb-4">{jobState.error}</div>
+              {jobState.retryable && (
+                <button
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 rounded-lg text-sm transition"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ============================= */}
+          {/* STATE: idle (no URL) */}
+          {/* ============================= */}
+          {jobState.status === 'idle' && !urlParam && (
+            <div className="relative group">
+              {/* Animated glow */}
+              <div
+                className="absolute inset-0 bg-gradient-to-r from-orange-500/20 via-cyan-500/20 to-violet-500/20 rounded-2xl blur-xl animate-pulse"
+                style={{ animationDuration: '3s' }}
+              />
+
+              <div className="relative bg-gradient-to-br from-[#0f0f0f] via-[#131313] to-[#0f0f0f] border-2 border-orange-500/40 rounded-2xl p-12 text-center overflow-hidden">
+                    {/* Scanning lines */}
+                    <div className="absolute inset-0 opacity-20">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div 
+                          key={i}
+                          className="absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
+                          style={{
+                            top: `${25 * i}%`,
+                            animation: 'fadeInOut 2s ease-in-out infinite',
+                            animationDelay: `${i * 0.5}s`
+                          }}
+                        />
+                      ))}
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="relative">
+                      {/* Icon */}
+                      <div className="relative w-32 h-32 mx-auto mb-6">
+                        {/* Spinning rings */}
+                        <div className="absolute inset-0 rounded-full border-2 border-orange-500/40 border-t-orange-400 animate-spin" style={{ animationDuration: '2s' }} />
+                        <div className="absolute inset-4 rounded-full border border-cyan-500/30 border-b-cyan-400 animate-spin" style={{ animationDuration: '3s', animationDirection: 'reverse' }} />
+                        
+                        {/* Center */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-6xl animate-pulse">🎯</div>
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {['🔥 Surge', '🌡 Warming', '👀 Watch'][i % 3]}
-                      </div>
+                      
+                      <h2 className="text-3xl font-bold text-white mb-4">
+                        Ready to find <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-cyan-400">your investors</span>?
+                      </h2>
+                      
+                      <p className="text-lg text-white/70 mb-8 max-w-xl mx-auto">
+                        Submit your startup URL and watch the GOD Algorithm analyze 47,000+ investors in real-time.
+                      </p>
+                      
+                      <Link
+                        to="/"
+                        className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-black font-bold rounded-xl transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:scale-105 active:scale-95"
+                      >
+                        <span>Start Matching</span>
+                        <span className="text-xl">→</span>
+                      </Link>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+            )}
 
-              <div className="mt-6 text-center">
-                <button className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-bold rounded-lg hover:from-cyan-600 hover:to-purple-600 transition flex items-center gap-2 mx-auto">
-                  <Lock className="w-4 h-4" />
-                  Unlock Full Signal Map
-                </button>
-                <p className="text-xs text-gray-500 mt-2">Reveal all investors, partners, and behavioral signals detecting your startup</p>
-              </div>
-            </div>
-          )}
+            <style>{`
+              @keyframes fadeInOut {
+                0%, 100% { opacity: 0; }
+                50% { opacity: 1; }
+              }
+            `}</style>
 
-          {/* SECTION C: Comparable Startups (Social Proof) */}
-          {comparableStartups.length > 0 && (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold mb-2">Startups With Similar Signal Profiles</h2>
-                <p className="text-gray-400 text-sm">
-                  Companies whose behavioral and phase-change patterns currently resemble yours.
-                </p>
-              </div>
+            {/* ============================= */}
+            {/* STATE: ready - SHOW RESULTS */}
+            {/* ============================= */}
+            {jobState.status === 'ready' && startupSignal && (
+              <>
+                {/* Signal Hero Frame */}
+                <SignalHeroFrame>
+                  <StartupSignalCard s={startupSignal} />
+                </SignalHeroFrame>
 
-              <div className="space-y-3">
-                {comparableStartups.map((comp, i) => (
-                  <div
-                    key={i}
-                    className="bg-white/5 border border-white/10 rounded-lg p-4 hover:border-cyan-400/30 transition"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h4 className="font-bold text-white">{comp.name}</h4>
-                        <p className="text-xs text-gray-400">{comp.industry} • {comp.stage}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-cyan-400">{comp.godScore}</div>
-                        <div className="text-xs text-gray-400">GOD Score</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-500">{comp.fomoState}</span>
-                      <span className="text-gray-400">{comp.matchedInvestors} matched investors</span>
-                    </div>
-                    <div className="mt-2 text-xs text-cyan-400/70 bg-cyan-400/5 px-2 py-1 rounded inline-block">
-                      {comp.reasonTag}
-                    </div>
+                {/* SECTION 3: Signal Evolution (Phase 5) */}
+                {jobState.phase5Ready && signalDelta && (
+                  <SignalEvolutionSection delta={signalDelta} />
+                )}
+
+                {/* Matches Header Row */}
+                {investorMatches.length > 0 && (
+                  <MatchesHeaderRow
+                    industry={startupSignal.industry}
+                    stageFit={stageFitLabel}
+                    checkFit={checkFitLabel}
+                    matches={matchCount}
+                  />
+                )}
+
+                {/* Top 5 Investor Cards */}
+                {investorMatches.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    {investorMatches.map((m, i) => (
+                      <InvestorMatchCard
+                        key={m.id}
+                        rank={i + 1}
+                        m={m}
+                        featured={i === 0}
+                        startupSignal={startupSignal}
+                        onDraftIntro={() => openIntro(m)}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+                )}
 
-        {/* RIGHT COLUMN: Signal Breakdown + Improvements */}
-        <div className="space-y-8">
-          
-          {/* SECTION D: Signal Alignment Breakdown */}
-          {alignmentDimensions.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-              <h3 className="text-lg font-bold mb-4">Signal Alignment Breakdown</h3>
-              <div className="space-y-4">
-                {alignmentDimensions.map((dim, i) => (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-1 text-sm">
-                      <span className="text-gray-300">{dim.name}</span>
-                      <span className="text-cyan-400 font-mono">{dim.score.toFixed(2)}</span>
-                    </div>
-                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-700"
-                        style={{ width: `${dim.score * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-4 italic">
-                Investors historically engage when Phase Change Correlation exceeds 0.75.
-              </p>
-            </div>
-          )}
+                {/* Next Action Bar */}
+                {investorMatches.length > 0 && (
+                  <NextActionBar
+                    top={investorMatches[0] || null}
+                    startup={startupSignal}
+                    onPrimary={() => investorMatches[0] && openIntro(investorMatches[0])}
+                    onSecondary={() => {
+                      console.log('Export matches', investorMatches);
+                      alert('Export functionality coming soon!');
+                    }}
+                    onTertiary={() => {
+                      console.log('Refine signal');
+                      alert('Signal refinement tools coming soon!');
+                    }}
+                  />
+                )}
 
-          {/* SECTION E: How To Improve Your Signal Strength */}
-          {improvements.length > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-lg font-bold">How To Improve Investor Alignment</h3>
-              </div>
-              <p className="text-xs text-gray-400 mb-4">
-                Actions correlated with increased investor convergence for startups like yours.
-              </p>
-              <div className="space-y-4">
-                {improvements.map((imp, i) => (
-                  <div key={i} className="border-l-2 border-cyan-400/30 pl-4">
-                    <h4 className="font-bold text-white mb-1">{imp.title}</h4>
-                    <p className="text-xs text-green-400 mb-2">Impact: {imp.impact}</p>
-                    <ul className="space-y-1">
-                      {imp.actions.map((action, j) => (
-                        <li key={j} className="text-xs text-gray-400 flex items-start gap-2">
-                          <span className="text-cyan-400">•</span>
-                          <span>{action}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                {/* Proof Panel */}
+                {investorMatches.length > 0 && (
+                  <ProofPanel
+                    signalsObserved={[
+                      'Market size narrative present',
+                      'Recent product milestones detected',
+                      'Customer traction signals',
+                      'Team credibility signals',
+                      'Competitive positioning clear',
+                      'Growth trajectory visible',
+                      'Technology differentiation noted',
+                      'Business model validated',
+                    ]}
+                    evidenceSources={[
+                      'Company website',
+                      'Public announcements / blog',
+                      'Founder LinkedIn profiles',
+                      'Press coverage / podcasts',
+                      'Product documentation',
+                      'Social media activity',
+                      'Industry mentions',
+                      'Third-party reviews',
+                    ]}
+                    lastUpdated={new Date().toLocaleDateString()}
+                    confidence="med"
+                  />
+                )}
+              </>
+            )}
 
-        </div>
-      </div>
-    </div>
-  );
-}
+            {/* Intro Strategy Modal */}
+            {selectedMatch && jobState.status === 'ready' && startupSignal && (
+              <IntroStrategyModal
+                open={introOpen}
+                onClose={closeIntro}
+                match={selectedMatch}
+                startup={startupSignal}
+                toolkitHref="/toolkit"
+              />
+            )}
+          </ContentContainer>
+        </main>
+      </PageShell>
+    );
+  }
 
-// (Removed old duplicate - see above for main implementation)
+  // ============================================================================
+  // Helper Functions (Phase/Tier Computation)
+  // ============================================================================
+
+  function computeStageLabel(stage: number): string {
+    if (stage <= 1) return 'Pre-seed';
+    if (stage === 2) return 'Seed';
+    if (stage === 3) return 'Series A';
+    return 'Growth';
+  }
+

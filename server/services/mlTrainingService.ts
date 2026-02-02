@@ -1,12 +1,19 @@
 /**
  * ML-Enhanced GOD Algorithm Training Service
  * 
- * This service uses real match outcomes to continuously improve the GOD algorithm:
- * - Collects feedback on match quality (investments, meetings, passes)
- * - Extracts patterns from successful matches
- * - Identifies underperforming scoring factors
- * - Generates weight adjustments and recommendations
+ * UPDATED: January 29, 2026
+ * 
+ * This service trains on SIGNAL DATA from scrapers (not match feedback):
+ * - Analyzes signal quality from inference scraper + signal cascade
+ * - Identifies which signals correlate with funding success
+ * - Learns which GOD score components are most predictive
+ * - Generates weight adjustments based on real startup data
  * - Tracks algorithm performance over time
+ * 
+ * DATA SOURCES:
+ * 1. entity_ontologies (semantic parser) - High-confidence entities
+ * 2. startup_uploads.extracted_data (signal cascade) - Funding, traction, team signals
+ * 3. GOD score components vs actual outcomes
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -20,22 +27,39 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Types
 // ============================================================================
 
-interface MatchOutcome {
-  match_id: string;
+interface SignalTrainingData {
   startup_id: string;
-  investor_id: string;
-  outcome: 'invested' | 'meeting' | 'interested' | 'passed' | 'no_response';
-  outcome_quality: number; // 0.0 to 1.0
+  startup_name: string;
   god_score: number;
-  match_score: number;
-  match_reasons: string[];
-  features: any; // Detailed features of the match
+  team_score: number;
+  traction_score: number;
+  market_score: number;
+  product_score: number;
+  vision_score: number;
+  
+  // Signal quality metrics
+  has_funding_signals: boolean;
+  funding_confidence: number;
+  has_traction_signals: boolean;
+  traction_confidence: number;
+  has_team_signals: boolean;
+  team_confidence: number;
+  entity_confidence: number;
+  
+  // Actual outcomes
+  funded: boolean;
+  has_revenue: boolean;
+  has_customers: boolean;
+  is_launched: boolean;
+  
+  // Extracted data
+  extracted_data: any;
 }
 
 interface TrainingPattern {
-  pattern_type: 'successful' | 'unsuccessful' | 'anomaly';
+  pattern_type: 'high_signal' | 'low_signal' | 'anomaly';
   features: any;
-  outcome: string;
+  signal_quality: number;
   outcome_quality: number;
   weight: number;
 }
@@ -64,257 +88,327 @@ interface OptimizationResult {
 // ============================================================================
 
 /**
- * Collect training data from all matches with feedback
- * Uses pagination to avoid statement timeouts
+ * Collect training data from signal sources (scrapers + inference)
+ * NEW: Uses actual startup data quality, not match feedback
  */
-export async function collectTrainingData(): Promise<MatchOutcome[]> {
-  console.log('🎓 Collecting ML training data from match outcomes...');
+export async function collectTrainingData(): Promise<SignalTrainingData[]> {
+  console.log('🎓 Collecting ML training data from signal sources...');
+  console.log('   Sources: Inference scraper + Signal cascade + Entity ontologies');
 
-  // Limit to recent matches with pagination to avoid timeout
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7); // Only last week
+  const BATCH_SIZE = 200;
+  const MAX_RECORDS = 1000;
+  
+  // Fetch startups with their extracted data
+  const { data: startups, error } = await supabase
+    .from('startup_uploads')
+    .select(`
+      id,
+      name,
+      total_god_score,
+      team_score,
+      traction_score,
+      market_score,
+      product_score,
+      vision_score,
+      team_signals,
+      grit_signals,
+      execution_signals,
+      credential_signals,
+      extracted_data,
+      status
+    `)
+    .eq('status', 'approved')
+    .not('total_god_score', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(MAX_RECORDS);
 
-  const BATCH_SIZE = 100; // Smaller batches to prevent timeout
-  const MAX_RECORDS = 500; // Reduced total limit
-  let allMatches: any[] = [];
-  let offset = 0;
-  let hasMore = true;
-
-  // Fetch matches in batches (without join first - faster)
-  while (hasMore && allMatches.length < MAX_RECORDS) {
-    const { data: matchesBatch, error } = await supabase
-      .from('startup_investor_matches')
-      .select(`
-        id,
-        startup_id,
-        investor_id,
-        match_score,
-        reasoning,
-        status,
-        viewed_at,
-        contacted_at
-      `)
-      .not('status', 'eq', 'suggested') // Only matches with some interaction
-      .gte('created_at', oneWeekAgo.toISOString())
-      .order('created_at', { ascending: false })
-      .range(offset, offset + BATCH_SIZE - 1);
-
-    if (error) {
-      console.error(`❌ Error fetching batch at offset ${offset}:`, error);
-      break;
-    }
-
-    if (!matchesBatch || matchesBatch.length === 0) {
-      hasMore = false;
-      break;
-    }
-
-    allMatches = allMatches.concat(matchesBatch);
-    offset += BATCH_SIZE;
-
-    // If we got fewer than BATCH_SIZE, we've reached the end
-    if (matchesBatch.length < BATCH_SIZE) {
-      hasMore = false;
-    }
-
-    // Small delay to avoid overwhelming the database
-    await new Promise(resolve => setTimeout(resolve, 100));
+  if (error) {
+    console.error('❌ Error fetching startups:', error);
+    return [];
   }
 
-  console.log(`   ✅ Fetched ${allMatches.length} matches in ${Math.ceil(allMatches.length / BATCH_SIZE)} batches`);
+  if (!startups || startups.length === 0) {
+    console.log('⚠️  No startup data found');
+    return [];
+  }
 
-  // Now fetch GOD scores separately (more efficient than join)
-  const startupIds = [...new Set(allMatches.map(m => m.startup_id))].slice(0, 100);
-  const { data: startups, error: startupError } = await supabase
-    .from('startup_uploads')
-    .select('id, total_god_score')
-    .in('id', startupIds);
+  console.log(`   ✅ Fetched ${startups.length} startups`);
 
-  const godScoreMap: Record<string, number> = {};
-  (startups || []).forEach((s: any) => {
-    godScoreMap[s.id] = s.total_god_score || 0;
+  // Fetch entity ontology confidence scores
+  const startupIds = startups.map(s => s.id);
+  const { data: entities, error: entityError } = await supabase
+    .from('entity_ontologies')
+    .select('metadata')
+    .eq('entity_type', 'STARTUP')
+    .gte('confidence', 0.7);
+
+  const entityConfidenceMap: Record<string, number> = {};
+  (entities || []).forEach((e: any) => {
+    const metadata = e.metadata || {};
+    if (metadata.startup_id) {
+      entityConfidenceMap[metadata.startup_id] = metadata.confidence || 0;
+    }
   });
 
-  // Attach GOD scores to matches
-  const matches = allMatches.map(m => ({
-    ...m,
-    startup: { total_god_score: godScoreMap[m.startup_id] || 0 }
-  }));
+  console.log(`   ✅ Mapped ${Object.keys(entityConfidenceMap).length} entity confidence scores`);
 
-  // Convert matches to training outcomes
-  // NOTE: Use status column, not investment_made (doesn't exist)
-  // Status values: suggested, viewed, intro_requested, intro_sent, contacted, declined, meeting_scheduled, funded
-  const outcomes: MatchOutcome[] = matches.map(match => {
-    // Determine outcome type and quality based on status column
-    let outcome: MatchOutcome['outcome'] = 'no_response';
-    let outcome_quality = 0.0;
-
-    if (match.status === 'funded') {
-      outcome = 'invested';
-      outcome_quality = 1.0; // Perfect outcome
-    } else if (match.status === 'meeting_scheduled') {
-      outcome = 'meeting';
-      outcome_quality = 0.8; // Very good outcome
-    } else if (match.status === 'intro_requested' || match.status === 'intro_sent' || match.status === 'contacted') {
-      outcome = 'interested';
-      outcome_quality = 0.6; // Good outcome
-    } else if (match.status === 'declined') {
-      outcome = 'passed';
-      outcome_quality = 0.0; // Poor outcome
-    } else if (match.viewed_at) {
-      outcome = 'no_response';
-      outcome_quality = 0.2; // Viewed but no action
-    }
-
-    // Get GOD score from joined startup data
-    const startup = match.startup as any;
-    const godScore = startup?.total_god_score || 0;
-
+  // Convert to training data
+  const trainingData: SignalTrainingData[] = startups.map(startup => {
+    const extracted = startup.extracted_data || {};
+    
+    // Analyze signal quality from extracted_data
+    const fundingSignals = extracted.funding || {};
+    const tractionSignals = extracted.traction || {};
+    const teamSignals = extracted.team || {};
+    
+    // Calculate signal quality scores (0-1)
+    const hasFundingSignals = !!(fundingSignals.stage || fundingSignals.raise_amount || fundingSignals.seeking);
+    const fundingConfidence = hasFundingSignals ? 0.8 : 0.0;
+    
+    const hasTractionSignals = !!(tractionSignals.mrr || tractionSignals.arr || tractionSignals.customers || tractionSignals.growth_rate);
+    const tractionConfidence = hasTractionSignals ? 0.9 : 0.0;
+    
+    const hasTeamSignals = startup.team_signals && startup.team_signals.length > 0;
+    const teamConfidence = hasTeamSignals ? 0.85 : (teamSignals.team_size ? 0.5 : 0.0);
+    
+    const entityConfidence = entityConfidenceMap[startup.id] || 0.0;
+    
+    // Determine actual outcomes (success indicators)
+    const funded = hasFundingSignals && (fundingSignals.stage_name !== 'Idea' && fundingSignals.stage_name !== 'Pre-Seed');
+    const hasRevenue = !!(tractionSignals.mrr || tractionSignals.arr || extracted.has_revenue);
+    const hasCustomers = !!(tractionSignals.customers || extracted.has_customers);
+    const isLaunched = !!(extracted.product?.launched || extracted.is_launched);
+    
     return {
-      match_id: match.id,
-      startup_id: match.startup_id,
-      investor_id: match.investor_id,
-      outcome,
-      outcome_quality,
-      god_score: godScore,
-      match_score: match.match_score || 0,
-      match_reasons: match.reasoning ? [match.reasoning] : [],
-      features: {
-        contacted: match.contacted_at ? true : false,
-        viewed: match.viewed_at ? true : false,
-        status: match.status
-      }
+      startup_id: startup.id,
+      startup_name: startup.name,
+      god_score: startup.total_god_score || 0,
+      team_score: startup.team_score || 0,
+      traction_score: startup.traction_score || 0,
+      market_score: startup.market_score || 0,
+      product_score: startup.product_score || 0,
+      vision_score: startup.vision_score || 0,
+      
+      has_funding_signals: hasFundingSignals,
+      funding_confidence: fundingConfidence,
+      has_traction_signals: hasTractionSignals,
+      traction_confidence: tractionConfidence,
+      has_team_signals: hasTeamSignals,
+      team_confidence: teamConfidence,
+      entity_confidence: entityConfidence,
+      
+      funded: funded,
+      has_revenue: hasRevenue,
+      has_customers: hasCustomers,
+      is_launched: isLaunched,
+      
+      extracted_data: extracted
     };
   });
 
-  console.log(`✅ Collected ${outcomes.length} training samples`);
-  console.log(`   Investments: ${outcomes.filter(o => o.outcome === 'invested').length}`);
-  console.log(`   Meetings: ${outcomes.filter(o => o.outcome === 'meeting').length}`);
-  console.log(`   Interested: ${outcomes.filter(o => o.outcome === 'interested').length}`);
-  console.log(`   Passed: ${outcomes.filter(o => o.outcome === 'passed').length}`);
+  // Calculate statistics
+  const highSignalCount = trainingData.filter(d => 
+    (d.funding_confidence + d.traction_confidence + d.team_confidence) / 3 > 0.6
+  ).length;
+  
+  const fundedCount = trainingData.filter(d => d.funded).length;
+  const revenueCount = trainingData.filter(d => d.has_revenue).length;
+  const launchedCount = trainingData.filter(d => d.is_launched).length;
 
-  return outcomes;
+  console.log(`✅ Collected ${trainingData.length} training samples`);
+  console.log(`   High signal quality: ${highSignalCount} (${((highSignalCount / trainingData.length) * 100).toFixed(1)}%)`);
+  console.log(`   Funded startups: ${fundedCount} (${((fundedCount / trainingData.length) * 100).toFixed(1)}%)`);
+  console.log(`   Has revenue: ${revenueCount} (${((revenueCount / trainingData.length) * 100).toFixed(1)}%)`);
+  console.log(`   Launched: ${launchedCount} (${((launchedCount / trainingData.length) * 100).toFixed(1)}%)`);
+
+  return trainingData;
 }
 
 /**
- * Extract patterns from successful matches
+ * Extract patterns from high-quality signal data
+ * NEW: Identifies which signals correlate with success
  */
 export async function extractSuccessPatterns(): Promise<TrainingPattern[]> {
-  console.log('🔍 Extracting patterns from successful matches...');
+  console.log('🔍 Extracting patterns from signal data...');
 
   const outcomes = await collectTrainingData();
   const patterns: TrainingPattern[] = [];
 
-  // Separate successful from unsuccessful
-  const successful = outcomes.filter(o => o.outcome_quality >= 0.6);
-  const unsuccessful = outcomes.filter(o => o.outcome_quality < 0.3);
+  // Define what "success" means: funded, has revenue, or high GOD score with good signals
+  const successful = outcomes.filter(d => {
+    const avgSignalQuality = (d.funding_confidence + d.traction_confidence + d.team_confidence) / 3;
+    const hasRealTraction = d.funded || d.has_revenue || d.has_customers;
+    return (avgSignalQuality >= 0.7 && d.god_score >= 70) || hasRealTraction;
+  });
 
-  // Extract patterns from successful matches
-  for (const match of successful) {
+  const unsuccessful = outcomes.filter(d => {
+    const avgSignalQuality = (d.funding_confidence + d.traction_confidence + d.team_confidence) / 3;
+    return avgSignalQuality < 0.3 && d.god_score < 50;
+  });
+
+  console.log(`   High signal startups: ${successful.length}`);
+  console.log(`   Low signal startups: ${unsuccessful.length}`);
+
+  // Extract patterns from high-signal startups
+  for (const startup of successful) {
+    const signalQuality = (startup.funding_confidence + startup.traction_confidence + startup.team_confidence) / 3;
+    const outcomeQuality = startup.funded ? 1.0 : (startup.has_revenue ? 0.9 : (startup.is_launched ? 0.7 : 0.6));
+    
     patterns.push({
-      pattern_type: 'successful',
+      pattern_type: 'high_signal',
       features: {
-        god_score: match.god_score,
-        match_score: match.match_score,
-        match_reasons: match.match_reasons,
-        outcome: match.outcome
+        god_score: startup.god_score,
+        team_score: startup.team_score,
+        traction_score: startup.traction_score,
+        market_score: startup.market_score,
+        product_score: startup.product_score,
+        vision_score: startup.vision_score,
+        signal_quality: signalQuality,
+        has_team_signals: startup.has_team_signals,
+        has_traction_signals: startup.has_traction_signals,
+        has_funding_signals: startup.has_funding_signals,
+        funded: startup.funded,
+        has_revenue: startup.has_revenue
       },
-      outcome: match.outcome,
-      outcome_quality: match.outcome_quality,
-      weight: match.outcome_quality // Weight by outcome quality
+      signal_quality: signalQuality,
+      outcome_quality: outcomeQuality,
+      weight: outcomeQuality
     });
   }
 
-  // Extract patterns from unsuccessful matches
-  for (const match of unsuccessful) {
+  // Extract patterns from low-signal startups
+  for (const startup of unsuccessful) {
+    const signalQuality = (startup.funding_confidence + startup.traction_confidence + startup.team_confidence) / 3;
+    
     patterns.push({
-      pattern_type: 'unsuccessful',
+      pattern_type: 'low_signal',
       features: {
-        god_score: match.god_score,
-        match_score: match.match_score,
-        match_reasons: match.match_reasons,
-        outcome: match.outcome
+        god_score: startup.god_score,
+        team_score: startup.team_score,
+        traction_score: startup.traction_score,
+        market_score: startup.market_score,
+        product_score: startup.product_score,
+        vision_score: startup.vision_score,
+        signal_quality: signalQuality,
+        has_team_signals: startup.has_team_signals,
+        has_traction_signals: startup.has_traction_signals,
+        has_funding_signals: startup.has_funding_signals
       },
-      outcome: match.outcome,
-      outcome_quality: match.outcome_quality,
-      weight: 1.0 - match.outcome_quality // Weight by failure severity
+      signal_quality: signalQuality,
+      outcome_quality: 0.2,
+      weight: 1.0 - signalQuality
     });
   }
 
   // Store patterns in database
-  for (const pattern of patterns) {
+  for (const pattern of patterns.slice(0, 100)) { // Limit to 100 patterns to avoid timeout
     await supabase.from('ml_training_patterns').upsert({
       pattern_type: pattern.pattern_type,
       features: pattern.features,
-      outcome: pattern.outcome,
+      outcome: pattern.pattern_type,
       outcome_quality: pattern.outcome_quality,
       weight: pattern.weight
     });
   }
 
   console.log(`✅ Extracted ${patterns.length} patterns`);
-  console.log(`   Successful patterns: ${patterns.filter(p => p.pattern_type === 'successful').length}`);
-  console.log(`   Unsuccessful patterns: ${patterns.filter(p => p.pattern_type === 'unsuccessful').length}`);
+  console.log(`   High signal patterns: ${patterns.filter(p => p.pattern_type === 'high_signal').length}`);
+  console.log(`   Low signal patterns: ${patterns.filter(p => p.pattern_type === 'low_signal').length}`);
 
   return patterns;
 }
 
 /**
- * Analyze which factors predict success
+ * Analyze which GOD score components predict success
+ * NEW: Correlates component scores with actual outcomes
  */
 export async function analyzeSuccessFactors(): Promise<any> {
-  console.log('📊 Analyzing which factors predict match success...');
+  console.log('📊 Analyzing which GOD components predict success...');
 
   const outcomes = await collectTrainingData();
 
-  // Calculate average outcome quality by GOD score range
-  const scoreRanges = [
-    { min: 0, max: 50, label: '0-50' },
-    { min: 51, max: 70, label: '51-70' },
-    { min: 71, max: 85, label: '71-85' },
-    { min: 86, max: 100, label: '86-100' }
-  ];
-
-  const analysis = scoreRanges.map(range => {
-    const matchesInRange = outcomes.filter(
-      o => o.god_score >= range.min && o.god_score <= range.max
-    );
-
-    const avgQuality = matchesInRange.length > 0
-      ? matchesInRange.reduce((sum, o) => sum + o.outcome_quality, 0) / matchesInRange.length
-      : 0;
-
-    const successRate = matchesInRange.length > 0
-      ? matchesInRange.filter(o => o.outcome_quality >= 0.6).length / matchesInRange.length
-      : 0;
-
-    return {
-      range: range.label,
-      count: matchesInRange.length,
-      avg_quality: avgQuality,
-      success_rate: successRate,
-      investment_rate: matchesInRange.filter(o => o.outcome === 'invested').length / Math.max(matchesInRange.length, 1)
-    };
+  // Define success: funded OR has revenue OR high GOD score with signals
+  const successful = outcomes.filter(d => {
+    const avgSignalQuality = (d.funding_confidence + d.traction_confidence + d.team_confidence) / 3;
+    return d.funded || d.has_revenue || (avgSignalQuality >= 0.7 && d.god_score >= 70);
   });
 
-  console.log('\n📈 Success by GOD Score Range:');
-  analysis.forEach(a => {
-    console.log(`   ${a.range}: ${a.count} matches, ${(a.success_rate * 100).toFixed(1)}% success, ${(a.investment_rate * 100).toFixed(1)}% invested`);
+  const unsuccessful = outcomes.filter(d => {
+    const avgSignalQuality = (d.funding_confidence + d.traction_confidence + d.team_confidence) / 3;
+    return avgSignalQuality < 0.3 && d.god_score < 50;
   });
+
+  // Calculate average component scores for successful vs unsuccessful
+  const avgSuccessTeam = successful.reduce((sum, d) => sum + d.team_score, 0) / Math.max(successful.length, 1);
+  const avgSuccessTraction = successful.reduce((sum, d) => sum + d.traction_score, 0) / Math.max(successful.length, 1);
+  const avgSuccessMarket = successful.reduce((sum, d) => sum + d.market_score, 0) / Math.max(successful.length, 1);
+  const avgSuccessProduct = successful.reduce((sum, d) => sum + d.product_score, 0) / Math.max(successful.length, 1);
+  const avgSuccessVision = successful.reduce((sum, d) => sum + d.vision_score, 0) / Math.max(successful.length, 1);
+
+  const avgFailTeam = unsuccessful.reduce((sum, d) => sum + d.team_score, 0) / Math.max(unsuccessful.length, 1);
+  const avgFailTraction = unsuccessful.reduce((sum, d) => sum + d.traction_score, 0) / Math.max(unsuccessful.length, 1);
+  const avgFailMarket = unsuccessful.reduce((sum, d) => sum + d.market_score, 0) / Math.max(unsuccessful.length, 1);
+  const avgFailProduct = unsuccessful.reduce((sum, d) => sum + d.product_score, 0) / Math.max(unsuccessful.length, 1);
+  const avgFailVision = unsuccessful.reduce((sum, d) => sum + d.vision_score, 0) / Math.max(unsuccessful.length, 1);
+
+  // Calculate predictive power (delta between success/fail)
+  const analysis = {
+    team_delta: avgSuccessTeam - avgFailTeam,
+    traction_delta: avgSuccessTraction - avgFailTraction,
+    market_delta: avgSuccessMarket - avgFailMarket,
+    product_delta: avgSuccessProduct - avgFailProduct,
+    vision_delta: avgSuccessVision - avgFailVision,
+    
+    successful_count: successful.length,
+    unsuccessful_count: unsuccessful.length,
+    
+    success_avg: {
+      team: avgSuccessTeam,
+      traction: avgSuccessTraction,
+      market: avgSuccessMarket,
+      product: avgSuccessProduct,
+      vision: avgSuccessVision,
+      god_score: successful.reduce((sum, d) => sum + d.god_score, 0) / Math.max(successful.length, 1)
+    },
+    
+    fail_avg: {
+      team: avgFailTeam,
+      traction: avgFailTraction,
+      market: avgFailMarket,
+      product: avgFailProduct,
+      vision: avgFailVision,
+      god_score: unsuccessful.reduce((sum, d) => sum + d.god_score, 0) / Math.max(unsuccessful.length, 1)
+    }
+  };
+
+  console.log('\n📈 Component Score Analysis:');
+  console.log(`   Successful startups (n=${successful.length}):`);
+  console.log(`     Team: ${avgSuccessTeam.toFixed(1)}, Traction: ${avgSuccessTraction.toFixed(1)}, Market: ${avgSuccessMarket.toFixed(1)}`);
+  console.log(`     Product: ${avgSuccessProduct.toFixed(1)}, Vision: ${avgSuccessVision.toFixed(1)}`);
+  console.log(`   Unsuccessful startups (n=${unsuccessful.length}):`);
+  console.log(`     Team: ${avgFailTeam.toFixed(1)}, Traction: ${avgFailTraction.toFixed(1)}, Market: ${avgFailMarket.toFixed(1)}`);
+  console.log(`     Product: ${avgFailProduct.toFixed(1)}, Vision: ${avgFailVision.toFixed(1)}`);
+  console.log('\n📊 Predictive Power (success - fail delta):');
+  console.log(`     Team: ${analysis.team_delta.toFixed(1)}`);
+  console.log(`     Traction: ${analysis.traction_delta.toFixed(1)} ${analysis.traction_delta > 10 ? '⭐' : ''}`);
+  console.log(`     Market: ${analysis.market_delta.toFixed(1)}`);
+  console.log(`     Product: ${analysis.product_delta.toFixed(1)}`);
+  console.log(`     Vision: ${analysis.vision_delta.toFixed(1)}`);
 
   return analysis;
 }
 
 /**
- * Generate optimization recommendations based on ML analysis
+ * Generate weight optimization recommendations based on signal analysis
+ * NEW: Uses component score deltas to suggest weight adjustments
  */
 export async function generateOptimizationRecommendations(): Promise<OptimizationResult> {
   console.log('🧠 Generating ML-based optimization recommendations...');
 
   const outcomes = await collectTrainingData();
-  const successPatterns = await extractSuccessPatterns();
+  const analysis = await analyzeSuccessFactors();
 
-  // Current weights (from GOD algorithm)
+  // Current weights (from GOD algorithm in startupScoringService.ts)
   const currentWeights: AlgorithmWeights = {
     team: 3.0,
     traction: 3.0,
@@ -326,48 +420,77 @@ export async function generateOptimizationRecommendations(): Promise<Optimizatio
     problem_validation: 2.0
   };
 
-  // Analyze which factors correlate with success
-  const successful = outcomes.filter(o => o.outcome_quality >= 0.8);
-  const unsuccessful = outcomes.filter(o => o.outcome_quality < 0.3);
-
-  const avgSuccessScore = successful.reduce((sum, o) => sum + o.god_score, 0) / Math.max(successful.length, 1);
-  const avgFailureScore = unsuccessful.reduce((sum, o) => sum + o.god_score, 0) / Math.max(unsuccessful.length, 1);
-
   const reasoning: string[] = [];
-
-  // Recommendation logic
   let recommendedWeights = { ...currentWeights };
   let hasChanges = false;
 
-  if (avgSuccessScore > 80 && successful.length > 10) {
-    // High scores predict success - algorithm working well
-    reasoning.push('✅ GOD algorithm shows strong predictive power (high scores = success)');
-    reasoning.push(`Average successful match GOD score: ${avgSuccessScore.toFixed(1)}/100`);
-    // No changes needed - algorithm is working well
-  } else if (avgSuccessScore < 70 && successful.length > 5) {
-    // Successful matches have lower scores - may need recalibration
-    reasoning.push('⚠️ Successful matches showing lower GOD scores than expected');
-    reasoning.push(`Consider increasing weights on factors present in successful matches`);
-    
-    // Boost traction weight (often indicates real progress)
-    recommendedWeights.traction = 3.5;
+  // Only make recommendations if we have sufficient data
+  if (outcomes.length < 50) {
+    console.log('ℹ️  Insufficient data for recommendations (need 50+ startups)');
+    return {
+      current_weights: currentWeights,
+      recommended_weights: recommendedWeights,
+      expected_improvement: 0,
+      confidence: 0,
+      reasoning: [`Insufficient data: ${outcomes.length} startups (need 50+)`]
+    };
+  }
+
+  reasoning.push(`📊 Analyzing ${outcomes.length} startups with signal data`);
+  reasoning.push(`   Successful: ${analysis.successful_count}`);
+  reasoning.push(`   Unsuccessful: ${analysis.unsuccessful_count}`);
+
+  // Analyze each component's predictive power
+  // If delta is high (>10 points), that component is very predictive
+  const deltas = [
+    { name: 'team', delta: analysis.team_delta, current: currentWeights.team },
+    { name: 'traction', delta: analysis.traction_delta, current: currentWeights.traction },
+    { name: 'market', delta: analysis.market_delta, current: currentWeights.market },
+    { name: 'product', delta: analysis.product_delta, current: currentWeights.product },
+    { name: 'vision', delta: analysis.vision_delta, current: currentWeights.vision }
+  ];
+
+  // Sort by predictive power
+  deltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  reasoning.push('\n🔍 Component Predictive Power (success vs fail delta):');
+  deltas.forEach(d => {
+    const strength = Math.abs(d.delta) > 15 ? '⭐⭐⭐' : Math.abs(d.delta) > 10 ? '⭐⭐' : Math.abs(d.delta) > 5 ? '⭐' : '';
+    reasoning.push(`   ${d.name}: ${d.delta.toFixed(1)} points ${strength}`);
+  });
+
+  // Generate recommendations based on deltas
+  const topPredictor = deltas[0];
+  const weakestPredictor = deltas[deltas.length - 1];
+
+  // If top predictor has strong delta (>15) and isn't already highest weighted
+  if (Math.abs(topPredictor.delta) > 15 && topPredictor.current < 3.5) {
+    const increase = 0.5;
+    (recommendedWeights as any)[topPredictor.name] = Math.min(topPredictor.current + increase, 4.0);
     hasChanges = true;
-    reasoning.push('📈 Recommended: Increase traction weight to 3.5 (from 3.0)');
+    reasoning.push(`\n📈 RECOMMENDATION: Increase ${topPredictor.name} weight to ${(recommendedWeights as any)[topPredictor.name]}`);
+    reasoning.push(`   Reason: Strong predictor of success (Δ=${topPredictor.delta.toFixed(1)} points)`);
   }
 
-  // Check if high scores still lead to passes
-  const highScoreFails = unsuccessful.filter(o => o.god_score > 80).length;
-  if (highScoreFails > 5) {
-    reasoning.push(`⚠️ ${highScoreFails} high-scoring matches (>80) were passed on`);
-    reasoning.push('Consider adding qualitative factors to GOD algorithm');
+  // If weakest predictor has very low delta (<3) and high weight
+  if (Math.abs(weakestPredictor.delta) < 3 && weakestPredictor.current > 2.0) {
+    const decrease = 0.25;
+    (recommendedWeights as any)[weakestPredictor.name] = Math.max(weakestPredictor.current - decrease, 1.5);
+    hasChanges = true;
+    reasoning.push(`\n📉 RECOMMENDATION: Decrease ${weakestPredictor.name} weight to ${(recommendedWeights as any)[weakestPredictor.name]}`);
+    reasoning.push(`   Reason: Low predictive power (Δ=${weakestPredictor.delta.toFixed(1)} points)`);
   }
 
-  // Only create recommendation if there are actual changes
-  if (!hasChanges) {
-    // Check if any weights actually changed
-    hasChanges = Object.keys(currentWeights).some(
-      key => currentWeights[key as keyof AlgorithmWeights] !== recommendedWeights[key as keyof AlgorithmWeights]
-    );
+  // Check GOD score distribution
+  const avgGodScore = outcomes.reduce((sum, d) => sum + d.god_score, 0) / outcomes.length;
+  if (avgGodScore < 50 && analysis.successful_count > 20) {
+    reasoning.push(`\n⚠️ Average GOD score is low (${avgGodScore.toFixed(1)}), but ${analysis.successful_count} successful startups exist`);
+    reasoning.push('   Consider: Algorithm may be too conservative - successful startups scoring lower than expected');
+  } else if (avgGodScore > 70 && analysis.unsuccessful_count > analysis.successful_count) {
+    reasoning.push(`\n⚠️ Average GOD score is high (${avgGodScore.toFixed(1)}), but more unsuccessful (${analysis.unsuccessful_count}) than successful (${analysis.successful_count})`);
+    reasoning.push('   Consider: Algorithm may be too lenient - scores not reflecting reality');
+  } else {
+    reasoning.push(`\n✅ GOD score distribution healthy (avg ${avgGodScore.toFixed(1)})`);
   }
 
   if (!hasChanges) {
@@ -376,26 +499,31 @@ export async function generateOptimizationRecommendations(): Promise<Optimizatio
       current_weights: currentWeights,
       recommended_weights: recommendedWeights,
       expected_improvement: 0,
-      confidence: 0,
-      reasoning: ['No changes recommended - current weights are performing well']
+      confidence: 0.3,
+      reasoning: ['No changes recommended - current weights performing well']
     };
   }
 
-  // Calculate expected improvement
-  const currentSuccessRate = successful.length / Math.max(outcomes.length, 1);
-  const expectedImprovement = currentSuccessRate < 0.3 ? 15 : 8; // % improvement
+  // Calculate confidence based on sample size and delta magnitudes
+  const avgDelta = deltas.reduce((sum, d) => sum + Math.abs(d.delta), 0) / deltas.length;
+  let confidence = 0.5;
+  
+  if (outcomes.length > 200 && avgDelta > 10) confidence = 0.9;
+  else if (outcomes.length > 100 && avgDelta > 8) confidence = 0.8;
+  else if (outcomes.length > 50 && avgDelta > 5) confidence = 0.7;
 
-  const confidence = successful.length > 20 ? 0.85 : successful.length > 10 ? 0.7 : 0.5;
+  const expectedImprovement = confidence * 15; // 0-15% improvement
 
-  // Save recommendation to database (only if there are changes)
+  // Save recommendation to database
   await supabase.from('ml_recommendations').insert({
     recommendation_type: 'weight_change',
     priority: confidence > 0.8 ? 'high' : 'medium',
-    title: 'GOD Algorithm Weight Optimization',
+    title: 'GOD Algorithm Weight Optimization from Signal Analysis',
     description: reasoning.join('\n'),
     current_value: currentWeights,
     proposed_value: recommendedWeights,
-    expected_impact: `Expected ${expectedImprovement}% improvement in match success rate`,
+    expected_impact: `Expected ${expectedImprovement.toFixed(1)}% improvement in scoring accuracy`,
+    confidence_score: confidence,
     status: 'pending'
   });
 
@@ -413,96 +541,134 @@ export async function generateOptimizationRecommendations(): Promise<Optimizatio
 
 /**
  * Track algorithm performance over time
+ * NEW: Tracks signal quality and GOD score accuracy
  */
 export async function trackAlgorithmPerformance(
   periodStart: Date,
   periodEnd: Date
 ): Promise<void> {
-  console.log(`📊 Tracking algorithm performance: ${periodStart.toISOString()} to ${periodEnd.toISOString()}`);
+  console.log(`📊 Tracking algorithm performance: ${periodStart.toISOString().split('T')[0]} to ${periodEnd.toISOString().split('T')[0]}`);
 
-  const { data: matches, error } = await supabase
-    .from('startup_investor_matches')
+  const { data: startups, error } = await supabase
+    .from('startup_uploads')
     .select(`
-      *,
-      startup:startup_uploads!startup_investor_matches_startup_id_fkey(
-        total_god_score
-      )
+      id,
+      total_god_score,
+      team_score,
+      traction_score,
+      market_score,
+      product_score,
+      vision_score,
+      extracted_data,
+      updated_at
     `)
-    .gte('created_at', periodStart.toISOString())
-    .lte('created_at', periodEnd.toISOString())
-    .limit(10000); // Limit to prevent timeout
+    .eq('status', 'approved')
+    .gte('updated_at', periodStart.toISOString())
+    .lte('updated_at', periodEnd.toISOString())
+    .limit(1000);
 
-  if (error || !matches) {
+  if (error || !startups || startups.length === 0) {
     console.error('Error fetching performance data:', error);
     return;
   }
 
-  // Use status column - 'funded' or 'meeting_scheduled' are successful
-  const successful = matches.filter(m => 
-    m.status === 'funded' || m.status === 'meeting_scheduled'
-  );
+  // Calculate signal quality across startups
+  let totalSignalQuality = 0;
+  let hasSignalsCount = 0;
+  let fundedCount = 0;
+  let revenueCount = 0;
 
-  const avgMatchScore = matches.reduce((sum, m) => sum + (m.match_score || 0), 0) / Math.max(matches.length, 1);
-  
-  // Get GOD scores from joined startup data
-  const godScores = matches
-    .map(m => {
-      const startup = (m as any).startup;
-      return startup?.total_god_score || 0;
-    })
-    .filter(score => score > 0);
-  
-  const avgGodScore = godScores.length > 0
-    ? godScores.reduce((sum, score) => sum + score, 0) / godScores.length
-    : 0;
-  
-  const conversionRate = successful.length / Math.max(matches.length, 1);
+  startups.forEach(s => {
+    const extracted = s.extracted_data || {};
+    const hasFunding = !!(extracted.funding?.stage || extracted.funding?.raise_amount);
+    const hasTraction = !!(extracted.traction?.mrr || extracted.traction?.arr || extracted.traction?.customers);
+    const hasTeam = !!(extracted.team?.team_size);
+    
+    if (hasFunding || hasTraction || hasTeam) {
+      hasSignalsCount++;
+      const signalQuality = (
+        (hasFunding ? 0.8 : 0) +
+        (hasTraction ? 0.9 : 0) +
+        (hasTeam ? 0.7 : 0)
+      ) / 3;
+      totalSignalQuality += signalQuality;
+    }
 
-  // Calculate score distribution using GOD scores
+    if (hasFunding && extracted.funding?.stage_name !== 'Idea' && extracted.funding?.stage_name !== 'Pre-Seed') {
+      fundedCount++;
+    }
+    if (hasTraction) {
+      revenueCount++;
+    }
+  });
+
+  const avgSignalQuality = hasSignalsCount > 0 ? totalSignalQuality / hasSignalsCount : 0;
+  const avgGodScore = startups.reduce((sum, s) => sum + (s.total_god_score || 0), 0) / startups.length;
+
+  // Calculate score distribution
   const scoreDistribution = {
-    '0-50': godScores.filter(score => score <= 50).length,
-    '51-70': godScores.filter(score => score > 50 && score <= 70).length,
-    '71-85': godScores.filter(score => score > 70 && score <= 85).length,
-    '86-100': godScores.filter(score => score > 85).length
+    '0-50': startups.filter(s => (s.total_god_score || 0) <= 50).length,
+    '51-70': startups.filter(s => (s.total_god_score || 0) > 50 && (s.total_god_score || 0) <= 70).length,
+    '71-85': startups.filter(s => (s.total_god_score || 0) > 70 && (s.total_god_score || 0) <= 85).length,
+    '86-100': startups.filter(s => (s.total_god_score || 0) > 85).length
   };
 
   // Store metrics
   await supabase.from('algorithm_metrics').insert({
     period_start: periodStart.toISOString(),
     period_end: periodEnd.toISOString(),
-    total_matches: matches.length,
-    successful_matches: successful.length,
-    avg_match_score: avgMatchScore,
+    total_matches: startups.length,
+    successful_matches: fundedCount,
+    avg_match_score: avgGodScore,
     avg_god_score: avgGodScore,
-    conversion_rate: conversionRate,
+    conversion_rate: fundedCount / Math.max(startups.length, 1),
     score_distribution: scoreDistribution,
-    algorithm_version: '1.0'
+    algorithm_version: '2.0-signal-based',
+    metadata: {
+      avg_signal_quality: avgSignalQuality,
+      has_signals_count: hasSignalsCount,
+      funded_count: fundedCount,
+      revenue_count: revenueCount
+    }
   });
 
   console.log('✅ Performance metrics stored');
-  console.log(`   Total Matches: ${matches.length}`);
-  console.log(`   Successful: ${successful.length} (${(conversionRate * 100).toFixed(1)}%)`);
+  console.log(`   Total Startups: ${startups.length}`);
+  console.log(`   With Signals: ${hasSignalsCount} (${((hasSignalsCount / startups.length) * 100).toFixed(1)}%)`);
+  console.log(`   Avg Signal Quality: ${(avgSignalQuality * 100).toFixed(1)}%`);
+  console.log(`   Funded: ${fundedCount} (${((fundedCount / startups.length) * 100).toFixed(1)}%)`);
   console.log(`   Avg GOD Score: ${avgGodScore.toFixed(1)}/100`);
 }
 
 /**
  * Run full ML training cycle
+ * UPDATED: Now uses signal data, not match feedback
  */
 export async function runMLTrainingCycle(): Promise<void> {
   console.log('\n' + '='.repeat(70));
-  console.log('🤖 RUNNING ML TRAINING CYCLE FOR GOD ALGORITHM');
+  console.log('🤖 RUNNING ML TRAINING CYCLE (SIGNAL-BASED)');
   console.log('='.repeat(70) + '\n');
+  console.log('Data Sources:');
+  console.log('  • Inference Scraper → extracted_data');
+  console.log('  • Signal Cascade → funding/traction/team signals');
+  console.log('  • Entity Ontologies → confidence scores');
+  console.log('');
 
-  // Step 1: Collect training data
-  await collectTrainingData();
+  // Step 1: Collect training data from signal sources
+  const trainingData = await collectTrainingData();
 
-  // Step 2: Extract patterns
+  if (trainingData.length === 0) {
+    console.log('⚠️  No training data available - skipping ML cycle');
+    return;
+  }
+
+  // Step 2: Extract patterns from high/low signal startups
   await extractSuccessPatterns();
 
-  // Step 3: Analyze success factors
+  // Step 3: Analyze which components predict success
   await analyzeSuccessFactors();
 
-  // Step 4: Generate recommendations
+  // Step 4: Generate weight recommendations
   const optimization = await generateOptimizationRecommendations();
 
   // Step 5: Track performance (last 30 days)
@@ -513,10 +679,16 @@ export async function runMLTrainingCycle(): Promise<void> {
   console.log('\n' + '='.repeat(70));
   console.log('✅ ML TRAINING CYCLE COMPLETE');
   console.log('='.repeat(70));
-  console.log(`\n📈 Expected Improvement: ${optimization.expected_improvement}%`);
+  console.log(`\n📈 Expected Improvement: ${optimization.expected_improvement.toFixed(1)}%`);
   console.log(`🎯 Confidence Level: ${(optimization.confidence * 100).toFixed(0)}%`);
   console.log('\nRecommendations:');
-  optimization.reasoning.forEach(r => console.log(`   ${r}`));
+  optimization.reasoning.forEach(r => console.log(`${r}`));
+  
+  if (optimization.confidence >= 0.8) {
+    console.log('\n⚡ HIGH CONFIDENCE - Ready for automatic application');
+  } else if (optimization.confidence >= 0.5) {
+    console.log('\n⚠️  MEDIUM CONFIDENCE - Manual review recommended');
+  }
   console.log('');
 }
 

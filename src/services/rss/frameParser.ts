@@ -267,11 +267,16 @@ function parseRound(title: string): string | null {
 /**
  * Production guardrail: Validate entity quality (ENHANCED with Ontology System)
  * Uses Tier 1 & Tier 2 ontologies for semantic classification
- * Rejects: possessives, pronouns, generic terms, places, long statements
+ * Rejects: possessives, pronouns, generic terms, places, long statements, 
+ *          headline fragments, person names (non-startup founders)
  */
 function validateEntityQuality(entity: string): boolean {
   if (entity.length < 2) return false;
+  if (entity.length <= 3 && !/^[A-Z][a-z]?[A-Z]?$/.test(entity)) return false; // Allow "AI" "IBM" but not "The"
   if (!/[a-zA-Z]/.test(entity)) return false;
+  
+  // CRITICAL: Reject lowercase-starting names (headline fragments)
+  if (/^[a-z]/.test(entity)) return false;
   
   // Tier 2: Expanded stoplist (includes possessives, pronouns, prepositions)
   const stopList = [
@@ -347,6 +352,62 @@ function validateEntityQuality(entity: string): boolean {
   // Tier 2: Government entities
   if (/^(Former|Ex-)?\s*(USDS|CIA|FBI|NASA|Pentagon|White House)\s+(Leaders|Officials|Staff)/i.test(entity)) {
     return false; // "Former USDS Leaders"
+  }
+  
+  // === NEW TIER 3: Headline fragment detection ===
+  
+  // Block "Former X" patterns (people/roles, not companies)
+  if (/^Former\s+/i.test(entity)) {
+    return false; // "Former TikTok", "Former Googlers"
+  }
+  
+  // Block person names (famous tech people that aren't companies)
+  const famousPersons = [
+    'Jim Cramer', 'Palmer Luckey', 'Tony Fadell', 'Elon Musk', 'Sam Altman',
+    'Jensen Huang', 'Satya Nadella', 'Tim Cook', 'Mark Zuckerberg', 'Jeff Bezos',
+    'Bill Gates', 'Steve Jobs', 'Sundar Pichai', 'Jack Dorsey', 'Brian Chesky',
+    'Travis Kalanick', 'Adam Neumann', 'Elizabeth Holmes', 'Do Kwon', 'SBF',
+  ];
+  if (famousPersons.some(p => entity.toLowerCase() === p.toLowerCase())) {
+    return false;
+  }
+  
+  // Block nationality groups (not companies)
+  const nationalityGroups = ['Koreans', 'Danes', 'Americans', 'Chinese', 'Japanese', 'Europeans', 'Asians'];
+  if (nationalityGroups.some(g => entity.toLowerCase() === g.toLowerCase())) {
+    return false;
+  }
+  
+  // Block political references
+  if (/\bTrump\b/i.test(entity) || /\bBiden\b/i.test(entity) || /\bObama\b/i.test(entity)) {
+    return false;
+  }
+  
+  // Block common headline verb patterns
+  const verbPatterns = [
+    /^.*\b(Emerges|Launches|Raises|Files|Wins|Leads|Gets|Takes|Leave|Leaves|Says|Tells|Wants|Deepens)\s*$/i,
+    /^(CEOs?|CFOs?|CTOs?|Directors?)\s+/i,  // "CEO X", "Directors Leave"
+    /^(Best|Top|Busy|One-time|Focus on)\s+/i,  // Listicle/adjective starts
+    /^(Troubles|Agenda|Windows Mac)\b/i,  // Specific garbage
+  ];
+  if (verbPatterns.some(p => p.test(entity))) {
+    return false;
+  }
+  
+  // Block "X's Y" possessive fragments that aren't companies (short fragments)
+  if (/^[A-Z][a-z]+'s\s*$/i.test(entity) || /^[A-Z][a-z]+'s\s+[A-Z]/i.test(entity) && entity.length < 15) {
+    // Allow "OpenAI's" but block "Nvidia's Huang", "Intel's Stock"
+    if (/\b(Stock|Huang|CEO|Director|Manager|Team)\b/i.test(entity)) {
+      return false;
+    }
+  }
+  
+  // Block pure acronyms that are too ambiguous
+  if (/^[A-Z]{2,4}$/.test(entity) && !['AI', 'ML', 'VR', 'AR', 'EV', 'IoT'].includes(entity)) {
+    // Allow common tech acronyms, block others like "BYD", "IPO", "SPAC"
+    if (['IPO', 'SPAC', 'SEC', 'FTC', 'FDA', 'DOJ', 'IRS'].includes(entity)) {
+      return false;
+    }
   }
   
   // Tier 2: Long statements (likely descriptions, not names)
@@ -1133,7 +1194,10 @@ export function toCapitalEvent(
     // Clean headline: remove prefixes like "The ", "Inside ", "How "
     let cleanedTitle = title
       .replace(/^(The|A|An)\s+/i, "")
-      .replace(/^(Inside|How|What|Why|When|Where)\s+/i, "");
+      .replace(/^(Inside|How|What|Why|When|Where|Watch|Meet|Ask|Why)\s+/i, "");
+    
+    // Remove trailing verbs and prepositions: "raises $10M", "wins contract"
+    cleanedTitle = cleanedTitle.replace(/\s+(raises?|wins?|leads?|secures?|announces?|acquires?|takes?|gets?|lands?)\b.*$/i, "");
     
     // Extract company names more carefully:
     // 1. Look for "X/Y" patterns (e.g., "Rippling/Deel")
@@ -1145,27 +1209,50 @@ export function toCapitalEvent(
         { name: slashMatch[2].trim(), role: "OBJECT", confidence: 0.6, source: "heuristic" }
       );
     } else {
-      // 2. Extract up to first 3 TitleCase company names (max 3 words each)
-      // Stop at common verbs to avoid "Capital One To Buy Fintech Startup Brex At Less..."
-      const beforeVerb = cleanedTitle.split(/\b(To|At|In|On|For|With|From|By)\b/i)[0];
-      const titlecasePattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g;
-      const matches = [...beforeVerb.matchAll(titlecasePattern)];
-      
-      // Filter out noise words
-      const stopWords = ["This", "That", "Their", "Some", "Many", "Most"];
-      const companyNames = matches
-        .map(m => m[1])
-        .filter(name => !stopWords.includes(name) && name.length > 2)
-        .slice(0, 2); // Max 2 entities for OTHER events
-      
-      companyNames.forEach((name, idx) => {
-        entities.push({
-          name,
-          role: idx === 0 ? "SUBJECT" : "OBJECT",
-          confidence: 0.5, // Low confidence for heuristic extraction
-          source: "heuristic",
+      // 2. Look for possessive patterns: "OpenAI's new..." → extract "OpenAI"
+      const possessivePattern = /\b([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)'s\b/g;
+      const possessiveMatches = [...cleanedTitle.matchAll(possessivePattern)];
+      if (possessiveMatches.length > 0) {
+        possessiveMatches.slice(0, 2).forEach((m, idx) => {
+          const name = m[1].trim();
+          if (name.length >= 2 && !["It", "How", "What", "Why", "The", "This"].includes(name)) {
+            entities.push({
+              name,
+              role: idx === 0 ? "SUBJECT" : "OBJECT",
+              confidence: 0.65,
+              source: "heuristic",
+            });
+          }
         });
-      });
+      }
+      
+      // 3. Extract up to first 2 TitleCase company names (max 3 words each)
+      // Stop at common verbs to avoid "Capital One To Buy Fintech Startup Brex At Less..."
+      if (entities.length === 0) {
+        const beforeVerb = cleanedTitle.split(/\b(To|At|In|On|For|With|From|By|Is|Are|Has|Have|Will)\b/i)[0];
+        const titlecasePattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g;
+        const matches = [...beforeVerb.matchAll(titlecasePattern)];
+        
+        // Filter out noise words and generic terms
+        const stopWords = ["This", "That", "Their", "Some", "Many", "Most", "New", "Big", "Best", "Top", 
+                          "Raises", "Wins", "Leads", "Takes", "Gets", "Launches", "Announces",
+                          "January", "February", "March", "April", "May", "June", "July", "August", 
+                          "September", "October", "November", "December", "Monday", "Tuesday", 
+                          "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const companyNames = matches
+          .map(m => m[1])
+          .filter(name => !stopWords.includes(name) && name.length > 2)
+          .slice(0, 2); // Max 2 entities for OTHER events
+        
+        companyNames.forEach((name, idx) => {
+          entities.push({
+            name,
+            role: idx === 0 ? "SUBJECT" : "OBJECT",
+            confidence: 0.5, // Low confidence for heuristic extraction
+            source: "heuristic",
+          });
+        });
+      }
     }
   }
   

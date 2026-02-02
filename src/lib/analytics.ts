@@ -43,7 +43,7 @@ let isFlushing = false;
 
 // Circuit breaker state
 let consecutiveFailures = 0;
-let analyticsDisabled = false;
+let analyticsDisabled = true; // TEMPORARILY DISABLED FOR DEBUGGING
 const MAX_CONSECUTIVE_FAILURES = 2; // Disable after 2 consecutive failures
 
 // Throttle state - prevent same event firing twice in 10s

@@ -1,0 +1,261 @@
+/**
+ * SIGNALS — "Live Belief-Pressure Stream"
+ * 
+ * Primary object: Signal table with window selector
+ * No marketing copy. No cards. No buttons.
+ * This page should feel inevitable, not persuasive.
+ */
+
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import "@/styles/pythh-dashboard.css";
+
+// ═══════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════
+
+interface Signal {
+  id: string;
+  sector: string;
+  direction: "up" | "down" | "flat";
+  strength: number;
+  time: string;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DEMO DATA
+// ═══════════════════════════════════════════════════════════════
+
+const DEMO_SIGNALS: Signal[] = [
+  { id: "1", sector: "FinTech Infra", direction: "up", strength: 0.73, time: "2h" },
+  { id: "2", sector: "AI Infra", direction: "up", strength: 0.81, time: "6h" },
+  { id: "3", sector: "Climate SaaS", direction: "down", strength: 0.42, time: "1d" },
+  { id: "4", sector: "Dev Tooling", direction: "flat", strength: 0.66, time: "3d" },
+  { id: "5", sector: "HealthTech", direction: "up", strength: 0.58, time: "8h" },
+  { id: "6", sector: "Security", direction: "up", strength: 0.71, time: "4h" },
+  { id: "7", sector: "Data Infra", direction: "flat", strength: 0.54, time: "2d" },
+  { id: "8", sector: "Commerce", direction: "down", strength: 0.39, time: "5d" },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function dirArrow(d: Signal["direction"]) {
+  if (d === "up") return <span style={{ color: "rgba(52,211,153,.9)" }}>↑</span>;
+  if (d === "down") return <span style={{ color: "rgba(251,191,36,.9)" }}>↓</span>;
+  return <span style={{ color: "rgba(255,255,255,.4)" }}>→</span>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════════════════════
+
+const NAV = [
+  { label: "Dashboard", href: "/app" },
+  { label: "Engine", href: "/app/engine" },
+  { label: "Signals", href: "/signals", active: true },
+  { label: "Matches", href: "/matches" },
+  { label: "How it works", href: "/how-it-works" },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// COMPONENT
+// ═══════════════════════════════════════════════════════════════
+
+export default function PythhSignalsPage() {
+  const [signals, setSignals] = useState<Signal[]>(DEMO_SIGNALS);
+  const [window, setWindow] = useState<"24h" | "7d" | "30d">("24h");
+
+  useEffect(() => {
+    loadSignals();
+  }, []);
+
+  async function loadSignals() {
+    try {
+      const { data } = await supabase
+        .from("agent_feed_signals")
+        .select("id, sector, state, created_at, metadata")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (data && data.length > 0) {
+        const mapped: Signal[] = data.map((s: any) => ({
+          id: s.id,
+          sector: s.sector || "Unknown",
+          direction: s.state === "heating" ? "up" : s.state === "cooling" ? "down" : "flat",
+          strength: s.metadata?.strength ?? Math.random() * 0.5 + 0.4,
+          time: "—",
+        }));
+        setSignals(mapped);
+      }
+    } catch {
+      // Use demo data
+    }
+  }
+
+  const accelerating = signals.filter((s) => s.direction === "up").length;
+
+  return (
+    <div className="py-bg-dashboard" style={{ color: "var(--py-text)", minHeight: "100vh" }}>
+      {/* Header */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+          backdropFilter: "blur(10px)",
+          background: "rgba(11,15,22,.78)",
+          borderBottom: "1px solid var(--py-line)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1200,
+            margin: "0 auto",
+            padding: "14px 18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Link to="/" style={{ fontWeight: 750, letterSpacing: ".3px", color: "var(--py-text)" }}>
+            PYTHH
+          </Link>
+          <nav style={{ display: "flex", gap: 10 }}>
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                to={n.href}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  color: n.active ? "var(--py-text)" : "var(--py-muted)",
+                  border: "1px solid",
+                  borderColor: n.active ? "var(--py-line)" : "transparent",
+                  background: n.active ? "rgba(255,255,255,.04)" : "transparent",
+                }}
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      {/* Page */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px 40px" }}>
+        {/* Title */}
+        <div style={{ marginBottom: 18 }}>
+          <div className="py-kicker">signals</div>
+          <div className="py-title-wrap">
+            <h1 className="py-title" style={{ fontSize: "3rem" }}>
+              Live investor belief shifts
+              <span className="py-glyph">[]—I <strong>↑</strong> H→ []</span>
+            </h1>
+            <div className="py-hairline" />
+          </div>
+          <div className="py-subtitle">Observed behavior, not stated intent.</div>
+        </div>
+
+        {/* Window selector + Table */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
+          {/* Main table */}
+          <div>
+            {/* Window tabs */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {(["24h", "7d", "30d"] as const).map((w) => (
+                <button
+                  key={w}
+                  onClick={() => setWindow(w)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    background: window === w ? "rgba(255,255,255,.08)" : "transparent",
+                    border: "1px solid",
+                    borderColor: window === w ? "var(--py-line)" : "transparent",
+                    color: window === w ? "var(--py-text)" : "var(--py-muted)",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  {w}
+                </button>
+              ))}
+            </div>
+
+            {/* Table */}
+            <div className="py-panel">
+              <table className="pythh-table" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "10px 14px" }}>Sector / Theme</th>
+                    <th style={{ textAlign: "center", padding: "10px 14px", width: 80 }}>Direction</th>
+                    <th style={{ textAlign: "right", padding: "10px 14px", width: 100 }}>Strength</th>
+                    <th style={{ textAlign: "right", padding: "10px 14px", width: 80 }}>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {signals.map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ padding: "10px 14px", fontWeight: 500, color: "rgba(255,255,255,.85)" }}>
+                        {s.sector}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "center", fontSize: 16 }}>
+                        {dirArrow(s.direction)}
+                        {s.direction === "up" && s.strength > 0.75 && dirArrow(s.direction)}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13 }}>
+                        {s.strength.toFixed(2)}
+                      </td>
+                      <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--py-muted)", fontSize: 12 }}>
+                        {s.time}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Right rail */}
+          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="py-panel">
+              <div className="py-panel-inner">
+                <div className="py-kicker">now</div>
+                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)", lineHeight: 1.5 }}>
+                  <div style={{ marginBottom: 6 }}>
+                    <span className="py-metric-glow" style={{ fontWeight: 700, fontSize: 15 }}>{accelerating}</span> sectors accelerating
+                  </div>
+                  <div>Capital clustering detected</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="py-panel">
+              <div className="py-panel-inner">
+                <div className="py-kicker">next</div>
+                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)", lineHeight: 1.5 }}>
+                  Expect follow-on activity in 48–72h
+                </div>
+              </div>
+            </div>
+
+            <div className="py-panel">
+              <div className="py-panel-inner">
+                <div className="py-kicker">submit</div>
+                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)", lineHeight: 1.5 }}>
+                  <Link to="/app/submit" style={{ color: "rgba(199,210,254,.9)" }}>
+                    Submit a company you're watching →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}

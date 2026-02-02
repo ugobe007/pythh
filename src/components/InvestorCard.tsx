@@ -30,7 +30,7 @@ interface InvestorCardProps {
 export default function InvestorCard({ investor, onContact, showEdit = false, variant = 'basic', matchScore, compact, onClick }: InvestorCardProps) {
   // Route to appropriate variant component
   if (variant === 'enhanced') {
-    return <EnhancedInvestorCard investor={investor} matchScore={matchScore} compact={compact} onClick={onClick} />;
+    return <EnhancedInvestorCardLocal investor={investor} matchScore={matchScore} compact={compact} onClick={onClick} />;
   }
   
   if (variant === 'vc') {
@@ -161,7 +161,7 @@ function VCInvestorCard({ investor, onContact, showEdit }: Omit<InvestorCardProp
 }
 
 // Enhanced Investor Card (dark indigo gradient design)
-function EnhancedInvestorCard({ investor, matchScore, compact, onClick }: Pick<InvestorCardProps, 'investor' | 'matchScore' | 'compact' | 'onClick'>) {
+function EnhancedInvestorCardLocal({ investor, matchScore, compact, onClick }: Pick<InvestorCardProps, 'investor' | 'matchScore' | 'compact' | 'onClick'>) {
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -447,9 +447,9 @@ function EnhancedInvestorCard({ investor, matchScore, compact, onClick }: Pick<I
             <h2 className="text-3xl font-bold text-cyan-400">
               {investor.name}
             </h2>
-            {(investor.linkedin || investor.twitter) && (
+            {(investor.linkedin || investor.linkedin_url || investor.twitter) && (
               <a 
-                href={investor.linkedin || investor.twitter} 
+                href={investor.linkedin || investor.linkedin_url || investor.twitter} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="p-1 rounded hover:bg-white/10 transition-colors"

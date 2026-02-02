@@ -147,6 +147,5 @@ export interface InvestorComponent extends Investor {
   portfolio_size?: number;  // Alias for total_investments
 }
 
-
-
-
+// Re-export verification types
+export * from './verification';

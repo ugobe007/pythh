@@ -114,7 +114,7 @@ async function extractStartupData(companyName: string, websiteContent: string, w
     return { name: companyName };
   }
 
-  const prompt = `You are a VC analyst extracting startup investment data from a company website.
+  const prompt = `You are a SKEPTICAL VC analyst evaluating startup claims from their website.
 
 COMPANY: ${companyName}
 WEBSITE: ${websiteUrl}
@@ -122,9 +122,18 @@ WEBSITE: ${websiteUrl}
 WEBSITE CONTENT:
 ${websiteContent}
 
-TASK: Extract comprehensive startup data for investor scoring. Be specific with numbers when available.
+TASK: Extract startup data, but BE SKEPTICAL of marketing claims.
 
-Return a JSON object with these fields (use null for unknown, be conservative):
+⚠️  CRITICAL RULES FOR TRACTION METRICS:
+1. ONLY report metrics that have SPECIFIC, VERIFIABLE numbers
+2. Marketing phrases like "1000+ users", "trusted by hundreds" = NULL (not real data)
+3. Round numbers (100, 500, 1000, 5000, 10000) are likely marketing fluff = NULL
+4. If no explicit "$X MRR" or "$X ARR" number, report mrr/arr as NULL
+5. "Customers include [logos]" does NOT equal a customer count
+6. Growth claims without numbers = NULL
+7. When in doubt, report NULL - we have a separate inference engine for qualitative signals
+
+Return a JSON object with these fields:
 
 {
   "name": "Company name (string)",
@@ -137,39 +146,45 @@ Return a JSON object with these fields (use null for unknown, be conservative):
   "value_proposition": "Unique value prop (1 sentence)",
   "market": "Target market/customers (1 sentence)",
   "team": "Founder backgrounds if mentioned (1 sentence)",
-  "traction": "Growth metrics if mentioned (1 sentence)",
+  "traction": "Growth claims verbatim from site - DO NOT interpret (1 sentence or null)",
   
-  "sectors": ["Array of industry sectors", "e.g.", "AI/ML", "Fintech", "B2B SaaS"],
+  "sectors": ["Array of industry sectors"],
   "stage": "1=Pre-seed, 2=Seed, 3=Series A, 4=Series B+ (number or null)",
   
-  "mrr": "Monthly recurring revenue in USD (number or null, e.g., 50000 for $50K)",
-  "arr": "Annual recurring revenue in USD (number or null)",
-  "revenue": "Annual revenue if not subscription (number or null)",
-  "customer_count": "Number of customers (number or null)",
-  "active_users": "Active users if mentioned (number or null)",
-  "growth_rate": "Monthly growth rate as percentage (number or null, e.g., 15 for 15%)",
+  "mrr": "ONLY if explicit '$X MRR' stated (number in USD or null)",
+  "arr": "ONLY if explicit '$X ARR' stated (number in USD or null)",
+  "revenue": "ONLY if specific revenue number stated (number in USD or null)",
+  "customer_count": "ONLY if SPECIFIC count stated, NOT marketing claims like '1000+' (number or null)",
+  "active_users": "ONLY if SPECIFIC count stated (number or null)",
+  "growth_rate": "ONLY if SPECIFIC percentage stated (number or null)",
   
-  "founders_count": "Number of founders (number or null)",
-  "has_technical_cofounder": "Has technical co-founder (boolean or null)",
-  "team_companies": ["Previous companies founders worked at", "e.g.", "Google", "Meta"],
+  "founders_count": "Number of founders if stated (number or null)",
+  "has_technical_cofounder": "Has CTO/technical co-founder explicitly mentioned (boolean or null)",
+  "team_companies": ["ONLY if 'ex-Google', 'former Meta' etc explicitly stated"],
   
-  "is_launched": "Product is live (boolean)",
-  "has_demo": "Demo available (boolean)",
+  "is_launched": "Product appears live/available (boolean)",
+  "has_demo": "Demo/trial explicitly offered (boolean)",
   "has_pricing": "Pricing page exists (boolean)",
   
-  "funding_amount": "Amount raised (string like '$5M' or null)",
-  "funding_stage": "Latest round (string like 'Seed', 'Series A' or null)",
-  "investors": ["Array of investor names if mentioned"]
+  "funding_amount": "ONLY if specific amount stated like 'raised $5M' (string or null)",
+  "funding_stage": "ONLY if explicitly stated like 'Seed', 'Series A' (string or null)",
+  "investors": ["ONLY investor names explicitly mentioned"]
 }
 
-IMPORTANT RULES:
-- Extract REAL data from the content, don't make up metrics
-- If they mention "1000+ customers" → customer_count: 1000
-- If they mention "$50K MRR" → mrr: 50000
-- If they mention team from "ex-Google" → team_companies: ["Google"]
-- Sectors should match VC terminology: "AI/ML", "Fintech", "B2B SaaS", "Healthtech", "DevTools", "Consumer", "Marketplace", etc.
-- Stage inference: YC = usually Seed (2), pricing page = launched, waiting list = pre-launch
-- Return ONLY valid JSON, no markdown
+EXAMPLES OF WHAT TO REJECT (report as null):
+- "1000+ happy customers" → customer_count: null (marketing fluff)
+- "Used by top companies" → customer_count: null (no specific number)
+- "Rapid growth" → growth_rate: null (no specific percentage)
+- "Trusted by 500 teams" → customer_count: null (round marketing number)
+- "$10M+ processed" → mrr: null (not MRR/ARR)
+
+EXAMPLES OF WHAT TO ACCEPT:
+- "We have 847 paying customers" → customer_count: 847 (specific, odd number)
+- "$52K MRR as of January 2026" → mrr: 52000 (explicit MRR claim)
+- "Growing 23% month-over-month" → growth_rate: 23 (specific percentage)
+- "Raised $2.5M Seed from Sequoia" → funding_amount: "$2.5M", funding_stage: "Seed", investors: ["Sequoia"]
+
+Return ONLY valid JSON, no markdown.
 
 JSON:`;
 
@@ -249,148 +264,40 @@ JSON:`;
 }
 
 /**
- * Calculate GOD score from scraped data
- * Uses the tier system from god-score-v5-tiered.js
+ * ============================================================================
+ * ⛔ REMOVED: FAKE GOD SCORING (Jan 31, 2026)
+ * ============================================================================
+ * 
+ * This service previously had its own calculateGodScore() function that:
+ *   - Bypassed the official GOD scoring system (startupScoringService.ts)
+ *   - Gave inflated scores (98-100 just for having a nice website)
+ *   - Corrupted the database with fake scores
+ * 
+ * FIX: This service now ONLY extracts and stores enriched data.
+ * The official GOD scoring system (recalculate-scores.ts) handles all scoring.
+ * 
+ * To recalculate scores after enrichment:
+ *   npx tsx scripts/recalculate-scores.ts
+ * ============================================================================
  */
-function calculateGodScore(data: ScrapedStartupData): {
-  total_god_score: number;
-  team_score: number;
-  traction_score: number;
-  market_score: number;
-  product_score: number;
-  vision_score: number;
-  data_tier: 'A' | 'B' | 'C';
-} {
-  // Determine data tier
+
+/**
+ * Determine data tier based on available information
+ * This is for INFORMATIONAL PURPOSES ONLY - does not affect scoring
+ */
+function determineDataTier(data: ScrapedStartupData): 'A' | 'B' | 'C' {
   const hasRichData = !!(data.mrr || data.arr || data.revenue || data.customer_count || data.active_users);
   const hasSomeData = !!(data.description || data.pitch || data.problem || data.solution);
-  
-  const tier = hasRichData ? 'A' : (hasSomeData ? 'B' : 'C');
-  
-  // Sector bonuses (from god-score-v5-tiered.js)
-  const SECTOR_WEIGHTS: Record<string, number> = {
-    'AI/ML': 15, 'Artificial Intelligence': 15,
-    'Fintech': 12, 'Financial Services': 12,
-    'Healthtech': 12, 'Healthcare': 12, 'Biotech': 12,
-    'Climate': 10, 'CleanTech': 10, 'Sustainability': 10,
-    'Developer Tools': 10, 'DevTools': 10, 'DevOps': 10,
-    'B2B SaaS': 8, 'Enterprise': 8, 'SaaS': 8,
-    'Cybersecurity': 8, 'Security': 8,
-    'E-commerce': 6, 'Marketplace': 6,
-    'Consumer': 5, 'Social': 5,
-  };
-  
-  // Calculate sector bonus
-  let sectorBonus = 0;
-  if (data.sectors) {
-    for (const sector of data.sectors) {
-      const weight = SECTOR_WEIGHTS[sector] || 5;
-      sectorBonus = Math.max(sectorBonus, weight);
-    }
-  }
-  
-  if (tier === 'A') {
-    // Full scoring with rich data (up to 100)
-    let content = 0, market = 0, traction = 0, team = 0;
-    
-    // Content (0-25)
-    if (data.description) content += 10;
-    if (data.pitch) content += 5;
-    if (data.problem) content += 5;
-    if (data.solution) content += 5;
-    content = Math.min(25, content);
-    
-    // Market (0-25)
-    market += sectorBonus;
-    if (data.market) market += 5;
-    if (data.value_proposition) market += 5;
-    market = Math.min(25, market);
-    
-    // Traction (0-25)
-    if (data.mrr && data.mrr > 0) {
-      if (data.mrr >= 100000) traction += 25;
-      else if (data.mrr >= 50000) traction += 20;
-      else if (data.mrr >= 10000) traction += 15;
-      else traction += 10;
-    } else if (data.customer_count && data.customer_count > 0) {
-      if (data.customer_count >= 1000) traction += 20;
-      else if (data.customer_count >= 100) traction += 15;
-      else traction += 10;
-    } else if (data.active_users && data.active_users > 0) {
-      if (data.active_users >= 10000) traction += 18;
-      else if (data.active_users >= 1000) traction += 12;
-      else traction += 8;
-    }
-    if (data.growth_rate && data.growth_rate > 15) traction += 5;
-    traction = Math.min(25, traction);
-    
-    // Team (0-25)
-    if (data.has_technical_cofounder) team += 10;
-    if (data.team_companies && data.team_companies.length > 0) {
-      const topCompanies = ['Google', 'Meta', 'Apple', 'Amazon', 'Microsoft', 'Stripe', 'OpenAI', 'Y Combinator'];
-      const hasTopCompany = data.team_companies.some(c => 
-        topCompanies.some(top => c.toLowerCase().includes(top.toLowerCase()))
-      );
-      team += hasTopCompany ? 15 : 8;
-    }
-    if (data.founders_count && data.founders_count >= 2) team += 5;
-    team = Math.min(25, team);
-    
-    const raw = content + market + traction + team;
-    // Quality bonus for well-rounded data
-    const qualityBonus = (content > 10 && market > 10 && traction > 5) ? 10 : 0;
-    const total = Math.min(100, Math.round(raw + qualityBonus));
-    
-    return {
-      total_god_score: total,
-      vision_score: content,
-      market_score: market,
-      traction_score: traction,
-      team_score: team,
-      product_score: data.is_launched ? 20 : 10,
-      data_tier: 'A',
-    };
-  } else if (tier === 'B') {
-    // Capped at 55 (some data available)
-    let base = 40;
-    base += sectorBonus / 2;  // Half sector bonus
-    if (data.pitch || data.description) base += 5;
-    if (data.is_launched) base += 5;
-    if (data.has_demo) base += 3;
-    
-    const total = Math.min(55, Math.round(base));
-    
-    return {
-      total_god_score: total,
-      vision_score: data.pitch ? 15 : 10,
-      market_score: Math.min(20, sectorBonus),
-      traction_score: 10,
-      team_score: 10,
-      product_score: data.is_launched ? 15 : 8,
-      data_tier: 'B',
-    };
-  } else {
-    // Tier C: Sparse data (capped at 40)
-    const total = 40;
-    
-    return {
-      total_god_score: total,
-      vision_score: 10,
-      market_score: 10,
-      traction_score: 8,
-      team_score: 8,
-      product_score: 8,
-      data_tier: 'C',
-    };
-  }
+  return hasRichData ? 'A' : (hasSomeData ? 'B' : 'C');
 }
 
 /**
- * MAIN FUNCTION: Scrape URL and return fully enriched startup data with GOD score
+ * MAIN FUNCTION: Scrape URL and return enriched startup data
+ * NOTE: Does NOT calculate GOD scores - use recalculate-scores.ts for that
  */
 export async function scrapeAndScoreStartup(url: string): Promise<{
   data: ScrapedStartupData;
-  scores: ReturnType<typeof calculateGodScore>;
+  dataTier: 'A' | 'B' | 'C';
   websiteContent: string | null;
 }> {
   // 1. Extract domain name for company name
@@ -411,29 +318,30 @@ export async function scrapeAndScoreStartup(url: string): Promise<{
   if (!websiteContent) {
     console.log(`⚠️  Could not fetch ${url} - using minimal data`);
     const minimalData: ScrapedStartupData = { name: formattedName };
-    const scores = calculateGodScore(minimalData);
-    return { data: minimalData, scores, websiteContent: null };
+    const dataTier = determineDataTier(minimalData);
+    return { data: minimalData, dataTier, websiteContent: null };
   }
 
   // 3. Extract structured data with AI
   console.log(`🤖 Extracting data for ${formattedName}...`);
   const data = await extractStartupData(formattedName, websiteContent, fullUrl);
 
-  // 4. Calculate GOD score
-  const scores = calculateGodScore(data);
+  // 4. Determine data tier (informational only)
+  const dataTier = determineDataTier(data);
   
-  console.log(`✅ ${data.name}: GOD Score ${scores.total_god_score} (Tier ${scores.data_tier})`);
+  console.log(`✅ ${data.name}: Enriched (Tier ${dataTier}) - run recalculate-scores.ts to update GOD score`);
   
-  return { data, scores, websiteContent };
+  return { data, dataTier, websiteContent };
 }
 
 /**
- * Update startup record with scraped data and real GOD score
+ * Update startup record with scraped data ONLY (no scores)
+ * GOD scores must be calculated by the official scoring system
  */
 export async function updateStartupWithScrapedData(
   startupId: string,
   data: ScrapedStartupData,
-  scores: ReturnType<typeof calculateGodScore>
+  dataTier: 'A' | 'B' | 'C'
 ): Promise<boolean> {
   try {
     const { error } = await supabase
@@ -443,9 +351,8 @@ export async function updateStartupWithScrapedData(
         tagline: data.tagline || null,
         description: data.description || data.pitch || null,
         pitch: data.pitch || null,
-        problem: data.problem || null,
-        solution: data.solution || null,
-        value_proposition: data.value_proposition || null,
+        // Note: problem, solution, value_proposition, team_companies columns don't exist in schema
+        // Store in extracted_data JSONB instead
         sectors: data.sectors || ['Technology'],
         stage: data.stage || 1,
         is_launched: data.is_launched || false,
@@ -456,18 +363,11 @@ export async function updateStartupWithScrapedData(
         arr: data.arr || null,
         customer_count: data.customer_count || null,
         growth_rate_monthly: data.growth_rate || null,
-        team_companies: data.team_companies || null,
-        // GOD scores
-        total_god_score: scores.total_god_score,
-        team_score: scores.team_score,
-        traction_score: scores.traction_score,
-        market_score: scores.market_score,
-        product_score: scores.product_score,
-        vision_score: scores.vision_score,
-        // Store extracted data in JSONB
+        // ⛔ DO NOT SET GOD SCORES HERE - use recalculate-scores.ts
+        // Store ALL extracted data in JSONB (including problem, solution, etc.)
         extracted_data: {
           ...data,
-          data_tier: scores.data_tier,
+          data_tier: dataTier,
           scraped_at: new Date().toISOString(),
         },
       })
@@ -478,7 +378,7 @@ export async function updateStartupWithScrapedData(
       return false;
     }
 
-    console.log(`✅ Updated startup ${startupId} with real GOD score: ${scores.total_god_score}`);
+    console.log(`✅ Updated startup ${startupId} with enriched data (Tier ${dataTier}) - run recalculate-scores.ts to update GOD score`);
     return true;
   } catch (error) {
     console.error('❌ Update error:', error);
@@ -488,17 +388,17 @@ export async function updateStartupWithScrapedData(
 
 /**
  * Convenience function: Scrape URL and create/update startup in one call
+ * NOTE: GOD scores are NOT set here - run recalculate-scores.ts after enrichment
  */
 export async function processUrlSubmission(url: string): Promise<{
   success: boolean;
   startupId?: string;
-  godScore?: number;
   dataTier?: 'A' | 'B' | 'C';
   error?: string;
 }> {
   try {
-    // 1. Scrape and score
-    const { data, scores } = await scrapeAndScoreStartup(url);
+    // 1. Scrape and extract data (no scoring)
+    const { data, dataTier } = await scrapeAndScoreStartup(url);
     
     // 2. Check if startup already exists
     const domain = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace('www.', '');
@@ -515,9 +415,9 @@ export async function processUrlSubmission(url: string): Promise<{
     if (existing) {
       // Update existing
       startupId = existing.id;
-      await updateStartupWithScrapedData(startupId, data, scores);
+      await updateStartupWithScrapedData(startupId, data, dataTier);
     } else {
-      // Create new
+      // Create new - set placeholder score of 50 (will be recalculated)
       const { data: created, error: createError } = await supabase
         .from('startup_uploads')
         .insert({
@@ -526,9 +426,6 @@ export async function processUrlSubmission(url: string): Promise<{
           tagline: data.tagline || `Startup at ${domain}`,
           description: data.description || data.pitch,
           pitch: data.pitch,
-          problem: data.problem,
-          solution: data.solution,
-          value_proposition: data.value_proposition,
           sectors: data.sectors || ['Technology'],
           stage: data.stage || 1,
           status: 'approved',
@@ -541,16 +438,16 @@ export async function processUrlSubmission(url: string): Promise<{
           arr: data.arr,
           customer_count: data.customer_count,
           growth_rate_monthly: data.growth_rate,
-          team_companies: data.team_companies,
-          total_god_score: scores.total_god_score,
-          team_score: scores.team_score,
-          traction_score: scores.traction_score,
-          market_score: scores.market_score,
-          product_score: scores.product_score,
-          vision_score: scores.vision_score,
+          // ⛔ PLACEHOLDER SCORE - must run recalculate-scores.ts
+          total_god_score: 50,
+          team_score: 10,
+          traction_score: 10,
+          market_score: 10,
+          product_score: 10,
+          vision_score: 10,
           extracted_data: {
             ...data,
-            data_tier: scores.data_tier,
+            data_tier: dataTier,
             scraped_at: new Date().toISOString(),
           },
         })
@@ -566,8 +463,7 @@ export async function processUrlSubmission(url: string): Promise<{
     return {
       success: true,
       startupId,
-      godScore: scores.total_god_score,
-      dataTier: scores.data_tier,
+      dataTier,
     };
   } catch (error: any) {
     return { success: false, error: error.message };

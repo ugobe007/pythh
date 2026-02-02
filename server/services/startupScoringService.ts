@@ -1,23 +1,52 @@
 /**
- * STARTUP SCORING SERVICE
- * Evaluates startups based on VC criteria (YC, Sequoia, Founders Fund, First Round, Seed/Angel, a16z)
- * Scores 1-10 where 10 = hottest investment opportunity
+ * ============================================================================
+ * GOD SCORING SERVICE - LOCKED SYSTEM
+ * ============================================================================
  * 
- * Seed/Angel investors added: Focus on team & vision, product-market fit, early traction,
- * clear go-to-market, and financial planning (12-18 month runway).
+ * ⛔ AUTHORIZATION REQUIRED ⛔
+ * 
+ * This system can ONLY be modified by:
+ *   1. ADMIN (manual approval required)
+ *   2. ML AGENT (componentWeights only, via approved training pipeline)
+ * 
+ * NO AI COPILOT may modify this file without explicit admin approval.
+ * 
+ * ============================================================================
+ * ARCHITECTURE (IMMUTABLE)
+ * ============================================================================
+ * 
+ * GOD SCORE = 23 weighted algorithms evaluating:
+ *   - Team, Traction, Market, Product, Vision, Ecosystem, Grit, Problem Validation
+ *   - Based on YC, Sequoia, Founders Fund, First Round, a16z criteria
+ * 
+ * SIGNALS = Layered ON TOP (separate system, see signalClassification.ts)
+ *   - Expected boost: 1-3 points typical, 7+ rare, 10 max
+ *   - 50% change threshold for stability (no noise)
+ *   - Signals read MARKET (predictive intelligence)
+ *   - Signals DO NOT modify GOD algorithms
+ * 
+ * FINAL SCORE = GOD base (0-100) + Signals bonus (0-10, applied separately)
+ * 
+ * ============================================================================
+ * FOUNDER CRITERIA
+ * ============================================================================
  * 
  * FOUNDER AGE FACTOR: Younger founders (under 30) get bonus points for adaptability,
  * coachability, and hunger. This reflects real VC preferences (YC, Thiel Fellowship, etc.)
  * 
- * FOUNDER COURAGE & INTELLIGENCE: Based on Ben Horowitz (Andreessen Horowitz / a16z) framework.
- * Horowitz emphasizes that great founders need both courage (to make hard decisions, persist
- * through adversity) and intelligence (strategic thinking, problem-solving, fast learning).
+ * FOUNDER COURAGE & INTELLIGENCE: Based on Ben Horowitz (a16z) framework.
+ * Great founders need both courage (hard decisions, persist through adversity)
+ * and intelligence (strategic thinking, problem-solving, fast learning).
  */
 
-// New forward-looking scoring components (Dec 2025)
-import { scoreVelocity } from './velocityScoring.js';
-import { scoreCapitalEfficiency } from './capitalEfficiencyScoring.js';
-import { scoreMarketTiming } from './marketTimingScoring.js';
+// ============================================================================
+// ⛔ REMOVED: Unauthorized scoring components (Jan 30, 2026)
+// The following were incorrectly added by AI copilot without admin approval:
+//   - velocityScoring.ts
+//   - capitalEfficiencyScoring.ts  
+//   - marketTimingScoring.ts
+// These concepts should be SIGNALS (layered), not GOD components.
+// ============================================================================
 
 // ============================================================================
 // GOD SCORE CALIBRATION SETTINGS (TypeScript Configuration Object)
@@ -59,14 +88,35 @@ import { scoreMarketTiming } from './marketTimingScoring.js';
 // 4. Review ML recommendations for data-driven adjustments
 // 5. Only adjust normalization as LAST RESORT, with clear justification
 
+// ============================================================================
+// GOD SCORE CONFIG - ADMIN + ML AGENT ONLY
+// ============================================================================
+// ⛔ DO NOT MODIFY without admin approval or ML training pipeline
+// 
+// CHANGE LOG:
+//   - Jan 31, 2026: Admin approved - 19.5 → 17.5 to lift avg from 47 → ~54
+//     (Bootstrap scoring handles sparse-data startups separately now)
+//   - Jan 30, 2026 (4): Admin fine-tuned - 62.9 avg → target 57-59
+//   - Jan 30, 2026 (3): Admin adjusted - lower avg but respect 40 floor trigger
+//   - Jan 30, 2026 (2): Admin adjusted - avg 66.5 too high, target 55-60
+//   - Jan 30, 2026: Reverted to proper calibration after unauthorized changes
+//   - Original: normalizationDivisor=17, baseBoostMinimum=3.5
+//   - Corrupted: normalizationDivisor=23 (crushed scores to 38 avg)
+//   - Calibrated: normalizationDivisor=19.5, baseBoostMinimum=4.2 (admin approved)
+//   - Note: Database has CHECK constraint preventing scores < 40
+// ============================================================================
+
 const GOD_SCORE_CONFIG = {
-  // Normalization divisor - higher = lower scores
-  // Controls overall score scaling (DO NOT CHANGE WITHOUT USER APPROVAL)
-  // Based on VC benchmark sentiment mapping for predicting funding events
-  normalizationDivisor: 23,  // Increased for new forward-looking components (velocity, efficiency, timing)
+  // Normalization divisor - controls overall score scaling
+  // ⛔ LOCKED: Only admin or ML agent can modify
+  // Math: rawTotal (~17.5 max) / 17.5 * 10 = ~10.0 → 100 max, ~54-57 avg target
+  // Reduced from 19.5 to lift scores (bootstrap scoring now handles sparse data)
+  normalizationDivisor: 17.5,  // Admin calibrated Jan 31 - lifted to target ~54-57 avg
   
-  // Base boost minimum - ensures floor for data-poor startups
-  baseBoostMinimum: 2.0,  // Balanced to allow some floor variance
+  // Base boost minimum - floor for data-poor startups
+  // ⛔ LOCKED: Only admin or ML agent can modify
+  // Note: Must keep scores above 40 (database trigger constraint)
+  baseBoostMinimum: 4.2,  // Admin calibrated Jan 30 - ensures min ~43 after normalization
   
   // Vibe bonus cap - qualitative signal boost
   vibeBonusCap: 1.0,
@@ -259,26 +309,21 @@ interface HotScore {
   total: number; // 1-10 (rebalanced scoring)
   breakdown: {
     team_execution: number; // 0-3
-    product_vision: number; // 0-1 (reduced from 2)
+    product_vision: number; // 0-2 (RESTORED)
     founder_courage: number; // 0-1.5
     market_insight: number; // 0-1.5
     team_age: number; // 0-1
     traction: number; // 0-3
     market: number; // 0-2
-    product: number; // 0-3 (increased from 2)
-    // NEW forward-looking components (Dec 2025)
-    velocity: number; // 0-1.5
-    capital_efficiency: number; // 0-1.0
-    market_timing: number; // 0-1.5
+    product: number; // 0-2 (RESTORED)
+    // ⛔ REMOVED: velocity, capital_efficiency, market_timing
+    // These belong in SIGNALS layer, not GOD scoring
   };
   matchCount: number; // How many investors to match (5-20)
   reasoning: string[];
   tier: 'hot' | 'warm' | 'cold';
-  // Optional detailed signals
-  velocitySignals?: string[];
-  efficiencySignals?: string[];
-  timingSignals?: string[];
-  matchedSectors?: string[];
+  // ⛔ REMOVED: velocitySignals, efficiencySignals, timingSignals, matchedSectors
+  // These concepts should be in SIGNAL layer
 }
 
 /**
@@ -433,7 +478,7 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   const teamScore = scoreTeam(startup); // 0-2
   const founderSpeedScore = scoreFounderSpeed(startup); // 0-1
   const teamExecutionScore = Math.min(teamScore + founderSpeedScore + fundingVelocityBonus, 3.0); // Cap at 3
-  const productVisionScore = Math.min(scoreVision(startup), 1.0);  // Reduced from 2.0 - vision is hard to quantify
+  const productVisionScore = Math.min(scoreVision(startup), 2.0);  // RESTORED to 2.0
   const founderCourageScore = Math.min(scoreFounderCourage(startup), 1.5);
   const marketInsightScore = Math.min(scoreUniqueInsight(startup), 1.5);
   const teamAgeScore = Math.min(scoreFounderAge(startup), 1.0);
@@ -441,22 +486,22 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   // Traction, Market, Product Performance (keep as is)
   const tractionScore = scoreTraction(startup); // 0-3
   const marketScore = scoreMarket(startup); // 0-2
-  const productScore = Math.min(scoreProduct(startup), 3.0); // 0-3 (increased from 0-2)
+  const productScore = Math.min(scoreProduct(startup), 2.0); // 0-2 (RESTORED - was incorrectly changed to 0-3)
 
-  // === NEW FORWARD-LOOKING SCORES (Dec 2025) ===
-  const velocityResult = scoreVelocity(startup);
-  const velocityScore = velocityResult.score; // 0-1.5
-  
-  const efficiencyResult = scoreCapitalEfficiency(startup);
-  const capitalEfficiencyScore = efficiencyResult.score; // 0-1.0
-  
-  const timingResult = scoreMarketTiming(startup);
-  const marketTimingScore = timingResult.score; // 0-1.5
+  // ============================================================================
+  // ⛔ REMOVED: Unauthorized forward-looking scores (Jan 30, 2026)
+  // These were incorrectly added as GOD components. They belong in SIGNALS.
+  // - velocityScore (0-1.5) → should be signal dimension
+  // - capitalEfficiencyScore (0-1.0) → should be signal dimension
+  // - marketTimingScore (0-1.5) → should be signal dimension
+  // ============================================================================
 
-  // New total possible: 3 (team exec) + 1 (vision) + 1.5 (courage) + 1.5 (insight) + 1 (age) + 3 (traction) + 2 (market) + 3 (product) + 1.5 (velocity) + 1 (efficiency) + 1.5 (timing) = 20
-  // Plus baseBoost (minimum 3, can go higher with vibe bonus)
+  // GOD SCORE = 23 ALGORITHMS ONLY
+  // Total possible: 3 (team exec) + 2 (vision) + 1.5 (courage) + 1.5 (insight) + 1 (age) + 3 (traction) + 2 (market) + 2 (product) = 16
+  // Plus baseBoost (minimum 3.5, can go higher with vibe bonus up to 1.0) = ~17.5 max raw
   const redFlagsScore = scoreRedFlags(startup);
-  const rawTotal = baseBoost + teamExecutionScore + productVisionScore + founderCourageScore + marketInsightScore + teamAgeScore + tractionScore + marketScore + productScore + redFlagsScore + velocityScore + capitalEfficiencyScore + marketTimingScore;
+  const rawTotal = baseBoost + teamExecutionScore + productVisionScore + founderCourageScore + marketInsightScore + teamAgeScore + tractionScore + marketScore + productScore + redFlagsScore;
+  // ⛔ REMOVED: + velocityScore + capitalEfficiencyScore + marketTimingScore
   // Normalize to 10-point scale using configured divisor (higher divisor = lower scores)
   const total = Math.min((rawTotal / GOD_SCORE_CONFIG.normalizationDivisor) * 10, 10);
   /**
@@ -498,16 +543,10 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
       traction: tractionScore,
       market: marketScore,
       product: productScore,
-      // NEW forward-looking components
-      velocity: velocityScore,
-      capital_efficiency: capitalEfficiencyScore,
-      market_timing: marketTimingScore
+      // ⛔ REMOVED: velocity, capital_efficiency, market_timing (these belong in SIGNALS, not GOD)
     },
-    // Detailed signals for debugging
-    velocitySignals: velocityResult.signals,
-    efficiencySignals: efficiencyResult.signals,
-    timingSignals: timingResult.signals,
-    matchedSectors: timingResult.matchedSectors,
+    // ⛔ REMOVED: velocitySignals, efficiencySignals, timingSignals, matchedSectors
+    // These concepts should be in the SIGNAL layer, not GOD scoring
     matchCount,
     reasoning: generateReasoning(startup, { 
       baseBoost,

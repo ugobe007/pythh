@@ -74,32 +74,32 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
     }
   }
 
-  // 3) Exact domain match
-  console.log('[startupResolver] Step 3: Checking exact domain match for:', n.domain);
-  const { data: exactMatch, error: exactError } = await supabase
+  // 3) FAST: Normalized domain match (single indexed query)
+  console.log('[startupResolver] Step 3: Checking normalized domain:', n.domain);
+  const { data: domainMatch, error: domainError } = await supabase
     .from('startup_uploads')
     .select('id, name, website, tagline, sectors, stage, total_god_score, status')
-    .or(`website.eq.https://${n.domain},website.eq.http://${n.domain},website.eq.${n.domain}`)
+    .eq('domain', n.domain)
     .limit(1)
     .maybeSingle();
 
-  console.log('[startupResolver] Exact match result:', exactMatch, 'Error:', exactError);
-  if (exactMatch) {
-    return { startup: exactMatch as ResolvedStartup, confidence: 'exact_domain' };
+  console.log('[startupResolver] Domain match result:', domainMatch, 'Error:', domainError);
+  if (domainMatch) {
+    return { startup: domainMatch as ResolvedStartup, confidence: 'exact_domain' };
   }
 
-  // 4) Contains domain match (fallback for URLs stored with paths)
-  console.log('[startupResolver] Step 4: Checking contains match for:', n.domain);
-  const { data: containsMatch, error: containsError } = await supabase
+  // 4) FALLBACK: Legacy website URL matching (for backfill period)
+  console.log('[startupResolver] Step 4: Trying legacy website matching for:', n.domain);
+  const { data: legacyMatch, error: legacyError } = await supabase
     .from('startup_uploads')
     .select('id, name, website, tagline, sectors, stage, total_god_score, status')
-    .ilike('website', `%${n.domain}%`)
+    .or(`website.eq.https://${n.domain},website.eq.http://${n.domain},website.ilike.%${n.domain}%`)
     .limit(1)
     .maybeSingle();
 
-  console.log('[startupResolver] Contains match result:', containsMatch, 'Error:', containsError);
-  if (containsMatch) {
-    return { startup: containsMatch as ResolvedStartup, confidence: 'contains_domain' };
+  console.log('[startupResolver] Legacy match result:', legacyMatch, 'Error:', legacyError);
+  if (legacyMatch) {
+    return { startup: legacyMatch as ResolvedStartup, confidence: 'contains_domain' };
   }
 
   // 5) Prepare startup data
@@ -112,11 +112,12 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
   // - In development: Use localhost:3002 Express server
   // In production on Fly.io, frontend and backend are served from the same origin
   const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || (isProduction ? '' : 'http://localhost:3002');
+  const backendUrl = import.meta.env.VITE_API_URL || (isProduction ? '' : 'http://localhost:3002');
 
   // 6) If waitForEnrichment: run inference FIRST, then create with real GOD score
   if (options.waitForEnrichment) {
     console.log('[startupResolver] Running inference engine FIRST for:', websiteUrl);
+    console.log('[startupResolver] Backend URL:', backendUrl);
     
     let godScore = 45; // fallback
     let sectors: string[] = ['Technology'];
@@ -178,6 +179,14 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
 
     console.log('[startupResolver] Created startup with GOD score:', created.total_god_score);
     
+    // IMMEDIATELY trigger match generation (don't wait for queue processor)
+    console.log('[startupResolver] Triggering INSTANT match generation for:', created.id);
+    fetch(`${backendUrl}/api/matches/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startupId: created.id, priority: 'immediate' })
+    }).catch(err => console.error('[startupResolver] Match generation failed:', err.message));
+    
     // Return with detected signals
     const startupWithSignals = {
       ...created,
@@ -220,6 +229,14 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
       console.log('[startupResolver] ✅ Async enrichment complete:', enrichData.godScore);
     }
   }).catch(err => console.error('[startupResolver] Async enrichment failed:', err.message));
+
+  // IMMEDIATELY trigger match generation (don't wait for queue processor)
+  console.log('[startupResolver] Triggering INSTANT match generation for:', created.id);
+  fetch(`${backendUrl}/api/matches/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ startupId: created.id, priority: 'immediate' })
+  }).catch(err => console.error('[startupResolver] Match generation failed:', err.message));
 
   return { startup: created as ResolvedStartup, confidence: 'created_provisional' };
 }

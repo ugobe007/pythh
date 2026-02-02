@@ -1,8 +1,22 @@
 /**
- * CAPITAL EFFICIENCY SCORING SERVICE
- * ====================================
- * Measures how efficiently a startup converts capital into results.
+ * ⛔ DEPRECATED - DO NOT USE IN GOD SCORING
+ * ============================================
  * 
+ * This file was created by AI copilot WITHOUT admin approval (Dec 27, 2025).
+ * It was incorrectly injected into GOD scoring as a component.
+ * 
+ * CORRECT USAGE: This logic should be part of SIGNAL dimensions, not GOD.
+ * The Signal Application Service already handles funding_acceleration.
+ * 
+ * This file is kept for reference but should NOT be imported into:
+ *   - startupScoringService.ts
+ *   - recalculate-scores.ts
+ *   - Any GOD scoring calculation
+ * 
+ * See: GOD_SCORING_AUDIT_JAN_2026.md for full details.
+ * 
+ * ORIGINAL DESCRIPTION:
+ * Measures how efficiently a startup converts capital into results.
  * Key insight: In 2025, bootstrapped and capital-efficient startups 
  * are outperforming over-funded competitors. VCs are wary of "pilot purgatory"
  * and demanding proof of sustainable unit economics.

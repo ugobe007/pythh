@@ -1,9 +1,23 @@
 /**
- * MARKET TIMING SCORING SERVICE
- * ===============================
+ * ⛔ DEPRECATED - DO NOT USE IN GOD SCORING
+ * ============================================
+ * 
+ * This file was created by AI copilot WITHOUT admin approval (Dec 27, 2025).
+ * It was incorrectly injected into GOD scoring as a component.
+ * 
+ * CORRECT USAGE: This logic should be part of SIGNAL dimensions, not GOD.
+ * The Signal Application Service already handles market_momentum.
+ * 
+ * This file is kept for reference but should NOT be imported into:
+ *   - startupScoringService.ts
+ *   - recalculate-scores.ts
+ *   - Any GOD scoring calculation
+ * 
+ * See: GOD_SCORING_AUDIT_JAN_2026.md for full details.
+ * 
+ * ORIGINAL DESCRIPTION:
  * Scores startups based on alignment with hot/emerging sectors.
  * Uses the hot-sectors-2025.json config for dynamic updates.
- * 
  * Key insight: VCs are concentrating capital in specific sectors.
  * AI captured 50%+ of VC funding in 2025. Sector timing matters.
  */
@@ -18,6 +32,15 @@ interface MarketTimingProfile {
   pitch?: string;
   description?: string;
   name?: string;
+  // Optional: aggregated faith-alignment signals per startup (0-100 scale)
+  faithSignals?: {
+    topScore?: number;       // 0-100
+    avgScore?: number;       // 0-100
+    count?: number;          // number of matches
+    confidenceAvg?: number;  // 0-1
+  };
+  // Optional: reliability of VC belief signals (0-1). Default assumed.
+  faithReliability?: number;
 }
 
 interface MarketTimingResult {
@@ -27,6 +50,7 @@ interface MarketTimingResult {
     emergingCategory: number;
     genZFit: number;
     antiSignalPenalty: number;
+    faithBoost?: number; // Optional contribution from faith-alignment (feature-flagged)
   };
   matchedSectors: string[];
   matchedCategories: string[];
@@ -90,6 +114,8 @@ export function scoreMarketTiming(profile: MarketTimingProfile): MarketTimingRes
   let emergingCategory = 0;
   let genZFit = 0;
   let antiSignalPenalty = 0;
+  let faithBoost = 0;
+  let faithAccelerator = 0;
   
   // Combine all text for matching
   const allText = [
@@ -232,9 +258,40 @@ export function scoreMarketTiming(profile: MarketTimingProfile): MarketTimingRes
   antiSignalPenalty = Math.max(antiSignalPenalty, -0.3);
   
   // ==========================================================================
+  // 5. FAITH-ALIGNMENT BOOST (0-0.3 points, feature-flagged)
+  // ==========================================================================
+  // Conservative: cap to 20% of market timing component. Scales with reliability
+  // and average confidence of alignment matches.
+  try {
+    const ENABLED = String(process.env.GOD_FAITH_IN_MARKET_TIMING || '').toLowerCase() === '1' 
+      || String(process.env.GOD_FAITH_IN_MARKET_TIMING || '').toLowerCase() === 'true';
+    const WEIGHT = Math.min(Math.max(Number(process.env.GOD_FAITH_TIMING_WEIGHT || '0.35'), 0), 0.5); // default 0.35, clamp [0,0.5]
+    if (ENABLED && profile.faithSignals && (profile.faithSignals.count || 0) >= 3) {
+      const top = (profile.faithSignals.topScore || 0) / 100; // 0-1
+      const avg = (profile.faithSignals.avgScore || 0) / 100; // 0-1
+      const conf = Math.min(Math.max(profile.faithSignals.confidenceAvg ?? 0.6, 0), 1);
+      const reliability = Math.min(Math.max(profile.faithReliability ?? 0.6, 0), 1);
+      const blended = (0.6 * top) + (0.4 * avg);
+      const scaled = blended * conf * reliability;
+      faithBoost = Math.min(scaled * WEIGHT, WEIGHT); // cap by weight
+      if (faithBoost > 0) {
+        signals.push(`Faith-alignment boost applied (${(faithBoost).toFixed(2)})`);
+      }
+      // Accelerator: additional +0.08 when top alignment ≥ 90%
+      const ACC_ENABLED = String(process.env.GOD_FAITH_TIMING_ACCELERATOR || '1').toLowerCase() !== '0';
+      const ACC_AMOUNT = Math.min(Math.max(Number(process.env.GOD_FAITH_TIMING_ACCELERATOR_AMOUNT || '0.08'), 0), 0.2);
+      const ACC_THRESHOLD = Math.min(Math.max(Number(process.env.GOD_FAITH_TIMING_ACCELERATOR_THRESHOLD || '90'), 0), 100);
+      if (ACC_ENABLED && (profile.faithSignals.topScore || 0) >= ACC_THRESHOLD) {
+        faithAccelerator = ACC_AMOUNT;
+        signals.push(`Faith timing accelerator +${ACC_AMOUNT.toFixed(2)} (top ≥ ${ACC_THRESHOLD}%)`);
+      }
+    }
+  } catch { /* ignore env parsing issues */ }
+  
+  // ==========================================================================
   // TOTAL
   // ==========================================================================
-  const rawScore = sectorTier + emergingCategory + genZFit + antiSignalPenalty;
+  const rawScore = sectorTier + emergingCategory + genZFit + antiSignalPenalty + faithBoost + faithAccelerator;
   const score = Math.max(Math.min(rawScore, 2.0), 0);
   
   return {
@@ -243,7 +300,9 @@ export function scoreMarketTiming(profile: MarketTimingProfile): MarketTimingRes
       sectorTier,
       emergingCategory,
       genZFit,
-      antiSignalPenalty
+      antiSignalPenalty,
+      faithBoost,
+      faithAccelerator
     },
     matchedSectors,
     matchedCategories,

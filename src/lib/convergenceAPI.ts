@@ -9,9 +9,12 @@ import type { ConvergenceResponse, EmptyConvergenceResponse } from '../types/con
 
 export async function fetchConvergenceData(
   startupUrl: string,
-  options: { demo?: boolean; debug?: boolean } = {}
+  options: { demo?: boolean; debug?: boolean; timeoutMs?: number; allowDbFallback?: boolean; fastMode?: boolean } = {}
 ): Promise<ConvergenceResponse | EmptyConvergenceResponse> {
   const startTime = Date.now();
+  const timeoutMs = options.timeoutMs ?? 1800;            // ✅ Feels instant (1.8s)
+  const allowDbFallback = options.allowDbFallback ?? false; // ✅ OFF by default (no waterfalls)
+  const fastMode = options.fastMode ?? true;              // ✅ ON by default (skip heavy computations)
   
   try {
     // Demo mode: return fixed payload
@@ -19,24 +22,43 @@ export async function fetchConvergenceData(
       return getDemoPayload();
     }
 
-    // Call real backend endpoint
-    const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3002'}/api/discovery/convergence?url=${encodeURIComponent(startupUrl)}`;
+    // Call real backend endpoint with fast mode
+    const base = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+    const apiUrl = `${base}/api/discovery/convergence?url=${encodeURIComponent(startupUrl)}${fastMode ? '&mode=fast' : ''}`;
     
     if (options.debug) {
-      console.log('[Convergence API] Calling:', apiUrl);
+      console.log('[Convergence API] Calling (fast mode):', apiUrl, `timeout: ${timeoutMs}ms`);
     }
     
-    const response = await fetch(apiUrl);
+    // ✅ Timeout control - abort after timeoutMs
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    
+    const response = await fetch(apiUrl, { 
+      signal: controller.signal,
+      cache: 'no-store',  // ✅ Prevent caching of empty responses
+      headers: { 'Accept': 'application/json' }
+    });
+    window.clearTimeout(timeoutId);
     
     if (!response.ok) {
-      console.error('[Convergence API] HTTP error:', response.status);
-      
-      // If startup not found, return empty payload
-      if (response.status === 404 || response.status === 400) {
-        return getEmptyPayload(startupUrl);
+      if (options.debug) {
+        console.error('[Convergence API] HTTP error:', response.status);
       }
       
-      throw new Error(`HTTP ${response.status}`);
+      // ✅ DO NOT waterfall to browser DB for production surfaces
+      if (!allowDbFallback) {
+        const empty = getEmptyPayload(startupUrl, { step: 'http_error', error: `HTTP ${response.status}` });
+        if ((empty as any).debug) (empty as any).debug.query_time_ms = Date.now() - startTime;
+        return empty;
+      }
+      
+      // Fallback only if explicitly allowed (debug mode)
+      const db = await buildConvergenceFromDB(startupUrl);
+      if ('debug' in db && db.debug) {
+        db.debug.query_time_ms = Date.now() - startTime;
+      }
+      return db;
     }
     
     const data = await response.json();
@@ -46,12 +68,28 @@ export async function fetchConvergenceData(
       console.log('[Convergence API] Query time:', Date.now() - startTime, 'ms');
     }
     
-    return data;
-  } catch (error) {
-    console.error('[Convergence API] Error:', error);
+    // Add query time if debug object exists
+    if (data?.debug) data.debug.query_time_ms = Date.now() - startTime;
     
-    // Return empty-but-valid payload instead of throwing
-    return getEmptyPayload(startupUrl);
+    return data;
+  } catch (error: any) {
+    if (options.debug) {
+      console.error('[Convergence API] Error:', error?.message || error);
+    }
+    
+    // ✅ Same rule on abort/network: do NOT do browser DB waterfall
+    if (!allowDbFallback) {
+      const empty = getEmptyPayload(startupUrl, { step: 'network_error', error: error?.message || String(error) });
+      if ((empty as any).debug) (empty as any).debug.query_time_ms = Date.now() - startTime;
+      return empty;
+    }
+    
+    // Fallback only if explicitly allowed (debug mode)
+    const db = await buildConvergenceFromDB(startupUrl);
+    if ('debug' in db && db.debug) {
+      db.debug.query_time_ms = Date.now() - startTime;
+    }
+    return db;
   }
 }
 
@@ -62,7 +100,7 @@ async function buildConvergenceFromDB(startupUrl: string): Promise<ConvergenceRe
   const result = await resolveStartupFromUrl(startupUrl);
   
   if (!result || !result.startup) {
-    return getEmptyPayload(startupUrl);
+    return getEmptyPayload(startupUrl, { step: 'resolve_startup', error: 'resolveStartupFromUrl returned null' });
   }
 
   const startup = result.startup;
@@ -76,23 +114,56 @@ async function buildConvergenceFromDB(startupUrl: string): Promise<ConvergenceRe
     .single();
 
   if (!fullStartup) {
-    return getEmptyPayload(startupUrl);
+    return getEmptyPayload(startupUrl, { step: 'fetch_startup_uploads', error: 'No startup found in DB' });
   }
 
-  // Fetch all matches
-  const { data: matches } = await supabase
+  // 1) Fetch match rows only (NO EMBEDS)
+  const { data: matchRows, error: matchErr } = await supabase
     .from('startup_investor_matches')
-    .select(`
-      match_score,
-      investor:investors!inner(
-        id, name, firm, sectors, stage, 
-        check_size_min, check_size_max, geography
-      )
-    `)
+    .select('investor_id, match_score, confidence_level, similarity_score, success_score, reasoning, why_you_match, fit_analysis, status')
     .eq('startup_id', startupId)
     .gte('match_score', 50)
     .order('match_score', { ascending: false })
     .limit(100);
+
+  if (matchErr) {
+    console.error('[Convergence DB] match query failed:', matchErr);
+    return getEmptyPayload(startupUrl, { step: 'fetch_match_rows', error: matchErr });
+  }
+
+  const investorIds = Array.from(new Set((matchRows || []).map(r => r.investor_id))).filter(Boolean);
+
+  if (!investorIds.length) {
+    return getEmptyPayload(startupUrl, { step: 'no_matches', error: 'No matches found for this startup' });
+  }
+
+  // 2) Fetch investors by IDs
+  const { data: investors, error: invErr } = await supabase
+    .from('investors')
+    .select('id, name, firm, sectors, stage, check_size_min, check_size_max, geography, geography_focus')
+    .in('id', investorIds);
+
+  if (invErr) {
+    console.error('[Convergence DB] investor query failed:', invErr);
+    return getEmptyPayload(startupUrl, { step: 'fetch_investors', error: invErr });
+  }
+
+  // 3) Join in memory
+  const investorById = new Map((investors || []).map(i => [i.id, i]));
+
+  const matches = (matchRows || [])
+    .map(m => ({
+      match_score: m.match_score,
+      confidence_level: m.confidence_level,
+      similarity_score: m.similarity_score,
+      success_score: m.success_score,
+      reasoning: m.reasoning,
+      why_you_match: m.why_you_match,
+      fit_analysis: m.fit_analysis,
+      status: m.status,
+      investor: investorById.get(m.investor_id),
+    }))
+    .filter(m => !!m.investor);
 
   // Build convergence response
   const convergence: ConvergenceResponse = {
@@ -105,7 +176,7 @@ async function buildConvergenceFromDB(startupUrl: string): Promise<ConvergenceRe
       created_at: fullStartup.created_at
     },
     status: buildStatusMetrics(fullStartup),
-    visible_investors: buildVisibleInvestors(matches || [], fullStartup),
+    visible_investors: await buildVisibleInvestors(matches || [], fullStartup),
     hidden_investors_preview: buildHiddenPreview(matches || []),
     hidden_investors_total: Math.max(0, (matches?.length || 0) - 5),
     comparable_startups: buildComparableStartups(fullStartup),
@@ -136,12 +207,18 @@ function buildStatusMetrics(startup: any): any {
   };
 }
 
-function buildVisibleInvestors(matches: any[], startup: any): any[] {
+async function buildVisibleInvestors(matches: any[], startup: any): Promise<any[]> {
   if (!matches.length) return [];
   
-  // Use smart selection (will implement in separate file)
-  const { selectStrategicInvestors } = require('./investorSelection');
-  return selectStrategicInvestors(matches, startup);
+  // Use smart selection (Vite-safe dynamic import) with fallback
+  try {
+    const mod = await import('./investorSelection');
+    const selected = mod.selectStrategicInvestors(matches, startup);
+    return Array.isArray(selected) && selected.length ? selected : matches.slice(0, 8);
+  } catch (e) {
+    console.warn('[Convergence DB] investorSelection failed; using top matches', e);
+    return matches.slice(0, 8);
+  }
 }
 
 function buildHiddenPreview(matches: any[]): any[] {
@@ -238,10 +315,11 @@ function buildImproveActions(startup: any): any[] {
 
 function mapStage(stage?: string): any {
   if (!stage) return undefined;
-  const lower = stage.toLowerCase();
+  const lower = String(stage).toLowerCase().trim();
   if (lower.includes('pre')) return 'preseed';
   if (lower.includes('seed') && !lower.includes('series')) return 'seed';
-  if (lower.includes('series a') || lower.includes('a')) return 'series_a';
+  if (lower.includes('series a') || lower === 'a' || lower.includes('series_a') || lower.includes('seriesa')) return 'series_a';
+  if (lower.includes('series b') || lower === 'b' || lower.includes('series_b') || lower.includes('seriesb')) return 'series_b_plus';
   return 'series_b_plus';
 }
 
@@ -252,7 +330,7 @@ function getSignalState(score: number): any {
   return 'watch';
 }
 
-function getEmptyPayload(startupUrl: string): EmptyConvergenceResponse {
+function getEmptyPayload(startupUrl: string, reason?: { step: string; error?: any }): EmptyConvergenceResponse {
   return {
     startup: {
       id: 'unknown',
@@ -271,8 +349,15 @@ function getEmptyPayload(startupUrl: string): EmptyConvergenceResponse {
     },
     visible_investors: [],
     hidden_investors_preview: [],
-    hidden_investors_total: 0
-  };
+    hidden_investors_total: 0,
+    debug: {
+      query_time_ms: 0,
+      data_sources: ['db_fallback'],
+      match_version: 'v1.3.1',
+      failed_step: reason?.step,
+      error: reason?.error ? String(reason.error?.message || reason.error) : undefined
+    }
+  } as any;
 }
 
 function getDemoPayload(): ConvergenceResponse {

@@ -9,6 +9,18 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
+const path = require('path');
+
+// Import Phase-Change frame parser for entity extraction fallback
+let frameParser;
+try {
+  const frameParserPath = path.join(__dirname, '../../src/services/rss/frameParser.ts');
+  // Use tsx to load TypeScript directly
+  frameParser = require('tsx/cjs').require(frameParserPath);
+} catch (err) {
+  console.warn('⚠️  Phase-Change frame parser not available, using legacy extraction only');
+  frameParser = null;
+}
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -98,359 +110,271 @@ const STARTUP_KEYWORDS = [
   'ai startup', 'fintech', 'healthtech', 'saas', 'million', 'billion'
 ];
 
-// Extract company name from title (improved heuristics - only real company names)
+// ============================================================================
+// 4-STAGE EXTRACTION GATE (Canonical Fix)
+// ============================================================================
+// Stage 1: Candidate Generation (Loose)
+// Stage 2: Hard Reject Rules
+// Stage 3: Positive Company Heuristics
+// Stage 4: Publisher-Style Normalization
+// ============================================================================
+
+// Known brand dictionary (rolling in-memory from prior matches)
+const KNOWN_BRANDS = new Set([
+  'tesla', 'google', 'nvidia', 'databricks', 'flipkart', 'waymo', 'zipline',
+  'xiaomi', 'lemonade', 'antler', 'workday', 'luminar', 'kpay', 'goodfin',
+  'ethernovia', 'sakana ai', 'bucket robotics', 'ola electric', 'general catalyst',
+  'openai', 'anthropic', 'stripe', 'notion', 'figma', 'canva', 'airtable'
+]);
+
+// Common first names for person-name rejection
+const COMMON_FIRST_NAMES = new Set([
+  'charles', 'helen', 'adam', 'john', 'jane', 'michael', 'sarah', 'david',
+  'emily', 'james', 'mary', 'robert', 'patricia', 'jennifer', 'linda',
+  'william', 'elizabeth', 'richard', 'susan', 'joseph', 'jessica', 'thomas',
+  'karen', 'christopher', 'nancy', 'daniel', 'betty', 'matthew', 'margaret'
+]);
+
 function extractCompanyName(title) {
   if (!title || title.length < 5) return null;
   
-  // Common words that are NOT company names (extensive list)
-  const skipWords = new Set([
-    // Articles and pronouns
-    'the', 'a', 'an', 'this', 'that', 'these', 'those', 'our', 'your', 'their', 'my', 'his', 'her', 'its',
-    // Question words
-    'how', 'what', 'why', 'when', 'where', 'who', 'which',
-    // Months
-    'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
-    // Common verbs/adjectives
-    'talking', 'turning', 'competing', 'almost', 'even', 'new', 'old', 'big', 'small', 'dear', 'meet', 'welcoming',
-    'congratulations', 'demo', 'reflections', 'abundant', 'gentle', 'quirky', 'rules', 'millions', 'billions',
-    'partnerships', 'highlights', 'race', 'rapidly', 'empire', 'open', 'four', 'six', 'three', 'two', 'one', 'five',
-    'seven', 'eight', 'nine', 'ten', 'first', 'second', 'third', 'last', 'next', 'previous',
-    // Contractions
-    'i\'ve', 'we\'re', 'what\'s', 'equity\'s', 'nvidia\'s', 'obsidian\'s', 'sweden\'s', 'it\'s', 'that\'s', 'there\'s',
-    // Locations/adjectives
-    'estonian', 'lithuanian', 'danish', 'swedish', 'indian', 'indian', 'india',
-    // Common nouns
-    'college', 'investors', 'vcs', 'funding', 'investment', 'startup', 'startups', 'company', 'companies',
-    // Personal names (common first names that appear in titles)
-    'jakub', 'ankit', 'dalton', 'tyler', 'sam', 'paul', 'john', 'jane', 'mike', 'dave',
-    // Other common words
-    'gpt-4o', 'gpt', 'chatgpt', 'ai', 'ml', 'saas', 'api',
-    // Generic words that are NOT company names
-    'mvps', 'mvp', 'resource', 'constraints', 'leadership', 'tips', 'transit', 'tech', 'show', 'hn', 'build', 'building',
-    'modern', 'inside', 'wellbeing', 'benefits', 'healthcare', 'data', 'digital', 'fintech', 'every', 'fusion',
-    'equity', 'dropout', 'moved', 'out', 'clicks', 'click', 'much', 'slc', 'zork', 'golden', 'team', 'culture',
-    'investor', 'updates', 'launches', 'launch', 'saastr', 'european', 'software', 'tin', 'can', 'investments',
-    'battlefield', 'and', 'most', 'coveted', 'startup', 'era', 'with', 'sandbar', 'stand', 'wars', 'break',
-    'power', 'bank', 'finnish', 'swedish', 'estonian', 'danish'
-  ]);
+  // STAGE 1: CANDIDATE GENERATION (Loose)
+  // ======================================
+  const candidates = [];
   
-  // Generic single words that are NEVER company names
-  const genericSingleWords = new Set([
-    'building', 'modern', 'inside', 'outside', 'above', 'below', 'before', 'after', 'during', 'while',
-    'mvps', 'mvp', 'tips', 'benefits', 'data', 'digital', 'fintech', 'tech', 'ai', 'ml', 'saas',
-    'show', 'build', 'moved', 'out', 'in', 'on', 'at', 'for', 'with', 'about', 'from', 'to',
-    'every', 'some', 'any', 'all', 'each', 'both', 'few', 'many', 'most', 'other', 'such',
-    'transit', 'healthcare', 'wellbeing', 'equity', 'fusion', 'dropout', 'constraints', 'resource',
-    'leadership', 'college', 'university', 'school', 'education', 'learning', 'click',
-    // Note: Removed 'clicks' - "Clicks" is a valid company name
-    'healthcare\'s', 'healthcare', 'much', 'slc', 'zork', 'golden', 'team', 'culture', 'investor',
-    'updates', 'launches', 'launch', 'saastr', 'european', 'software', 'zork golden',
-    'team culture', 'investor updates', 'investments', 'battlefield', 'and', 'coveted', 'startup',
-    'era', 'sandbar', 'stand', 'wars', 'break', 'power', 'bank', 'finnish', 'swedish', 'estonian', 'danish',
-    // Common false positives found in scraping
-    'kids', 'congress', 'china', 'texas', 'nyc', 'actors', 'lobbies', 'north', 'south', 'east', 'west',
-    'america', 'europe', 'asia', 'africa', 'latin', 'america', 'canada', 'mexico', 'india', 'japan',
-    'korea', 'germany', 'france', 'italy', 'spain', 'brazil', 'australia', 'britain', 'uk', 'usa'
-    // Note: Removed 'tin' and 'can' - "Tin Can" is a valid company name
-    // Note: Removed 'clicks' - "Clicks" is a valid company name
-  ]);
-  
-  // Generic phrases that are NOT company names
-  const genericPhrases = new Set([
-    'most coveted startup', 'era with sandbar', 'power bank', 'tin can', 'finnish rundit',
-    'swedish lovable', 'estonian mydello', 'danish evodiabio'
-  ]);
-  
-  // Strong patterns that indicate company names (prioritize these)
-  const strongPatterns = [
-    // "$XM Series X for CompanyName" or "$XM to CompanyName"
-    /\$[\d.]+[MBK]?\s+(?:series\s+[A-Z]|seed|round)\s+(?:for|to|in|at)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})/i,
-    // "CompanyName raises $XM" (most common pattern)
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})\s+(?:raises|secures|closes|announces|launches|hires|partners|gets|receives)\s+\$/i,
-    // "$XM for CompanyName"
-    /\$[\d.]+[MBK]?\s+(?:for|to|in|at)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})/i,
-    // "CompanyName: description" (only if followed by funding/launch keywords)
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2}):\s*(?:raises|launches|secures|closes|announces|funding|investment)/i,
-    // "Our investment in CompanyName" or "investment in CompanyName" (handle multi-word names)
-    /(?:our\s+)?investment\s+in\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,3})(?:\s|:|,|$)/i,
-    // "according to CompanyName's" or "CompanyName's CEO" (handle multi-word names)
-    /(?:according\s+to|from|by)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,3})'s/i,
-    // "CompanyName CEO" or "CompanyName's CEO" - must be immediately before CEO (not separated by other words)
-    // Match: "Sandbar CEO" but NOT "wearables era with Sandbar CEO"
-    /([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})(?:'s)?\s+(?:CEO|CTO|CFO|COO|founder|co-founder)(?:\s|$|:)/i,
-    // "X firm CompanyName" or "X startup CompanyName" - extract the company name AFTER firm/startup
-    // Match: "Fintech firm Marquis" → extract "Marquis"
-    // Match: "Finnish startup MultivisionDx" → extract "MultivisionDx"
-    // Match: "Lithuanian Repsense" → extract "Repsense"
-    // Use word boundary to stop at the first word
-    /(?:^|\s)(?:[A-Z][a-zA-Z0-9]+\s+)?(?:firm|startup|company|platform)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)(?:\s+(?:raises|secures|closes|launches|gets|receives|alerts))?/i,
-    // "Country startup CompanyName" pattern (e.g., "Finnish startup MultivisionDx")
-    /(?:finnish|lithuanian|swedish|estonian|danish|indian|german|french|british|american|us|uk)\s+startup\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)/i,
-    // "with CompanyName" (in context of funding/investment)
-    /(?:with|from|by)\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})(?:\s+(?:raises|secures|closes|announces|launches|hires|partners|gets|receives|alerts|alerts))/i,
-    // "X joins CompanyName" or "CompanyName joins X" - extract the company
-    /([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})\s+joins\s+([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})/i,
+  // Pattern 1: Funding/raise patterns (highest confidence)
+  const fundingPatterns = [
+    /^([A-Z][A-Za-z0-9&.\-\s]{1,50}?)\s+(raises|lands|secures|closes|bags|completes)\s+(\$|€|£)/i,
+    /^([A-Z][A-Za-z0-9&.\-\s]{1,50}?),?\s+(?:a|an|the)?\s*[^,]+,?\s+(raises|secures|lands)\s+(\$|€|£)/i,
+    /(\$|€|£)[\d.]+[MBK]?\s+(?:for|to|in)\s+([A-Z][A-Za-z0-9&.\-\s]{1,40})/i,
+    // NEW: "The X/Y..." headlines
+    /^The\s+([A-Z][A-Za-z0-9&.\-\s/]{1,50}?)\s+(raises?|closes?|secures?|lands?|bags?)\s+/i,
   ];
   
-  for (let i = 0; i < strongPatterns.length; i++) {
-    const pattern = strongPatterns[i];
-    const match = title.match(pattern);
-    if (match) {
-      // Special handling for "X joins Y" pattern - extract Y (the company being joined)
-      let name;
-      if (i === 9 && match[2]) { // Pattern index 9 is the "joins" pattern
-        name = match[2].trim();
-      } else if (match[1]) {
-        name = match[1].trim();
-      } else {
-        continue;
-      }
-      
-      // Remove possessive forms (Nvidia's → Nvidia, Obsidian's → Obsidian, Healthcare's → Healthcare)
-      name = name.replace(/'s$/, '');
-      
-      // Remove leading verbs (build Givefront → Givefront)
-      name = name.replace(/^(build|building|built|create|creating|made|making|launch|launching|start|starting)\s+/i, '');
-      
-      // Remove trailing punctuation
-      name = name.replace(/[,\.:;!?]+$/, '');
-      
-      // Remove trailing verbs/actions that got captured (e.g., "Marquis alerts" → "Marquis")
-      name = name.replace(/\s+(alerts|raises|secures|closes|announces|launches|hires|partners|gets|receives|lands|nabs|bags|dozens|banks|credit|unions).*$/i, '');
-      
-      // Remove leading words that aren't company names (e.g., "era with Sandbar" → "Sandbar", "with Sandbar" → "Sandbar")
-      // Apply multiple times to catch "era with" → "with" → ""
-      let prevName = '';
-      while (name !== prevName) {
-        prevName = name;
-        name = name.replace(/^(era|with|post|humane|ai|wearables|competing|in|the|a|an|most|coveted|startup)\s+/i, '');
-      }
-      
-      // Trim whitespace
-      name = name.trim();
-      
-      const firstWord = name.split(' ')[0].toLowerCase();
-      const words = name.split(' ').filter(w => w.length > 0);
-      
-      // Reject if single word and it's generic
-      if (words.length === 1 && genericSingleWords.has(firstWord)) {
-        continue;
-      }
-      
-      // Reject if first word is a skip word
-      if (skipWords.has(firstWord)) {
-        continue;
-      }
-      
-      // Reject if name is too short or too long
-      if (name.length < 3 || name.length > 50) {
-        continue;
-      }
-      
-      // Reject if it's just a number or starts with number (including "100+")
-      if (/^\d+/.test(name) || /^\d+\+/.test(name) || /^\d+[+\-]/.test(name)) {
-        continue;
-      }
-      
-      // Reject if it looks like a phrase (has common phrase words)
-      if (/\b(out|in|on|at|for|with|about|from|to|the|a|an|this|that|these|those)\b/i.test(name) && words.length <= 2) {
-        continue;
-      }
-      
-      // Reject if it's just a generic word (even after cleaning)
-      if (genericSingleWords.has(name.toLowerCase())) {
-        continue;
-      }
-      
-      // Reject if it's a generic word like "Fintech", "Tech", "AI", etc. when used as a standalone name
-      const lowerName = name.toLowerCase();
-      const genericStandalone = ['fintech', 'tech', 'ai', 'ml', 'saas', 'software', 'data', 'digital', 'much', 'slc', 'european', 
-           'investments', 'battlefield', 'and', 'coveted', 'startup', 'era', 'stand', 'wars', 
-           'break', 'power', 'bank', 'finnish', 'swedish', 'estonian', 'danish'];
-      
-      // Only reject if it's a single word AND generic (two-word names like "Tin Can" are OK even if one word is generic)
-      // Also allow known company names
-      const allowedNames = ['clicks', 'sandbar', 'tin', 'can', 'greenstep', 'rundit', 'mercor', 'joon', 'marquis', 'evodiabio', 'blykalla', 'multivisiondx', 'zus', 'stack', 'founder'];
-      if (words.length === 1 && genericStandalone.includes(lowerName) && !allowedNames.includes(lowerName)) {
-        continue;
-      }
-      
-      // Reject generic phrases
-      if (genericPhrases.has(lowerName)) {
-        continue;
-      }
-      
-      // Handle location adjectives: "Finnish Rundit" → "Rundit", "Swedish Lovable" → "Lovable"
-      if (/^(finnish|swedish|estonian|danish|indian|chinese|american|british|german|french)\s+/i.test(name)) {
-        // Extract the word after the location
-        const afterLocation = name.replace(/^(finnish|swedish|estonian|danish|indian|chinese|american|british|german|french)\s+/i, '').trim();
-        if (afterLocation && afterLocation.length > 2 && afterLocation.length < 30 && 
-            !genericSingleWords.has(afterLocation.toLowerCase()) && 
-            !skipWords.has(afterLocation.split(' ')[0].toLowerCase())) {
-          return afterLocation;
-        }
-        continue;
-      }
-      
-      // Reject if it's just "and", "with", "era", "stand", "wars" as single words
-      if (words.length === 1 && ['and', 'with', 'era', 'stand', 'wars', 'break', 'power', 'bank', 'investments', 'battlefield'].includes(lowerName)) {
-        continue;
-      }
-      
-      return name;
-    }
-  }
-  
-  // Weaker patterns (only if strong patterns didn't match)
-  const weakPatterns = [
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})\s+(?:raises|secures|closes|announces|launches)/i,
-    /(?:backed|invests|funds)\s+(?:in\s+)?([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})/i,
+  // Pattern 2: Launch/announcement patterns
+  const launchPatterns = [
+    /^([A-Z][A-Za-z0-9&.\-\s]{1,50}?)\s+(launches|unveils|announces|introduces)/i,
   ];
   
-  for (const pattern of weakPatterns) {
+  // Pattern 3: M&A patterns
+  const maPatterns = [
+    /^([A-Z][A-Za-z0-9&.\-\s]{1,50}?)\s+(acquires|snaps up|buys|merges with)/i,
+    // NEW: "X To Buy Y" and "X To Acquire Y" patterns
+    /^([A-Z][A-Za-z0-9&.\-\s]{1,50}?)\s+[Tt]o\s+(?:Buy|Acquire|Purchase)\s+/i,
+    /\s+(?:Buy|Acquire|Purchase)s?\s+(?:Fintech\s+Startup\s+|Startup\s+)?([A-Z][A-Za-z0-9&.\-\s]{1,40})/i,
+  ];
+  
+  // Pattern 4: IPO/listing patterns
+  const ipoPatterns = [
+    /^([A-Z][A-Za-z0-9&.\-\s]{1,50}?)\s+(eyes|seeks|files for|plans)\s+(?:an?\s+)?IPO/i,
+  ];
+  
+  // Pattern 5: Title-case sequences (1-4 words)
+  const titleCasePattern = /\b([A-Z][A-Za-z0-9&.\-]+(?:\s+[A-Z][A-Za-z0-9&.\-]+){0,3})\b/g;
+  
+  // Collect all candidates
+  [...fundingPatterns, ...launchPatterns, ...maPatterns, ...ipoPatterns].forEach(pattern => {
     const match = title.match(pattern);
     if (match && match[1]) {
-      const name = match[1].trim();
-      const firstWord = name.split(' ')[0].toLowerCase();
-      // More strict validation for weak patterns
-      if (!skipWords.has(firstWord) && name.length > 4 && name.length < 50 && 
-          !name.match(/^(The|A|An|This|That|How|What|Why|When|Where)/)) {
-        return name;
+      candidates.push({ text: match[1].trim(), source: 'pattern', confidence: 0.7 });
+    } else if (match && match[2]) {
+      candidates.push({ text: match[2].trim(), source: 'pattern', confidence: 0.7 });
+    }
+  });
+  
+  // Add title-case sequences as low-confidence candidates
+  let tcMatch;
+  while ((tcMatch = titleCasePattern.exec(title)) !== null) {
+    candidates.push({ text: tcMatch[1].trim(), source: 'titlecase', confidence: 0.3 });
+  }
+  
+  if (candidates.length === 0) return null;
+  
+  // STAGE 2: HARD REJECT RULES
+  // ===========================
+  function shouldHardReject(candidate) {
+    const lower = candidate.toLowerCase();
+    const words = candidate.split(/\s+/);
+    
+    // ❌ Stop-Fragment Rules
+    const stopFragments = new Set([
+      'the', 'a', 'an', 'and', 'for', 'with', 'as', 'on', 'in', 'by', 'to', 'from', 'of',
+      'interview', 'focus', 'names', 'launches', 'calls', 'says', 'adds', 'scraps',
+      'boost', 'plummeted', 'tumbles', 'merges', 'is', 'are', 'was', 'were',
+      'over', 'under', 'about', 'around', 'nearly', 'almost'
+    ]);
+    
+    if (words.length === 1 && stopFragments.has(lower)) {
+      return { reject: true, reason: 'stop_fragment' };
+    }
+    
+    // ❌ Quote-Fragment Rules
+    if (/^['"`''""']/.test(candidate) || /['"`''""']$/.test(candidate)) {
+      return { reject: true, reason: 'quote_fragment' };
+    }
+    
+    // Count quotes - if unmatched, reject
+    const quoteCount = (candidate.match(/['"`''""']/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      return { reject: true, reason: 'unmatched_quotes' };
+    }
+    
+    // ❌ Job-Title Contamination
+    const jobTitlePattern = /(CEO|CFO|CTO|Chief|Founder|Managing Partner|President|Chairman|Director|Names|Appoints|Resigns|\sAs$)/i;
+    if (jobTitlePattern.test(candidate)) {
+      return { reject: true, reason: 'job_title_contamination' };
+    }
+    
+    // ❌ Obvious Person Names (two capitalized words + first name match)
+    if (words.length === 2) {
+      const [first, last] = words;
+      if (COMMON_FIRST_NAMES.has(first.toLowerCase()) && 
+          /^[A-Z][a-z]+$/.test(last)) {
+        return { reject: true, reason: 'person_name' };
       }
+    }
+    
+    // ❌ Verb-heavy phrases (emerging markets plummeted by, focus on soaring)
+    const verbHeavy = /(emerging|plummeted|tumbles|soaring|focus on|for multibillion)/i;
+    if (verbHeavy.test(candidate)) {
+      return { reject: true, reason: 'verb_heavy_phrase' };
+    }
+    
+    // ❌ Too short or too long
+    if (candidate.length < 2 || candidate.length > 60) {
+      return { reject: true, reason: 'length_invalid' };
+    }
+    
+    // ❌ Contains no letters
+    if (!/[a-z]/i.test(candidate)) {
+      return { reject: true, reason: 'no_letters' };
+    }
+    
+    // ❌ Starts with number or special char
+    if (/^[\d$€£]/.test(candidate)) {
+      return { reject: true, reason: 'starts_with_number' };
+    }
+    
+    return { reject: false };
+  }
+  
+  // STAGE 3: POSITIVE COMPANY HEURISTICS
+  // =====================================
+  function calculateConfidence(candidate, context) {
+    let score = context.confidence || 0.3; // Base from pattern match
+    const lower = candidate.toLowerCase();
+    
+    // ✅ Known Brand Dictionary Hit
+    if (KNOWN_BRANDS.has(lower)) {
+      score += 0.4;
+    }
+    
+    // ✅ Suffix / Form Indicators
+    const companySuffixes = /(AI|Labs?|Technologies|Systems?|Group|Holdings?|Robotics?|Energy|Electric|Capital|Ventures?|Networks?|Finance|Analytics?|Health|Bio|Therapeutics?|Logistics?|Cloud|Payments?|Software|Solutions?|Platform|Inc\.?|Corp\.?|LLC|Ltd\.?)$/i;
+    if (companySuffixes.test(candidate)) {
+      score += 0.3;
+    }
+    
+    // ✅ Fundraising / Deal Context Present
+    const dealContext = /(raises?|funding|series|seed|round|acquires?|acquisition|invests?|backed|valued|IPO|closes?|secures?|lands?|bags?)/i;
+    if (dealContext.test(title)) {
+      score += 0.3;
+    }
+    
+    return score;
+  }
+  
+  // STAGE 4: PUBLISHER-STYLE NORMALIZATION
+  // =======================================
+  function normalizeCandidate(candidate) {
+    let normalized = candidate;
+    
+    // Remove possessives
+    normalized = normalized.replace(/'s$/i, '');
+    
+    // Remove trailing action verbs that got captured
+    normalized = normalized.replace(/\s+(raises?|secures?|lands?|closes?|bags?|launches?|announces?|snaps?|buys?|merges?|acquires?|eyes|seeks|files?|plans?|completes?|says?|adds?|calls?|names?).*$/i, '');
+    
+    // Remove "startup" prefix if present ("fintech startup Acme" → "Acme")
+    normalized = normalized.replace(/^(?:fintech|healthtech|edtech|ai|ml|saas|biotech|cleantech)\s+(?:startup|firm|company)\s+/i, '');
+    normalized = normalized.replace(/^(?:startup|firm|company|platform)\s+/i, '');
+    
+    // Remove location adjectives ("Finnish Rundit" → "Rundit")
+    normalized = normalized.replace(/^(?:finnish|swedish|estonian|danish|indian|german|french|british|american|chinese)\s+/i, '');
+    
+    // Remove conjunctions if captured ("Acme and Zeal" → "Acme")
+    normalized = normalized.replace(/\s+(?:and|or|with|&)\s+.*$/i, '');
+    
+    // Remove "for", "by", "from" prefixes
+    normalized = normalized.replace(/^(?:for|by|from|with|in|at|on)\s+/i, '');
+    
+    // Trim and clean
+    normalized = normalized.trim();
+    
+    return normalized;
+  }
+  
+  // PROCESS ALL CANDIDATES
+  // ======================
+  const validCandidates = [];
+  
+  for (const candidate of candidates) {
+    const normalized = normalizeCandidate(candidate.text);
+    if (!normalized || normalized.length < 2) continue;
+    
+    // Stage 2: Hard reject
+    const rejectCheck = shouldHardReject(normalized);
+    if (rejectCheck.reject) {
+      continue; // Skip this candidate
+    }
+    
+    // Stage 3: Calculate confidence
+    const confidence = calculateConfidence(normalized, candidate);
+    
+    // Only accept if confidence >= 0.6
+    if (confidence >= 0.6) {
+      validCandidates.push({ name: normalized, confidence });
+      
+      // Add to known brands for future matches
+      KNOWN_BRANDS.add(normalized.toLowerCase());
     }
   }
   
-  // Fallback: Extract first capitalized word(s) if title looks like it mentions a company
-  // Pattern: "CompanyName verb..." or "CompanyName's..." or "CompanyName, a..."
-  const fallbackPatterns = [
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})\s+(?:annual|reboots|launches|announces|releases|introduces|unveils|partners|hires|raises|secures|closes|gets|receives|lands|nabs|bags)/i,
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})'s\s+/i, // "CompanyName's..."
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2}),\s+(?:a|an|the)\s+/i, // "CompanyName, a..."
-    /^([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+){0,2})\s+(?:overtaken|overtakes|becomes|is|was|will|has|have)/i,
-  ];
-  
-  for (const pattern of fallbackPatterns) {
-    const match = title.match(pattern);
-    if (match && match[1]) {
-      let name = match[1].trim();
-      
-      // Remove possessive forms
-      name = name.replace(/'s$/, '');
-      
-      // Remove leading verbs
-      name = name.replace(/^(build|building|built|create|creating|made|making|launch|launching|start|starting)\s+/i, '');
-      
-      // Remove trailing punctuation
-      name = name.replace(/[,\.:;!?]+$/, '');
-      
-      // Remove trailing verbs/actions that got captured (e.g., "Marquis alerts" → "Marquis")
-      name = name.replace(/\s+(alerts|raises|secures|closes|announces|launches|hires|partners|gets|receives|lands|nabs|bags|dozens|banks|credit|unions).*$/i, '');
-      
-      // Remove leading words that aren't company names (e.g., "era with Sandbar" → "Sandbar", "with Sandbar" → "Sandbar")
-      // Apply multiple times to catch "era with" → "with" → ""
-      let prevName = '';
-      while (name !== prevName) {
-        prevName = name;
-        name = name.replace(/^(era|with|post|humane|ai|wearables|competing|in|the|a|an|most|coveted|startup)\s+/i, '');
-      }
-      
-      // Trim whitespace
-      name = name.trim();
-      
-      const firstWord = name.split(' ')[0].toLowerCase();
-      const words = name.split(' ').filter(w => w.length > 0);
-      
-      // Reject if single word and it's generic
-      if (words.length === 1 && genericSingleWords.has(firstWord)) {
-        continue;
-      }
-      
-      // Reject if first word is a skip word
-      if (skipWords.has(firstWord)) {
-        continue;
-      }
-      
-      // Reject if name is too short or too long
-      if (name.length < 3 || name.length > 50) {
-        continue;
-      }
-      
-      // Reject if it's just a number or starts with number (including "100+")
-      if (/^\d+/.test(name) || /^\d+\+/.test(name) || /^\d+[+\-]/.test(name)) {
-        continue;
-      }
-      
-      // Reject if it looks like a phrase
-      if (/\b(out|in|on|at|for|with|about|from|to|the|a|an|this|that|these|those)\b/i.test(name) && words.length <= 2) {
-        continue;
-      }
-      
-      // Reject if it's just a generic word (even after cleaning)
-      if (genericSingleWords.has(name.toLowerCase())) {
-        continue;
-      }
-      
-      return name;
-    }
-  }
-  
-  // Last resort: Extract first capitalized word(s) if title looks like company news
-  // More lenient - extract from any title that might mention a company
-  // BUT only if title has startup/funding keywords (to avoid extracting from random articles)
-  const hasStartupKeyword = /(?:startup|funding|raised|raises|investment|investor|venture|capital|series|seed|launch|launches|announces|secures|closes|hires|partners|backed|invests|funds|overtaken|overtakes|becomes|sales|decline|valuation|valuation|unicorn|ipo|acquisition|acquired|joins|ceo|cto|cfo|founder|co-founder|tech|ai|ml|saas|platform|company|firm)/i.test(title);
-  
-  // Be more lenient - if title is short and has any tech/startup keywords, try to extract
-  if (title.length < 300 && (hasStartupKeyword || title.length < 100)) {
-    const words = title.split(' ');
-    // Look for first 1-3 capitalized words that aren't skip words (increased from 4 to 8)
-    for (let i = 0; i < Math.min(8, words.length); i++) {
-      let word = words[i].replace(/[.,:;!?'"]/g, '');
-      const lowerWord = word.toLowerCase();
-      
-      // Skip if it's a skip word or generic (but allow known company names)
-      const allowedWords = ['clicks', 'sandbar', 'tin', 'can', 'greenstep', 'rundit', 'mercor', 'joon', 'marquis', 'evodiabio', 'blykalla', 'multivisiondx', 'zus'];
-      if ((skipWords.has(lowerWord) || genericSingleWords.has(lowerWord)) && !allowedWords.includes(lowerWord)) {
-        continue;
-      }
-      
-      // Must start with capital letter and be reasonable length
-      if (word && word[0] === word[0].toUpperCase() && word.length > 2 && word.length < 30) {
-        // Remove possessive
-        word = word.replace(/'s$/, '');
-        
-        // Reject if it's still generic after cleaning (but allow known company names)
-        const wordLowerFirst = word.toLowerCase();
-        const allowedWords = ['clicks', 'sandbar', 'tin', 'can', 'greenstep', 'rundit', 'mercor', 'joon', 'marquis', 'evodiabio', 'blykalla', 'multivisiondx', 'zus'];
-        if (genericSingleWords.has(wordLowerFirst) && !allowedWords.includes(wordLowerFirst)) {
-          continue;
-        }
-        
-        // Check if next word is also capitalized (two-word company name)
-        if (i + 1 < words.length) {
-          let nextWord = words[i + 1].replace(/[.,:;!?'"]/g, '');
-          if (nextWord && nextWord[0] === nextWord[0].toUpperCase() && nextWord.length > 2) {
-            nextWord = nextWord.replace(/'s$/, '');
-            if (!skipWords.has(nextWord.toLowerCase()) && !genericSingleWords.has(nextWord.toLowerCase())) {
-              const twoWord = `${word} ${nextWord}`;
-              if (twoWord.length < 40 && !genericSingleWords.has(twoWord.toLowerCase())) {
-                return twoWord;
-              }
+  // Return highest confidence candidate
+  if (validCandidates.length === 0) {
+    // FALLBACK: Try Phase-Change frame parser (Jisst-Lite V2)
+    if (frameParser && frameParser.parseFrameFromTitle) {
+      try {
+        const frame = frameParser.parseFrameFromTitle(title);
+        if (frame && frame.slots) {
+          // Extract subject (primary actor) from frame
+          if (frame.slots.subject && frame.slots.subject.length > 2) {
+            const subject = normalizeCandidate(frame.slots.subject);
+            const rejectCheck = shouldHardReject(subject);
+            if (!rejectCheck.reject) {
+              // Add to known brands for future matches
+              KNOWN_BRANDS.add(subject.toLowerCase());
+              return subject;
+            }
+          }
+          // Try object if subject failed
+          if (frame.slots.object && frame.slots.object.length > 2) {
+            const object = normalizeCandidate(frame.slots.object);
+            const rejectCheck = shouldHardReject(object);
+            if (!rejectCheck.reject) {
+              KNOWN_BRANDS.add(object.toLowerCase());
+              return object;
             }
           }
         }
-        
-        // Single word - make sure it's not generic
-        // But allow some common company names even if they're in the generic list
-        const allowedSingleWords = ['clicks', 'sandbar', 'tin', 'can', 'greenstep', 'rundit', 'mercor', 'joon', 'marquis', 'evodiabio', 'blykalla', 'multivisiondx', 'zus', 'stack'];
-        const wordLowerCheck = word.toLowerCase();
-        if ((!genericSingleWords.has(wordLowerCheck) || allowedSingleWords.includes(wordLowerCheck)) && word.length > 2 && word.length < 30) {
-          return word;
-        }
+      } catch (err) {
+        // Silent fallback failure - don't break scraper
       }
     }
+    return null;
   }
   
-  return null;
+  return validCandidates[0].name;
 }
 
 // Detect sectors from text

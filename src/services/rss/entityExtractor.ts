@@ -1,0 +1,947 @@
+/* src/services/rss/entityExtractor.ts */
+
+import { parseFrameFromTitle, type ParsedFrame } from "./frameParser";
+
+export type EntityKind = "company" | "person" | "unknown";
+
+export type ScoredCandidate = { text: string; score: number; reasons: string[] };
+
+export type EntityExtractResult = {
+  entity: string | null; // back-compat primary
+  confidence: number;
+  kind: EntityKind;
+  reasons: string[];
+
+  // Multi-entity support
+  entities: Array<{ entity: string; confidence: number; kind: EntityKind; reasons: string[] }>;
+  primaryEntity: string | null;
+
+  candidates: ScoredCandidate[];
+  rejected: Array<{ text: string; reason: string }>;
+  
+  // Frame debug (Jisst-lite)
+  frame?: ParsedFrame;
+};
+
+const DEAL_VERBS = [
+  "raises",
+  "raised",
+  "raising",
+  "funding",
+  "series",
+  "seed",
+  "round",
+  "acquires",
+  "acquired",
+  "acquisition",
+  "buys",
+  "bought",
+  "merges",
+  "merged",
+  "merge",
+  "invests",
+  "invested",
+  "backed",
+  "valued",
+  "ipo",
+  "files",
+  "filed",
+  "debt",
+  "buyback",
+  "partnership",
+  "strategic partnership",
+  "joint venture",
+  "jv",
+  "launches",
+  "launched",
+  "forms",
+  "formed",
+  "signs",
+  "signed",
+  "names",
+  "named",
+  "appoints",
+  "appointed",
+];
+
+// TitleCase verbs that should never be part of an entity
+const TITLECASE_VERB_TOKENS = new Set([
+  "Announces",
+  "Forms",
+  "Acquires",
+  "Acquired",
+  "Acquisition",
+  "Merges",
+  "Merged",
+  "Merge",
+  "Raises",
+  "Raised",
+  "Invests",
+  "Invested",
+  "Launches",
+  "Launched",
+  "Targets",
+  "Receives",
+  "Charts",
+  "Calls",
+  "Says",
+  "Names",
+  "Named",
+  "Appoints",
+  "Appointed",
+  "Expands",
+  "Adds",
+  "Pauses",
+  "Unpauses",
+]);
+
+const JOB_TITLE_TOKENS = [
+  "ceo",
+  "cfo",
+  "cto",
+  "coo",
+  "cmo",
+  "cio",
+  "chief",
+  "founder",
+  "managing partner",
+  "partner",
+  "president",
+  "chairman",
+  "director",
+  "board",
+  "appoints",
+  "appointed",
+  "names",
+  "named",
+  "resigns",
+  "resigned",
+];
+
+const STOP_FRAGMENTS = new Set([
+  "interview",
+  "focus",
+  "launches",
+  "calls",
+  "says",
+  "adds",
+  "scraps",
+  "boost",
+  "plummeted",
+  "tumbles",
+  "over",
+  "under",
+  "about",
+  "around",
+  "nearly",
+  "almost",
+  "for",
+  "with",
+  "as",
+  "on",
+  "in",
+  "by",
+  "to",
+  "from",
+  "of",
+  "the",
+  "a",
+  "an",
+  "and",
+  // Lowercase deal verbs
+  "forms",
+  "announces",
+  "acquires",
+  "receives",
+  "targets",
+  "charts",
+  "names",
+]);
+
+const GEO_STOPWORDS = new Set([
+  "vc",
+  "india",
+  "china",
+  "europe",
+  "asia",
+  "africa",
+  "latam",
+  "mena",
+  "us",
+  "u.s",
+  "u.s.",
+  "uk",
+  "u.k",
+  "u.k.",
+  "america",
+]);
+
+// Extend over time with your confirmed entities
+const BRAND_DICTIONARY = new Set([
+  "Tesla",
+  "Google",
+  "Nvidia",
+  "Databricks",
+  "Flipkart",
+  "Waymo",
+  "Zipline",
+  "Xiaomi",
+  "Lemonade",
+  "Luminar",
+  "Ola Electric",
+  "General Catalyst",
+  "Venture Highway",
+  "Antler",
+  "Sakana AI",
+  "Goodfin",
+  "KPay",
+  "Ethernovia",
+  "Workday",
+  "TikTok",
+  "Binance",
+  "Meta",
+  "Harvey",
+  "Hexus",
+  "Barrick Mining",
+]);
+
+const INVEST_SUBJECT_DEPRIORITIZE = new Set([
+  "Google",
+  "Meta",
+  "Microsoft",
+  "Amazon",
+  "Apple",
+  "Nvidia",
+  "Tesla",
+  "ByteDance",
+  "TikTok",
+  "Baidu",
+  "Alibaba",
+  "Tencent",
+  "Samsung",
+  "Stripe",
+  "Coinbase",
+  "Square",
+  "PayPal",
+]);
+
+const COMPANY_SUFFIX_HINTS = [
+  "AI",
+  "Labs",
+  "Lab",
+  "Technologies",
+  "Technology",
+  "Systems",
+  "Group",
+  "Holdings",
+  "Robotics",
+  "Energy",
+  "Electric",
+  "Capital",
+  "Ventures",
+  "Networks",
+  "Finance",
+  "Analytics",
+  "Health",
+  "Bio",
+  "Biotech",
+  "Therapeutics",
+  "Logistics",
+  "Cloud",
+  "Payments",
+  "Platform",
+  "Mining",
+  "Acoustics",
+];
+
+const QUOTE_CHARS = ['"', "'", "\u201c", "\u201d", "\u2018", "\u2019", "`"];
+
+// Adjectives / descriptors to skip in invests-in target parsing
+const INVEST_TARGET_SKIP = new Set([
+  "indian",
+  "american",
+  "chinese",
+  "european",
+  "global",
+  "giant",
+  "leading",
+  "top",
+  "major",
+  "largest",
+  "big",
+  "huge",
+  "e-commerce",
+  "ecommerce",
+  "startup",
+  "company",
+  "platform",
+  "firm",
+  "giants",
+  "marketplace",
+]);
+
+function normalizeQuotes(s: string) {
+  return s
+    .replace(/[""]/g, '"')
+    .replace(/['']/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function titleHasDealContext(title: string): boolean {
+  const t = title.toLowerCase();
+  return DEAL_VERBS.some((v) => t.includes(v));
+}
+
+function containsJobTitleTokens(text: string): boolean {
+  const t = text.toLowerCase();
+  return JOB_TITLE_TOKENS.some((jt) => t.includes(jt));
+}
+
+function containsTitlecaseVerbToken(text: string): boolean {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  return tokens.some((t) => TITLECASE_VERB_TOKENS.has(t));
+}
+
+function containsLowercaseDealVerbToken(text: string): boolean {
+  const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return false; // Only reject multi-token candidates
+  return ["forms", "announces", "acquires", "merges", "raises", "invests", "names"].some((v) =>
+    tokens.includes(v)
+  );
+}
+
+function isQuoteFragment(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (QUOTE_CHARS.some((q) => trimmed.startsWith(q))) return true;
+  if (/^['"`''""][A-Za-z]{2,}$/.test(trimmed)) return true; // "'angel"
+  return false;
+}
+
+function isStopFragment(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+
+  const lower = t.toLowerCase();
+  if (STOP_FRAGMENTS.has(lower)) return true;
+  if (GEO_STOPWORDS.has(lower)) return true;
+
+  // money/number-only
+  if (/^\$?\d+(\.\d+)?([MBK]|m|b|k)?$/.test(t)) return true;
+  if (/\$\s?\d/.test(t) && t.split(" ").length <= 2) return true;
+
+  return false;
+}
+
+function looksLikePersonName(text: string): boolean {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length !== 2) return false;
+  const [a, b] = tokens;
+  const isTitleCase = (w: string) => /^[A-Z][a-z]+$/.test(w);
+  return isTitleCase(a) && isTitleCase(b);
+}
+
+function hasCompanySuffixHint(text: string): boolean {
+  const tokens = text.split(/\s+/);
+  return COMPANY_SUFFIX_HINTS.some((hint) => tokens.includes(hint) || text.includes(hint));
+}
+
+function cleanCandidate(text: string): string {
+  const cleaned = text
+    .replace(/^[\s\-\–\—:|]+/, "")
+    .replace(/[\s\-\–\—:|,;.!]+$/, "")
+    .replace(/['']s$/i, "")
+    .trim();
+  return cleaned;
+}
+
+function uniqueKeepOrder(arr: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of arr) {
+    const key = x.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+function findVerbHit(lowerTitle: string): string | null {
+  const sorted = [...DEAL_VERBS].sort((a, b) => b.length - a.length);
+  for (const v of sorted) {
+    if (lowerTitle.includes(v)) return v;
+  }
+  return null;
+}
+
+function titlePrefixCompany(title: string): string | null {
+  // Capture starting TitleCase phrase (1-5 tokens), then trim down if it includes verb tokens
+  const m = title.match(/^(\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,4}\b)/);
+  if (!m) return null;
+  const cand = cleanCandidate(m[1]);
+  if (!cand) return null;
+  if (containsTitlecaseVerbToken(cand)) return null;
+  return cand;
+}
+
+/**
+ * Normalizer: "X Names PERSON As CEO/CFO/..." => return X as forced primary
+ */
+function parseNamesAsExec(titleRaw: string): { org: string | null } {
+  const title = normalizeQuotes(titleRaw);
+
+  const m = title.match(
+    /\bNames\b\s+[A-Z][a-z]+\s+[A-Z][a-z]+\s+\bAs\\b\\s+(?:CEO|CFO|CTO|COO|CMO|CIO|Chief\\b)/
+  );
+  if (!m) return { org: null };
+
+  const idx = title.indexOf(" Names ");
+  if (idx <= 0) return { org: null };
+
+  const prefix = title.slice(0, idx).trim();
+  const matches = prefix.match(
+    /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,3}\b/g
+  );
+  const org = matches?.length ? cleanCandidate(matches[matches.length - 1]) : null;
+  return { org: org || null };
+}
+
+/**
+ * Invests-in parsing with adjective skipping
+ */
+function parseInvestsIn(titleRaw: string): { subject: string | null; target: string | null } {
+  const title = normalizeQuotes(titleRaw);
+  const lower = title.toLowerCase();
+
+  if (!lower.includes("invest")) return { subject: null, target: null };
+
+  const investIdx = lower.indexOf("invest");
+  const subjectSpan = title.slice(0, investIdx).trim();
+  const subjMatches = subjectSpan.match(
+    /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,2}\b/g
+  );
+  const subject = subjMatches?.length ? cleanCandidate(subjMatches[subjMatches.length - 1]) : null;
+
+  const lastInIdx = lower.lastIndexOf(" in ");
+  if (lastInIdx < 0) return { subject, target: null };
+
+  const right = title.slice(lastInIdx + 4).trim();
+  const tcMatches = right.match(
+    /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,3}\b/g
+  );
+
+  let target: string | null = null;
+  if (tcMatches?.length) {
+    for (let i = tcMatches.length - 1; i >= 0; i--) {
+      const cand = cleanCandidate(tcMatches[i]);
+      const lowerCand = cand.toLowerCase();
+      if (!cand) continue;
+      if (GEO_STOPWORDS.has(lowerCand)) continue;
+      if (INVEST_TARGET_SKIP.has(lowerCand)) continue;
+      target = cand;
+      break;
+    }
+  }
+
+  return { subject: subject || null, target: target || null };
+}
+
+/**
+ * Two-party deal parsing: merges/partnership/jv/acquires
+ */
+function parseTwoPartyDeal(titleRaw: string): { a: string | null; b: string | null } {
+  const title = normalizeQuotes(titleRaw);
+
+  // Order matters: more specific phrases first
+  const patterns: Array<{ re: RegExp; mode: "with" | "after"; label: string }> = [
+    { re: /\bAnnounces\s+Strategic\s+Partnership\s+With\b/i, mode: "with", label: "announce_partnership_with" },
+    { re: /\bStrategic\s+Partnership\s+With\b/i, mode: "with", label: "partnership_with" },
+    { re: /\bForms?\s+Joint\s+Venture\s+With\b/i, mode: "with", label: "forms_jv_with" },
+    { re: /\bJoint\s+Venture\s+With\b/i, mode: "with", label: "jv_with" },
+
+    { re: /\bmerg(?:e|es|ed)\b/i, mode: "with", label: "merge" },
+    { re: /\bpartner(?:s|ed|ing)?\b/i, mode: "with", label: "partner" },
+
+    { re: /\bacquir(?:e|es|ed|ing)\b/i, mode: "after", label: "acquire" },
+    { re: /\bbuy(?:s|ing|bought)\b/i, mode: "after", label: "buy" },
+  ];
+
+  const hit = patterns.find((p) => p.re.test(title));
+  if (!hit) return { a: null, b: null };
+
+  const m = title.match(hit.re);
+  if (!m || m.index == null) return { a: null, b: null };
+
+  const verbIdx = m.index;
+  const verbText = m[0];
+
+  // Left side (A): take prefix BEFORE the verb phrase, then extract last TitleCase chunk
+  const left = title.slice(0, verbIdx).trim();
+  const leftMatches = left.match(
+    /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,3}\b/g
+  );
+  let a = leftMatches?.length ? cleanCandidate(leftMatches[leftMatches.length - 1]) : null;
+
+  // Right side (B)
+  const right = title.slice(verbIdx + verbText.length).trim();
+
+  let b: string | null = null;
+
+  if (hit.mode === "with") {
+    // We must find "with" explicitly (covers both "… Partnership With …" and "merges with …")
+    const parts = right.split(/\bwith\b/i).map((s) => s.trim()).filter(Boolean);
+    const afterWith = parts.length > 1 ? parts[1] : parts[0];
+
+    const rightMatches = afterWith?.match(
+      /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,3}\b/g
+    );
+    b = rightMatches?.length ? cleanCandidate(rightMatches[0]) : null;
+  } else {
+    // acquisitions: first TitleCase chunk right after verb
+    const rightMatches = right.match(
+      /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,3}\b/g
+    );
+    b = rightMatches?.length ? cleanCandidate(rightMatches[0]) : null;
+  }
+
+  // Final cleanup: never allow verbs to be embedded in A or B
+  if (a && (containsTitlecaseVerbToken(a) || containsLowercaseDealVerbToken(a))) a = null;
+  if (b && (containsTitlecaseVerbToken(b) || containsLowercaseDealVerbToken(b))) b = null;
+
+  return { a: a || null, b: b || null };
+}
+
+function generateCandidates(titleRaw: string): string[] {
+  const title = normalizeQuotes(titleRaw);
+  const lower = title.toLowerCase();
+  const candidates: string[] = [];
+
+  // Names-as-exec forced org early
+  const namesExec = parseNamesAsExec(title);
+  if (namesExec.org) candidates.push(namesExec.org);
+
+  // Two-party deals A,B early
+  const twoParty = parseTwoPartyDeal(title);
+  if (twoParty.a) candidates.push(twoParty.a);
+  if (twoParty.b) candidates.push(twoParty.b);
+
+  // Invests-in preference early
+  const inv = parseInvestsIn(title);
+  if (inv.target && inv.subject && INVEST_SUBJECT_DEPRIORITIZE.has(inv.subject)) {
+    candidates.push(inv.target);
+    candidates.push(inv.subject);
+  }
+
+  // Comma head
+  const commaHead = title.split(",")[0]?.trim();
+  if (commaHead && commaHead.length >= 2) candidates.push(commaHead);
+
+  // Before verb chunk
+  const verbHit = findVerbHit(lower);
+  if (verbHit) {
+    const idx = lower.indexOf(verbHit);
+    const left = title.slice(0, idx).trim();
+    const leftChunks = left.split(/[\-–—:|]/).map((s) => s.trim()).filter(Boolean);
+    const lastLeft = leftChunks[leftChunks.length - 1] || left;
+
+    const withSplit = lastLeft.split(/\bwith\b/i).map((s) => s.trim()).filter(Boolean);
+    for (const part of withSplit) candidates.push(part);
+
+    if (/\b(merge|merges|merged|partnership|joint venture|acquire|acquires|acquired|acquisition|buy|buys|bought)\b/i.test(verbHit)) {
+      const right = title.slice(idx + verbHit.length).trim();
+      const rightParts = right.split(/\bwith\b/i).map((s) => s.trim()).filter(Boolean);
+      if (rightParts[0]) candidates.push(rightParts[0]);
+    }
+  }
+
+  // TitleCase sequences (max 3 words to avoid long fragments)
+  const tcMatches = title.match(
+    /\b(?:[A-Z][a-z0-9]+|[A-Z]{2,})(?:\s+(?:[A-Z][a-z0-9]+|[A-Z]{2,})){0,2}\b/g
+  );
+  if (tcMatches) candidates.push(...tcMatches);
+
+  const uniqueCands = uniqueKeepOrder(candidates.map(cleanCandidate).filter(Boolean));
+
+  // Fallback: always add first token unless it's already there exactly
+  const firstToken = title.match(/^([A-Z][A-Za-z0-9]*)\b/);
+  if (firstToken?.[1]) {
+    const firstClean = cleanCandidate(firstToken[1]);
+    if (firstClean && !uniqueCands.includes(firstClean)) {
+      uniqueCands.push(firstClean);
+    }
+  }
+
+  return uniqueCands;
+}
+
+function scoreCandidate(candidate: string, titleRaw: string): { score: number; kind: EntityKind; reasons: string[] } {
+  const title = normalizeQuotes(titleRaw);
+  const reasons: string[] = [];
+  let delta = 0;
+
+  const isBrand = BRAND_DICTIONARY.has(candidate);
+
+  if (containsJobTitleTokens(candidate)) {
+    delta -= 0.7;
+    reasons.push("job_title_contamination");
+  }
+  // Brand can bypass person-name pattern (e.g., "General Catalyst", "Venture Highway")
+  if (looksLikePersonName(candidate) && !isBrand) {
+    delta -= 0.9;
+    reasons.push("person_name_pattern");
+  }
+  if (isQuoteFragment(candidate)) {
+    delta -= 0.8;
+    reasons.push("quote_fragment");
+  }
+  if (isStopFragment(candidate)) {
+    delta -= 0.8;
+    reasons.push("stop_fragment_or_geo");
+  }
+
+  if (isBrand) {
+    delta += 0.55;
+    reasons.push("brand_dictionary_hit");
+  }
+  if (hasCompanySuffixHint(candidate)) {
+    delta += 0.25;
+    reasons.push("company_suffix_hint");
+  }
+  if (titleHasDealContext(title)) {
+    delta += 0.15;
+    reasons.push("title_has_deal_context");
+  }
+  if (title.startsWith(candidate)) {
+    delta += 0.3;
+    reasons.push("title_prefix_match");
+  }
+
+  const namesExec = parseNamesAsExec(title);
+  if (namesExec.org && candidate === namesExec.org) {
+    delta += 0.35;
+    reasons.push("names_as_exec_org_forced");
+  }
+
+  const inv = parseInvestsIn(title);
+  if (inv.target && inv.subject && INVEST_SUBJECT_DEPRIORITIZE.has(inv.subject)) {
+    if (candidate === inv.target) {
+      delta += 0.22;
+      reasons.push("invests_in_target_preference");
+    }
+    if (candidate === inv.subject) {
+      delta -= 0.12;
+      reasons.push("invests_in_subject_deprioritized");
+    }
+  }
+
+  const tokCount = candidate.split(/\s+/).length;
+  if (tokCount > 4) {
+    delta -= 0.25;
+    reasons.push("too_many_tokens");
+  }
+
+  // Kind classification: brands are always companies, even if they look like person names
+  const kind: EntityKind = isBrand ? "company" : (looksLikePersonName(candidate) ? "person" : "company");
+  const normalized = Math.max(0, Math.min(1, 0.5 + delta));
+  return { score: normalized, kind, reasons };
+}
+
+/**
+ * Hard reject gate.
+ * Brand hits CAN bypass person-name patterns (since brands can look like names).
+ * Brand hits do NOT bypass job-title or quote contamination.
+ */
+function hardReject(candidateRaw: string): string | null {
+  const c = cleanCandidate(candidateRaw);
+  if (!c) return "empty";
+
+  const isBrand = BRAND_DICTIONARY.has(c);
+
+  // Never bypass - even for brands:
+  if (isQuoteFragment(c)) return "quote_fragment";
+  if (containsJobTitleTokens(c)) return "job_title_contamination";
+  
+  // Reject TitleCase candidates that include a verb token like "Announces", "Forms", "Acquires"
+  if (containsTitlecaseVerbToken(c)) return "titlecase_verb_token";
+  
+  // Reject candidates with embedded lowercase deal verbs
+  if (containsLowercaseDealVerbToken(c)) return "embedded_deal_verb";
+  
+  // Brand can bypass person-name pattern (e.g., "General Catalyst")
+  if (looksLikePersonName(c) && !isBrand) return "person_name_pattern";
+
+  // Stop/geo: brand can pass
+  if (isStopFragment(c)) return isBrand ? null : "stop_fragment_or_geo";
+
+  if (/\bAs\b/.test(c) && c.split(/\s+/).length <= 4) return "as_fragment";
+
+  if (/\b(as|was|were|is|are)\b/i.test(c) && c.split(/\s+/).length <= 3) return "copula_fragment";
+
+  const tokens = c.split(/\s+/);
+  const lowercaseCount = tokens.filter((t) => /^[a-z]/.test(t)).length;
+  if (tokens.length >= 2 && lowercaseCount >= 2) return "too_many_lowercase_tokens";
+
+  return null;
+}
+
+function pickBest(scored: ScoredCandidate[]): ScoredCandidate | null {
+  const sorted = [...scored].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.text.length - b.text.length;
+  });
+  return sorted[0] || null;
+}
+
+function pushUniqueEntity(
+  out: EntityExtractResult["entities"],
+  entity: string,
+  confidence: number,
+  kind: EntityKind,
+  reasons: string[]
+) {
+  const key = entity.toLowerCase();
+  if (out.some((e) => e.entity.toLowerCase() === key)) return;
+  out.push({ entity, confidence, kind, reasons });
+}
+
+export function extractEntitiesFromTitle(titleRaw: string, minConfidence = 0.6): EntityExtractResult {
+  const title = normalizeQuotes(titleRaw);
+
+  // Filter publisher grammar junk early (opinion/editorial patterns)
+  const isPublisherJunk = /^(How|Why|What|When|Where)\s+[A-Z]/i.test(titleRaw) ||
+    /^The\s+rise\s+of\b/i.test(titleRaw) ||
+    /^The\s+future\s+of\b/i.test(titleRaw) ||
+    /\bis\s+changing\s+/i.test(titleRaw) ||
+    /\bwhy\s+founders\b/i.test(titleRaw);
+  
+  if (isPublisherJunk) {
+    return {
+      entity: null,
+      primaryEntity: null,
+      confidence: 0,
+      kind: "unknown",
+      reasons: ["publisher_grammar_junk"],
+      entities: [],
+      candidates: [],
+      rejected: [{ text: titleRaw, reason: "publisher_grammar_junk" }],
+      frame: {
+        frameType: "UNKNOWN",
+        eventType: "FILTERED",
+        verbMatched: null,
+        slots: {},
+        meta: { confidence: 0, notes: ["publisher_junk_filtered"] },
+      },
+    };
+  }
+
+  // Jisst-lite frame-first parsing
+  const frame = parseFrameFromTitle(titleRaw);
+  const includeFrameDebug = true; // Set to false to disable frame parsing debug output (currently enabled for demos)
+
+  // Start entities array early for frame-first emission
+  const entities: EntityExtractResult["entities"] = [];
+
+  // Frame-first emission: if frame confident, emit slots as entities
+  const emitFromFrame = frame.meta.confidence >= 0.8;
+
+  if (emitFromFrame) {
+    const subj = frame.slots.subject ? cleanCandidate(frame.slots.subject) : null;
+    const obj = frame.slots.object ? cleanCandidate(frame.slots.object) : null;
+
+    // Frame-emitted entities: trust the frame parser completely
+    // Use a minimal score from scoreCandidate but force kind=company
+    if (subj) {
+      const s = scoreCandidate(subj, title);
+      // Accept any frame entity, boost score to min 0.6, force kind=company
+      const frameScore = Math.max(s.score, 0.6);
+      pushUniqueEntity(entities, subj, frameScore, "company", ["frame_subject", ...s.reasons]);
+    }
+
+    if (obj) {
+      const s = scoreCandidate(obj, title);
+      const frameScore = Math.max(s.score, 0.6);
+      pushUniqueEntity(entities, obj, frameScore, "company", ["frame_object", ...s.reasons]);
+    }
+  }
+
+  // Continue with existing candidate-based extraction as fallback/enrichment
+  // Skip if frame was confident and produced entities (Jisst-style: frame-first, fallback only if needed)
+  const skipCandidateGeneration = emitFromFrame && entities.length > 0;
+  
+  const candidatesRaw = skipCandidateGeneration ? [] : generateCandidates(title);
+  const rejected: EntityExtractResult["rejected"] = [];
+  const candidates: ScoredCandidate[] = [];
+
+  for (const cand of candidatesRaw) {
+    const rr = hardReject(cand);
+    if (rr) {
+      rejected.push({ text: cand, reason: rr });
+      continue;
+    }
+    const scored = scoreCandidate(cleanCandidate(cand), title);
+    candidates.push({ text: cleanCandidate(cand), score: scored.score, reasons: scored.reasons });
+  }
+
+  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+  const best = pickBest(sorted);
+
+  // entities array already initialized above for frame-first emission
+
+  const namesExec = parseNamesAsExec(title);
+  if (namesExec.org) {
+    const rr = hardReject(namesExec.org);
+    if (!rr) {
+      const s = scoreCandidate(namesExec.org, title);
+      if (s.score >= minConfidence && s.kind === "company") {
+        pushUniqueEntity(entities, namesExec.org, s.score, s.kind, ["names_as_exec_forced_primary", ...s.reasons]);
+      }
+    }
+  }
+
+  const twoParty = parseTwoPartyDeal(title);
+  if (twoParty.a || twoParty.b) {
+    for (const e of [twoParty.a, twoParty.b]) {
+      if (!e) continue;
+      const rr = hardReject(e);
+      if (rr) continue;
+      const s = scoreCandidate(e, title);
+      if (s.score >= minConfidence && s.kind === "company") {
+        pushUniqueEntity(entities, e, s.score, s.kind, ["two_party_deal_entity", ...s.reasons]);
+      }
+    }
+  }
+
+  const inv = parseInvestsIn(title);
+  if (inv.target && inv.subject && INVEST_SUBJECT_DEPRIORITIZE.has(inv.subject)) {
+    for (const e of [inv.target, inv.subject]) {
+      if (!e) continue;
+      const rr = hardReject(e);
+      if (rr) continue;
+      const s = scoreCandidate(e, title);
+      if (s.score >= minConfidence && s.kind === "company") {
+        pushUniqueEntity(
+          entities,
+          e,
+          s.score,
+          s.kind,
+          e === inv.target ? ["invests_in_target", ...s.reasons] : ["invests_in_subject", ...s.reasons]
+        );
+      }
+    }
+  }
+
+  if (entities.length === 0 && best && best.score >= minConfidence) {
+    pushUniqueEntity(entities, best.text, best.score, "company", ["emitted_best_candidate", ...best.reasons]);
+  }
+
+  // Secondary entities: stricter gate to avoid graph poisoning
+  for (const c of sorted.slice(0, 6)) {
+    if (entities.length >= 3) break;
+
+    const hasBrand = c.reasons.includes("brand_dictionary_hit");
+    const minSecondary = minConfidence + 0.08;
+
+    if (!hasBrand && c.score < minSecondary) continue;
+    if (c.text.split(/\s+/).length > 4) continue;
+    if (GEO_STOPWORDS.has(c.text.toLowerCase())) continue;
+    if (looksLikePersonName(c.text)) continue;
+
+    // Skip single-word candidates that are prefixes of existing multi-word entities
+    const tokens = c.text.split(/\s+/);
+    if (tokens.length === 1) {
+      const isPrefix = entities.some(e => e.entity.startsWith(c.text + " "));
+      if (isPrefix) continue;
+    }
+
+    // If Names-as-exec hit, only allow org + clearly-org secondaries
+    if (namesExec.org) {
+      const clearlyOrg = hasBrand || c.reasons.includes("company_suffix_hint");
+      if (!clearlyOrg) continue;
+    }
+
+    pushUniqueEntity(entities, c.text, c.score, "company", ["high_conf_secondary", ...c.reasons]);
+  }
+
+  // Primary selection with frame-aware logic
+  let primaryEntity: string | null = null;
+
+  // Frame-based primary: for DIRECTIONAL patterns prefer object, others prefer subject
+  if (emitFromFrame && entities.length > 0) {
+    if (frame.frameType === "DIRECTIONAL" && frame.verbMatched === "invest") {
+      // For investments, prefer the target company (object)
+      const obj = frame.slots.object ? cleanCandidate(frame.slots.object) : null;
+      if (obj) {
+        const found = entities.find((e) => e.entity.toLowerCase() === obj.toLowerCase());
+        if (found) primaryEntity = found.entity;
+      }
+    } else if (frame.frameType === "DIRECTIONAL") {
+      // For other DIRECTIONAL (acquire, buy), prefer the subject (acquirer)
+      const subj = frame.slots.subject ? cleanCandidate(frame.slots.subject) : null;
+      if (subj) {
+        const found = entities.find((e) => e.entity.toLowerCase() === subj.toLowerCase());
+        if (found) primaryEntity = found.entity;
+      }
+    } else if (frame.slots.subject) {
+      // For BIDIRECTIONAL, SELF_EVENT, EXEC_EVENT, use subject
+      const subj = cleanCandidate(frame.slots.subject);
+      if (subj) {
+        const found = entities.find((e) => e.entity.toLowerCase() === subj.toLowerCase());
+        if (found) primaryEntity = found.entity;
+      }
+    }
+  }
+
+  if (!primaryEntity && namesExec.org) {
+    const found = entities.find((e) => e.entity.toLowerCase() === namesExec.org!.toLowerCase());
+    if (found) primaryEntity = found.entity;
+  }
+
+  if (!primaryEntity && inv.target && inv.subject && INVEST_SUBJECT_DEPRIORITIZE.has(inv.subject)) {
+    const found = entities.find((e) => e.entity.toLowerCase() === inv.target!.toLowerCase());
+    if (found) primaryEntity = found.entity;
+  }
+
+  if (!primaryEntity && twoParty.a) {
+    const found = entities.find((e) => e.entity.toLowerCase() === twoParty.a!.toLowerCase());
+    if (found) primaryEntity = found.entity;
+  }
+
+  if (!primaryEntity && best && best.score >= minConfidence) primaryEntity = best.text;
+
+  const confidence = primaryEntity
+    ? entities.find((e) => e.entity.toLowerCase() === primaryEntity!.toLowerCase())?.confidence ?? best?.score ?? 0
+    : best?.score ?? 0;
+
+  if (!primaryEntity) {
+    return {
+      entity: null,
+      primaryEntity: null,
+      confidence,
+      kind: "unknown",
+      reasons: ["no_candidate_above_threshold"],
+      entities, // Use actual entities array, not hardcoded []
+      candidates: sorted,
+      rejected,
+      ...(includeFrameDebug ? { frame } : {}),
+    };
+  }
+
+  return {
+    entity: primaryEntity,
+    primaryEntity,
+    confidence,
+    kind: "company",
+    reasons: ["emitted_primary_entity"],
+    entities,
+    candidates: sorted,
+    rejected,
+    ...(includeFrameDebug ? { frame } : {}),
+  };
+}
+
+export function extractEntityFromTitle(titleRaw: string, minConfidence = 0.6) {
+  return extractEntitiesFromTitle(titleRaw, minConfidence);
+}

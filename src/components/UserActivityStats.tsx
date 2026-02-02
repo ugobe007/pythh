@@ -4,8 +4,7 @@ import startupData from '../data/startupData';
 
 interface UserVoteActivity {
   user_name: string;
-  startup_id: string;
-  vote_type: 'yes' | 'no';
+  vote: 'yes' | 'no';
   created_at: string;
   metadata: any;
 }
@@ -104,7 +103,7 @@ const UserActivityStats: React.FC = () => {
           
           <div className="space-y-3">
             {recentVotes.map((vote, index) => {
-              const startupName = vote.metadata?.startupName || getStartupName(vote.startup_id);
+              const startupName = vote.metadata?.startupName || 'Unknown Startup';
               
               return (
                 <div 
@@ -113,14 +112,14 @@ const UserActivityStats: React.FC = () => {
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xl">
-                      {vote.vote_type === 'yes' ? '👍' : '👎'}
+                      {vote.vote === 'yes' ? '👍' : '👎'}
                     </span>
                     <div>
                       <div className="text-white text-sm">
                         <span className="font-semibold text-purple-300">{vote.user_name}</span>
                         {' '}voted{' '}
-                        <span className={`font-bold ${vote.vote_type === 'yes' ? 'text-green-400' : 'text-red-400'}`}>
-                          {vote.vote_type.toUpperCase()}
+                        <span className={`font-bold ${vote.vote === 'yes' ? 'text-green-400' : 'text-red-400'}`}>
+                          {vote.vote.toUpperCase()}
                         </span>
                         {' '}on{' '}
                         <span className="font-medium">{startupName}</span>

@@ -1,8 +1,12 @@
 /**
- * MATCH CARD COMPONENT
- * ====================
+ * MATCH CARD COMPONENT (LIFEFORM)
+ * ================================
  * Beautiful card showing startup-investor match
  * Color scheme: Light blue to violet (NO rose/pink/fuchsia)
+ * 
+ * Lifeform additions:
+ * - Freshness decay words (strong now · cooling · stale)
+ * - Social proof hints (Most founders monitor before engaging)
  */
 
 import React, { useState } from 'react';
@@ -45,7 +49,26 @@ interface MatchCardProps {
   showBreakdown?: boolean;
   compact?: boolean;
   isPaid?: boolean; // Hide match advice/guidance for free users
+  lastActive?: string; // ISO timestamp for freshness calculation (Lifeform)
+  viewCount?: number; // For social proof hints (Lifeform)
 }
+
+// LIFEFORM: Calculate freshness decay
+const getFreshnessState = (lastActive?: string): { label: string; class: string } => {
+  if (!lastActive) return { label: 'strong now', class: 'text-emerald-400' };
+  const hours = (Date.now() - new Date(lastActive).getTime()) / (1000 * 60 * 60);
+  if (hours < 24) return { label: 'strong now', class: 'text-emerald-400' };
+  if (hours < 72) return { label: 'cooling', class: 'text-amber-400' };
+  return { label: 'stale', class: 'text-zinc-500' };
+};
+
+// LIFEFORM: Social proof hint
+const getSocialProofHint = (viewCount?: number): string | null => {
+  if (!viewCount || viewCount < 5) return null;
+  if (viewCount >= 50) return 'Frequently reviewed';
+  if (viewCount >= 20) return 'Most founders monitor before engaging';
+  return 'Others are watching this match';
+};
 
 export default function MatchCard({ 
   match, 
@@ -57,11 +80,17 @@ export default function MatchCard({
   isSaved = false,
   showBreakdown = false,
   compact = false,
-  isPaid = false
+  isPaid = false,
+  lastActive,
+  viewCount
 }: MatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(showBreakdown);
   const [saved, setSaved] = useState(isSaved);
   const { investor, score, reasons, breakdown, investorType, decisionSpeed } = match;
+
+  // LIFEFORM: Get freshness state and social proof
+  const freshness = getFreshnessState(lastActive);
+  const socialHint = getSocialProofHint(viewCount);
 
   // Score color based on value - BLUE TO VIOLET ONLY
   const getScoreColor = (s: number) => {
@@ -115,8 +144,12 @@ export default function MatchCard({
               <p className="text-sm text-slate-400">{investor.firm || investorType}</p>
             </div>
           </div>
-          <div className={`px-3 py-1 rounded-full font-bold text-lg bg-gradient-to-r ${getScoreColor(score)} text-white`}>
-            {score}%
+          <div className="flex items-center gap-3">
+            {/* LIFEFORM: Compact freshness indicator */}
+            <span className={`text-xs ${freshness.class}`}>{freshness.label}</span>
+            <div className={`px-3 py-1 rounded-full font-bold text-lg bg-gradient-to-r ${getScoreColor(score)} text-white`}>
+              {score}%
+            </div>
           </div>
         </div>
       </div>
@@ -164,6 +197,18 @@ export default function MatchCard({
             </div>
             <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-blue-400" />
           </div>
+        </div>
+        
+        {/* LIFEFORM: Freshness + Social Proof Strip */}
+        <div className="flex items-center justify-between text-xs mt-3 pt-3 border-t border-slate-700/50">
+          <span className={freshness.class}>
+            {freshness.label}
+          </span>
+          {socialHint && (
+            <span className="text-zinc-500 italic">
+              {socialHint}
+            </span>
+          )}
         </div>
       </div>
 

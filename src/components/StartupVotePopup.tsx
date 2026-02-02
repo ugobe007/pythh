@@ -24,10 +24,17 @@ export default function StartupVotePopup({ isOpen, onClose, startup }: StartupVo
     
     try {
       // Insert vote into database
+      const userId = localStorage.getItem('anon_user_id') || crypto.randomUUID();
+      if (!localStorage.getItem('anon_user_id')) {
+        localStorage.setItem('anon_user_id', userId);
+      }
+      
       const { error } = await (supabase.from as any)('votes')
         .insert({
-          startup_id: String(startup.id),
-          vote_type: vote,
+          user_id: userId,
+          vote: vote,
+          weight: 1.0,
+          metadata: { startup_local_id: String(startup.id) },
           created_at: new Date().toISOString()
         });
 

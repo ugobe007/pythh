@@ -1,0 +1,35 @@
+[
+  {
+    "id": "429a174d-d86f-4fb6-b8be-95ee49c4cadf",
+    "name": "Google",
+    "firm": "Google",
+    "reasons": [
+      "Tech giant exact match: \"Google\""
+    ]
+  },
+  {
+    "id": "8656952f-b0a9-4580-b2a3-b791bab0ab33",
+    "name": "are built by (Matrixpartners)",
+    "firm": "are built by (Matrixpartners)",
+    "reasons": [
+      "News pattern: \"by \"",
+      "News pattern: \"by \""
+    ]
+  },
+  {
+    "id": "744e9f1a-9698-48df-a03b-a655a358e2c8",
+    "name": "with engineering driven (Boldstart)",
+    "firm": "with engineering driven (Boldstart)",
+    "reasons": [
+      "Starts with article/preposition"
+    ]
+  },
+  {
+    "id": "268c2298-e043-40f3-baf2-bfe29fd40e16",
+    "name": "Nvidia",
+    "firm": "Nvidia",
+    "reasons": [
+      "Tech giant exact match: \"Nvidia\""
+    ]
+  }
+]

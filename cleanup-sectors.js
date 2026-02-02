@@ -18,7 +18,9 @@ const SECTOR_RULES = [
   { keywords: ['edtech', 'education', 'learning', 'school', 'student'], sector: 'EdTech' },
   { keywords: ['proptech', 'real estate', 'property', 'home'], sector: 'PropTech' },
   { keywords: ['crypto', 'blockchain', 'web3', 'defi', 'token'], sector: 'Crypto' },
-  { keywords: ['game', 'gaming', 'esport'], sector: 'Gaming' },
+  // FIXED: 'game' alone is too broad (matches "game-changing", "game plan", etc.)
+  // Use specific gaming keywords only
+  { keywords: ['gaming company', 'game studio', 'game developer', 'video game', 'esports', 'game platform', 'game engine'], sector: 'Gaming' },
 ];
 
 // Garbage patterns - these are not real startups

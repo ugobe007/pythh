@@ -42,15 +42,9 @@ export default function DatabaseDiagnostic() {
         console.error('❌ Startups error:', startupsError);
       }
 
-      // 2. Count votes
-      const { count: votesCount, error: votesError } = await supabase
-        .from('votes')
-        .select('*', { count: 'exact', head: true });
-
-      if (votesError) {
-        errors.push(`Votes fetch error: ${votesError.message}`);
-        console.error('❌ Votes error:', votesError);
-      }
+      // 2. Count votes (from localStorage, Supabase votes table not available)
+      const localVotes = localStorage.getItem('user_votes');
+      const votesCount = localVotes ? JSON.parse(localVotes).length : 0;
 
       // 3. Analyze data quality
       const missingPitch = startups?.filter(s => !s.pitch || s.pitch.trim() === '').length || 0;

@@ -10,6 +10,10 @@ const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer
 
 class ConvergenceServiceV2 {
   
+  constructor() {
+    this.supabase = supabase;
+  }
+  
   /**
    * Step 1: Resolve startup by URL (canonical lookup)
    */
@@ -35,6 +39,21 @@ class ConvergenceServiceV2 {
     
     console.log('[Convergence V2] No startup found for URL:', url);
     return null;
+  }
+  
+  /**
+   * Fast mode helper: Get status for a startup ID
+   */
+  async getStatusForStartup(startupId) {
+    const { data: startup } = await supabase
+      .from('startup_uploads')
+      .select('*')
+      .eq('id', startupId)
+      .single();
+    
+    if (!startup) return null;
+    
+    return await this.buildStatusMetrics(startup);
   }
   
   /**

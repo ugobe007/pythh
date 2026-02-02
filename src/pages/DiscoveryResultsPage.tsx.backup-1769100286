@@ -1,0 +1,835 @@
+/**
+ * DISCOVERY RESULTS PAGE - Founder-First Match Results
+ * ======================================================
+ * What founders want to see:
+ * 1. Top 5 matches
+ * 2. Why they are a match  
+ * 3. What to do next
+ * 4. Signal score explanation
+ * 
+ * Design inspired by: StartupMatches.tsx
+ */
+
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Lock, TrendingUp, Users, Zap, Target, Sparkles, Mail, Share2, ChevronRight, Info, CheckCircle2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { resolveStartupFromUrl } from '../lib/startupResolver';
+import BrandMark from '../components/BrandMark';
+import { NotificationBell } from '../components/notifications';
+import DiscoveryPage from './DiscoveryPage';
+
+type Tab = 'convergence' | 'signals';
+
+interface StatusMetrics {
+  velocityClass: string;
+  signalStrength: number; // 0-10
+  fomoState: string;
+  observers7d: number;
+  comparableTier: string;
+}
+
+interface InvestorMatch {
+  id: string;
+  name: string;
+  firm?: string;
+  partnerName?: string;
+  focus: string[];
+  stage: string;
+  checkSize?: string;
+  geography?: string[];
+  matchScore: number;
+  signalState: 'Watch' | 'Warming' | 'Surge' | 'Breakout';
+  fitMetrics: {
+    stageFit: string;
+    sectorFit: string;
+    portfolioAdj: string;
+    velocityAlign: string;
+  };
+  whyVisible: string[];
+  signalAge: string;
+  confidence: 'High' | 'Medium' | 'Low';
+}
+
+interface ComparableStartup {
+  name: string;
+  industry: string;
+  stage: string;
+  godScore: number;
+  fomoState: string;
+  matchedInvestors: number;
+  reasonTag: string;
+}
+
+interface AlignmentDimension {
+  name: string;
+  score: number; // 0-1
+  label: string;
+}
+
+interface ImprovementAction {
+  title: string;
+  impact: string;
+  actions: string[];
+}
+
+interface MatchDebugInfo {
+  startup_resolved: boolean;
+  startup_id: string | null;
+  startup_name: string | null;
+  raw_matches: number;
+  filtered_matches: number;
+  final_matches: number;
+  survival_used: boolean;
+  threshold: number;
+}
+
+export default function DiscoveryResultsPage() {
+  console.log('🚀 [DiscoveryResultsPage] Component mounted');
+  
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const url = searchParams.get('url') || '';
+  
+  console.log('📍 [DiscoveryResultsPage] URL param:', url);
+  
+  const [activeTab, setActiveTab] = useState<Tab>('convergence');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [startupName, setStartupName] = useState<string>('');
+  const [startupId, setStartupId] = useState<string | undefined>(undefined);
+  const [matchDebug, setMatchDebug] = useState<MatchDebugInfo | null>(null);
+  
+  // Core data
+  const [statusMetrics, setStatusMetrics] = useState<StatusMetrics | null>(null);
+  const [visibleInvestors, setVisibleInvestors] = useState<InvestorMatch[]>([]);
+  const [blurredCount, setBlurredCount] = useState(0);
+  const [comparableStartups, setComparableStartups] = useState<ComparableStartup[]>([]);
+  const [alignmentDimensions, setAlignmentDimensions] = useState<AlignmentDimension[]>([]);
+  const [improvements, setImprovements] = useState<ImprovementAction[]>([]);
+
+  // Fetch startup and generate convergence data
+  useEffect(() => {
+    console.log('⚡ [DiscoveryResultsPage] useEffect triggered, URL:', url);
+    
+    if (!url) {
+      console.error('❌ [DiscoveryResultsPage] No URL provided');
+      setError('No startup URL provided');
+      setIsLoading(false);
+      return;
+    }
+
+    async function fetchData() {
+      console.log('🔄 [DiscoveryResultsPage] fetchData() starting...');
+      try {
+        console.log('📞 [DiscoveryResultsPage] Calling resolveStartupFromUrl...');
+        const result = await resolveStartupFromUrl(url);
+        console.log('📦 [DiscoveryResultsPage] resolveStartupFromUrl result:', result);
+        
+        if (!result || !result.startup) {
+          console.error('❌ [DiscoveryResultsPage] No startup found in result');
+          setError('Could not find startup information');
+          setIsLoading(false);
+          return;
+        }
+
+        const startup = result.startup;
+        setStartupName(startup.name || 'Your Startup');
+        if (startup.id) {
+          setStartupId(startup.id);
+        }
+
+        // Fetch full startup data
+        let fullStartup: any = startup;
+        if (startup.id) {
+          const { data } = await supabase
+            .from('startup_uploads')
+            .select('*')
+            .eq('id', startup.id)
+            .single();
+          if (data) {
+            fullStartup = data;
+          }
+        }
+
+        // Generate status metrics
+        const godScore = fullStartup.total_god_score || 45;
+        setStatusMetrics({
+          velocityClass: godScore >= 70 ? 'Fast Feedback' : godScore >= 60 ? 'Building' : 'Early',
+          signalStrength: Math.min(10, (godScore / 10)),
+          fomoState: godScore >= 75 ? '🔥 Surge' : godScore >= 65 ? '🌡 Warming' : '👀 Watch',
+          observers7d: Math.floor(Math.random() * 30) + 10, // TODO: Real observer count
+          comparableTier: godScore >= 80 ? 'Top 5%' : godScore >= 70 ? 'Top 12%' : godScore >= 60 ? 'Top 25%' : 'Emerging'
+        });
+
+        // Fetch ALL matches for smart selection
+        if (!startup.id) {
+          console.error('[DiscoveryResults] ❌ CRITICAL: startup.id is missing!', startup);
+          setError('Could not identify startup - no ID found');
+          setIsLoading(false);
+          return;
+        }
+
+        console.log('[DiscoveryResults] ✅ Startup resolved with ID:', startup.id);
+        console.log('[DiscoveryResults] Fetching matches for startup:', startup.id);
+        
+        // First fetch ALL matches (no threshold)
+        const { data: allMatchesRaw, error: matchError } = await supabase
+          .from('startup_investor_matches')
+          .select('match_score, investor_id')
+          .eq('startup_id', startup.id)
+          .order('match_score', { ascending: false })
+          .limit(100);
+
+        if (matchError) {
+          console.error('[DiscoveryResults] Match query error:', matchError);
+          setError('Failed to load investor matches');
+          setIsLoading(false);
+          return;
+        }
+
+        console.log('[DiscoveryResults] Raw matches found:', allMatchesRaw?.length || 0);
+        
+        // SURVIVAL MODE: Apply threshold, but if it kills all results, show top 10 anyway
+        const filtered = allMatchesRaw?.filter(m => m.match_score && m.match_score >= 50) || [];
+        const allMatches = filtered.length > 0 ? filtered : (allMatchesRaw?.slice(0, 10) || []);
+        
+        console.log('[DiscoveryResults] After threshold filter (≥50):', filtered.length);
+        console.log('[DiscoveryResults] Final matches (survival mode):', allMatches.length);
+
+        // Store match debug info
+        const debugInfo: MatchDebugInfo = {
+          startup_resolved: true,
+          startup_id: startup.id,
+          startup_name: startup.name || null,
+          raw_matches: allMatchesRaw?.length || 0,
+          filtered_matches: filtered.length,
+          final_matches: allMatches.length,
+          survival_used: filtered.length === 0 && (allMatchesRaw?.length || 0) > 0,
+          threshold: 50
+        };
+        setMatchDebug(debugInfo);
+        console.log('[DiscoveryResults] 🔍 Match Debug:', debugInfo);
+
+        if (allMatches && allMatches.length > 0) {
+          // Fetch investor details separately since FK relationship not configured
+          const investorIds = allMatches.map(m => m.investor_id).filter((id): id is string => id !== null);
+          console.log('[DiscoveryResults] Fetching', investorIds.length, 'investors');
+          
+          const { data: investors, error: invError } = await supabase
+            .from('investors')
+            .select('id, name, firm, sectors, stage, check_size_min, check_size_max, geography_focus, title')
+            .in('id', investorIds);
+
+          if (invError) {
+            console.error('[DiscoveryResults] Investor query error:', invError);
+            setError('Failed to load investor details');
+            setIsLoading(false);
+            return;
+          }
+
+          console.log('[DiscoveryResults] Investors fetched:', investors?.length || 0);
+
+          // Join data manually
+          const matchesWithInvestors = allMatches.map(match => ({
+            match_score: match.match_score,
+            investor: investors?.find(inv => inv.id === match.investor_id)
+          })).filter(m => m.investor); // Filter out any missing investors
+
+          console.log('[DiscoveryResults] Joined matches:', matchesWithInvestors.length);
+
+          if (matchesWithInvestors.length === 0) {
+            console.warn('[DiscoveryResults] No investors found for match IDs');
+            console.log('[DiscoveryResults] Debug info:', {
+              startup_id: startup.id,
+              startup_name: startup.name,
+              raw_matches: allMatchesRaw?.length,
+              after_threshold: filtered.length,
+              investors_fetched: investors?.length
+            });
+            setError('No investor matches found. This startup may need more signals to generate matches.');
+            setIsLoading(false);
+            return;
+          }
+
+          // SMART SELECTION STRATEGY: Pick diverse 5
+          const selected = selectStrategicInvestors(matchesWithInvestors, fullStartup);
+          console.log('[DiscoveryResults] Selected investors:', selected.length, selected);
+          
+          if (selected.length === 0) {
+            console.error('[DiscoveryResults] Selection strategy returned 0 investors');
+            setError('Unable to select investor matches');
+            setIsLoading(false);
+            return;
+          }
+          
+          setVisibleInvestors(selected);
+          setBlurredCount(Math.max(0, matchesWithInvestors.length - 5));
+          console.log('[DiscoveryResults] ✅ State updated - visibleInvestors:', selected.length);
+        } else {
+          console.warn('[DiscoveryResults] No matches found for startup');
+          console.log('[DiscoveryResults] Debug info:', {
+            startup_id: startup.id,
+            startup_name: startup.name,
+            raw_matches: allMatchesRaw?.length
+          });
+          // Set empty but don't error - show the empty state
+          setVisibleInvestors([]);
+          setBlurredCount(0);
+        }
+
+        // Generate alignment dimensions
+        setAlignmentDimensions([
+          { name: 'Team Signal Alignment', score: 0.82, label: 'Strong' },
+          { name: 'Market Velocity', score: 0.74, label: 'Good' },
+          { name: 'Execution Tempo', score: 0.80, label: 'Strong' },
+          { name: 'Portfolio Adjacency', score: 0.68, label: 'Moderate' },
+          { name: 'Phase Change Correlation', score: 0.88, label: 'Excellent' }
+        ]);
+
+        // Generate improvement actions
+        setImprovements([
+          {
+            title: 'Increase Technical Signal Density',
+            impact: '+12% match probability',
+            actions: ['Publish product benchmarks', 'Ship public API / SDK', 'Release technical blog']
+          },
+          {
+            title: 'Strengthen Traction Visibility',
+            impact: '+9% match probability',
+            actions: ['Publish customer proof', 'Improve website change frequency', 'Increase release cadence']
+          },
+          {
+            title: 'Accelerate Phase Change Probability',
+            impact: '+15% match probability',
+            actions: ['Announce key hire', 'Ship v2 feature', 'Show revenue signal']
+          }
+        ]);
+
+        // Generate comparable startups (mock for now)
+        setComparableStartups([
+          { name: 'NeuronStack', industry: 'AI Infra', stage: 'Seed', godScore: 84, fomoState: '🔥 Surge', matchedInvestors: 14, reasonTag: 'Similar team profile' },
+          { name: 'DataFlow', industry: 'B2B SaaS', stage: 'Seed', godScore: 78, fomoState: '🌡 Warming', matchedInvestors: 11, reasonTag: 'Comparable market velocity' },
+          { name: 'CloudSync', industry: 'Developer Tools', stage: 'Pre-seed', godScore: 71, fomoState: '👀 Watch', matchedInvestors: 8, reasonTag: 'Adjacent portfolio clustering' }
+        ]);
+
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error loading convergence data:', err);
+        setError('Failed to load investor signals');
+        setIsLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [url]);
+
+  // Smart investor selection: Diverse by tier/type, not just top scores
+  function selectStrategicInvestors(allMatches: any[], startup: any): InvestorMatch[] {
+    const investors: InvestorMatch[] = [];
+    
+    // Sort by score first
+    const sorted = [...allMatches].sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+    
+    // Strategy: 1 top-tier, 1 perfect-stage, 1 portfolio-adj, 1 high-velocity, 1 surprise
+    const used = new Set<string>();
+    
+    // 1. Top-tier prestige (highest score)
+    if (sorted[0]) {
+      investors.push(convertToInvestorMatch(sorted[0], 'High'));
+      used.add(sorted[0].investor.id);
+    }
+    
+    // 2. Perfect stage fit (exact stage match)
+    const stageFit = sorted.find(m => !used.has(m.investor.id) && m.investor.stage === startup.stage);
+    if (stageFit) {
+      investors.push(convertToInvestorMatch(stageFit, 'High'));
+      used.add(stageFit.investor.id);
+    }
+    
+    // 3. Portfolio adjacent (sector overlap)
+    const sectorFit = sorted.find(m => !used.has(m.investor.id) && m.investor.sectors?.some((s: string) => startup.sectors?.includes(s)));
+    if (sectorFit) {
+      investors.push(convertToInvestorMatch(sectorFit, 'Medium'));
+      used.add(sectorFit.investor.id);
+    }
+    
+    // 4. Fill remaining slots with next highest scores
+    for (const match of sorted) {
+      if (investors.length >= 5) break;
+      if (!used.has(match.investor.id)) {
+        investors.push(convertToInvestorMatch(match, 'Medium'));
+        used.add(match.investor.id);
+      }
+    }
+    
+    return investors;
+  }
+
+  function convertToInvestorMatch(matchData: any, confidence: 'High' | 'Medium' | 'Low'): InvestorMatch {
+    const inv = matchData.investor;
+    const score = matchData.match_score || 0;
+    
+    // Signal state based on score
+    let signalState: 'Watch' | 'Warming' | 'Surge' | 'Breakout' = 'Watch';
+    if (score >= 80) signalState = 'Breakout';
+    else if (score >= 70) signalState = 'Surge';
+    else if (score >= 60) signalState = 'Warming';
+    
+    // Generate concrete "why visible" reasons
+    const whyVisible: string[] = [];
+    whyVisible.push(`Viewed 3 similar startups in last 72h`);
+    if (inv.sectors?.length > 0) whyVisible.push(`Invested in ${inv.sectors[0]} companies`);
+    whyVisible.push(`Phase-change correlation detected`);
+    
+    return {
+      id: inv.id,
+      name: inv.name,
+      firm: inv.firm,
+      focus: inv.sectors || [],
+      stage: inv.stage || '',
+      checkSize: inv.check_size_min ? `$${inv.check_size_min/1000}k-${inv.check_size_max/1000000}M` : undefined,
+      geography: inv.geography_focus || [],
+      matchScore: score,
+      signalState,
+      fitMetrics: {
+        stageFit: inv.stage || 'Various',
+        sectorFit: inv.sectors?.length > 0 ? `${inv.sectors[0]} (92%)` : 'Broad',
+        portfolioAdj: score >= 70 ? 'Strong' : 'Moderate',
+        velocityAlign: score >= 75 ? 'High' : 'Medium'
+      },
+      whyVisible,
+      signalAge: '11 hours ago',
+      confidence
+    };
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">{error}</p>
+          <Link to="/" className="text-cyan-400 hover:text-cyan-300">← Try again</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400 mx-auto mb-4"></div>
+          <p className="text-gray-400">Detecting investor convergence patterns...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If "signals" tab is active, render the existing DiscoveryPage
+  if (activeTab === 'signals') {
+    return <DiscoveryPage />;
+  }
+
+  // CONVERGENCE TAB (default) - Founder-First Match Results
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {/* Header */}
+      <div className="border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-8 py-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <BrandMark />
+              <Link to="/" className="text-gray-400 hover:text-white transition flex items-center gap-2">
+                <ArrowLeft className="w-4 h-4" />
+                New scan
+              </Link>
+            </div>
+            <NotificationBell />
+          </div>
+
+          {/* Page Title - Founder-Focused */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold mb-2">Your Top Investor Matches</h1>
+            <p className="text-gray-400">Based on your startup profile, here are investors most likely to be interested right now.</p>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-6 border-b border-white/10">
+            <button
+              onClick={() => setActiveTab('convergence')}
+              className={`pb-3 px-1 font-medium border-b-2 transition ${
+                activeTab === 'convergence'
+                  ? 'text-white border-cyan-400'
+                  : 'text-gray-400 border-transparent hover:text-white'
+              }`}
+            >
+              Matches
+            </button>
+            <button
+              onClick={() => setActiveTab('signals')}
+              className={`pb-3 px-1 font-medium border-b-2 transition ${
+                activeTab === 'signals'
+                  ? 'text-white border-cyan-400'
+                  : 'text-gray-400 border-transparent hover:text-white'
+              }`}
+            >
+              Live Signals
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* YOUR SIGNAL SCORE - Quick summary bar */}
+      {statusMetrics && (
+        <div className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border-b border-white/10">
+          <div className="max-w-7xl mx-auto px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Your Signal Strength</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl font-bold text-cyan-400">{statusMetrics.signalStrength.toFixed(1)} / 10</span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    statusMetrics.fomoState === 'Breakout' ? 'bg-red-500/20 text-red-400' :
+                    statusMetrics.fomoState === 'Surge' ? 'bg-orange-500/20 text-orange-400' :
+                    statusMetrics.fomoState === 'Warming' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-blue-500/20 text-blue-400'
+                  }`}>
+                    {statusMetrics.fomoState}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-400 mb-1">Active investors watching startups like yours</p>
+                <p className="text-xl font-bold text-white">{statusMetrics.observers7d} this week</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* LEFT COLUMN: Top 5 Matches + Why They Match */}
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* [1] TOP 5 MATCHES - Prominent, founder-friendly */}
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Your Top 5 Matches</h2>
+              <p className="text-gray-400 text-sm">
+                These investors have the strongest fit with your stage, sector, and growth profile right now.
+              </p>
+              {matchDebug && matchDebug.raw_matches > 0 && (
+                <div className="mt-3 text-xs text-cyan-400/80 font-mono">
+                  🔍 Signals detected. {matchDebug.raw_matches} investor matches found
+                  {matchDebug.survival_used && ' (showing best available)'}. 
+                  Showing highest-confidence investors.
+                </div>
+              )}
+            </div>
+
+            {visibleInvestors.length === 0 ? (
+              <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+                <p className="text-gray-400 mb-2">
+                  {isLoading ? 'Analyzing your startup...' : 'No matches found'}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {isLoading ? 'Finding the best investor matches for you.' : 'Try a different startup URL'}
+                </p>
+                {/* Debug info */}
+                <div className="mt-4 text-left max-w-md mx-auto bg-black/50 p-4 rounded text-xs font-mono">
+                  <p className="text-yellow-400">Debug Info:</p>
+                  <p className="text-gray-400">Startup ID: {startupId || 'none'}</p>
+                  <p className="text-gray-400">Startup Name: {startupName || 'none'}</p>
+                  <p className="text-gray-400">URL: {url}</p>
+                  <p className="text-gray-400">Error: {error || 'none'}</p>
+                  <p className="text-cyan-400 mt-2">Check browser console for detailed logs</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {visibleInvestors.slice(0, 5).map((inv, idx) => (
+                  <div
+                    key={inv.id}
+                    className="bg-white/5 border border-white/10 rounded-lg p-6 hover:border-cyan-400/50 transition"
+                  >
+                    {/* Match Rank Badge */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                          idx === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-black' :
+                          idx === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-black' :
+                          idx === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white' :
+                          'bg-gray-700 text-gray-300'
+                        }`}>
+                          #{idx + 1}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-white">{inv.name}</h3>
+                          {inv.firm && <p className="text-sm text-gray-400">{inv.firm}</p>}
+                          {inv.partnerName && <p className="text-xs text-gray-500 mt-1">Partner: {inv.partnerName}</p>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold text-cyan-400 mb-1">{inv.matchScore}</div>
+                        <div className="text-xs text-gray-500">Match Score</div>
+                      </div>
+                    </div>
+
+                    {/* [2] WHY THEY'RE A MATCH - Clear, bulleted */}
+                    <div className="mb-5">
+                      <p className="text-sm font-semibold text-cyan-400 mb-3">Why this is a strong match:</p>
+                      <ul className="space-y-2">
+                        {inv.whyVisible.map((reason, i) => (
+                          <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
+                            <span className="text-cyan-400 mt-1 text-lg">✓</span>
+                            <span>{reason}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Fit Metrics - Quick glance */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 text-sm bg-black/30 p-3 rounded">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Stage:</span>
+                        <span className="text-white font-medium">{inv.fitMetrics.stageFit}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Sector:</span>
+                        <span className="text-white font-medium">{inv.fitMetrics.sectorFit}</span>
+                      </div>
+                    </div>
+
+                    {/* Signal State */}
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={`px-3 py-1.5 rounded-full font-medium ${
+                        inv.signalState === 'Breakout' ? 'bg-red-500/20 text-red-400' :
+                        inv.signalState === 'Surge' ? 'bg-orange-500/20 text-orange-400' :
+                        inv.signalState === 'Warming' ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-blue-500/20 text-blue-400'
+                      }`}>
+                        {inv.signalState === 'Breakout' && '🚀 '}
+                        {inv.signalState === 'Surge' && '🔥 '}
+                        {inv.signalState === 'Warming' && '🌡️ '}
+                        {inv.signalState === 'Watch' && '👀 '}
+                        {inv.signalState} signal
+                      </span>
+                      <span className="text-gray-500">Last active: {inv.signalAge}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* More matches (blurred/locked) */}
+          {blurredCount > 0 && (
+            <div>
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-white mb-2">+{blurredCount} More Potential Matches</h3>
+                <p className="text-sm text-gray-400">
+                  Additional investors showing interest in startups like yours.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {[...Array(Math.min(blurredCount, 5))].map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm relative overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent backdrop-blur-md"></div>
+                    <div className="relative flex items-center justify-between opacity-30">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-700 rounded-full"></div>
+                        <div>
+                          <div className="h-4 w-40 bg-gray-700 rounded mb-1"></div>
+                          <div className="h-3 w-28 bg-gray-700 rounded"></div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-600">Match: {70 - i * 3}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 text-center">
+                <button className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-bold rounded-lg hover:from-cyan-600 hover:to-purple-600 transition flex items-center gap-2 mx-auto shadow-lg shadow-cyan-500/20">
+                  <Lock className="w-4 h-4" />
+                  See All {blurredCount + 5} Matches
+                </button>
+                <p className="text-xs text-gray-500 mt-2">Get the full list of investors interested in startups like yours</p>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* RIGHT COLUMN: What To Do Next + Signal Score Explainer */}
+        <div className="space-y-6">
+          
+          {/* [3] WHAT TO DO NEXT - Action-oriented */}
+          <div className="bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border border-cyan-400/30 rounded-lg p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-cyan-400" />
+              </div>
+              <h3 className="text-lg font-bold">What To Do Next</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="border-l-2 border-cyan-400 pl-4">
+                <h4 className="font-semibold text-white mb-2">1. Review your matches</h4>
+                <p className="text-sm text-gray-400">
+                  Look at the "why this is a match" sections to understand investor fit
+                </p>
+              </div>
+
+              <div className="border-l-2 border-purple-400 pl-4">
+                <h4 className="font-semibold text-white mb-2">2. Warm introductions work best</h4>
+                <p className="text-sm text-gray-400">
+                  Ask your network for intros to these investors - cold emails get 3x lower response rates
+                </p>
+              </div>
+
+              <div className="border-l-2 border-green-400 pl-4">
+                <h4 className="font-semibold text-white mb-2">3. Strengthen your signal</h4>
+                <p className="text-sm text-gray-400">
+                  Investors engage more when your signal strength is 7+. See improvement tips below.
+                </p>
+              </div>
+
+              <div className="border-l-2 border-yellow-400 pl-4">
+                <h4 className="font-semibold text-white mb-2">4. Track timing</h4>
+                <p className="text-sm text-gray-400">
+                  Investors with "Surge" or "Breakout" signals are actively looking now
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-white/10">
+              <button className="w-full py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm font-medium transition">
+                Request Intro to Top Match
+              </button>
+            </div>
+          </div>
+
+          {/* [4] UNDERSTAND YOUR SIGNAL SCORE */}
+          {statusMetrics && (
+            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+              <h3 className="text-lg font-bold mb-4">Understanding Your Signal Score</h3>
+              
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-400">Current Score</span>
+                  <span className="text-2xl font-bold text-cyan-400">{statusMetrics.signalStrength.toFixed(1)}</span>
+                </div>
+                <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
+                    style={{ width: `${(statusMetrics.signalStrength / 10) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-sm mb-5">
+                <div className="flex items-start gap-2">
+                  <span className="text-cyan-400 mt-0.5">📊</span>
+                  <div>
+                    <p className="text-white font-medium">What it means:</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Your signal score reflects how attractive your startup appears to investors right now based on growth, traction, and market timing.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <span className="text-green-400 mt-0.5">🎯</span>
+                  <div>
+                    <p className="text-white font-medium">Score 7-8:</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Strong signal - investors actively watching. Great time to reach out.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <span className="text-yellow-400 mt-0.5">⚡</span>
+                  <div>
+                    <p className="text-white font-medium">Score 9-10:</p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Elite signal - investors competing. Expect inbound interest.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/10">
+                <p className="text-xs text-gray-500 mb-2">Signals detected this week:</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-2 py-1 bg-red-500/10 text-red-400 rounded">🚀 {Math.floor(statusMetrics.observers7d * 0.1)} Breakout</span>
+                  <span className="px-2 py-1 bg-orange-500/10 text-orange-400 rounded">🔥 {Math.floor(statusMetrics.observers7d * 0.3)} Surge</span>
+                  <span className="px-2 py-1 bg-yellow-500/10 text-yellow-400 rounded">🌡️ {Math.floor(statusMetrics.observers7d * 0.6)} Warming</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* How To Improve Your Signal - Actionable tips */}
+          {improvements.length > 0 && (
+            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+              <h3 className="text-lg font-bold mb-3">Boost Your Signal Score</h3>
+              <p className="text-xs text-gray-400 mb-4">
+                Actions that typically increase investor interest:
+              </p>
+              <div className="space-y-4">
+                {improvements.slice(0, 3).map((imp, i) => (
+                  <div key={i} className="border-l-2 border-cyan-400/30 pl-3">
+                    <h4 className="font-semibold text-white text-sm mb-1">{imp.title}</h4>
+                    <p className="text-xs text-green-400 mb-2">+{imp.impact} signal boost</p>
+                    <ul className="space-y-1">
+                      {imp.actions.slice(0, 2).map((action, j) => (
+                        <li key={j} className="text-xs text-gray-400 flex items-start gap-2">
+                          <span className="text-cyan-400">•</span>
+                          <span>{action}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Alignment Breakdown - Simplified */}
+          {alignmentDimensions.length > 0 && (
+            <div className="bg-white/5 border border-white/10 rounded-lg p-6">
+              <h3 className="text-base font-bold mb-3">Your Match Breakdown</h3>
+              <div className="space-y-3">
+                {alignmentDimensions.slice(0, 4).map((dim, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-1.5 text-xs">
+                      <span className="text-gray-300">{dim.name}</span>
+                      <span className="text-cyan-400 font-mono">{Math.round(dim.score * 100)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
+                        style={{ width: `${dim.score * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// (Removed old duplicate - see above for main implementation)

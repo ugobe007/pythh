@@ -1,99 +1,247 @@
 /**
  * Phase A Router (IA locked - Jan 2026)
- * 
+ *
+ * Canonical founder flow:
+ * - /         Front page (Find my investors)
+ * - /discover Discovery (matching engine surface)
+ * - /matches  Results (top matches by signal)
+ *
+ * Aliases / backwards compat (preserve querystring):
+ * - /discovery → /discover
+ * - /pythh     → /discover
+ * - /hotmatch  → /discover
+ * - /results   → /matches
+ *
  * PUBLIC (persuasion mode):
- * - / Home (CTA-first, intrigue signals, no explanations)
- * - /live Live Signals (scrollable signal tape, no scores)
- * - /signals How Signals Flow (3-step visual diagram)
- * - /demo Demo (optional, scripted URL → sample results)
- * 
+ * - /live, /signals, /demo
+ *
  * APP (instrument mode):
- * - /app Dashboard (what changed hub)
- * - /app/engine Engine Status (command center - scraper/scoring/matching/ML telemetry)
- * - /app/logs Event Stream (raw ai_logs feed, filterable)
- * - /app/startup/:id Startup Intelligence (signals + matches + recommendations)
- * 
- * LEGACY ADMIN:
- * - /admin/* (preserved for Phase B cleanup)
+ * - /app, /app/engine, /app/logs, /app/startup/:id
+ *
+ * ADMIN (legacy, preserved for Phase B cleanup):
+ * - /admin/*
  */
 
 import React, { useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { L1Guard, L2Guard, L4Guard, L5Guard, AuthGuard } from './lib/routeGuards';
+import { L5Guard } from './lib/routeGuards';
 import { trackEvent } from './lib/analytics';
 import './App.css';
-import LogoDropdownMenu from './components/LogoDropdownMenu';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
 import AppLayout from './layouts/AppLayout';
 
+// Canonical founder surfaces (Pythh v2 - Supabase-inspired)
+import PythhHome from './pages/PythhHome';
+import PythhSignalsPage from './pages/PythhSignalsPage';
+import PythhMatchesPage from './pages/PythhMatchesPage';
+import PythhTrendsPage from './pages/PythhTrendsPage';
+import HowPythhWorksPage from './pages/HowPythhWorksPage';
+
+// Legacy home (preserved for fallback)
+import Home from './pages/Home';
+import PythhMatchingEngine from './components/PythhMatchingEngine';
+import DiscoveryResultsPage from './pages/DiscoveryResultsPage';
+
 // Public pages
-import Home from './pages/HomePage';
 import Live from './pages/public/Live';
 import Signals from './pages/public/Signals';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
+import SignalResultsPage from './pages/SignalResultsPage';
+import InvestorProfile from './pages/InvestorProfile';
+import SignalRadarPage from './pithh/SignalRadarPage';
+import MLRecommendationsPage from './pithh/MLRecommendationsPage';
+import SignalsExplainer from './pages/SignalsExplainer';
 
 // App pages (instrument mode)
 import Dashboard from './pages/app/Dashboard';
 import Engine from './pages/app/Engine';
 import Logs from './pages/app/Logs';
-import StartupIntelligence from './pages/app/StartupIntelligence';
-// Legacy pages preserved for Phase B
+import StartupIntelligencePage from './pages/StartupIntelligencePage'; // Canonical startup intel
+import SignalCardPage from './pages/SignalCardPage'; // Founder decision journal
+import SharedSignalCardPage from './pages/SharedSignalCardPage'; // Public shared signal view
+import SharedSurfacePage from './pages/SharedSurfacePage'; // Public share links (scores, investors, trends)
+import FounderCommunityPage from './pages/FounderCommunityPage'; // Founder community
+import SignalsExplorer from './pages/app/SignalsExplorer';
+import SignalsContext from './pages/app/SignalsContext';
+import SignalsContextPage from './pithh/SignalsContextPage';
+
+// Pythh founder pages (new UI)
+import SignalsRadarPage from './pages/app/SignalsRadarPage';
+import InvestorRevealPage from './pages/app/InvestorRevealPage';
+
+// PYTHH v2 — New surfaces (Jan 2026)
+import SubmitStartupPage from './pages/SubmitStartupPage';
+import CohortsPage from './pages/CohortsPage';
+import PortfoliosPage from './pages/PortfoliosPage';
+
+// Legacy preserved for Phase B
 import Login from './pages/Login';
 import MatchController from './pages/MatchController';
-import ResultsPageDoctrine from './pages/ResultsPageDoctrine';
 
-// Admin routes (preserved for Phase B cleanup)
+// Admin pages - Core Tools
 import AdminRouteWrapper from './components/AdminRouteWrapper';
-import UnifiedAdminDashboard from './pages/UnifiedAdminDashboard';
+import UnifiedAdminDashboard from './pages/UnifiedAdminDashboardV2';
 import SystemHealthDashboard from './pages/SystemHealthDashboard';
 import AILogsPage from './pages/AILogsPage';
 
+// Admin pages - GOD Score Management
+import GODScoresPage from './pages/GODScoresPage';
+import GODSettingsPage from './pages/GODSettingsPage';
+import IndustryRankingsPage from './pages/IndustryRankingsPage';
+
+// Admin pages - Data Management
+import EditStartups from './pages/EditStartups';
+import DiscoveredStartups from './pages/DiscoveredStartups';
+import DiscoveredInvestors from './pages/DiscoveredInvestors';
+import BulkUpload from './pages/BulkUpload';
+import RSSManager from './pages/RSSManager';
+
+// Admin pages - Diagnostics & Monitoring
+import DiagnosticPage from './pages/DiagnosticPage';
+import DatabaseDiagnostic from './pages/DatabaseDiagnostic';
+import ControlCenter from './pages/ControlCenter';
+import ScraperManagementPage from './pages/ScraperManagementPage';
+import AIIntelligenceDashboard from './pages/AIIntelligenceDashboard';
+
 const App: React.FC = () => {
   const location = useLocation();
+  const qs = location.search || '';
 
   useEffect(() => {
     trackEvent('page_viewed', { path: location.pathname, search: location.search });
   }, [location.pathname, location.search]);
 
+  const toWithQuery = (to: string) => `${to}${qs}`;
+
   return (
     <AppErrorBoundary>
       <AuthProvider>
         <Routes>
+          {/* ═══════════════════════════════════════════════════════════════
+              PYTHH v2 — Supabase-inspired founder flow (Jan 2026)
+              /         → Home (two-column hero, pipeline, engine preview)
+              /signals  → Signals page (market telemetry)
+              /matches  → Matches page (investor targets)
+              /trends   → Trends page (market scoreboard)
+              /how-it-works → Documentation-style explainer
+          ═══════════════════════════════════════════════════════════════ */}
+          <Route path="/" element={<PythhHome />} />
+          <Route path="/signals" element={<PythhSignalsPage />} />
+          <Route path="/matches" element={<PythhMatchesPage />} />
+          <Route path="/trends" element={<PythhTrendsPage />} />
+          <Route path="/how-it-works" element={<HowPythhWorksPage />} />
+
+          {/* LEGACY: Preserved for backwards compatibility */}
+          <Route path="/home-legacy" element={<Home />} />
+          <Route path="/discover" element={<PythhMatchingEngine />} />
+
           {/* PUBLIC (persuasion mode) */}
           <Route element={<PublicLayout />}>
-            <Route path="/" element={<Home />} />
             <Route path="/live" element={<Live />} />
-            <Route path="/signals" element={<Signals />} />
             <Route path="/demo" element={<DemoPageDoctrine />} />
           </Route>
+          
+          {/* PYTHH SIGNAL RADAR (live capital intelligence surface) */}
+          <Route path="/signals-radar" element={<SignalRadarPage />} />
+          
+          {/* SIGNALS EXPLAINER (educational marketing page) */}
+          <Route path="/what-are-signals" element={<SignalsExplainer />} />
+          
+          {/* SIGNALS CONTEXT (post-Radar macro explanation layer) */}
+          <Route path="/signals-context" element={<SignalsContextPage />} />
+          
+          {/* SIGNAL RESULTS (URL submission landing) */}
+          <Route path="/signal-results" element={<SignalResultsPage />} />
+          
+          {/* INVESTOR PROFILE */}
+          <Route path="/investor/:id" element={<InvestorProfile />} />
+
+          {/* SHARED SIGNAL CARD (public view) */}
+          <Route path="/shared/signal/:token" element={<SharedSignalCardPage />} />
+
+          {/* PUBLIC SHARE LINKS (canonical - revocable, no auth) */}
+          <Route path="/s/:shareId" element={<SharedSurfacePage />} />
+
+          {/* FOUNDER COMMUNITY */}
+          <Route path="/community" element={<FounderCommunityPage />} />
+
+          {/* ALIASES (preserve querystring) */}
+          <Route path="/discovery" element={<Navigate to={toWithQuery('/discover')} replace />} />
+          <Route path="/pythh" element={<Navigate to={toWithQuery('/discover')} replace />} />
+          <Route path="/hotmatch" element={<Navigate to={toWithQuery('/discover')} replace />} />
+          <Route path="/results" element={<Navigate to={toWithQuery('/matches')} replace />} />
+
+          {/* LEGACY (Phase B cleanup) */}
+          <Route path="/live-match" element={<Navigate to="/live" replace />} />
+          <Route path="/signals-flow" element={<Navigate to="/signals" replace />} />
+          <Route path="/signals" element={<Navigate to="/signals-radar" replace />} />
+          <Route path="/match" element={<MatchController />} />
+          <Route path="/login" element={<Login />} />
 
           {/* APP (instrument mode) */}
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="engine" element={<Engine />} />
             <Route path="logs" element={<Logs />} />
-            <Route path="startup/:id" element={<StartupIntelligence />} />
+            <Route path="signals" element={<SignalsExplorer />} />
+            <Route path="signals-context" element={<SignalsContext />} />
+            <Route path="startup/:id" element={<StartupIntelligencePage />} />
+            <Route path="signal-card" element={<SignalCardPage />} />
+            
+            {/* Pythh v2 — New surfaces */}
+            <Route path="submit" element={<SubmitStartupPage />} />
+            <Route path="cohorts" element={<CohortsPage />} />
+            <Route path="portfolios" element={<PortfoliosPage />} />
+            
+            {/* Pythh founder UI */}
+            <Route path="radar" element={<SignalsRadarPage />} />
+            <Route path="radar/:startupId" element={<SignalsRadarPage />} />
+            <Route path="investors/:investorId" element={<InvestorRevealPage />} />
           </Route>
-
-          {/* LEGACY: Redirect old routes */}
-          <Route path="/live-match" element={<Navigate to="/live" replace />} />
-          <Route path="/signals-flow" element={<Navigate to="/signals" replace />} />
-          <Route path="/match" element={<MatchController />} />
-          <Route path="/results" element={<L2Guard><ResultsPageDoctrine /></L2Guard>} />
-          <Route path="/login" element={<Login />} />
 
           {/* ADMIN (preserved for Phase B) */}
-          <Route path="/admin" element={<L5Guard><AdminRouteWrapper /></L5Guard>}>
+          <Route
+            path="/admin"
+            element={
+              <L5Guard>
+                <AdminRouteWrapper />
+              </L5Guard>
+            }
+          >
+            {/* Dashboard */}
             <Route index element={<UnifiedAdminDashboard />} />
+            
+            {/* GOD Score Management - CORE */}
+            <Route path="god-scores" element={<GODScoresPage />} />
+            <Route path="god-settings" element={<GODSettingsPage />} />
+            <Route path="industry-rankings" element={<IndustryRankingsPage />} />
+            
+            {/* Data Management */}
+            <Route path="edit-startups" element={<EditStartups />} />
+            <Route path="discovered-startups" element={<DiscoveredStartups />} />
+            <Route path="discovered-investors" element={<DiscoveredInvestors />} />
+            <Route path="bulk-upload" element={<BulkUpload />} />
+            <Route path="rss-manager" element={<RSSManager />} />
+            
+            {/* System Monitoring */}
             <Route path="health" element={<SystemHealthDashboard />} />
             <Route path="ai-logs" element={<AILogsPage />} />
+            <Route path="diagnostic" element={<DiagnosticPage />} />
+            <Route path="database-check" element={<DatabaseDiagnostic />} />
+            <Route path="control" element={<ControlCenter />} />
+            <Route path="scrapers" element={<ScraperManagementPage />} />
+            <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
+            
+            {/* ML/AI */}
+            <Route path="ml-dashboard" element={<MLRecommendationsPage />} />
+            <Route path="ml-recommendations" element={<MLRecommendationsPage />} />
           </Route>
 
-          {/* Catch-all */}
+          {/* 404 → home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

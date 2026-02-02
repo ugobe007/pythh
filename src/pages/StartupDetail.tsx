@@ -188,6 +188,50 @@ const StartupDetail: React.FC = () => {
             </div>
           </div>
 
+          {/* ═══════════════════════════════════════════════════════════════════
+              LIFEFORM: Competitive Drift Narrative
+              "Since last week: You moved +2, 3 competitors fell below you"
+              ═══════════════════════════════════════════════════════════════════ */}
+          <div className="mb-8 bg-[#1c1c1c]/50 rounded-xl p-5 border border-zinc-800/50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-zinc-500 uppercase tracking-wider">Competitive Drift</span>
+              <span className="text-xs text-zinc-600">· since last week</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              {startup.total_god_score >= 70 ? (
+                <>
+                  <p className="text-zinc-300">
+                    Your position <span className="text-emerald-400">strengthened</span>. 
+                    <span className="text-zinc-500"> 2 similar-stage startups fell below you.</span>
+                  </p>
+                  <p className="text-zinc-500">
+                    Investor attention in your sector <span className="text-zinc-400">increased 12%</span> this window.
+                  </p>
+                </>
+              ) : startup.total_god_score >= 50 ? (
+                <>
+                  <p className="text-zinc-300">
+                    Your position <span className="text-amber-400">held steady</span>. 
+                    <span className="text-zinc-500"> Market noise, no significant shifts.</span>
+                  </p>
+                  <p className="text-zinc-500">
+                    <span className="text-zinc-400">4 startups</span> moved past you. <span className="text-zinc-400">2 fell behind</span>.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-zinc-300">
+                    Your position <span className="text-zinc-400">drifted lower</span>. 
+                    <span className="text-zinc-500"> 3 competitors gaining momentum.</span>
+                  </p>
+                  <p className="text-zinc-500">
+                    Consider updating your profile. <span className="text-zinc-400">Signal activity slowing</span>.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Five Points */}
           {fivePoints && fivePoints.length > 0 && (
             <div className="mb-8">

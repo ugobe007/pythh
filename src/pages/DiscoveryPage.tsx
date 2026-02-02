@@ -95,28 +95,54 @@ export default function DiscoveryPage() {
           hasRevenue: fullStartup.traction_score ? fullStartup.traction_score > 60 : false,
         };
 
-        // Fetch investor matches
+        // Fetch investor matches (NO EMBEDS — avoids PostgREST 400)
         let investors: { id: string; name: string; focus: string; whyAligned: string }[] = [];
         
         if (startup.id) {
-          const { data: matches } = await supabase
+          // 1) Pull match rows only
+          const { data: matchRows, error: matchErr } = await supabase
             .from('startup_investor_matches')
-            .select(`
-              match_score,
-              match_reasons,
-              investor:investors!inner(id, name, sectors, stage)
-            `)
+            .select('investor_id, match_score, match_reasons')
             .eq('startup_id', startup.id)
             .order('match_score', { ascending: false })
             .limit(20);
 
-          if (matches && matches.length > 0) {
-            investors = matches.map((m: any) => ({
-              id: m.investor?.id || '',
-              name: m.investor?.name || 'Investor',
-              focus: `${m.investor?.stage || 'Seed'} / ${(m.investor?.sectors || []).slice(0, 2).join(', ') || 'Generalist'}`,
-              whyAligned: m.match_reasons?.[0] || `Matches ${(m.investor?.sectors || []).slice(0, 2).join(' + ') || 'your'} signals`
-            }));
+          if (matchErr) {
+            console.error('[DiscoveryPage] match query failed:', matchErr);
+          } else if (matchRows && matchRows.length > 0) {
+            // 2) Pull investors in a second query
+            const investorIds = Array.from(new Set(matchRows.map((m: any) => m.investor_id))).filter(Boolean);
+
+            const { data: invRows, error: invErr } = await supabase
+              .from('investors')
+              .select('id, name, sectors, stage')
+              .in('id', investorIds);
+
+            if (invErr) {
+              console.error('[DiscoveryPage] investor query failed:', invErr);
+            } else {
+              // 3) Join in memory
+              const investorById = new Map((invRows || []).map((i: any) => [i.id, i]));
+
+              investors = matchRows
+                .map((m: any) => {
+                  const inv = investorById.get(m.investor_id);
+                  if (!inv) return null;
+
+                  const sectors = Array.isArray(inv.sectors) ? inv.sectors : [];
+                  const stage = inv.stage || 'Seed';
+
+                  return {
+                    id: inv.id,
+                    name: inv.name || 'Investor',
+                    focus: `${stage} / ${sectors.slice(0, 2).join(', ') || 'Generalist'}`,
+                    whyAligned: (Array.isArray(m.match_reasons) && m.match_reasons[0])
+                      ? m.match_reasons[0]
+                      : `Matches ${sectors.slice(0, 2).join(' + ') || 'your'} signals`,
+                  };
+                })
+                .filter(Boolean) as any[];
+            }
           }
         }
 

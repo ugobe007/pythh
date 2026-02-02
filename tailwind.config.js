@@ -89,6 +89,20 @@ module.exports = {
         'cool-purple': '#4700d6',
         'cool-burgundy': '#540405',
       },
+      keyframes: {
+        'pulse-subtle': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.92' },
+        },
+        'ticker': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+      },
+      animation: {
+        'pulse-subtle': 'pulse-subtle 2s ease-in-out infinite',
+        'ticker': 'ticker 60s linear infinite',
+      },
     },
   },
   plugins: [],

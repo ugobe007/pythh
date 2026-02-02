@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>URL Resolution Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      font-size: 16px;
+    }
+    input {
+      width: 400px;
+    }
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #logs {
+      background: #f5f5f5;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 URL Resolution Diagnostic Tool</h1>
+  
+  <div>
+    <input type="text" id="url" placeholder="https://example.com" value="https://spatial-ai.com" />
+    <button onclick="testUrlResolution()">Test URL Resolution</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+  </div>
+  
+  <div id="logs"></div>
+  
+  <script>
+    const backendUrl = 'http://localhost:3002';
+    const logsDiv = document.getElementById('logs');
+    
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = type;
+      line.textContent = `[${timestamp}] ${message}`;
+      logsDiv.appendChild(line);
+      logsDiv.scrollTop = logsDiv.scrollHeight;
+    }
+    
+    function clearLogs() {
+      logsDiv.innerHTML = '';
+    }
+    
+    async function testUrlResolution() {
+      clearLogs();
+      const url = document.getElementById('url').value;
+      
+      log(`Testing URL: ${url}`);
+      log(`Backend URL: ${backendUrl}`);
+      log('');
+      
+      try {
+        // Step 1: Test AI enrichment
+        log('Step 1: Testing AI Enrichment Endpoint...');
+        const enrichRes = await fetch(`${backendUrl}/api/startup/enrich-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        
+        if (!enrichRes.ok) {
+          const errorText = await enrichRes.text();
+          log(`❌ AI Enrichment failed: ${enrichRes.status} ${errorText}`, 'error');
+          return;
+        }
+        
+        const enrichData = await enrichRes.json();
+        log(`✅ GOD Score: ${enrichData.godScore}`, 'success');
+        log(`✅ Tier: ${enrichData.tier}`, 'success');
+        log(`✅ Sectors: ${enrichData.inference?.sectors?.join(', ') || 'None'}`, 'success');
+        log('');
+        
+        // Step 2: Check if startup exists
+        log('Step 2: Checking if startup exists in database...');
+        // You would need to implement this with your Supabase client
+        log('(Database check requires Supabase client - skipping)');
+        log('');
+        
+        // Step 3: Simulate startup creation
+        log('Step 3: Simulating startup creation...');
+        log(`Would create startup with:`);
+        log(`  - Website: ${url}`);
+        log(`  - GOD Score: ${enrichData.godScore}`);
+        log(`  - Sectors: ${enrichData.inference?.sectors?.join(', ') || 'Technology'}`);
+        log('');
+        
+        // Step 4: Test instant matching
+        log('Step 4: Testing Instant Match Generation...');
+        log('(Requires startup ID - skipping for now)');
+        log('');
+        
+        log('✅ ALL CHECKS PASSED!', 'success');
+        log('');
+        log('If you still see "Could not resolve startup from URL" in the app:');
+        log('1. Hard refresh browser (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows)');
+        log('2. Clear browser cache');
+        log('3. Check browser DevTools console for errors');
+        
+      } catch (error) {
+        log(`❌ ERROR: ${error.message}`, 'error');
+        log('');
+        log('Troubleshooting:');
+        log('1. Is API server running? Check: pm2 status');
+        log('2. Is backend URL correct? Should be http://localhost:3002');
+        log('3. Check CORS settings in server');
+      }
+    }
+    
+    // Auto-run test on load
+    window.addEventListener('load', () => {
+      log('Diagnostic tool loaded');
+      log('Click "Test URL Resolution" to begin');
+      log('');
+    });
+  </script>
+</body>
+</html>

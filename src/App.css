@@ -8,7 +8,10 @@ body, html {
   color: #1F2937;
 }
 
-/* Navbar links/buttons */
+/* Legacy Navbar styles - DISABLED to avoid polluting Pythh pages
+   These were causing yellow pill buttons across all nav links.
+   Individual pages should style their own nav elements.
+   
 nav a {
   display: inline-flex;
   align-items: center;
@@ -25,6 +28,7 @@ nav a {
 nav a:hover {
   background: #FFB300;
 }
+*/
 
 /* Header section */
 .header {

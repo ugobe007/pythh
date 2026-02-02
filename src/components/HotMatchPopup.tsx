@@ -3,13 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import { X, Sparkles, Brain, Zap, Target, TrendingUp, Users, Shield, Flame, ChevronRight, Clock, CheckCircle2, BarChart3, Cpu, Globe, Layers, ArrowRight, Play, Rocket, Briefcase } from 'lucide-react';
 import GODScoreDemo from './GODScoreDemo';
 
+type Brand = "pythh" | "hotmatch";
+
+const COPY: Record<Brand, { engineName: string; productName: string; badgeName?: string }> = {
+  pythh: {
+    productName: "Pythh",
+    engineName: "Intelligence Engine",
+    badgeName: "Pythh Badge",
+  },
+  hotmatch: {
+    productName: "Hot Match",
+    engineName: "GOD Algorithm",
+    badgeName: "Hot Match Badge",
+  },
+};
+
 interface HotMatchPopupProps {
   isOpen: boolean;
   onClose: () => void;
   onGetMatched?: () => void;
+  brand?: Brand;
 }
 
-export default function HotMatchPopup({ isOpen, onClose, onGetMatched }: HotMatchPopupProps) {
+export default function HotMatchPopup({ isOpen, onClose, onGetMatched, brand = "pythh" }: HotMatchPopupProps) {
+  const copy = COPY[brand];
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState<'problem' | 'solution' | 'how' | 'why'>('problem');
   const [showDemo, setShowDemo] = useState(false);
@@ -182,8 +199,8 @@ export default function HotMatchPopup({ isOpen, onClose, onGetMatched }: HotMatc
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mb-4">
                     <Brain className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-1">GOD Algorithm™</h3>
-                  <p className="text-cyan-400 text-xs font-semibold mb-2">Grit · Opportunity · Determination</p>
+                  <h3 className="text-lg font-bold text-white mb-1">{copy.engineName}™</h3>
+                  <p className="text-cyan-400 text-xs font-semibold mb-2">{brand === "hotmatch" ? "Grit · Opportunity · Determination" : "Precision · Insight · Speed"}</p>
                   <p className="text-gray-400 text-sm mb-3">Proprietary scoring combining 20+ VC frameworks</p>
                   <div className="space-y-1.5">
                     {["Y Combinator criteria", "Sequoia Capital principles", "First Round methodology", "+17 more top VC models"].map((item, idx) => (
@@ -272,7 +289,7 @@ export default function HotMatchPopup({ isOpen, onClose, onGetMatched }: HotMatc
                   { step: 1, icon: "📡", title: "Discover", desc: "100+ RSS sources scraped", time: "Every 30 min" },
                   { step: 2, icon: "🤖", title: "Extract", desc: "AI scans documents", time: "<5 sec/startup" },
                   { step: 3, icon: "✨", title: "Enrich", desc: "Fill data gaps", time: "Real-time" },
-                  { step: 4, icon: "⚡", title: "Score", desc: "GOD Algorithm™", time: "Instant" },
+                  { step: 4, icon: "⚡", title: "Score", desc: `${copy.engineName}™`, time: "Instant" },
                   { step: 5, icon: "🔥", title: "Match", desc: "Find perfect investors", time: "<2 seconds" },
                   { step: 6, icon: "🧠", title: "Learn", desc: "ML improves", time: "+15%/quarter" },
                 ].map((item) => (
@@ -329,7 +346,7 @@ export default function HotMatchPopup({ isOpen, onClose, onGetMatched }: HotMatc
                 {
                   icon: <Brain className="w-5 h-5" />,
                   title: "VC-Grade Intelligence",
-                  desc: "We don't guess. Our GOD Algorithm™ combines 20+ frameworks from Y Combinator, Sequoia, First Round, and the world's best VCs.",
+                  desc: `We don't guess. Our ${copy.engineName}™ combines 20+ frameworks from Y Combinator, Sequoia, First Round, and the world's best VCs.`,
                   color: "purple"
                 },
                 {

@@ -1,0 +1,215 @@
+{
+  "version": "1.0.0",
+  "description": "Golden set regression tests - canonical examples that must maintain expected behavior",
+  "updatedAt": "2026-01-29T00:00:00Z",
+  "goldenExamples": [
+    {
+      "id": "elite-funded-startup",
+      "name": "Karumi (or similar elite example)",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [85, 95],
+      "expectedTopComponents": ["team", "traction", "market"],
+      "description": "Well-funded startup with proven team, strong traction, large market",
+      "testData": {
+        "founders_count": 3,
+        "technical_cofounders": 2,
+        "team": [
+          { "name": "Founder A", "background": "Ex-Google", "role": "CEO" },
+          { "name": "Founder B", "background": "Ex-Meta", "role": "CTO" }
+        ],
+        "previous_funding": 5000000,
+        "revenue": 1000000,
+        "mrr": 100000,
+        "active_users": 50000,
+        "growth_rate": 20,
+        "market_size": "10B",
+        "launched": true
+      }
+    },
+    {
+      "id": "early-stage-promising",
+      "name": "Seed-stage with good team",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [65, 75],
+      "expectedTopComponents": ["team", "vision", "product"],
+      "description": "Early-stage startup with strong founding team but limited traction",
+      "testData": {
+        "founders_count": 2,
+        "technical_cofounders": 1,
+        "team": [
+          { "name": "Founder C", "background": "Stanford CS", "role": "CEO" }
+        ],
+        "revenue": 10000,
+        "active_users": 500,
+        "growth_rate": 50,
+        "market_size": "5B",
+        "launched": true,
+        "mvp_stage": true
+      }
+    },
+    {
+      "id": "pre-launch-strong-team",
+      "name": "Pre-launch with exceptional founders",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [60, 70],
+      "expectedTopComponents": ["team", "vision", "market"],
+      "description": "Not launched yet but exceptional team and vision",
+      "testData": {
+        "founders_count": 2,
+        "technical_cofounders": 2,
+        "team": [
+          { "name": "Serial Founder", "background": "Sold previous startup", "role": "CEO" },
+          { "name": "Tech Expert", "background": "Ex-OpenAI", "role": "CTO" }
+        ],
+        "market_size": "20B",
+        "launched": false,
+        "mvp_stage": true,
+        "vision_statement": "Clear and contrarian thesis"
+      }
+    },
+    {
+      "id": "low-quality-no-traction",
+      "name": "Weak startup - no traction",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [40, 50],
+      "expectedTopComponents": ["vision", "product", "market"],
+      "description": "Solo founder, no traction, small market",
+      "testData": {
+        "founders_count": 1,
+        "technical_cofounders": 0,
+        "revenue": 0,
+        "active_users": 0,
+        "market_size": "100M",
+        "launched": false,
+        "mvp_stage": false
+      }
+    },
+    {
+      "id": "hypergrowth-late-stage",
+      "name": "Series B+ hypergrowth",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [90, 98],
+      "expectedTopComponents": ["traction", "market", "team"],
+      "description": "Late-stage with massive traction and proven model",
+      "testData": {
+        "founders_count": 3,
+        "technical_cofounders": 2,
+        "previous_funding": 50000000,
+        "revenue": 20000000,
+        "mrr": 2000000,
+        "active_users": 500000,
+        "growth_rate": 30,
+        "customers": 5000,
+        "market_size": "50B",
+        "launched": true,
+        "arr": 24000000,
+        "nrr": 120
+      }
+    },
+    {
+      "id": "strong-team-pivoting",
+      "name": "Strong team, recent pivot",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [55, 65],
+      "expectedTopComponents": ["team", "vision", "market"],
+      "description": "Experienced team that just pivoted, minimal current traction",
+      "testData": {
+        "founders_count": 2,
+        "technical_cofounders": 2,
+        "team": [
+          { "name": "Repeat Founder", "background": "Previous exit", "role": "CEO" }
+        ],
+        "pivots_made": 1,
+        "revenue": 5000,
+        "active_users": 200,
+        "market_size": "8B",
+        "launched": true
+      }
+    },
+    {
+      "id": "niche-profitable",
+      "name": "Niche market, profitable",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [70, 80],
+      "expectedTopComponents": ["traction", "product", "team"],
+      "description": "Small but profitable in niche market",
+      "testData": {
+        "founders_count": 2,
+        "revenue": 500000,
+        "mrr": 50000,
+        "customers": 100,
+        "growth_rate": 10,
+        "market_size": "500M",
+        "launched": true,
+        "ltv_cac_ratio": 5.0
+      }
+    },
+    {
+      "id": "viral-no-revenue",
+      "name": "Viral growth, no monetization",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [60, 70],
+      "expectedTopComponents": ["traction", "product", "market"],
+      "description": "Strong user growth but no revenue model yet",
+      "testData": {
+        "founders_count": 2,
+        "revenue": 0,
+        "active_users": 100000,
+        "growth_rate": 100,
+        "market_size": "15B",
+        "launched": true,
+        "dau_wau_ratio": 0.7,
+        "organic_referral_rate": 60
+      }
+    },
+    {
+      "id": "deep-tech-long-runway",
+      "name": "Deep tech, long development",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [65, 75],
+      "expectedTopComponents": ["team", "market", "vision"],
+      "description": "Cutting-edge tech requiring long R&D, strong team",
+      "testData": {
+        "founders_count": 3,
+        "technical_cofounders": 3,
+        "team": [
+          { "name": "PhD Researcher", "background": "MIT AI Lab", "role": "CTO" }
+        ],
+        "previous_funding": 2000000,
+        "revenue": 0,
+        "market_size": "30B",
+        "unique_ip": true,
+        "defensibility": "high"
+      }
+    },
+    {
+      "id": "bootstrapped-steady",
+      "name": "Bootstrapped, steady growth",
+      "weightsVersion": "1.0.0",
+      "expectedScoreRange": [65, 75],
+      "expectedTopComponents": ["traction", "product", "team"],
+      "description": "Self-funded with steady profitable growth",
+      "testData": {
+        "founders_count": 2,
+        "previous_funding": 0,
+        "revenue": 300000,
+        "mrr": 30000,
+        "customers": 200,
+        "growth_rate": 15,
+        "market_size": "2B",
+        "launched": true,
+        "runway_months": 24,
+        "burn_rate": 10000
+      }
+    }
+  ],
+  "testInstructions": {
+    "whenToRun": "Run before any weights version change, and in CI on every PR",
+    "passCriteria": {
+      "scoreInRange": "All examples must score within expectedScoreRange",
+      "topComponentsMatch": "At least 2 of 3 expectedTopComponents must be in actual top 3",
+      "weightsVersionMatch": "Computed weights_version must match expectedWeightsVersion"
+    },
+    "onFailure": "DO NOT merge the PR. Investigate which example failed and why. Either fix the code or update the golden set (with explicit approval)."
+  }
+}

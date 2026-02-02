@@ -1,0 +1,80 @@
+[
+  {
+    "title": "Nik Storonsky's QuantumLight targets $500m for second fund",
+    "expectPrimary": "QuantumLight",
+    "expectEntities": ["QuantumLight"],
+    "notes": "Person possessive modifier - frame should strip 'Nik Storonsky's'"
+  },
+  {
+    "title": "Sam Altman-backed Coco Robotics raises $3M seed round",
+    "expectPrimary": "Coco Robotics",
+    "expectEntities": ["Coco Robotics"],
+    "notes": "Person-backed modifier - frame should strip 'Sam Altman-backed'"
+  },
+  {
+    "title": "YC-backed Metaview raises $7M Series A",
+    "expectPrimary": "Metaview",
+    "expectEntities": ["Metaview"],
+    "notes": "Accelerator-backed modifier - frame should strip 'YC-backed'"
+  },
+  {
+    "title": "Strickland Brothers Receives Equity Investment from Sembler Company",
+    "expectPrimary": "Strickland Brothers",
+    "expectEntities": ["Strickland Brothers", "Sembler Company"],
+    "notes": "FinSMEs style title with 'Receives' - frame should extract both parties"
+  },
+  {
+    "title": "TikTok forms joint venture with ByteDance",
+    "expectPrimary": "TikTok",
+    "expectEntities": ["TikTok", "ByteDance"],
+    "notes": "Joint venture with verb contamination risk"
+  },
+  {
+    "title": "Anthropic announces strategic partnership with Amazon",
+    "expectPrimary": "Anthropic",
+    "expectEntities": ["Anthropic", "Amazon"],
+    "notes": "Strategic partnership announcement"
+  },
+  {
+    "title": "OpenAI acquires Rockset in $200M deal",
+    "expectPrimary": "OpenAI",
+    "expectEntities": ["OpenAI", "Rockset"],
+    "notes": "Acquisition with deal value"
+  },
+  {
+    "title": "Stripe invests $100M in stablecoin platform Bridge",
+    "expectPrimary": "Bridge",
+    "expectEntities": ["Bridge", "Stripe"],
+    "notes": "Investment where object is primary"
+  },
+  {
+    "title": "Databricks Names Ali Ghodsi As CEO",
+    "expectPrimary": "Databricks",
+    "expectEntities": ["Databricks"],
+    "notes": "Exec appointment - should emit company only"
+  },
+  {
+    "title": "General Catalyst merges with Venture Highway in record-breaking deal",
+    "expectPrimary": "General Catalyst",
+    "expectEntities": ["General Catalyst", "Venture Highway"],
+    "notes": "Bidirectional merge"
+  },
+  {
+    "title": "How Revolut is changing the future of banking",
+    "expectPrimary": null,
+    "expectEntities": [],
+    "notes": "Publisher grammar junk - 'How X is...' should produce no frame"
+  },
+  {
+    "title": "Why founders love YC's new funding model",
+    "expectPrimary": null,
+    "expectEntities": [],
+    "notes": "Publisher grammar junk - 'Why X...' should produce no frame"
+  },
+  {
+    "title": "The rise of AI copilots in developer tools",
+    "expectPrimary": null,
+    "expectEntities": [],
+    "notes": "Publisher grammar junk - 'The rise of...' should produce no frame"
+  }
+]

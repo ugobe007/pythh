@@ -1,180 +1,159 @@
-// Vote persistence service - handles both localStorage and Supabase
-import { supabase } from './supabase';
-import { logActivity } from './activityLogger';
-import startupData from '../data/startupData';
+import { supabase } from "./supabase";
+import { logActivity } from "./activityLogger";
+import startupData from "../data/startupData";
+import { getAnonUserId } from "./anonUser";
+
+export type VoteType = "yes" | "no";
 
 export interface Vote {
   id?: string;
-  startup_id: string;
-  user_id: string | null;
-  vote_type: 'yes' | 'no';
-  voted_at: string;
+  startup_id: string;       // local startup id (startupData.id)
+  user_id: string;          // uuid string (anon or auth)
+  vote: VoteType;           // SSOT: votes.vote
+  created_at?: string;      // SSOT: votes.created_at
 }
+
+const LOCAL_VOTES_KEY = "user_votes";
 
 /**
  * Save vote to both localStorage (cache) and Supabase (persistence)
+ * SSOT: votes.vote, votes.user_id (uuid), votes.created_at, votes.metadata
+ * Uniqueness: via index on (user_id, metadata->>'startup_local_id')
  */
 export async function saveVote(
   startupId: string,
-  voteType: 'yes' | 'no',
+  voteType: VoteType,
   userId: string | null = null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 1. Save to localStorage immediately (optimistic update)
+    const uid = userId ?? getAnonUserId();
+
+    // 1) localStorage optimistic write
     const localVotes = getLocalVotes();
-    const existingVoteIndex = localVotes.findIndex(v => v.startup_id === startupId);
-    
+    const existingVoteIndex = localVotes.findIndex((v) => v.startup_id === startupId);
+
     const newVote: Vote = {
       startup_id: startupId,
-      user_id: userId,
-      vote_type: voteType,
-      voted_at: new Date().toISOString(),
+      user_id: uid,
+      vote: voteType,
+      created_at: new Date().toISOString(),
     };
 
-    if (existingVoteIndex >= 0) {
-      localVotes[existingVoteIndex] = newVote;
-    } else {
-      localVotes.push(newVote);
+    if (existingVoteIndex >= 0) localVotes[existingVoteIndex] = newVote;
+    else localVotes.push(newVote);
+
+    localStorage.setItem(LOCAL_VOTES_KEY, JSON.stringify(localVotes));
+
+    // 2) Supabase upsert (unique per user + startup_local_id expression)
+    const { data, error } = await supabase
+      .from("votes")
+      .upsert(
+        {
+          user_id: uid,
+          vote: voteType,
+          weight: 1.0,
+          metadata: { startup_local_id: startupId },
+        },
+        { onConflict: "user_id,metadata->>startup_local_id" }
+      )
+      .select("id, vote, created_at, metadata, user_id");
+
+    if (error) {
+      console.warn("⚠️ Supabase vote upsert failed (local only):", error.message);
+      return { success: true };
     }
-    
-    localStorage.setItem('user_votes', JSON.stringify(localVotes));
-    console.log('✅ Vote saved to localStorage:', startupId, voteType);
 
-    // 2. Save to Supabase (if table exists)
+    // 3) Log activity (best-effort)
     try {
-      const { data, error } = await supabase
-        .from('votes')
-        .upsert({
-          startup_id: startupId,
-          user_id: userId || 'anonymous',
-          vote_type: voteType,
-          voted_at: newVote.voted_at,
-        }, {
-          onConflict: 'startup_id,user_id'
-        })
-        .select();
-
-      if (error) {
-        console.warn('⚠️ Could not save vote to Supabase (using localStorage only):', error.message);
-        // Not critical - vote is saved locally
-      } else {
-        console.log('✅ Vote synced to Supabase:', data);
-        
-        // 3. Log activity to activities table
-        const startup = startupData.find(s => s.id.toString() === startupId);
-        await logActivity({
-          eventType: 'user_voted',
-          startupId: startupId,
-          startupName: startup?.name,
-          userId: userId || undefined,
-          voteType: voteType,
-          metadata: {
-            startupName: startup?.name || 'Unknown Startup',
-          },
-        });
-      }
-    } catch (dbError) {
-      console.warn('⚠️ Supabase votes table may not exist yet. Vote saved locally.');
+      const startup = startupData.find((s) => s.id.toString() === startupId);
+      await logActivity({
+        eventType: "user_voted",
+        startupId,
+        startupName: startup?.name,
+        userId: uid,
+        voteType,
+        metadata: { startupName: startup?.name || "Unknown Startup" },
+      });
+    } catch {
+      // ignore
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error('❌ Error saving vote:', error);
+    console.error("❌ Error saving vote:", error);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Get all votes from localStorage
- */
 export function getLocalVotes(): Vote[] {
   try {
-    const votes = localStorage.getItem('user_votes');
+    const votes = localStorage.getItem(LOCAL_VOTES_KEY);
     return votes ? JSON.parse(votes) : [];
-  } catch (error) {
-    console.error('Error reading local votes:', error);
+  } catch {
     return [];
   }
 }
 
-/**
- * Check if user has voted on a startup
- */
-export function hasVoted(startupId: string): 'yes' | 'no' | null {
+export function hasVoted(startupId: string): VoteType | null {
   const votes = getLocalVotes();
-  const vote = votes.find(v => v.startup_id === startupId);
-  return vote ? vote.vote_type : null;
+  const v = votes.find((x) => x.startup_id === startupId);
+  return v ? v.vote : null;
 }
 
-/**
- * Get all startup IDs the user has voted YES on
- */
 export function getYesVotes(): string[] {
   const votes = getLocalVotes();
-  return votes.filter(v => v.vote_type === 'yes').map(v => v.startup_id);
+  return votes.filter((v) => v.vote === "yes").map((v) => v.startup_id);
 }
 
-/**
- * Sync votes from Supabase (for cross-device support)
- */
 export async function syncVotesFromSupabase(userId: string): Promise<void> {
   try {
     const { data, error } = await supabase
-      .from('votes')
-      .select('*')
-      .eq('user_id', userId);
+      .from("votes")
+      .select("id, vote, created_at, metadata, user_id")
+      .eq("user_id", userId);
 
-    if (error) {
-      console.warn('Could not sync votes from Supabase:', error);
-      return;
-    }
+    if (error || !data?.length) return;
 
-    if (data && data.length > 0) {
-      // Merge with local votes (Supabase is source of truth)
-      const localVotes = getLocalVotes();
-      const supabaseVotes = data.map(v => ({
-        startup_id: v.startup_id,
-        user_id: v.user_id,
-        vote_type: v.vote_type as 'yes' | 'no',
-        voted_at: v.voted_at,
-      }));
+    const supabaseVotes: Vote[] = data
+      .map((row: any) => {
+        const startupLocalId = row?.metadata?.startup_local_id;
+        if (!startupLocalId) return null;
+        return {
+          id: row.id,
+          startup_id: String(startupLocalId),
+          user_id: String(row.user_id),
+          vote: row.vote as VoteType,
+          created_at: row.created_at,
+        };
+      })
+      .filter(Boolean);
 
-      // Keep local votes for startups not in Supabase, add all Supabase votes
-      const mergedVotes = [...supabaseVotes];
-      localVotes.forEach(localVote => {
-        if (!supabaseVotes.find(sv => sv.startup_id === localVote.startup_id)) {
-          mergedVotes.push(localVote);
-        }
-      });
+    const localVotes = getLocalVotes();
+    const merged = [...supabaseVotes];
 
-      localStorage.setItem('user_votes', JSON.stringify(mergedVotes));
-      console.log(`✅ Synced ${data.length} votes from Supabase`);
-    }
-  } catch (error) {
-    console.warn('Error syncing votes:', error);
+    localVotes.forEach((lv) => {
+      if (!supabaseVotes.find((sv) => sv.startup_id === lv.startup_id)) merged.push(lv);
+    });
+
+    localStorage.setItem(LOCAL_VOTES_KEY, JSON.stringify(merged));
+  } catch {
+    // ignore
   }
 }
 
-/**
- * Get vote counts for a startup from Supabase
- */
 export async function getVoteCounts(startupId: string): Promise<{ yes: number; no: number }> {
   try {
     const { data, error } = await supabase
-      .from('votes')
-      .select('vote_type')
-      .eq('startup_id', startupId);
+      .from("votes")
+      .select("vote, metadata")
+      .contains("metadata", { startup_local_id: startupId });
 
-    if (error || !data) {
-      return { yes: 0, no: 0 };
-    }
+    if (error || !data) return { yes: 0, no: 0 };
 
-    const yes = data.filter(v => v.vote_type === 'yes').length;
-    const no = data.filter(v => v.vote_type === 'no').length;
-
+    const yes = data.filter((r: any) => r.vote === "yes").length;
+    const no = data.filter((r: any) => r.vote === "no").length;
     return { yes, no };
-  } catch (error) {
-    console.warn('Could not fetch vote counts:', error);
+  } catch {
     return { yes: 0, no: 0 };
   }
 }

@@ -1,12 +1,15 @@
 import React from 'react';
 import { X, TrendingUp, Users, Target, Zap, Lightbulb, MapPin, DollarSign, Briefcase, Award } from 'lucide-react';
 
+type Brand = "pythh" | "hotmatch";
+
 interface EducationalMatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  matchScore: number;
-  startupName: string;
-  investorName: string;
+  brand?: Brand;
+  matchScore?: number;
+  startupName?: string;
+  investorName?: string;
   investorFirm?: string;
   godScores?: {
     total: number;
@@ -36,7 +39,10 @@ const EducationalMatchModal: React.FC<EducationalMatchModalProps> = ({
   godScores,
   breakdown,
   reasoning = [],
+  brand = "pythh"
 }) => {
+  const engineName = brand === "pythh" ? "Intelligence Engine" : "GOD Algorithm™";
+  
   if (!isOpen) return null;
 
   const ProgressBar = ({ 
@@ -127,7 +133,7 @@ const EducationalMatchModal: React.FC<EducationalMatchModalProps> = ({
               {quality.emoji} {quality.label}
             </div>
             <p className="text-gray-400 text-xs sm:text-sm">
-              AI-calculated compatibility score based on GOD Algorithm™ and investor preferences
+              AI-calculated compatibility score based on {engineName} and investor preferences
             </p>
           </div>
         </div>

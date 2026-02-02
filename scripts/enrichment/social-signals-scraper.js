@@ -57,7 +57,15 @@ const PLATFORMS = {
       'venturecapital',
       'YCombinator',
       'TechStartups',
-      'IMadeThis'
+      'IMadeThis',
+      // NEW: Additional startup communities
+      'alphaandbetausers',
+      'SideProject',
+      'roastmystartup',
+      'growmybusiness',
+      'hwstartups',
+      'EntrepreneurRideAlong',
+      'startupfounders'
     ]
   },
   twitter: {
@@ -80,6 +88,33 @@ const PLATFORMS = {
   },
   indiehackers: {
     sections: ['milestones', 'products', 'projects']
+  },
+  // NEW PLATFORMS (Jan 31, 2026)
+  betalist: {
+    baseUrl: 'https://betalist.com',
+    searchUrl: 'https://betalist.com/search'
+  },
+  startupfoundation: {
+    baseUrl: 'https://startupfoundation.co'
+  },
+  creativetribes: {
+    baseUrl: 'https://creativetribes.co'
+  },
+  // NEW PLATFORMS (Jan 31, 2026 - Batch 2)
+  foundersbeta: {
+    baseUrl: 'https://www.foundersbeta.com',
+    searchUrl: 'https://www.foundersbeta.com/startups'
+  },
+  nocodefounders: {
+    baseUrl: 'https://nocodefounders.com',
+    forumUrl: 'https://nocodefounders.com/community'
+  },
+  startupgrind: {
+    blogUrl: 'https://blog.startupgrind.com',
+    searchUrl: 'https://blog.startupgrind.com/?s='
+  },
+  discordengineering: {
+    categoryUrl: 'https://discord.com/category/engineering'
   }
 };
 
@@ -592,6 +627,708 @@ async function scrapeFacebookApify(startupName) {
   }
 }
 
+// ============================================================================
+// INDIEHACKERS SCRAPER (NEW - Jan 31, 2026)
+// ============================================================================
+// IndieHackers is a goldmine for early-stage startup signals:
+// - Milestones posts (revenue achievements)
+// - Product pages
+// - Founder discussions
+// 
+// We search their website directly since they don't have a public API
+// ============================================================================
+async function scrapeIndieHackers(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  🏠 Searching IndieHackers...`);
+    
+    // Search IndieHackers (they use Algolia for search)
+    const searchUrl = `https://www.indiehackers.com/search?q=${encodeURIComponent(startupName)}`;
+    
+    // Try the Algolia endpoint if available
+    const algoliaUrl = `https://bh4d9od16a-dsn.algolia.net/1/indexes/*/queries?x-algolia-agent=Algolia%20for%20JavaScript%20(4.13.1)&x-algolia-api-key=c66249cdeaf0ec44a0e2f0ed9e87d224&x-algolia-application-id=BH4D9OD16A`;
+    
+    try {
+      const response = await fetch(algoliaUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              indexName: 'indiehackers',
+              params: `query=${encodeURIComponent(startupName)}&hitsPerPage=20`
+            }
+          ]
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const hits = data.results?.[0]?.hits || [];
+        
+        for (const hit of hits) {
+          const content = `${hit.title || ''} ${hit.body || ''} ${hit.headline || ''}`;
+          
+          // Validate it's actually about the startup
+          if (!isValidStartupMention(content, startup)) {
+            continue;
+          }
+          
+          // Analyze sentiment
+          const contentLower = content.toLowerCase();
+          let sentiment = 'neutral';
+          for (const [type, patterns] of Object.entries(SENTIMENT)) {
+            if (patterns.some(pattern => pattern.test(contentLower))) {
+              sentiment = type;
+              break;
+            }
+          }
+          
+          // Determine signal type based on content
+          let signalType = 'mention';
+          if (hit.type === 'milestone' || contentLower.includes('milestone') || /\$\d+k|\$\d+m/i.test(content)) {
+            signalType = 'milestone';
+          } else if (hit.type === 'product') {
+            signalType = 'product_launch';
+          } else if (hit.type === 'post') {
+            signalType = 'discussion';
+          }
+          
+          signals.push({
+            platform: 'indiehackers',
+            source_url: hit.url || `https://www.indiehackers.com/search?q=${encodeURIComponent(startupName)}`,
+            author: hit.author?.username || hit.user?.username || 'indiehacker',
+            content: (hit.title || hit.headline || '').substring(0, 500),
+            sentiment,
+            signal_type: signalType,
+            engagement_score: (hit.votesCount || 0) + (hit.commentsCount || 0) * 2,
+            created_at: hit.createdAt ? new Date(hit.createdAt * 1000).toISOString() : new Date().toISOString()
+          });
+        }
+        
+        console.log(`  ✅ Found ${signals.length} IndieHackers mentions`);
+      }
+    } catch (algoliaError) {
+      console.log(`  ⚠️  IndieHackers Algolia search unavailable, trying HTML scrape...`);
+      
+      // Fallback: Scrape the HTML search page
+      const htmlResponse = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        }
+      });
+      
+      if (htmlResponse.ok) {
+        const html = await htmlResponse.text();
+        
+        // Look for product/project mentions
+        const productPattern = /href="\/product\/([^"]+)"[^>]*>([^<]+)/gi;
+        const matches = [...html.matchAll(productPattern)];
+        
+        for (const match of matches.slice(0, 10)) {
+          const slug = match[1];
+          const title = match[2];
+          
+          if (title.toLowerCase().includes(startupName.toLowerCase())) {
+            signals.push({
+              platform: 'indiehackers',
+              source_url: `https://www.indiehackers.com/product/${slug}`,
+              author: 'indiehacker',
+              content: title,
+              sentiment: 'praise',
+              signal_type: 'product_page',
+              engagement_score: 10, // Having a product page is a good signal
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+        
+        console.log(`  ✅ Found ${signals.length} IndieHackers mentions (HTML)`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ IndieHackers error:`, error.message);
+  }
+  
+  return signals;
+}
+
+// ============================================================================
+// PRODUCTHUNT SCRAPER (NEW - Jan 31, 2026)
+// ============================================================================
+// ProductHunt launches are strong validation signals:
+// - Being featured on PH = real product
+// - Upvotes indicate market interest
+// - Comments show engagement
+// - "Product of the Day/Week" is exceptional
+// ============================================================================
+async function scrapeProductHunt(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  🔥 Searching ProductHunt...`);
+    
+    // ProductHunt has a GraphQL API, but also Algolia search
+    // Try Algolia first (faster, no auth needed)
+    const algoliaUrl = `https://0h4smabbsg-dsn.algolia.net/1/indexes/*/queries?x-algolia-api-key=9670d2d619b9d07859448d7628eea5f3&x-algolia-application-id=0H4SMABBSG`;
+    
+    try {
+      const response = await fetch(algoliaUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              indexName: 'Post_production',
+              params: `query=${encodeURIComponent(startupName)}&hitsPerPage=10`
+            }
+          ]
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const hits = data.results?.[0]?.hits || [];
+        
+        for (const hit of hits) {
+          const title = hit.name || hit.title || '';
+          const tagline = hit.tagline || '';
+          const content = `${title} ${tagline}`;
+          
+          // Validate it's actually about the startup
+          if (!isValidStartupMention(content, startup)) {
+            continue;
+          }
+          
+          // ProductHunt products are inherently "praise" (they got featured)
+          let sentiment = 'praise';
+          let signalType = 'product_launch';
+          
+          // Check for special badges
+          const votesCount = hit.votesCount || hit.votes_count || 0;
+          const commentsCount = hit.commentsCount || hit.comments_count || 0;
+          
+          // Very high votes could mean Product of the Day
+          if (votesCount > 500) {
+            signalType = 'top_product';
+          }
+          
+          signals.push({
+            platform: 'producthunt',
+            source_url: hit.url || `https://www.producthunt.com/posts/${hit.slug}`,
+            author: hit.user?.username || hit.maker?.username || 'producthunt',
+            content: `${title}: ${tagline}`.substring(0, 500),
+            sentiment,
+            signal_type: signalType,
+            engagement_score: votesCount + (commentsCount * 3), // Weight comments higher
+            created_at: hit.day ? new Date(hit.day).toISOString() : new Date().toISOString()
+          });
+        }
+        
+        console.log(`  ✅ Found ${signals.length} ProductHunt products`);
+      }
+    } catch (algoliaError) {
+      console.log(`  ⚠️  ProductHunt Algolia unavailable, trying web search...`);
+      
+      // Fallback: Search the web
+      const searchUrl = `https://www.producthunt.com/search?q=${encodeURIComponent(startupName)}`;
+      
+      const htmlResponse = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        }
+      });
+      
+      if (htmlResponse.ok) {
+        const html = await htmlResponse.text();
+        
+        // Simple pattern to find product cards
+        const productPattern = /href="\/posts\/([^"]+)"[^>]*>([^<]+)/gi;
+        const matches = [...html.matchAll(productPattern)];
+        
+        for (const match of matches.slice(0, 5)) {
+          const slug = match[1];
+          const title = match[2];
+          
+          if (title.toLowerCase().includes(startupName.toLowerCase())) {
+            signals.push({
+              platform: 'producthunt',
+              source_url: `https://www.producthunt.com/posts/${slug}`,
+              author: 'producthunt',
+              content: title,
+              sentiment: 'praise',
+              signal_type: 'product_launch',
+              engagement_score: 20, // Having a PH page is a signal
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+        
+        console.log(`  ✅ Found ${signals.length} ProductHunt products (HTML)`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ ProductHunt error:`, error.message);
+  }
+  
+  return signals;
+}
+
+// ============================================================================
+// BETALIST SCRAPER (NEW - Jan 31, 2026)
+// ============================================================================
+// BetaList is a discovery platform for early-stage startups
+// Being listed on BetaList indicates:
+// - Startup is real and actively seeking early adopters
+// - Has gone through a basic review process
+// - Often has a waiting list (social proof)
+// ============================================================================
+async function scrapeBetaList(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  📋 Searching BetaList...`);
+    
+    // BetaList search
+    const searchUrl = `https://betalist.com/search?q=${encodeURIComponent(startupName)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      // Look for startup cards in search results
+      // BetaList uses cards with startup info
+      const startupPattern = /href="\/startups\/([^"]+)"[^>]*>([^<]*)/gi;
+      const matches = [...html.matchAll(startupPattern)];
+      
+      for (const match of matches.slice(0, 10)) {
+        const slug = match[1];
+        const title = match[2].trim();
+        
+        // Validate it's about our startup
+        if (!title || title.length < 2) continue;
+        
+        const content = title.toLowerCase();
+        const searchName = startupName.toLowerCase();
+        
+        // Check if the title contains the startup name
+        if (content.includes(searchName) || searchName.includes(content)) {
+          signals.push({
+            platform: 'betalist',
+            source_url: `https://betalist.com/startups/${slug}`,
+            author: 'betalist',
+            content: title.substring(0, 500),
+            sentiment: 'praise', // Being on BetaList is validation
+            signal_type: 'beta_launch',
+            engagement_score: 15, // BetaList listing is a moderate signal
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+      
+      // Also look for featured/popular signals
+      if (html.includes('Featured') && html.toLowerCase().includes(startupName.toLowerCase())) {
+        signals.push({
+          platform: 'betalist',
+          source_url: searchUrl,
+          author: 'betalist',
+          content: `${startupName} featured on BetaList`,
+          sentiment: 'praise',
+          signal_type: 'featured',
+          engagement_score: 30, // Featured is a strong signal
+          created_at: new Date().toISOString()
+        });
+      }
+      
+      console.log(`  ✅ Found ${signals.length} BetaList mentions`);
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ BetaList error:`, error.message);
+  }
+  
+  return signals;
+}
+
+// ============================================================================
+// STARTUP FOUNDATION SCRAPER (NEW - Jan 31, 2026)
+// ============================================================================
+// StartupFoundation.co is a community for founders
+// Presence indicates active community engagement
+// ============================================================================
+async function scrapeStartupFoundation(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  🏛️ Searching StartupFoundation...`);
+    
+    // Try to search the site
+    const searchUrl = `https://startupfoundation.co/?s=${encodeURIComponent(startupName)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      // Look for article/post mentions
+      const postPattern = /<article[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>([^<]*)/gis;
+      const matches = [...html.matchAll(postPattern)];
+      
+      for (const match of matches.slice(0, 5)) {
+        const url = match[1];
+        const title = match[2].trim();
+        
+        if (title.toLowerCase().includes(startupName.toLowerCase())) {
+          signals.push({
+            platform: 'startupfoundation',
+            source_url: url,
+            author: 'startupfoundation',
+            content: title.substring(0, 500),
+            sentiment: 'interest',
+            signal_type: 'community_mention',
+            engagement_score: 10,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+      
+      console.log(`  ✅ Found ${signals.length} StartupFoundation mentions`);
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ StartupFoundation error:`, error.message);
+  }
+  
+  return signals;
+}
+
+// ============================================================================
+// CREATIVE TRIBES SCRAPER (NEW - Jan 31, 2026)
+// ============================================================================
+// CreativeTribes.co is a community for creative entrepreneurs
+// Good for design-focused and creative startups
+// ============================================================================
+async function scrapeCreativeTribes(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  🎨 Searching CreativeTribes...`);
+    
+    // Try to search
+    const searchUrl = `https://creativetribes.co/search?q=${encodeURIComponent(startupName)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      // Look for mentions
+      if (html.toLowerCase().includes(startupName.toLowerCase())) {
+        // Extract any links that might be about the startup
+        const linkPattern = /href="([^"]+)"[^>]*>([^<]*)/gi;
+        const matches = [...html.matchAll(linkPattern)];
+        
+        for (const match of matches.slice(0, 10)) {
+          const url = match[1];
+          const text = match[2].trim();
+          
+          if (text.toLowerCase().includes(startupName.toLowerCase())) {
+            signals.push({
+              platform: 'creativetribes',
+              source_url: url.startsWith('http') ? url : `https://creativetribes.co${url}`,
+              author: 'creativetribes',
+              content: text.substring(0, 500),
+              sentiment: 'interest',
+              signal_type: 'community_mention',
+              engagement_score: 8,
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+        
+        console.log(`  ✅ Found ${signals.length} CreativeTribes mentions`);
+      } else {
+        console.log(`  ℹ️ No CreativeTribes mentions`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ CreativeTribes error:`, error.message);
+  }
+  
+  return signals;
+}
+
+// NEW SCRAPERS (Jan 31, 2026 - Batch 2)
+
+/**
+ * FOUNDERS BETA SCRAPER
+ * https://www.foundersbeta.com - Startup directory and community
+ */
+async function scrapeFoundersBeta(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  🚀 Searching FoundersBeta...`);
+    
+    // Search the startup directory
+    const searchUrl = `https://www.foundersbeta.com/startups?q=${encodeURIComponent(startupName)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      // Check if startup is listed
+      if (html.toLowerCase().includes(startupName.toLowerCase())) {
+        // Look for startup cards/listings
+        const listingPattern = /<div[^>]*class="[^"]*startup[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+        const matches = [...html.matchAll(listingPattern)];
+        
+        if (matches.length > 0) {
+          signals.push({
+            platform: 'foundersbeta',
+            source_url: searchUrl,
+            author: 'foundersbeta',
+            content: `Listed on FoundersBeta startup directory`,
+            sentiment: 'interest',
+            signal_type: 'directory_listing',
+            engagement_score: 12,
+            created_at: new Date().toISOString()
+          });
+        }
+        
+        // Check for featured status
+        if (html.toLowerCase().includes('featured') && html.toLowerCase().includes(startupName.toLowerCase())) {
+          signals.push({
+            platform: 'foundersbeta',
+            source_url: searchUrl,
+            author: 'foundersbeta',
+            content: `Featured on FoundersBeta`,
+            sentiment: 'praise',
+            signal_type: 'featured',
+            engagement_score: 25,
+            created_at: new Date().toISOString()
+          });
+        }
+        
+        console.log(`  ✅ Found ${signals.length} FoundersBeta listings`);
+      } else {
+        console.log(`  ℹ️ No FoundersBeta listings`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ FoundersBeta error:`, error.message);
+  }
+  
+  return signals;
+}
+
+/**
+ * NOCODE FOUNDERS SCRAPER
+ * https://nocodefounders.com - Community for no-code builders
+ */
+async function scrapeNoCodeFounders(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  🔧 Searching NoCodeFounders...`);
+    
+    // Try community search
+    const searchUrl = `https://nocodefounders.com/search?q=${encodeURIComponent(startupName)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      if (html.toLowerCase().includes(startupName.toLowerCase())) {
+        // Look for discussion/forum posts
+        const postPattern = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+        const matches = [...html.matchAll(postPattern)];
+        
+        for (const match of matches.slice(0, 5)) {
+          const postContent = match[1];
+          if (postContent.toLowerCase().includes(startupName.toLowerCase())) {
+            // Extract title if available
+            const titleMatch = postContent.match(/<h[123][^>]*>([^<]+)<\/h/i);
+            const title = titleMatch ? titleMatch[1].trim() : 'Community discussion';
+            
+            signals.push({
+              platform: 'nocodefounders',
+              source_url: searchUrl,
+              author: 'nocodefounders_community',
+              content: title.substring(0, 500),
+              sentiment: detectSentiment(postContent),
+              signal_type: 'community_discussion',
+              engagement_score: 10,
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+        
+        console.log(`  ✅ Found ${signals.length} NoCodeFounders discussions`);
+      } else {
+        console.log(`  ℹ️ No NoCodeFounders mentions`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ NoCodeFounders error:`, error.message);
+  }
+  
+  return signals;
+}
+
+/**
+ * STARTUP GRIND BLOG SCRAPER
+ * https://blog.startupgrind.com - Premier startup media & events blog
+ */
+async function scrapeStartupGrind(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  📰 Searching Startup Grind Blog...`);
+    
+    // Search the blog
+    const searchUrl = `https://blog.startupgrind.com/?s=${encodeURIComponent(startupName)}`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      if (html.toLowerCase().includes(startupName.toLowerCase())) {
+        // Look for blog post entries
+        const articlePattern = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+        const matches = [...html.matchAll(articlePattern)];
+        
+        for (const match of matches.slice(0, 5)) {
+          const articleContent = match[1];
+          if (articleContent.toLowerCase().includes(startupName.toLowerCase())) {
+            // Extract title and link
+            const titleMatch = articleContent.match(/<h[123][^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>([^<]+)/i);
+            const url = titleMatch ? titleMatch[1] : searchUrl;
+            const title = titleMatch ? titleMatch[2].trim() : 'Startup Grind feature';
+            
+            signals.push({
+              platform: 'startupgrind',
+              source_url: url,
+              author: 'startup_grind',
+              content: `Featured in Startup Grind: ${title}`.substring(0, 500),
+              sentiment: 'praise',
+              signal_type: 'media_feature',
+              engagement_score: 30, // High value - major startup media outlet
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+        
+        console.log(`  ✅ Found ${signals.length} Startup Grind features`);
+      } else {
+        console.log(`  ℹ️ No Startup Grind mentions`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ Startup Grind error:`, error.message);
+  }
+  
+  return signals;
+}
+
+/**
+ * DISCORD ENGINEERING SCRAPER
+ * https://discord.com/category/engineering - Discord's engineering blog
+ * (Note: This is Discord's official blog, not Discord servers)
+ */
+async function scrapeDiscordEngineering(startupName, startup) {
+  const signals = [];
+  
+  try {
+    console.log(`  💬 Searching Discord Engineering Blog...`);
+    
+    // Discord's engineering blog is public
+    const response = await fetch('https://discord.com/category/engineering', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    if (response.ok) {
+      const html = await response.text();
+      
+      if (html.toLowerCase().includes(startupName.toLowerCase())) {
+        // Check for mentions in engineering posts
+        const postPattern = /<article[^>]*>([\s\S]*?)<\/article>/gi;
+        const matches = [...html.matchAll(postPattern)];
+        
+        for (const match of matches.slice(0, 3)) {
+          const postContent = match[1];
+          if (postContent.toLowerCase().includes(startupName.toLowerCase())) {
+            const titleMatch = postContent.match(/<h[123][^>]*>([^<]+)/i);
+            const title = titleMatch ? titleMatch[1].trim() : 'Discord Engineering mention';
+            
+            signals.push({
+              platform: 'discordengineering',
+              source_url: 'https://discord.com/category/engineering',
+              author: 'discord_engineering',
+              content: `Mentioned in Discord Engineering: ${title}`.substring(0, 500),
+              sentiment: 'praise',
+              signal_type: 'tech_mention',
+              engagement_score: 35, // Very high value - major tech company mention
+              created_at: new Date().toISOString()
+            });
+          }
+        }
+        
+        console.log(`  ✅ Found ${signals.length} Discord Engineering mentions`);
+      } else {
+        console.log(`  ℹ️ No Discord Engineering mentions`);
+      }
+    }
+    
+  } catch (error) {
+    console.error(`  ❌ Discord Engineering error:`, error.message);
+  }
+  
+  return signals;
+}
+
 // VALIDATE IF MENTION IS ACTUALLY ABOUT THE STARTUP (not a false positive)
 function isValidStartupMention(content, startup) {
   const startupName = startup.name.toLowerCase().trim();
@@ -694,7 +1431,87 @@ async function collectSignalsForStartup(startup) {
     startup_id: startup.id, 
     startup_name: startup.name 
   })));
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
+  // IndieHackers (NEW)
+  const ihSignals = await scrapeIndieHackers(startup.name, startup);
+  signals.push(...ihSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  // ProductHunt (NEW)
+  const phSignals = await scrapeProductHunt(startup.name, startup);
+  signals.push(...phSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  // BetaList (NEW - Jan 31, 2026)
+  const blSignals = await scrapeBetaList(startup.name, startup);
+  signals.push(...blSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  // StartupFoundation (NEW - Jan 31, 2026)
+  const sfSignals = await scrapeStartupFoundation(startup.name, startup);
+  signals.push(...sfSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // CreativeTribes (NEW - Jan 31, 2026)
+  const ctSignals = await scrapeCreativeTribes(startup.name, startup);
+  signals.push(...ctSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // FoundersBeta (NEW - Jan 31, 2026 Batch 2)
+  const fbSignals = await scrapeFoundersBeta(startup.name, startup);
+  signals.push(...fbSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // NoCodeFounders (NEW - Jan 31, 2026 Batch 2)
+  const ncfSignals = await scrapeNoCodeFounders(startup.name, startup);
+  signals.push(...ncfSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Startup Grind Blog (NEW - Jan 31, 2026 Batch 2)
+  const sgSignals = await scrapeStartupGrind(startup.name, startup);
+  signals.push(...sgSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Discord Engineering Blog (NEW - Jan 31, 2026 Batch 2)
+  const deSignals = await scrapeDiscordEngineering(startup.name, startup);
+  signals.push(...deSignals.map(s => ({ 
+    ...s, 
+    startup_id: startup.id, 
+    startup_name: startup.name 
+  })));
   await new Promise(resolve => setTimeout(resolve, 1000));
   
   return signals;
@@ -839,48 +1656,40 @@ async function main() {
         )`;
       }).join(',');
       
-      // Batch insert using raw SQL to bypass cache
-      const sql = `
-        INSERT INTO social_signals 
-        (startup_id, startup_name, platform, source_url, author, content, sentiment, signal_type, engagement_score, created_at, collected_at)
-        VALUES ${values}
-      `;
+      // Use standard Supabase insert instead of raw SQL
+      const signalsToInsert = signals.map(signal => ({
+        startup_id: signal.startup_id,
+        startup_name: signal.startup_name,
+        platform: signal.platform,
+        source_url: signal.source_url || '',
+        author: signal.author || '',
+        content: (signal.content || '').substring(0, 1000), // Limit content length
+        sentiment: signal.sentiment || 'neutral',
+        signal_type: signal.signal_type || 'mention',
+        engagement_score: signal.engagement_score || 0,
+        created_at: signal.created_at || new Date().toISOString(),
+        collected_at: new Date().toISOString()
+      }));
       
-      const { error: insertError } = await supabase.rpc('exec_sql_modify', {
-        sql_query: sql
-      });
+      // Batch insert in chunks of 100 to avoid payload limits
+      const chunkSize = 100;
+      let totalInserted = 0;
       
-      if (insertError) {
-        console.error(`  ❌ Error saving signals:`, insertError.message);
-        // Fallback to individual inserts if batch fails
-        console.log(`  ⚠️  Falling back to individual inserts...`);
-        let inserted = 0;
-        for (const signal of signals) {
-          const createdAt = signal.created_at || new Date().toISOString();
-          // Individual insert - simpler, no conflict handling needed
-          const singleSql = `
-            INSERT INTO social_signals 
-            (startup_id, startup_name, platform, source_url, author, content, sentiment, signal_type, engagement_score, created_at, collected_at)
-            VALUES 
-            (${signal.startup_id}, '${escapeSql(signal.startup_name)}', '${escapeSql(signal.platform)}', 
-             '${escapeSql(signal.source_url || '')}', '${escapeSql(signal.author || '')}', 
-             '${escapeSql(signal.content || '')}', '${escapeSql(signal.sentiment || 'neutral')}', 
-             '${escapeSql(signal.signal_type || 'mention')}', ${signal.engagement_score || 0}, 
-             '${createdAt}', NOW())
-          `;
-          
-          const { error: singleError } = await supabase.rpc('exec_sql_modify', {
-            sql_query: singleSql
-          });
-          
-          if (!singleError) inserted++;
+      for (let i = 0; i < signalsToInsert.length; i += chunkSize) {
+        const chunk = signalsToInsert.slice(i, i + chunkSize);
+        const { error: insertError } = await supabase
+          .from('social_signals')
+          .insert(chunk);
+        
+        if (insertError) {
+          console.error(`  ❌ Error saving batch ${i/chunkSize + 1}:`, insertError.message);
+        } else {
+          totalInserted += chunk.length;
         }
-        console.log(`  ✅ Saved ${inserted}/${signals.length} signals (fallback mode)`);
-        totalSignals += inserted;
-      } else {
-        console.log(`  ✅ Saved ${signals.length} signals`);
-        totalSignals += signals.length;
       }
+      
+      console.log(`  ✅ Saved ${totalInserted}/${signals.length} signals`);
+      totalSignals += totalInserted;
       
       // Calculate and display buzz score
       const buzzScore = calculateBuzzScore(signals);

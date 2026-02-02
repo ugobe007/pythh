@@ -23,7 +23,8 @@ const CONFIG = {
   GEO_MATCH: 5,          // Reduced: geography less important (modern VC is global)
   INVESTOR_QUALITY: 20,  // Reduced slightly 
   STARTUP_QUALITY: 25,   // Increased: GOD score matters more
-  MIN_MATCH_SCORE: 35,
+  MIN_MATCH_SCORE: 45,   // Raised from 35 to reduce match flood
+  TOP_MATCHES_PER_STARTUP: 100, // Only keep top 100 matches per startup
   BATCH_SIZE: 500
 };
 
@@ -98,6 +99,81 @@ function calculateStartupQuality(godScore) {
   return Math.round(10 + normalized * 15); // 10-25 range
 }
 
+/**
+ * Generate human-readable reasoning for why this match works
+ */
+function generateReasoning(startup, investor, fitAnalysis) {
+  const reasons = [];
+  
+  // Sector alignment reasoning
+  if (fitAnalysis.sector >= 30) {
+    reasons.push(`Strong sector alignment: ${investor.name} actively invests in ${formatSectors(startup.sectors)}`);
+  } else if (fitAnalysis.sector >= 20) {
+    reasons.push(`Good sector fit: Investment focus overlaps with ${startup.name}'s market`);
+  } else if (fitAnalysis.sector >= 10) {
+    reasons.push(`Adjacent sector interest detected`);
+  }
+  
+  // Stage reasoning
+  if (fitAnalysis.stage >= 15) {
+    reasons.push(`Stage match: ${investor.name} targets ${startup.stage || 'early'}-stage companies`);
+  } else if (fitAnalysis.stage >= 10) {
+    reasons.push(`Stage overlap with investor's typical dealflow`);
+  }
+  
+  // Investor quality reasoning
+  if (fitAnalysis.investor_quality >= 18) {
+    reasons.push(`Top-tier investor with strong track record`);
+  } else if (fitAnalysis.investor_quality >= 15) {
+    reasons.push(`Established investor with relevant portfolio`);
+  }
+  
+  // Startup quality reasoning
+  if (fitAnalysis.startup_quality >= 22) {
+    reasons.push(`Exceptional startup fundamentals (GOD Score: ${startup.total_god_score || 'N/A'})`);
+  } else if (fitAnalysis.startup_quality >= 18) {
+    reasons.push(`Strong startup metrics and team`);
+  }
+  
+  // Tier-specific reasoning
+  if (fitAnalysis.tier === 'elite') {
+    reasons.push(`Elite investor match - high-conviction opportunity`);
+  }
+  
+  return reasons.slice(0, 4).join('. ') + '.';
+}
+
+function formatSectors(sectors) {
+  if (!sectors) return 'their target sectors';
+  if (Array.isArray(sectors)) return sectors.slice(0, 3).join(', ');
+  return sectors;
+}
+
+/**
+ * Generate why_you_match array for UI display
+ */
+function generateWhyYouMatch(startup, investor, fitAnalysis) {
+  const matches = [];
+  
+  if (fitAnalysis.sector >= 20) {
+    matches.push(`Sector: ${formatSectors(startup.sectors)}`);
+  }
+  
+  if (fitAnalysis.stage >= 10) {
+    matches.push(`Stage: ${startup.stage || 'Early'}`);
+  }
+  
+  if (fitAnalysis.investor_quality >= 15) {
+    matches.push(`Investor Tier: ${investor.investor_tier || 'Active'}`);
+  }
+  
+  if (fitAnalysis.startup_quality >= 18) {
+    matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
+  }
+  
+  return matches.length > 0 ? matches : ['Algorithmic match'];
+}
+
 async function regenerateMatches() {
   const startTime = Date.now();
   console.log('\n' + '═'.repeat(60));
@@ -106,22 +182,54 @@ async function regenerateMatches() {
   console.log(`⏰ Started: ${new Date().toISOString()}\n`);
   
   try {
-    // Get approved startups
-    const { data: startups, error: sErr } = await supabase
-      .from('startup_uploads')
-      .select('id, name, sectors, stage, total_god_score')
-      .eq('status', 'approved');
+    // Fetch ALL approved startups (paginated)
+    console.log('📥 Fetching all startups...');
+    let allStartups = [];
+    let page = 0;
+    const pageSize = 1000;
     
-    if (sErr) throw new Error(`Startup fetch error: ${sErr.message}`);
+    while (true) {
+      const { data, error } = await supabase
+        .from('startup_uploads')
+        .select('id, name, sectors, stage, total_god_score')
+        .eq('status', 'approved')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error) throw new Error(`Startup fetch error: ${error.message}`);
+      if (!data || data.length === 0) break;
+      
+      allStartups = allStartups.concat(data);
+      console.log(`   Fetched ${allStartups.length} startups...`);
+      
+      if (data.length < pageSize) break; // Last page
+      page++;
+    }
     
-    // Get investors
-    const { data: investors, error: iErr } = await supabase
-      .from('investors')
-      .select('id, name, sectors, stage, investor_score, investor_tier');
+    // Fetch ALL investors (paginated)
+    console.log('📥 Fetching all investors...');
+    let allInvestors = [];
+    page = 0;
     
-    if (iErr) throw new Error(`Investor fetch error: ${iErr.message}`);
+    while (true) {
+      const { data, error } = await supabase
+        .from('investors')
+        .select('id, name, sectors, stage, investor_score, investor_tier')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error) throw new Error(`Investor fetch error: ${error.message}`);
+      if (!data || data.length === 0) break;
+      
+      allInvestors = allInvestors.concat(data);
+      console.log(`   Fetched ${allInvestors.length} investors...`);
+      
+      if (data.length < pageSize) break; // Last page
+      page++;
+    }
     
-    console.log(`📊 Found ${startups.length} startups × ${investors.length} investors`);
+    const startups = allStartups;
+    const investors = allInvestors;
+    
+    console.log(`\n📊 Found ${startups.length} startups × ${investors.length} investors`);
     
     if (startups.length === 0 || investors.length === 0) {
       console.log('⚠️  No data to match');
@@ -132,11 +240,14 @@ async function regenerateMatches() {
     // This preserves matches for startups not in the current run
     console.log('💾 Using upsert to update existing matches (preserving all matches)\n');
     
-    // Generate new matches
+    // Generate new matches - keep only TOP_MATCHES_PER_STARTUP per startup
     const allMatches = [];
     let processed = 0;
     
     for (const startup of startups) {
+      // Calculate scores for all investors for this startup
+      const startupMatches = [];
+      
       for (const investor of investors) {
         const sectorScore = calculateSectorMatch(startup.sectors, investor.sectors);
         const stageScore = calculateStageMatch(startup.stage, investor.stage);
@@ -146,21 +257,31 @@ async function regenerateMatches() {
         const totalScore = sectorScore + stageScore + investorQuality + startupQuality;
         
         if (totalScore >= CONFIG.MIN_MATCH_SCORE) {
-          allMatches.push({
+          const fitAnalysis = {
+            sector: sectorScore,
+            stage: stageScore,
+            investor_quality: investorQuality,
+            startup_quality: startupQuality,
+            tier: investor.investor_tier
+          };
+          
+          startupMatches.push({
             startup_id: startup.id,
             investor_id: investor.id,
             match_score: totalScore,
+            status: 'suggested',
             confidence_level: totalScore >= 70 ? 'high' : totalScore >= 50 ? 'medium' : 'low',
-            fit_analysis: {
-              sector: sectorScore,
-              stage: stageScore,
-              investor_quality: investorQuality,
-              startup_quality: startupQuality,
-              tier: investor.investor_tier
-            }
+            fit_analysis: fitAnalysis,
+            reasoning: generateReasoning(startup, investor, fitAnalysis),
+            why_you_match: generateWhyYouMatch(startup, investor, fitAnalysis)
           });
         }
       }
+      
+      // Sort and keep only top N matches for this startup
+      startupMatches.sort((a, b) => b.match_score - a.match_score);
+      const topMatches = startupMatches.slice(0, CONFIG.TOP_MATCHES_PER_STARTUP);
+      allMatches.push(...topMatches);
       
       processed++;
       if (processed % 100 === 0) {

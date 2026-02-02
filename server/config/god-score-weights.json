@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-01-29T00:00:00Z",
+  "immutable": true,
+  "description": "Original GOD score weights based on VC criteria (YC, Sequoia, Founders Fund, First Round, Seed/Angel, a16z)",
+  "weights": {
+    "normalizationDivisor": 23,
+    "baseBoostMinimum": 2.0,
+    "vibeBonusCap": 1.0,
+    "finalScoreMultiplier": 10,
+    "componentWeights": {
+      "team": 0.25,
+      "traction": 0.25,
+      "market": 0.20,
+      "product": 0.15,
+      "vision": 0.15
+    }
+  },
+  "invariants": {
+    "componentWeightSum": 1.0,
+    "normalizedFeatureBounds": [0, 1],
+    "totalScoreBounds": [0, 100],
+    "maxSignalContribution": 10
+  },
+  "changelog": "Initial version - original system before signal cascade integration"
+}

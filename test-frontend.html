@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hot Honey Frontend Test</title>
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';  // Replace from .env
+    const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY'; // Replace from .env
+    
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    console.log('🧪 Hot Honey Frontend Test');
+    
+    // Test 1: Get a startup
+    console.log('Test 1: Fetching startup...');
+    const { data: startup, error: startupError } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, total_god_score')
+      .eq('status', 'approved')
+      .limit(1)
+      .single();
+    
+    if (startupError) {
+      console.error('❌ Startup error:', startupError);
+      document.body.innerHTML = `<h1>Error: ${startupError.message}</h1>`;
+    } else {
+      console.log('✅ Startup:', startup);
+      
+      // Test 2: Get matches
+      console.log('Test 2: Fetching matches...');
+      const { data: matches, error: matchError } = await supabase
+        .from('startup_investor_matches')
+        .select('match_score, investor_id')
+        .eq('startup_id', startup.id)
+        .gte('match_score', 50)
+        .limit(5);
+      
+      if (matchError) {
+        console.error('❌ Match error:', matchError);
+        document.body.innerHTML = `<h1>Match Error: ${matchError.message}</h1>`;
+      } else {
+        console.log('✅ Matches:', matches.length);
+        
+        // Test 3: Get investors
+        const investorIds = matches.map(m => m.investor_id);
+        const { data: investors, error: invError } = await supabase
+          .from('investors')
+          .select('id, name, firm')
+          .in('id', investorIds);
+        
+        if (invError) {
+          console.error('❌ Investor error:', invError);
+          document.body.innerHTML = `<h1>Investor Error: ${invError.message}</h1>`;
+        } else {
+          console.log('✅ Investors:', investors);
+          
+          // Display results
+          document.body.innerHTML = `
+            <h1>✅ Frontend Test Passed!</h1>
+            <h2>Startup: ${startup.name}</h2>
+            <h3>Matches (${matches.length}):</h3>
+            <ul>
+              ${matches.map((m, i) => {
+                const inv = investors.find(inv => inv.id === m.investor_id);
+                return `<li>${inv?.name || 'Unknown'} - Score: ${m.match_score}</li>`;
+              }).join('')}
+            </ul>
+            <p>Check console for details.</p>
+          `;
+        }
+      }
+    }
+  </script>
+</head>
+<body>
+  <h1>Loading...</h1>
+</body>
+</html>

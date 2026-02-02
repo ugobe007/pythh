@@ -46,6 +46,8 @@ if (envResult.error) {
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
+const { pool } = require('./db');
+const { getSupabaseClient } = require('./lib/supabaseClient');
 // fs and path are already declared above
 
 const app = express();
@@ -56,7 +58,7 @@ app.use(cors({
   origin: true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key']
 }));
 app.use(express.json());
 
@@ -80,42 +82,7 @@ const upload = multer({ dest: 'uploads/' });
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Helper function to get Supabase client with validation
-function getSupabaseClient() {
-  const { createClient } = require('@supabase/supabase-js');
-  
-  // Check for all possible environment variable names (VITE_ first since that's the real one)
-  const supabaseUrl = process.env.VITE_SUPABASE_URL ||
-                      process.env.SUPABASE_URL || 
-                      process.env.NEXT_PUBLIC_SUPABASE_URL ||
-                      process.env.REACT_APP_SUPABASE_URL;
-  
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 
-                      process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                      process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-                      process.env.VITE_SUPABASE_ANON_KEY ||
-                      process.env.SUPABASE_ANON_KEY ||
-                      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  // Debug logging - show all env vars that start with SUPABASE
-  console.log('[getSupabaseClient] Environment check:');
-  const supabaseEnvVars = Object.keys(process.env).filter(k => k.includes('SUPABASE'));
-  console.log('  Found Supabase env vars:', supabaseEnvVars.length > 0 ? supabaseEnvVars.join(', ') : 'NONE');
-  console.log('  Resolved URL:', supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'NONE');
-  console.log('  Resolved Key:', supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'NONE');
-  
-  if (!supabaseUrl) {
-    console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('SUPABASE')));
-    throw new Error('SUPABASE_URL or VITE_SUPABASE_URL environment variable is required. Check .env file in project root.');
-  }
-  
-  if (!supabaseKey) {
-    console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('SUPABASE')));
-    throw new Error('SUPABASE_SERVICE_KEY or VITE_SUPABASE_ANON_KEY environment variable is required. Check .env file in project root.');
-  }
-  
-  return createClient(supabaseUrl, supabaseKey);
-}
+// Helper function is imported from lib/supabaseClient.js (SSOT)
 
 // ============================================================
 // SIGNAL HISTORY HELPERS
@@ -177,15 +144,42 @@ async function recordSignalHistory({ supabase, startupId, rawMatches, godScore, 
 // Import convergence endpoint
 const { convergenceEndpoint } = require('./routes/convergence.js');
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    port: PORT,
-    version: '0.1.0'
-  });
+// Import share links router
+const shareLinksRouter = require('./routes/shareLinks.js');
+
+// Register share links API routes
+app.use('/api/share-links', shareLinksRouter);
+
+// Health check endpoint (with DB ping via Supabase)
+// Supports both /api/health and /api/v1/health (for frontend auto-detection)
+app.get(['/api/health', '/api/v1/health'], async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('ai_logs').select('created_at').limit(1).single();
+    
+    res.json({
+      status: error ? 'degraded' : 'ok',
+      timestamp: new Date().toISOString(),
+      port: PORT,
+      version: '0.1.0',
+      database: { 
+        connected: !error, 
+        lastActivity: data?.created_at || null,
+        error: error?.message || null
+      }
+    });
+  } catch (err) {
+    console.error('[/api/health] db error', err);
+    res.json({
+      status: 'degraded',
+      timestamp: new Date().toISOString(),
+      port: PORT,
+      version: '0.1.0',
+      database: { connected: false, error: 'db_unreachable' }
+    });
+  }
 });
+
 
 // ============================================================
 // PHASE B: ENGINE STATUS & EVENT STREAM APIs
@@ -362,6 +356,64 @@ function formatTimeAgo(date) {
   if (hours < 24) return `${hours}h ago`;
   return 'today';
 }
+
+// ============================================================
+// GET /api/pulse - Time-series signals for /live heat chart
+// Params: windowHours (default 24, max 168), bucketMinutes (default 10, max 60)
+// Returns: bucketed signal activity over time by archetype/channel
+// ============================================================
+function clampInt(value, def, min, max) {
+  const n = Number.parseInt(value ?? def, 10);
+  if (Number.isNaN(n)) return def;
+  return Math.max(min, Math.min(max, n));
+}
+
+app.get('/api/pulse', async (req, res) => {
+  const windowHours = clampInt(req.query.windowHours, 24, 1, 168);
+  const bucketMinutes = clampInt(req.query.bucketMinutes, 10, 1, 60);
+
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Calculate time window
+    const cutoffTime = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
+    
+    // Fetch raw data from investor_events_weighted
+    const { data: events, error } = await supabase
+      .from('investor_events_weighted')
+      .select('occurred_at, archetype, event_type, signal_weight')
+      .gte('occurred_at', cutoffTime)
+      .order('occurred_at', { ascending: true });
+
+    if (error) throw error;
+
+    // Bucket the data in JavaScript
+    const bucketMs = bucketMinutes * 60 * 1000;
+    const buckets = {};
+    
+    (events || []).forEach(event => {
+      const ts = new Date(event.occurred_at).getTime();
+      const bucketTs = Math.floor(ts / bucketMs) * bucketMs;
+      const channel = event.archetype || event.event_type || 'unknown';
+      const weight = event.signal_weight || 1.0;
+      
+      const key = `${bucketTs}:${channel}`;
+      if (!buckets[key]) {
+        buckets[key] = { bucket_ts: new Date(bucketTs).toISOString(), channel, signal: 0 };
+      }
+      buckets[key].signal += weight;
+    });
+
+    const rows = Object.values(buckets).sort((a, b) => 
+      new Date(a.bucket_ts).getTime() - new Date(b.bucket_ts).getTime()
+    );
+
+    res.json({ ok: true, rows, windowHours, bucketMinutes });
+  } catch (err) {
+    console.error('[/api/pulse] error', err);
+    res.status(500).json({ ok: false, error: 'pulse_query_failed', message: err.message });
+  }
+});
 
 // ============================================================
 // CONVERGENCE ENDPOINT - Capital Intelligence Surface
@@ -4733,11 +4785,35 @@ app.post('/api/documents', upload.single('file'), (req, res) => {
 
 // Match API routes
 const matchesRouter = require('./routes/matches');
+const scanRouter = require('./routes/scan');
 app.use('/api/matches', matchesRouter);
+app.use('/api', scanRouter);
+
+// Match Run API routes (V1 - Supabase RPC-native orchestration)
+const matchRunRoutes = require('./routes/matchRun');
+app.use('/api/match', matchRunRoutes);
+
+// Resolve API route (Bulletproof URL resolution)
+const resolveRouter = require('./routes/resolve');
+app.use('/api', resolveRouter);
+
+// Discovery API routes (Phase 3: Job-based submit/poll pattern)
+const discoverySubmit = require('./routes/discoverySubmit');
+const discoveryResults = require('./routes/discoveryResults');
+const deltaResults = require('./routes/deltaResults');
+const discoveryDiagnostic = require('./routes/discoveryDiagnostic');
+app.use('/api/discovery', discoverySubmit);
+app.use('/api/discovery', discoveryResults);
+app.use('/api/discovery', deltaResults);
+app.use('/api/discovery', discoveryDiagnostic);
 
 // Startup API routes (including signal history)
 const startupsRouter = require('./routes/startups');
 app.use('/api/startups', startupsRouter);
+
+// Startup scrape & enrich API routes
+const startupScrapeRouter = require('./routes/startupScrape');
+app.use('/api/startup', startupScrapeRouter);
 
 // Talent matching API routes
 const talentRouter = require('./routes/talent');
@@ -4750,6 +4826,18 @@ app.use('/api/market-intelligence', marketIntelligenceRouter);
 // Intelligence API routes (Pythh Brain v1 - read-only)
 const intelligenceRouter = require('./routes/intelligence');
 app.use('/api', intelligenceRouter);
+
+// GOD Score Guardrails API routes
+const godRouter = require('./routes/god');
+app.use('/api/god', godRouter);
+
+// Agent API v1 routes (public + keyed access)
+const apiV1Router = require('./routes/apiV1');
+app.use('/api/v1', apiV1Router);
+
+// Canonical Verification API routes (locked surface)
+const canonicalRouter = require('./routes/canonical');
+app.use('/api', canonicalRouter);
 
 // Helper function to spawn automation scripts
 function spawnAutomationScript(scriptName, description) {
@@ -5962,6 +6050,19 @@ app.post('/api/ml/training/run', async (req, res) => {
   }
 });
 
+// ------------------------------------------------------------
+// API 404 HANDLER (catch unmatched /api/* BEFORE static/SPA)
+// ------------------------------------------------------------
+app.use('/api', (req, res) => {
+  console.log(`[API 404] Not found: ${req.method} ${req.path} [${req.requestId || 'no-id'}]`);
+  res.status(404).json({
+    ok: false,
+    error: { code: 'not_found', message: 'API route not found' },
+    path: req.path,
+    requestId: req.requestId
+  });
+});
+
 // === PRODUCTION: Serve Frontend Static Files ===
 // This serves the built React app from /app/dist in production
 const distPath = path.join(__dirname, '..', 'dist');
@@ -5974,24 +6075,35 @@ if (fs.existsSync(distPath)) {
   app.get(/^(?!\/api\/)(?!\/uploads\/).*/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
-} else {
-  console.log('[Server] No dist folder found - API-only mode');
-  
-  // 404 handler for API-only mode
-  app.use((req, res) => {
-    res.status(404).json({
-      error: 'Not Found',
-      path: req.path
-    });
-  });
 }
 
-// Error handling middleware
+// ------------------------------------------------------------
+// 404 HANDLER (for all unmatched routes - AFTER static/SPA)
+// ------------------------------------------------------------
+app.use((req, res, next) => {
+  // Don't log static asset 404s
+  if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
+    return res.status(404).end();
+  }
+  
+  console.log(`[404] Not found: ${req.method} ${req.path} [${req.requestId || 'no-id'}]`);
+  res.status(404).json({ 
+    error: 'Not Found', 
+    path: req.path,
+    requestId: req.requestId 
+  });
+});
+
+// ------------------------------------------------------------
+// ERROR HANDLER (must be last middleware)
+// ------------------------------------------------------------
 app.use((err, req, res, next) => {
+  console.error(`[error] ${err.message} [${req.requestId || 'no-id'}]`);
   console.error(err.stack);
   res.status(500).json({
     error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    requestId: req.requestId
   });
 });
 
@@ -6099,40 +6211,16 @@ try {
     
     console.log(`📊 Daily digest check scheduled every ${DIGEST_INTERVAL_MS / 1000 / 60} minutes`);
   });
-
-  // 404 handler for missing endpoints
-  app.use((req, res, next) => {
-    // Don't log static asset 404s
-    if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf)$/)) {
-      return res.status(404).end();
-    }
-    
-    console.log(`[404] Not found: ${req.method} ${req.path} [${req.requestId}]`);
-    res.status(404).json({ 
-      error: 'Not found', 
-      path: req.path,
-      requestId: req.requestId 
-    });
-  });
-
-  // Error handler
-  app.use((err, req, res, next) => {
-    console.error(`[error] ${err.message} [${req.requestId}]`);
-    res.status(500).json({ 
-      error: 'Internal server error', 
-      requestId: req.requestId 
-    });
-  });
-
-  // Handle server errors
-  process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
-  });
-
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  });
 } catch (error) {
   console.error('❌ Failed to start server:', error);
   process.exit(1);
 }
+
+// Handle server errors (these are fine outside app.listen)
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});

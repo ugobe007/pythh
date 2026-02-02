@@ -1,188 +1,225 @@
-import React, { useEffect, useState } from "react";
+/**
+ * ENGINE — "Pipeline View"
+ * 
+ * Horizontal flow diagram showing how PYTHH works.
+ * No cards. No buttons. No marketing.
+ * This page is for trust, not conversion.
+ */
 
-type HealthTile = {
-  label: string;
-  status: "ok" | "warn" | "down";
-  primary: string;
-  secondary: string;
-};
+import React from "react";
+import { Link } from "react-router-dom";
+import "@/styles/pythh-dashboard.css";
 
-type EventRow = {
-  ts: string;
-  type: string;
-  action: string;
-  status: "ok" | "warn" | "error";
-  note: string;
-};
+// ═══════════════════════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════════════════════
 
-type EngineStatus = {
-  tiles: HealthTile[];
-  timestamp: string;
-};
+const NAV = [
+  { label: "Dashboard", href: "/app" },
+  { label: "Engine", href: "/app/engine", active: true },
+  { label: "Signals", href: "/signals" },
+  { label: "Matches", href: "/matches" },
+  { label: "How it works", href: "/how-it-works" },
+];
 
-type EventsResponse = {
-  events: EventRow[];
-  total: number;
-  timestamp: string;
-};
+// ═══════════════════════════════════════════════════════════════
+// PIPELINE STAGES
+// ═══════════════════════════════════════════════════════════════
 
-function StatusDot({ status }: { status: HealthTile["status"] }) {
-  const cls =
-    status === "ok"
-      ? "bg-emerald-400"
-      : status === "warn"
-      ? "bg-amber-400"
-      : "bg-rose-400";
-  return <span className={`inline-block h-2 w-2 rounded-full ${cls}`} />;
+interface PipelineStage {
+  title: string;
+  items: { label: string; desc: string }[];
 }
 
-function Badge({ status }: { status: EventRow["status"] }) {
-  const cls =
-    status === "ok"
-      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-      : status === "warn"
-      ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-      : "border-rose-400/30 bg-rose-400/10 text-rose-200";
-  return (
-    <span className={`text-[11px] px-2 py-1 rounded-md border ${cls}`}>
-      {status.toUpperCase()}
-    </span>
-  );
-}
+const PIPELINE: PipelineStage[] = [
+  {
+    title: "Inputs",
+    items: [
+      { label: "Website", desc: "Landing, team, product pages" },
+      { label: "Deck", desc: "Pitch materials if provided" },
+      { label: "Press", desc: "Public announcements, coverage" },
+    ],
+  },
+  {
+    title: "Normalization",
+    items: [
+      { label: "Entity parsing", desc: "Extract sector, stage, model" },
+      { label: "Time weighting", desc: "Recency decay applied" },
+      { label: "Confidence map", desc: "Certainty per data point" },
+    ],
+  },
+  {
+    title: "Signal Layer",
+    items: [
+      { label: "Belief vectors", desc: "Investor intent signals" },
+      { label: "Momentum score", desc: "Velocity of attention" },
+      { label: "Decay curves", desc: "Window-based relevance" },
+    ],
+  },
+  {
+    title: "Outputs",
+    items: [
+      { label: "Matches", desc: "Ranked investor targets" },
+      { label: "Windows", desc: "Time-bound opportunities" },
+      { label: "Alerts", desc: "Threshold notifications" },
+    ],
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// COMPONENT
+// ═══════════════════════════════════════════════════════════════
 
 export default function Engine() {
-  const [status, setStatus] = useState<EngineStatus | null>(null);
-  const [events, setEvents] = useState<EventRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchEngineData();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchEngineData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchEngineData() {
-    try {
-      const [statusRes, eventsRes] = await Promise.all([
-        fetch('http://localhost:3002/api/engine/status'),
-        fetch('http://localhost:3002/api/events?limit=20')
-      ]);
-
-      if (!statusRes.ok || !eventsRes.ok) {
-        throw new Error('API request failed');
-      }
-
-      const statusData: EngineStatus = await statusRes.json();
-      const eventsData: EventsResponse = await eventsRes.json();
-
-      setStatus(statusData);
-      setEvents(eventsData.events);
-      setError(null);
-    } catch (err) {
-      console.error('[Engine] Fetch error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-white/60">Loading engine status...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-2xl border border-rose-400/30 bg-rose-400/10 p-6">
-        <div className="text-sm font-semibold text-rose-200">Connection Error</div>
-        <div className="mt-2 text-sm text-rose-300/80">
-          {error}
-        </div>
-        <button
-          onClick={fetchEngineData}
-          className="mt-4 px-4 py-2 rounded-lg border border-rose-400/30 bg-rose-400/20 text-rose-200 hover:bg-rose-400/30 transition"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <header className="mb-6">
-        <div className="text-[12px] uppercase tracking-wider text-white/45">
-          Engine status
-        </div>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Command Center</h1>
-        <div className="mt-2 text-sm text-white/60">
-          Live telemetry from scraper, scoring, matching, and ML systems.
+    <div className="py-bg-dashboard" style={{ color: "var(--py-text)", minHeight: "100vh" }}>
+      {/* Header */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+          backdropFilter: "blur(10px)",
+          background: "rgba(11,15,22,.78)",
+          borderBottom: "1px solid var(--py-line)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1200,
+            margin: "0 auto",
+            padding: "14px 18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Link to="/" style={{ fontWeight: 750, letterSpacing: ".3px", color: "var(--py-text)" }}>
+            PYTHH
+          </Link>
+          <nav style={{ display: "flex", gap: 10 }}>
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                to={n.href}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  color: n.active ? "var(--py-text)" : "var(--py-muted)",
+                  border: "1px solid",
+                  borderColor: n.active ? "var(--py-line)" : "transparent",
+                  background: n.active ? "rgba(255,255,255,.04)" : "transparent",
+                }}
+              >
+                {n.label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </header>
 
-      {/* Tiles */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {status?.tiles.map((t) => (
-          <div
-            key={t.label}
-            className="rounded-2xl border border-white/10 bg-white/5 p-5"
-          >
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white/85">{t.label}</div>
-              <StatusDot status={t.status} />
+      {/* Page */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px 40px" }}>
+        {/* Title */}
+        <div style={{ marginBottom: 24 }}>
+          <div className="py-kicker">engine</div>
+          <div className="py-title-wrap">
+            <h1 className="py-title">
+              Signal processing pipeline
+              <span className="py-glyph">[]—I <strong>→</strong> H→ []</span>
+            </h1>
+            <div className="py-hairline" />
+          </div>
+          <div className="py-subtitle">How noisy founder data becomes actionable intelligence.</div>
+        </div>
+
+        {/* Pipeline Flow */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 0,
+            position: "relative",
+          }}
+        >
+          {PIPELINE.map((stage, i) => (
+            <div key={stage.title} style={{ position: "relative" }}>
+              {/* Column */}
+              <div
+                className="py-panel"
+                style={{
+                  borderRadius: i === 0 ? "12px 0 0 12px" : i === 3 ? "0 12px 12px 0" : 0,
+                  borderRight: i < 3 ? "none" : undefined,
+                  height: "100%",
+                }}
+              >
+                <div className="py-panel-inner" style={{ padding: 16 }}>
+                  {/* Stage title */}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      color: "rgba(199,210,254,.7)",
+                      marginBottom: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    {stage.title}
+                    {i < 3 && (
+                      <span style={{ color: "rgba(255,255,255,.2)", fontSize: 14, marginLeft: "auto" }}>→</span>
+                    )}
+                  </div>
+
+                  {/* Items */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {stage.items.map((item) => (
+                      <div key={item.label}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,.85)", marginBottom: 2 }}>
+                          {item.label}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--py-muted)", lineHeight: 1.4 }}>
+                          {item.desc}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="mt-3 text-lg font-semibold text-white/90">{t.primary}</div>
-            <div className="mt-2 text-sm text-white/60">{t.secondary}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Event stream */}
-      <div className="mt-8 rounded-2xl border border-white/10 bg-white/5">
-        <div className="px-5 py-4 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold text-white/85">Recent engine events</div>
-            <div className="text-xs text-white/45">Auto-refreshes every 30s · Last update: {status?.timestamp ? new Date(status.timestamp).toLocaleTimeString() : 'unknown'}</div>
-          </div>
-          <div className="text-xs text-white/40">types: scrape · score · match · ml · guardian</div>
+          ))}
         </div>
 
-        <div className="border-t border-white/10">
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead className="text-white/50">
-                <tr className="border-b border-white/10">
-                  <th className="text-left font-medium px-5 py-3">Time</th>
-                  <th className="text-left font-medium px-5 py-3">Type</th>
-                  <th className="text-left font-medium px-5 py-3">Action</th>
-                  <th className="text-left font-medium px-5 py-3">Status</th>
-                  <th className="text-left font-medium px-5 py-3">Note</th>
-                </tr>
-              </thead>
-              <tbody className="text-white/75">
-                {events.map((e, idx) => (
-                  <tr key={idx} className="border-b border-white/10 last:border-b-0">
-                    <td className="px-5 py-3 whitespace-nowrap text-white/55">{e.ts}</td>
-                    <td className="px-5 py-3 whitespace-nowrap">{e.type}</td>
-                    <td className="px-5 py-3">{e.action}</td>
-                    <td className="px-5 py-3"><Badge status={e.status} /></td>
-                    <td className="px-5 py-3 text-white/60">{e.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Explanation strip */}
+        <div className="py-panel" style={{ marginTop: 16 }}>
+          <div className="py-panel-inner" style={{ padding: "14px 16px" }}>
+            <div style={{ fontSize: 13, color: "var(--py-muted)", lineHeight: 1.5 }}>
+              <strong style={{ color: "rgba(255,255,255,.7)" }}>Normalization</strong> converts noisy founder data into comparable signals across time.{" "}
+              <strong style={{ color: "rgba(255,255,255,.7)" }}>Signal Layer</strong> computes belief pressure and momentum.{" "}
+              <strong style={{ color: "rgba(255,255,255,.7)" }}>Outputs</strong> rank opportunities by time + alignment.
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Wiring note */}
-      <div className="mt-6 text-sm text-white/60">
-        ✅ Phase B: Wired to <span className="text-white/80 font-semibold">ai_logs</span> table · Auto-refresh: 30s
+        {/* Status row */}
+        <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          {[
+            { label: "Startups indexed", value: "2,847" },
+            { label: "Investors tracked", value: "1,203" },
+            { label: "Signals processed", value: "48h window" },
+            { label: "Match confidence", value: ">70%" },
+          ].map((stat) => (
+            <div key={stat.label} className="py-panel">
+              <div className="py-panel-inner" style={{ padding: 12, textAlign: "center" }}>
+                <div className="py-kicker">{stat.label}</div>
+                <div style={{ marginTop: 6, fontSize: 18, fontWeight: 700 }}>{stat.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

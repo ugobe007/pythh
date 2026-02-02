@@ -1,0 +1,103 @@
+{
+  "timestamp": "2026-01-30T02:57:38.560Z",
+  "overall": {
+    "count": 1000,
+    "mean": 49.446,
+    "median": 40,
+    "stdDev": 20.397379341474476,
+    "min": 40,
+    "max": 100
+  },
+  "percentiles": {
+    "p10": 40,
+    "p25": 40,
+    "p50": 40,
+    "p75": 44,
+    "p90": 100,
+    "p95": 100,
+    "p99": 100
+  },
+  "buckets": [
+    {
+      "range": "<40",
+      "count": 0,
+      "percentage": "0.0"
+    },
+    {
+      "range": "40-50",
+      "count": 832,
+      "percentage": "83.2"
+    },
+    {
+      "range": "50-60",
+      "count": 17,
+      "percentage": "1.7"
+    },
+    {
+      "range": "60-70",
+      "count": 4,
+      "percentage": "0.4"
+    },
+    {
+      "range": "70-80",
+      "count": 4,
+      "percentage": "0.4"
+    },
+    {
+      "range": "80-85",
+      "count": 4,
+      "percentage": "0.4"
+    },
+    {
+      "range": "85-90",
+      "count": 5,
+      "percentage": "0.5"
+    },
+    {
+      "range": "90+",
+      "count": 18,
+      "percentage": "1.8"
+    }
+  ],
+  "goldilocks": {
+    "count": 6,
+    "percentage": "0.6"
+  },
+  "elite": {
+    "count": 139,
+    "percentage": "13.90"
+  },
+  "healthScore": 33,
+  "checks": [
+    {
+      "name": "Mean in target range (55-65)",
+      "pass": false,
+      "value": "49.4"
+    },
+    {
+      "name": "Standard deviation (8-15)",
+      "pass": false,
+      "value": "20.4"
+    },
+    {
+      "name": "Goldilocks zone (30-40%)",
+      "pass": false,
+      "value": "0.6%"
+    },
+    {
+      "name": "Elite tier exists (0.5-2%)",
+      "pass": false,
+      "value": "13.90%"
+    },
+    {
+      "name": "No basement tier (<40)",
+      "pass": true,
+      "value": "0.0%"
+    },
+    {
+      "name": "Good spread (max-min > 30)",
+      "pass": true,
+      "value": "60.0"
+    }
+  ]
+}

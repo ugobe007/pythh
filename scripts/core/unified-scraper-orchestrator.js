@@ -152,12 +152,21 @@ const SCRIPTS = {
     args: ['--limit', '50'],
   },
   
-  // Scoring
+  // Scoring - FIXED Jan 31, 2026: Use official recalculate-scores.ts instead of legacy tiered script
+  // The old god-score-v5-tiered.js was capping scores and using different algorithms
   godScoring: {
-    path: 'scripts/core/god-score-v5-tiered.js',
-    exists: () => fs.existsSync('scripts/core/god-score-v5-tiered.js'),
-    description: 'GOD Score calculation',
+    path: 'npx',
+    args: ['tsx', 'scripts/recalculate-scores.ts'],
+    exists: () => fs.existsSync('scripts/recalculate-scores.ts'),
+    description: 'GOD Score calculation (official algorithm)',
   },
+  
+  // DEPRECATED - DO NOT USE
+  // godScoringLegacy: {
+  //   path: 'scripts/core/god-score-v5-tiered.js',
+  //   exists: () => fs.existsSync('scripts/core/god-score-v5-tiered.js'),
+  //   description: 'DEPRECATED - was capping scores at tier limits (40/55)',
+  // },
   
   // Matching
   matchGeneration: {

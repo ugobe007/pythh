@@ -1,0 +1,2709 @@
+{
+  "timestamp": "2026-01-30T01:59:35.924Z",
+  "globalAvg": 91.24,
+  "totalStartups": 1000,
+  "totalIndustries": 32,
+  "topIndustries": [
+    {
+      "industry": "climate tech",
+      "count": 12,
+      "avg": 100,
+      "median": 100,
+      "min": 100,
+      "max": 100,
+      "stdDev": 0,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 45.833333333333336,
+        "traction": 47.5,
+        "market": 50,
+        "product": 25,
+        "vision": 22.083333333333332
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "Nexture",
+          "score": 100
+        },
+        {
+          "name": "Polar",
+          "score": 100
+        },
+        {
+          "name": "NotSoAAA",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Crypto",
+      "count": 13,
+      "avg": 99.46153846153847,
+      "median": 100,
+      "min": 95,
+      "max": 100,
+      "stdDev": 1.3931361750980642,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 66.61538461538461,
+        "traction": 71.23076923076923,
+        "market": 46.92307692307692,
+        "product": 32.69230769230769,
+        "vision": 16
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "DigitalSystems",
+          "score": 100
+        },
+        {
+          "name": "VertexSolutions",
+          "score": 100
+        },
+        {
+          "name": "ApexSpace",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Defense",
+      "count": 18,
+      "avg": 97.27777777777777,
+      "median": 100,
+      "min": 86,
+      "max": 100,
+      "stdDev": 4.616462757898273,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 42.05555555555556,
+        "traction": 42.611111111111114,
+        "market": 34.77777777777778,
+        "product": 25,
+        "vision": 13.61111111111111
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "SecureNet",
+          "score": 100
+        },
+        {
+          "name": "Lacework",
+          "score": 100
+        },
+        {
+          "name": "Archer",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Robotics",
+      "count": 19,
+      "avg": 97.15789473684211,
+      "median": 100,
+      "min": 81,
+      "max": 100,
+      "stdDev": 5.274198945359898,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.21052631578947,
+        "traction": 44.68421052631579,
+        "market": 36.421052631578945,
+        "product": 25.36842105263158,
+        "vision": 12.368421052631579
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "5.3",
+        "above85": "94.7"
+      },
+      "topStartups": [
+        {
+          "name": "Plus One Robotics",
+          "score": 100
+        },
+        {
+          "name": "Municipal Packaging",
+          "score": 100
+        },
+        {
+          "name": "RoboSim",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Enterprise",
+      "count": 45,
+      "avg": 96.75555555555556,
+      "median": 100,
+      "min": 79,
+      "max": 100,
+      "stdDev": 6.01906436271196,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 44.24444444444445,
+        "traction": 52.37777777777778,
+        "market": 43.62222222222222,
+        "product": 28.177777777777777,
+        "vision": 20.133333333333333
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "11.1",
+        "above85": "88.9"
+      },
+      "topStartups": [
+        {
+          "name": "Norm AI",
+          "score": 100
+        },
+        {
+          "name": "GridSense",
+          "score": 100
+        },
+        {
+          "name": "Cohere",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Consumer",
+      "count": 68,
+      "avg": 94.94117647058823,
+      "median": 99,
+      "min": 76,
+      "max": 100,
+      "stdDev": 7.402071158766737,
+      "p50": 99,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 48.19117647058823,
+        "traction": 51.338235294117645,
+        "market": 34.86764705882353,
+        "product": 26.191176470588236,
+        "vision": 15.985294117647058
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "16.2",
+        "above85": "83.8"
+      },
+      "topStartups": [
+        {
+          "name": "Grab",
+          "score": 100
+        },
+        {
+          "name": "YipitData",
+          "score": 100
+        },
+        {
+          "name": "PulseMind",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "AI/ML",
+      "count": 173,
+      "avg": 94.3699421965318,
+      "median": 100,
+      "min": 76,
+      "max": 100,
+      "stdDev": 7.509656095903438,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.578034682080926,
+        "traction": 42.27167630057804,
+        "market": 46.53757225433526,
+        "product": 25.838150289017342,
+        "vision": 19.69364161849711
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "13.3",
+        "above85": "86.7"
+      },
+      "topStartups": [
+        {
+          "name": "Prepp",
+          "score": 100
+        },
+        {
+          "name": "SmartLabs",
+          "score": 100
+        },
+        {
+          "name": "Norm AI",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Climate",
+      "count": 38,
+      "avg": 94.21052631578948,
+      "median": 99,
+      "min": 80,
+      "max": 100,
+      "stdDev": 6.424287364684452,
+      "p50": 99,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 39.026315789473685,
+        "traction": 44.78947368421053,
+        "market": 43.76315789473684,
+        "product": 25,
+        "vision": 14.342105263157896
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "10.5",
+        "above85": "89.5"
+      },
+      "topStartups": [
+        {
+          "name": "Climeworks",
+          "score": 100
+        },
+        {
+          "name": "Devin Nunes",
+          "score": 100
+        },
+        {
+          "name": "PrimeHub",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "B2B",
+      "count": 12,
+      "avg": 94.08333333333333,
+      "median": 100,
+      "min": 81,
+      "max": 100,
+      "stdDev": 8.46028302652393,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 61.25,
+        "traction": 59,
+        "market": 30.083333333333332,
+        "product": 27.5,
+        "vision": 18
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "25.0",
+        "above85": "75.0"
+      },
+      "topStartups": [
+        {
+          "name": "QuantumLabs",
+          "score": 100
+        },
+        {
+          "name": "UltraFinance",
+          "score": 100
+        },
+        {
+          "name": "NovaLogic",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Technology",
+      "count": 101,
+      "avg": 94.03960396039604,
+      "median": 94,
+      "min": 80,
+      "max": 100,
+      "stdDev": 4.628625508785343,
+      "p50": 94,
+      "p75": 98,
+      "p90": 100,
+      "components": {
+        "team": 41.04950495049505,
+        "traction": 42.613861386138616,
+        "market": 30.217821782178216,
+        "product": 25,
+        "vision": 24.18811881188119
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "3.0",
+        "above85": "97.0"
+      },
+      "topStartups": [
+        {
+          "name": "GetProfile",
+          "score": 100
+        },
+        {
+          "name": "Can Italy",
+          "score": 100
+        },
+        {
+          "name": "Perceptia",
+          "score": 100
+        }
+      ]
+    }
+  ],
+  "bottomIndustries": [
+    {
+      "industry": "Media",
+      "count": 15,
+      "avg": 79.8,
+      "median": 78,
+      "min": 76,
+      "max": 100,
+      "stdDev": 6.379132647416364,
+      "p50": 78,
+      "p75": 79,
+      "p90": 90,
+      "components": {
+        "team": 24.066666666666666,
+        "traction": 23.333333333333332,
+        "market": 26,
+        "product": 20.333333333333332,
+        "vision": 12.933333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "86.7",
+        "above85": "13.3"
+      },
+      "topStartups": [
+        {
+          "name": "Disrupt",
+          "score": 100
+        },
+        {
+          "name": "THE Football App",
+          "score": 90
+        },
+        {
+          "name": "SlotGPT",
+          "score": 80
+        }
+      ]
+    },
+    {
+      "industry": "Climate Tech",
+      "count": 108,
+      "avg": 80.52777777777777,
+      "median": 80,
+      "min": 76,
+      "max": 90,
+      "stdDev": 3.494594591368888,
+      "p50": 80,
+      "p75": 83,
+      "p90": 86,
+      "components": {
+        "team": 24.25925925925926,
+        "traction": 17.73148148148148,
+        "market": 26.39814814814815,
+        "product": 20.564814814814813,
+        "vision": 15.074074074074074
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "81.5",
+        "above85": "18.5"
+      },
+      "topStartups": [
+        {
+          "name": "Bosch’s €29",
+          "score": 90
+        },
+        {
+          "name": "Economy",
+          "score": 88
+        },
+        {
+          "name": "Riverwood Capital",
+          "score": 88
+        }
+      ]
+    },
+    {
+      "industry": "Security",
+      "count": 12,
+      "avg": 81.66666666666667,
+      "median": 83,
+      "min": 78,
+      "max": 91,
+      "stdDev": 4.189935029992179,
+      "p50": 83,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 27.25,
+        "traction": 37.666666666666664,
+        "market": 29,
+        "product": 25,
+        "vision": 10
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "75.0",
+        "above85": "25.0"
+      },
+      "topStartups": [
+        {
+          "name": "Devo",
+          "score": 91
+        },
+        {
+          "name": "LastPass",
+          "score": 86
+        },
+        {
+          "name": "Illumio",
+          "score": 86
+        }
+      ]
+    },
+    {
+      "industry": "Logistics",
+      "count": 11,
+      "avg": 82.9090909090909,
+      "median": 81,
+      "min": 78,
+      "max": 100,
+      "stdDev": 6.141580274201648,
+      "p50": 81,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 23.636363636363637,
+        "traction": 31.272727272727273,
+        "market": 23.363636363636363,
+        "product": 21.09090909090909,
+        "vision": 12.909090909090908
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "72.7",
+        "above85": "27.3"
+      },
+      "topStartups": [
+        {
+          "name": "Resend",
+          "score": 100
+        },
+        {
+          "name": "Fleetzero $43",
+          "score": 86
+        },
+        {
+          "name": "Fleetzero",
+          "score": 86
+        }
+      ]
+    },
+    {
+      "industry": "FoodTech",
+      "count": 15,
+      "avg": 83.6,
+      "median": 81,
+      "min": 78,
+      "max": 100,
+      "stdDev": 7.472616676907761,
+      "p50": 81,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 30.666666666666668,
+        "traction": 33.53333333333333,
+        "market": 29.733333333333334,
+        "product": 23.8,
+        "vision": 14.6
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "66.7",
+        "above85": "33.3"
+      },
+      "topStartups": [
+        {
+          "name": "Anchr",
+          "score": 100
+        },
+        {
+          "name": "Resend",
+          "score": 100
+        },
+        {
+          "name": "Associated British Foods",
+          "score": 91
+        }
+      ]
+    },
+    {
+      "industry": "HR",
+      "count": 11,
+      "avg": 84.36363636363636,
+      "median": 86,
+      "min": 78,
+      "max": 100,
+      "stdDev": 6.197840199657931,
+      "p50": 86,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 36.45454545454545,
+        "traction": 33.36363636363637,
+        "market": 30.818181818181817,
+        "product": 25,
+        "vision": 10.454545454545455
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "36.4",
+        "above85": "63.6"
+      },
+      "topStartups": [
+        {
+          "name": "Avenir AI",
+          "score": 100
+        },
+        {
+          "name": "Brainshark",
+          "score": 86
+        },
+        {
+          "name": "Glint",
+          "score": 86
+        }
+      ]
+    },
+    {
+      "industry": "E-commerce",
+      "count": 22,
+      "avg": 84.45454545454545,
+      "median": 84,
+      "min": 77,
+      "max": 100,
+      "stdDev": 5.8210220340298635,
+      "p50": 84,
+      "p75": 86,
+      "p90": 87,
+      "components": {
+        "team": 31.318181818181817,
+        "traction": 32.13636363636363,
+        "market": 27.681818181818183,
+        "product": 23.818181818181817,
+        "vision": 13.5
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "54.5",
+        "above85": "45.5"
+      },
+      "topStartups": [
+        {
+          "name": "NodeFinance",
+          "score": 100
+        },
+        {
+          "name": "ApexFinance",
+          "score": 100
+        },
+        {
+          "name": "DigitalAI",
+          "score": 87
+        }
+      ]
+    },
+    {
+      "industry": "Healthcare",
+      "count": 31,
+      "avg": 85.09677419354838,
+      "median": 84,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.44089445921415,
+      "p50": 84,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 36.61290322580645,
+        "traction": 30.677419354838708,
+        "market": 34,
+        "product": 26.903225806451612,
+        "vision": 16.161290322580644
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.1",
+        "above85": "41.9"
+      },
+      "topStartups": [
+        {
+          "name": "SmartLabs",
+          "score": 100
+        },
+        {
+          "name": "Pelago",
+          "score": 100
+        },
+        {
+          "name": "PrimeTech",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "InsurTech",
+      "count": 12,
+      "avg": 85.16666666666667,
+      "median": 81,
+      "min": 81,
+      "max": 96,
+      "stdDev": 5.257270098529168,
+      "p50": 81,
+      "p75": 90,
+      "p90": 92,
+      "components": {
+        "team": 25.5,
+        "traction": 37.75,
+        "market": 27.5,
+        "product": 25,
+        "vision": 13.333333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.3",
+        "above85": "41.7"
+      },
+      "topStartups": [
+        {
+          "name": "Next Insurance",
+          "score": 96
+        },
+        {
+          "name": "Policygenius",
+          "score": 92
+        },
+        {
+          "name": "Semsee",
+          "score": 90
+        }
+      ]
+    },
+    {
+      "industry": "PropTech",
+      "count": 41,
+      "avg": 85.39024390243902,
+      "median": 81,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.13867025987957,
+      "p50": 81,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 31.4390243902439,
+        "traction": 30.634146341463413,
+        "market": 29.073170731707318,
+        "product": 23.682926829268293,
+        "vision": 15.634146341463415
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "63.4",
+        "above85": "36.6"
+      },
+      "topStartups": [
+        {
+          "name": "PropFind",
+          "score": 100
+        },
+        {
+          "name": "Arcade",
+          "score": 100
+        },
+        {
+          "name": "RentSpree",
+          "score": 100
+        }
+      ]
+    }
+  ],
+  "biasedIndustries": [
+    {
+      "industry": "Media",
+      "count": 15,
+      "avg": 79.8,
+      "median": 78,
+      "min": 76,
+      "max": 100,
+      "stdDev": 6.379132647416364,
+      "p50": 78,
+      "p75": 79,
+      "p90": 90,
+      "components": {
+        "team": 24.066666666666666,
+        "traction": 23.333333333333332,
+        "market": 26,
+        "product": 20.333333333333332,
+        "vision": 12.933333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "86.7",
+        "above85": "13.3"
+      },
+      "topStartups": [
+        {
+          "name": "Disrupt",
+          "score": 100
+        },
+        {
+          "name": "THE Football App",
+          "score": 90
+        },
+        {
+          "name": "SlotGPT",
+          "score": 80
+        }
+      ],
+      "bias": -11.439999999999998
+    },
+    {
+      "industry": "Climate Tech",
+      "count": 108,
+      "avg": 80.52777777777777,
+      "median": 80,
+      "min": 76,
+      "max": 90,
+      "stdDev": 3.494594591368888,
+      "p50": 80,
+      "p75": 83,
+      "p90": 86,
+      "components": {
+        "team": 24.25925925925926,
+        "traction": 17.73148148148148,
+        "market": 26.39814814814815,
+        "product": 20.564814814814813,
+        "vision": 15.074074074074074
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "81.5",
+        "above85": "18.5"
+      },
+      "topStartups": [
+        {
+          "name": "Bosch’s €29",
+          "score": 90
+        },
+        {
+          "name": "Economy",
+          "score": 88
+        },
+        {
+          "name": "Riverwood Capital",
+          "score": 88
+        }
+      ],
+      "bias": -10.712222222222223
+    },
+    {
+      "industry": "Security",
+      "count": 12,
+      "avg": 81.66666666666667,
+      "median": 83,
+      "min": 78,
+      "max": 91,
+      "stdDev": 4.189935029992179,
+      "p50": 83,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 27.25,
+        "traction": 37.666666666666664,
+        "market": 29,
+        "product": 25,
+        "vision": 10
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "75.0",
+        "above85": "25.0"
+      },
+      "topStartups": [
+        {
+          "name": "Devo",
+          "score": 91
+        },
+        {
+          "name": "LastPass",
+          "score": 86
+        },
+        {
+          "name": "Illumio",
+          "score": 86
+        }
+      ],
+      "bias": -9.573333333333323
+    },
+    {
+      "industry": "climate tech",
+      "count": 12,
+      "avg": 100,
+      "median": 100,
+      "min": 100,
+      "max": 100,
+      "stdDev": 0,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 45.833333333333336,
+        "traction": 47.5,
+        "market": 50,
+        "product": 25,
+        "vision": 22.083333333333332
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "Nexture",
+          "score": 100
+        },
+        {
+          "name": "Polar",
+          "score": 100
+        },
+        {
+          "name": "NotSoAAA",
+          "score": 100
+        }
+      ],
+      "bias": 8.760000000000005
+    },
+    {
+      "industry": "Logistics",
+      "count": 11,
+      "avg": 82.9090909090909,
+      "median": 81,
+      "min": 78,
+      "max": 100,
+      "stdDev": 6.141580274201648,
+      "p50": 81,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 23.636363636363637,
+        "traction": 31.272727272727273,
+        "market": 23.363636363636363,
+        "product": 21.09090909090909,
+        "vision": 12.909090909090908
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "72.7",
+        "above85": "27.3"
+      },
+      "topStartups": [
+        {
+          "name": "Resend",
+          "score": 100
+        },
+        {
+          "name": "Fleetzero $43",
+          "score": 86
+        },
+        {
+          "name": "Fleetzero",
+          "score": 86
+        }
+      ],
+      "bias": -8.330909090909088
+    },
+    {
+      "industry": "Crypto",
+      "count": 13,
+      "avg": 99.46153846153847,
+      "median": 100,
+      "min": 95,
+      "max": 100,
+      "stdDev": 1.3931361750980642,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 66.61538461538461,
+        "traction": 71.23076923076923,
+        "market": 46.92307692307692,
+        "product": 32.69230769230769,
+        "vision": 16
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "DigitalSystems",
+          "score": 100
+        },
+        {
+          "name": "VertexSolutions",
+          "score": 100
+        },
+        {
+          "name": "ApexSpace",
+          "score": 100
+        }
+      ],
+      "bias": 8.221538461538472
+    },
+    {
+      "industry": "FoodTech",
+      "count": 15,
+      "avg": 83.6,
+      "median": 81,
+      "min": 78,
+      "max": 100,
+      "stdDev": 7.472616676907761,
+      "p50": 81,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 30.666666666666668,
+        "traction": 33.53333333333333,
+        "market": 29.733333333333334,
+        "product": 23.8,
+        "vision": 14.6
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "66.7",
+        "above85": "33.3"
+      },
+      "topStartups": [
+        {
+          "name": "Anchr",
+          "score": 100
+        },
+        {
+          "name": "Resend",
+          "score": 100
+        },
+        {
+          "name": "Associated British Foods",
+          "score": 91
+        }
+      ],
+      "bias": -7.640000000000001
+    },
+    {
+      "industry": "HR",
+      "count": 11,
+      "avg": 84.36363636363636,
+      "median": 86,
+      "min": 78,
+      "max": 100,
+      "stdDev": 6.197840199657931,
+      "p50": 86,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 36.45454545454545,
+        "traction": 33.36363636363637,
+        "market": 30.818181818181817,
+        "product": 25,
+        "vision": 10.454545454545455
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "36.4",
+        "above85": "63.6"
+      },
+      "topStartups": [
+        {
+          "name": "Avenir AI",
+          "score": 100
+        },
+        {
+          "name": "Brainshark",
+          "score": 86
+        },
+        {
+          "name": "Glint",
+          "score": 86
+        }
+      ],
+      "bias": -6.876363636363635
+    },
+    {
+      "industry": "E-commerce",
+      "count": 22,
+      "avg": 84.45454545454545,
+      "median": 84,
+      "min": 77,
+      "max": 100,
+      "stdDev": 5.8210220340298635,
+      "p50": 84,
+      "p75": 86,
+      "p90": 87,
+      "components": {
+        "team": 31.318181818181817,
+        "traction": 32.13636363636363,
+        "market": 27.681818181818183,
+        "product": 23.818181818181817,
+        "vision": 13.5
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "54.5",
+        "above85": "45.5"
+      },
+      "topStartups": [
+        {
+          "name": "NodeFinance",
+          "score": 100
+        },
+        {
+          "name": "ApexFinance",
+          "score": 100
+        },
+        {
+          "name": "DigitalAI",
+          "score": 87
+        }
+      ],
+      "bias": -6.785454545454542
+    },
+    {
+      "industry": "Healthcare",
+      "count": 31,
+      "avg": 85.09677419354838,
+      "median": 84,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.44089445921415,
+      "p50": 84,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 36.61290322580645,
+        "traction": 30.677419354838708,
+        "market": 34,
+        "product": 26.903225806451612,
+        "vision": 16.161290322580644
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.1",
+        "above85": "41.9"
+      },
+      "topStartups": [
+        {
+          "name": "SmartLabs",
+          "score": 100
+        },
+        {
+          "name": "Pelago",
+          "score": 100
+        },
+        {
+          "name": "PrimeTech",
+          "score": 100
+        }
+      ],
+      "bias": -6.1432258064516105
+    },
+    {
+      "industry": "InsurTech",
+      "count": 12,
+      "avg": 85.16666666666667,
+      "median": 81,
+      "min": 81,
+      "max": 96,
+      "stdDev": 5.257270098529168,
+      "p50": 81,
+      "p75": 90,
+      "p90": 92,
+      "components": {
+        "team": 25.5,
+        "traction": 37.75,
+        "market": 27.5,
+        "product": 25,
+        "vision": 13.333333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.3",
+        "above85": "41.7"
+      },
+      "topStartups": [
+        {
+          "name": "Next Insurance",
+          "score": 96
+        },
+        {
+          "name": "Policygenius",
+          "score": 92
+        },
+        {
+          "name": "Semsee",
+          "score": 90
+        }
+      ],
+      "bias": -6.0733333333333235
+    },
+    {
+      "industry": "Defense",
+      "count": 18,
+      "avg": 97.27777777777777,
+      "median": 100,
+      "min": 86,
+      "max": 100,
+      "stdDev": 4.616462757898273,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 42.05555555555556,
+        "traction": 42.611111111111114,
+        "market": 34.77777777777778,
+        "product": 25,
+        "vision": 13.61111111111111
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "SecureNet",
+          "score": 100
+        },
+        {
+          "name": "Lacework",
+          "score": 100
+        },
+        {
+          "name": "Archer",
+          "score": 100
+        }
+      ],
+      "bias": 6.037777777777777
+    },
+    {
+      "industry": "Robotics",
+      "count": 19,
+      "avg": 97.15789473684211,
+      "median": 100,
+      "min": 81,
+      "max": 100,
+      "stdDev": 5.274198945359898,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.21052631578947,
+        "traction": 44.68421052631579,
+        "market": 36.421052631578945,
+        "product": 25.36842105263158,
+        "vision": 12.368421052631579
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "5.3",
+        "above85": "94.7"
+      },
+      "topStartups": [
+        {
+          "name": "Plus One Robotics",
+          "score": 100
+        },
+        {
+          "name": "Municipal Packaging",
+          "score": 100
+        },
+        {
+          "name": "RoboSim",
+          "score": 100
+        }
+      ],
+      "bias": 5.917894736842115
+    },
+    {
+      "industry": "PropTech",
+      "count": 41,
+      "avg": 85.39024390243902,
+      "median": 81,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.13867025987957,
+      "p50": 81,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 31.4390243902439,
+        "traction": 30.634146341463413,
+        "market": 29.073170731707318,
+        "product": 23.682926829268293,
+        "vision": 15.634146341463415
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "63.4",
+        "above85": "36.6"
+      },
+      "topStartups": [
+        {
+          "name": "PropFind",
+          "score": 100
+        },
+        {
+          "name": "Arcade",
+          "score": 100
+        },
+        {
+          "name": "RentSpree",
+          "score": 100
+        }
+      ],
+      "bias": -5.84975609756097
+    },
+    {
+      "industry": "Enterprise",
+      "count": 45,
+      "avg": 96.75555555555556,
+      "median": 100,
+      "min": 79,
+      "max": 100,
+      "stdDev": 6.01906436271196,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 44.24444444444445,
+        "traction": 52.37777777777778,
+        "market": 43.62222222222222,
+        "product": 28.177777777777777,
+        "vision": 20.133333333333333
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "11.1",
+        "above85": "88.9"
+      },
+      "topStartups": [
+        {
+          "name": "Norm AI",
+          "score": 100
+        },
+        {
+          "name": "GridSense",
+          "score": 100
+        },
+        {
+          "name": "Cohere",
+          "score": 100
+        }
+      ],
+      "bias": 5.515555555555565
+    }
+  ],
+  "allIndustries": [
+    {
+      "industry": "climate tech",
+      "count": 12,
+      "avg": 100,
+      "median": 100,
+      "min": 100,
+      "max": 100,
+      "stdDev": 0,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 45.833333333333336,
+        "traction": 47.5,
+        "market": 50,
+        "product": 25,
+        "vision": 22.083333333333332
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "Nexture",
+          "score": 100
+        },
+        {
+          "name": "Polar",
+          "score": 100
+        },
+        {
+          "name": "NotSoAAA",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Crypto",
+      "count": 13,
+      "avg": 99.46153846153847,
+      "median": 100,
+      "min": 95,
+      "max": 100,
+      "stdDev": 1.3931361750980642,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 66.61538461538461,
+        "traction": 71.23076923076923,
+        "market": 46.92307692307692,
+        "product": 32.69230769230769,
+        "vision": 16
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "DigitalSystems",
+          "score": 100
+        },
+        {
+          "name": "VertexSolutions",
+          "score": 100
+        },
+        {
+          "name": "ApexSpace",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Defense",
+      "count": 18,
+      "avg": 97.27777777777777,
+      "median": 100,
+      "min": 86,
+      "max": 100,
+      "stdDev": 4.616462757898273,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 42.05555555555556,
+        "traction": 42.611111111111114,
+        "market": 34.77777777777778,
+        "product": 25,
+        "vision": 13.61111111111111
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "SecureNet",
+          "score": 100
+        },
+        {
+          "name": "Lacework",
+          "score": 100
+        },
+        {
+          "name": "Archer",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Robotics",
+      "count": 19,
+      "avg": 97.15789473684211,
+      "median": 100,
+      "min": 81,
+      "max": 100,
+      "stdDev": 5.274198945359898,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.21052631578947,
+        "traction": 44.68421052631579,
+        "market": 36.421052631578945,
+        "product": 25.36842105263158,
+        "vision": 12.368421052631579
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "5.3",
+        "above85": "94.7"
+      },
+      "topStartups": [
+        {
+          "name": "Plus One Robotics",
+          "score": 100
+        },
+        {
+          "name": "Municipal Packaging",
+          "score": 100
+        },
+        {
+          "name": "RoboSim",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Enterprise",
+      "count": 45,
+      "avg": 96.75555555555556,
+      "median": 100,
+      "min": 79,
+      "max": 100,
+      "stdDev": 6.01906436271196,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 44.24444444444445,
+        "traction": 52.37777777777778,
+        "market": 43.62222222222222,
+        "product": 28.177777777777777,
+        "vision": 20.133333333333333
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "11.1",
+        "above85": "88.9"
+      },
+      "topStartups": [
+        {
+          "name": "Norm AI",
+          "score": 100
+        },
+        {
+          "name": "GridSense",
+          "score": 100
+        },
+        {
+          "name": "Cohere",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Consumer",
+      "count": 68,
+      "avg": 94.94117647058823,
+      "median": 99,
+      "min": 76,
+      "max": 100,
+      "stdDev": 7.402071158766737,
+      "p50": 99,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 48.19117647058823,
+        "traction": 51.338235294117645,
+        "market": 34.86764705882353,
+        "product": 26.191176470588236,
+        "vision": 15.985294117647058
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "16.2",
+        "above85": "83.8"
+      },
+      "topStartups": [
+        {
+          "name": "Grab",
+          "score": 100
+        },
+        {
+          "name": "YipitData",
+          "score": 100
+        },
+        {
+          "name": "PulseMind",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "AI/ML",
+      "count": 173,
+      "avg": 94.3699421965318,
+      "median": 100,
+      "min": 76,
+      "max": 100,
+      "stdDev": 7.509656095903438,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.578034682080926,
+        "traction": 42.27167630057804,
+        "market": 46.53757225433526,
+        "product": 25.838150289017342,
+        "vision": 19.69364161849711
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "13.3",
+        "above85": "86.7"
+      },
+      "topStartups": [
+        {
+          "name": "Prepp",
+          "score": 100
+        },
+        {
+          "name": "SmartLabs",
+          "score": 100
+        },
+        {
+          "name": "Norm AI",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Climate",
+      "count": 38,
+      "avg": 94.21052631578948,
+      "median": 99,
+      "min": 80,
+      "max": 100,
+      "stdDev": 6.424287364684452,
+      "p50": 99,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 39.026315789473685,
+        "traction": 44.78947368421053,
+        "market": 43.76315789473684,
+        "product": 25,
+        "vision": 14.342105263157896
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "10.5",
+        "above85": "89.5"
+      },
+      "topStartups": [
+        {
+          "name": "Climeworks",
+          "score": 100
+        },
+        {
+          "name": "Devin Nunes",
+          "score": 100
+        },
+        {
+          "name": "PrimeHub",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "B2B",
+      "count": 12,
+      "avg": 94.08333333333333,
+      "median": 100,
+      "min": 81,
+      "max": 100,
+      "stdDev": 8.46028302652393,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 61.25,
+        "traction": 59,
+        "market": 30.083333333333332,
+        "product": 27.5,
+        "vision": 18
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "25.0",
+        "above85": "75.0"
+      },
+      "topStartups": [
+        {
+          "name": "QuantumLabs",
+          "score": 100
+        },
+        {
+          "name": "UltraFinance",
+          "score": 100
+        },
+        {
+          "name": "NovaLogic",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Technology",
+      "count": 101,
+      "avg": 94.03960396039604,
+      "median": 94,
+      "min": 80,
+      "max": 100,
+      "stdDev": 4.628625508785343,
+      "p50": 94,
+      "p75": 98,
+      "p90": 100,
+      "components": {
+        "team": 41.04950495049505,
+        "traction": 42.613861386138616,
+        "market": 30.217821782178216,
+        "product": 25,
+        "vision": 24.18811881188119
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "3.0",
+        "above85": "97.0"
+      },
+      "topStartups": [
+        {
+          "name": "GetProfile",
+          "score": 100
+        },
+        {
+          "name": "Can Italy",
+          "score": 100
+        },
+        {
+          "name": "Perceptia",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "HealthTech",
+      "count": 25,
+      "avg": 93.84,
+      "median": 96,
+      "min": 78,
+      "max": 100,
+      "stdDev": 7.006739612687203,
+      "p50": 96,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 38.76,
+        "traction": 45.4,
+        "market": 33.76,
+        "product": 25,
+        "vision": 15.8
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "24.0",
+        "above85": "76.0"
+      },
+      "topStartups": [
+        {
+          "name": "Insitro",
+          "score": 100
+        },
+        {
+          "name": "JOON We",
+          "score": 100
+        },
+        {
+          "name": "Art of",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "SaaS",
+      "count": 124,
+      "avg": 93.75806451612904,
+      "median": 100,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.104529764614052,
+      "p50": 100,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 44.63709677419355,
+        "traction": 41.49193548387097,
+        "market": 45.153225806451616,
+        "product": 26.75,
+        "vision": 19.467741935483872
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "20.2",
+        "above85": "79.8"
+      },
+      "topStartups": [
+        {
+          "name": "SecureNet",
+          "score": 100
+        },
+        {
+          "name": "Einride",
+          "score": 100
+        },
+        {
+          "name": "Common Room",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Energy",
+      "count": 23,
+      "avg": 93.52173913043478,
+      "median": 96,
+      "min": 80,
+      "max": 100,
+      "stdDev": 6.684632377244361,
+      "p50": 96,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.73913043478261,
+        "traction": 48.17391304347826,
+        "market": 32.43478260869565,
+        "product": 25,
+        "vision": 14.347826086956522
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "17.4",
+        "above85": "82.6"
+      },
+      "topStartups": [
+        {
+          "name": "PrimeHub",
+          "score": 100
+        },
+        {
+          "name": "NeuralPlatform",
+          "score": 100
+        },
+        {
+          "name": "NodeMind",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "DeepTech",
+      "count": 14,
+      "avg": 93.28571428571429,
+      "median": 94,
+      "min": 83,
+      "max": 100,
+      "stdDev": 5.482811732112997,
+      "p50": 94,
+      "p75": 99,
+      "p90": 99,
+      "components": {
+        "team": 38.5,
+        "traction": 45.285714285714285,
+        "market": 37.92857142857143,
+        "product": 25,
+        "vision": 13.214285714285714
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "7.1",
+        "above85": "92.9"
+      },
+      "topStartups": [
+        {
+          "name": "Climeworks",
+          "score": 100
+        },
+        {
+          "name": "CarbonCure",
+          "score": 99
+        },
+        {
+          "name": "Epirus",
+          "score": 99
+        }
+      ]
+    },
+    {
+      "industry": "Biotech",
+      "count": 31,
+      "avg": 93.09677419354838,
+      "median": 90,
+      "min": 85,
+      "max": 100,
+      "stdDev": 4.503438390397743,
+      "p50": 90,
+      "p75": 98,
+      "p90": 100,
+      "components": {
+        "team": 34.03225806451613,
+        "traction": 43.70967741935484,
+        "market": 47.483870967741936,
+        "product": 28.032258064516128,
+        "vision": 10.870967741935484
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "0.0",
+        "above85": "100.0"
+      },
+      "topStartups": [
+        {
+          "name": "SmartLabs",
+          "score": 100
+        },
+        {
+          "name": "PrimeTech",
+          "score": 100
+        },
+        {
+          "name": "Calico",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "EdTech",
+      "count": 23,
+      "avg": 92.65217391304348,
+      "median": 93,
+      "min": 76,
+      "max": 100,
+      "stdDev": 7.5734587793687576,
+      "p50": 93,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 40.91304347826087,
+        "traction": 45.17391304347826,
+        "market": 45.78260869565217,
+        "product": 26.91304347826087,
+        "vision": 15.26086956521739
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "17.4",
+        "above85": "82.6"
+      },
+      "topStartups": [
+        {
+          "name": "Insitro",
+          "score": 100
+        },
+        {
+          "name": "Latameo",
+          "score": 100
+        },
+        {
+          "name": "CloudPay",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Fintech",
+      "count": 101,
+      "avg": 91.8019801980198,
+      "median": 96,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.89990521918627,
+      "p50": 96,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 36.59405940594059,
+        "traction": 36.603960396039604,
+        "market": 42.554455445544555,
+        "product": 25.00990099009901,
+        "vision": 16.633663366336634
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "27.7",
+        "above85": "72.3"
+      },
+      "topStartups": [
+        {
+          "name": "Pick\n\tEurope",
+          "score": 100
+        },
+        {
+          "name": "Polar",
+          "score": 100
+        },
+        {
+          "name": "Airwallex",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "CleanTech",
+      "count": 32,
+      "avg": 90.46875,
+      "median": 90,
+      "min": 77,
+      "max": 100,
+      "stdDev": 8.355329044238772,
+      "p50": 90,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 51.25,
+        "traction": 36.28125,
+        "market": 37.78125,
+        "product": 26.9375,
+        "vision": 21.3125
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "31.3",
+        "above85": "68.8"
+      },
+      "topStartups": [
+        {
+          "name": "Logchef",
+          "score": 100
+        },
+        {
+          "name": "PrimeHub",
+          "score": 100
+        },
+        {
+          "name": "Infravision",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Developer Tools",
+      "count": 144,
+      "avg": 88.18055555555556,
+      "median": 86,
+      "min": 76,
+      "max": 100,
+      "stdDev": 9.497552884952475,
+      "p50": 86,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 40.59027777777778,
+        "traction": 32.541666666666664,
+        "market": 31.82638888888889,
+        "product": 22.916666666666668,
+        "vision": 15.833333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "45.8",
+        "above85": "54.2"
+      },
+      "topStartups": [
+        {
+          "name": "NeuralBase",
+          "score": 100
+        },
+        {
+          "name": "Warp Terminal",
+          "score": 100
+        },
+        {
+          "name": "LaunchDarkly",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "LegalTech",
+      "count": 12,
+      "avg": 86.83333333333333,
+      "median": 86,
+      "min": 81,
+      "max": 100,
+      "stdDev": 6.13505410643532,
+      "p50": 86,
+      "p75": 94,
+      "p90": 94,
+      "components": {
+        "team": 30.75,
+        "traction": 38.583333333333336,
+        "market": 30.666666666666668,
+        "product": 25,
+        "vision": 11.25
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "50.0",
+        "above85": "50.0"
+      },
+      "topStartups": [
+        {
+          "name": "LegalFlow",
+          "score": 100
+        },
+        {
+          "name": "Ironclad CLM",
+          "score": 94
+        },
+        {
+          "name": "Logikcull",
+          "score": 94
+        }
+      ]
+    },
+    {
+      "industry": "HR Tech",
+      "count": 10,
+      "avg": 86.2,
+      "median": 86,
+      "min": 77,
+      "max": 100,
+      "stdDev": 9.558242516278815,
+      "p50": 86,
+      "p75": 100,
+      "p90": 100,
+      "components": {
+        "team": 43.7,
+        "traction": 30.9,
+        "market": 39.1,
+        "product": 29,
+        "vision": 18.6
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "50.0",
+        "above85": "50.0"
+      },
+      "topStartups": [
+        {
+          "name": "GridSense",
+          "score": 100
+        },
+        {
+          "name": "SwiftFinance",
+          "score": 100
+        },
+        {
+          "name": "Harmonic",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "Cybersecurity",
+      "count": 24,
+      "avg": 86,
+      "median": 82,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.401388774085707,
+      "p50": 82,
+      "p75": 96,
+      "p90": 100,
+      "components": {
+        "team": 36,
+        "traction": 32.875,
+        "market": 28.875,
+        "product": 25.916666666666668,
+        "vision": 18.833333333333332
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.3",
+        "above85": "41.7"
+      },
+      "topStartups": [
+        {
+          "name": "SyncSoftware",
+          "score": 100
+        },
+        {
+          "name": "RapidPay",
+          "score": 100
+        },
+        {
+          "name": "Zurich-based Soverli",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "PropTech",
+      "count": 41,
+      "avg": 85.39024390243902,
+      "median": 81,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.13867025987957,
+      "p50": 81,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 31.4390243902439,
+        "traction": 30.634146341463413,
+        "market": 29.073170731707318,
+        "product": 23.682926829268293,
+        "vision": 15.634146341463415
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "63.4",
+        "above85": "36.6"
+      },
+      "topStartups": [
+        {
+          "name": "PropFind",
+          "score": 100
+        },
+        {
+          "name": "Arcade",
+          "score": 100
+        },
+        {
+          "name": "RentSpree",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "InsurTech",
+      "count": 12,
+      "avg": 85.16666666666667,
+      "median": 81,
+      "min": 81,
+      "max": 96,
+      "stdDev": 5.257270098529168,
+      "p50": 81,
+      "p75": 90,
+      "p90": 92,
+      "components": {
+        "team": 25.5,
+        "traction": 37.75,
+        "market": 27.5,
+        "product": 25,
+        "vision": 13.333333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.3",
+        "above85": "41.7"
+      },
+      "topStartups": [
+        {
+          "name": "Next Insurance",
+          "score": 96
+        },
+        {
+          "name": "Policygenius",
+          "score": 92
+        },
+        {
+          "name": "Semsee",
+          "score": 90
+        }
+      ]
+    },
+    {
+      "industry": "Healthcare",
+      "count": 31,
+      "avg": 85.09677419354838,
+      "median": 84,
+      "min": 76,
+      "max": 100,
+      "stdDev": 8.44089445921415,
+      "p50": 84,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 36.61290322580645,
+        "traction": 30.677419354838708,
+        "market": 34,
+        "product": 26.903225806451612,
+        "vision": 16.161290322580644
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "58.1",
+        "above85": "41.9"
+      },
+      "topStartups": [
+        {
+          "name": "SmartLabs",
+          "score": 100
+        },
+        {
+          "name": "Pelago",
+          "score": 100
+        },
+        {
+          "name": "PrimeTech",
+          "score": 100
+        }
+      ]
+    },
+    {
+      "industry": "E-commerce",
+      "count": 22,
+      "avg": 84.45454545454545,
+      "median": 84,
+      "min": 77,
+      "max": 100,
+      "stdDev": 5.8210220340298635,
+      "p50": 84,
+      "p75": 86,
+      "p90": 87,
+      "components": {
+        "team": 31.318181818181817,
+        "traction": 32.13636363636363,
+        "market": 27.681818181818183,
+        "product": 23.818181818181817,
+        "vision": 13.5
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "54.5",
+        "above85": "45.5"
+      },
+      "topStartups": [
+        {
+          "name": "NodeFinance",
+          "score": 100
+        },
+        {
+          "name": "ApexFinance",
+          "score": 100
+        },
+        {
+          "name": "DigitalAI",
+          "score": 87
+        }
+      ]
+    },
+    {
+      "industry": "HR",
+      "count": 11,
+      "avg": 84.36363636363636,
+      "median": 86,
+      "min": 78,
+      "max": 100,
+      "stdDev": 6.197840199657931,
+      "p50": 86,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 36.45454545454545,
+        "traction": 33.36363636363637,
+        "market": 30.818181818181817,
+        "product": 25,
+        "vision": 10.454545454545455
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "36.4",
+        "above85": "63.6"
+      },
+      "topStartups": [
+        {
+          "name": "Avenir AI",
+          "score": 100
+        },
+        {
+          "name": "Brainshark",
+          "score": 86
+        },
+        {
+          "name": "Glint",
+          "score": 86
+        }
+      ]
+    },
+    {
+      "industry": "FoodTech",
+      "count": 15,
+      "avg": 83.6,
+      "median": 81,
+      "min": 78,
+      "max": 100,
+      "stdDev": 7.472616676907761,
+      "p50": 81,
+      "p75": 86,
+      "p90": 100,
+      "components": {
+        "team": 30.666666666666668,
+        "traction": 33.53333333333333,
+        "market": 29.733333333333334,
+        "product": 23.8,
+        "vision": 14.6
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "66.7",
+        "above85": "33.3"
+      },
+      "topStartups": [
+        {
+          "name": "Anchr",
+          "score": 100
+        },
+        {
+          "name": "Resend",
+          "score": 100
+        },
+        {
+          "name": "Associated British Foods",
+          "score": 91
+        }
+      ]
+    },
+    {
+      "industry": "Logistics",
+      "count": 11,
+      "avg": 82.9090909090909,
+      "median": 81,
+      "min": 78,
+      "max": 100,
+      "stdDev": 6.141580274201648,
+      "p50": 81,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 23.636363636363637,
+        "traction": 31.272727272727273,
+        "market": 23.363636363636363,
+        "product": 21.09090909090909,
+        "vision": 12.909090909090908
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "72.7",
+        "above85": "27.3"
+      },
+      "topStartups": [
+        {
+          "name": "Resend",
+          "score": 100
+        },
+        {
+          "name": "Fleetzero $43",
+          "score": 86
+        },
+        {
+          "name": "Fleetzero",
+          "score": 86
+        }
+      ]
+    },
+    {
+      "industry": "Security",
+      "count": 12,
+      "avg": 81.66666666666667,
+      "median": 83,
+      "min": 78,
+      "max": 91,
+      "stdDev": 4.189935029992179,
+      "p50": 83,
+      "p75": 86,
+      "p90": 86,
+      "components": {
+        "team": 27.25,
+        "traction": 37.666666666666664,
+        "market": 29,
+        "product": 25,
+        "vision": 10
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "75.0",
+        "above85": "25.0"
+      },
+      "topStartups": [
+        {
+          "name": "Devo",
+          "score": 91
+        },
+        {
+          "name": "LastPass",
+          "score": 86
+        },
+        {
+          "name": "Illumio",
+          "score": 86
+        }
+      ]
+    },
+    {
+      "industry": "Climate Tech",
+      "count": 108,
+      "avg": 80.52777777777777,
+      "median": 80,
+      "min": 76,
+      "max": 90,
+      "stdDev": 3.494594591368888,
+      "p50": 80,
+      "p75": 83,
+      "p90": 86,
+      "components": {
+        "team": 24.25925925925926,
+        "traction": 17.73148148148148,
+        "market": 26.39814814814815,
+        "product": 20.564814814814813,
+        "vision": 15.074074074074074
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "81.5",
+        "above85": "18.5"
+      },
+      "topStartups": [
+        {
+          "name": "Bosch’s €29",
+          "score": 90
+        },
+        {
+          "name": "Economy",
+          "score": 88
+        },
+        {
+          "name": "Riverwood Capital",
+          "score": 88
+        }
+      ]
+    },
+    {
+      "industry": "Media",
+      "count": 15,
+      "avg": 79.8,
+      "median": 78,
+      "min": 76,
+      "max": 100,
+      "stdDev": 6.379132647416364,
+      "p50": 78,
+      "p75": 79,
+      "p90": 90,
+      "components": {
+        "team": 24.066666666666666,
+        "traction": 23.333333333333332,
+        "market": 26,
+        "product": 20.333333333333332,
+        "vision": 12.933333333333334
+      },
+      "distribution": {
+        "below40": "0.0",
+        "range40to60": "0.0",
+        "range60to75": "0.0",
+        "range75to85": "86.7",
+        "above85": "13.3"
+      },
+      "topStartups": [
+        {
+          "name": "Disrupt",
+          "score": 100
+        },
+        {
+          "name": "THE Football App",
+          "score": 90
+        },
+        {
+          "name": "SlotGPT",
+          "score": 80
+        }
+      ]
+    }
+  ]
+}

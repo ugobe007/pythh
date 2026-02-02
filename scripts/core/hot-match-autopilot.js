@@ -189,9 +189,22 @@ async function runInferenceEnrichment() {
 
 /**
  * STEP 3: GOD Scoring
+ * 
+ * ⚠️ CRITICAL FIX (Jan 31, 2026): Switched from god-score-v5-tiered.js to recalculate-scores.ts
+ * 
+ * The legacy god-score-v5-tiered.js had its own scoring algorithm that:
+ * - Capped Tier C (sparse data) startups at 40 points max
+ * - Capped Tier B (some data) startups at 55 points max
+ * - Used different scoring formulas than the official GOD algorithm
+ * - Was overwriting scores from the official startupScoringService.ts
+ * 
+ * Now using: scripts/recalculate-scores.ts (SINGLE SOURCE OF TRUTH)
+ * - Uses the official startupScoringService.ts with 23 GOD algorithms
+ * - Proper normalization and weighting
+ * - No artificial tier caps
  */
 async function runGODScoring() {
-  section('⚡ STEP 3: GOD SCORING');
+  section('⚡ STEP 3: GOD SCORING (Official Algorithm)');
   
   // Count unscored startups
   const { data: unscored } = await supabase
@@ -203,16 +216,19 @@ async function runGODScoring() {
   log('📊', `Unscored startups: ${unscored?.length || 0}`);
   
   if (unscored?.length > 0) {
-    log('🔄', 'Running GOD Score V5 (tiered)...');
-    const scoreResult = runScript('scripts/core/god-score-v5-tiered.js', [], 15 * 60 * 1000);
+    log('🔄', 'Running official GOD scoring (recalculate-scores.ts)...');
+    // Use npx tsx to run TypeScript directly
+    const scoreResult = runScript('npx', ['tsx', 'scripts/recalculate-scores.ts'], 20 * 60 * 1000);
     if (scoreResult.success) {
-      log('✅', 'GOD scoring complete', c.green);
+      log('✅', 'GOD scoring complete (official algorithm)', c.green);
       
       // Show distribution
       const { data: dist } = await supabase.rpc('get_score_distribution');
       if (dist) {
         log('📈', `Score distribution: ${JSON.stringify(dist)}`);
       }
+    } else {
+      log('⚠️', 'GOD scoring had issues - check logs', c.yellow);
     }
   } else {
     log('✅', 'All startups scored', c.green);

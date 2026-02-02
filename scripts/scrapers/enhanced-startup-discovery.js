@@ -4,6 +4,7 @@
  * 
  * Replaces modern-startup-discovery.js with dynamic parser integration.
  * Uses the Parse.bot-style DynamicParser for richer data extraction.
+ * NOW INTEGRATED: Smart URL Processor for intelligent URL classification.
  * 
  * Usage:
  *   node enhanced-startup-discovery.js
@@ -15,6 +16,15 @@ require('dotenv').config();
 const { DynamicParser } = require('./lib/dynamic-parser');
 const { createClient } = require('@supabase/supabase-js');
 const cheerio = require('cheerio');
+
+// URL Processor for intelligent classification
+let urlProcessor;
+try {
+  urlProcessor = require('../../lib/url-processor');
+} catch (e) {
+  console.warn('⚠️  URL Processor not found, using fallback logic');
+  urlProcessor = null;
+}
 
 // Initialize
 const supabase = createClient(
@@ -142,13 +152,15 @@ async function fetchPage(url, retries = 3) {
 
 /**
  * Extract startup/company links from a list page
+ * ENHANCED: Now uses URL Processor for intelligent filtering
  */
-async function extractLinksFromListPage(listUrl, linkPattern) {
+async function extractLinksFromListPage(listUrl, linkPattern, sourceName = 'unknown') {
   try {
     const html = await fetchPage(listUrl);
     const $ = cheerio.load(html);
     
-    const links = new Set();
+    const allLinks = new Set();
+    const processedLinks = [];
     
     // Find all links on the page
     $('a[href]').each((_, el) => {
@@ -156,11 +168,42 @@ async function extractLinksFromListPage(listUrl, linkPattern) {
       if (href && linkPattern.test(href)) {
         // Make absolute URL
         const url = href.startsWith('http') ? href : new URL(href, listUrl).toString();
-        links.add(url);
+        allLinks.add(url);
       }
     });
     
-    return Array.from(links);
+    // If URL processor available, filter intelligently
+    if (urlProcessor) {
+      console.log(`   🧠 Smart filtering ${allLinks.size} URLs...`);
+      
+      for (const url of allLinks) {
+        const result = await urlProcessor.processUrl(url, { 
+          source: sourceName,
+          fromMention: false 
+        });
+        
+        // Log decision
+        await urlProcessor.logUrlDecision(result, sourceName);
+        
+        // Only include URLs that should create startups or extract from articles
+        if (result.action === 'CREATE_STARTUP' || result.action === 'EXTRACT_FROM_ARTICLE') {
+          processedLinks.push({
+            url,
+            action: result.action,
+            domain: result.domain,
+            reason: result.reason
+          });
+        } else {
+          console.log(`   ⏭️  Skip: ${result.reason} - ${url.substring(0, 50)}...`);
+        }
+      }
+      
+      console.log(`   ✅ Filtered to ${processedLinks.length} actionable URLs`);
+      return processedLinks.map(l => l.url);
+    }
+    
+    // Fallback to original behavior
+    return Array.from(allLinks);
   } catch (err) {
     console.error(`Error extracting links from ${listUrl}:`, err.message);
     return [];
@@ -169,15 +212,33 @@ async function extractLinksFromListPage(listUrl, linkPattern) {
 
 /**
  * Check if startup already exists
+ * ENHANCED: Uses URL processor's smarter domain matching
  */
 async function startupExists(name, website) {
+  // If URL processor available, use its comprehensive check
+  if (urlProcessor && website) {
+    const existsResult = await urlProcessor.checkUrlExists(website);
+    if (existsResult.exists) {
+      return {
+        exists: true,
+        table: existsResult.table,
+        record: existsResult.record
+      };
+    }
+  }
+  
+  // Fallback to original behavior
   const { data } = await supabase
     .from('discovered_startups')
     .select('id')
     .or(`name.ilike.%${name}%,website.eq.${website}`)
     .limit(1);
   
-  return data && data.length > 0;
+  if (data && data.length > 0) {
+    return { exists: true, table: 'discovered_startups' };
+  }
+  
+  return { exists: false };
 }
 
 /**
@@ -197,9 +258,11 @@ async function investorExists(name, firm) {
  * Save startup to discovered_startups
  */
 async function saveStartup(startup, source) {
-  // Check for duplicates
-  if (await startupExists(startup.name, startup.website)) {
-    return { skipped: true, reason: 'duplicate' };
+  // Check for duplicates - now returns object with details
+  const existsResult = await startupExists(startup.name, startup.website);
+  if (existsResult.exists || existsResult === true) {
+    const table = existsResult.table || 'discovered_startups';
+    return { skipped: true, reason: `duplicate (in ${table})` };
   }
 
   // --- Enhanced Extraction for Traction/Product Signals ---

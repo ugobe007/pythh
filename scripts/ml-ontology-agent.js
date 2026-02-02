@@ -1,0 +1,399 @@
+#!/usr/bin/env node
+/**
+ * ML Ontology Learning Agent
+ * Separate instance from GOD scoring - focuses on entity classification
+ * 
+ * Purpose: Analyze RSS patterns and suggest ontology improvements
+ * Input: discovered_startups, startup_events tables
+ * Output: Suggested entity_ontologies entries
+ */
+
+const { createClient } = require('@supabase/supabase-js');
+const OpenAI = require('openai');
+const envPath = process.env.ENV_FILE || '.env.bak';
+require('dotenv').config({ path: envPath });
+
+// Use service role key for automated background operations (bypasses RLS)
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+// Use OpenAI for efficient classification
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY
+});
+
+// Configuration
+const CONFIG = {
+  BATCH_SIZE: 50,
+  MIN_OCCURRENCES: 3, // Entity must appear 3+ times to be analyzed
+  CONFIDENCE_THRESHOLD: 0.7,
+  AUTO_APPLY_THRESHOLD: 0.85, // Auto-apply if confidence >= 85%
+  AUTO_APPLY_ENABLED: true, // Fully automated mode
+  MODEL: 'gpt-4o-mini', // Fast and cheap for classification
+};
+
+/**
+ * Step 1: Collect entity patterns from recent RSS data
+ */
+async function collectEntityPatterns() {
+  console.log('📊 Collecting entity patterns from RSS data...\n');
+  
+  // Get recent events
+  const { data: events } = await supabase
+    .from('startup_events')
+    .select('entities, source_title, event_type, frame_type, extraction_meta')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  
+  if (!events?.length) {
+    console.log('⚠️  No events found');
+    return null;
+  }
+  
+  // Count entity occurrences
+  const entityFrequency = new Map();
+  const entityContexts = new Map();
+  
+  events.forEach(event => {
+    event.entities?.forEach(entity => {
+      const name = entity.name;
+      
+      // Track frequency
+      entityFrequency.set(name, (entityFrequency.get(name) || 0) + 1);
+      
+      // Track contexts
+      if (!entityContexts.has(name)) {
+        entityContexts.set(name, []);
+      }
+      entityContexts.get(name).push({
+        title: event.source_title,
+        eventType: event.event_type,
+        frameType: event.frame_type,
+        role: entity.role,
+        graphSafe: event.extraction_meta?.graph_safe
+      });
+    });
+  });
+  
+  // Filter to entities that appear multiple times
+  const frequentEntities = Array.from(entityFrequency.entries())
+    .filter(([name, count]) => count >= CONFIG.MIN_OCCURRENCES)
+    .map(([name, count]) => ({
+      name,
+      count,
+      contexts: entityContexts.get(name)
+    }))
+    .sort((a, b) => b.count - a.count);
+  
+  console.log(`Found ${frequentEntities.length} frequent entities (≥${CONFIG.MIN_OCCURRENCES} occurrences)\n`);
+  
+  return frequentEntities;
+}
+
+/**
+ * Step 2: Check which entities are already in ontology
+ */
+async function filterUnclassified(entities) {
+  console.log('🔍 Filtering entities not yet in ontology...\n');
+  
+  const unclassified = [];
+  
+  for (const entity of entities) {
+    const { data: existing } = await supabase
+      .from('entity_ontologies')
+      .select('entity_name, entity_type')
+      .ilike('entity_name', entity.name)
+      .single();
+    
+    if (!existing) {
+      unclassified.push(entity);
+    }
+  }
+  
+  console.log(`${unclassified.length} entities need classification\n`);
+  
+  return unclassified;
+}
+
+/**
+ * Step 3: Classify entity with OpenAI (fast & efficient)
+ */
+async function classifyWithParser(entity) {
+  const contextsText = entity.contexts
+    .slice(0, 5) // Use first 5 contexts
+    .map(c => `- "${c.title}" (${c.eventType}, ${c.role})`)
+    .join('\n');
+  
+  const prompt = `Classify this entity that appears in startup/tech news RSS feeds:
+
+Entity: "${entity.name}"
+Appears ${entity.count} times
+
+Sample contexts:
+${contextsText}
+
+Classify as ONE of:
+- STARTUP (a specific company being built/funded)
+- INVESTOR (VC firm, angel, fund deploying capital)
+- FOUNDER (person starting companies)
+- EXECUTIVE (person in company role)
+- PLACE (geographic entity: country, city, region)
+- GENERIC_TERM (category/group: "Researchers", "Big VCs", "Indian Startups")
+- AMBIGUOUS (needs more context to disambiguate)
+
+Return ONLY valid JSON:
+{
+  "entity_type": "STARTUP|INVESTOR|FOUNDER|EXECUTIVE|PLACE|GENERIC_TERM|AMBIGUOUS",
+  "confidence": 0.0-1.0,
+  "reasoning": "brief explanation"
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: CONFIG.MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      response_format: { type: "json_object" }
+    });
+    
+    const result = JSON.parse(response.choices[0].message.content);
+    return result;
+    
+  } catch (error) {
+    console.error(`❌ Classification failed for "${entity.name}":`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Step 4: Classify batch of entities
+ */
+async function classifyBatch(entities) {
+  console.log(`🤖 Classifying ${entities.length} entities with OpenAI...\n`);
+  
+  const classifications = [];
+  
+  for (let i = 0; i < entities.length; i++) {
+    const entity = entities[i];
+    
+    console.log(`${i + 1}/${entities.length}: "${entity.name}" (${entity.count} occurrences)`);
+    
+    const classification = await classifyWithParser(entity);
+    
+    if (classification && classification.confidence >= CONFIG.CONFIDENCE_THRESHOLD) {
+      console.log(`   ✓ ${classification.entity_type} (${(classification.confidence * 100).toFixed(0)}% confidence)`);
+      console.log(`   ${classification.reasoning}\n`);
+      
+      classifications.push({
+        entity_name: entity.name,
+        entity_type: classification.entity_type,
+        confidence: classification.confidence,
+        reasoning: classification.reasoning,
+        occurrences: entity.count
+      });
+    } else {
+      console.log(`   ⚠️  Low confidence or failed\n`);
+    }
+    
+    // Rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  
+  return classifications;
+}
+
+/**
+ * Step 5a: Auto-apply high-confidence classifications
+ */
+async function autoApplyClassifications(classifications) {
+  console.log('🤖 Auto-applying high-confidence classifications...\n');
+  
+  const autoApplied = [];
+  const needsReview = [];
+
+  for (const classification of classifications) {
+    if (classification.confidence >= CONFIG.AUTO_APPLY_THRESHOLD) {
+      // Auto-apply: insert directly into entity_ontologies
+      const { data, error } = await supabase
+        .from('entity_ontologies')
+        .insert({
+          entity_name: classification.entity_name,
+          entity_type: classification.entity_type,
+          confidence: classification.confidence,
+          source: 'ML_INFERENCE',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          // Duplicate - already exists, skip
+          console.log(`   ⏭️  Skipped (duplicate): ${classification.entity_name}`);
+        } else {
+          console.error(`   ❌ Error applying ${classification.entity_name}:`, error.message);
+        }
+      } else {
+        autoApplied.push(classification);
+        console.log(`   ✅ ${classification.entity_name} → ${classification.entity_type} (${Math.round(classification.confidence * 100)}%)`);
+      }
+    } else {
+      // Confidence too low - needs human review
+      needsReview.push(classification);
+    }
+  }
+
+  console.log(`\n   Auto-applied: ${autoApplied.length}`);
+  console.log(`   Needs review: ${needsReview.length}\n`);
+
+  return { autoApplied, needsReview };
+}
+
+/**
+ * Step 5b: Save suggestions (audit trail)
+ */
+async function saveSuggestions(classifications, autoApplied) {
+  console.log('� Saving audit trail to ai_logs...\n');
+  
+  const timestamp = new Date().toISOString();
+  
+  for (const classification of classifications) {
+    const wasAutoApplied = autoApplied.some(a => a.entity_name === classification.entity_name);
+    
+    await supabase.from('ai_logs').insert({
+      type: 'ontology_suggestion',
+      action: 'ml_classification',
+      status: wasAutoApplied ? 'auto_applied' : 'pending_review',
+      output: {
+        entity_name: classification.entity_name,
+        suggested_type: classification.entity_type,
+        confidence: classification.confidence,
+        reasoning: classification.reasoning,
+        occurrences: classification.occurrences,
+        auto_applied: wasAutoApplied,
+        timestamp
+      }
+    });
+  }
+  
+  console.log(`✅ Logged ${classifications.length} classifications\n`);
+  
+  return classifications;
+}
+
+/**
+ * Step 6: Generate audit report
+ */
+function generateAuditReport(autoApplied, needsReview) {
+  console.log('📊 Generating audit report...\n');
+  
+  const report = `# ML Ontology Learning - Audit Report
+# Generated: ${new Date().toISOString()}
+
+## ✅ Auto-Applied (Confidence ≥ ${CONFIG.AUTO_APPLY_THRESHOLD * 100}%)
+${autoApplied.length > 0 ? autoApplied.map(c => 
+  `- ${c.entity_name} → ${c.entity_type} (${Math.round(c.confidence * 100)}%): ${c.reasoning}`
+).join('\n') : '(None this run)'}
+
+## 🔍 Needs Review (Confidence < ${CONFIG.AUTO_APPLY_THRESHOLD * 100}%)
+${needsReview.length > 0 ? needsReview.map(c => 
+  `- ${c.entity_name} → ${c.entity_type} (${Math.round(c.confidence * 100)}%): ${c.reasoning}`
+).join('\n') : '(None this run)'}
+
+## 📈 Summary
+- Total classifications: ${autoApplied.length + needsReview.length}
+- Auto-applied: ${autoApplied.length}
+- Needs manual review: ${needsReview.length}
+- Success rate: ${autoApplied.length > 0 ? Math.round((autoApplied.length / (autoApplied.length + needsReview.length)) * 100) : 0}%
+`;
+
+  const fs = require('fs');
+  const filename = `logs/ml-ontology-audit-${Date.now()}.txt`;
+  
+  // Create logs directory if it doesn't exist
+  if (!fs.existsSync('logs')) {
+    fs.mkdirSync('logs', { recursive: true });
+  }
+  
+  fs.writeFileSync(filename, report);
+  
+  console.log(`✅ Audit report: ${filename}\n`);
+  
+  return filename;
+}
+
+/**
+ * Main workflow
+ */
+async function runOntologyLearning() {
+  console.log('🧠 ML ONTOLOGY LEARNING AGENT (AUTOMATED)\n');
+  console.log('═'.repeat(70) + '\n');
+  
+  try {
+    // Step 1: Collect patterns
+    const entityPatterns = await collectEntityPatterns();
+    if (!entityPatterns) return;
+    
+    // Step 2: Filter to unclassified
+    const unclassified = await filterUnclassified(entityPatterns.slice(0, CONFIG.BATCH_SIZE));
+    if (!unclassified.length) {
+      console.log('✅ All frequent entities already classified!\n');
+      return;
+    }
+    
+    // Step 3-4: Classify with ML
+    const classifications = await classifyBatch(unclassified);
+    
+    if (!classifications.length) {
+      console.log('⚠️  No confident classifications made\n');
+      return;
+    }
+    
+    // Step 5a: Auto-apply high-confidence
+    const { autoApplied, needsReview } = await autoApplyClassifications(classifications);
+    
+    // Step 5b: Save audit trail
+    await saveSuggestions(classifications, autoApplied);
+    
+    // Step 6: Generate audit report
+    const reportFile = generateAuditReport(autoApplied, needsReview);
+    
+    console.log('═'.repeat(70) + '\n');
+    console.log('📊 SUMMARY\n');
+    console.log(`Analyzed: ${entityPatterns.length} frequent entities`);
+    console.log(`Classified: ${classifications.length} new entities`);
+    console.log(`Auto-applied: ${autoApplied.length} (≥${CONFIG.AUTO_APPLY_THRESHOLD * 100}% confidence)`);
+    console.log(`Needs review: ${needsReview.length} (<${CONFIG.AUTO_APPLY_THRESHOLD * 100}% confidence)\n`);
+    
+    if (autoApplied.length > 0) {
+      console.log('✅ NEW CLASSIFICATIONS:\n');
+      autoApplied.forEach(c => {
+        console.log(`   • ${c.entity_name} → ${c.entity_type} (${Math.round(c.confidence * 100)}%)`);
+      });
+      console.log('');
+    }
+    
+    console.log('🔄 Parser will automatically use new ontologies in next RSS batch\n');
+    
+    if (needsReview.length > 0) {
+      console.log('⚠️  LOW-CONFIDENCE CLASSIFICATIONS:\n');
+      needsReview.forEach(c => {
+        console.log(`   • ${c.entity_name} → ${c.entity_type} (${Math.round(c.confidence * 100)}%)`);
+      });
+      console.log(`\n   Review in ai_logs table WHERE status='pending_review'\n`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+    console.error(error.stack);
+  }
+}
+
+// Run if called directly
+if (require.main === module) {
+  runOntologyLearning();
+}
+
+module.exports = { runOntologyLearning };

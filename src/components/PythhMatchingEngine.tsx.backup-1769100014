@@ -1,0 +1,1061 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ThumbsUp, Info, Share2, Sparkles, Search, TrendingUp, Heart } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+// Intelligence Engine: Uses pre-calculated GOD scores from database
+// Aligns with production-grade capital discovery architecture
+
+import { DotLottie } from '@lottiefiles/dotlottie-web';
+
+import LiveMatchDemo from './LiveMatchDemo';
+import HotMatchPopup from './HotMatchPopup'; // legacy component; still fine
+import InvestorCard from './InvestorCard';
+import EnhancedInvestorCard from './EnhancedInvestorCard';
+import StartupVotePopup from './StartupVotePopup';
+import VCInfoPopup from './VCInfoPopup';
+import MatchScoreBreakdown from './MatchScoreBreakdown';
+import ShareMatchModal from './ShareMatchModal';
+import SplitScreenHero from './SplitScreenHero';
+import ValuePropPanels from './ValuePropPanels';
+import LogoDropdownMenu from './LogoDropdownMenu';
+import OracleHeader from './oracle/OracleHeader';
+import TransparencyPanel from './TransparencyPanel';
+import DataQualityBadge from './DataQualityBadge';
+import MatchConfidenceBadge from './MatchConfidenceBadge';
+import SmartSearchBar from './SmartSearchBar';
+import EducationalMatchModal from './EducationalMatchModal';
+import GetMatchedPopup from './GetMatchedPopup';
+
+import { saveMatch, unsaveMatch, isMatchSaved } from '../lib/savedMatches';
+import { StartupComponent } from '../types';
+import HomeProofFeed from './home/HomeProofFeed';
+
+// ============================================================================
+// FIT SCORE HELPERS (deterministic, honest scoring)
+// ============================================================================
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+function overlapScore(a?: string[] | null, b?: string[] | null) {
+  const A = (a ?? []).map(s => String(s).toLowerCase().trim()).filter(Boolean);
+  const B = new Set((b ?? []).map(s => String(s).toLowerCase().trim()).filter(Boolean));
+  if (A.length === 0 || B.size === 0) return 0;
+  const hits = A.filter(x => B.has(x)).length;
+  return clamp01(hits / Math.max(1, Math.min(A.length, 3))); // cap influence
+}
+
+function stageScore(startupStage?: any, investorStages?: string[] | null) {
+  // If startupStage is numeric (schema uses numbers), map to coarse label
+  const s = typeof startupStage === "number"
+    ? (startupStage <= 1 ? "pre-seed" : startupStage === 2 ? "seed" : startupStage === 3 ? "series a" : "growth")
+    : String(startupStage ?? "").toLowerCase();
+
+  const inv = (investorStages ?? []).map(x => String(x).toLowerCase());
+  if (!s || inv.length === 0) return 0;
+
+  // Generous matching: if any investor stage contains the startup stage keyword
+  const hit = inv.some(x => x.includes(s) || s.includes(x));
+  return hit ? 1 : 0;
+}
+
+function geoScore(startupWebsite?: string | null, investorGeo?: string | null) {
+  // Honest: no startup geo data yet, return neutral
+  if (!investorGeo) return 0;
+  return 0.5; // neutral until we have startup location
+}
+
+function checkSizeScore(raiseAmount?: number | null, min?: number | null, max?: number | null) {
+  // Honest: no raise amount data yet, return neutral
+  if (!raiseAmount || (!min && !max)) return 0.5;
+  const lo = min ?? 0;
+  const hi = max ?? Number.POSITIVE_INFINITY;
+  return raiseAmount >= lo && raiseAmount <= hi ? 1 : 0;
+}
+
+function to10(x01: number) {
+  return Math.round(clamp01(x01) * 10);
+}
+
+// Factor visualization component
+function Factor({ label, value, note }: { label: string; value: number; note?: string }) {
+  const pct = Math.round((value / 10) * 100);
+  const state = value >= 8 ? "✅" : value >= 5 ? "🟡" : "⚠️";
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="opacity-80">
+          {label}
+          {note && <span className="text-[9px] ml-1 opacity-60">({note})</span>}
+        </span>
+        <span className="font-semibold">{state} {value}/10</span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="h-full bg-white/60 transition-all" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// PYTHH MATCH PAIR
+// ============================================================================
+
+// PYTHH MATCH PAIR: Startup-Investor alignment with GOD score + match reasoning
+interface MatchPair {
+  startup: StartupComponent & {
+    tags: string[];
+    seeking?: string;
+    market?: string;
+    product?: string;
+    mrr?: number | null;
+    arr?: number | null;
+    has_revenue?: boolean | null;
+    is_launched?: boolean | null;
+    team_size?: number | null;
+    growth_rate_monthly?: number | null;
+    team_score?: number | null;
+    traction_score?: number | null;
+    market_score?: number | null;
+    product_score?: number | null;
+    vision_score?: number | null;
+  };
+  investor: {
+    id: string;
+    name: string;
+    firm?: string;
+    description?: string;
+    tagline?: string;
+    type?: string;
+    stage?: string[];
+    sectors?: string[];
+    tags?: string[];
+    checkSize?: string;
+    geography?: string;
+    notableInvestments?: string[];
+    portfolioSize?: number;
+    status?: string;
+    investmentThesis?: string;
+    portfolio?: string;
+    aum?: number;
+    fundSize?: number;
+    exits?: number;
+    unicorns?: number;
+    website?: string;
+    linkedin?: string;
+    twitter?: string;
+    partners?: string[];
+    bio?: string;
+    blog_url?: string;
+    check_size_min?: number | null;
+    check_size_max?: number | null;
+    notable_investments?: string[] | string | null;
+  };
+  matchScore: number;
+  reasoning?: string[];
+  breakdown?: {
+    industryMatch: number;
+    stageMatch: number;
+    geographyMatch: number;
+    checkSizeMatch: number;
+    thesisAlignment: number;
+  };
+}
+
+// Helper function to format check size from min/max
+function formatCheckSize(min?: number, max?: number): string {
+  if (!min && !max) return 'Undisclosed';
+  const minStr = min ? `$${(min / 1_000_000).toFixed(1)}M` : '$0';
+  const maxStr = max ? `$${(max / 1_000_000).toFixed(1)}M` : '$10M+';
+  return `${minStr} - ${maxStr}`;
+}
+
+export default function PythhMatchingEngine() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const urlParam = searchParams.get('url');
+
+  const [userStartupId, setUserStartupId] = useState<string | null>(null);
+  const [matches, setMatches] = useState<MatchPair[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  const [currentBatch, setCurrentBatch] = useState(0);
+  const [batchSize] = useState(25);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const [isAnalyzing, setIsAnalyzing] = useState(true);
+  const [showLightning, setShowLightning] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [matchPulse, setMatchPulse] = useState(false);
+  const [brainSpin, setBrainSpin] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  // ✅ Renamed conceptually (GOD Algorithm → Intelligence Engine)
+  const [intelligenceStep, setIntelligenceStep] = useState(0);
+
+  const [showVotePopup, setShowVotePopup] = useState(false);
+  const [votingStartup, setVotingStartup] = useState<any>(null);
+
+  const [showVCPopup, setShowVCPopup] = useState(false);
+  const [selectedInvestor, setSelectedInvestor] = useState<any>(null);
+
+  const [cardFadeOut, setCardFadeOut] = useState(false);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+
+  const [isEducationalMatch, setIsEducationalMatch] = useState(false);
+  const [showEducationalModal, setShowEducationalModal] = useState(false);
+  const [educationalMatchTimer, setEducationalMatchTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const [isSaved, setIsSaved] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  const [showPythhInfo, setShowPythhInfo] = useState(false);
+  const [showPythhPopup, setShowPythhPopup] = useState(false);
+
+  const [showMatchLogic, setShowMatchLogic] = useState(false);
+  const [showGetMatchedPopup, setShowGetMatchedPopup] = useState(false);
+
+  const [matchViewCount, setMatchViewCount] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const lottieCanvasRef = useRef<HTMLCanvasElement>(null);
+  const dotLottieRef = useRef<any>(null);
+
+  // Derived
+  const totalBatches = Math.max(1, Math.ceil(matches.length / batchSize));
+  const batchMatches = useMemo(
+    () => matches.slice(currentBatch * batchSize, (currentBatch + 1) * batchSize),
+    [matches, currentBatch, batchSize]
+  );
+
+  // Top 3 for decision strip (rank-first doctrine)
+  const top3 = useMemo(() => {
+    // Prefer current batch so it matches what the user is seeing
+    const source = batchMatches.length ? batchMatches : matches;
+    return source.slice(0, 3);
+  }, [batchMatches, matches]);
+
+  // Telemetry for confidence footer
+  const telemetry = useMemo(() => {
+    const total = matches.length;
+    const batchCount = batchMatches.length;
+    const updatedAt =
+      debugInfo?.updated_at ||
+      debugInfo?.last_updated_at ||
+      debugInfo?.refreshed_at ||
+      null;
+
+    const confidence =
+      debugInfo?.confidence_level ||
+      debugInfo?.confidence ||
+      debugInfo?.match_confidence ||
+      null;
+
+    const threshold =
+      debugInfo?.min_match_score ??
+      debugInfo?.threshold ??
+      20;
+
+    const raw =
+      debugInfo?.raw_matches ??
+      debugInfo?.raw ??
+      null;
+
+    const survival =
+      debugInfo?.survival_used ??
+      debugInfo?.survival_mode ??
+      false;
+
+    return {
+      total,
+      batchCount,
+      threshold,
+      raw,
+      confidence,
+      survival,
+      updatedAt,
+    };
+  }, [matches.length, batchMatches.length, debugInfo]);
+
+  const currentMatch = batchMatches[currentIndex] ?? null;
+
+  // Check if current match is saved whenever match changes
+  useEffect(() => {
+    if (currentMatch?.startup?.id && currentMatch?.investor?.id) {
+      setIsSaved(isMatchSaved(currentMatch.startup.id, currentMatch.investor.id));
+    }
+  }, [currentMatch?.startup?.id, currentMatch?.investor?.id]);
+
+  const handleToggleSave = () => {
+    if (!currentMatch?.startup?.id || !currentMatch?.investor?.id) return;
+
+    if (isSaved) {
+      unsaveMatch(currentMatch.startup.id, currentMatch.investor.id);
+      setIsSaved(false);
+    } else {
+      saveMatch({
+        startupId: currentMatch.startup.id,
+        investorId: currentMatch.investor.id,
+        startupName: currentMatch.startup.name || 'Unknown Startup',
+        investorName: currentMatch.investor.name || 'Unknown Investor',
+        matchScore: currentMatch.matchScore,
+        tags: currentMatch.startup.tags || [],
+      });
+      setIsSaved(true);
+    }
+  };
+
+  // Jump to specific match in current batch (for Top 3 strip)
+  const jumpToMatch = (idx: number) => {
+    if (!batchMatches.length) return;
+    const safe = Math.max(0, Math.min(idx, batchMatches.length - 1));
+    setCurrentIndex(safe);
+    setMatchPulse(true);
+    window.setTimeout(() => setMatchPulse(false), 450);
+  };
+
+  // Intelligence Engine phases
+  const intelligencePhases = [
+    "🧠 Analyzing team strength...",
+    "📈 Evaluating traction signals...",
+    "🎯 Assessing market fit...",
+    "💡 Scoring product innovation...",
+    "🚀 Calculating vision potential...",
+    "🌐 Measuring ecosystem advantages...",
+    "💪 Gauging grit & perseverance...",
+    "✅ Capital Alignment Score: Complete",
+  ];
+
+  // Rotating signals (Secrets → Signals)
+  const startupSignals = [
+    "Recently featured in TechCrunch",
+    "Just closed seed round oversubscribed by 2x",
+    "Growing 40% MoM for last 6 months",
+    "Former executives from Fortune 500 companies",
+    "Strategic partnership with industry leader announced",
+    "Product waitlist hit 10,000 users in first month",
+    "Patent pending on core technology",
+    "Backed by Y Combinator alumni",
+  ];
+
+  const currentSignal = startupSignals[(currentIndex || 0) % startupSignals.length];
+
+  // DIRECT SUPABASE CONNECTION TEST (kept)
+  useEffect(() => {
+    async function testFetch() {
+      console.log('\n' + '='.repeat(80));
+      console.log('🔍 PYTHH INTELLIGENCE ENGINE: Direct Supabase Connection Test');
+      console.log('='.repeat(80));
+
+      const { data, error } = await supabase
+        .from('startup_uploads')
+        .select('id, name, status')
+        .eq('status', 'approved')
+        .limit(5);
+
+      console.log('📊 DIRECT SUPABASE TEST RESULT:', {
+        data,
+        error,
+        dataLength: data?.length,
+        firstStartup: data?.[0],
+      });
+
+      if (error) {
+        console.error('❌ SUPABASE ERROR:', error);
+      } else if (data && data.length > 0) {
+        console.log('✅ SUCCESS: Found', data.length, 'approved startups');
+      } else {
+        console.warn('⚠️ Query succeeded but returned 0 results');
+      }
+      console.log('='.repeat(80) + '\n');
+    }
+    testFetch();
+  }, []);
+
+  // Load matches when URL changes, and refresh every 10 minutes
+  useEffect(() => {
+    loadMatches();
+
+    const refreshInterval = setInterval(() => {
+      console.log('🔄 Refreshing matches (10-minute capital flow replenish)...');
+      loadMatches();
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(refreshInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlParam]);
+
+  // DEBUG: Watch matches changes
+  useEffect(() => {
+    if (matches.length > 0) {
+      console.log('\n🔄 PYTHH MATCHES STATE UPDATED:');
+      console.log('   Total matches:', matches.length);
+      console.log('   First 3:', matches.slice(0, 3).map(m => ({ startup: m.startup.name, score: m.matchScore })));
+      console.log('   Current batch/index:', currentBatch, currentIndex);
+    }
+  }, [matches, currentBatch, currentIndex]);
+
+  // Initialize Lottie
+  useEffect(() => {
+    if (lottieCanvasRef.current && !dotLottieRef.current) {
+      dotLottieRef.current = new DotLottie({
+        autoplay: false,
+        loop: false,
+        canvas: lottieCanvasRef.current,
+        src: "https://lottie.host/4db68bbd-31f6-4cd8-84eb-189de081159a/IGmMCqhzpt.lottie",
+      });
+    }
+  }, []);
+
+  // Trigger Lottie when showLightning
+  useEffect(() => {
+    if (!showLightning) return;
+
+    if (dotLottieRef.current) {
+      dotLottieRef.current.play();
+      return;
+    }
+
+    const t = setTimeout(() => {
+      if (dotLottieRef.current) dotLottieRef.current.play();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [showLightning]);
+
+  // Auto-advance batch every 10 minutes
+  useEffect(() => {
+    if (matches.length === 0) return;
+
+    const batchAdvanceInterval = setInterval(() => {
+      setCurrentBatch(prev => {
+        const nextBatch = (prev + 1) % totalBatches;
+        setCurrentIndex(0);
+        return nextBatch;
+      });
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(batchAdvanceInterval);
+  }, [matches.length, totalBatches]);
+
+  // Intelligence Engine rolling animation (every 1.5s) — fixed dependency to avoid interval multiplication
+  useEffect(() => {
+    const intelligenceInterval = setInterval(() => {
+      setIntelligenceStep(prev => (prev + 1) % intelligencePhases.length);
+    }, 1500);
+
+    return () => clearInterval(intelligenceInterval);
+  }, [intelligencePhases.length]);
+
+  const handleNextMatch = () => {
+    if (batchMatches.length === 0) return;
+
+    setCardFadeOut(true);
+    setTimeout(() => {
+      setCurrentIndex(prev => {
+        const next = (prev + 1) % batchMatches.length;
+        return next;
+      });
+      setCardFadeOut(false);
+    }, 220);
+  };
+
+  const handlePrevMatch = () => {
+    if (batchMatches.length === 0) return;
+
+    setCardFadeOut(true);
+    setTimeout(() => {
+      setCurrentIndex(prev => {
+        const next = (prev - 1 + batchMatches.length) % batchMatches.length;
+        return next;
+      });
+      setCardFadeOut(false);
+    }, 220);
+  };
+
+  // Match cycling: every 10 seconds; popup every 4 matches
+  useEffect(() => {
+    if (batchMatches.length === 0) return;
+
+    const cycleInterval = setInterval(() => {
+      setMatchViewCount(prev => {
+        const newCount = prev + 1;
+        if (newCount % 4 === 0 && !showGetMatchedPopup) setShowGetMatchedPopup(true);
+        return newCount;
+      });
+      handleNextMatch();
+    }, 10000);
+
+    return () => clearInterval(cycleInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchMatches.length, showGetMatchedPopup]);
+
+  // Helper to normalize URL
+  const normalizeUrl = (input: string): string => {
+    let normalized = input.trim().toLowerCase();
+    if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+      normalized = 'https://' + normalized;
+    }
+    return normalized.replace(/\/$/, '');
+  };
+
+  // Helper to extract domain
+  const extractDomain = (input: string): string => {
+    try {
+      const urlObj = new URL(normalizeUrl(input));
+      return urlObj.hostname.replace('www.', '');
+    } catch {
+      return input.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+    }
+  };
+
+  // Find or create startup from URL
+  const findOrCreateStartup = async (url: string): Promise<string | null> => {
+    const normalizedUrl = normalizeUrl(url);
+    const domain = extractDomain(url);
+
+    console.log('[PYTHH findOrCreate] Looking for domain:', domain);
+
+    const candidatesRes = await supabase
+      .from('startup_uploads')
+      .select('id, website')
+      .ilike('website', `%${domain}%`)
+      .limit(10);
+
+    const candidates = candidatesRes?.data ?? [];
+
+    const best = (candidates || []).find(s => {
+      try {
+        const h = new URL(normalizeUrl((s as any).website || '')).hostname.replace('www.', '');
+        return h === domain;
+      } catch {
+        return false;
+      }
+    });
+
+    if (best) {
+      console.log('[PYTHH findOrCreate] Found exact match:', (best as any).id);
+      return (best as any).id;
+    }
+
+    const companyName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
+
+    const insertRes = await supabase
+      .from('startup_uploads')
+      .insert({
+        name: companyName,
+        website: normalizedUrl,
+        tagline: `Startup at ${domain}`,
+        sectors: ['Technology'],
+        stage: 1,
+        status: 'approved',
+        source_type: 'url',
+        total_god_score: 65,
+        created_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    const newStartup = insertRes?.data ?? null;
+    const error = insertRes?.error ?? null;
+
+    if (newStartup && !error) return (newStartup as any).id;
+
+    console.error('[PYTHH] Failed to create startup:', error);
+    return null;
+  };
+
+  // Load matches from database (completed)
+  const loadMatches = async () => {
+    console.log('[PYTHH Intelligence Engine] urlParam:', urlParam);
+
+    try {
+      setLoadError(null);
+      setDebugInfo(null);
+      setMatches([]);
+      setCurrentIndex(0);
+      setIsAnalyzing(true);
+
+      // If URL param provided, find/create that startup first
+      let targetStartupId: string | null = null;
+      if (urlParam) {
+        targetStartupId = await findOrCreateStartup(urlParam);
+        console.log('[PYTHH] targetStartupId:', targetStartupId);
+        if (targetStartupId) setUserStartupId(targetStartupId);
+      }
+
+      const MIN_MATCH_SCORE = 20;
+
+      let matchQuery = supabase
+        .from('startup_investor_matches')
+        .select('id, match_score, confidence_level, startup_id, investor_id, reasoning')
+        .eq('status', 'suggested')
+        .gte('match_score', MIN_MATCH_SCORE)
+        .order('match_score', { ascending: false });
+
+      if (targetStartupId) matchQuery = matchQuery.eq('startup_id', targetStartupId);
+
+      const matchRes = await matchQuery.limit(500);
+      const matchRows = matchRes?.data ?? [];
+      const matchError = matchRes?.error ?? null;
+
+      if (matchError) {
+        console.error('❌ [PYTHH] Error fetching matches:', matchError);
+        setLoadError(`Failed to load matches: ${matchError.message || 'Unknown error'}`);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (!matchRows?.length) {
+        console.warn(`⚠️ [PYTHH] No matches found status="suggested" score >= ${MIN_MATCH_SCORE}`);
+        setLoadError(
+          `No matches available. This could mean:\n1. No matches have been generated yet\n2. Queue processor needs to run\n3. Matches exist but have different status\n4. All matches have score < ${MIN_MATCH_SCORE}`
+        );
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Fetch startups
+      const startupIds = Array.from(new Set(matchRows.map((m: any) => m.startup_id).filter(Boolean)));
+      const investorIds = Array.from(new Set(matchRows.map((m: any) => m.investor_id).filter(Boolean)));
+
+      const [startupRes, investorRes] = await Promise.all([
+        supabase
+          .from('startup_uploads')
+          .select('id, name, website, tagline, sectors, stage, total_god_score, status, team_score, traction_score, market_score, product_score, vision_score')
+          .in('id', startupIds),
+        supabase
+          .from('investors')
+          .select('id, name, firm, sectors, stage, check_size_min, check_size_max, geography_focus, notable_investments, bio, status')
+          .in('id', investorIds),
+      ]);
+
+      if (startupRes.error) {
+        setLoadError(`Failed to load startups: ${startupRes.error.message}`);
+        setIsAnalyzing(false);
+        return;
+      }
+      if (investorRes.error) {
+        setLoadError(`Failed to load investors: ${investorRes.error.message}`);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      const startupsById = new Map((startupRes.data ?? []).map((s: any) => [s.id, s]));
+      const investorsById = new Map((investorRes.data ?? []).map((i: any) => [i.id, i]));
+
+      const joined: MatchPair[] = (matchRows as any[]).map((m) => {
+        const s = startupsById.get(m.startup_id);
+        const inv = investorsById.get(m.investor_id);
+
+        const matchScore = Number(m.match_score ?? 0);
+
+        return {
+          startup: {
+            ...(s || {}),
+            tags: Array.isArray(s?.sectors) ? s.sectors : [],
+          },
+          investor: {
+            ...(inv || { id: m.investor_id, name: 'Unknown Investor' }),
+            tags: Array.isArray(inv?.sectors) ? inv.sectors : [],
+            checkSize: formatCheckSize(inv?.check_size_min ?? undefined, inv?.check_size_max ?? undefined),
+            geography: inv?.geography_focus,
+            notableInvestments: Array.isArray(inv?.notable_investments)
+              ? inv.notable_investments
+              : (typeof inv?.notable_investments === 'string' ? [inv.notable_investments] : []),
+          },
+          matchScore,
+          reasoning: Array.isArray(m.reasoning) ? m.reasoning : [],
+        };
+      });
+
+      // Sort, batch, set
+      joined.sort((a, b) => b.matchScore - a.matchScore);
+
+      setMatches(joined);
+      setCurrentBatch(0);
+      setCurrentIndex(0);
+
+      setDebugInfo({
+        startup_id: targetStartupId,
+        raw_matches: matchRows.length,
+        joined_matches: joined.length,
+        min_match_score: MIN_MATCH_SCORE,
+
+        // Page context
+        current_batch: 1,
+        total_batches: Math.max(1, Math.ceil(joined.length / batchSize)),
+        batch_size: batchSize,
+
+        // Top-3 snapshot for "Why these?"
+        top3: joined.slice(0, 3).map((m) => ({
+          investor_id: m.investor?.id,
+          investor_name: m.investor?.name,
+          firm: m.investor?.firm,
+          match_score: m.matchScore,
+          stage: m.investor?.stage,
+          sectors: m.investor?.sectors,
+          check_size: m.investor?.checkSize,
+          geography: m.investor?.geography,
+        })),
+
+        // Thin rationale placeholders
+        reasoning_present: joined.some((m) => (m.reasoning?.length ?? 0) > 0),
+      });
+
+      // Small “analysis” theatrics (kept lightweight)
+      setShowLightning(true);
+      setTimeout(() => setShowLightning(false), 700);
+      setIsAnalyzing(false);
+    } catch (e: any) {
+      console.error('❌ [PYTHH] loadMatches crashed:', e);
+      setLoadError(e?.message ?? 'Unknown error loading matches');
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Minimal render (executable). You can swap in your original JSX when available.
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
+      <OracleHeader menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+
+      <div className="px-6 pt-6 pb-10">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-3xl font-semibold tracking-tight">Pythh</div>
+              <div className="text-sm opacity-80">Discover investors that understand your signals.</div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                className="px-3 py-2 rounded-lg border flex items-center gap-2"
+                onClick={() => setShowInfoModal(true)}
+              >
+                <Info size={16} />
+                Info
+              </button>
+
+              <button
+                className="px-3 py-2 rounded-lg border flex items-center gap-2"
+                onClick={() => setShowShareModal(true)}
+                disabled={!currentMatch}
+              >
+                <Share2 size={16} />
+                Share
+              </button>
+
+              <button
+                className="px-3 py-2 rounded-lg border flex items-center gap-2"
+                onClick={handleToggleSave}
+                disabled={!currentMatch}
+              >
+                <Heart size={16} />
+                {isSaved ? 'Saved' : 'Save'}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur p-4">
+            <SmartSearchBar />
+          </div>
+
+          {/* Top 3 Decision Strip (rank-first doctrine) */}
+          {top3.length > 0 && (
+            <div className="sticky top-0 z-30 -mx-6 px-6 pt-3 pb-3 backdrop-blur-md bg-slate-900/80 border-b border-white/10 mt-6">
+              <div className="max-w-6xl mx-auto">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold opacity-80">
+                    Top 3 matches (right now)
+                  </div>
+                  <button
+                    className="text-xs underline opacity-70 hover:opacity-100"
+                    onClick={() => setShowMatchLogic(true)}
+                  >
+                    Why these?
+                  </button>
+                </div>
+
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {top3.map((m, i) => {
+                    const active = batchMatches[currentIndex]?.investor?.id === m.investor?.id;
+                    return (
+                      <button
+                        key={`${m.investor.id}-${i}`}
+                        onClick={() => jumpToMatch(i)}
+                        className={[
+                          "text-left rounded-xl border px-3 py-2 transition",
+                          active
+                            ? "ring-2 ring-cyan-400/60 bg-cyan-500/10 border-cyan-500/40"
+                            : "hover:opacity-95 hover:bg-white/5",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-semibold opacity-90">
+                            #{i + 1} {m.investor?.firm ? `· ${m.investor.firm}` : ""}
+                          </div>
+                          <div className="text-xs font-semibold flex items-center gap-1 text-cyan-400">
+                            <Sparkles size={14} />
+                            {Math.round(m.matchScore)}
+                          </div>
+                        </div>
+
+                        <div className="mt-1 text-sm font-semibold truncate">
+                          {m.investor?.name || "Unknown Investor"}
+                        </div>
+
+                        <div className="mt-1 text-[11px] opacity-80 grid grid-cols-2 gap-x-2 gap-y-1">
+                          <div className="truncate">
+                            Stage: {(m.investor?.stage?.[0] || "—")}
+                          </div>
+                          <div className="truncate">
+                            Check: {m.investor?.checkSize || "—"}
+                          </div>
+                          <div className="truncate col-span-2">
+                            Sectors: {(m.investor?.sectors?.slice(0, 2).join(", ") || "—")}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Intelligence rail */}
+          <div className="mt-6 p-4 rounded-xl border flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Sparkles />
+              <div>
+                <div className="text-sm font-semibold">Intelligence Engine</div>
+                <div className="text-sm opacity-80">{intelligencePhases[intelligenceStep]}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <canvas ref={lottieCanvasRef} className="w-10 h-10" />
+              <div className="text-xs opacity-70">
+                Signal: <span className="font-medium">{currentSignal}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Error / empty */}
+          {loadError && (
+            <div className="mt-6 p-4 rounded-xl border border-rose-400/30 bg-rose-500/10 text-rose-100 whitespace-pre-wrap">
+              {loadError}
+            </div>
+          )}
+
+          {/* Main match */}
+          <div className="mt-8">
+            {isAnalyzing && (
+              <div className="p-6 rounded-xl border">
+                <div className="text-lg font-semibold">Scanning capital flow…</div>
+                <div className="text-sm opacity-80 mt-1">Resolving startup and loading matches.</div>
+              </div>
+            )}
+
+            {!isAnalyzing && currentMatch && (
+              <div className={`transition-opacity duration-200 ${cardFadeOut ? 'opacity-0' : 'opacity-100'} ${matchPulse ? 'animate-pulse' : ''}`}>
+                {/* Use your preferred card component; keep both imports available */}
+                <EnhancedInvestorCard
+                  startup={currentMatch.startup}
+                  investor={currentMatch.investor}
+                  matchScore={currentMatch.matchScore}
+                  onOpenBreakdown={() => setShowScoreBreakdown(true)}
+                  onOpenInvestor={() => {
+                    setSelectedInvestor(currentMatch.investor);
+                    setShowVCPopup(true);
+                  }}
+                />
+              </div>
+            )}
+
+            {!isAnalyzing && !currentMatch && !loadError && (
+              <div className="p-6 rounded-xl border">
+                <div className="text-lg font-semibold">No matches loaded.</div>
+                <div className="text-sm opacity-80 mt-1">
+                  Try adding <code className="px-1 border rounded">?url=https://were.com</code> to the discovery route.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm opacity-75">
+              Batch {currentBatch + 1} / {totalBatches} • Match {currentIndex + 1} / {Math.max(1, batchMatches.length)}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button className="px-3 py-2 rounded-lg border" onClick={handlePrevMatch}>
+                Prev
+              </button>
+              <button className="px-3 py-2 rounded-lg border" onClick={handleNextMatch}>
+                Next
+              </button>
+            </div>
+          </div>
+
+          {/* Telemetry footer (confidence signal) */}
+          {matches.length > 0 && (
+            <div className="mt-4 text-xs opacity-70 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-semibold text-cyan-400">Telemetry</span>
+
+              <span>Matches: <span className="font-semibold">{telemetry.total}</span></span>
+
+              <span>Batch: <span className="font-semibold">{currentBatch + 1}</span> / {totalBatches}</span>
+
+              <span>Threshold: <span className="font-semibold">≥ {telemetry.threshold}</span></span>
+
+              {typeof telemetry.raw === "number" && (
+                <span>Raw: <span className="font-semibold">{telemetry.raw}</span></span>
+              )}
+
+              {telemetry.confidence && (
+                <span>Confidence: <span className="font-semibold">{String(telemetry.confidence)}</span></span>
+              )}
+
+              {telemetry.survival && (
+                <span className="px-2 py-0.5 rounded-full border border-orange-400/40 bg-orange-500/10 text-orange-400">
+                  Survival mode
+                </span>
+              )}
+
+              {telemetry.updatedAt && (
+                <span>Updated: <span className="font-semibold">{String(telemetry.updatedAt)}</span></span>
+              )}
+            </div>
+          )}
+
+          {/* Proof feed (disabled until endpoint exists) */}
+          {false && (
+            <div className="mt-10">
+              <HomeProofFeed />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modals / popups */}
+      {showScoreBreakdown && currentMatch && (
+        <MatchScoreBreakdown
+          matchScore={currentMatch.matchScore}
+          startup={currentMatch.startup}
+          investor={currentMatch.investor}
+          onClose={() => setShowScoreBreakdown(false)}
+        />
+      )}
+
+      {showVCPopup && selectedInvestor && (
+        <VCInfoPopup investor={selectedInvestor} onClose={() => setShowVCPopup(false)} />
+      )}
+
+      {showShareModal && currentMatch && (
+        <ShareMatchModal
+          match={currentMatch}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {showGetMatchedPopup && (
+        <GetMatchedPopup isOpen={showGetMatchedPopup} brand="pythh" onClose={() => setShowGetMatchedPopup(false)} />
+      )}
+
+      {showInfoModal && (
+        <EducationalMatchModal isOpen={showInfoModal} brand="pythh" onClose={() => setShowInfoModal(false)} />
+      )}
+
+      {/* Legacy popup retained; safe to keep hidden unless you trigger it */}
+      {showPythhPopup && (
+        <HotMatchPopup isOpen={showPythhPopup} brand="pythh" onClose={() => setShowPythhPopup(false)} />
+      )}
+
+      {/* Match Logic Modal ("Why these?") */}
+      {showMatchLogic && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowMatchLogic(false)}>
+          <div className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Why These Matches?</h2>
+              <button onClick={() => setShowMatchLogic(false)} className="p-2 hover:bg-white/10 rounded-lg transition">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm opacity-80 mb-4">
+              These are your top-ranked matches based on the Intelligence Engine's analysis of sector alignment, stage fit, check size, geography, and investor activity signals.
+            </p>
+
+            {/* Step 3: Persuasive rationale using top3 */}
+            {debugInfo?.top3?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Top 3 Breakdown</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                  {debugInfo.top3.map((x: any, i: number) => {
+                    // Compute deterministic fit scores
+                    const startup = currentMatch?.startup;
+                    const sector = to10(overlapScore(startup?.sectors as any, x.sectors));
+                    const stage = to10(stageScore(startup?.stage as any, x.stage));
+                    const geo = to10(geoScore(startup?.website ?? null, x.geography ?? null));
+                    const check = to10(checkSizeScore((startup as any)?.raise_amount ?? null, x.check_size_min ?? null, x.check_size_max ?? null));
+
+                    return (
+                      <div key={x.investor_id || i} className="rounded-xl border border-white/10 bg-slate-800/50 p-4 text-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-lg font-bold text-cyan-400">#{i + 1}</div>
+                          <div className="text-xs opacity-80">Score {Math.round(x.match_score)}</div>
+                        </div>
+                        <div className="font-semibold truncate">{x.investor_name}</div>
+                        {x.firm && <div className="text-xs opacity-80 truncate mb-3">{x.firm}</div>}
+
+                        <div className="text-xs opacity-90 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="opacity-70">Stage:</span>
+                            <span className="font-semibold">{x.stage?.[0] || "—"}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="opacity-70">Check:</span>
+                            <span className="font-semibold">{x.check_size || "—"}</span>
+                          </div>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="opacity-70">Sectors:</span>
+                            <span className="font-semibold text-right">{x.sectors?.slice(0, 2)?.join(", ") || "—"}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="opacity-70">Geo:</span>
+                            <span className="font-semibold">{x.geography || "—"}</span>
+                          </div>
+                        </div>
+
+                        {/* Component fit scores */}
+                        <div className="mt-3 pt-3 border-t border-white/10 space-y-2 text-[11px]">
+                          <Factor label="Sector fit" value={sector} />
+                          <Factor label="Stage fit" value={stage} />
+                          <Factor label="Signal fit" value={geo} note="limited data" />
+                          <Factor label="Check fit" value={check} note="estimated" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: Raw JSON debug payload */}
+            {debugInfo && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-slate-800/30 p-4 text-xs">
+                <div className="font-semibold mb-2 opacity-80 text-cyan-400">Debug Payload</div>
+                <pre className="whitespace-pre-wrap break-words opacity-70 font-mono text-[10px] leading-relaxed">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

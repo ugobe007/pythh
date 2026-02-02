@@ -1,8 +1,22 @@
 /**
- * VELOCITY SCORING SERVICE
- * =========================
- * Measures founder execution speed - a leading indicator of success.
+ * ⛔ DEPRECATED - DO NOT USE IN GOD SCORING
+ * ============================================
  * 
+ * This file was created by AI copilot WITHOUT admin approval (Dec 27, 2025).
+ * It was incorrectly injected into GOD scoring as a component.
+ * 
+ * CORRECT USAGE: This logic should be part of SIGNAL dimensions, not GOD.
+ * The Signal Application Service already handles execution_velocity.
+ * 
+ * This file is kept for reference but should NOT be imported into:
+ *   - startupScoringService.ts
+ *   - recalculate-scores.ts
+ *   - Any GOD scoring calculation
+ * 
+ * See: GOD_SCORING_AUDIT_JAN_2026.md for full details.
+ * 
+ * ORIGINAL DESCRIPTION:
+ * Measures founder execution speed - a leading indicator of success.
  * Key insight: Solo founders with AI leverage are shipping faster than ever.
  * Speed to market + iteration velocity predicts success better than team size.
  */

@@ -4,7 +4,10 @@
  * Recalculates GOD scores for startups using the SINGLE SOURCE OF TRUTH:
  * ../server/services/startupScoringService.ts
  * 
- * ⚠️  DO NOT ADD SCORING LOGIC HERE - use startupScoringService instead!
+ * ALSO includes Bootstrap Scoring for sparse-data startups:
+ * ../server/services/bootstrapScoringService.ts
+ * 
+ * ⚠️  DO NOT ADD SCORING LOGIC HERE - use the scoring services instead!
  * 
  * Runs hourly via PM2 cron.
  */
@@ -12,6 +15,7 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { calculateHotScore } from '../server/services/startupScoringService';
+import { calculateBootstrapScore } from '../server/services/bootstrapScoringService';
 
 dotenv.config();
 
@@ -32,6 +36,46 @@ interface ScoreBreakdown {
   product_score: number;
   vision_score: number;
   total_god_score: number;
+}
+
+type FaithAgg = {
+  topScore: number;       // 0-100
+  avgScore: number;       // 0-100
+  count: number;
+  confidenceAvg: number;  // 0-1
+};
+
+async function loadFaithAggregates(): Promise<Map<string, FaithAgg>> {
+  const map = new Map<string, FaithAgg>();
+  try {
+    const { data, error } = await supabase
+      .from('faith_alignment_matches')
+      .select('startup_id, faith_alignment_score, confidence');
+    if (error) {
+      console.warn('Faith aggregates query failed:', error.message);
+      return map;
+    }
+    if (!data || data.length === 0) return map;
+
+    // Aggregate per startup
+    for (const row of data) {
+      const sid = row.startup_id as string;
+      const score = Number(row.faith_alignment_score) || 0;
+      const conf = typeof row.confidence === 'number' ? row.confidence : (Number(row.confidence) || 0);
+      const prev = map.get(sid);
+      if (!prev) {
+        map.set(sid, { topScore: score, avgScore: score, count: 1, confidenceAvg: conf || 0 });
+      } else {
+        const count = prev.count + 1;
+        const avg = (prev.avgScore * prev.count + score) / count;
+        const confAvg = (prev.confidenceAvg * prev.count + (conf || 0)) / count;
+        map.set(sid, { topScore: Math.max(prev.topScore, score), avgScore: avg, count, confidenceAvg: confAvg });
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to build faith aggregates:', e);
+  }
+  return map;
 }
 
 /**
@@ -112,29 +156,33 @@ function calculateGODScore(startup: any): ScoreBreakdown {
   // Breakdown structure: team_execution (0-3), product_vision (0-2), traction (0-3), market (0-2), product (0-2)
   // Also includes: founder_courage (0-1.5), market_insight (0-1.5), team_age (0-1)
   // 
-  // For component scores, we combine related components:
-  // - team_score = team_execution + team_age (max 4, scale to 0-100)
-  // - vision_score = product_vision (0-2, scale to 0-100)
-  // - traction_score = traction (0-3, scale to 0-100)
-  // - market_score = market + market_insight (max 3.5, scale to 0-100)
-  // - product_score = product (0-2, scale to 0-100)
+  // FIXED Jan 30, 2026: Correct divisors to match algorithm maxes
+  // - team_score = team_execution (max 3) + team_age (max 1) = max 4.0
+  // - vision_score = product_vision (max 2.0)
+  // - traction_score = traction (max 3.0)
+  // - market_score = market (max 2) + market_insight (max 1.5) = max 3.5
+  // - product_score = product (max 2.0)
   
   const teamCombined = (result.breakdown.team_execution || 0) + (result.breakdown.team_age || 0);
   const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
   
   return {
-    team_score: Math.round((teamCombined / 4) * 100), // team_execution (0-3) + team_age (0-1) = max 4
-    traction_score: Math.round(((result.breakdown.traction || 0) / 3) * 100), // traction (0-3)
-    market_score: Math.round((marketCombined / 3.5) * 100), // market (0-2) + market_insight (0-1.5) = max 3.5
-    product_score: Math.round(((result.breakdown.product || 0) / 2) * 100), // product (0-2)
-    vision_score: Math.round(((result.breakdown.product_vision || 0) / 2) * 100), // product_vision (0-2)
+    team_score: Math.round((teamCombined / 4.0) * 100),       // team_execution + team_age max 4.0
+    traction_score: Math.round(((result.breakdown.traction || 0) / 3.0) * 100), // traction max 3.0
+    market_score: Math.round((marketCombined / 3.5) * 100),   // market (2.0) + market_insight (1.5) = max 3.5
+    product_score: Math.round(((result.breakdown.product || 0) / 2.0) * 100),   // product max 2.0
+    vision_score: Math.round(((result.breakdown.product_vision || 0) / 2.0) * 100), // FIXED: product_vision max 2.0
     total_god_score: total
   };
 }
 
 async function recalculateScores(): Promise<void> {
   console.log('🔢 Starting GOD Score recalculation (using SINGLE SOURCE OF TRUTH)...');
+  console.log('🚀 Including Bootstrap Scoring for sparse-data startups...\n');
   
+  // Load faith-alignment aggregates once (optional; safe if table empty)
+  const faithAgg = await loadFaithAggregates();
+
   // Get startups that need recalculation
   // Process all approved/pending startups (removed limit to recalculate all)
   const { data: startups, error } = await supabase
@@ -157,17 +205,54 @@ async function recalculateScores(): Promise<void> {
 
   let updated = 0;
   let unchanged = 0;
+  let bootstrapApplied = 0;
 
   for (const startup of startups) {
     const oldScore = startup.total_god_score || 0;
-    const scores = calculateGODScore(startup);
+    
+    // Inject faithSignals so scoring service can include feature-flagged boost in market timing
+    const faith = faithAgg.get(startup.id) || undefined;
+    const scores = calculateGODScore({ ...startup, faithSignals: faith });
+    
+    // Calculate bootstrap score for sparse-data startups
+    let bootstrapBonus = 0;
+    try {
+      const bootstrapResult = await calculateBootstrapScore(supabase, {
+        id: startup.id,
+        name: startup.name,
+        description: startup.description,
+        pitch: startup.pitch,
+        website: startup.website,
+        founded_date: startup.founded_date,
+        is_launched: startup.is_launched,
+        mrr: startup.mrr,
+        customer_count: startup.customer_count,
+        team_size: startup.team_size,
+        has_technical_cofounder: startup.has_technical_cofounder,
+        founder_voice_score: startup.founder_voice_score,
+        social_score: startup.social_score,
+        total_god_score: scores.total_god_score,
+        sectors: startup.sectors,
+      });
+      
+      if (bootstrapResult.applied && bootstrapResult.total > 0) {
+        bootstrapBonus = bootstrapResult.total;
+        bootstrapApplied++;
+        console.log(`  🚀 Bootstrap applied to ${startup.name}: +${bootstrapBonus} (${bootstrapResult.dataTier})`);
+      }
+    } catch (e) {
+      // Bootstrap scoring is optional, continue if it fails
+    }
+    
+    // Final score = GOD score + Bootstrap bonus (capped at 100, rounded to integer)
+    const finalScore = Math.min(Math.round(scores.total_god_score + bootstrapBonus), 100);
 
-    // Only update if score changed significantly (>1 point)
-    if (Math.abs(scores.total_god_score - oldScore) > 1) {
+    // Only update if score changed (any change, removed threshold to fix corrupted scores)
+    if (finalScore !== oldScore) {
       const { error: updateError } = await supabase
         .from('startup_uploads')
         .update({
-          total_god_score: scores.total_god_score,
+          total_god_score: finalScore,
           market_score: scores.market_score,
           team_score: scores.team_score,
           traction_score: scores.traction_score,
@@ -185,25 +270,340 @@ async function recalculateScores(): Promise<void> {
           await supabase.from('score_history').insert({
             startup_id: startup.id,
             old_score: oldScore,
-            new_score: scores.total_god_score,
-            reason: 'hourly_recalc'
+            new_score: finalScore,
+            reason: bootstrapBonus > 0 ? 'recalc_with_bootstrap' : 'hourly_recalc'
           });
         } catch {} // Ignore if table doesn't exist
 
-        console.log(`  ✅ ${startup.name}: ${oldScore} → ${scores.total_god_score}`);
+        const boostNote = bootstrapBonus > 0 ? ` (+${bootstrapBonus} bootstrap)` : '';
+        console.log(`  ✅ ${startup.name}: ${oldScore} → ${finalScore}${boostNote}`);
         updated++;
+        
+        // Track for gap refresh
+        updatedStartupIds.push(startup.id);
       }
     } else {
       unchanged++;
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SIGNAL GAP AUTO-RESOLUTION
+  // After score changes, refresh gaps to auto-resolve improvements
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (updatedStartupIds.length > 0) {
+    console.log(`\n🔄 Refreshing signal gaps for ${updatedStartupIds.length} updated startups...`);
+    try {
+      // Dynamically import the gap service (CommonJS)
+      const signalGapService = require('../server/lib/signalGapService');
+      let gapsRefreshed = 0;
+      let gapsResolved = 0;
+      
+      for (const startupId of updatedStartupIds.slice(0, 50)) { // Limit to 50 per run
+        try {
+          const result = await signalGapService.refreshGaps(startupId);
+          gapsRefreshed += result.upserted;
+          gapsResolved += result.resolved;
+        } catch (e) {
+          // Ignore individual failures
+        }
+      }
+      
+      if (gapsResolved > 0) {
+        console.log(`  ✨ Auto-resolved ${gapsResolved} signal gaps (score improvements)`);
+      }
+      console.log(`  📊 Refreshed ${gapsRefreshed} gaps total`);
+    } catch (e) {
+      console.warn('  ⚠️ Signal gap refresh skipped (service not available)');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CANONICAL DELTA SYSTEM - Compute feature snapshots from GOD score changes
+  // GOD absorbs verified deltas, not unverified claims
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (updatedStartupIds.length > 0) {
+    console.log(`\n📈 Computing canonical delta snapshots...`);
+    try {
+      const canonicalDelta = require('../server/lib/canonicalDeltaService');
+      const config = await canonicalDelta.getDeltaConfig();
+      let snapshotsCreated = 0;
+      let godAdjustmentsApplied = 0;
+      
+      for (const startupId of updatedStartupIds.slice(0, 25)) { // Limit to 25 per run
+        try {
+          // Create feature snapshots from GOD component scores
+          const startup = startups.find(s => s.id === startupId);
+          if (!startup) continue;
+          
+          const scores = calculateGODScore(startup);
+          
+          // Map GOD components to canonical features with verification from data quality
+          const featureWeights = config.feature_weights || {};
+          const features = [
+            { 
+              id: 'traction', 
+              norm: scores.traction_score / 100,
+              weight: featureWeights.traction || 2.5,
+              // Verification based on whether we have numeric data or just inference
+              verification: (startup.mrr || startup.customer_count || startup.arr) ? 0.65 : 0.25,
+              verificationTier: (startup.mrr || startup.customer_count) ? 'soft_verified' : 'unverified'
+            },
+            {
+              id: 'team_strength',
+              norm: scores.team_score / 100,
+              weight: featureWeights.team_strength || 1.2,
+              verification: startup.team_companies?.length > 0 ? 0.55 : 0.25,
+              verificationTier: 'soft_verified'
+            },
+            {
+              id: 'product_quality',
+              norm: scores.product_score / 100,
+              weight: featureWeights.product_quality || 1.2,
+              verification: startup.is_launched ? 0.45 : 0.2,
+              verificationTier: startup.is_launched ? 'soft_verified' : 'unverified'
+            },
+            {
+              id: 'market_size',
+              norm: scores.market_score / 100,
+              weight: featureWeights.market_size || 1.0,
+              verification: 0.35, // Market signals are typically inferred
+              verificationTier: 'soft_verified'
+            },
+            {
+              id: 'founder_velocity',
+              norm: scores.vision_score / 100,
+              weight: featureWeights.founder_velocity || 2.0,
+              verification: startup.founder_voice_score ? 0.5 : 0.3,
+              verificationTier: 'soft_verified'
+            }
+          ];
+          
+          // Insert feature snapshots
+          const now = new Date().toISOString();
+          for (const feature of features) {
+            await supabase
+              .from('feature_snapshots')
+              .upsert({
+                startup_id: startupId,
+                feature_id: feature.id,
+                raw: { source: 'god_recalc', god_component: feature.id },
+                norm: feature.norm,
+                weight: feature.weight,
+                confidence: 0.7, // GOD scores have moderate confidence
+                verification: feature.verification,
+                freshness: 1.0, // Just calculated
+                verification_tier: feature.verificationTier,
+                measured_at: now
+              }, {
+                onConflict: 'startup_id,feature_id,measured_at'
+              });
+          }
+          
+          // Compute and store score snapshot
+          const result = await canonicalDelta.computeAndStoreSnapshot(startupId, 'god_recalc');
+          snapshotsCreated++;
+          
+          // Apply GOD adjustment if there are verified deltas
+          const adjustment = await canonicalDelta.computeGodAdjustment(startupId);
+          if (Math.abs(adjustment.adjustment) > 0.5) {
+            godAdjustmentsApplied++;
+            console.log(`    🎯 ${startup.name}: GOD adjustment ${adjustment.adjustment > 0 ? '+' : ''}${adjustment.adjustment.toFixed(1)}`);
+          }
+          
+        } catch (e) {
+          // Ignore individual failures, continue processing
+        }
+      }
+      
+      console.log(`  📊 Created ${snapshotsCreated} score snapshots`);
+      if (godAdjustmentsApplied > 0) {
+        console.log(`  🎯 Applied ${godAdjustmentsApplied} GOD adjustments from verified deltas`);
+      }
+    } catch (e) {
+      console.warn('  ⚠️ Canonical delta computation skipped:', (e as Error).message);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VERIFICATION PIPELINE REFRESH
+  // Process actions + evidence artifacts → update verification states → emit deltas
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log(`\n🔐 Refreshing verification pipeline...`);
+  try {
+    let actionsProcessed = 0;
+    let verificationsUpdated = 0;
+    let deltasEmitted = 0;
+    
+    // Get all unverified actions with evidence
+    const { data: pendingActions, error: actionsError } = await supabase
+      .from('action_events_v2')
+      .select(`
+        id,
+        startup_id,
+        type,
+        title,
+        status,
+        fields
+      `)
+      .in('status', ['pending', 'provisional_applied'])
+      .order('created_at', { ascending: true })
+      .limit(100);
+    
+    if (actionsError) {
+      console.warn('  ⚠️ Failed to fetch actions:', actionsError.message);
+    } else if (pendingActions?.length) {
+      console.log(`  📋 Processing ${pendingActions.length} pending actions...`);
+      
+      for (const action of pendingActions) {
+        actionsProcessed++;
+        
+        // Get evidence for this action
+        const { data: evidence } = await supabase
+          .from('evidence_artifacts_v2')
+          .select('id, type, tier, confidence')
+          .eq('action_id', action.id);
+        
+        // Get connected sources for this startup
+        const { data: sources } = await supabase
+          .from('connected_sources_v2')
+          .select('provider, status')
+          .eq('startup_id', action.startup_id)
+          .eq('status', 'connected');
+        
+        // Calculate verification score
+        const VERIFICATION_SCORES = {
+          OAUTH_CONNECTOR: 0.35,
+          WEBHOOK_EVENT: 0.35,
+          DOC_PROOF: 0.20,
+          PUBLIC_LINK: 0.10
+        };
+        
+        let verificationScore = 0;
+        
+        // Add score from evidence
+        for (const ev of evidence || []) {
+          switch (ev.type) {
+            case 'oauth_connector':
+              verificationScore += VERIFICATION_SCORES.OAUTH_CONNECTOR;
+              break;
+            case 'webhook_event':
+              verificationScore += VERIFICATION_SCORES.WEBHOOK_EVENT;
+              break;
+            case 'document_upload':
+              verificationScore += VERIFICATION_SCORES.DOC_PROOF;
+              break;
+            case 'public_link':
+              verificationScore += VERIFICATION_SCORES.PUBLIC_LINK;
+              break;
+          }
+        }
+        
+        // Add score from connected sources relevant to action type
+        const revenueTypes = ['revenue_change', 'contract_signed', 'new_customer', 'mrr_increase'];
+        if (revenueTypes.includes(action.type)) {
+          const hasStripe = sources?.some(s => s.provider === 'stripe');
+          if (hasStripe) {
+            verificationScore += VERIFICATION_SCORES.OAUTH_CONNECTOR;
+          }
+        }
+        
+        verificationScore = Math.min(1.0, verificationScore);
+        
+        // Determine tier
+        const getTier = (score: number) => {
+          if (score >= 0.85) return 'trusted';
+          if (score >= 0.65) return 'verified';
+          if (score >= 0.35) return 'soft_verified';
+          return 'unverified';
+        };
+        
+        const newTier = getTier(verificationScore);
+        
+        // Get or create verification state
+        const { data: existingVs } = await supabase
+          .from('verification_states_v2')
+          .select('*')
+          .eq('action_id', action.id)
+          .single();
+        
+        const oldTier = existingVs?.tier || 'unverified';
+        const oldScore = existingVs?.verification_score || 0;
+        
+        // Update if changed
+        if (verificationScore !== oldScore || newTier !== oldTier) {
+          const { error: vsError } = await supabase
+            .from('verification_states_v2')
+            .upsert({
+              action_id: action.id,
+              startup_id: action.startup_id,
+              verification_score: verificationScore,
+              tier: newTier,
+              satisfied: verificationScore >= 0.65,
+              matched_evidence_ids: (evidence || []).map(e => e.id),
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'action_id'
+            });
+          
+          if (!vsError) {
+            verificationsUpdated++;
+            
+            // Emit delta if crossed verified threshold
+            if ((newTier === 'verified' || newTier === 'trusted') && oldTier !== 'verified' && oldTier !== 'trusted') {
+              const deltaSignal = verificationScore;
+              const deltaGod = verificationScore * 0.25;
+              
+              const { error: deltaError } = await supabase
+                .from('score_deltas_v2')
+                .insert({
+                  startup_id: action.startup_id,
+                  action_id: action.id,
+                  delta_signal: deltaSignal,
+                  delta_god: deltaGod,
+                  reason: 'verification_upgraded',
+                  meta: {
+                    previousTier: oldTier,
+                    newTier,
+                    source: 'recalculate_script'
+                  }
+                });
+              
+              if (!deltaError) {
+                deltasEmitted++;
+                console.log(`    ✅ ${action.title}: ${oldTier} → ${newTier} (delta emitted)`);
+              }
+              
+              // Update action status
+              await supabase
+                .from('action_events_v2')
+                .update({ status: 'verified' })
+                .eq('id', action.id);
+            }
+          }
+        }
+      }
+      
+      console.log(`  📊 Processed ${actionsProcessed} actions`);
+      console.log(`  🔄 Updated ${verificationsUpdated} verification states`);
+      if (deltasEmitted > 0) {
+        console.log(`  🎯 Emitted ${deltasEmitted} verified deltas`);
+      }
+    }
+  } catch (e) {
+    console.warn('  ⚠️ Verification pipeline refresh skipped:', (e as Error).message);
+  }
+
   console.log(`\n📊 SUMMARY`);
   console.log(`  Updated: ${updated}`);
   console.log(`  Unchanged: ${unchanged}`);
+  console.log(`  Bootstrap applied: ${bootstrapApplied}`);
   console.log(`  Total: ${startups.length}`);
   console.log('✅ Score recalculation complete');
 }
+
+// Track updated startups for gap refresh
+const updatedStartupIds: string[] = [];
 
 // Run
 recalculateScores().catch(console.error);

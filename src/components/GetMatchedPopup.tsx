@@ -6,14 +6,18 @@
 import { useState } from 'react';
 import { X, Sparkles, ArrowRight, Brain } from 'lucide-react';
 
+type Brand = "pythh" | "hotmatch";
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   lastMatchScore?: number;
   lastStartupName?: string;
+  brand?: Brand;
 }
 
-export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastStartupName }: Props) {
+export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastStartupName, brand = "pythh" }: Props) {
+  const badgeText = brand === "pythh" ? "PYTHH ALERT" : "HOT MATCH ALERT";
   const [url, setUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -75,11 +79,11 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
             </div>
           </div>
           
-          {/* Hot Match Badge */}
+          {/* Brand Badge */}
           {isHotMatch && (
             <div className="flex justify-center mb-3">
               <span className="px-3 py-1 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full text-xs font-bold text-white flex items-center gap-1 animate-pulse">
-                <img src="/images/fire_icon_01.jpg" alt="" className="w-4 h-4 object-contain" /> HOT MATCH ALERT
+                <img src="/images/fire_icon_01.jpg" alt="" className="w-4 h-4 object-contain" /> {badgeText}
               </span>
             </div>
           )}

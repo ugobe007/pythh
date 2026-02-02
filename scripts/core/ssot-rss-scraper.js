@@ -335,12 +335,42 @@ async function scrapeRssFeeds() {
   console.log('='.repeat(60));
 }
 
+// PUBLISHER DOMAINS TO BLOCK (these are article sources, not company websites)
+const PUBLISHER_DOMAINS = new Set([
+  'techcrunch.com', 'businessinsider.com', 'entrepreneur.com', 'forbes.com',
+  'cnbc.com', 'theverge.com', 'wired.com', 'fastcompany.com', 'inc.com',
+  'wsj.com', 'nytimes.com', 'medium.com', 'twitter.com', 'linkedin.com',
+  'reddit.com', 'ycombinator.com', 'venturebeat.com', 'arstechnica.com',
+  'bloomberg.com', 'reuters.com', 'bbc.com', 'cnn.com', 'theguardian.com',
+  'axios.com', 'strictlyvc.com', 'avc.com', 'mattermark.com', 'dealroom.co',
+  'crunchbase.com', 'pitchbook.com', 'finsmes.com', 'pulse2.com', 'inc42.com',
+  'theblock.co', 'coindesk.com', 'decrypt.co', 'cointelegraph.com', 'zdnet.com',
+  'engadget.com', 'gizmodo.com', 'mashable.com', 'theregister.com', 'techmeme.com',
+  'github.com', 'gitlab.com', 'stackoverflow.com', 'news.ycombinator.com',
+  'producthunt.com', 'betalist.com', 'angellist.com', 'substack.com', 'mirror.xyz',
+  'google.com', 'google.co', 'apple.com', 'amazon.com', 'microsoft.com', 'ibm.com',
+]);
+
 // Helper: Extract website from link or content
+// CRITICAL: Do NOT store publisher domains as company websites!
 function extractWebsite(link, content) {
   if (!link) return '';
   try {
     const url = new URL(link);
-    return url.hostname.replace('www.', '');
+    const domain = url.hostname.replace('www.', '').toLowerCase();
+    
+    // BLOCK publisher domains - these are NOT company websites
+    if (PUBLISHER_DOMAINS.has(domain)) {
+      return ''; // Return empty - don't store article URL as company website
+    }
+    
+    // Also block if domain contains common publisher patterns
+    if (domain.includes('news.') || domain.includes('blog.') || 
+        domain.endsWith('.medium.com') || domain.includes('substack.')) {
+      return '';
+    }
+    
+    return domain;
   } catch {
     return '';
   }

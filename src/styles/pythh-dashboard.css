@@ -1,0 +1,820 @@
+/**
+ * PYTHH DASHBOARD SYSTEM v1
+ * 
+ * Canonical = Supabase Dashboard
+ * Flat surfaces, quiet borders, typography hierarchy, information density, restraint.
+ * 
+ * NO stage light. NO gradients. NO glow. NO marketing vibes.
+ * If it feels cinematic, it's wrong. If it feels terminal-like, it's correct.
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL RESET
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-app {
+  background: #0a0a0b;
+  min-height: 100vh;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   TOPBAR (sticky, quiet border, no glow)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 20px;
+  height: 48px;
+  background: #0a0a0b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pythh-topbar-brand {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pythh-topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pythh-topbar-link {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: color 0.1s ease, background 0.1s ease;
+}
+
+.pythh-topbar-link:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pythh-topbar-link.active {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE HEADER (kicker, title, subtitle)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-page-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pythh-kicker {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 4px;
+}
+
+.pythh-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 4px 0;
+}
+
+.pythh-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+}
+
+.pythh-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pythh-time-toggle {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.pythh-time-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.pythh-time-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pythh-time-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN LAYOUT (8/4 grid)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pythh-main {
+  background: #0a0a0b;
+  padding: 20px 24px;
+  min-height: calc(100vh - 120px);
+}
+
+.pythh-rail {
+  background: #0a0a0b;
+  padding: 20px 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 900px) {
+  .pythh-layout {
+    grid-template-columns: 1fr;
+  }
+  .pythh-rail {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PANELS (flat, 1px border, no glow)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-panel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.pythh-panel:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.pythh-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pythh-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pythh-panel-body {
+  padding: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   YOUR EDGE (primary object for Dashboard)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-edge {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.pythh-edge-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 12px;
+}
+
+.pythh-edge-row {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.pythh-edge-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pythh-edge-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.pythh-edge-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.pythh-edge-value.small {
+  font-size: 16px;
+}
+
+.pythh-edge-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   TABLES (default for data, not cards)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pythh-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.pythh-table thead th.sortable {
+  cursor: pointer;
+}
+
+.pythh-table thead th.sortable:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pythh-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.1s ease;
+}
+
+.pythh-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pythh-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.pythh-table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+/* Left rail selection (subtle, not filled background) */
+.pythh-table tbody tr.selected {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pythh-table tbody tr.selected td:first-child {
+  position: relative;
+}
+
+.pythh-table tbody tr.selected td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: rgba(96, 165, 250, 0.7);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   INSPECTOR (Matches only - subtle halo allowed)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-inspector {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 16px;
+  /* Very subtle inner halo - only place allowed */
+  box-shadow: inset 0 0 40px rgba(96, 165, 250, 0.02);
+}
+
+.pythh-inspector-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 4px;
+}
+
+.pythh-inspector-score {
+  font-size: 28px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 12px;
+}
+
+.pythh-inspector-section {
+  margin-bottom: 14px;
+}
+
+.pythh-inspector-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 6px;
+}
+
+.pythh-inspector-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   RAIL BLOCKS (Now / Next / Proof)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-rail-block {
+  margin-bottom: 20px;
+}
+
+.pythh-rail-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 8px;
+}
+
+.pythh-rail-item {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 4px 0;
+}
+
+.pythh-rail-action {
+  display: block;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  text-decoration: none;
+  margin-bottom: 6px;
+  transition: all 0.1s ease;
+}
+
+.pythh-rail-action:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   BUTTONS (minimal)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  text-decoration: none;
+}
+
+.pythh-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.pythh-btn.primary {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.25);
+  color: rgba(96, 165, 250, 0.95);
+}
+
+.pythh-btn.primary:hover {
+  background: rgba(96, 165, 250, 0.18);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DELTA INDICATORS (color = meaning)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-delta {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pythh-delta.up {
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.pythh-delta.down {
+  color: rgba(251, 191, 36, 0.9);
+}
+
+.pythh-delta.stable {
+  color: rgba(96, 165, 250, 0.8);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   LEGEND STRIP (Signals page)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-legend {
+  display: flex;
+  gap: 20px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+}
+
+.pythh-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PIPELINE DIAGRAM (Engine page)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-pipeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.pythh-pipeline-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.pythh-pipeline-node-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pythh-pipeline-node-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pythh-pipeline-node-status {
+  font-size: 10px;
+  color: rgba(52, 211, 153, 0.8);
+}
+
+.pythh-pipeline-node-status.error {
+  color: rgba(239, 68, 68, 0.9);
+}
+
+.pythh-pipeline-arrow {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   WORKFLOW DIAGRAM (How it works)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-workflow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pythh-workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.pythh-workflow-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pythh-workflow-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pythh-workflow-arrow {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.2);
+  margin-top: 10px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   CHANGE LOG (What Changed section)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pythh-change {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.pythh-change:last-child {
+  border-bottom: none;
+}
+
+.pythh-change-icon {
+  font-size: 14px;
+  margin-top: 1px;
+}
+
+.pythh-change-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MATCH SNAPSHOT (compact horizontal list)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-snapshot {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pythh-snapshot-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.pythh-snapshot-name {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pythh-snapshot-score {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   VERIFICATION BADGE
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-verification {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+.pythh-verification.soft {
+  background: rgba(251, 191, 36, 0.12);
+  color: rgba(251, 191, 36, 0.9);
+}
+
+.pythh-verification.hard {
+  background: rgba(52, 211, 153, 0.12);
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.pythh-verification.none {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SIGNATURE FLARE 1: ORACLE GLYPH
+   Usage: only in headers, only 1 line per page
+   ═══════════════════════════════════════════════════════════════ */
+
+.py-glyph {
+  margin-left: 10px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.42);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.py-glyph strong {
+  color: rgba(255, 255, 255, 0.68);
+  font-weight: 650;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SIGNATURE FLARE 2: METRIC GLOW (one per page only)
+   ═══════════════════════════════════════════════════════════════ */
+
+.py-metric-glow {
+  text-shadow: 0 0 18px rgba(96, 165, 250, 0.16);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   INSPECTOR HALO (Matches page only)
+   ═══════════════════════════════════════════════════════════════ */
+
+.py-inspector-halo {
+  box-shadow: inset 0 0 40px rgba(96, 165, 250, 0.025);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   TITLE WRAP + HAIRLINE
+   ═══════════════════════════════════════════════════════════════ */
+
+.py-title-wrap {
+  margin-bottom: 4px;
+}
+
+.py-title-wrap .pythh-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+}
+
+.py-hairline {
+  height: 1px;
+  margin-top: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.12), transparent 60%);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   GRID LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pythh-grid > section {
+  background: #0a0a0b;
+  padding: 20px 24px;
+  min-height: calc(100vh - 180px);
+}
+
+@media (max-width: 900px) {
+  .pythh-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL INNER
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-panel-inner {
+  padding: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   INPUT STYLING
+   ═══════════════════════════════════════════════════════════════ */
+
+.pythh-input {
+  background: rgba(0, 0, 0, 0.20);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.1s ease;
+}
+
+.pythh-input:focus {
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+.pythh-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}

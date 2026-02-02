@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ThumbsUp, Info, Share2, Sparkles, Search, TrendingUp, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -16,6 +16,7 @@ import ShareMatchModal from './ShareMatchModal';
 import SplitScreenHero from './SplitScreenHero';
 import ValuePropPanels from './ValuePropPanels';
 import LogoDropdownMenu from './LogoDropdownMenu';
+import LongitudinalMatchPair from './LongitudinalMatchPair';
 import OracleHeader from './oracle/OracleHeader';
 import TransparencyPanel from './TransparencyPanel';
 import DataQualityBadge from './DataQualityBadge';
@@ -23,9 +24,12 @@ import MatchConfidenceBadge from './MatchConfidenceBadge';
 import SmartSearchBar from './SmartSearchBar';
 import EducationalMatchModal from './EducationalMatchModal';
 import GetMatchedPopup from './GetMatchedPopup';
+import LiveMatchingStrip from './LiveMatchingStrip';
 import { saveMatch, unsaveMatch, isMatchSaved } from '../lib/savedMatches';
 import { StartupComponent, InvestorComponent } from '../types';
 import HomeProofFeed from './home/HomeProofFeed';
+import { useMatchState, getMatchUIState } from '../hooks/useMatchState';
+import { startMatchRun } from '../services/patternAMatchingService';
 
 // SIMPLIFIED MATCHING: Uses pre-calculated GOD scores from database
 // This aligns with Architecture Document Option A (Recommended)
@@ -103,13 +107,38 @@ export default function MatchingEngine() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urlParam = searchParams.get('url');
-  const [userStartupId, setUserStartupId] = useState<string | null>(null);
-  const [matches, setMatches] = useState<MatchPair[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // DEBUG: Track renders
+  console.log('[MatchingEngine] RENDER - urlParam:', urlParam);
+  
+  // Telemetry: Log events for funnel optimization
+  const logEvent = (eventName: string, properties?: Record<string, any>) => {
+    console.log(`📊 [Telemetry] ${eventName}`, properties);
+    // TODO: Send to analytics service (Mixpanel, Amplitude, etc.)
+    // analytics.track(eventName, properties);
+  };
+  
+  // STATE MACHINE: Prevents "no matches found" bug with strict correctness rules
+  const matchState = useMatchState<MatchPair>();
+  const { 
+    state, 
+    matches, 
+    error: loadError, 
+    requestId: currentRequestId,
+    setLoading, 
+    setReady, 
+    setError,
+    getNextRequestId,
+    isStaleResponse
+  } = matchState;
+  
+  // UI state derived from state machine
+  const uiState = getMatchUIState(state, matches.length);
+  const isAnalyzing = uiState.showLoading;
+  
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [currentBatch, setCurrentBatch] = useState(0); // batch index
   const [batchSize] = useState(25); // batch size (fixed at 25)
-  const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [showLightning, setShowLightning] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -143,6 +172,9 @@ export default function MatchingEngine() {
   const batchMatches = matches.slice(currentBatch * batchSize, (currentBatch + 1) * batchSize);
   // Track which match in the batch is currently shown (for card animation, optional)
   const [currentIndex, setCurrentIndex] = useState(0);
+  
+  // Memoize current match for performance
+  const currentMatch = useMemo(() => batchMatches[currentIndex], [batchMatches, currentIndex]);
 
   // Check if current match is saved whenever match changes (within batch)
   useEffect(() => {
@@ -154,8 +186,8 @@ export default function MatchingEngine() {
   }, [currentIndex, batchMatches]);
 
   const handleToggleSave = () => {
-    if (matches.length === 0) return;
-    const match = matches[currentIndex];
+    if (batchMatches.length === 0) return;
+    const match = batchMatches[currentIndex];
     
     if (!match || !match.startup || !match.investor || !match.startup.id || !match.investor.id) {
       return;
@@ -240,18 +272,12 @@ export default function MatchingEngine() {
     testFetch();
   }, []);
 
-  // Load matches from database
+  // Load matches from database  
+  // NOTE: Depends on urlParam (which is in loadMatches dependencies), triggers when URL changes
   useEffect(() => {
     loadMatches();
-    
-    // Refresh matches every 10 minutes to get new batch
-    const refreshInterval = setInterval(() => {
-      console.log('🔄 Refreshing matches (10-minute replenish)...');
-      loadMatches();
-    }, 10 * 60 * 1000); // 10 minutes
-    
-    return () => clearInterval(refreshInterval);
-  }, [urlParam]); // Re-run when URL param changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlParam]); // Depend on urlParam directly since loadMatches is defined below
   
   // DEBUG 4: Watch matches state changes
   useEffect(() => {
@@ -297,18 +323,8 @@ export default function MatchingEngine() {
     }
   }, [showLightning]);
 
-  // Auto-advance to next batch every 10 minutes
-  useEffect(() => {
-    if (matches.length === 0) return;
-    const batchAdvanceInterval = setInterval(() => {
-      setCurrentBatch((prev) => {
-        const nextBatch = (prev + 1) % totalBatches;
-        setCurrentIndex(0); // Reset to first match in new batch
-        return nextBatch;
-      });
-    }, 10 * 60 * 1000); // 10 minutes
-    return () => clearInterval(batchAdvanceInterval);
-  }, [matches.length, totalBatches]);
+  // Auto-advance to next batch when user finishes current batch (manual navigation only)
+  // REMOVED: Auto-advance interval that caused loading loops
 
   // GOD Algorithm rolling animation (changes every 1.5 seconds)
   useEffect(() => {
@@ -317,7 +333,7 @@ export default function MatchingEngine() {
     }, 1500);
     
     return () => clearInterval(godInterval);
-  });
+  }, [godAlgorithmSteps.length]);
 
   // Match cycling: show each match for 10 seconds
   // After every 4 matches, show the "Get Matched" popup to capture conversions
@@ -363,91 +379,87 @@ export default function MatchingEngine() {
     }
   };
 
-  // Find or create startup from URL
-  const findOrCreateStartup = async (url: string): Promise<string | null> => {
-    const normalizedUrl = normalizeUrl(url);
-    const domain = extractDomain(url);
-    
-    console.log('[findOrCreate] Looking for domain:', domain);
-
-    // Check if startup exists - use ilike to find candidates, then filter by exact domain
-    const candidatesRes = await supabase
-      .from('startup_uploads')
-      .select('id, website')
-      .ilike('website', `%${domain}%`)
-      .limit(10);
-    
-    const candidates = candidatesRes?.data ?? [];
-    
-    // Pick best match by exact hostname equality
-    const best = (candidates || []).find(s => {
-      try {
-        const h = new URL(normalizeUrl(s.website || '')).hostname.replace('www.', '');
-        return h === domain;
-      } catch {
-        return false;
-      }
-    });
-    
-    if (best) {
-      console.log('[findOrCreate] Found exact match:', best.id);
-      return best.id;
-    }
-
-    // Create new startup
-    const companyName = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
-    
-    const insertRes = await supabase
-      .from('startup_uploads')
-      .insert({
-        name: companyName,
-        website: normalizedUrl,
-        tagline: `Startup at ${domain}`,
-        sectors: ['Technology'],
-        stage: 1,
-        status: 'approved', // Valid constraint: pending|reviewing|approved|rejected|published
-        source_type: 'url', // Valid constraint: url|deck|manual
-        total_god_score: 65,
-        created_at: new Date().toISOString()
-      })
-      .select('id')
-      .single();
-    
-    const newStartup = insertRes?.data ?? null;
-    const error = insertRes?.error ?? null;
-
-    if (newStartup && !error) {
-      return newStartup.id;
-    }
-    
-    console.error('Failed to create startup:', error);
-    return null;
-  };
-
-  const loadMatches = async () => {
-    console.log('[matches] urlParam:', urlParam);
+  // Find startup from URL using Pattern A RPC (database-side resolution)
+  const findStartupByUrl = useCallback(async (url: string): Promise<{ startupId: string | null; startupName: string | null }> => {
+    console.log('[PatternA] Resolving URL:', url);
     
     try {
-      setLoadError(null);
+      // Use the RPC which handles URL canonicalization and lookup in PostgreSQL
+      const result = await startMatchRun(url);
+      
+      if (result.status === 'error') {
+        console.error('[PatternA] Error:', result.error_code, result.error_message);
+        return { startupId: null, startupName: null };
+      }
+      
+      console.log('[PatternA] Resolved:', result.startup_name, result.startup_id);
+      return { 
+        startupId: result.startup_id, 
+        startupName: result.startup_name 
+      };
+    } catch (error) {
+      console.error('[PatternA] RPC failed:', error);
+      
+      // Fallback: Direct database lookup
+      const domain = extractDomain(url);
+      const { data } = await supabase
+        .from('startup_uploads')
+        .select('id, name, website')
+        .eq('status', 'approved')
+        .ilike('website', `%${domain}%`)
+        .limit(1)
+        .single();
+      
+      if (data) {
+        return { startupId: data.id, startupName: data.name };
+      }
+      
+      return { startupId: null, startupName: null };
+    }
+  }, []); // No dependencies - uses imported function directly
+
+  const loadMatches = useCallback(async () => {
+    console.log('[matches] 🚀 loadMatches called - urlParam:', urlParam);
+    
+    // GENERATE REQUEST ID: Track this request to detect stale responses
+    const thisRequestId = getNextRequestId();
+    console.log(`[matches] 📍 Starting request ${thisRequestId}`);
+    
+    try {
+      // STATE: Start loading
+      setLoading();
       setDebugInfo(null);
-      setMatches([]);
       setCurrentIndex(0);
       
       // Check if Supabase is properly configured
       const supabaseLib = await import('../lib/supabase');
       if (!supabaseLib.hasValidSupabaseCredentials) {
-        setLoadError('⚠️ Supabase credentials not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file and restart the dev server.');
-        setIsAnalyzing(false);
+        setError('⚠️ Supabase credentials not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file and restart the dev server.', thisRequestId);
         return;
       }
 
       // If URL param provided, find/create that startup first
       let targetStartupId: string | null = null;
       if (urlParam) {
-        targetStartupId = await findOrCreateStartup(urlParam);
-        console.log('[matches] targetStartupId:', targetStartupId);
+        // STALE CHECK: User may have submitted new URL while we were resolving
+        if (isStaleResponse(thisRequestId)) {
+          console.log(`[matches] Request ${thisRequestId} is stale, aborting`);
+          return;
+        }
+        
+        // Use Pattern A RPC for URL resolution
+        const { startupId, startupName } = await findStartupByUrl(urlParam);
+        targetStartupId = startupId;
+        console.log('[matches] Pattern A resolved:', startupName, targetStartupId);
+        
         if (targetStartupId) {
-          setUserStartupId(targetStartupId);
+          // STALE CHECK: Before updating state
+          if (isStaleResponse(thisRequestId)) {
+            console.log(`[matches] Request ${thisRequestId} is stale, aborting`);
+            return;
+          }
+          // Keep loading state, just update the ID
+          setLoading(targetStartupId);
         }
       }
       
@@ -474,6 +486,24 @@ export default function MatchingEngine() {
       const matchIds = matchRes?.data ?? [];
       const matchError = matchRes?.error ?? null;
       
+      console.log(`[matches] 📊 Query result:`, {
+        dataLength: matchIds?.length,
+        hasError: !!matchError,
+        errorMsg: matchError?.message,
+        sampleMatch: matchIds?.[0],
+        queryParams: {
+          status: 'suggested',
+          minScore: MIN_MATCH_SCORE,
+          targetStartup: targetStartupId || 'ALL'
+        }
+      });
+      
+      // STALE CHECK: Before processing results
+      if (isStaleResponse(thisRequestId)) {
+        console.log(`[matches] Request ${thisRequestId} is stale after query, aborting`);
+        return;
+      }
+      
       if (matchError) {
         console.error('❌ Error fetching match IDs:', matchError);
         
@@ -489,15 +519,15 @@ export default function MatchingEngine() {
           errorMsg = `Failed to load matches: ${matchError.message || 'Unknown error'}`;
         }
         
-        setLoadError(errorMsg);
-        setIsAnalyzing(false);
+        setError(errorMsg, thisRequestId);
         return;
       }
       
       if (!matchIds?.length) {
         console.warn(`⚠️ No matches found with status="suggested" and score >= ${MIN_MATCH_SCORE}`);
-        setLoadError(`No matches available. This could mean:\n1. No matches have been generated yet\n2. Queue processor needs to run\n3. Matches exist but have different status\n4. All matches have score < ${MIN_MATCH_SCORE}`);
-        setIsAnalyzing(false);
+        // STATE: This is a true empty state (backend ready, but no matches)
+        // EMPTY STATE GATE: Only set empty when we have authoritative confirmation
+        setError(`No matches available. This could mean:\n1. No matches have been generated yet\n2. Queue processor needs to run\n3. Matches exist but have different status\n4. All matches have score < ${MIN_MATCH_SCORE}`, thisRequestId);
         return;
       }
       
@@ -520,8 +550,13 @@ export default function MatchingEngine() {
       
       if (startupIds.length === 0 || investorIds.length === 0) {
         console.error('❌ No valid startup or investor IDs');
-        setLoadError('No matches available. Please ensure the queue processor is running.');
-        setIsAnalyzing(false);
+        setError('No matches available. Please ensure the queue processor is running.', thisRequestId);
+        return;
+      }
+      
+      // STALE CHECK: Before fetching details
+      if (isStaleResponse(thisRequestId)) {
+        console.log(`[matches] Request ${thisRequestId} is stale before detail fetch, aborting`);
         return;
       }
       
@@ -530,17 +565,21 @@ export default function MatchingEngine() {
         supabase.from('investors').select('id, name, firm, bio, type, sectors, stage, check_size_min, check_size_max, geography_focus, notable_investments, investment_thesis, investment_firm_description, firm_description_normalized, photo_url, linkedin_url, total_investments, active_fund_size').in('id', investorIds)
       ]);
       
+      // STALE CHECK: After fetching details
+      if (isStaleResponse(thisRequestId)) {
+        console.log(`[matches] Request ${thisRequestId} is stale after detail fetch, aborting`);
+        return;
+      }
+      
       if (startupsRes.error) {
         console.error('❌ Error fetching startups:', startupsRes.error);
-        setLoadError('Failed to load startup data: ' + startupsRes.error.message);
-        setIsAnalyzing(false);
+        setError('Failed to load startup data: ' + startupsRes.error.message, thisRequestId);
         return;
       }
       
       if (investorsRes.error) {
         console.error('❌ Error fetching investors:', investorsRes.error);
-        setLoadError('Failed to load investor data: ' + investorsRes.error.message);
-        setIsAnalyzing(false);
+        setError('Failed to load investor data: ' + investorsRes.error.message, thisRequestId);
         return;
       }
       
@@ -569,6 +608,12 @@ export default function MatchingEngine() {
       if (!matchData || matchData.length === 0) {
         console.warn('⚠️ No matches found in startup_investor_matches table');
         
+        // STALE CHECK: Before showing empty state
+        if (isStaleResponse(thisRequestId)) {
+          console.log(`[matches] Request ${thisRequestId} is stale before empty check, aborting`);
+          return;
+        }
+        
         // Check if there are ANY matches at all (different status)
         const countRes = await supabase
           .from('startup_investor_matches')
@@ -577,16 +622,47 @@ export default function MatchingEngine() {
         const totalMatches = countRes?.count ?? 0;
         
         if (totalMatches === 0) {
-          setLoadError('No matches found in database. The queue processor needs to generate matches first. Check /admin/dashboard for queue processor status.');
+          setError('No matches found in database. The queue processor needs to generate matches first. Check /admin/dashboard for queue processor status.', thisRequestId);
         } else {
-          setLoadError(`Found ${totalMatches} total matches, but none with status="suggested" and score >= ${MIN_MATCH_SCORE}. Check match statuses in the database.`);
+          setError(`Found ${totalMatches} total matches, but none with status="suggested" and score >= ${MIN_MATCH_SCORE}. Check match statuses in the database.`, thisRequestId);
         }
         
-        setIsAnalyzing(false);
         return;
       }
 
       console.log('✅ Loaded', matchData.length, 'pre-calculated matches');
+
+      // DATA SANITIZATION: Ensure clean data before rendering
+      const sanitizeId = (id: any): string | null => {
+        const s = String(id ?? "").trim();
+        if (!s || s === "null" || s === "undefined") return null;
+        return s;
+      };
+
+      const sanitizeMatchScore = (score: any): number => {
+        const num = Number(score);
+        if (!Number.isFinite(num)) return 0;
+        // If score is 0-1 float, convert to 0-100
+        if (num > 0 && num <= 1) return Math.round(num * 100);
+        // Clamp to 0-100 range
+        return Math.max(0, Math.min(100, Math.round(num)));
+      };
+
+      const sanitizeReasoning = (reasoning: any): string[] => {
+        if (!reasoning) return [];
+        if (Array.isArray(reasoning)) return reasoning.filter(r => typeof r === 'string' && r.trim());
+        if (typeof reasoning === 'string') {
+          // If it's a JSON string, try to parse it
+          try {
+            const parsed = JSON.parse(reasoning);
+            if (Array.isArray(parsed)) return parsed.filter(r => typeof r === 'string' && r.trim());
+          } catch {
+            // If it's a single blob string, return as array with one item
+            return [reasoning.trim()];
+          }
+        }
+        return [];
+      };
 
       // Transform database results to display format
       // Preserves the existing MatchPair interface used by the UI
@@ -596,16 +672,19 @@ export default function MatchingEngine() {
         const startup = m.startup_uploads;
         const investor = m.investors;
         
-        // Additional safety check
-        if (!startup || !investor || !startup.id || !investor.id) {
+        // Additional safety check with sanitized IDs
+        const startupId = sanitizeId(startup?.id);
+        const investorId = sanitizeId(investor?.id);
+        
+        if (!startup || !investor) {
           return null;
         }
         
         return {
           startup: {
             ...startup,
-            id: startup.id,
-            name: startup.name,
+            id: startupId,
+            name: startup.name || 'Unnamed Startup',
             description: startup.description || startup.tagline || startup.pitch || '',
             tagline: startup.tagline || '',
             tags: startup.sectors || [],
@@ -634,8 +713,8 @@ export default function MatchingEngine() {
             vision_score?: number | null;
           },
           investor: {
-            id: investor.id,
-            name: investor.name,
+            id: investorId,
+            name: investor.name || 'Unnamed Investor',
             firm: investor.firm || '',
             description: investor.bio || '',
             tagline: '',
@@ -652,9 +731,11 @@ export default function MatchingEngine() {
             check_size_min: investor.check_size_min,
             check_size_max: investor.check_size_max,
             notable_investments: investor.notable_investments,
+            photo_url: (investor as any).photo_url,
+            linkedin_url: (investor as any).linkedin_url,
           },
-          matchScore: m.match_score || 0,  // FROM DATABASE - calculated by queue-processor-v16
-          reasoning: m.reasoning ? (Array.isArray(m.reasoning) ? m.reasoning : [m.reasoning]) : [],
+          matchScore: sanitizeMatchScore(m.match_score),  // SANITIZED: 0-100 range
+          reasoning: sanitizeReasoning(m.reasoning),  // SANITIZED: always string[]
         };
       })
       .filter(Boolean) as MatchPair[]; // Filter out null matches
@@ -664,19 +745,47 @@ export default function MatchingEngine() {
       let finalMatches: MatchPair[] = displayMatches;
       
       if (!targetStartupId) {
-        // Demo mode: one startup per match (carousel variety)
-        const bestMatchPerStartup = new Map<string, MatchPair>();
-        finalMatches.forEach(m => {
+        // Demo mode: UNIQUE startups AND UNIQUE investors (carousel variety)
+        // Each match pair shows a different startup with a different investor
+        const usedStartups = new Set<string>();
+        const usedInvestors = new Set<string>();
+        const uniqueMatches: MatchPair[] = [];
+        
+        // Sort by score first to keep best matches
+        const sortedMatches = [...displayMatches].sort((a, b) => b.matchScore - a.matchScore);
+        
+        for (const m of sortedMatches) {
           const sid = String(m.startup.id);
-          const existing = bestMatchPerStartup.get(sid);
-          if (!existing || m.matchScore > existing.matchScore) {
-            bestMatchPerStartup.set(sid, m);
+          const iid = String(m.investor.id);
+          
+          // Only add if BOTH startup AND investor are new
+          if (!usedStartups.has(sid) && !usedInvestors.has(iid)) {
+            usedStartups.add(sid);
+            usedInvestors.add(iid);
+            uniqueMatches.push(m);
           }
-        });
-        finalMatches = Array.from(bestMatchPerStartup.values());
-        console.log(`✅ Demo mode: ${displayMatches.length} → ${finalMatches.length} unique startups`);
+        }
+        
+        finalMatches = uniqueMatches;
+        console.log(`✅ Demo mode: ${displayMatches.length} → ${finalMatches.length} unique startup-investor pairs`);
       } else {
-        console.log(`✅ URL mode: showing ${finalMatches.length} investor matches for startup ${targetStartupId}`);
+        // URL mode: show many investors for ONE startup (but each investor unique)
+        const usedInvestors = new Set<string>();
+        const uniqueMatches: MatchPair[] = [];
+        
+        // Sort by score first to keep best matches
+        const sortedMatches = [...displayMatches].sort((a, b) => b.matchScore - a.matchScore);
+        
+        for (const m of sortedMatches) {
+          const iid = String(m.investor.id);
+          if (!usedInvestors.has(iid)) {
+            usedInvestors.add(iid);
+            uniqueMatches.push(m);
+          }
+        }
+        
+        finalMatches = uniqueMatches;
+        console.log(`✅ URL mode: showing ${finalMatches.length} unique investor matches for startup ${targetStartupId}`);
       }
       
       // Fisher-Yates shuffle for variety
@@ -702,13 +811,28 @@ export default function MatchingEngine() {
         Math.max(...shuffledMatches.map(m => m.matchScore))
       );
       
-      setMatches(shuffledMatches);
+      // FINAL STALE CHECK: Before committing results
+      if (isStaleResponse(thisRequestId)) {
+        console.log(`[matches] Request ${thisRequestId} is stale at commit, aborting`);
+        return;
+      }
+      
+      // STATE: Matches are ready! Use state machine to update
+      // PIPELINE STATE: Backend confirmed ready with count > 0
+      console.log(`[matches] Request ${thisRequestId} complete: ${shuffledMatches.length} matches`);
+      setReady(shuffledMatches, thisRequestId);
       setCurrentBatch(0);
       setCurrentIndex(0);
-      setIsAnalyzing(false);
       
     } catch (error) {
       console.error('❌ Error in loadMatches:', error);
+      
+      // STALE CHECK: Don't show errors from stale requests
+      if (isStaleResponse(thisRequestId)) {
+        console.log(`[matches] Request ${thisRequestId} is stale on error, aborting`);
+        return;
+      }
+      
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       // Provide user-friendly error messages
@@ -723,10 +847,10 @@ export default function MatchingEngine() {
         userMessage = `Error: ${errorMessage}`;
       }
       
-      setLoadError(userMessage);
-      setIsAnalyzing(false);
+      setError(userMessage, thisRequestId);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlParam]); // Only re-run when URL changes - all other deps are stable from useCallback
 
   // Next match within batch
   const handleNextMatch = () => {
@@ -734,7 +858,7 @@ export default function MatchingEngine() {
     setCardFadeOut(true);
     setTimeout(() => {
       setShowLightning(true);
-      setIsAnalyzing(true);
+      // Note: isAnalyzing is now derived from state machine, not set manually
       setBrainSpin(true);
       setTimeout(() => setBrainSpin(false), 800);
       setCurrentIndex((prev) => {
@@ -752,19 +876,27 @@ export default function MatchingEngine() {
       });
       setTimeout(() => setCardFadeOut(false), 100);
       setTimeout(() => setShowLightning(false), 600);
-      setTimeout(() => setIsAnalyzing(false), 1200);
     }, 400);
   };
 
   const match = batchMatches[currentIndex];
 
-  // DEBUG: Log current batch and match
+  // DEBUG: Log current batch and match + Telemetry
   useEffect(() => {
     if (match && match.startup && match.investor) {
       console.log(`\n📍 RENDERING - currentBatch: ${currentBatch + 1}/${totalBatches}, currentMatch:`, match.startup?.name, match.matchScore);
       console.log(`   currentIndex (in batch): ${currentIndex}`);
       console.log(`   batchMatches.length: ${batchMatches.length}`);
       console.log(`   matches.length: ${matches.length}`);
+      
+      // Telemetry: Track match view
+      logEvent('matchpair_viewed', {
+        startup_id: match.startup.id,
+        investor_id: match.investor.id,
+        matchScore: match.matchScore,
+        index: currentIndex,
+        batch_id: currentBatch,
+      });
     }
   }, [currentBatch, currentIndex, match, batchMatches.length, matches.length, totalBatches]);
 
@@ -787,12 +919,14 @@ export default function MatchingEngine() {
             </div>
           </div>
           
-          {/* Loading text */}
+          {/* Loading text - uses state machine loadingMessage */}
           <h2 className="text-3xl font-bold text-white mb-3">
-            {matches.length === 0 ? 'Finding Your Perfect Matches' : 'Loading Next Batch'}
+            {uiState.loadingMessage || (matches.length === 0 ? 'Finding Your Perfect Matches' : 'Loading Next Batch')}
           </h2>
           <p className="text-white/60 text-lg mb-6">
-            {matches.length === 0 ? 'AI is analyzing startups & investors...' : 'Preparing more matches for you...'}
+            {state === 'resolving' ? 'Looking up your startup...' :
+             state === 'loading' ? 'Scanning matches...' :
+             matches.length === 0 ? 'AI is analyzing startups & investors...' : 'Preparing more matches for you...'}
           </p>
           
           {/* Progress dots */}
@@ -802,10 +936,41 @@ export default function MatchingEngine() {
             <div className="w-3 h-3 bg-orange-500 rounded-full animate-bounce delay-200"></div>
           </div>
           
-          {/* Error display - only shown if there's an actual error */}
-          {loadError && (
+          {/* DEBUG PANEL - DEVELOPMENT ONLY */}
+          <div className="mt-8 bg-black/50 border border-cyan-500/30 rounded-xl px-4 py-3 max-w-2xl mx-auto">
+            <div className="text-xs font-mono text-left space-y-1">
+              <div className="text-cyan-400 font-bold mb-2">🔍 DEBUG STATE</div>
+              <div className="text-white/70">startupId: <span className="text-cyan-300">{matchState.startupId || 'null'}</span></div>
+              <div className="text-white/70">state: <span className="text-orange-300">{state}</span></div>
+              <div className="text-white/70">matchCount: <span className="text-green-300">{matches.length}</span></div>
+              <div className="text-white/70">requestId: <span className="text-purple-300">{matchState.requestId}</span></div>
+              <div className="text-white/70">urlParam: <span className="text-blue-300">{urlParam || 'null'}</span></div>
+              <div className="text-white/70">isLoading: <span className="text-yellow-300">{matchState.isLoading ? 'true' : 'false'}</span></div>
+              <div className="text-white/70">canShowMatches: <span className="text-green-300">{matchState.canShowMatches ? 'true' : 'false'}</span></div>
+              {loadError && <div className="text-white/70">lastError: <span className="text-red-300">{loadError.slice(0, 100)}...</span></div>}
+              {debugInfo && <div className="text-white/70">debugInfo: <span className="text-pink-300">{JSON.stringify(debugInfo).slice(0, 100)}...</span></div>}
+              <div className="text-white/70 pt-2 border-t border-white/10">
+                UI Decision: <span className="text-cyan-300">
+                  {uiState.showLoading ? 'SHOW LOADING' : 
+                   uiState.showMatches ? 'SHOW MATCHES' : 
+                   uiState.showEmpty ? 'SHOW EMPTY' : 
+                   uiState.showError ? 'SHOW ERROR' : 'UNKNOWN'}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Error display - properly separated from loading */}
+          {uiState.showError && loadError && (
             <div className="mt-8 bg-red-500/10 border border-red-500/30 rounded-xl px-6 py-4 max-w-md">
-              <p className="text-red-400 text-sm">{loadError}</p>
+              <p className="text-red-400 text-sm whitespace-pre-line">{loadError}</p>
+            </div>
+          )}
+          
+          {/* Empty state - only show when truly empty (backend ready, no matches) */}
+          {uiState.showEmpty && !loadError && (
+            <div className="mt-8 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-6 py-4 max-w-md">
+              <p className="text-yellow-400 text-sm">No matches found for this startup yet. Try checking back later or submit a different URL.</p>
             </div>
           )}
         </div>
@@ -860,6 +1025,132 @@ export default function MatchingEngine() {
 
       {/* Landing Hero */}
       <SplitScreenHero />
+
+      {/* LIVE MATCHING PROOF — Auto-rotating real matches */}
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-6 -mt-6 pb-6">
+        <LiveMatchingStrip />
+      </div>
+
+      {/* MATCH SURFACE — longitudinal startup + investor (the product) */}
+      {batchMatches.length > 0 && batchMatches[currentIndex] && (
+        <div className="relative z-10 w-full max-w-6xl mx-auto px-6 -mt-10 pb-10">
+          <LongitudinalMatchPair
+            startup={batchMatches[currentIndex].startup as any}
+            investor={batchMatches[currentIndex].investor as any}
+            matchScore={batchMatches[currentIndex].matchScore}
+            reasoning={batchMatches[currentIndex].reasoning}
+            isAnalyzing={isAnalyzing}
+            onViewInvestor={(investorId) => {
+              if (!investorId) {
+                console.warn('⚠️ Missing investor ID — cannot navigate');
+                return;
+              }
+              logEvent('investor_view_opened', { investor_id: investorId });
+              navigate(`/investor/${investorId}`);
+            }}
+            onCopyOutreach={(payload) => {
+              // Validate IDs before proceeding
+              if (!payload.startupId || !payload.investorId) {
+                console.warn('⚠️ Missing IDs — cannot copy outreach');
+                return;
+              }
+              
+              // Telemetry: Track outreach copy
+              logEvent('outreach_copied', {
+                startup_id: payload.startupId,
+                investor_id: payload.investorId,
+                matchScore: payload.matchScore,
+                has_linkedin: !!payload.linkedinUrl,
+              });
+              
+              const outreachText = [
+                `Hi ${payload.investorName}${payload.investorFirm ? ` at ${payload.investorFirm}` : ''},`,
+                ``,
+                `I came across your profile and noticed you invest in companies like ${payload.startupName}. Here's why this could be a strong fit:`,
+                ``,
+                ...payload.reasons.map(r => `• ${r}`),
+                ``,
+                `Match Score: ${payload.matchScore}%`,
+                payload.linkedinUrl ? `LinkedIn: ${payload.linkedinUrl}` : '',
+                ``,
+                `Would love to connect and share more details.`,
+                ``,
+                `Best,`,
+                `[Your Name]`
+              ].filter(Boolean).join('\n');
+              
+              // Try modern clipboard API first, fallback to execCommand for Safari/insecure contexts
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(outreachText).then(() => {
+                  console.log('✅ Outreach copied to clipboard');
+                }).catch((err) => {
+                  console.error('❌ Clipboard API failed, trying fallback:', err);
+                  // Fallback for Safari/insecure contexts
+                  const textarea = document.createElement("textarea");
+                  textarea.value = outreachText;
+                  textarea.style.position = "fixed";
+                  textarea.style.opacity = "0";
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  try {
+                    document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    console.log('✅ Outreach copied via fallback');
+                  } catch (fallbackErr) {
+                    document.body.removeChild(textarea);
+                    console.error('❌ Both clipboard methods failed:', fallbackErr);
+                  }
+                });
+              } else {
+                // Fallback for older browsers
+                const textarea = document.createElement("textarea");
+                textarea.value = outreachText;
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                  document.execCommand("copy");
+                  document.body.removeChild(textarea);
+                  console.log('✅ Outreach copied via fallback');
+                } catch (err) {
+                  document.body.removeChild(textarea);
+                  console.error('❌ Failed to copy:', err);
+                }
+              }
+            }}
+            onToggleSave={(payload) => {
+              // Validate IDs before proceeding
+              if (!payload.startupId || !payload.investorId) {
+                console.warn('⚠️ Missing IDs — cannot save match');
+                return;
+              }
+              
+              // Telemetry: Track save/unsave
+              logEvent(payload.saved ? 'match_saved' : 'match_unsaved', {
+                startup_id: payload.startupId,
+                investor_id: payload.investorId,
+              });
+              
+              if (payload.saved) {
+                unsaveMatch(payload.startupId, payload.investorId);
+                setIsSaved(false);
+              } else {
+                saveMatch({
+                  startupId: payload.startupId,
+                  investorId: payload.investorId,
+                  startupName: batchMatches[currentIndex].startup.name || 'Unknown Startup',
+                  investorName: batchMatches[currentIndex].investor.name || 'Unknown Investor',
+                  matchScore: batchMatches[currentIndex].matchScore,
+                  tags: batchMatches[currentIndex].startup.tags || [],
+                });
+                setIsSaved(true);
+              }
+            }}
+            isSaved={isSaved}
+          />
+        </div>
+      )}
 
       {/* Founder Proof Feed (demo mode only: show social proof before scanning) */}
       {!urlParam && (

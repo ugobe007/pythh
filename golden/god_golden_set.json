@@ -1,0 +1,26 @@
+{
+  "weights_version": "god_v1_initial",
+  "cases": [
+    {
+      "startup_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Elite funded startup",
+      "min_total": 85,
+      "max_total": 95,
+      "must_include_components": ["team", "traction", "market"]
+    },
+    {
+      "startup_id": "00000000-0000-0000-0000-000000000002",
+      "name": "Early-stage promising",
+      "min_total": 65,
+      "max_total": 75,
+      "must_include_components": ["team", "vision"]
+    },
+    {
+      "startup_id": "00000000-0000-0000-0000-000000000003",
+      "name": "Low quality no traction",
+      "min_total": 40,
+      "max_total": 50,
+      "must_include_components": ["vision"]
+    }
+  ]
+}
