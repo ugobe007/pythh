@@ -156,15 +156,11 @@ export default function PythhMatchesPage() {
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px 40px" }}>
         {/* Title */}
         <div style={{ marginBottom: 18 }}>
-          <div className="py-kicker">matches</div>
-          <div className="py-title-wrap">
-            <h1 className="py-title" style={{ fontSize: "3rem" }}>
-              Ranked interception window
-              <span className="py-glyph">[]—I <strong>^</strong> H→ []</span>
-            </h1>
-            <div className="py-hairline" />
-          </div>
-          <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--py-muted)", marginTop: 8 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 8 }}>matches</div>
+          <h1 style={{ fontSize: 28, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3, marginBottom: 8 }}>
+            Ranked interception window
+          </h1>
+          <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--py-muted)" }}>
             <span>Window: <strong style={{ color: "var(--py-text)" }}>{window}</strong></span>
             <span>Velocity: <strong style={{ color: "rgba(52,211,153,.9)" }}>↑</strong></span>
             <span>Confidence: <strong style={{ color: "var(--py-text)" }}>High</strong></span>

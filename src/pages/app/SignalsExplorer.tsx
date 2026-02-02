@@ -146,14 +146,15 @@ export default function SignalsExplorer() {
   return (
     <div className="space-y-8">
       {/* SECTION 1 — HERO (Ultra-Minimal) */}
-      <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-white/5 to-cyan-500/10 p-8 text-center">
-        <h1 className="text-4xl font-bold text-white leading-tight">
+      <div className="rounded-2xl border border-white/10 bg-gradient-to-r from-white/5 to-cyan-500/10 p-8">
+        <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 8 }}>signals explorer</div>
+        <h1 style={{ fontSize: 28, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3, marginBottom: 8 }}>
           Signals show where capital is going next.
         </h1>
-        <p className="mt-3 text-lg text-white/70">
+        <p style={{ fontSize: 16, color: "#9ca3af", fontWeight: 400, marginBottom: 24 }}>
           We decode investor belief shifts before deal flow follows.
         </p>
-        <div className="mt-6 flex items-center justify-center gap-3">
+        <div className="flex items-center gap-3">
           <button className="px-6 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/30 transition text-sm font-semibold">
             View live signals →
           </button>

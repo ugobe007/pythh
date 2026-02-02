@@ -148,15 +148,11 @@ export default function PythhSignalsPage() {
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px 40px" }}>
         {/* Title */}
         <div style={{ marginBottom: 18 }}>
-          <div className="py-kicker">signals</div>
-          <div className="py-title-wrap">
-            <h1 className="py-title" style={{ fontSize: "3rem" }}>
-              Live investor belief shifts
-              <span className="py-glyph">[]—I <strong>↑</strong> H→ []</span>
-            </h1>
-            <div className="py-hairline" />
-          </div>
-          <div className="py-subtitle">Observed behavior, not stated intent.</div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 8 }}>signals</div>
+          <h1 style={{ fontSize: 28, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3, marginBottom: 8 }}>
+            Live investor belief shifts
+          </h1>
+          <div style={{ fontSize: 16, color: "#9ca3af", fontWeight: 400 }}>Observed behavior, not stated intent.</div>
         </div>
 
         {/* Window selector + Table */}

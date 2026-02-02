@@ -249,11 +249,12 @@ export default function SignalsRadarPage() {
           <div className="flex items-center justify-between">
             {/* Left: Title + Subtitle */}
             <div>
-              <h1 className="text-lg font-semibold text-white tracking-wide">
-                SIGNAL RADAR
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 4 }}>signal radar</div>
+              <h1 style={{ fontSize: 20, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3 }}>
+                Live investor alignment
               </h1>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Live investor alignment across movement, position, and optics
+              <p className="text-sm text-gray-500 mt-1">
+                Movement, position, and optics
               </p>
             </div>
 
