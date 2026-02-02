@@ -128,7 +128,7 @@ export default function PythhMatchesPage() {
             justifyContent: "space-between",
           }}
         >
-          <Link to="/" style={{ fontWeight: 750, letterSpacing: ".3px", color: "var(--py-text)" }}>
+          <Link to="/" style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1, color: "#e5e7eb", textDecoration: "none" }}>
             PYTHH
           </Link>
           <nav style={{ display: "flex", gap: 10 }}>
@@ -137,12 +137,15 @@ export default function PythhMatchesPage() {
                 key={n.href}
                 to={n.href}
                 style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  color: n.active ? "var(--py-text)" : "var(--py-muted)",
+                  fontSize: 14,
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  color: n.active ? "#f3f4f6" : "#9ca3af",
                   border: "1px solid",
-                  borderColor: n.active ? "var(--py-line)" : "transparent",
+                  borderColor: n.active ? "rgba(255,255,255,.1)" : "transparent",
                   background: n.active ? "rgba(255,255,255,.04)" : "transparent",
+                  textDecoration: "none",
+                  transition: "all 0.2s",
                 }}
               >
                 {n.label}
