@@ -163,10 +163,10 @@ export default function PythhMatchesPage() {
           <h1 style={{ fontSize: 28, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3, marginBottom: 8 }}>
             Ranked interception window
           </h1>
-          <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--py-muted)" }}>
-            <span>Window: <strong style={{ color: "var(--py-text)" }}>{window}</strong></span>
+          <div style={{ display: "flex", gap: 16, fontSize: 16, color: "#9ca3af", fontWeight: 400 }}>
+            <span>Window: <strong style={{ color: "#f3f4f6" }}>{window}</strong></span>
             <span>Velocity: <strong style={{ color: "rgba(52,211,153,.9)" }}>↑</strong></span>
-            <span>Confidence: <strong style={{ color: "var(--py-text)" }}>High</strong></span>
+            <span>Confidence: <strong style={{ color: "#f3f4f6" }}>High</strong></span>
           </div>
         </div>
 
