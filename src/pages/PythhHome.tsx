@@ -40,8 +40,24 @@ const liveMatching = [
   { text: 'EdTech platform showing consistent forward motion', god: 71, time: '5m ago' },
 ];
 
+// TLD typo detection map
+const COMMON_TLD_TYPOS: Record<string, string> = {
+  '.con': '.com',
+  '.cmo': '.com',
+  '.cpm': '.com',
+  '.co m': '.com',
+  '.og': '.org',
+  '.oi': '.io',
+  '.bet': '.net',
+  '.ent': '.net',
+  '.cm': '.com',
+  '.om': '.com',
+};
+
 export default function PythhHome() {
   const [url, setUrl] = useState('');
+  const [urlError, setUrlError] = useState('');
+  const [suggestion, setSuggestion] = useState('');
   const [tapeX, setTapeX] = useState(0);
   const [signalTape, setSignalTape] = useState(STATIC_SIGNAL_TAPE);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
@@ -136,10 +152,49 @@ export default function PythhHome() {
   // 5. RPC: scrapes → collects data → builds profile → scores → matches
   // 6. Returns: 5 unlocked signals + 50 locked signals
   // ═══════════════════════════════════════════════════════════════════════════
+  
+  const extractDomain = (input: string): string => {
+    const trimmed = input.trim();
+    const withoutProtocol = trimmed.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+    return withoutProtocol.split('/')[0];
+  };
+
   const submit = () => {
     const trimmed = url.trim();
     if (!trimmed) return;
+    
+    // Clear previous errors
+    setUrlError('');
+    setSuggestion('');
+    
+    // Check for TLD typos
+    const lowerUrl = trimmed.toLowerCase();
+    for (const [typo, correct] of Object.entries(COMMON_TLD_TYPOS)) {
+      if (lowerUrl.endsWith(typo)) {
+        const suggested = trimmed.slice(0, -typo.length) + correct;
+        setSuggestion(suggested);
+        setUrlError(`Did you mean ${correct}?`);
+        return;
+      }
+    }
+    
+    // Basic domain format validation
+    const domain = extractDomain(trimmed);
+    if (!domain.includes('.') || domain.length < 4) {
+      setUrlError('Please enter a valid domain (e.g., example.com)');
+      return;
+    }
+    
+    // All checks passed - proceed to pythh engine
     navigate(`/signals?url=${encodeURIComponent(trimmed)}`);
+  };
+
+  const applySuggestion = () => {
+    if (suggestion) {
+      setUrl(suggestion);
+      setSuggestion('');
+      setUrlError('');
+    }
   };
 
   const deltaColor = (d: string) => {
@@ -260,7 +315,11 @@ export default function PythhHome() {
             data-testid="home-url-input"
             type="text"
             value={url}
-            onChange={e => setUrl(e.target.value)}
+            onChange={e => {
+              setUrl(e.target.value);
+              setUrlError('');
+              setSuggestion('');
+            }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="https://yourstartup.com"
             className="flex-1 bg-zinc-900/80 border border-cyan-900/50 rounded-l px-4 py-3 text-white placeholder-zinc-600 outline-none focus:border-cyan-700/50"
@@ -274,8 +333,29 @@ export default function PythhHome() {
           </button>
         </div>
         
+        {/* URL Preview + Error/Suggestion */}
+        <div className="mt-2 min-h-[24px]">
+          {urlError ? (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-amber-400">{urlError}</span>
+              {suggestion && (
+                <button
+                  onClick={applySuggestion}
+                  className="text-xs text-cyan-400 hover:text-cyan-300 underline"
+                >
+                  Use "{suggestion}"
+                </button>
+              )}
+            </div>
+          ) : url.trim() ? (
+            <div className="text-xs text-zinc-500">
+              Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
+            </div>
+          ) : null}
+        </div>
+        
         {/* Live activity indicator - shows data is fresh */}
-        <div className="mt-4 text-zinc-500 text-[13px]">
+        <div className="mt-2 text-zinc-500 text-[13px]">
           <span className="inline-flex items-center gap-2">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             Live investor signals updating every 60 seconds
