@@ -112,13 +112,16 @@ module.exports = {
       args: 'scripts/ml-ontology-agent.js',
       cwd: './',
       instances: 1,
-      autorestart: false,  // Run once per cron cycle
+      autorestart: true,  // Self-healing: auto-restart on failure
       watch: false,
       max_memory_restart: '300M',
+      max_restarts: 10,  // Allow up to 10 restarts per hour
+      min_uptime: '10s',  // Must stay up 10s to count as stable
       cron_restart: '0 */6 * * *',  // Every 6 hours
       env: {
         NODE_ENV: 'production'
       }
+      // SELF-HEALING: Auto-restarts on crash, feeds GOD score training data
       // Auto-applies high-confidence (≥85%) entity classifications
       // Flags low-confidence for optional review
       // Runs independently of GOD scoring system

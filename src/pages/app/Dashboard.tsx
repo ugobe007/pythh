@@ -140,51 +140,7 @@ export default function Dashboard() {
 
   return (
     <div className="py-bg-dashboard" style={{ color: "var(--py-text)" }}>
-      {/* Topbar (Supabase-like) */}
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-          backdropFilter: "blur(10px)",
-          background: "rgba(11,15,22,.78)",
-          borderBottom: "1px solid var(--py-line)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: "0 auto",
-            padding: "14px 18px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-          }}
-        >
-          <div style={{ fontWeight: 750, letterSpacing: ".3px" }}>PYTHH</div>
-          <nav style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {topNav.map((n) => (
-              <Link
-                key={n.href}
-                to={n.href}
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  color: n.active ? "var(--py-text)" : "var(--py-muted)",
-                  border: "1px solid",
-                  borderColor: n.active ? "var(--py-line)" : "transparent",
-                  background: n.active ? "rgba(255,255,255,.04)" : "transparent",
-                }}
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      {/* Page */}
+      {/* Page (AppLayout already provides the nav) */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px 40px" }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 18, marginBottom: 14, flexWrap: "wrap" }}>

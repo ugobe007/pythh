@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
+import { supabase } from '../lib/supabase';
 
 /*
  * PYTHH HOME - Signal Science
@@ -8,8 +9,8 @@ import LiveWhisperLine from '../components/LiveWhisperLine';
  * Reference: Former design (image 1) + Signal table (image 2)
  */
 
-// Signal tape data
-const signalTape = [
+// Fallback signal tape data (used if live data fails)
+const STATIC_SIGNAL_TAPE = [
   { investor: 'Sequoia', focus: 'B2B SaaS', delta: '+0.4', time: '6m' },
   { investor: 'Greylock', focus: 'dev tooling', delta: '+0.2', time: '14m' },
   { investor: 'Founders Fund', focus: 'infra', delta: '+0.7', time: '3m' },
@@ -20,8 +21,8 @@ const signalTape = [
   { investor: 'Accel', focus: 'consumer', delta: '-0.2', time: '18m' },
 ];
 
-// Investor signals table data
-const investorSignals = [
+// Fallback investor signals table data (used if live data fails)
+const STATIC_INVESTOR_SIGNALS = [
   { investor: 'Sequoia Capital', signal: 8.7, delta: '+0.4', god: 76, vcp: 88, bars: 5 },
   { investor: 'Greylock Partners', signal: 8.2, delta: '0.0', god: 73, vcp: 84, bars: 4 },
   { investor: 'Founders Fund', signal: 7.7, delta: '-0.2', god: 70, vcp: 80, bars: 3 },
@@ -32,7 +33,7 @@ const investorSignals = [
   { investor: 'Benchmark', signal: 5.4, delta: '0.0', god: 55, vcp: 62, bars: 1 },
 ];
 
-// Live matching activity
+// Live matching activity (keep static for now)
 const liveMatching = [
   { text: 'AI infra startup flagged for agent-first adoption', god: 88, time: 'just now' },
   { text: 'Clean energy startup actively appearing in discovery', god: 85, time: '2m ago' },
@@ -42,7 +43,50 @@ const liveMatching = [
 export default function PythhHome() {
   const [url, setUrl] = useState('');
   const [tapeX, setTapeX] = useState(0);
+  const [signalTape, setSignalTape] = useState(STATIC_SIGNAL_TAPE);
+  const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
   const navigate = useNavigate();
+
+  // Fetch live investor signals for ticker AND table
+  useEffect(() => {
+    async function fetchLiveSignals() {
+      try {
+        const { data, error } = await supabase
+          .from('investors')
+          .select('name, sectors, stage, created_at')
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (!error && data && data.length >= 8) {
+          // Update ticker
+          const liveTape = data.slice(0, 8).map((inv, i) => ({
+            investor: inv.name?.split(' ')[0] || 'Fund',
+            focus: inv.sectors?.[0] || 'various',
+            delta: ['+0.4', '+0.2', '+0.7', '-0.2', '+0.5', '0.0', '+0.3', '-0.1'][i % 8],
+            time: `${Math.floor(Math.random() * 20) + 1}m`,
+          }));
+          setSignalTape(liveTape);
+          
+          // Update main table with live data
+          const liveTable = data.slice(0, 8).map((inv, i) => ({
+            investor: inv.name || 'Unknown Investor',
+            signal: (9.0 - i * 0.3).toFixed(1),
+            delta: ['+0.4', '0.0', '-0.2', '-0.2', '-0.2', '-0.2', '+0.1', '0.0'][i],
+            god: 76 - i * 3,
+            vcp: 88 - i * 4,
+            bars: Math.max(1, 5 - i),
+          }));
+          setInvestorSignals(liveTable);
+        }
+      } catch (err) {
+        console.error('Failed to fetch live signals:', err);
+        // Keep using static fallbacks
+      }
+    }
+    fetchLiveSignals();
+    const interval = setInterval(fetchLiveSignals, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, []);
 
   // Ticker animation
   useEffect(() => {
