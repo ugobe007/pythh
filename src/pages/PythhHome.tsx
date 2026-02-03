@@ -215,14 +215,12 @@ export default function PythhHome() {
           </button>
         </div>
         
-        {/* Live Whisper — single quiet update, same width as input */}
-        <div className="mt-4">
-          <LiveWhisperLine 
-            endpoint="/api/v1/whisper?kind=movement" 
-            intervalMs={55000}
-            typingMs={18}
-            className="text-zinc-500 text-[13px]"
-          />
+        {/* Live activity indicator - shows data is fresh */}
+        <div className="mt-4 text-zinc-500 text-[13px]">
+          <span className="inline-flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+            Live investor signals updating every 60 seconds
+          </span>
         </div>
       </section>
 
