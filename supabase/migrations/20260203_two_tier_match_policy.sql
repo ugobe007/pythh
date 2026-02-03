@@ -8,6 +8,9 @@
 -- New field: is_fallback (boolean) - marks rows from Tier B for UI badges
 -- ============================================================================
 
+-- Drop existing function (return type changed)
+DROP FUNCTION IF EXISTS public.get_live_match_table(uuid, integer, integer);
+
 CREATE OR REPLACE FUNCTION public.get_live_match_table(
   p_startup_id uuid,
   p_limit_unlocked int DEFAULT 5,
