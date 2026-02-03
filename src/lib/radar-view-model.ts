@@ -56,7 +56,7 @@ export interface RadarRowViewModel {
   };
   
   // STATUS column (deterministic)
-  status: 'LOCKED' | 'READY' | 'LIVE';
+  status: 'LOCKED' | 'READY' | 'LIVE' | 'WARMING';
   
   // ACTION column
   action: 'Unlock' | 'View';
@@ -166,16 +166,24 @@ export function mapMatchRowToRadarRow(
   const compositeDelta = signalDelta;
   
   // --- STATUS ---
-  // Deterministic: locked → LOCKED, else READY
+  // Deterministic: 
+  //   - is_fallback → WARMING (fallback tier, needs badge)
+  //   - locked → LOCKED
+  //   - else → READY
   // LIVE reserved for future real-time indicator
-  const status: RadarRowViewModel['status'] = effectivelyLocked ? 'LOCKED' : 'READY';
+  const status: RadarRowViewModel['status'] = 
+    row.is_fallback ? 'WARMING' :
+    effectivelyLocked ? 'LOCKED' : 
+    'READY';
   
   // --- CONTEXT ---
+  // Warming: "Early signal" (fallback tier)
   // Unlocked: from investor data (not available in current MatchRow)
   // Locked: derived from FIT tier
-  const context = effectivelyLocked
-    ? deriveLockedContext(fitTier)
-    : null; // TODO: Add investor.thesis or investment_focus
+  const context = 
+    row.is_fallback ? 'Early signal' :
+    effectivelyLocked ? deriveLockedContext(fitTier) :
+    null; // TODO: Add investor.thesis or investment_focus
   
   // --- GLOW ---
   const hasHighSignal = signalValue >= RADAR_THRESHOLDS.SIGNAL_WINDOW_OPENING;

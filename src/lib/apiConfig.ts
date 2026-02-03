@@ -1,16 +1,41 @@
-// Centralized API configuration
-// In production on Fly.io, frontend and backend are served from the same origin
-const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+/**
+ * Canonical API Configuration
+ * Prevents localhost leakage in production builds
+ */
 
-// In production, ALWAYS use same-origin (empty string) regardless of VITE_API_URL
-// This prevents the built bundle from trying to call localhost from production
-const envApiUrl = import.meta.env.VITE_API_URL;
-const isLocalhostUrl = envApiUrl?.includes('localhost');
+/**
+ * Get the base URL for API calls
+ * @returns Empty string for same-origin, or the configured base URL
+ */
+export function getApiBase(): string {
+  const raw = (import.meta.env.VITE_API_URL ?? '').trim();
 
-// Use empty string for production (same origin), or the env URL if it's not localhost, or fallback to localhost for dev
-export const API_BASE = isProduction 
-  ? (isLocalhostUrl ? '' : (envApiUrl || ''))  // In production: ignore localhost URLs, use same-origin
-  : (envApiUrl || 'http://localhost:3002');     // In dev: use env URL or default to localhost
+  // If unset, use same-origin (works in dev + prod)
+  if (!raw) return '';
+
+  // Prevent accidental localhost in production builds
+  const isProd = import.meta.env.PROD;
+  if (isProd && /localhost|127\.0\.0\.1/.test(raw)) {
+    console.warn('[api] refusing localhost base in production:', raw);
+    return '';
+  }
+
+  return raw.replace(/\/$/, '');
+}
+
+/**
+ * Build a full API URL from a path
+ * @param path The API path (e.g., '/api/something')
+ * @returns Full URL for fetch
+ */
+export function apiUrl(path: string): string {
+  const base = getApiBase();
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+// Legacy export for backwards compatibility
+export const API_BASE = getApiBase();
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -21,7 +46,7 @@ export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * For data operations, use Supabase client directly
  */
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE}${endpoint}`;
+  const url = apiUrl(endpoint);
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -44,7 +69,7 @@ export async function uploadFile(file: File): Promise<{ filename: string; origin
   const formData = new FormData();
   formData.append('file', file);
   
-  const response = await fetch(`${API_BASE}/api/documents`, {
+  const response = await fetch(apiUrl('/api/documents'), {
     method: 'POST',
     body: formData,
   });

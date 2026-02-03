@@ -193,9 +193,18 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
           <User className="w-4 h-4 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="font-medium text-sm text-white">
-            {row.entity.name}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm text-white">
+              {row.entity.name}
+            </span>
+            {/* Warming badge for fallback tier */}
+            {row.status === 'WARMING' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                Warming up
+              </span>
+            )}
+          </div>
           {row.entity.context && (
             <div className="text-xs text-zinc-500 truncate">{row.entity.context}</div>
           )}

@@ -20,6 +20,7 @@ export interface MatchRow {
   signal_score: number;  // 0-10, 1 decimal
   why_summary: string;
   is_locked: boolean;
+  is_fallback?: boolean;  // NEW: marks warming-up matches from Tier B
   actions_allowed: ('view' | 'unlock')[];
 }
 
