@@ -23,7 +23,7 @@ const CONFIG = {
   GEO_MATCH: 5,          // Reduced: geography less important (modern VC is global)
   INVESTOR_QUALITY: 20,  // Reduced slightly 
   STARTUP_QUALITY: 25,   // Increased: GOD score matters more
-  MIN_MATCH_SCORE: 45,   // Raised from 35 to reduce match flood
+  MIN_MATCH_SCORE: 45,   // ⚠️ UI LABEL ONLY - not used as persistence gate (see PERSISTENCE_FLOOR: 30)
   TOP_MATCHES_PER_STARTUP: 100, // Only keep top 100 matches per startup
   BATCH_SIZE: 500
 };
@@ -37,25 +37,50 @@ const SECTOR_SYNONYMS = {
   'ecommerce': ['e-commerce', 'retail', 'marketplace', 'dtc'],
 };
 
+// NORMALIZATION UTILITIES (centralized, run once)
+function normToken(s) {
+  if (s == null) return null;
+  return String(s).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function normTokenList(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(normToken).filter(Boolean);
+}
+
 function normalizeStr(s) {
   if (!s) return '';
   if (typeof s === 'string') return s.toLowerCase().trim();
-  if (Array.isArray(s)) return s.map(normalizeStr).join(' ');
+  if (Array.isArray(s)) return s.map(x => String(x).toLowerCase().trim());
   return String(s).toLowerCase().trim();
 }
 
-function calculateSectorMatch(startupSectors, investorSectors) {
-  if (!startupSectors || !investorSectors) return 5;
-  
-  const normalize = (arr) => (Array.isArray(arr) ? arr : [arr]).map(normalizeStr);
-  const sSectors = normalize(startupSectors);
-  const iSectors = normalize(investorSectors);
+/**
+ * Calculate sector match with reasoning
+ * @param {string[]} startupSectors - normalized sector list
+ * @param {string[]} investorSectors - normalized sector list
+ * @param {object[]} reasons - array to push match reasons
+ * @returns {number} score (0-40)
+ */
+function calculateSectorMatch(startupSectors, investorSectors, reasons = []) {
+  if (!startupSectors || !investorSectors || !startupSectors.length || !investorSectors.length) {
+    reasons.push({ key: 'sector', points: 5, note: 'Missing sector data → fallback' });
+    return 5;
+  }
   
   let matches = 0;
-  for (const ss of sSectors) {
-    for (const is of iSectors) {
-      if (ss === is || ss.includes(is) || is.includes(ss)) {
+  const matchDetails = [];
+  
+  for (const ss of startupSectors) {
+    for (const is of investorSectors) {
+      if (ss === is) {
         matches++;
+        matchDetails.push(`EXACT: ${ss}`);
+        continue;
+      }
+      if (ss.includes(is) || is.includes(ss)) {
+        matches++;
+        matchDetails.push(`PARTIAL: ${ss} ↔ ${is}`);
         continue;
       }
       // Check synonyms
@@ -63,13 +88,20 @@ function calculateSectorMatch(startupSectors, investorSectors) {
         const allTerms = [key, ...synonyms];
         if (allTerms.some(t => ss.includes(t)) && allTerms.some(t => is.includes(t))) {
           matches++;
+          matchDetails.push(`SYNONYM: ${ss} ↔ ${is} (via ${key})`);
           break;
         }
       }
     }
   }
   
-  return Math.min(matches * 10, CONFIG.SECTOR_MATCH);
+  const score = Math.min(matches * 10, CONFIG.SECTOR_MATCH);
+  const note = matches > 0 
+    ? `${matches} sector match${matches > 1 ? 'es' : ''}: ${matchDetails.slice(0, 2).join(', ')}`
+    : `No sector overlap (startup: ${startupSectors.join(', ')} | investor: ${investorSectors.join(', ')})`;
+  
+  reasons.push({ key: 'sector', points: score, note });
+  return score;
 }
 
 // Map numeric stages to string stages
@@ -82,37 +114,120 @@ const STAGE_MAP = {
   5: 'Growth'
 };
 
-function calculateStageMatch(startupStage, investorStages) {
-  if (!startupStage || !investorStages) return 5;
+/**
+ * Normalize startup data and detect missing fields
+ */
+function normalizeStartup(s, flags = []) {
+  const sectors = normTokenList(s.sectors);
+  if (!sectors.length) flags.push('startup_sectors_missing');
+
+  const stage = (typeof s.stage === 'number') ? STAGE_MAP[s.stage] : s.stage;
+  const stageNorm = normToken(stage);
+  if (!stageNorm) flags.push('startup_stage_missing');
+
+  const godScore = Number.isFinite(Number(s.total_god_score)) ? Number(s.total_god_score) : null;
+  if (godScore == null) flags.push('startup_god_score_missing');
+
+  return {
+    id: s.id,
+    name: s.name,
+    sectors,
+    stage: stageNorm,
+    geo: normToken(s.location || s.region || s.geography),
+    godScore,
+  };
+}
+
+/**
+ * Normalize investor data and detect missing fields
+ */
+function normalizeInvestor(i, flags = []) {
+  const sectors = normTokenList(i.sectors);
+  if (!sectors.length) flags.push('investor_sectors_missing');
+
+  // investor.stage could be string or array; normalize to list
+  const stagesRaw = Array.isArray(i.stage) ? i.stage : (i.stage ? [i.stage] : []);
+  const stages = stagesRaw
+    .map(x => (typeof x === 'number' ? STAGE_MAP[x] : x))
+    .map(normToken)
+    .filter(Boolean);
+
+  if (!stages.length) flags.push('investor_stages_missing');
+
+  return {
+    id: i.id,
+    name: i.name,
+    sectors,
+    stages,
+    geo: normToken(i.geography || i.location || i.region),
+    score: Number.isFinite(Number(i.investor_score)) ? Number(i.investor_score) : null,
+    tier: normToken(i.investor_tier),
+  };
+}
+
+/**
+ * Calculate stage match with reasoning
+ * @param {string} startupStage - normalized stage token
+ * @param {string[]} investorStages - normalized stage list
+ * @param {object[]} reasons - array to push match reasons
+ * @returns {number} score (5 or 20)
+ */
+function calculateStageMatch(startupStage, investorStages, reasons = []) {
+  const s = normToken(startupStage);
+  const iStages = Array.isArray(investorStages) ? investorStages.map(normToken).filter(Boolean) : [];
   
-  // Convert numeric stage to string
-  let sStageStr = startupStage;
-  if (typeof startupStage === 'number') {
-    sStageStr = STAGE_MAP[startupStage] || 'Seed';
+  if (!s || !iStages.length) {
+    reasons.push({ key: 'stage', points: 5, note: 'Missing stage data → fallback' });
+    return 5;
   }
   
-  const normalize = (s) => normalizeStr(s).replace(/[-_\s]/g, '');
-  const sStage = normalize(sStageStr);
-  const iStages = (Array.isArray(investorStages) ? investorStages : [investorStages]).map(normalize);
+  // Normalize for comparison (remove hyphens/spaces)
+  const sNorm = s.replace(/[-_\s]/g, '');
+  const iNorms = iStages.map(x => x.replace(/[-_\s]/g, ''));
   
-  if (iStages.some(is => is === sStage || is.includes(sStage) || sStage.includes(is))) {
+  if (iNorms.some(is => is === sNorm || is.includes(sNorm) || sNorm.includes(is))) {
+    reasons.push({ key: 'stage', points: CONFIG.STAGE_MATCH, note: `${s} ↔ ${iStages.join('|')} ✓` });
     return CONFIG.STAGE_MATCH;
   }
+  
+  reasons.push({ key: 'stage', points: 5, note: `No match: ${s} vs ${iStages.join('|')}` });
   return 5;
 }
 
-function calculateInvestorQuality(score, tier) {
+/**
+ * Calculate investor quality with reasoning
+ * @param {number} score - investor score (0-10)
+ * @param {string} tier - investor tier
+ * @param {object[]} reasons - array to push match reasons
+ * @returns {number} score (0-20)
+ */
+function calculateInvestorQuality(score, tier, reasons = []) {
   const baseScore = (score || 5) * 2; // 0-20 from score
   const tierBonus = { elite: 5, strong: 3, solid: 1, emerging: 0 }[tier] || 0;
-  return Math.min(baseScore + tierBonus, CONFIG.INVESTOR_QUALITY);
+  const total = Math.min(baseScore + tierBonus, CONFIG.INVESTOR_QUALITY);
+  
+  const note = tier ? `Tier: ${tier} (${tierBonus} bonus) + score ${score}/10` : `Score: ${score}/10`;
+  reasons.push({ key: 'investor_quality', points: total, note });
+  return total;
 }
 
-function calculateStartupQuality(godScore) {
-  if (!godScore) return 8;
+/**
+ * Calculate startup quality from GOD score with reasoning
+ * @param {number} godScore - GOD score (40-100)
+ * @param {object[]} reasons - array to push match reasons
+ * @returns {number} score (8-25)
+ */
+function calculateStartupQuality(godScore, reasons = []) {
+  if (!godScore || godScore < 40) {
+    reasons.push({ key: 'startup_quality', points: 8, note: 'GOD score missing/low → fallback' });
+    return 8;
+  }
   // Map GOD score 40-100 to quality 10-25
-  // This gives calibrated startups proper representation
   const normalized = Math.max(0, (godScore - 40) / 60); // 0-1 scale
-  return Math.round(10 + normalized * 15); // 10-25 range
+  const quality = Math.round(10 + normalized * 15); // 10-25 range
+  
+  reasons.push({ key: 'startup_quality', points: quality, note: `GOD ${godScore} → quality ${quality}` });
+  return quality;
 }
 
 /**
@@ -256,47 +371,59 @@ async function regenerateMatches() {
     // This preserves matches for startups not in the current run
     console.log('💾 Using upsert to update existing matches (preserving all matches)\n');
     
-    // Generate new matches - keep only TOP_MATCHES_PER_STARTUP per startup
+    // ✅ RANK-FIRST PATTERN: score all, sort, save top N
     const allMatches = [];
     let processed = 0;
+    const PERSISTENCE_FLOOR = 30; // Very low floor to avoid garbage
     
     for (const startup of startups) {
-      // Calculate scores for all investors for this startup
-      const startupMatches = [];
+      // Normalize startup once
+      const flags = [];
+      const startupNorm = normalizeStartup(startup, flags);
+      
+      // Score ALL investors for this startup
+      const scoredMatches = [];
       
       for (const investor of investors) {
-        const sectorScore = calculateSectorMatch(startup.sectors, investor.sectors);
-        const stageScore = calculateStageMatch(startup.stage, investor.stage);
-        const investorQuality = calculateInvestorQuality(investor.investor_score, investor.investor_tier);
-        const startupQuality = calculateStartupQuality(startup.total_god_score);
+        // Normalize investor once
+        const investorNorm = normalizeInvestor(investor, flags);
         
-        const totalScore = sectorScore + stageScore + investorQuality + startupQuality;
+        // Calculate scores with Match Trace
+        const reasons = [];
+        const terms = {};
         
-        if (totalScore >= CONFIG.MIN_MATCH_SCORE) {
-          const fitAnalysis = {
-            sector: sectorScore,
-            stage: stageScore,
-            investor_quality: investorQuality,
-            startup_quality: startupQuality,
-            tier: investor.investor_tier
-          };
-          
-          startupMatches.push({
-            startup_id: startup.id,
-            investor_id: investor.id,
-            match_score: totalScore,
-            status: 'suggested',
-            confidence_level: totalScore >= 70 ? 'high' : totalScore >= 50 ? 'medium' : 'low',
-            fit_analysis: fitAnalysis,
-            reasoning: generateReasoning(startup, investor, fitAnalysis),
-            why_you_match: generateWhyYouMatch(startup, investor, fitAnalysis)
-          });
-        }
+        terms.sector = calculateSectorMatch(startupNorm.sectors, investorNorm.sectors, reasons);
+        terms.stage = calculateStageMatch(startupNorm.stage, investorNorm.stages, reasons);
+        terms.investor_quality = calculateInvestorQuality(investorNorm.score, investorNorm.tier, reasons);
+        terms.startup_quality = calculateStartupQuality(startupNorm.godScore, reasons);
+        
+        const totalScore = terms.sector + terms.stage + terms.investor_quality + terms.startup_quality;
+        
+        scoredMatches.push({
+          startup_id: startup.id,
+          investor_id: investor.id,
+          match_score: totalScore,
+          status: 'suggested',
+          confidence_level: totalScore >= 70 ? 'high' : totalScore >= 50 ? 'medium' : 'low',
+          fit_analysis: terms,
+          reasoning: generateReasoning(startup, investor, terms),
+          why_you_match: generateWhyYouMatch(startup, investor, terms),
+          // ✅ NEW: Store Match Trace for debugging
+          match_trace: JSON.stringify({ reasons, flags, terms })
+        });
       }
       
-      // Sort and keep only top N matches for this startup
-      startupMatches.sort((a, b) => b.match_score - a.match_score);
-      const topMatches = startupMatches.slice(0, CONFIG.TOP_MATCHES_PER_STARTUP);
+      // ✅ STABLE SORT: (-score, investor_id)
+      scoredMatches.sort((a, b) => {
+        if (b.match_score !== a.match_score) return b.match_score - a.match_score;
+        return String(a.investor_id).localeCompare(String(b.investor_id));
+      });
+      
+      // ✅ RANK-FIRST: filter low floor, then take top N
+      const topMatches = scoredMatches
+        .filter(m => m.match_score >= PERSISTENCE_FLOOR)
+        .slice(0, CONFIG.TOP_MATCHES_PER_STARTUP);
+      
       allMatches.push(...topMatches);
       
       processed++;
