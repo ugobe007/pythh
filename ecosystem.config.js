@@ -183,6 +183,26 @@ module.exports = {
       }
     },
     // ========================================
+    // EVENT RESCUE AGENT - Self-healing scraper
+    // ========================================
+    {
+      name: 'event-rescue-agent',
+      script: 'node',
+      args: 'scripts/event-rescue-agent.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '500M',
+      cron_restart: '*/30 * * * *',  // Every 30 minutes
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Rescues startups from misclassified "OTHER" events
+      // Uses inference engine first (free), GPT-4 as fallback
+      // Saves ~80% on API costs vs pure GPT approach
+    },
+    // ========================================
     // MATCH ENGINE - Pattern A v1.1 (PRODUCTION)
     // ========================================
     {

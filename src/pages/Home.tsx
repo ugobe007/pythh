@@ -6,6 +6,7 @@ import SignalLegend from "@/components/pythh-home/SignalLegend";
 import SignalTicker from "@/components/pythh-home/SignalTicker";
 import LiveMatchesTable, { LiveMatchRow, Heat } from "@/components/pythh-home/LiveMatchesTable";
 import AboutPythh from "@/components/pythh-home/AboutPythh";
+import LiveStats from "@/components/LiveStats";
 import { useLivePairings } from "@/hooks/useLivePairings";
 
 /**
@@ -158,6 +159,13 @@ export default function Home() {
           <div className="text-[13px] text-white/50 mt-2">
             Discover which investors are aligned with you — now
           </div>
+        </div>
+
+        {/* =========================
+            LIVE STATS (Supabase-style)
+        ========================== */}
+        <div className="mb-6 pb-6 border-b border-white/10">
+          <LiveStats />
         </div>
 
         {/* =========================

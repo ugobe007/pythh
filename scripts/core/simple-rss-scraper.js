@@ -27,9 +27,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Export extractCompanyName for use in tiered-scraper-pipeline.js
-module.exports = { extractCompanyName };
-
 const parser = new Parser({
   timeout: 30000,
   headers: {
