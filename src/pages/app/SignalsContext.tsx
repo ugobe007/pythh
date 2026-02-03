@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import PageShell, { ContentContainer } from '../../components/layout/PageShell';
 import TopBar from '../../components/layout/TopBar';
 import { Clock, ArrowLeft, TrendingUp } from 'lucide-react';
-import { createApiDataSource } from '../../pithh/dataSource';
-import { getRuntimeConfig } from '../../pithh/runtimeConfig';
+import { createApiDataSource } from '../demo/pithh-sandbox/dataSource';
+import { getRuntimeConfig } from '../demo/pithh-sandbox/runtimeConfig';
 
 interface CausalContributor {
   sector: string;
