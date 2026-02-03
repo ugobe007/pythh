@@ -72,11 +72,27 @@ function calculateSectorMatch(startupSectors, investorSectors) {
   return Math.min(matches * 10, CONFIG.SECTOR_MATCH);
 }
 
+// Map numeric stages to string stages
+const STAGE_MAP = {
+  0: 'Pre-Seed',
+  1: 'Seed',
+  2: 'Series A',
+  3: 'Series B',
+  4: 'Series C',
+  5: 'Growth'
+};
+
 function calculateStageMatch(startupStage, investorStages) {
   if (!startupStage || !investorStages) return 5;
   
+  // Convert numeric stage to string
+  let sStageStr = startupStage;
+  if (typeof startupStage === 'number') {
+    sStageStr = STAGE_MAP[startupStage] || 'Seed';
+  }
+  
   const normalize = (s) => normalizeStr(s).replace(/[-_\s]/g, '');
-  const sStage = normalize(startupStage);
+  const sStage = normalize(sStageStr);
   const iStages = (Array.isArray(investorStages) ? investorStages : [investorStages]).map(normalize);
   
   if (iStages.some(is => is === sStage || is.includes(sStage) || sStage.includes(is))) {
