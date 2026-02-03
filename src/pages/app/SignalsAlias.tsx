@@ -17,6 +17,9 @@ export default function SignalsAlias() {
   const loc = useLocation();
   const qs = loc.search || "";
   
+  // Route truth beacon
+  console.log('[SignalsAlias] HIT:', loc.pathname + qs, '→ redirecting to /app/radar');
+  
   // Forward to canonical engine with query preserved
   return <Navigate to={`/app/radar${qs}`} replace />;
 }

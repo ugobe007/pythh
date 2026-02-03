@@ -192,9 +192,9 @@ export default function PythhHome() {
       return;
     }
     
-    // All checks passed - proceed to pythh engine
-    console.log('[PythhHome] Navigating to:', `/signals?url=${encodeURIComponent(trimmed)}`);
-    navigate(`/signals?url=${encodeURIComponent(trimmed)}`);
+    // All checks passed - proceed to canonical pythh engine (bypass /signals alias)
+    console.log('[PythhHome] Navigating to CANONICAL:', `/app/radar?url=${encodeURIComponent(trimmed)}`);
+    navigate(`/app/radar?url=${encodeURIComponent(trimmed)}`);
   };
 
   const applySuggestion = () => {
