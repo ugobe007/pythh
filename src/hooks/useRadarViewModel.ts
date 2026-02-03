@@ -103,7 +103,8 @@ export function useLegacyRadarAdapter(
   return useMemo(() => {
     const effectiveGodScore = godScore ?? context?.god?.total ?? 50;
     
-    const mapped = rows.map(row => mapMatchRowToRadarRow(row, effectiveGodScore));
+    // Pass index to enable auto-unlock of top 5
+    const mapped = rows.map((row, index) => mapMatchRowToRadarRow(row, effectiveGodScore, index));
     
     return {
       unlockedRows: mapped.filter(r => !r.entity.isLocked),
