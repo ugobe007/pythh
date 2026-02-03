@@ -265,18 +265,35 @@ export default function SignalMatches() {
   if (uiState.mode === 'not_found') {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center" data-testid="radar-not-found">
-        <div className="text-center max-w-md">
+        <div className="text-center max-w-md px-4">
           <Search className="w-12 h-12 mx-auto mb-4 text-gray-500" />
           <p className="text-lg font-medium text-gray-300">Startup not found</p>
           <p className="text-sm text-gray-500 mt-2">
             No startup matched "<span className="text-gray-400">{uiState.searched}</span>"
           </p>
-          <button
-            onClick={() => navigate('/signal-matches')}
-            className="mt-6 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
-          >
-            Browse all startups
-          </button>
+          
+          {/* Helpful hints */}
+          <div className="mt-4 text-xs text-gray-500 space-y-1">
+            <p>Tips:</p>
+            <p>• Check for typos in the domain name</p>
+            <p>• Use the full domain (e.g., stripe.com, not stripe)</p>
+            <p>• Make sure it's a real company website</p>
+          </div>
+          
+          <div className="mt-6 flex gap-3 justify-center">
+            <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 rounded text-sm font-medium transition-colors"
+            >
+              Try again
+            </button>
+            <button
+              onClick={() => navigate('/signal-matches')}
+              className="px-4 py-2 bg-transparent hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 rounded text-sm font-medium transition-colors"
+            >
+              Browse startups
+            </button>
+          </div>
         </div>
       </div>
     );
