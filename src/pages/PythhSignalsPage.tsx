@@ -77,7 +77,7 @@ export default function PythhSignalsPage() {
         .from("agent_feed_signals")
         .select("id, sector, state, created_at, metadata")
         .order("created_at", { ascending: false })
-        .limit(25);
+        .limit(50);
 
       if (data && data.length > 0) {
         const mapped: Signal[] = data.map((s: any) => ({
@@ -158,30 +158,30 @@ export default function PythhSignalsPage() {
         </div>
 
         {/* Metric cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
-          <div className="py-panel" style={{ padding: 20 }}>
-            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Accelerating</div>
-            <div style={{ fontSize: 36, fontWeight: 600, color: "rgba(52,211,153,.9)", marginBottom: 4 }}>{accelerating}</div>
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>Sectors trending up</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+          <div className="py-panel" style={{ padding: 12 }}>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Accelerating</div>
+            <div style={{ fontSize: 20, fontWeight: 500, color: "rgba(52,211,153,.9)", marginBottom: 2 }}>{accelerating}</div>
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>Sectors trending up</div>
           </div>
           
-          <div className="py-panel" style={{ padding: 20 }}>
-            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Average Strength</div>
-            <div style={{ fontSize: 36, fontWeight: 600, color: "rgba(34,211,238,.9)", marginBottom: 4 }}>
+          <div className="py-panel" style={{ padding: 12 }}>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Average Strength</div>
+            <div style={{ fontSize: 20, fontWeight: 500, color: "rgba(34,211,238,.9)", marginBottom: 2 }}>
               {signals.length > 0 ? (signals.reduce((sum, s) => sum + s.strength, 0) / signals.length).toFixed(2) : "0.00"}
             </div>
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>Across all signals</div>
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>Across all signals</div>
           </div>
           
-          <div className="py-panel" style={{ padding: 20 }}>
-            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Active Sectors</div>
-            <div style={{ fontSize: 36, fontWeight: 600, color: "rgba(255,255,255,.85)", marginBottom: 4 }}>{signals.length}</div>
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>Being tracked</div>
+          <div className="py-panel" style={{ padding: 12 }}>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Active Sectors</div>
+            <div style={{ fontSize: 20, fontWeight: 500, color: "rgba(255,255,255,.85)", marginBottom: 2 }}>{signals.length}</div>
+            <div style={{ fontSize: 12, color: "#9ca3af" }}>Being tracked</div>
           </div>
         </div>
 
         {/* Window selector */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
           {(["24h", "7d", "30d"] as const).map((w) => (
             <button
               key={w}
@@ -205,35 +205,35 @@ export default function PythhSignalsPage() {
         </div>
 
         {/* Visual signal cards */}
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "grid", gap: 8 }}>
           {signals.map((s) => (
             <div 
               key={s.id} 
               className="py-panel"
               style={{ 
-                padding: "16px 20px",
+                padding: "12px 16px",
                 display: "grid",
                 gridTemplateColumns: "2fr 1fr 1fr 80px",
                 alignItems: "center",
-                gap: 16,
+                gap: 12,
                 background: s.strength > 0.75 ? "rgba(34,211,238,.03)" : undefined,
                 borderColor: s.strength > 0.75 ? "rgba(34,211,238,.15)" : undefined,
               }}
             >
               {/* Sector name */}
               <div>
-                <div style={{ fontSize: 15, fontWeight: 500, color: "rgba(255,255,255,.9)", marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,.9)", marginBottom: 2 }}>
                   {s.sector}
                 </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                <div style={{ fontSize: 11, color: "#6b7280" }}>
                   {s.direction === "up" ? "↗ Heating up" : s.direction === "down" ? "↘ Cooling" : "→ Stable"}
                 </div>
               </div>
               
               {/* Visual strength bar */}
               <div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>STRENGTH</div>
-                <div style={{ position: "relative", height: 8, background: "rgba(255,255,255,.05)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 4 }}>STRENGTH</div>
+                <div style={{ position: "relative", height: 6, background: "rgba(255,255,255,.05)", borderRadius: 3, overflow: "hidden" }}>
                   <div 
                     style={{ 
                       position: "absolute",
@@ -250,7 +250,7 @@ export default function PythhSignalsPage() {
                     }}
                   />
                 </div>
-                <div style={{ fontSize: 13, color: "#9ca3af", marginTop: 4, fontFamily: "monospace" }}>
+                <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 3, fontFamily: "monospace" }}>
                   {s.strength.toFixed(2)}
                 </div>
               </div>
@@ -258,7 +258,7 @@ export default function PythhSignalsPage() {
               {/* Direction indicator */}
               <div style={{ textAlign: "center" }}>
                 <div style={{ 
-                  fontSize: 32, 
+                  fontSize: 28, 
                   color: s.direction === "up" ? "rgba(52,211,153,.9)" : s.direction === "down" ? "rgba(251,191,36,.9)" : "rgba(255,255,255,.3)"
                 }}>
                   {dirArrow(s.direction)}
