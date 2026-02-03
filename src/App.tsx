@@ -52,7 +52,6 @@ import Signals from './pages/public/Signals';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
 import SignalResultsPage from './pages/SignalResultsPage';
 import InvestorProfile from './pages/InvestorProfile';
-import MLRecommendationsPage from './pages/demo/pithh-sandbox/MLRecommendationsPage';
 import SignalsExplainer from './pages/SignalsExplainer';
 
 // App pages (instrument mode)
@@ -247,10 +246,6 @@ const App: React.FC = () => {
             <Route path="control" element={<ControlCenter />} />
             <Route path="scrapers" element={<ScraperManagementPage />} />
             <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
-            
-            {/* ML/AI */}
-            <Route path="ml-dashboard" element={<MLRecommendationsPage />} />
-            <Route path="ml-recommendations" element={<MLRecommendationsPage />} />
           </Route>
 
           {/* 404 → home */}
