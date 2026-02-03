@@ -45,31 +45,29 @@ export default function PythhHome() {
   const [tapeX, setTapeX] = useState(0);
   const [signalTape, setSignalTape] = useState(STATIC_SIGNAL_TAPE);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
-  const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0, signals: 0, godScore: 0 });
+  const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0, avgSignal: 0 });
   const navigate = useNavigate();
 
   // Fetch live platform stats
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [startupsRes, investorsRes, matchesRes, signalsRes, godScoreRes] = await Promise.all([
+        const [startupsRes, investorsRes, matchesRes, signalsRes] = await Promise.all([
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
           supabase.from('investors').select('*', { count: 'exact', head: true }),
           supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-          supabase.from('startup_events').select('*', { count: 'exact', head: true }),
-          supabase.from('startup_uploads').select('total_god_score').not('total_god_score', 'is', null)
+          supabase.from('startup_investor_matches').select('match_score').not('match_score', 'is', null)
         ]);
         
-        const avgGodScore = godScoreRes.data?.length > 0
-          ? Math.round(godScoreRes.data.reduce((sum, s) => sum + (s.total_god_score || 0), 0) / godScoreRes.data.length)
-          : 0;
+        const avgSignal = signalsRes.data?.length > 0
+          ? (signalsRes.data.reduce((sum, s) => sum + (s.match_score || 0), 0) / signalsRes.data.length).toFixed(1)
+          : '0.0';
         
         setStats({
           startups: startupsRes.count || 0,
           investors: investorsRes.count || 0,
           matches: matchesRes.count || 0,
-          signals: signalsRes.count || 0,
-          godScore: avgGodScore
+          avgSignal: avgSignal
         });
       } catch (err) {
         console.error('Failed to fetch stats:', err);
@@ -231,12 +229,12 @@ export default function PythhHome() {
             <p className="text-zinc-400 text-lg">We align your startup with investor signals. No guessing. Just math.</p>
           </div>
           
-          {/* Right: Live stats - subtle Supabase style */}
-          <div className="text-right space-y-1.5 text-white text-sm font-normal pr-8">
+          {/* Right: Live stats - subtle Supabase style, positioned lower */}
+          <div className="text-right space-y-1.5 text-white text-sm font-normal pr-8 mt-6">
             <div>Startups: {stats.startups.toLocaleString()}</div>
             <div>Investors: {stats.investors.toLocaleString()}</div>
             <div>Matches: {stats.matches.toLocaleString()}</div>
-            <div>Signals: {stats.signals.toLocaleString()}</div>
+            <div>Signal: <span className="text-cyan-400">{stats.avgSignal}</span></div>
           </div>
         </div>
 
