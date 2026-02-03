@@ -203,29 +203,43 @@ export default function PythhHome() {
       </header>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO - Left aligned with cyan edge trace
+          HERO - Left aligned with cyan edge trace + RIGHT SIDE STATS
           ═══════════════════════════════════════════════════════════════════ */}
       <section className="max-w-6xl mx-auto px-8 pt-16 pb-8">
-        {/* Pre-headline with cyan glow */}
-        <p 
-          className="text-xl tracking-wide mb-4 text-zinc-300"
-          style={{ 
-            textShadow: '0 0 12px rgba(0, 200, 255, 0.5), 0 0 24px rgba(0, 200, 255, 0.25)'
-          }}
-        >
-          Investor signals. Live.
-        </p>
-        
-        {/* Main headline with cyan ghost stroke */}
-        <h1 
-          className="text-6xl font-bold tracking-tight mb-6 text-white"
-          style={{ 
-            textShadow: '0 0 2px rgba(0, 200, 255, 0.6), 0 0 12px rgba(0, 200, 255, 0.3), 0 0 24px rgba(0, 200, 255, 0.15)'
-          }}
-        >
-          Find your investors. Now.
-        </h1>
-        <p className="text-zinc-400 text-lg mb-8">We align your startup with investor signals. No guessing. Just math.</p>
+        <div className="flex justify-between items-start mb-8">
+          {/* Left: Hero text */}
+          <div className="space-y-4 max-w-3xl">
+            {/* Pre-headline with cyan glow */}
+            <p 
+              className="text-xl tracking-wide text-zinc-300"
+              style={{ 
+                textShadow: '0 0 12px rgba(0, 200, 255, 0.5), 0 0 24px rgba(0, 200, 255, 0.25)'
+              }}
+            >
+              Investor signals. Live.
+            </p>
+            
+            {/* Main headline with cyan ghost stroke */}
+            <h1 
+              className="text-6xl font-bold tracking-tight text-white"
+              style={{ 
+                textShadow: '0 0 2px rgba(0, 200, 255, 0.6), 0 0 12px rgba(0, 200, 255, 0.3), 0 0 24px rgba(0, 200, 255, 0.15)'
+              }}
+            >
+              Find your investors. Now.
+            </h1>
+            <p className="text-zinc-400 text-lg">We align your startup with investor signals. No guessing. Just math.</p>
+          </div>
+          
+          {/* Right: Live stats in red */}
+          <div className="text-right space-y-2 text-red-500 font-medium">
+            <div>Startups: {stats.startups.toLocaleString()}</div>
+            <div>Investors: {stats.investors.toLocaleString()}</div>
+            <div>Matches: {stats.matches.toLocaleString()}</div>
+            <div>Signals: {stats.signals.toLocaleString()}</div>
+            <div>GOD Score: {stats.godScore}</div>
+          </div>
+        </div>
 
         {/* Submit bar - matches table width with cyan glow */}
         <div 
@@ -254,34 +268,6 @@ export default function PythhHome() {
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             Live investor signals updating every 60 seconds
           </span>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          LIVE PLATFORM STATS
-          ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 py-8">
-        <div className="grid grid-cols-5 gap-4">
-          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Startups</div>
-            <div className="text-2xl font-bold text-white">{stats.startups.toLocaleString()}</div>
-          </div>
-          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Investors</div>
-            <div className="text-2xl font-bold text-white">{stats.investors.toLocaleString()}</div>
-          </div>
-          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Matches</div>
-            <div className="text-2xl font-bold text-white">{stats.matches.toLocaleString()}</div>
-          </div>
-          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Signals</div>
-            <div className="text-2xl font-bold text-white">{stats.signals.toLocaleString()}</div>
-          </div>
-          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Avg GOD Score</div>
-            <div className="text-2xl font-bold text-cyan-400">{stats.godScore}</div>
-          </div>
         </div>
       </section>
 
