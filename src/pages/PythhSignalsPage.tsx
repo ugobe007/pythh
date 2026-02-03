@@ -277,8 +277,8 @@ export default function PythhSignalsPage() {
         {/* Bottom CTA */}
         <div style={{ marginTop: 40, textAlign: "center", padding: "32px 0", borderTop: "1px solid rgba(255,255,255,.05)" }}>
           <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>Watching a promising company?</div>
-          <Link 
-            to="/app/submit" 
+          <a 
+            href="/app/submit" 
             style={{ 
               display: "inline-block",
               padding: "12px 28px",
@@ -293,7 +293,7 @@ export default function PythhSignalsPage() {
             }}
           >
             Submit for tracking →
-          </Link>
+          </a>
         </div>
       </div>
     </div>
