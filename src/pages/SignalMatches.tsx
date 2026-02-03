@@ -72,9 +72,9 @@ type UIState =
   | { mode: 'picker' }
   | { mode: 'missing_context' };  // NEW: No URL/ID provided from public flow
 
-export default function SignalsRadarPage() {
+export default function SignalMatches() {
   // Route truth beacon
-  console.log('[SignalsRadarPage] HIT:', window.location.pathname + window.location.search);
+  console.log('[SignalMatches] HIT:', window.location.pathname + window.location.search);
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
