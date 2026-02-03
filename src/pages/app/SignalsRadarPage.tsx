@@ -251,7 +251,7 @@ export default function SignalsRadarPage() {
   
   if (uiState.mode === 'not_found') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center" data-testid="radar-not-found">
         <div className="text-center max-w-md">
           <Search className="w-12 h-12 mx-auto mb-4 text-gray-500" />
           <p className="text-lg font-medium text-gray-300">Startup not found</p>
@@ -313,7 +313,7 @@ export default function SignalsRadarPage() {
   const displayName = resolvedName || 'Loading...';
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-gray-950 text-white" data-testid="radar-page">
       {/* Header - per spec: "SIGNAL RADAR" with subtitle and live indicator */}
       <header className="border-b border-gray-800 bg-gray-900/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -810,7 +810,7 @@ function RadarMatchTable({
   const { unlockedRows, lockedRows } = useLegacyRadarAdapter(rows, context?.god?.total, context);
   
   return (
-    <div className="mb-8">
+    <div className="mb-8" data-testid="match-table">
       <LiveMatchTable
         unlockedRows={unlockedRows}
         lockedRows={lockedRows}
