@@ -72,7 +72,7 @@ export function LiveMatchTable({
   const navigate = useNavigate();
 
   const handleView = (investorId: string) => {
-    navigate(`/app/investors/${investorId}`);
+    navigate(`/investor/${investorId}`);
   };
 
   // Empty states
