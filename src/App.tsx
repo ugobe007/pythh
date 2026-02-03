@@ -58,7 +58,6 @@ import SignalsExplainer from './pages/SignalsExplainer';
 
 // App pages (instrument mode)
 import Dashboard from './pages/app/Dashboard';
-import Engine from './pages/app/Engine';
 import Logs from './pages/app/Logs';
 import StartupIntelligencePage from './pages/StartupIntelligencePage'; // Canonical startup intel
 import SignalCardPage from './pages/SignalCardPage'; // Founder decision journal
@@ -185,7 +184,6 @@ const App: React.FC = () => {
           {/* APP (instrument mode) */}
           <Route path="/app" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
-            <Route path="engine" element={<Engine />} />
             <Route path="logs" element={<Logs />} />
             <Route path="signals" element={<SignalsExplorer />} />
             <Route path="signals-context" element={<SignalsContext />} />

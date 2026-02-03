@@ -54,7 +54,6 @@ function dirArrow(d: Signal["direction"]) {
 
 const NAV = [
   { label: "Dashboard", href: "/app" },
-  { label: "Engine", href: "/app/engine" },
   { label: "Signals", href: "/signals", active: true },
   { label: "Matches", href: "/matches" },
   { label: "How it works", href: "/how-it-works" },
@@ -78,7 +77,7 @@ export default function PythhSignalsPage() {
         .from("agent_feed_signals")
         .select("id, sector, state, created_at, metadata")
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(25);
 
       if (data && data.length > 0) {
         const mapped: Signal[] = data.map((s: any) => ({
