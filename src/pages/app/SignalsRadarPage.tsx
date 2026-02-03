@@ -1,14 +1,35 @@
 // ============================================================================
-// SignalsRadarPage - BULLETPROOF Founder Signals Surface
+// SignalsRadarPage - PYTHH ENGINE CANONICAL PROCESSOR
 // ============================================================================
-// Route: /app/radar
+// Route: /app/radar AND /signals-radar (via redirect from /signals)
+// 
+// *** CRITICAL PYTHH WORKFLOW HANDLER ***
+// This component is the EXECUTION POINT for the pythh URL submission workflow:
+//
+// CANONICAL FLOW:
+// 1. User submits URL on homepage (PythhHome.tsx)
+// 2. Navigate to /signals?url=example.com
+// 3. App.tsx redirects /signals → /signals-radar
+// 4. THIS COMPONENT receives ?url=example.com
+// 5. useResolveStartup hook (line ~72) calls resolve_startup_by_url RPC
+// 6. RPC performs FULL WORKFLOW:
+//    - Scrape website
+//    - Extract startup data
+//    - Build database entry
+//    - Calculate GOD score
+//    - Generate investor matches
+// 7. Display: 5 unlocked signals + 50 locked (paywall)
+//
+// DO NOT MODIFY URL RESOLUTION LOGIC WITHOUT FULL SYSTEM UNDERSTANDING
+// ============================================================================
+// 
 // Params: ?url=example.com OR :startupId (path param)
 // 
 // SINGLE SOURCE OF TRUTH: resolvedStartupId
 //   Computed from (in priority order):
 //   1. Route param /app/radar/:startupId
 //   2. Query param ?startup=UUID
-//   3. Query param ?url=... → resolve_startup_by_url RPC
+//   3. Query param ?url=... → resolve_startup_by_url RPC (PYTHH ENGINE)
 //   4. User picker selection (local state)
 //
 // Loading states:
@@ -61,13 +82,22 @@ export default function SignalsRadarPage() {
   // Extract all possible inputs
   const startupIdFromPath = params.startupId ?? null;
   const startupIdFromQuery = searchParams.get('startup');
+  
+  // *** PYTHH ENGINE CANONICAL INPUT ***
+  // This is where URL from homepage enters the system
+  // Example: /signals-radar?url=stripe.com
+  // DO NOT RENAME OR REMOVE - breaks entire pythh workflow
   const urlToResolve = searchParams.get('url');
   
   // Local picker state (only used when no URL params)
   const [pickedStartupId, setPickedStartupId] = useState<string | null>(null);
   const [pickedStartupName, setPickedStartupName] = useState<string | null>(null);
   
-  // URL resolver hook (only fires if we have a URL to resolve)
+  // *** PYTHH ENGINE EXECUTION HOOK ***
+  // useResolveStartup calls resolve_startup_by_url RPC
+  // RPC flow: scrape → extract → build → score → match
+  // Returns: startup_id + name + 5 unlocked + 50 locked signals
+  // DO NOT MODIFY - this is the pythh engine entry point
   const { result: resolverResult, loading: resolverLoading } = useResolveStartup(urlToResolve);
   
   // THE SINGLE SOURCE OF TRUTH

@@ -125,6 +125,17 @@ export default function PythhHome() {
     return () => clearInterval(id);
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PYTHH ENGINE ENTRY POINT - DO NOT MODIFY
+  // ═══════════════════════════════════════════════════════════════════════════
+  // This is the CANONICAL workflow entry:
+  // 1. User submits URL → navigate to /signals?url=...
+  // 2. /signals redirects to /signals-radar (App.tsx line ~180)
+  // 3. SignalsRadarPage resolves URL via useResolveStartup hook
+  // 4. Hook calls resolve_startup_by_url RPC (pythh-rpc.ts)
+  // 5. RPC: scrapes → collects data → builds profile → scores → matches
+  // 6. Returns: 5 unlocked signals + 50 locked signals
+  // ═══════════════════════════════════════════════════════════════════════════
   const submit = () => {
     if (url.trim()) navigate(`/signals?url=${encodeURIComponent(url.trim())}`);
   };

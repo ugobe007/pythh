@@ -174,10 +174,30 @@ const App: React.FC = () => {
           <Route path="/hotmatch" element={<Navigate to={toWithQuery('/discover')} replace />} />
           <Route path="/results" element={<Navigate to={toWithQuery('/matches')} replace />} />
 
+          {/* ═══════════════════════════════════════════════════════════════════
+              PYTHH ENGINE CANONICAL REDIRECT - DO NOT DELETE
+              ═══════════════════════════════════════════════════════════════════
+              This redirect is CRITICAL for the pythh URL submission workflow:
+              
+              Homepage → /signals?url=example.com → /signals-radar?url=example.com
+              
+              Removing this breaks: scrape → collect → profile → score → match
+              
+              Flow:
+              1. PythhHome.tsx submits URL to /signals?url=...
+              2. THIS REDIRECT forwards to /signals-radar with query preserved
+              3. SignalsRadarPage (at /signals-radar) handles the URL resolution
+              4. useResolveStartup hook calls resolve_startup_by_url RPC
+              5. RPC performs: scrape → collect → build → score → match
+              6. Returns: 5 unlocked + 50 locked investor signals
+              
+              DO NOT REMOVE OR MODIFY WITHOUT UNDERSTANDING FULL WORKFLOW
+              ═══════════════════════════════════════════════════════════════════ */}
+          <Route path="/signals" element={<Navigate to={toWithQuery('/signals-radar')} replace />} />
+          
           {/* LEGACY (Phase B cleanup) */}
           <Route path="/live-match" element={<Navigate to="/live" replace />} />
           <Route path="/signals-flow" element={<Navigate to="/signals" replace />} />
-          <Route path="/signals" element={<Navigate to={toWithQuery('/signals-radar')} replace />} />
           <Route path="/match" element={<MatchController />} />
           <Route path="/login" element={<Login />} />
 
