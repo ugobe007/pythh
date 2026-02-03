@@ -41,7 +41,6 @@ export default function AppLayout() {
 
           <nav className="flex items-center gap-2">
             <NavItem to="/app" label="Dashboard" />
-            <NavItem to="/app/engine" label="Engine" />
             <NavItem to="/app/signals" label="Signals" />
             <NavItem to="/app/logs" label="Logs" />
           </nav>
