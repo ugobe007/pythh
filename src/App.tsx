@@ -177,6 +177,7 @@ const App: React.FC = () => {
           {/* LEGACY (Phase B cleanup) */}
           <Route path="/live-match" element={<Navigate to="/live" replace />} />
           <Route path="/signals-flow" element={<Navigate to="/signals" replace />} />
+          <Route path="/signals" element={<Navigate to={toWithQuery('/signals-radar')} replace />} />
           <Route path="/match" element={<MatchController />} />
           <Route path="/login" element={<Login />} />
 
