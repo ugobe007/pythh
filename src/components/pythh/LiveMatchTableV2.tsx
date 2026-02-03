@@ -102,10 +102,10 @@ export function LiveMatchTable({
   return (
     <div
       data-testid="match-table"
-      className={`space-y-2 ${className}`}
+      className={`space-y-0 ${className}`}
     >
-      {/* Column Headers - minimal, uppercase, quiet */}
-      <div className="h-10 flex items-center gap-4 px-5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+      {/* Column Headers - Supabase style: minimal, clean */}
+      <div className="h-10 flex items-center gap-4 px-4 text-xs font-medium text-zinc-500 border-b border-zinc-800/50">
         <div className="flex-1">Investor</div>
         <div className="w-20 text-center">Signal</div>
         <div className="w-16 text-center">GOD</div>
@@ -128,12 +128,7 @@ export function LiveMatchTable({
         />
       ))}
 
-      {/* Separator if we have both locked and unlocked */}
-      {unlockedRows.length > 0 && lockedRows.length > 0 && (
-        <div className="border-t border-dashed border-zinc-800 my-3" />
-      )}
-
-      {/* Locked rows */}
+      {/* Locked rows - no visual separator */}
       {lockedRows.map((row) => (
         <RadarTableRow
           key={row.investorId}
@@ -161,49 +156,25 @@ interface RadarTableRowProps {
 }
 
 function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled }: RadarTableRowProps) {
-  // Glow colors from view model
-  const baseGlow = row.glow.row === 'signal' 
-    ? GLOW_COLORS.signal 
-    : row.glow.row === 'good' 
-      ? GLOW_COLORS.good 
-      : GLOW_COLORS.none;
+  // Supabase style: no glows, just clean borders and hover states
+  const isHighSignal = row.signal.value >= RADAR_THRESHOLDS.SIGNAL_WINDOW_OPENING;
   
-  const hoverGlow = row.glow.row === 'signal'
-    ? GLOW_COLORS.signalHover
-    : row.glow.row === 'good'
-      ? GLOW_COLORS.goodHover
-      : GLOW_COLORS.noneHover;
-
   return (
     <div
-      className="relative h-16 w-full flex items-center gap-4 px-5 bg-zinc-900/60 rounded-none border-0 transition-all duration-200 ease-out"
-      style={{
-        boxShadow: `0 0 20px 2px ${baseGlow}, inset 0 1px 0 rgba(255,255,255,0.03)`,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = `0 0 24px 4px ${hoverGlow}, inset 0 1px 0 rgba(255,255,255,0.05)`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = `0 0 20px 2px ${baseGlow}, inset 0 1px 0 rgba(255,255,255,0.03)`;
-      }}
+      className="h-14 w-full flex items-center gap-4 px-4 border-b border-zinc-800/30 hover:bg-zinc-900/40 transition-colors cursor-default"
+      data-testid={`match-row-${row.investorId}`}
     >
-      {/* ENTITY: Investor name + context */}
+      {/* ENTITY: Investor name + context - ALWAYS UNLOCKED */}
       <div className="flex-1 flex items-center gap-3 min-w-0">
-        <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-            row.entity.isLocked 
-              ? 'bg-zinc-800 border border-zinc-700' 
-              : 'bg-gradient-to-br from-blue-600 to-indigo-600'
-          }`}
-        >
-          <User className={`w-4 h-4 ${row.entity.isLocked ? 'text-zinc-500' : 'text-white'}`} />
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center flex-shrink-0">
+          <User className="w-4 h-4 text-white" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className={`font-medium text-sm ${row.entity.isLocked ? 'text-zinc-500' : 'text-white'}`}>
+          <span className="font-medium text-sm text-white">
             {row.entity.name}
           </span>
           {row.entity.context && (
-            <div className="text-xs text-zinc-600 truncate">{row.entity.context}</div>
+            <div className="text-xs text-zinc-500 truncate">{row.entity.context}</div>
           )}
         </div>
       </div>
@@ -241,18 +212,8 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled }: Ra
         <StatusBadge status={row.status} />
       </div>
 
-      {/* ACTION: with orange glow for locked */}
-      <div 
-        className="w-28 text-right"
-        style={{
-          boxShadow: row.glow.action === 'locked' 
-            ? `0 0 12px 2px ${GLOW_COLORS.locked}` 
-            : 'none',
-          borderRadius: '4px',
-          padding: '4px',
-          margin: '-4px',
-        }}
-      >
+      {/* ACTION - clean button, no glow */}
+      <div className="w-28 text-right">
         <UnlockButton
           investorId={row.investorId}
           isLocked={row.entity.isLocked}

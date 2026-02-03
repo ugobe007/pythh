@@ -327,38 +327,39 @@ export default function SignalMatches() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white" data-testid="radar-page">
-      {/* Header - per spec: "SIGNAL RADAR" with subtitle and live indicator */}
-      <header className="border-b border-gray-800 bg-gray-900/50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+      {/* Header - Supabase style: flat, minimal */}
+      <header className="border-b border-zinc-800/50">
+        <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
-            {/* Left: Title + Subtitle */}
-            <div>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 4 }}>signal radar</div>
-              <h1 style={{ fontSize: 20, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3 }}>
-                Live investor alignment
+            {/* Left: Title + Founder Guidance */}
+            <div className="flex-1 max-w-3xl">
+              <h1 className="text-2xl font-semibold text-white mb-2">
+                Signal Matches
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Movement, position, and optics
+              <p className="text-base text-gray-300 mb-2">
+                Investor alignment for your startup.
+              </p>
+              <p className="text-sm text-gray-400 leading-relaxed">
+                <strong className="text-gray-300">Signal</strong> = timing. <strong className="text-gray-300">GOD</strong> = your position. <strong className="text-gray-300">YC++</strong> = how investors likely perceive you. Start with the top 3 rows—those are your fastest outreach wins.
+              </p>
+              <p className="text-sm text-emerald-400 mt-3">
+                → Unlock 2–3 investors → open each profile → generate a short outreach plan.
               </p>
             </div>
 
-            {/* Right: Live Status + Entitlements + Refresh */}
-            <div className="flex items-center gap-4">
-              <LiveIndicator 
-                lastRefreshAt={lastRefreshAt} 
-                isPaused={isAnyPending}
-                busySince={busySince}
-                isStale={isStale} 
-              />
-              
-              <EntitlementPill entitlements={context?.entitlements ?? null} />
+            {/* Right: Simple refresh button */}
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-gray-500 uppercase tracking-wide">
+                Live
+              </div>
               
               <button
                 onClick={handleRefresh}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                title="Refresh"
+                className="px-3 py-1.5 text-sm text-gray-300 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded transition-colors"
+                title="Refresh matches"
               >
-                <RefreshCw className={`w-5 h-5 ${tableLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 inline mr-1 ${tableLoading ? 'animate-spin' : ''}`} />
+                Refresh
               </button>
             </div>
           </div>
@@ -367,29 +368,24 @@ export default function SignalMatches() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-6">
-        {/* Startup Context Bar */}
-        <div className="mb-6 flex items-center justify-between">
+        {/* Startup Context Bar - clean and minimal */}
+        <div className="mb-6 flex items-center justify-between pb-4 border-b border-zinc-800/30">
           <div>
-            <h2 className="text-xl font-medium text-white">{displayName}</h2>
+            <h2 className="text-lg font-medium text-white">{displayName}</h2>
             {context?.comparison?.sectors && context.comparison.sectors.length > 0 && (
-              <p className="text-sm text-gray-500 mt-0.5">
-                {context.comparison.sectors.slice(0, 3).join(' · ')}
+              <p className="text-sm text-gray-500 mt-1">
+                {context.comparison.sectors.slice(0, 3).join(' • ')}
               </p>
             )}
           </div>
           
-          {/* GOD Score anchor (constant across all rows - per spec) */}
+          {/* GOD Score - subtle badge */}
           {showContext && context?.god?.total !== undefined && (
-            <div className="text-right">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">GOD Score</p>
-              <p className="text-2xl font-bold text-white">{context.god.total}</p>
+            <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded">
+              <p className="text-xs text-gray-500 mb-0.5">GOD Score</p>
+              <p className="text-lg font-semibold text-white">{context.god.total}</p>
             </div>
           )}
-        </div>
-        
-        {/* Guidance line - per spec: one line, always visible */}
-        <div className="mb-4 text-sm text-gray-500">
-          <strong className="text-gray-400">Signal</strong> shows timing. <strong className="text-gray-400">GOD</strong> shows position. <strong className="text-gray-400">YC++</strong> shows how each investor is likely to perceive you.
         </div>
 
         {/* Match Table - using canonical view model */}
@@ -404,8 +400,8 @@ export default function SignalMatches() {
           
         {/* Count summary */}
         {rows.length > 0 && (
-          <div className="mt-2 mb-8 text-sm text-gray-500">
-            {unlockedCount} unlocked · {lockedCount} locked
+          <div className="mt-4 text-xs text-gray-500">
+            {unlockedCount} ready • {lockedCount} available
           </div>
         )}
 

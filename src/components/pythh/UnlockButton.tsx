@@ -47,25 +47,25 @@ export function UnlockButton({
         onClick={handleClick}
         disabled={disabled || showLoading}
         className={`
-          inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
-          transition-all duration-200
+          inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
+          border rounded transition-colors
           ${showLoading
-            ? 'bg-gray-700 text-gray-400 cursor-wait'
+            ? 'bg-zinc-800 text-gray-400 border-zinc-700 cursor-wait'
             : disabled
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400 shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40'
+              ? 'bg-zinc-800 text-gray-500 border-zinc-700 cursor-not-allowed'
+              : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-500 hover:border-emerald-500'
           }
           ${className}
         `}
       >
         {showLoading ? (
           <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Unlocking...</span>
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>Unlocking</span>
           </>
         ) : (
           <>
-            <Lock className="w-4 h-4" />
+            <Lock className="w-3.5 h-3.5" />
             <span>Unlock</span>
           </>
         )}
@@ -77,13 +77,13 @@ export function UnlockButton({
     <button
       onClick={handleClick}
       className={`
-        inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
-        bg-emerald-600 text-white hover:bg-emerald-500
-        transition-all duration-200
+        inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
+        text-gray-300 border border-zinc-700 rounded hover:text-white hover:border-zinc-600
+        transition-colors
         ${className}
       `}
     >
-      <Unlock className="w-4 h-4" />
+      <Unlock className="w-3.5 h-3.5" />
       <span>View</span>
     </button>
   );
