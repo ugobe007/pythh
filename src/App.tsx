@@ -52,8 +52,7 @@ import Signals from './pages/public/Signals';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
 import SignalResultsPage from './pages/SignalResultsPage';
 import InvestorProfile from './pages/InvestorProfile';
-import SignalRadarPage from './pithh/SignalRadarPage';
-import MLRecommendationsPage from './pithh/MLRecommendationsPage';
+import MLRecommendationsPage from './pages/demo/pithh-sandbox/MLRecommendationsPage';
 import SignalsExplainer from './pages/SignalsExplainer';
 
 // App pages (instrument mode)
@@ -66,7 +65,6 @@ import SharedSurfacePage from './pages/SharedSurfacePage'; // Public share links
 import FounderCommunityPage from './pages/FounderCommunityPage'; // Founder community
 import SignalsExplorer from './pages/app/SignalsExplorer';
 import SignalsContext from './pages/app/SignalsContext';
-import SignalsContextPage from './pithh/SignalsContextPage';
 
 // Pythh founder pages (new UI)
 import SignalsRadarPage from './pages/app/SignalsRadarPage';
@@ -203,7 +201,6 @@ const App: React.FC = () => {
             <Route path="logs" element={<Logs />} />
             <Route path="signals" element={<SignalsExplorer />} />
             <Route path="signals-context" element={<SignalsContext />} />
-            <Route path="context" element={<SignalsContextPage />} />  {/* Post-Radar macro explanation */}
             <Route path="startup/:id" element={<StartupIntelligencePage />} />
             <Route path="signal-card" element={<SignalCardPage />} />
             
