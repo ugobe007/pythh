@@ -111,7 +111,7 @@ export function trackEvent(name: EventName, data: EventData = {}): void {
 
   eventQueue.push(event);
 
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
     console.log(`[pyth.analytics] ${name}`, event.data);
   }
@@ -172,7 +172,7 @@ async function flushEvents(): Promise<void> {
       analyticsDisabled = true;
       // Clear queue to free memory
       eventQueue.length = 0;
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         // eslint-disable-next-line no-console
         console.warn('[pyth.analytics] Circuit breaker tripped - analytics disabled after', consecutiveFailures, 'failures');
       }
@@ -180,7 +180,7 @@ async function flushEvents(): Promise<void> {
     }
 
     // Keep queue (don't drop events). Try again soon with backoff.
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
       console.warn('[pyth.analytics] Failed to flush events (attempt', consecutiveFailures + '):', error);
     }

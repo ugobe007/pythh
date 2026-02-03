@@ -414,7 +414,7 @@ export default function DiscoveryResultsPage() {
   // ============================================================================
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'development') return;
+    if (!import.meta.env.DEV) return;
     if (jobState.status !== 'ready' && jobState.status !== 'building') {
       setPipelineDiag(null);
       return;
@@ -597,7 +597,7 @@ export default function DiscoveryResultsPage() {
           </p>
 
           {/* Debug panel - development only */}
-          {process.env.NODE_ENV === "development" && (
+          {import.meta.env.DEV && (
             <div className="mb-6 space-y-3">
               {/* Job State Debug */}
               <details className="text-xs">

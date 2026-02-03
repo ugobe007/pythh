@@ -392,7 +392,7 @@ function DebugBanner({ run }: { run: MatchRunStatus }) {
   const [expanded, setExpanded] = useState(false);
   
   // Only show in development
-  if (process.env.NODE_ENV !== 'development') {
+  if (!import.meta.env.DEV) {
     return null;
   }
   

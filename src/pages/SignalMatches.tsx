@@ -44,8 +44,8 @@
 //   - Resumes 1s after unlock completes
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate, useSearchParams, useParams, useLocation } from 'react-router-dom';
 import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
@@ -73,12 +73,22 @@ type UIState =
   | { mode: 'missing_context' };  // NEW: No URL/ID provided from public flow
 
 export default function SignalMatches() {
-  // Route truth beacon
-  console.log('[SignalMatches] HIT:', window.location.pathname + window.location.search);
-  
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = useParams<{ startupId?: string }>();
+  
+  // Route truth beacon (logs once per navigation, not per render)
+  const lastRoute = useRef<string>('');
+  useEffect(() => {
+    const key = `${location.pathname}${location.search}`;
+    if (lastRoute.current === key) return;
+    lastRoute.current = key;
+    
+    if (import.meta.env.DEV) {
+      console.log('[SignalMatches] HIT:', key);
+    }
+  }, [location.pathname, location.search]);
   
   // -----------------------------------------------------------------------------
   // SINGLE SOURCE OF TRUTH: resolvedStartupId

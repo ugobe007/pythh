@@ -55,7 +55,7 @@ export function useRadarViewModel({
   rows,
   context,
   startupName = null,
-  enableValidation = process.env.NODE_ENV === 'development',
+  enableValidation = import.meta.env.DEV,
 }: UseRadarViewModelOptions): UseRadarViewModelResult {
   
   // Build view model (memoized)
