@@ -149,7 +149,7 @@ export default function PythhSignalsPage() {
       {/* Page */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 18px 40px" }}>
         {/* Title */}
-        <div style={{ marginBottom: 18 }}>
+        <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 8 }}>signals</div>
           <h1 style={{ fontSize: 28, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3, marginBottom: 8 }}>
             Live investor belief shifts
@@ -157,101 +157,89 @@ export default function PythhSignalsPage() {
           <div style={{ fontSize: 16, color: "#9ca3af", fontWeight: 400 }}>Observed behavior, not stated intent.</div>
         </div>
 
-        {/* Window selector + Table */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
-          {/* Main table */}
-          <div>
-            {/* Window tabs */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {(["24h", "7d", "30d"] as const).map((w) => (
-                <button
-                  key={w}
-                  onClick={() => setWindow(w)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    background: window === w ? "rgba(255,255,255,.08)" : "transparent",
-                    border: "1px solid",
-                    borderColor: window === w ? "var(--py-line)" : "transparent",
-                    color: window === w ? "var(--py-text)" : "var(--py-muted)",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  {w}
-                </button>
-              ))}
-            </div>
-
-            {/* Table */}
-            <div className="py-panel">
-              <table className="pythh-table" style={{ width: "100%" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", padding: "10px 14px" }}>Sector / Theme</th>
-                    <th style={{ textAlign: "center", padding: "10px 14px", width: 80 }}>Direction</th>
-                    <th style={{ textAlign: "right", padding: "10px 14px", width: 100 }}>Strength</th>
-                    <th style={{ textAlign: "right", padding: "10px 14px", width: 80 }}>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {signals.map((s) => (
-                    <tr key={s.id}>
-                      <td style={{ padding: "10px 14px", fontWeight: 500, color: "rgba(255,255,255,.85)" }}>
-                        {s.sector}
-                      </td>
-                      <td style={{ padding: "10px 14px", textAlign: "center", fontSize: 16 }}>
-                        {dirArrow(s.direction)}
-                        {s.direction === "up" && s.strength > 0.75 && dirArrow(s.direction)}
-                      </td>
-                      <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13 }}>
-                        {s.strength.toFixed(2)}
-                      </td>
-                      <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--py-muted)", fontSize: 12 }}>
-                        {s.time}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* Window selector + Right rail status moved here */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          {/* Window tabs */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["24h", "7d", "30d"] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => setWindow(w)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  background: window === w ? "rgba(255,255,255,.08)" : "transparent",
+                  border: "1px solid",
+                  borderColor: window === w ? "var(--py-line)" : "transparent",
+                  color: window === w ? "var(--py-text)" : "var(--py-muted)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                {w}
+              </button>
+            ))}
           </div>
+          
+          {/* Quick status inline */}
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,.72)" }}>
+            <span className="py-metric-glow" style={{ fontWeight: 700, fontSize: 14, color: "rgba(52,211,153,.9)" }}>{accelerating}</span>
+            {" "}sectors accelerating · Capital clustering detected
+          </div>
+        </div>
 
-          {/* Right rail */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="py-panel">
-              <div className="py-panel-inner">
-                <div className="py-kicker">now</div>
-                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)", lineHeight: 1.5 }}>
-                  <div style={{ marginBottom: 6 }}>
-                    <span className="py-metric-glow" style={{ fontWeight: 700, fontSize: 15 }}>{accelerating}</span> sectors accelerating
-                  </div>
-                  <div>Capital clustering detected</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="py-panel">
-              <div className="py-panel-inner">
-                <div className="py-kicker">next</div>
-                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)", lineHeight: 1.5 }}>
-                  Expect follow-on activity in 48–72h
-                </div>
-              </div>
-            </div>
-
-            <div className="py-panel">
-              <div className="py-panel-inner">
-                <div className="py-kicker">submit</div>
-                <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)", lineHeight: 1.5 }}>
-                  <Link to="/app/submit" style={{ color: "rgba(199,210,254,.9)" }}>
-                    Submit a company you're watching →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </aside>
+        {/* Table - full width */}
+        <div className="py-panel">
+          <table className="pythh-table" style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "10px 14px" }}>Sector / Theme</th>
+                <th style={{ textAlign: "center", padding: "10px 14px", width: 80 }}>Direction</th>
+                <th style={{ textAlign: "right", padding: "10px 14px", width: 100 }}>Strength</th>
+                <th style={{ textAlign: "right", padding: "10px 14px", width: 80 }}>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {signals.map((s) => (
+                <tr key={s.id}>
+                  <td style={{ padding: "10px 14px", fontWeight: 500, color: "rgba(255,255,255,.85)" }}>
+                    {s.sector}
+                  </td>
+                  <td style={{ padding: "10px 14px", textAlign: "center", fontSize: 16 }}>
+                    {dirArrow(s.direction)}
+                    {s.direction === "up" && s.strength > 0.75 && dirArrow(s.direction)}
+                  </td>
+                  <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13 }}>
+                    {s.strength.toFixed(2)}
+                  </td>
+                  <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--py-muted)", fontSize: 12 }}>
+                    {s.time}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Bottom action */}
+        <div style={{ marginTop: 24, textAlign: "center" }}>
+          <Link 
+            to="/app/submit" 
+            style={{ 
+              display: "inline-block",
+              padding: "10px 20px",
+              borderRadius: 6,
+              background: "rgba(255,255,255,.04)",
+              border: "1px solid rgba(255,255,255,.1)",
+              color: "rgba(199,210,254,.9)",
+              fontSize: 13,
+              textDecoration: "none",
+              transition: "all 0.2s"
+            }}
+          >
+            Submit a company you're watching →
+          </Link>
         </div>
       </div>
     </div>
