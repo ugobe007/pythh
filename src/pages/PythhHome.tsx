@@ -161,7 +161,12 @@ export default function PythhHome() {
 
   const submit = () => {
     const trimmed = url.trim();
-    if (!trimmed) return;
+    console.log('[PythhHome] Submit called with:', trimmed);
+    
+    if (!trimmed) {
+      console.log('[PythhHome] Empty URL - aborting');
+      return;
+    }
     
     // Clear previous errors
     setUrlError('');
@@ -172,20 +177,23 @@ export default function PythhHome() {
     for (const [typo, correct] of Object.entries(COMMON_TLD_TYPOS)) {
       if (lowerUrl.endsWith(typo)) {
         const suggested = trimmed.slice(0, -typo.length) + correct;
+        console.log('[PythhHome] TLD typo detected:', typo, '→', correct);
         setSuggestion(suggested);
         setUrlError(`Did you mean ${correct}?`);
         return;
       }
     }
     
-    // Basic domain format validation
+    // Basic domain format validation (relaxed)
     const domain = extractDomain(trimmed);
-    if (!domain.includes('.') || domain.length < 4) {
+    if (!domain.includes('.')) {
+      console.log('[PythhHome] No TLD detected:', domain);
       setUrlError('Please enter a valid domain (e.g., example.com)');
       return;
     }
     
     // All checks passed - proceed to pythh engine
+    console.log('[PythhHome] Navigating to:', `/signals?url=${encodeURIComponent(trimmed)}`);
     navigate(`/signals?url=${encodeURIComponent(trimmed)}`);
   };
 
@@ -258,7 +266,6 @@ export default function PythhHome() {
             <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
-            <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/matches" className="hover:text-white">Matches</Link>
             <Link to="/trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
