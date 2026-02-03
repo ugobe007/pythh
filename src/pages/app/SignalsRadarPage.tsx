@@ -268,6 +268,37 @@ export default function SignalsRadarPage() {
     );
   }
   
+  // MISSING CONTEXT: No URL/ID provided (routing broken or direct access)
+  if (uiState.mode === 'missing_context') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center p-8">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="flex justify-center">
+            <AlertCircle className="w-16 h-16 text-yellow-500/80" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">No Startup Selected</h2>
+          <p className="text-gray-400 leading-relaxed">
+            Submit a URL from the homepage to see personalized investor signals and matches.
+          </p>
+          <div className="flex flex-col gap-3 pt-4">
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            >
+              ← Analyze a Startup
+            </button>
+            <button
+              onClick={() => navigate('/app/radar')}
+              className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors"
+            >
+              Browse Startups
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   if (uiState.mode === 'picker') {
     return <StartupPicker onSelect={handlePickStartup} />;
   }
