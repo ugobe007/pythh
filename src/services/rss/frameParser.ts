@@ -1,7 +1,7 @@
 // src/services/rss/frameParser.ts
 
 // Import inference engine for fast zero-cost classification
-const eventClassifier = require('../../../lib/event-classifier');
+import eventClassifier from '../../../lib/event-classifier';
 
 export type FrameType = "BIDIRECTIONAL" | "DIRECTIONAL" | "SELF_EVENT" | "EXEC_EVENT" | "UNKNOWN";
 

@@ -16,6 +16,7 @@ import type { MatchRow, StartupContext } from '@/lib/pythh-types';
 import { 
   buildRadarViewModel, 
   validateRadarViewModel,
+  mapMatchRowToRadarRow,
   type RadarViewModel 
 } from '@/lib/radar-view-model';
 
@@ -101,8 +102,6 @@ export function useLegacyRadarAdapter(
 ): { unlockedRows: import('@/lib/radar-view-model').RadarRowViewModel[]; lockedRows: import('@/lib/radar-view-model').RadarRowViewModel[] } {
   return useMemo(() => {
     const effectiveGodScore = godScore ?? context?.god?.total ?? 50;
-    
-    const { mapMatchRowToRadarRow } = require('@/lib/radar-view-model');
     
     const mapped = rows.map(row => mapMatchRowToRadarRow(row, effectiveGodScore));
     
