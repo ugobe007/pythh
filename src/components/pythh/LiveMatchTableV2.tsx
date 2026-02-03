@@ -100,7 +100,10 @@ export function LiveMatchTable({
   }
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div
+      data-testid="match-table"
+      className={`space-y-2 ${className}`}
+    >
       {/* Column Headers - minimal, uppercase, quiet */}
       <div className="h-10 flex items-center gap-4 px-5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
         <div className="flex-1">Investor</div>
