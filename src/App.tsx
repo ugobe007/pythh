@@ -123,13 +123,13 @@ const App: React.FC = () => {
           {/* ═══════════════════════════════════════════════════════════════
               PYTHH v2 — Supabase-inspired founder flow (Jan 2026)
               /         → Home (two-column hero, pipeline, engine preview)
-              /signals  → Signals page (market telemetry)
               /matches  → Matches page (investor targets)
               /trends   → Trends page (market scoreboard)
               /how-it-works → Documentation-style explainer
+              
+              NOTE: /signals is REDIRECT ONLY (see below) - routes to pythh engine
           ═══════════════════════════════════════════════════════════════ */}
           <Route path="/" element={<PythhHome />} />
-          <Route path="/signals" element={<PythhSignalsPage />} />
           <Route path="/matches" element={<PythhMatchesPage />} />
           <Route path="/trends" element={<PythhTrendsPage />} />
           <Route path="/how-it-works" element={<HowPythhWorksPage />} />
