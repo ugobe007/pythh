@@ -63,7 +63,6 @@ import SharedSignalCardPage from './pages/SharedSignalCardPage'; // Public share
 import SharedSurfacePage from './pages/SharedSurfacePage'; // Public share links (scores, investors, trends)
 import FounderCommunityPage from './pages/FounderCommunityPage'; // Founder community
 import SignalsExplorer from './pages/app/SignalsExplorer';
-import SignalsContext from './pages/app/SignalsContext';
 
 // Pythh founder pages (new UI)
 import SignalsRadarPage from './pages/app/SignalsRadarPage';
@@ -199,7 +198,6 @@ const App: React.FC = () => {
             <Route index element={<Dashboard />} />
             <Route path="logs" element={<Logs />} />
             <Route path="signals" element={<SignalsExplorer />} />
-            <Route path="signals-context" element={<SignalsContext />} />
             <Route path="startup/:id" element={<StartupIntelligencePage />} />
             <Route path="signal-card" element={<SignalCardPage />} />
             
