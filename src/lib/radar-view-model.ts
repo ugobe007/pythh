@@ -133,11 +133,18 @@ function deriveLockedContext(fitTier: number): string {
  * 
  * @param row - Raw MatchRow from get_live_match_table RPC
  * @param godScore - Startup's GOD score (injected, NOT derived)
+ * @param index - Row index (0-based) for auto-unlock logic
  */
 export function mapMatchRowToRadarRow(
   row: MatchRow,
-  godScore: number
+  godScore: number,
+  index?: number
 ): RadarRowViewModel {
+  // --- AUTO-UNLOCK TOP 5 ---
+  // Top 5 investors are always unlocked to show founders the value
+  // Rows 6+ require unlock action
+  const isAutoUnlocked = index !== undefined && index < 5;
+  const effectivelyLocked = row.is_locked && !isAutoUnlocked;
   // --- SIGNAL ---
   // Source: row.signal_score (0-10 from RPC)
   // Delta source: momentum_bucket (until we have investor_startup_signal.delta_7d)
@@ -161,12 +168,12 @@ export function mapMatchRowToRadarRow(
   // --- STATUS ---
   // Deterministic: locked → LOCKED, else READY
   // LIVE reserved for future real-time indicator
-  const status: RadarRowViewModel['status'] = row.is_locked ? 'LOCKED' : 'READY';
+  const status: RadarRowViewModel['status'] = effectivelyLocked ? 'LOCKED' : 'READY';
   
   // --- CONTEXT ---
   // Unlocked: from investor data (not available in current MatchRow)
   // Locked: derived from FIT tier
-  const context = row.is_locked
+  const context = effectivelyLocked
     ? deriveLockedContext(fitTier)
     : null; // TODO: Add investor.thesis or investment_focus
   
@@ -176,20 +183,20 @@ export function mapMatchRowToRadarRow(
   
   const rowGlow: RadarRowViewModel['glow']['row'] = 
     hasHighSignal ? 'signal' : 
-    (hasHighFit && !row.is_locked) ? 'good' : 
+    (hasHighFit && !effectivelyLocked) ? 'good' : 
     'none';
   
   const actionGlow: RadarRowViewModel['glow']['action'] = 
-    row.is_locked ? 'locked' : 'none';
+    effectivelyLocked ? 'locked' : 'none';
   
   return {
     investorId: row.investor_id,
     rank: row.rank,
     
     entity: {
-      name: row.is_locked ? 'Locked Investor' : (row.investor_name ?? 'Unknown'),
+      name: effectivelyLocked ? 'Locked Investor' : (row.investor_name ?? 'Unknown'),
       context,
-      isLocked: row.is_locked,
+      isLocked: effectivelyLocked,
     },
     
     signal: {
@@ -211,7 +218,7 @@ export function mapMatchRowToRadarRow(
     
     status,
     
-    action: row.is_locked ? 'Unlock' : 'View',
+    action: effectivelyLocked ? 'Unlock' : 'View',
     
     glow: {
       row: rowGlow,
@@ -251,8 +258,8 @@ export function buildRadarViewModel(
     );
   }
   
-  // Map all rows
-  const mappedRows = rows.map(row => mapMatchRowToRadarRow(row, godScore));
+  // Map all rows with index for auto-unlock logic
+  const mappedRows = rows.map((row, index) => mapMatchRowToRadarRow(row, godScore, index));
   
   // Separate locked/unlocked
   const unlockedRows = mappedRows.filter(r => !r.entity.isLocked);

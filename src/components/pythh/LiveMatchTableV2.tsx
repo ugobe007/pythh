@@ -117,10 +117,11 @@ export function LiveMatchTable({
       </div>
 
       {/* Unlocked rows first (Ready) */}
-      {unlockedRows.map((row) => (
+      {unlockedRows.map((row, index) => (
         <RadarTableRow
           key={row.investorId}
           row={row}
+          rowIndex={index}
           isPending={isPending(row.investorId)}
           onUnlock={onUnlock}
           onView={handleView}
@@ -128,11 +129,23 @@ export function LiveMatchTable({
         />
       ))}
 
+      {/* Separator + CTA after top 5 */}
+      {unlockedRows.length >= 5 && lockedRows.length > 0 && (
+        <div className="h-12 flex items-center justify-center border-b border-zinc-800/50 bg-zinc-900/20">
+          <div className="text-xs text-gray-400">
+            <Lock className="w-3 h-3 inline mr-1.5 -mt-0.5" />
+            <span className="font-medium text-gray-300">{lockedRows.length} more matches</span>
+            {' '}\u2014 unlock to reveal
+          </div>
+        </div>
+      )}
+
       {/* Locked rows - no visual separator */}
-      {lockedRows.map((row) => (
+      {lockedRows.map((row, index) => (
         <RadarTableRow
           key={row.investorId}
           row={row}
+          rowIndex={unlockedRows.length + index}
           isPending={isPending(row.investorId)}
           onUnlock={onUnlock}
           onView={handleView}
@@ -153,17 +166,27 @@ interface RadarTableRowProps {
   onUnlock: (investorId: string) => Promise<void>;
   onView: (investorId: string) => void;
   unlocksDisabled: boolean;
+  rowIndex: number; // Add row index for blur logic
 }
 
-function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled }: RadarTableRowProps) {
+function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex }: RadarTableRowProps) {
   // Supabase style: no glows, just clean borders and hover states
   const isHighSignal = row.signal.value >= RADAR_THRESHOLDS.SIGNAL_WINDOW_OPENING;
   
+  // Top 5 are unlocked, rows 6+ get blur effect if locked
+  const shouldBlur = row.entity.isLocked && rowIndex >= 5;
+  
   return (
     <div
-      className="h-14 w-full flex items-center gap-4 px-4 border-b border-zinc-800/30 hover:bg-zinc-900/40 transition-colors cursor-default"
+      className={`relative h-14 w-full flex items-center gap-4 px-4 border-b border-zinc-800/30 hover:bg-zinc-900/40 transition-colors ${
+        shouldBlur ? 'opacity-60' : ''
+      }`}
       data-testid={`match-row-${row.investorId}`}
     >
+      {/* Blur overlay for rows 6+ */}
+      {shouldBlur && (
+        <div className="absolute inset-0 backdrop-blur-[1.5px] pointer-events-none" />
+      )}
       {/* ENTITY: Investor name + context - ALWAYS UNLOCKED */}
       <div className="flex-1 flex items-center gap-3 min-w-0">
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center flex-shrink-0">

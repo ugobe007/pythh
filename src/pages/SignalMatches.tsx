@@ -333,9 +333,14 @@ export default function SignalMatches() {
           <div className="flex items-center justify-between">
             {/* Left: Title + Founder Guidance */}
             <div className="flex-1 max-w-3xl">
-              <h1 className="text-2xl font-semibold text-white mb-2">
-                Signal Matches
-              </h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-2xl font-semibold text-white">
+                  Signal Matches
+                </h1>
+                <span className="px-2 py-0.5 text-xs font-medium bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 rounded">
+                  Top 5 Free
+                </span>
+              </div>
               <p className="text-base text-gray-300 mb-2">
                 Investor alignment for your startup.
               </p>
