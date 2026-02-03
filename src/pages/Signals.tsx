@@ -63,7 +63,7 @@ const NAV = [
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PythhSignalsPage() {
+export default function Signals() {
   const [signals, setSignals] = useState<Signal[]>(DEMO_SIGNALS);
   const [window, setWindow] = useState<"24h" | "7d" | "30d">("24h");
 

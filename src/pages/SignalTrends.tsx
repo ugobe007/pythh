@@ -280,7 +280,7 @@ const DeltaBadge: React.FC<{ delta: number; accent: string }> = ({ delta, accent
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-const PythhTrendsPage: React.FC = () => {
+const SignalTrends: React.FC = () => {
   const [activeLens, setActiveLens] = useState(VC_LENSES[0]);
   const [activeWindow, setActiveWindow] = useState('24h');
   const [motionEnabled, setMotionEnabled] = useState(true);
@@ -893,4 +893,4 @@ const PythhTrendsPage: React.FC = () => {
   );
 };
 
-export default PythhTrendsPage;
+export default SignalTrends;

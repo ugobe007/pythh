@@ -107,7 +107,7 @@ export default function SignalsRadarPage() {
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {
-    // Priority 1: Path param /app/radar/:startupId
+    // Priority 1: Path param /signal-matches/:startupId
     if (startupIdFromPath) return startupIdFromPath;
     
     // Priority 2: Query param ?startup=UUID
@@ -262,7 +262,7 @@ export default function SignalsRadarPage() {
             No startup matched "<span className="text-gray-400">{uiState.searched}</span>"
           </p>
           <button
-            onClick={() => navigate('/app/radar')}
+            onClick={() => navigate('/signal-matches')}
             className="mt-6 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
           >
             Browse all startups
@@ -292,7 +292,7 @@ export default function SignalsRadarPage() {
               ← Analyze a Startup
             </button>
             <button
-              onClick={() => navigate('/app/radar')}
+              onClick={() => navigate('/signal-matches')}
               className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors"
             >
               Browse Startups

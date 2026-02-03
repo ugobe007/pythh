@@ -112,9 +112,9 @@ export function HomeLiveStream({
           row={row}
           onNavigate={(type, id) => {
             if (type === 'startup') {
-              navigate(`/app/radar?startup=${id}`);
+              navigate(`/signal-matches?startup=${id}`);
             } else {
-              navigate(`/app/radar?investor=${id}`);
+              navigate(`/signal-matches?investor=${id}`);
             }
           }}
         />

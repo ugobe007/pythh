@@ -18,7 +18,7 @@ export default function AboutPythh() {
         <a className="text-cyan-200/80 hover:text-cyan-100 transition-colors" href="/signals">
           How signals work →
         </a>
-        <a className="text-cyan-200/80 hover:text-cyan-100 transition-colors" href="/app/radar">
+        <a className="text-cyan-200/80 hover:text-cyan-100 transition-colors" href="/signal-matches">
           See live radar →
         </a>
       </div>

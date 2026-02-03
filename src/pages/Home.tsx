@@ -218,9 +218,9 @@ export default function Home() {
             <LiveMatchesTable
               rows={visibleSlice}
               onAction={(row) => {
-                // v1: route to radar (or investor reveal later)
+                // v1: route to signal-matches (or investor reveal later)
                 // For now keep the UI wired.
-                navigate("/app/radar");
+                navigate("/signal-matches");
               }}
             />
           </div>

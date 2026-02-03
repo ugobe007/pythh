@@ -64,7 +64,7 @@ function trendArrow(t: Match["trend"]) {
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
-export default function PythhMatchesPage() {
+export default function InSignalMatches() {
   const [matches, setMatches] = useState<Match[]>(DEMO_MATCHES);
   const [selected, setSelected] = useState<Match | null>(DEMO_MATCHES[0]);
   const [window] = useState<"24h" | "7d" | "30d">("24h");

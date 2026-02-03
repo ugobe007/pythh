@@ -161,10 +161,10 @@ export default function PythhHome() {
 
   const submit = () => {
     const trimmed = url.trim();
-    console.log('[PythhHome] Submit called with:', trimmed);
+    console.log('[PythhMain] Submit called with:', trimmed);
     
     if (!trimmed) {
-      console.log('[PythhHome] Empty URL - aborting');
+      console.log('[PythhMain] Empty URL - aborting');
       return;
     }
     
@@ -177,7 +177,7 @@ export default function PythhHome() {
     for (const [typo, correct] of Object.entries(COMMON_TLD_TYPOS)) {
       if (lowerUrl.endsWith(typo)) {
         const suggested = trimmed.slice(0, -typo.length) + correct;
-        console.log('[PythhHome] TLD typo detected:', typo, '→', correct);
+        console.log('[PythhMain] TLD typo detected:', typo, '→', correct);
         setSuggestion(suggested);
         setUrlError(`Did you mean ${correct}?`);
         return;
@@ -187,14 +187,14 @@ export default function PythhHome() {
     // Basic domain format validation (relaxed)
     const domain = extractDomain(trimmed);
     if (!domain.includes('.')) {
-      console.log('[PythhHome] No TLD detected:', domain);
+      console.log('[PythhMain] No TLD detected:', domain);
       setUrlError('Please enter a valid domain (e.g., example.com)');
       return;
     }
     
-    // All checks passed - proceed to canonical pythh engine (bypass /signals alias)
-    console.log('[PythhHome] Navigating to CANONICAL:', `/app/radar?url=${encodeURIComponent(trimmed)}`);
-    navigate(`/app/radar?url=${encodeURIComponent(trimmed)}`);
+    // All checks passed - proceed to canonical pythh engine (direct to /signal-matches)
+    console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(trimmed)}`);
+    navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
   };
 
   const applySuggestion = () => {

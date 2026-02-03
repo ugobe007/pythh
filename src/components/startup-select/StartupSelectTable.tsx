@@ -7,7 +7,7 @@
 //   1. All values pre-computed in view model
 //   2. Row height is 64px
 //   3. Glow-only decoration (no borders)
-//   4. Click → Navigate to /app/radar?startup=<id>
+//   4. Click → Navigate to /signal-matches?startup=<id>
 // ============================================================================
 
 import { useNavigate } from 'react-router-dom';
@@ -57,7 +57,7 @@ export function StartupSelectTable({
   const navigate = useNavigate();
 
   const handleEnter = (startupId: string) => {
-    navigate(`/app/radar?startup=${startupId}`);
+    navigate(`/signal-matches?startup=${startupId}`);
   };
 
   if (loading && rows.length === 0) {

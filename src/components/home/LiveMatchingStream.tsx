@@ -132,9 +132,9 @@ export default function LiveMatchingStream() {
 
   function handleRowClick(match: LiveMatch) {
     if (match.entityType === 'startup') {
-      navigate('/app/radar');
+      navigate('/signal-matches');
     } else {
-      navigate('/app/signals');
+      navigate('/app/signals-dashboard');
     }
   }
 
