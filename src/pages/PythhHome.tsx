@@ -231,13 +231,12 @@ export default function PythhHome() {
             <p className="text-zinc-400 text-lg">We align your startup with investor signals. No guessing. Just math.</p>
           </div>
           
-          {/* Right: Live stats in white, slightly inset */}
-          <div className="text-right space-y-2 text-white font-medium pr-8">
+          {/* Right: Live stats - subtle Supabase style */}
+          <div className="text-right space-y-1.5 text-white text-sm font-normal pr-8">
             <div>Startups: {stats.startups.toLocaleString()}</div>
             <div>Investors: {stats.investors.toLocaleString()}</div>
             <div>Matches: {stats.matches.toLocaleString()}</div>
             <div>Signals: {stats.signals.toLocaleString()}</div>
-            <div>GOD Score: {stats.godScore}</div>
           </div>
         </div>
 
