@@ -62,13 +62,14 @@ import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import { useLegacyRadarAdapter } from '@/hooks/useRadarViewModel';
 
 // -----------------------------------------------------------------------------
-// RESOLUTION STATE (for "not found" / "picker" UI states only)
+// RESOLUTION STATE (for "not found" / "picker" / "missing context" UI states)
 // -----------------------------------------------------------------------------
 type UIState = 
   | { mode: 'loading' }
   | { mode: 'ready' }
   | { mode: 'not_found'; searched: string }
-  | { mode: 'picker' };
+  | { mode: 'picker' }
+  | { mode: 'missing_context' };  // NEW: No URL/ID provided from public flow
 
 export default function SignalsRadarPage() {
   const navigate = useNavigate();
@@ -132,9 +133,17 @@ export default function SignalsRadarPage() {
       return { mode: 'not_found', searched: resolverResult.searched || urlToResolve };
     }
     
-    // No inputs at all: show picker
+    // RUNTIME INVARIANT: Detect missing context from public flow
+    // If no URL param, no startup ID, and no picked startup → show empty state
+    // This prevents "nothing nothing nothing" when routing breaks
+    const hasAnyInput = !!(urlToResolve || startupIdFromPath || startupIdFromQuery || pickedStartupId);
+    if (!hasAnyInput) {
+      return { mode: 'missing_context' };
+    }
+    
+    // Has input but waiting for resolution: show picker
     return { mode: 'picker' };
-  }, [resolvedStartupId, urlToResolve, resolverLoading, resolverResult]);
+  }, [resolvedStartupId, urlToResolve, resolverLoading, resolverResult, startupIdFromPath, startupIdFromQuery, pickedStartupId]);
   
   // Resolved name (for header)
   const resolvedName = useMemo(() => {

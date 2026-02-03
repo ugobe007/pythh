@@ -71,6 +71,7 @@ import SignalsContextPage from './pithh/SignalsContextPage';
 // Pythh founder pages (new UI)
 import SignalsRadarPage from './pages/app/SignalsRadarPage';
 import InvestorRevealPage from './pages/app/InvestorRevealPage';
+import SignalsAlias from './pages/app/SignalsAlias';
 
 // PYTHH v2 — New surfaces (Jan 2026)
 import SubmitStartupPage from './pages/SubmitStartupPage';
@@ -144,16 +145,30 @@ const App: React.FC = () => {
             <Route path="/demo" element={<DemoPageDoctrine />} />
           </Route>
           
-          {/* PYTHH SIGNAL RADAR (live capital intelligence surface) */}
-          <Route path="/signals-radar" element={<SignalRadarPage />} />
+          {/* ═══════════════════════════════════════════════════════════════════
+              PYTHH ENGINE ALIASES - REDIRECT TO CANONICAL /app/radar
+              ═══════════════════════════════════════════════════════════════════
+              Both /signals and /signals-radar are REDIRECT-ONLY aliases.
+              They cannot render content - only forward to /app/radar.
+              
+              Canonical engine: /app/radar (SignalsRadarPage)
+              
+              Flow:
+              1. Homepage submits URL → /signals?url=example.com
+              2. SignalsAlias redirects → /app/radar?url=example.com
+              3. SignalsRadarPage processes URL via useResolveStartup
+              4. Returns results (5 unlocked + 50 locked signals)
+              
+              This structure makes it IMPOSSIBLE to accidentally add
+              content pages at /signals or /signals-radar.
+          ═══════════════════════════════════════════════════════════════════ */}
+          <Route path="/signals" element={<SignalsAlias />} />
+          <Route path="/signals-radar" element={<SignalsAlias />} />
           
           {/* SIGNALS EXPLAINER (educational marketing page) */}
           <Route path="/what-are-signals" element={<SignalsExplainer />} />
           
-          {/* SIGNALS CONTEXT (post-Radar macro explanation layer) */}
-          <Route path="/signals-context" element={<SignalsContextPage />} />
-          
-          {/* SIGNAL RESULTS (URL submission landing) */}
+          {/* SIGNAL RESULTS (legacy - consider deprecating) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />
           
           {/* INVESTOR PROFILE */}
@@ -174,26 +189,7 @@ const App: React.FC = () => {
           <Route path="/hotmatch" element={<Navigate to={toWithQuery('/discover')} replace />} />
           <Route path="/results" element={<Navigate to={toWithQuery('/matches')} replace />} />
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              PYTHH ENGINE CANONICAL REDIRECT - DO NOT DELETE
-              ═══════════════════════════════════════════════════════════════════
-              This redirect is CRITICAL for the pythh URL submission workflow:
-              
-              Homepage → /signals?url=example.com → /signals-radar?url=example.com
-              
-              Removing this breaks: scrape → collect → profile → score → match
-              
-              Flow:
-              1. PythhHome.tsx submits URL to /signals?url=...
-              2. THIS REDIRECT forwards to /signals-radar with query preserved
-              3. SignalsRadarPage (at /signals-radar) handles the URL resolution
-              4. useResolveStartup hook calls resolve_startup_by_url RPC
-              5. RPC performs: scrape → collect → build → score → match
-              6. Returns: 5 unlocked + 50 locked investor signals
-              
-              DO NOT REMOVE OR MODIFY WITHOUT UNDERSTANDING FULL WORKFLOW
-              ═══════════════════════════════════════════════════════════════════ */}
-          <Route path="/signals" element={<Navigate to={toWithQuery('/signals-radar')} replace />} />
+          {/* *** /signals redirect removed - now handled by SignalsAlias above *** */}
           
           {/* LEGACY (Phase B cleanup) */}
           <Route path="/live-match" element={<Navigate to="/live" replace />} />
@@ -207,6 +203,7 @@ const App: React.FC = () => {
             <Route path="logs" element={<Logs />} />
             <Route path="signals" element={<SignalsExplorer />} />
             <Route path="signals-context" element={<SignalsContext />} />
+            <Route path="context" element={<SignalsContextPage />} />  {/* Post-Radar macro explanation */}
             <Route path="startup/:id" element={<StartupIntelligencePage />} />
             <Route path="signal-card" element={<SignalCardPage />} />
             
