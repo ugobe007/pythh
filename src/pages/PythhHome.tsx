@@ -45,7 +45,40 @@ export default function PythhHome() {
   const [tapeX, setTapeX] = useState(0);
   const [signalTape, setSignalTape] = useState(STATIC_SIGNAL_TAPE);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
+  const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0, signals: 0, godScore: 0 });
   const navigate = useNavigate();
+
+  // Fetch live platform stats
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const [startupsRes, investorsRes, matchesRes, signalsRes, godScoreRes] = await Promise.all([
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
+          supabase.from('investors').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_events').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_uploads').select('total_god_score').not('total_god_score', 'is', null)
+        ]);
+        
+        const avgGodScore = godScoreRes.data?.length > 0
+          ? Math.round(godScoreRes.data.reduce((sum, s) => sum + (s.total_god_score || 0), 0) / godScoreRes.data.length)
+          : 0;
+        
+        setStats({
+          startups: startupsRes.count || 0,
+          investors: investorsRes.count || 0,
+          matches: matchesRes.count || 0,
+          signals: signalsRes.count || 0,
+          godScore: avgGodScore
+        });
+      } catch (err) {
+        console.error('Failed to fetch stats:', err);
+      }
+    }
+    fetchStats();
+    const interval = setInterval(fetchStats, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch live investor signals for ticker AND table
   useEffect(() => {
@@ -221,6 +254,34 @@ export default function PythhHome() {
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
             Live investor signals updating every 60 seconds
           </span>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          LIVE PLATFORM STATS
+          ═══════════════════════════════════════════════════════════════════ */}
+      <section className="max-w-6xl mx-auto px-8 py-8">
+        <div className="grid grid-cols-5 gap-4">
+          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
+            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Startups</div>
+            <div className="text-2xl font-bold text-white">{stats.startups.toLocaleString()}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
+            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Investors</div>
+            <div className="text-2xl font-bold text-white">{stats.investors.toLocaleString()}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
+            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Matches</div>
+            <div className="text-2xl font-bold text-white">{stats.matches.toLocaleString()}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
+            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Signals</div>
+            <div className="text-2xl font-bold text-white">{stats.signals.toLocaleString()}</div>
+          </div>
+          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-4">
+            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Avg GOD Score</div>
+            <div className="text-2xl font-bold text-cyan-400">{stats.godScore}</div>
+          </div>
         </div>
       </section>
 
