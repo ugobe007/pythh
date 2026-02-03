@@ -130,14 +130,16 @@ export default function PythhHome() {
   // ═══════════════════════════════════════════════════════════════════════════
   // This is the CANONICAL workflow entry:
   // 1. User submits URL → navigate to /signals?url=...
-  // 2. /signals redirects to /signals-radar (App.tsx line ~180)
+  // 2. SignalsAlias redirects → /app/radar?url=...
   // 3. SignalsRadarPage resolves URL via useResolveStartup hook
   // 4. Hook calls resolve_startup_by_url RPC (pythh-rpc.ts)
   // 5. RPC: scrapes → collects data → builds profile → scores → matches
   // 6. Returns: 5 unlocked signals + 50 locked signals
   // ═══════════════════════════════════════════════════════════════════════════
   const submit = () => {
-    if (url.trim()) navigate(`/signals?url=${encodeURIComponent(url.trim())}`);
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    navigate(`/signals?url=${encodeURIComponent(trimmed)}`);
   };
 
   const deltaColor = (d: string) => {
@@ -255,6 +257,7 @@ export default function PythhHome() {
           style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
         >
           <input
+            data-testid="home-url-input"
             type="text"
             value={url}
             onChange={e => setUrl(e.target.value)}
@@ -263,6 +266,7 @@ export default function PythhHome() {
             className="flex-1 bg-zinc-900/80 border border-cyan-900/50 rounded-l px-4 py-3 text-white placeholder-zinc-600 outline-none focus:border-cyan-700/50"
           />
           <button
+            data-testid="home-analyze-button"
             onClick={submit}
             className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 text-white border border-cyan-900/50 border-l-0 rounded-r transition whitespace-nowrap"
           >

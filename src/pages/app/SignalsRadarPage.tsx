@@ -1,7 +1,8 @@
 // ============================================================================
 // SignalsRadarPage - PYTHH ENGINE CANONICAL PROCESSOR
 // ============================================================================
-// Route: /app/radar AND /signals-radar (via redirect from /signals)
+// Route: /app/radar (CANONICAL)
+// Aliases (redirect-only): /signals, /signals-radar → /app/radar
 // 
 // *** CRITICAL PYTHH WORKFLOW HANDLER ***
 // This component is the EXECUTION POINT for the pythh URL submission workflow:
@@ -9,7 +10,7 @@
 // CANONICAL FLOW:
 // 1. User submits URL on homepage (PythhHome.tsx)
 // 2. Navigate to /signals?url=example.com
-// 3. App.tsx redirects /signals → /signals-radar
+// 3. SignalsAlias redirects → /app/radar?url=example.com
 // 4. THIS COMPONENT receives ?url=example.com
 // 5. useResolveStartup hook (line ~72) calls resolve_startup_by_url RPC
 // 6. RPC performs FULL WORKFLOW:

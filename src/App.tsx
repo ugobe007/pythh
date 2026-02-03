@@ -48,7 +48,6 @@ import DiscoveryResultsPage from './pages/DiscoveryResultsPage';
 
 // Public pages
 import Live from './pages/public/Live';
-import Signals from './pages/public/Signals';
 import DemoPageDoctrine from './pages/DemoPageDoctrine';
 import SignalResultsPage from './pages/SignalResultsPage';
 import InvestorProfile from './pages/InvestorProfile';
