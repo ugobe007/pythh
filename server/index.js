@@ -4797,6 +4797,10 @@ app.use('/api/match', matchRunRoutes);
 const resolveRouter = require('./routes/resolve');
 app.use('/api', resolveRouter);
 
+// INSTANT Submit API - The Pythh Fast Path (URL → Matches in <3 seconds)
+const instantSubmit = require('./routes/instantSubmit');
+app.use('/api/instant', instantSubmit);
+
 // Discovery API routes (Phase 3: Job-based submit/poll pattern)
 const discoverySubmit = require('./routes/discoverySubmit');
 const discoveryResults = require('./routes/discoveryResults');

@@ -340,6 +340,27 @@ module.exports = {
       }
       // Scrapes 50+ VC firm team pages
       // Discovers individual partners, principals, associates
+    },
+    
+    // ========================================
+    // PYTHH URL MONITOR - AI Health Agent
+    // ========================================
+    {
+      name: 'pythh-url-monitor',
+      script: 'node',
+      args: 'scripts/pythh-url-monitor.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 3,
+      cron_restart: '*/5 * * * *',  // Every 5 minutes
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Monitors SUBMIT URL and Matching Engine health
+      // Auto-heals stuck jobs and triggers match generation
     }
   ]
 };
