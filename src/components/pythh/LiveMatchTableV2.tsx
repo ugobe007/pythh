@@ -13,7 +13,7 @@
 // ============================================================================
 
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Eye } from 'lucide-react';
+import { User, Lock, Eye, ExternalLink } from 'lucide-react';
 import type { RadarRowViewModel } from '@/lib/radar-view-model';
 import { RADAR_THRESHOLDS } from '@/lib/radar-view-model';
 import { UnlockButton } from './UnlockButton';
@@ -194,9 +194,20 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-white">
-              {row.entity.name}
-            </span>
+            {/* TOP 5 UNLOCKED: Clickable investor name with link */}
+            {!row.entity.isLocked && rowIndex < 5 ? (
+              <button
+                onClick={() => onView(row.investorId)}
+                className="font-medium text-sm text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1.5 transition-colors"
+              >
+                {row.entity.name}
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            ) : (
+              <span className="font-medium text-sm text-white">
+                {row.entity.name}
+              </span>
+            )}
             {/* Warming badge for fallback tier */}
             {row.status === 'WARMING' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">

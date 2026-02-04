@@ -16,7 +16,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
-const { normalizeUrl } = require('../lib/urlNormalize');
+const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;

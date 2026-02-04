@@ -347,6 +347,18 @@ export default function SignalMatches() {
       {/* Header - Supabase style: flat, minimal */}
       <header className="border-b border-zinc-800/50">
         <div className="max-w-7xl mx-auto px-6 py-6">
+          {/* Navigation breadcrumb */}
+          <div className="flex items-center gap-2 mb-4 text-sm">
+            <button 
+              onClick={() => navigate('/')}
+              className="text-cyan-400 hover:text-cyan-300 hover:underline transition-colors"
+            >
+              ← Home
+            </button>
+            <span className="text-gray-600">/</span>
+            <span className="text-gray-400">Signal Matches</span>
+          </div>
+          
           <div className="flex items-center justify-between">
             {/* Left: Title + Founder Guidance */}
             <div className="flex-1 max-w-3xl">

@@ -320,6 +320,18 @@ export default function SignalsRadarPage() {
       {/* Header - per spec: "SIGNAL RADAR" with subtitle and live indicator */}
       <header className="border-b border-gray-800 bg-gray-900/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
+          {/* Navigation breadcrumb */}
+          <div className="flex items-center gap-2 mb-3 text-sm">
+            <button 
+              onClick={() => navigate('/')}
+              className="text-cyan-400 hover:text-cyan-300 hover:underline transition-colors"
+            >
+              ← Home
+            </button>
+            <span className="text-gray-600">/</span>
+            <span className="text-gray-400">Signal Radar</span>
+          </div>
+          
           <div className="flex items-center justify-between">
             {/* Left: Title + Subtitle */}
             <div>
