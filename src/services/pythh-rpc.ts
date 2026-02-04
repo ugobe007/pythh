@@ -36,12 +36,55 @@ export interface ResolverResponse {
 
 export const pythhRpc = {
   // Resolve startup by URL or name
+  // Uses backend API for fuzzy matching (lovable.com → lovable.so)
   async resolveStartup(url: string): Promise<ResolverResponse> {
+    // First try the backend API which has smart fuzzy matching
+    try {
+      const apiUrl = import.meta.env.PROD 
+        ? '/api/instant/submit' 
+        : 'http://localhost:3002/api/instant/submit';
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.startup_id) {
+          return {
+            found: true,
+            startup_id: result.startup_id,
+            name: result.startup?.name,
+            website: result.startup?.website,
+            searched: url,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[pythhRpc] Backend API failed, falling back to RPC:', e);
+    }
+    
+    // Fallback to direct RPC (exact match only)
     const { data, error } = await supabase.rpc('resolve_startup_by_url', {
       p_url: url,
     });
     if (error) throw error;
-    return data as ResolverResponse;
+    
+    // Transform RPC response to ResolverResponse format
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.resolved || row?.startup_id) {
+      return {
+        found: true,
+        startup_id: row.startup_id,
+        name: row.startup_name,
+        website: row.canonical_url,
+        searched: url,
+      };
+    }
+    
+    return { found: false, searched: url };
   },
 
   // Get startup context (GOD, signals, comparison, entitlements)
