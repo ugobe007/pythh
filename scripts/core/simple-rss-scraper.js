@@ -528,6 +528,7 @@ async function scrapeRssFeeds() {
             name: companyName,
             description: (item.contentSnippet || item.title || '').slice(0, 500),
             website: item.link,
+            source: 'rss',            // ✅ For tracking discovery source
             rss_source: source.name,  // ✅ CORRECT - not "source"
             article_url: item.link,   // ✅ CORRECT - not "source_url"
             article_title: item.title || '',

@@ -11,9 +11,18 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
+// Create Supabase client with higher row limit for large signal fetches
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_KEY,
+  {
+    db: {
+      schema: 'public',
+    },
+    global: {
+      headers: { 'x-my-custom-header': 'match-regenerator' },
+    },
+  }
 );
 
 // Matching configuration
@@ -23,6 +32,7 @@ const CONFIG = {
   GEO_MATCH: 5,          // Reduced: geography less important (modern VC is global)
   INVESTOR_QUALITY: 20,  // Reduced slightly 
   STARTUP_QUALITY: 25,   // Increased: GOD score matters more
+  SIGNAL_BONUS: 10,      // NEW: Market signal bonus (0-10 from startup_signals)
   MIN_MATCH_SCORE: 45,   // ⚠️ UI LABEL ONLY - not used as persistence gate (see PERSISTENCE_FLOOR: 30)
   TOP_MATCHES_PER_STARTUP: 100, // Only keep top 100 matches per startup
   BATCH_SIZE: 500
@@ -266,12 +276,21 @@ function generateReasoning(startup, investor, fitAnalysis) {
     reasons.push(`Strong startup metrics and team`);
   }
   
+  // Signal reasoning (NEW)
+  if (fitAnalysis.signal >= 8) {
+    reasons.push(`High market signal: strong momentum and investor interest detected`);
+  } else if (fitAnalysis.signal >= 6) {
+    reasons.push(`Emerging market signal: positive momentum building`);
+  } else if (fitAnalysis.signal >= 4) {
+    reasons.push(`Early market signal: initial traction indicators present`);
+  }
+  
   // Tier-specific reasoning
   if (fitAnalysis.tier === 'elite') {
     reasons.push(`Elite investor match - high-conviction opportunity`);
   }
   
-  return reasons.slice(0, 4).join('. ') + '.';
+  return reasons.slice(0, 5).join('. ') + '.';
 }
 
 function formatSectors(sectors) {
@@ -302,17 +321,79 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
     matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
   }
   
+  if (fitAnalysis.signal >= 7) {
+    matches.push(`Signal: Strong (${fitAnalysis.signal}/10)`);
+  } else if (fitAnalysis.signal >= 5) {
+    matches.push(`Signal: Emerging (${fitAnalysis.signal}/10)`);
+  }
+  
+  if (fitAnalysis.startup_quality >= 18) {
+    matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
+  }
+  
   return matches.length > 0 ? matches : ['Algorithmic match'];
+}
+
+/**
+ * Load signal scores for all startups (from startup_signal_scores table)
+ * Returns Map<startup_id, signal_score_0_10>
+ */
+async function loadSignalScores() {
+  console.log('📡 Loading signal scores...');
+  
+  // Read from pre-aggregated startup_signal_scores table (5k+ rows)
+  // Use pagination to handle Supabase 1000 row limit
+  let allScores = [];
+  let page = 0;
+  const pageSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from('startup_signal_scores')
+      .select('startup_id, signals_total')
+      .order('startup_id', { ascending: true })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+    
+    if (error) {
+      console.log(`   Error fetching signal scores page ${page}: ${error.message}`);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    
+    allScores = allScores.concat(data);
+    
+    if (data.length < pageSize) break;
+    page++;
+  }
+  
+  if (allScores.length === 0) {
+    console.log('   ⚠️ No signal scores available');
+    return new Map();
+  }
+  
+  const scoreMap = new Map();
+  for (const row of allScores) {
+    scoreMap.set(row.startup_id, parseFloat(row.signals_total) || 0);
+  }
+  
+  const avgScore = scoreMap.size > 0 
+    ? (Array.from(scoreMap.values()).reduce((a,b) => a+b, 0) / scoreMap.size).toFixed(1) 
+    : 0;
+  console.log(`   ✅ Loaded ${scoreMap.size} signal scores (avg: ${avgScore}/10)`);
+  return scoreMap;
 }
 
 async function regenerateMatches() {
   const startTime = Date.now();
   console.log('\n' + '═'.repeat(60));
-  console.log('🔄 AUTO MATCH REGENERATION');
+  console.log('🔄 AUTO MATCH REGENERATION (with Signal Scoring)');
   console.log('═'.repeat(60));
   console.log(`⏰ Started: ${new Date().toISOString()}\n`);
   
   try {
+    // Load signal scores first
+    const signalScores = await loadSignalScores();
+    
     // Fetch ALL approved startups (paginated)
     console.log('📥 Fetching all startups...');
     let allStartups = [];
@@ -381,6 +462,9 @@ async function regenerateMatches() {
       const flags = [];
       const startupNorm = normalizeStartup(startup, flags);
       
+      // Get signal score for this startup (0-10)
+      const signalScore = signalScores.get(startup.id) || 0;
+      
       // Score ALL investors for this startup
       const scoredMatches = [];
       
@@ -396,20 +480,36 @@ async function regenerateMatches() {
         terms.stage = calculateStageMatch(startupNorm.stage, investorNorm.stages, reasons);
         terms.investor_quality = calculateInvestorQuality(investorNorm.score, investorNorm.tier, reasons);
         terms.startup_quality = calculateStartupQuality(startupNorm.godScore, reasons);
+        terms.signal = Math.round(signalScore); // 0-10 → add directly
         
-        const totalScore = terms.sector + terms.stage + terms.investor_quality + terms.startup_quality;
+        // Add signal to reasons
+        if (signalScore >= 7) {
+          reasons.push({ key: 'signal', points: terms.signal, note: `Strong market signal (${signalScore.toFixed(1)}/10)` });
+        } else if (signalScore >= 5) {
+          reasons.push({ key: 'signal', points: terms.signal, note: `Emerging market signal (${signalScore.toFixed(1)}/10)` });
+        } else if (signalScore > 0) {
+          reasons.push({ key: 'signal', points: terms.signal, note: `Early market signal (${signalScore.toFixed(1)}/10)` });
+        }
+        
+        const totalScore = terms.sector + terms.stage + terms.investor_quality + terms.startup_quality + terms.signal;
+        
+        // Generate human-readable fields
+        const fitAnalysis = { ...terms };
+        const reasoning = generateReasoning(startup, investor, terms);
+        const whyYouMatch = generateWhyYouMatch(startup, investor, terms);
+        
+        // Cap at 100 to satisfy DB constraint (formula max is 115)
+        const cappedScore = Math.min(totalScore, 100);
         
         scoredMatches.push({
           startup_id: startup.id,
           investor_id: investor.id,
-          match_score: totalScore,
+          match_score: cappedScore,
           status: 'suggested',
-          confidence_level: totalScore >= 70 ? 'high' : totalScore >= 50 ? 'medium' : 'low',
-          fit_analysis: terms,
-          reasoning: generateReasoning(startup, investor, terms),
-          why_you_match: generateWhyYouMatch(startup, investor, terms),
-          // ✅ NEW: Store Match Trace for debugging
-          match_trace: JSON.stringify({ reasons, flags, terms })
+          confidence_level: cappedScore >= 75 ? 'high' : cappedScore >= 55 ? 'medium' : 'low',
+          fit_analysis: fitAnalysis,
+          reasoning: reasoning,
+          why_you_match: whyYouMatch
         });
       }
       

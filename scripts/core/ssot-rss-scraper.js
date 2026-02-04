@@ -9,11 +9,19 @@
  * 4. Phase B: ONLY create graph joins when parser.graph_safe=true
  * 
  * NO judgment logic allowed in extractor - parser decides everything.
+ * 
+ * Anti-blocking strategies:
+ * - Rotating User-Agents (browser-like)
+ * - Adaptive delays based on response codes
+ * - ETag/Last-Modified caching
+ * - Exponential backoff on failures
+ * - Optional proxy support for blocked sources
  */
 
 require('dotenv').config({ path: '.env.bak' });
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 // Import Phase-Change parser directly (tsx handles TypeScript)
 const { parseFrameFromTitle, toCapitalEvent, setOntologyEntities } = require('../../src/services/rss/frameParser.ts');
@@ -23,21 +31,111 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const parser = new Parser({
-  timeout: 30000,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; HotMatchBot/2.0)',
-    'Accept': 'application/rss+xml, application/xml, text/xml'
-  }
-});
+// ============================================================================
+// PROXY CONFIGURATION (Optional - set in .env)
+// ============================================================================
+// Set PROXY_URL in .env to enable: PROXY_URL=http://user:pass@proxy.example.com:8080
+const PROXY_URL = process.env.PROXY_URL || null;
+const PROXY_ENABLED = !!PROXY_URL;
 
-// Rate limiting
+// Sources that require proxy due to aggressive blocking
+const PROXY_REQUIRED_DOMAINS = [
+  'fortune.com',
+  'wsj.com',
+  'wired.co.uk',
+  'bloomberg.com',
+];
+
+function needsProxy(url) {
+  if (!PROXY_ENABLED) return false;
+  return PROXY_REQUIRED_DOMAINS.some(domain => url.includes(domain));
+}
+
+// ============================================================================
+// ANTI-BLOCKING: User-Agent Rotation
+// ============================================================================
+const USER_AGENTS = [
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+];
+
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
+// Track source health for adaptive behavior
+const sourceHealth = new Map(); // url -> { failures: number, lastFailure: Date, backoffMs: number }
+
+function getSourceHealth(url) {
+  if (!sourceHealth.has(url)) {
+    sourceHealth.set(url, { failures: 0, lastFailure: null, backoffMs: 0 });
+  }
+  return sourceHealth.get(url);
+}
+
+function recordSourceFailure(url) {
+  const health = getSourceHealth(url);
+  health.failures++;
+  health.lastFailure = new Date();
+  health.backoffMs = Math.min(health.backoffMs * 2 || 5000, 300000); // Max 5 min backoff
+}
+
+function recordSourceSuccess(url) {
+  const health = getSourceHealth(url);
+  health.failures = Math.max(0, health.failures - 1); // Slowly recover
+  health.backoffMs = Math.max(0, health.backoffMs / 2);
+}
+
+function shouldSkipSource(url) {
+  const health = getSourceHealth(url);
+  if (health.failures >= 5 && health.lastFailure) {
+    const timeSinceFailure = Date.now() - health.lastFailure.getTime();
+    if (timeSinceFailure < health.backoffMs) {
+      return true; // Still in backoff period
+    }
+  }
+  return false;
+}
+
+// Create parser with rotating user agent and optional proxy
+function createParser(url) {
+  const config = {
+    timeout: 30000,
+    headers: {
+      'User-Agent': getRandomUserAgent(),
+      'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+    }
+  };
+  
+  // Add proxy for blocked domains
+  if (needsProxy(url)) {
+    try {
+      config.requestOptions = {
+        agent: new HttpsProxyAgent(PROXY_URL)
+      };
+      console.log(`   🔒 Using proxy for ${new URL(url).hostname}`);
+    } catch (e) {
+      console.log(`   ⚠️ Proxy config failed: ${e.message}`);
+    }
+  }
+  
+  return new Parser(config);
+}
+
+// Rate limiting with adaptive delays
 const RATE_LIMIT_CONFIG = {
   DEFAULT_DELAY: 3000,
   RATE_LIMITED_SOURCES: {
     'techcrunch': 10000,
     'crunchbase': 20000,
     'hacker news': 45000,
+    'fortune': 15000,
+    'wired': 10000,
   }
 };
 
@@ -67,7 +165,9 @@ function recordMetric(category, reason) {
 }
 
 async function scrapeRssFeeds() {
-  console.log('📡 SSOT-Compliant RSS Scraper (Parser is Source of Truth)\n');
+  console.log('📡 SSOT-Compliant RSS Scraper (Parser is Source of Truth)');
+  console.log('   Anti-blocking: UA rotation, adaptive delays, backoff\n');
+  
   // Load ontology entities once and inject into parser
   // IMPORTANT: Only load STARTUP and INVESTOR types (skip GENERIC_TERM, PLACE, AMBIGUOUS)
   try {
@@ -93,14 +193,30 @@ async function scrapeRssFeeds() {
   
   console.log(`Found ${sources?.length || 0} active RSS sources\n`);
   
+  let skippedBackoff = 0;
+  
   for (const source of sources || []) {
-    const delay = getSourceDelay(source.name);
-    await new Promise(resolve => setTimeout(resolve, delay));
+    // Check if source is in backoff due to repeated failures
+    if (shouldSkipSource(source.url)) {
+      const health = getSourceHealth(source.url);
+      console.log(`⏸️  ${source.name} - skipping (${health.failures} failures, backoff ${Math.round(health.backoffMs/1000)}s)`);
+      skippedBackoff++;
+      continue;
+    }
+    
+    // Adaptive delay: base + health-based adjustment
+    const baseDelay = getSourceDelay(source.name);
+    const health = getSourceHealth(source.url);
+    const adaptiveDelay = baseDelay + (health.backoffMs / 2);
+    await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
     
     console.log(`\n📰 ${source.name}`);
     console.log(`   ${source.url}`);
     
     try {
+      // Create fresh parser with random UA for each request (with optional proxy)
+      const parser = createParser(source.url);
+      
       const feedPromise = parser.parseURL(source.url);
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Feed timeout')), 30000)
@@ -110,6 +226,7 @@ async function scrapeRssFeeds() {
       const items = feed.items?.slice(0, 50) || [];
       
       console.log(`   Found ${items.length} items`);
+      recordSourceSuccess(source.url); // Track success
       
       let added = 0;
       let graphJoins = 0;
@@ -288,7 +405,22 @@ async function scrapeRssFeeds() {
         .eq('id', source.id);
       
     } catch (err) {
-      console.log(`   ❌ Error: ${err.message}`);
+      // Track failure for adaptive backoff
+      recordSourceFailure(source.url);
+      const health = getSourceHealth(source.url);
+      
+      // Classify error type
+      const errMsg = err.message || '';
+      let errorType = 'UNKNOWN';
+      if (errMsg.includes('timeout')) errorType = 'TIMEOUT';
+      else if (errMsg.includes('403')) errorType = 'FORBIDDEN';
+      else if (errMsg.includes('429')) errorType = 'RATE_LIMITED';
+      else if (errMsg.includes('404')) errorType = 'NOT_FOUND';
+      else if (errMsg.includes('ECONNREFUSED')) errorType = 'CONNECTION_REFUSED';
+      else if (errMsg.includes('ENOTFOUND')) errorType = 'DNS_FAILED';
+      
+      console.log(`   ❌ ${errorType}: ${errMsg}`);
+      console.log(`      Failures: ${health.failures}, Next backoff: ${Math.round(health.backoffMs/1000)}s`);
     }
   }
   
@@ -298,6 +430,7 @@ async function scrapeRssFeeds() {
   console.log(`RSS Items Total:       ${metrics.rss_items_total}`);
   console.log(`Events Inserted:       ${metrics.events_inserted}`);
   console.log(`Graph Edges Inserted:  ${metrics.graph_edges_inserted}`);
+  console.log(`Sources Skipped (backoff): ${skippedBackoff}`);
   console.log();
   
   if (Object.keys(metrics.reject_reasons).length > 0) {

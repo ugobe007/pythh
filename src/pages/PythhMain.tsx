@@ -72,7 +72,12 @@ export default function PythhHome() {
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
           supabase.from('investors').select('*', { count: 'exact', head: true }),
           supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-          supabase.from('startup_investor_matches').select('match_score').not('match_score', 'is', null)
+          // Get RECENT matches for accurate avg (old matches have inflated scores)
+          supabase.from('startup_investor_matches')
+            .select('match_score')
+            .not('match_score', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(1000)
         ]);
         
         const avgSignal = signalsRes.data?.length > 0

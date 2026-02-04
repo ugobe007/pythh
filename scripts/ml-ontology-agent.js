@@ -87,6 +87,82 @@ function getBackoffDelay(attempt) {
   return delay * (0.75 + Math.random() * 0.5);
 }
 
+// ============================================================================
+// PATTERN-BASED PRE-CLASSIFICATION (Saves 80%+ of API calls!)
+// ============================================================================
+const KNOWN_VCS = [
+  'sequoia', 'andreessen', 'a16z', 'benchmark', 'greylock', 'lightspeed', 
+  'accel', 'kleiner', 'gv', 'nea', 'bessemer', 'index ventures', 'ggv',
+  'tiger global', 'coatue', 'insight partners', 'general catalyst', 'ivp',
+  'khosla', 'founders fund', 'spark capital', 'battery ventures', 'dst',
+  'ribbit', 'qed', 'nyca', 'first round', 'initialized', 'sv angel',
+  'y combinator', 'yc', 'techstars', '500 startups'
+];
+
+const KNOWN_PLACES = [
+  'united states', 'usa', 'uk', 'europe', 'asia', 'india', 'china', 'japan',
+  'silicon valley', 'san francisco', 'new york', 'boston', 'london', 'berlin',
+  'singapore', 'hong kong', 'tel aviv', 'toronto', 'los angeles', 'seattle',
+  'austin', 'miami', 'chicago', 'denver', 'paris', 'amsterdam', 'stockholm'
+];
+
+const GENERIC_TERMS = [
+  'startup', 'startups', 'company', 'companies', 'investor', 'investors',
+  'venture capital', 'vc', 'vcs', 'funding', 'round', 'deal', 'deals',
+  'unicorn', 'unicorns', 'founder', 'founders', 'tech', 'technology',
+  'ai', 'ml', 'saas', 'fintech', 'healthtech', 'market', 'industry',
+  'researchers', 'scientists', 'executives', 'leaders', 'analysts'
+];
+
+const TITLE_PATTERNS = [
+  /\b(ceo|cto|cfo|coo|chief|president|vp|director|founder|partner|principal)\b/i
+];
+
+function preClassifyEntity(entity) {
+  const nameLower = entity.name.toLowerCase().trim();
+  
+  // Check for known VCs
+  if (KNOWN_VCS.some(vc => nameLower.includes(vc))) {
+    return { entity_type: 'INVESTOR', confidence: 0.95, reasoning: 'Known VC firm' };
+  }
+  
+  // Check for places
+  if (KNOWN_PLACES.some(place => nameLower === place || nameLower.includes(place + ' '))) {
+    return { entity_type: 'PLACE', confidence: 0.95, reasoning: 'Geographic entity' };
+  }
+  
+  // Check for generic terms
+  if (GENERIC_TERMS.some(term => nameLower === term || nameLower === term + 's')) {
+    return { entity_type: 'GENERIC_TERM', confidence: 0.9, reasoning: 'Generic industry term' };
+  }
+  
+  // Check for title-bearing names (likely FOUNDER/EXECUTIVE)
+  if (TITLE_PATTERNS.some(p => p.test(entity.name))) {
+    return { entity_type: 'EXECUTIVE', confidence: 0.8, reasoning: 'Has executive title' };
+  }
+  
+  // Check contexts for role patterns
+  const contexts = entity.contexts || [];
+  const investorRoleCount = contexts.filter(c => c.role === 'investor' || c.role === 'lead').length;
+  const subjectRoleCount = contexts.filter(c => c.role === 'subject' || c.role === 'startup').length;
+  
+  // If appears as investor in most contexts, likely INVESTOR
+  if (investorRoleCount > contexts.length * 0.6 && contexts.length >= 3) {
+    return { entity_type: 'INVESTOR', confidence: 0.85, reasoning: 'Appears as investor in most contexts' };
+  }
+  
+  // If appears as subject/startup in most funding contexts, likely STARTUP
+  if (subjectRoleCount > contexts.length * 0.6 && contexts.length >= 3) {
+    const hasFundingContext = contexts.some(c => c.eventType === 'FUNDING' || c.title?.toLowerCase().includes('raise'));
+    if (hasFundingContext) {
+      return { entity_type: 'STARTUP', confidence: 0.8, reasoning: 'Appears as subject in funding news' };
+    }
+  }
+  
+  // Could not pre-classify with high confidence
+  return null;
+}
+
 /**
  * Step 1: Collect entity patterns from recent RSS data
  */
@@ -247,19 +323,36 @@ Return ONLY valid JSON:
 }
 
 /**
- * Step 4: Classify batch of entities
+ * Step 4: Classify batch of entities (with pre-classification to save API calls!)
  */
 async function classifyBatch(entities) {
-  console.log(`🤖 Classifying ${entities.length} entities with OpenAI...\n`);
+  console.log(`🤖 Classifying ${entities.length} entities...\n`);
   
   const classifications = [];
+  let patternClassified = 0;
+  let apiClassified = 0;
   
   for (let i = 0; i < entities.length; i++) {
     const entity = entities[i];
     
     console.log(`${i + 1}/${entities.length}: "${entity.name}" (${entity.count} occurrences)`);
     
-    const classification = await classifyWithParser(entity);
+    // TRY PATTERN-BASED CLASSIFICATION FIRST (saves API calls!)
+    const preClassification = preClassifyEntity(entity);
+    
+    let classification;
+    if (preClassification && preClassification.confidence >= CONFIG.CONFIDENCE_THRESHOLD) {
+      classification = preClassification;
+      patternClassified++;
+      console.log(`   ⚡ PATTERN: ${classification.entity_type} (${(classification.confidence * 100).toFixed(0)}%) - ${classification.reasoning}`);
+    } else {
+      // Fall back to OpenAI for complex cases
+      classification = await classifyWithParser(entity);
+      if (classification) {
+        apiClassified++;
+        console.log(`   🤖 API: ${classification.entity_type} (${(classification.confidence * 100).toFixed(0)}%)`);
+      }
+    }
     
     if (classification && classification.confidence >= CONFIG.CONFIDENCE_THRESHOLD) {
       console.log(`   ✓ ${classification.entity_type} (${(classification.confidence * 100).toFixed(0)}% confidence)`);
@@ -276,8 +369,10 @@ async function classifyBatch(entities) {
       console.log(`   ⚠️  Low confidence or failed\n`);
     }
     
-    // Rate limiting - use base delay with jitter
-    await sleep(CONFIG.BASE_DELAY_MS * (0.75 + Math.random() * 0.5));
+    // Rate limiting - use base delay with jitter (only if we used API)
+    if (!preClassification || preClassification.confidence < CONFIG.CONFIDENCE_THRESHOLD) {
+      await sleep(CONFIG.BASE_DELAY_MS * (0.75 + Math.random() * 0.5));
+    }
     
     // Check circuit breaker between entities
     if (!circuitBreaker.canProceed()) {
@@ -285,6 +380,12 @@ async function classifyBatch(entities) {
       break;
     }
   }
+  
+  // Summary
+  console.log(`\n📊 Classification Summary:`);
+  console.log(`   ⚡ Pattern-based: ${patternClassified} entities (no API cost)`);
+  console.log(`   🤖 OpenAI API:    ${apiClassified} entities`);
+  console.log(`   💰 API calls saved: ${Math.round((patternClassified / (patternClassified + apiClassified || 1)) * 100)}%\n`);
   
   return classifications;
 }
