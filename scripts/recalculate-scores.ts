@@ -156,22 +156,26 @@ function calculateGODScore(startup: any): ScoreBreakdown {
   // Breakdown structure: team_execution (0-3), product_vision (0-2), traction (0-3), market (0-2), product (0-2)
   // Also includes: founder_courage (0-1.5), market_insight (0-1.5), team_age (0-1)
   // 
-  // FIXED Jan 30, 2026: Correct divisors to match algorithm maxes
-  // - team_score = team_execution (max 3) + team_age (max 1) = max 4.0
-  // - vision_score = product_vision (max 2.0)
-  // - traction_score = traction (max 3.0)
-  // - market_score = market (max 2) + market_insight (max 1.5) = max 3.5
-  // - product_score = product (max 2.0)
+  // FIXED Feb 4, 2026: Adjusted divisors to match PRACTICAL maximums (data-driven)
+  // Data quality report showed most startups lack market_size, MRR, etc.
+  // Previous divisors created artificial caps (market max 74%, product max 65%)
+  // 
+  // NEW APPROACH: Use observed practical maximums from database analysis:
+  // - team_score: practical max ~3.5 (team_execution 3 + team_age 0.5 typical)
+  // - traction_score: keep 3.0 (traction data most complete, reaches 100%)
+  // - market_score: practical max ~2.0 (market 1.0 avg + insight 1.0 avg, market_size rarely available)
+  // - product_score: practical max ~1.3 (is_launched + patterns, rarely has demo/IP)
+  // - vision_score: practical max ~1.3 (similar data sparsity)
   
   const teamCombined = (result.breakdown.team_execution || 0) + (result.breakdown.team_age || 0);
   const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
   
   return {
-    team_score: Math.round((teamCombined / 4.0) * 100),       // team_execution + team_age max 4.0
-    traction_score: Math.round(((result.breakdown.traction || 0) / 3.0) * 100), // traction max 3.0
-    market_score: Math.round((marketCombined / 3.5) * 100),   // market (2.0) + market_insight (1.5) = max 3.5
-    product_score: Math.round(((result.breakdown.product || 0) / 2.0) * 100),   // product max 2.0
-    vision_score: Math.round(((result.breakdown.product_vision || 0) / 2.0) * 100), // FIXED: product_vision max 2.0
+    team_score: Math.round((teamCombined / 3.5) * 100),       // Practical max ~3.5 (was 4.0)
+    traction_score: Math.round(((result.breakdown.traction || 0) / 3.0) * 100), // Keep 3.0 (traction reaches 100%)
+    market_score: Math.round((marketCombined / 2.0) * 100),   // Practical max ~2.0 (was 3.5, created 74% cap)
+    product_score: Math.round(((result.breakdown.product || 0) / 1.3) * 100),   // Practical max ~1.3 (was 2.0, created 65% cap)
+    vision_score: Math.round(((result.breakdown.product_vision || 0) / 1.3) * 100), // Practical max ~1.3 (was 2.0)
     total_god_score: total
   };
 }
@@ -244,8 +248,11 @@ async function recalculateScores(): Promise<void> {
       // Bootstrap scoring is optional, continue if it fails
     }
     
-    // Final score = GOD score + Bootstrap bonus (capped at 100, rounded to integer)
-    const finalScore = Math.min(Math.round(scores.total_god_score + bootstrapBonus), 100);
+    // Get signals_bonus from startup (already populated from startup_signal_scores)
+    const signalsBonus = Math.min(startup.signals_bonus || 0, 10); // Capped at 10
+    
+    // Final score = GOD score + Bootstrap bonus + Signals bonus (capped at 100, rounded to integer)
+    const finalScore = Math.min(Math.round(scores.total_god_score + bootstrapBonus + signalsBonus), 100);
 
     // Only update if score changed (any change, removed threshold to fix corrupted scores)
     if (finalScore !== oldScore) {
@@ -275,7 +282,9 @@ async function recalculateScores(): Promise<void> {
           });
         } catch {} // Ignore if table doesn't exist
 
-        const boostNote = bootstrapBonus > 0 ? ` (+${bootstrapBonus} bootstrap)` : '';
+        const boostNote = (bootstrapBonus > 0 || signalsBonus > 0) 
+          ? ` (+${bootstrapBonus > 0 ? bootstrapBonus + ' bootstrap' : ''}${bootstrapBonus > 0 && signalsBonus > 0 ? ', ' : ''}${signalsBonus > 0 ? signalsBonus.toFixed(1) + ' signals' : ''})` 
+          : '';
         console.log(`  ✅ ${startup.name}: ${oldScore} → ${finalScore}${boostNote}`);
         updated++;
         

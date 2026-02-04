@@ -29,6 +29,20 @@ const supabase = createClient(
 // ============================================================================
 // SIGNAL DIMENSION CALCULATORS
 // ============================================================================
+// ENHANCED Feb 4, 2026: Boost signal scores to reach full 10-point potential
+// Previous version capped practical max at ~5.0 due to conservative scoring
+// New version uses amplification factor to stretch scores toward 1.0
+
+// Amplification factor to stretch dimension scores closer to 1.0
+// Without this, dimensions max at ~0.5-0.7 which caps signals_bonus at ~5.0
+// INCREASED Feb 4, 2026: From 1.5 to 2.0 to allow signals_bonus to reach 7-10 range
+const SIGNAL_AMPLIFICATION = 2.0;  // Boost raw scores to reach closer to 1.0
+
+function amplifyScore(rawScore: number): number {
+  // Apply sigmoid-like boost that stretches mid-range scores while capping at 1.0
+  const amplified = rawScore * SIGNAL_AMPLIFICATION;
+  return Math.min(1, amplified);
+}
 
 function calculateProductVelocity(startup: any): number {
   let score = 0;
@@ -81,58 +95,73 @@ function calculateProductVelocity(startup: any): number {
     score += 0.15;
   }
   
-  return Math.min(1, score);
+  return amplifyScore(score);
 }
 
 function calculateFundingAcceleration(startup: any): number {
   let score = 0;
   const extracted = startup.extracted_data || {};
   
-  // Has previous funding
-  if (startup.previous_funding || startup.funding_amount || extracted.funding_raised) {
+  // Has previous funding (more lenient - check extracted_data fields too)
+  if (startup.previous_funding || startup.funding_amount || extracted.funding_raised || 
+      extracted.funding_amount || extracted.funding_stage) {
     score += 0.3;
   }
   
   // YC or top-tier accelerator
-  if (startup.is_yc || startup.accelerator === 'YC' || extracted.accelerator?.toLowerCase().includes('y combinator')) {
+  if (startup.is_yc || startup.accelerator === 'YC' || 
+      extracted.accelerator?.toLowerCase().includes('y combinator') ||
+      extracted.backed_by) {
     score += 0.3;
   }
   
-  // Multiple investors interested
-  if (startup.investor_interest_count && startup.investor_interest_count > 3) {
+  // Multiple investors interested (lower threshold)
+  if (startup.investor_interest_count && startup.investor_interest_count > 1) {
     score += 0.2;
   }
   
-  // Recent funding (within last 6 months)
+  // Recent funding (within last 6 months) or any funding date known
   if (startup.last_funding_date) {
     const fundingDate = new Date(startup.last_funding_date);
     const now = new Date();
     const monthsSinceFunding = (now.getTime() - fundingDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
     if (monthsSinceFunding <= 6) {
       score += 0.2;
+    } else {
+      score += 0.1;  // Even older funding is a positive signal
     }
   }
   
-  // Text signals
+  // Text signals - MORE GENEROUS patterns
   const text = [
     startup.tagline || '', 
     startup.pitch || '', 
     startup.description || '',
     startup.investment || '',
-    extracted.funding_info || ''
+    extracted.funding_info || '',
+    extracted.backed_by || ''
   ].join(' ').toLowerCase();
   
-  if (text.includes('raised') || text.includes('funded') || text.includes('investment')) {
+  // Funding keywords - give more points
+  if (text.includes('raised') || text.includes('funded') || text.includes('investment') || text.includes('investor')) {
+    score += 0.15;
+  }
+  // Top tier VC signals
+  if (text.includes('yc') || text.includes('sequoia') || text.includes('a16z') || 
+      text.includes('tier 1') || text.includes('andreessen') || text.includes('benchmark') ||
+      text.includes('accel') || text.includes('founders fund') || text.includes('kleiner')) {
+    score += 0.15;
+  }
+  // Strong demand signals
+  if (text.includes('oversubscribed') || text.includes('pre-empted') || text.includes('competitive round')) {
     score += 0.1;
   }
-  if (text.includes('yc') || text.includes('sequoia') || text.includes('a16z') || text.includes('tier 1')) {
-    score += 0.1;
-  }
-  if (text.includes('oversubscribed') || text.includes('pre-empted')) {
+  // Any seed/series mention
+  if (text.includes('seed') || text.includes('series') || text.includes('pre-seed') || text.includes('angel')) {
     score += 0.1;
   }
   
-  return Math.min(1, score);
+  return amplifyScore(score);
 }
 
 function calculateCustomerAdoption(startup: any): number {
@@ -182,95 +211,129 @@ function calculateCustomerAdoption(startup: any): number {
     score += 0.1;
   }
   
-  return Math.min(1, score);
+  return amplifyScore(score);
 }
 
 function calculateMarketMomentum(startup: any): number {
   let score = 0;
   const extracted = startup.extracted_data || {};
   
-  // Press mentions
+  // Press mentions - be more generous
   if (startup.press_mentions && startup.press_mentions > 0) {
-    score += Math.min(0.4, startup.press_mentions * 0.1);
+    score += Math.min(0.4, startup.press_mentions * 0.15);
   }
   
-  // News signals
+  // News signals - be more generous  
   if (startup.news_count && startup.news_count > 0) {
-    score += Math.min(0.3, startup.news_count * 0.05);
+    score += Math.min(0.3, startup.news_count * 0.1);
   }
   
   // Product Hunt launch
   if (startup.product_hunt_rank || extracted.product_hunt) {
+    score += 0.25;
+  }
+  
+  // Awards or recognition
+  if (extracted.awards || startup.awards) {
     score += 0.2;
   }
   
-  // Text signals
+  // Text signals - MORE GENEROUS patterns
   const text = [
     startup.tagline || '', 
     startup.pitch || '', 
     startup.description || '',
     startup.market || '',
-    extracted.market_info || ''
+    extracted.market_info || '',
+    startup.traction || ''
   ].join(' ').toLowerCase();
   
-  if (text.includes('featured') || text.includes('press') || text.includes('techcrunch')) {
+  // Media coverage signals - higher points
+  if (text.includes('featured') || text.includes('press') || text.includes('techcrunch') ||
+      text.includes('forbes') || text.includes('wall street') || text.includes('bloomberg')) {
+    score += 0.25;
+  }
+  // Viral/trending signals
+  if (text.includes('trending') || text.includes('viral') || text.includes('buzz') ||
+      text.includes('hype') || text.includes('momentum') || text.includes('hot')) {
     score += 0.2;
   }
-  if (text.includes('trending') || text.includes('viral') || text.includes('buzz')) {
+  // Product Hunt / awards
+  if (text.includes('product hunt') || text.includes('#1') || text.includes('award') ||
+      text.includes('winner') || text.includes('top') || text.includes('best')) {
+    score += 0.2;
+  }
+  // Social proof
+  if (text.includes('thousands') || text.includes('millions') || text.includes('rapid') ||
+      text.includes('explosive') || text.includes('fastest')) {
     score += 0.15;
   }
-  if (text.includes('product hunt') || text.includes('#1')) {
-    score += 0.2;
-  }
   
-  return Math.min(1, score);
+  return amplifyScore(score);
 }
 
 function calculateCompetitiveDynamics(startup: any): number {
   let score = 0;
   const extracted = startup.extracted_data || {};
   
-  // Defensibility
+  // Defensibility - be more generous
   if (startup.defensibility === 'high' || startup.unique_ip || extracted.patents) {
     score += 0.4;
-  } else if (startup.defensibility === 'medium') {
-    score += 0.2;
+  } else if (startup.defensibility === 'medium' || extracted.defensibility) {
+    score += 0.25;
   }
   
-  // Strategic partners
+  // Strategic partners - lower threshold
   if (startup.strategic_partners && startup.strategic_partners.length > 0) {
-    score += Math.min(0.3, startup.strategic_partners.length * 0.1);
+    score += Math.min(0.35, startup.strategic_partners.length * 0.15);
   }
   
-  // Strong team signals
-  if (startup.team_score && startup.team_score > 80) {
-    score += 0.2;
+  // Strong team signals - lower threshold
+  if (startup.team_score && startup.team_score > 60) {
+    score += 0.25;
+  } else if (startup.team_score && startup.team_score > 40) {
+    score += 0.15;
   }
   
-  // Text signals
+  // Technical team signal
+  if (startup.has_technical_cofounder || extracted.has_technical_cofounder) {
+    score += 0.15;
+  }
+  
+  // Text signals - MORE GENEROUS patterns
   const text = [
     startup.tagline || '', 
     startup.pitch || '', 
     startup.description || '',
     startup.solution || '',
     startup.team || '',
-    extracted.competitive_advantage || ''
+    extracted.competitive_advantage || '',
+    extracted.team_signals || ''
   ].join(' ').toLowerCase();
   
-  if (text.includes('moat') || text.includes('defensible') || text.includes('patent')) {
+  // IP/moat signals - higher points
+  if (text.includes('moat') || text.includes('defensible') || text.includes('patent') ||
+      text.includes('proprietary') || text.includes('protected')) {
+    score += 0.25;
+  }
+  // Strategic advantage signals
+  if (text.includes('network effect') || text.includes('flywheel') || text.includes('unfair advantage') ||
+      text.includes('switching cost') || text.includes('lock-in')) {
     score += 0.2;
   }
-  if (text.includes('network effect') || text.includes('flywheel') || text.includes('unfair advantage')) {
+  // Differentiation signals
+  if (text.includes('only') || text.includes('first') || text.includes('unique') ||
+      text.includes('novel') || text.includes('breakthrough')) {
     score += 0.15;
   }
-  if (text.includes('only') || text.includes('first') || text.includes('unique')) {
-    score += 0.1;
-  }
-  if (text.includes('google') || text.includes('meta') || text.includes('stanford') || text.includes('mit')) {
-    score += 0.15;  // Prestigious team background
+  // Prestigious background - more options
+  if (text.includes('google') || text.includes('meta') || text.includes('stanford') || text.includes('mit') ||
+      text.includes('harvard') || text.includes('berkeley') || text.includes('apple') || text.includes('amazon') ||
+      text.includes('ex-') || text.includes('former')) {
+    score += 0.2;
   }
   
-  return Math.min(1, score);
+  return amplifyScore(score);
 }
 
 // Signal max points
@@ -291,19 +354,36 @@ async function applySignalsBatch() {
   console.log('                    APPLYING SIGNALS TO ALL STARTUPS');
   console.log('═══════════════════════════════════════════════════════════════════\n');
   
-  // Fetch all approved startups
-  const { data: startups, error } = await supabase
-    .from('startup_uploads')
-    .select('*')
-    .eq('status', 'approved')
-    .not('total_god_score', 'is', null);
+  // Fetch all approved startups with pagination (Supabase has 1000 row limit per query)
+  let allStartups: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
   
-  if (error) {
-    console.error('Error fetching startups:', error);
-    return;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from('startup_uploads')
+      .select('*')
+      .eq('status', 'approved')
+      .not('total_god_score', 'is', null)
+      .range(offset, offset + pageSize - 1);
+    
+    if (error) {
+      console.error('Error fetching startups:', error);
+      return;
+    }
+    
+    if (!page || page.length === 0) break;
+    
+    allStartups = allStartups.concat(page);
+    console.log(`  Fetched ${allStartups.length} startups so far...`);
+    
+    if (page.length < pageSize) break;
+    offset += pageSize;
   }
   
-  console.log(`Found ${startups?.length || 0} approved startups\n`);
+  const startups = allStartups;
+  
+  console.log(`\nFound ${startups?.length || 0} approved startups\n`);
   
   if (!startups || startups.length === 0) return;
   
