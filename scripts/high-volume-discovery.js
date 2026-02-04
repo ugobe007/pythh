@@ -45,7 +45,9 @@ const parser = new Parser({
 // HIGH-YIELD STARTUP SOURCES (prioritized by discovery rate)
 // ============================================================================
 const STARTUP_SOURCES = [
-  // Funding news (highest yield - mentions startups by name)
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 1: FUNDING NEWS (highest yield - mentions startups by name)
+  // ═══════════════════════════════════════════════════════════════════════
   { name: 'TechCrunch Startups', url: 'https://techcrunch.com/category/startups/feed/', priority: 1, expectedYield: 20 },
   { name: 'TechCrunch Venture', url: 'https://techcrunch.com/category/venture/feed/', priority: 1, expectedYield: 15 },
   { name: 'Crunchbase News', url: 'https://news.crunchbase.com/feed/', priority: 1, expectedYield: 25 },
@@ -53,65 +55,129 @@ const STARTUP_SOURCES = [
   { name: 'FINSMES', url: 'https://www.finsmes.com/feed', priority: 1, expectedYield: 30 },
   { name: 'EU-Startups', url: 'https://www.eu-startups.com/feed/', priority: 1, expectedYield: 20 },
   { name: 'Tech.eu', url: 'https://tech.eu/feed/', priority: 1, expectedYield: 15 },
+  { name: 'TechFunding News', url: 'https://techfundingnews.com/feed/', priority: 1, expectedYield: 25 },
+  { name: 'FinSMEs Daily', url: 'https://www.finsmes.com/category/daily-funding-wrap/feed', priority: 1, expectedYield: 15 },
   
-  // Product launches (high signal)
-  { name: 'Product Hunt (via HN)', url: 'https://hnrss.org/show?q=product+hunt', priority: 2, expectedYield: 10 },
-  { name: 'Hacker News Show HN', url: 'https://hnrss.org/show', priority: 2, expectedYield: 15 },
-  // REMOVED: Indie Hackers (returns 403 - blocking scrapers)
-  // REMOVED: BetaList (returns 404 - feed moved/removed)
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 1: GOOGLE NEWS (aggregates many sources) - MOST RELIABLE
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Google: Startup Funding', url: 'https://news.google.com/rss/search?q=startup+funding+raised&hl=en-US', priority: 1, expectedYield: 30 },
+  { name: 'Google: Series A', url: 'https://news.google.com/rss/search?q=series+a+funding&hl=en-US', priority: 1, expectedYield: 25 },
+  { name: 'Google: Series B', url: 'https://news.google.com/rss/search?q=series+b+funding+startup&hl=en-US', priority: 1, expectedYield: 20 },
+  { name: 'Google: Seed Round', url: 'https://news.google.com/rss/search?q=seed+round+startup&hl=en-US', priority: 1, expectedYield: 20 },
+  { name: 'Google: Pre-Seed', url: 'https://news.google.com/rss/search?q=pre-seed+funding+startup&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: AI Startup', url: 'https://news.google.com/rss/search?q=AI+startup+launch&hl=en-US', priority: 1, expectedYield: 20 },
+  { name: 'Google: YC Startups', url: 'https://news.google.com/rss/search?q=y+combinator+startup&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: Fintech', url: 'https://news.google.com/rss/search?q=fintech+startup+funding&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: Raises Million', url: 'https://news.google.com/rss/search?q=raises+million+startup&hl=en-US', priority: 1, expectedYield: 30 },
+  { name: 'Google: Secures Funding', url: 'https://news.google.com/rss/search?q=secures+funding+million&hl=en-US', priority: 1, expectedYield: 25 },
+  { name: 'Google: Healthtech', url: 'https://news.google.com/rss/search?q=healthtech+startup+funding&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: Climate Tech', url: 'https://news.google.com/rss/search?q=climate+tech+startup+funding&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: SaaS Startup', url: 'https://news.google.com/rss/search?q=saas+startup+raises&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: Biotech Startup', url: 'https://news.google.com/rss/search?q=biotech+startup+funding&hl=en-US', priority: 1, expectedYield: 12 },
+  { name: 'Google: Proptech', url: 'https://news.google.com/rss/search?q=proptech+startup+funding&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: Edtech', url: 'https://news.google.com/rss/search?q=edtech+startup+raises&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: Insurtech', url: 'https://news.google.com/rss/search?q=insurtech+startup+funding&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: Cybersecurity', url: 'https://news.google.com/rss/search?q=cybersecurity+startup+funding&hl=en-US', priority: 1, expectedYield: 15 },
+  { name: 'Google: Robotics', url: 'https://news.google.com/rss/search?q=robotics+startup+raises&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: Space Tech', url: 'https://news.google.com/rss/search?q=space+startup+funding&hl=en-US', priority: 2, expectedYield: 8 },
   
-  // Regional startup news
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 2: REGIONAL STARTUP NEWS
+  // ═══════════════════════════════════════════════════════════════════════
   { name: 'Inc42 (India)', url: 'https://inc42.com/feed/', priority: 1, expectedYield: 20 },
-  // REMOVED: e27 (SEA) (returns 403 - blocking scrapers)
   { name: 'Tech in Asia', url: 'https://www.techinasia.com/feed', priority: 1, expectedYield: 15 },
   { name: 'Silicon Republic', url: 'https://www.siliconrepublic.com/feed', priority: 2, expectedYield: 10 },
   { name: 'Startupbeat', url: 'https://startupbeat.com/feed/', priority: 2, expectedYield: 8 },
+  { name: 'ArcticStartup', url: 'https://arcticstartup.com/feed/', priority: 2, expectedYield: 10 },
+  { name: 'Silicon Canals', url: 'https://siliconcanals.com/feed/', priority: 2, expectedYield: 15 },
+  { name: 'UK Tech News', url: 'https://www.uktech.news/feed', priority: 2, expectedYield: 10 },
+  { name: 'BetaKit (Canada)', url: 'https://betakit.com/feed/', priority: 2, expectedYield: 12 },
+  { name: 'StartupBlink Blog', url: 'https://www.startupblink.com/blog/feed/', priority: 2, expectedYield: 8 },
+  { name: 'Google: Israel Startup', url: 'https://news.google.com/rss/search?q=israel+startup+funding&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: LATAM Startup', url: 'https://news.google.com/rss/search?q=latin+america+startup+funding&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: Africa Startup', url: 'https://news.google.com/rss/search?q=africa+startup+funding&hl=en-US', priority: 2, expectedYield: 8 },
+  { name: 'Google: Singapore Startup', url: 'https://news.google.com/rss/search?q=singapore+startup+funding&hl=en-US', priority: 2, expectedYield: 10 },
+  { name: 'Google: Germany Startup', url: 'https://news.google.com/rss/search?q=germany+startup+funding&hl=en-US', priority: 2, expectedYield: 10 },
   
-  // Sector-specific (AI, Fintech, Climate)
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 2: SECTOR-SPECIFIC (AI, Fintech, Climate, Health)
+  // ═══════════════════════════════════════════════════════════════════════
   { name: 'AI News', url: 'https://www.artificialintelligence-news.com/feed/', priority: 2, expectedYield: 10 },
   { name: 'The Fintech Times', url: 'https://thefintechtimes.com/feed/', priority: 2, expectedYield: 10 },
   { name: 'CleanTechnica', url: 'https://cleantechnica.com/feed/', priority: 2, expectedYield: 8 },
   { name: 'Healthcare IT News', url: 'https://www.healthcareitnews.com/feed', priority: 2, expectedYield: 8 },
+  { name: 'Fierce Healthcare', url: 'https://www.fiercehealthcare.com/rss/xml', priority: 2, expectedYield: 8 },
+  { name: 'MedCity News', url: 'https://medcitynews.com/feed/', priority: 2, expectedYield: 10 },
+  { name: 'Finextra', url: 'https://www.finextra.com/rss/headlines.aspx', priority: 2, expectedYield: 8 },
+  { name: 'Payments Dive', url: 'https://www.paymentsdive.com/feeds/news/', priority: 2, expectedYield: 6 },
+  { name: 'GreenBiz', url: 'https://www.greenbiz.com/rss.xml', priority: 2, expectedYield: 6 },
+  { name: 'Grit Daily', url: 'https://gritdaily.com/feed/', priority: 2, expectedYield: 10 },
+  { name: 'SaaStr Blog', url: 'https://www.saastr.com/feed/', priority: 2, expectedYield: 5 },
   
-  // Google News RSS (aggregates many sources) - MOST RELIABLE
-  { name: 'Google: Startup Funding', url: 'https://news.google.com/rss/search?q=startup+funding+raised&hl=en-US', priority: 1, expectedYield: 30 },
-  { name: 'Google: Series A', url: 'https://news.google.com/rss/search?q=series+a+funding&hl=en-US', priority: 1, expectedYield: 25 },
-  { name: 'Google: Seed Round', url: 'https://news.google.com/rss/search?q=seed+round+startup&hl=en-US', priority: 1, expectedYield: 20 },
-  { name: 'Google: AI Startup', url: 'https://news.google.com/rss/search?q=AI+startup+launch&hl=en-US', priority: 1, expectedYield: 20 },
-  { name: 'Google: YC Startups', url: 'https://news.google.com/rss/search?q=y+combinator+startup&hl=en-US', priority: 1, expectedYield: 15 },
-  { name: 'Google: Fintech', url: 'https://news.google.com/rss/search?q=fintech+startup+funding&hl=en-US', priority: 1, expectedYield: 15 },
-  
-  // REMOVED: Reddit RSS (all return 403 - blocking scrapers)
-  // Alternative: Use Hacker News which has similar content
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 3: PRODUCT LAUNCHES & COMMUNITY
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Product Hunt (via HN)', url: 'https://hnrss.org/show?q=product+hunt', priority: 3, expectedYield: 10 },
+  { name: 'Hacker News Show HN', url: 'https://hnrss.org/show', priority: 3, expectedYield: 15 },
   { name: 'Hacker News Startups', url: 'https://hnrss.org/newest?q=startup', priority: 3, expectedYield: 10 },
   { name: 'Hacker News Funding', url: 'https://hnrss.org/newest?q=funding+raised', priority: 3, expectedYield: 10 },
+  { name: 'Hacker News YC', url: 'https://hnrss.org/newest?q=YC+W25', priority: 3, expectedYield: 8 },
+  { name: 'Hacker News Launch', url: 'https://hnrss.org/newest?q=launch+HN', priority: 3, expectedYield: 8 },
+  
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 3: ACCELERATOR & VC PORTFOLIO NEWS  
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Google: Techstars', url: 'https://news.google.com/rss/search?q=techstars+startup&hl=en-US', priority: 3, expectedYield: 8 },
+  { name: 'Google: 500 Startups', url: 'https://news.google.com/rss/search?q=500+startups+portfolio&hl=en-US', priority: 3, expectedYield: 6 },
+  { name: 'Google: Plug and Play', url: 'https://news.google.com/rss/search?q=plug+and+play+startup&hl=en-US', priority: 3, expectedYield: 5 },
+  { name: 'Google: Antler Portfolio', url: 'https://news.google.com/rss/search?q=antler+startup+funding&hl=en-US', priority: 3, expectedYield: 5 },
 ];
 
 // ============================================================================
 // INVESTOR SOURCES (VC announcements, new funds, team pages)
 // ============================================================================
 const INVESTOR_SOURCES = [
-  // VC News - MOST RELIABLE
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 1: VC NEWS & FUND ANNOUNCEMENTS
+  // ═══════════════════════════════════════════════════════════════════════
   { name: 'Axios Pro Rata', url: 'https://www.axios.com/pro/tech-deals/feed', priority: 1, expectedYield: 10 },
-  // REMOVED: Fortune Term Sheet (returns 404)
-  // REMOVED: PitchBook News (returns 403 - blocking scrapers)
+  { name: 'Crunchbase VC News', url: 'https://news.crunchbase.com/feed/', priority: 1, expectedYield: 15 },
+  { name: 'TechCrunch Venture', url: 'https://techcrunch.com/category/venture/feed/', priority: 1, expectedYield: 12 },
+  { name: 'NVCA News', url: 'https://nvca.org/feed/', priority: 2, expectedYield: 5 },
+  { name: 'Institutional Investor PE', url: 'https://www.institutionalinvestor.com/rss/Private-Equity', priority: 2, expectedYield: 5 },
   
-  // VC Fund announcements - Google News (MOST RELIABLE)
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 1: GOOGLE NEWS - VC & INVESTOR
+  // ═══════════════════════════════════════════════════════════════════════
   { name: 'Google: VC Fund Raise', url: 'https://news.google.com/rss/search?q=venture+capital+new+fund&hl=en-US', priority: 1, expectedYield: 10 },
   { name: 'Google: VC Partner', url: 'https://news.google.com/rss/search?q=venture+capital+partner+joins&hl=en-US', priority: 1, expectedYield: 8 },
   { name: 'Google: Angel Investor', url: 'https://news.google.com/rss/search?q=angel+investor+invests&hl=en-US', priority: 2, expectedYield: 5 },
   { name: 'Google: VC Investment', url: 'https://news.google.com/rss/search?q=venture+capital+investment+led+by&hl=en-US', priority: 1, expectedYield: 12 },
   { name: 'Google: VC Firm', url: 'https://news.google.com/rss/search?q=venture+firm+raises+fund&hl=en-US', priority: 1, expectedYield: 8 },
+  { name: 'Google: New VC Fund', url: 'https://news.google.com/rss/search?q=announces+new+venture+fund&hl=en-US', priority: 1, expectedYield: 10 },
+  { name: 'Google: GP LP', url: 'https://news.google.com/rss/search?q=general+partner+venture+capital&hl=en-US', priority: 2, expectedYield: 6 },
+  { name: 'Google: VC Closes Fund', url: 'https://news.google.com/rss/search?q=vc+closes+fund+million&hl=en-US', priority: 1, expectedYield: 10 },
+  { name: 'Google: Solo GP', url: 'https://news.google.com/rss/search?q=solo+gp+venture+fund&hl=en-US', priority: 2, expectedYield: 5 },
+  { name: 'Google: Micro VC', url: 'https://news.google.com/rss/search?q=micro+vc+fund&hl=en-US', priority: 2, expectedYield: 5 },
+  { name: 'Google: CVC Launch', url: 'https://news.google.com/rss/search?q=corporate+venture+capital+launches&hl=en-US', priority: 2, expectedYield: 6 },
+  { name: 'Google: Family Office VC', url: 'https://news.google.com/rss/search?q=family+office+venture+investment&hl=en-US', priority: 2, expectedYield: 4 },
   
-  // VC Blogs - Use working ones only
-  // REMOVED: a16z Blog (returns 404)
-  // REMOVED: First Round Review (returns 404)
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 2: VC FIRM BLOGS (working ones)
+  // ═══════════════════════════════════════════════════════════════════════
   { name: 'Sequoia Ideas', url: 'https://www.sequoiacap.com/feed/', priority: 2, expectedYield: 2 },
+  { name: 'Y Combinator Blog', url: 'https://www.ycombinator.com/blog/rss/', priority: 2, expectedYield: 3 },
+  { name: 'Union Square Ventures', url: 'https://www.usv.com/writing/feed/', priority: 2, expectedYield: 2 },
+  { name: 'Bessemer Cloud Index', url: 'https://www.bvp.com/atlas/rss.xml', priority: 2, expectedYield: 2 },
   
-  // Additional reliable investor sources
-  { name: 'Crunchbase VC News', url: 'https://news.crunchbase.com/feed/', priority: 1, expectedYield: 15 },
-  { name: 'TechCrunch Venture', url: 'https://techcrunch.com/category/venture/feed/', priority: 1, expectedYield: 12 },
-  { name: 'NVCA News', url: 'https://nvca.org/feed/', priority: 2, expectedYield: 5 },
+  // ═══════════════════════════════════════════════════════════════════════
+  // TIER 2: REGIONAL VC NEWS
+  // ═══════════════════════════════════════════════════════════════════════
+  { name: 'Google: Europe VC', url: 'https://news.google.com/rss/search?q=europe+venture+capital+fund&hl=en-US', priority: 2, expectedYield: 6 },
+  { name: 'Google: India VC', url: 'https://news.google.com/rss/search?q=india+venture+capital+fund&hl=en-US', priority: 2, expectedYield: 6 },
+  { name: 'Google: Asia VC', url: 'https://news.google.com/rss/search?q=asia+venture+capital+fund&hl=en-US', priority: 2, expectedYield: 5 },
+  { name: 'Google: LATAM VC', url: 'https://news.google.com/rss/search?q=latin+america+venture+capital&hl=en-US', priority: 2, expectedYield: 4 },
 ];
 
 // ============================================================================
