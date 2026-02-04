@@ -18,14 +18,20 @@ const Parser = require('rss-parser');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
+// Import LOCAL inference engine (NO AI required!)
+const { 
+  extractFunding, 
+  extractSectors, 
+  extractTeamSignals, 
+  extractExecutionSignals 
+} = require('../lib/inference-extractor');
+const { classifyEvent } = require('../lib/event-classifier');
+
 // Supabase client
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 );
-
-// OpenAI for entity extraction
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const parser = new Parser({
   timeout: 30000,
@@ -109,56 +115,309 @@ const INVESTOR_SOURCES = [
 ];
 
 // ============================================================================
-// AI ENTITY EXTRACTION
+// LOCAL INFERENCE ENTITY EXTRACTION (NO AI - Pattern-based, zero-cost!)
 // ============================================================================
-async function extractEntitiesWithAI(title, content, source) {
-  if (!OPENAI_API_KEY || OPENAI_API_KEY.includes('your-')) {
+function extractEntitiesWithInference(title, content, source) {
+  const fullText = `${title} ${content || ''}`;
+  
+  // 1. Classify the event type
+  const eventType = classifyEvent(title);
+  
+  // Skip filtered events (noise) - but be LESS aggressive
+  if (eventType.type === 'FILTERED' && eventType.confidence > 0.9) {
     return { startups: [], investors: [] };
   }
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{
-          role: 'system',
-          content: `You extract startup companies and investors from news articles.
-Return JSON with:
-- startups: Array of {name, description, sector, stage, amount_raised}
-- investors: Array of {name, firm, type}
-
-Rules:
-- Only include actual company names, not generic terms
-- For startups: include if they raised funding, launched a product, or were acquired
-- For investors: include VCs, angels, PE firms mentioned as investors
-- stage should be: "Pre-Seed", "Seed", "Series A", "Series B", "Series C+", "Growth", or null
-- sector should be one of: "AI", "Fintech", "Healthcare", "SaaS", "Consumer", "Climate", "Crypto", "Enterprise", "Other"
-- amount_raised should be a number (in USD) or null`
-        }, {
-          role: 'user',
-          content: `Extract entities from this ${source} article:\n\nTitle: ${title}\n\nContent: ${content?.substring(0, 2000) || 'No content'}`
-        }],
-        response_format: { type: "json_object" },
-        max_tokens: 1000,
-        temperature: 0
-      })
+  
+  // 2. Extract funding data (stage, amount, investors)
+  const funding = extractFunding(fullText);
+  
+  // 3. Extract sectors
+  const sectors = extractSectors(fullText);
+  
+  // 4. Extract startup names - COMPREHENSIVE PATTERN MATCHING
+  const startups = [];
+  const investors = [];
+  const foundNames = new Set();
+  const founderNames = new Set(); // Track founders separately
+  
+  // Skip words that aren't company names
+  const skipWords = new Set([
+    'google', 'apple', 'microsoft', 'amazon', 'meta', 'openai', 'anthropic', 
+    'nvidia', 'tesla', 'uber', 'airbnb', 'stripe', 'spacex', 'facebook', 'twitter',
+    'linkedin', 'netflix', 'spotify', 'snapchat', 'tiktok', 'bytedance', 'alibaba',
+    'the', 'and', 'for', 'with', 'from', 'into', 'how', 'why', 'what', 'who',
+    'new', 'top', 'best', 'first', 'last', 'next', 'more', 'most', 'this', 'that',
+    'series', 'seed', 'round', 'funding', 'raises', 'million', 'billion',
+    'venture', 'capital', 'investor', 'investors', 'startup', 'startups',
+    'company', 'companies', 'firm', 'firms', 'fund', 'funds', 'backed',
+    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+    'september', 'october', 'november', 'december', 'report', 'news', 'update',
+    'says', 'said', 'announces', 'announced', 'launches', 'launched', 'today',
+    'here', 'there', 'will', 'can', 'could', 'should', 'would', 'may', 'might'
+  ]);
+  
+  // Helper to add name if valid
+  const addName = (name) => {
+    if (!name) return;
+    name = name.trim();
+    if (name.length >= 2 && name.length < 50 && 
+        !skipWords.has(name.toLowerCase()) && 
+        !foundNames.has(name.toLowerCase()) &&
+        !/^\d+$/.test(name)) { // Skip pure numbers
+      foundNames.add(name.toLowerCase());
+    }
+  };
+  
+  let match;
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // FUNDING & BUSINESS PATTERNS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 1: "[Company] raises/secures/announces/launches/closes"
+  const fundingPatterns = [
+    /\b([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?(?:\s+[A-Z][a-zA-Z0-9]+)?)\s+(?:raises?|secures?|announces?|closes?|lands?|gets?|bags?|nabs?|snags?|grabs?)/gi,
+    /\b([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:has\s+)?(?:raised|secured|closed|announced|landed|received|obtained|won)/gi,
+    /\b([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:completes?|completed)\s+(?:\$[\d,.]+|series|seed|funding)/gi,
+  ];
+  
+  for (const pattern of fundingPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 2: "X, a/the [type] startup/company/platform" 
+  const typePatterns = [
+    /\b([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?),?\s+(?:a|the|an)\s+\w+\s*(?:startup|company|platform|fintech|healthtech|biotech|edtech|proptech|insurtech|regtech|legaltech|agritech|cleantech|medtech|saas|ai|ml|firm|provider|maker|developer|creator)/gi,
+    /\b([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?),?\s+(?:which|that|who)\s+(?:provides?|offers?|builds?|develops?|creates?|makes?|delivers?|enables?|helps?|allows?)/gi,
+    /\b([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+is\s+(?:a|the|an)\s+\w+\s*(?:startup|company|platform|solution|provider|tool)/gi,
+  ];
+  
+  for (const pattern of typePatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 3: "backed by X" or "invested in X" or "funding for X"
+  const backedPatterns = [
+    /(?:backed|funded|invested\s+in|funding\s+for|acquired|acquired\s+by)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /(?:invests?\s+in|backs?|acquires?|leads?\s+round\s+(?:in|for)|bets\s+on)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /(?:portfolio\s+company|investment\s+in)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of backedPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 4: Dollar amounts with company names
+  const dollarPatterns = [
+    /\$[\d,.]+[MBK]?\s+(?:for|to|into|in|from)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)'?s?\s+\$[\d,.]+[MBK]?\s+(?:round|funding|raise|series|valuation|deal)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+valued\s+at\s+\$/gi,
+    /(?:valued|worth|at)\s+\$[\d,.]+[MBK]?,?\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of dollarPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // FOUNDER & TEAM PATTERNS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 5: "founder of X" / "co-founder of X" / "CEO of X"
+  const founderPatterns = [
+    /(?:founder|co-founder|cofounder|ceo|cto|cfo|coo|chief\s+\w+\s+officer)\s+(?:of|at)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+),?\s+(?:founder|co-founder|cofounder|ceo)\s+(?:of|at)\s+([A-Z][a-zA-Z0-9]+)/gi,
+    /(?:founded|started|launched|created|built)\s+(?:by\s+)?([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?),?\s+([A-Z][a-zA-Z0-9]+)/gi,
+  ];
+  
+  for (const pattern of founderPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      // Get company name (last capture group typically)
+      const companyName = match[2] || match[1];
+      addName(companyName);
+    }
+  }
+  
+  // Pattern 6: "[Person] joins/joined [Company]" - Team hires
+  const hiringPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:joins?|joined|appointed|named|hired\s+(?:by|as))\s+(?:\w+\s+)?(?:at\s+)?([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:hires?|hired|appoints?|appointed|names?|named|welcomes?|welcomed)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/gi,
+    /(?:new|former)\s+(?:ceo|cto|cfo|coo|vp|president|head|director|chief)\s+(?:at|of|for)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:adds?|added|brings?|brought)\s+(?:new\s+)?(?:ceo|cto|cfo|leadership|executive|talent)/gi,
+  ];
+  
+  for (const pattern of hiringPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      // First group might be person, second might be company - add both and let dedup handle
+      if (match[2]) addName(match[2]);
+      if (match[1] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io)$/i.test(match[1])) {
+        addName(match[1]); // Only add first if it looks like a company name
+      }
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // PRODUCT & VALUE PROPOSITION PATTERNS  
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 7: "[X] developed/built/created by [Company]"
+  const developedByPatterns = [
+    /(?:developed|built|created|made|designed|invented|powered)\s+by\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /(?:product|platform|tool|app|solution|software|service|technology)\s+(?:from|by)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)'?s?\s+(?:new\s+)?(?:product|platform|tool|app|solution|software|service|technology|api|sdk)/gi,
+  ];
+  
+  for (const pattern of developedByPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 8: "[Company] solves/tackles/addresses [problem]"
+  const problemSolverPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:solves?|tackles?|addresses?|fixes?|eliminates?|reduces?|automates?|simplifies?|streamlines?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:helps?\s+)?(?:companies?|businesses?|enterprises?|users?|customers?|people|teams?)\s+(?:to\s+)?(?:solve|tackle|address|manage|handle|deal\s+with)/gi,
+    /(?:solving|tackling|addressing|fixing)\s+(?:\w+\s+){0,3}(?:with|using|through)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of problemSolverPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 9: "[Company]'s mission/vision/goal" - Value proposition
+  const missionPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)'?s?\s+(?:mission|vision|goal|aim|purpose)\s+(?:is|to)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:aims?|seeks?|wants?|plans?|intends?)\s+to/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:is\s+)?(?:disrupting|transforming|revolutionizing|reinventing|reimagining|changing)/gi,
+  ];
+  
+  for (const pattern of missionPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // LAUNCH & GROWTH PATTERNS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 10: "[Company] launches/expands/grows"
+  const launchPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:launches?|launched|expands?|expanded|grows?|grew|scales?|scaled|enters?|entered)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:goes?\s+)?(?:live|public|global|international|nationwide)/gi,
+    /(?:launch(?:es|ed)?|debut(?:s|ed)?|introduction\s+of|unveil(?:s|ed)?)\s+(?:of\s+)?([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /(?:meet|introducing|welcome)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of launchPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 11: "[Company] partners with / acquires"
+  const partnerPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:partners?\s+with|teams?\s+up\s+with|collaborates?\s+with|joins?\s+forces?\s+with)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:acquires?|acquired|buys?|bought|merges?\s+with)/gi,
+    /(?:partnership|collaboration|deal|agreement)\s+(?:between|with)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of partnerPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // NAMING CONVENTION PATTERNS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 12: CamelCase names (common for startups)
+  const camelCasePattern = /\b([A-Z][a-z]+[A-Z][a-zA-Z0-9]*)\b/g;
+  while ((match = camelCasePattern.exec(title)) !== null) addName(match[1]);
+  
+  // Pattern 13: Names ending with common startup suffixes
+  const suffixPattern = /\b([A-Z][a-zA-Z0-9]*(?:ly|fy|sy|zy|io|ai|\.ai|\.io|\.co|\.xyz|Labs?|Tech|Hub|App|Box|Bot|Bit|Pay|Go|Up|Me|It|Us|We|One|Now|Pro|Max|Flex|Flow|Dash|Loop|Wave|Link|Grid|Base|Nest|Mind|Wise|Path|Pulse|Stack|Cloud|Data|Edge|Core|Ware|Soft))\b/gi;
+  while ((match = suffixPattern.exec(fullText)) !== null) addName(match[1]);
+  
+  // Pattern 14: Quoted company names "Company Name"
+  const quotedPattern = /["']([A-Z][a-zA-Z0-9\s]+?)["']/g;
+  while ((match = quotedPattern.exec(title)) !== null) {
+    const name = match[1].trim();
+    if (name.length >= 2 && name.length < 30) addName(name);
+  }
+  
+  // Pattern 15: Y Combinator / accelerator mentions
+  const acceleratorPatterns = [
+    /(?:YC|Y\s*Combinator|Techstars|500\s*Startups|Plug\s*and\s*Play|MassChallenge)\s+(?:startup|company|alum|batch|graduate)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?),?\s+(?:a|an)?\s*(?:YC|Y\s*Combinator|Techstars|500\s*Startups)\s+(?:startup|company|alum|backed)/gi,
+  ];
+  
+  for (const pattern of acceleratorPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Pattern 16: Industry news patterns - "[Company] in the news"
+  const newsPatterns = [
+    /(?:watch|spotlight|profile|feature|interview)\s+(?:on|with)?\s*:?\s*([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:featured|profiled|spotlighted|highlighted|showcased)\s+(?:in|on|at)/gi,
+    /(?:exclusive|breaking|first\s+look)\s*:?\s*([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of newsPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // Convert found names to startup objects
+  for (const name of foundNames) {
+    // Capitalize properly
+    const properName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    startups.push({
+      name: properName,
+      description: title,
+      sector: sectors[0] || 'Other',
+      stage: funding.funding_stage || null,
+      amount_raised: funding.funding_amount || null
     });
-
-    const data = await response.json();
-    const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{"startups":[],"investors":[]}');
-    return {
-      startups: parsed.startups || [],
-      investors: parsed.investors || []
-    };
-  } catch (error) {
-    console.error('  AI extraction error:', error.message);
-    return { startups: [], investors: [] };
   }
+  
+  // 5. Extract investors mentioned - also more aggressive
+  if (funding.lead_investor) {
+    investors.push({
+      name: funding.lead_investor,
+      firm: funding.lead_investor,
+      type: 'VC'
+    });
+  }
+  
+  if (funding.investors_mentioned?.length > 0) {
+    for (const inv of funding.investors_mentioned.slice(0, 5)) {
+      if (inv !== funding.lead_investor) {
+        investors.push({
+          name: inv,
+          firm: inv,
+          type: 'VC'
+        });
+      }
+    }
+  }
+  
+  // Pattern: "led by [Investor]" or "[Investor] led" or "backed by [Investor]"
+  const investorPatterns = [
+    /led\s+by\s+([A-Z][a-zA-Z\s&]+?)(?:\s+and|\s+with|\s*,|\s*\.|\s*$)/gi,
+    /backed\s+by\s+([A-Z][a-zA-Z\s&]+?)(?:\s+and|\s+with|\s*,|\s*\.|\s*$)/gi,
+    /(?:from|by)\s+([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners|VC|Fund))/gi,
+    /([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners))\s+(?:led|leads?|backs?|invests?)/gi,
+  ];
+  
+  for (const pattern of investorPatterns) {
+    let invMatch;
+    while ((invMatch = pattern.exec(fullText)) !== null) {
+      const invName = invMatch[1].trim();
+      if (invName.length >= 3 && !investors.find(i => i.name.toLowerCase() === invName.toLowerCase())) {
+        investors.push({
+          name: invName,
+          firm: invName,
+          type: 'VC'
+        });
+      }
+    }
+  }
+  
+  return { startups, investors };
 }
 
 // ============================================================================
@@ -277,8 +536,8 @@ async function scrapeFeed(source) {
       const content = item.contentSnippet || item.content || item.description || '';
       const link = item.link || '';
       
-      // Use AI to extract entities
-      const entities = await extractEntitiesWithAI(title, content, source.name);
+      // Use LOCAL INFERENCE to extract entities (NO AI - pattern-based, zero-cost!)
+      const entities = extractEntitiesWithInference(title, content, source.name);
       
       // Save startups
       for (const startup of entities.startups) {
@@ -312,11 +571,7 @@ async function main() {
   console.log('   Goal: 200+ startups/day, 100+ investors/day');
   console.log('═'.repeat(70));
   console.log(`⏰ Started: ${new Date().toISOString()}\n`);
-  
-  // Check API key
-  if (!OPENAI_API_KEY || OPENAI_API_KEY.includes('your-')) {
-    console.log('⚠️  OpenAI API key not configured - using basic extraction only\n');
-  }
+  console.log('🧠 Using local inference engine (no AI API required)\n');
   
   // Get starting counts
   const { count: startupsBefore } = await supabase
