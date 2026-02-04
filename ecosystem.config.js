@@ -1,6 +1,11 @@
 /**
  * PM2 Ecosystem Configuration
  * Manages all background processes for the application
+ * 
+ * IMPORTANT: Run preflight check before starting:
+ *   node scripts/preflight-check.js --quick
+ * 
+ * If preflight fails, DO NOT start processes until fixed.
  */
 
 module.exports = {
@@ -12,6 +17,7 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
+      max_restarts: 10,  // Prevent infinite restart loops
       watch: false,
       max_memory_restart: '1G',
       env: {
@@ -28,6 +34,7 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
+      max_restarts: 10,  // Prevent infinite restart loops
       watch: false,
       max_memory_restart: '500M',
       env: {
@@ -44,6 +51,7 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
+      max_restarts: 10,
       watch: false,
       max_memory_restart: '500M',
       cron_restart: '0 */2 * * *',  // Every 2 hours (changed from daily at 3 AM)
@@ -73,6 +81,7 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
+      max_restarts: 10,
       watch: false,
       max_memory_restart: '500M',
       cron_restart: '*/15 * * * *',  // Every 15 minutes
@@ -82,6 +91,29 @@ module.exports = {
       // SSOT scraper - parser is single source of truth for all decisions
       // Phase A: Always store events (100% coverage)
       // Phase B: Conditionally create graph joins (when graph_safe=true)
+    },
+    
+    // ========================================
+    // SIMPLE RSS SCRAPER (writes to discovered_startups)
+    // This is the ORIGINAL high-volume discovery scraper
+    // It was replaced by ssot-rss-scraper but needs to run SEPARATELY
+    // ssot-rss-scraper -> startup_events (for Phase Change)
+    // simple-rss-scraper -> discovered_startups (for discovery pipeline)
+    // ========================================
+    {
+      name: 'simple-rss-discovery',
+      script: 'node',
+      args: 'scripts/core/simple-rss-scraper.js',
+      cwd: './',
+      instances: 1,
+      autorestart: true,
+      max_restarts: 5,
+      watch: false,
+      max_memory_restart: '500M',
+      cron_restart: '0 */2 * * *',  // Every 2 hours (on the hour)
+      env: {
+        NODE_ENV: 'production'
+      }
     },
     
     // ========================================
@@ -112,16 +144,17 @@ module.exports = {
       args: 'scripts/ml-ontology-agent.js',
       cwd: './',
       instances: 1,
-      autorestart: true,  // Self-healing: auto-restart on failure
+      autorestart: false,  // Disabled - let cron_restart handle scheduling
       watch: false,
       max_memory_restart: '300M',
-      max_restarts: 10,  // Allow up to 10 restarts per hour
-      min_uptime: '10s',  // Must stay up 10s to count as stable
+      max_restarts: 3,  // Reduced - prevent restart loops
+      min_uptime: '30s',  // Must stay up 30s to count as stable
+      restart_delay: 300000, // Wait 5 minutes between restarts
       cron_restart: '0 */6 * * *',  // Every 6 hours
       env: {
         NODE_ENV: 'production'
       }
-      // SELF-HEALING: Auto-restarts on crash, feeds GOD score training data
+      // SELF-HEALING: Runs on cron schedule, has internal circuit breaker
       // Auto-applies high-confidence (≥85%) entity classifications
       // Flags low-confidence for optional review
       // Runs independently of GOD scoring system
@@ -263,11 +296,50 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,  // Keep alive - continuous polling
+      max_restarts: 10,   // Prevent infinite restart loops
       watch: false,
       max_memory_restart: '500M',
       env: {
         NODE_ENV: 'production'
       }
+    },
+    
+    // ========================================
+    // HIGH-VOLUME DISCOVERY (200+ startups/day, 100+ investors/day)
+    // ========================================
+    {
+      name: 'high-volume-discovery',
+      script: 'node',
+      args: 'scripts/high-volume-discovery.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '500M',
+      max_restarts: 5,
+      cron_restart: '0 */2 * * *',  // Every 2 hours
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Uses AI entity extraction from 40+ RSS sources
+      // Goal: 200+ startups/day, 100+ investors/day
+    },
+    {
+      name: 'vc-team-scraper',
+      script: 'node',
+      args: 'scripts/vc-team-scraper.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '500M',
+      max_restarts: 3,
+      cron_restart: '0 */6 * * *',  // Every 6 hours
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Scrapes 50+ VC firm team pages
+      // Discovers individual partners, principals, associates
     }
   ]
 };

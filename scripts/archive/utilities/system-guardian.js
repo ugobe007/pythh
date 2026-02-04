@@ -109,8 +109,8 @@ async function checkScraperHealth() {
     const pm2Status = execSync('pm2 jlist 2>/dev/null || echo "[]"').toString();
     const processes = JSON.parse(pm2Status);
     
-    // Updated to match ecosystem.config.js process names
-    const scrapers = ['scraper', 'rss-scraper', 'automation-engine'];
+    // Updated to match ecosystem.config.js process names (Feb 4, 2026)
+    const scrapers = ['rss-scraper', 'simple-rss-discovery', 'high-volume-discovery'];
     
     for (const name of scrapers) {
       const proc = processes.find(p => p.name === name);

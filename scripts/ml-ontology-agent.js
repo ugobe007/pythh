@@ -32,7 +32,60 @@ const CONFIG = {
   AUTO_APPLY_THRESHOLD: 0.85, // Auto-apply if confidence >= 85%
   AUTO_APPLY_ENABLED: true, // Fully automated mode
   MODEL: 'gpt-4o-mini', // Fast and cheap for classification
+  // Rate limiting & circuit breaker
+  BASE_DELAY_MS: 1000,           // Base delay between API calls
+  MAX_DELAY_MS: 60000,           // Max delay (1 minute)
+  CIRCUIT_BREAKER_THRESHOLD: 5, // Open circuit after 5 consecutive failures
+  CIRCUIT_BREAKER_RESET_MS: 300000, // Reset circuit after 5 minutes
+  MAX_RETRIES: 3,                // Max retries per request
 };
+
+// Circuit breaker state
+const circuitBreaker = {
+  failures: 0,
+  lastFailure: null,
+  isOpen: false,
+  
+  recordFailure() {
+    this.failures++;
+    this.lastFailure = Date.now();
+    if (this.failures >= CONFIG.CIRCUIT_BREAKER_THRESHOLD) {
+      this.isOpen = true;
+      console.log(`🔴 CIRCUIT BREAKER OPEN - Too many failures (${this.failures}). Pausing for ${CONFIG.CIRCUIT_BREAKER_RESET_MS / 1000}s`);
+    }
+  },
+  
+  recordSuccess() {
+    this.failures = 0;
+    this.isOpen = false;
+  },
+  
+  canProceed() {
+    if (!this.isOpen) return true;
+    // Check if reset period has passed
+    if (Date.now() - this.lastFailure > CONFIG.CIRCUIT_BREAKER_RESET_MS) {
+      console.log('🟢 CIRCUIT BREAKER RESET - Resuming operations');
+      this.isOpen = false;
+      this.failures = 0;
+      return true;
+    }
+    return false;
+  }
+};
+
+// Exponential backoff helper
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getBackoffDelay(attempt) {
+  const delay = Math.min(
+    CONFIG.BASE_DELAY_MS * Math.pow(2, attempt),
+    CONFIG.MAX_DELAY_MS
+  );
+  // Add jitter (±25%)
+  return delay * (0.75 + Math.random() * 0.5);
+}
 
 /**
  * Step 1: Collect entity patterns from recent RSS data
@@ -118,9 +171,15 @@ async function filterUnclassified(entities) {
 }
 
 /**
- * Step 3: Classify entity with OpenAI (fast & efficient)
+ * Step 3: Classify entity with OpenAI (with retry logic & circuit breaker)
  */
 async function classifyWithParser(entity) {
+  // Check circuit breaker first
+  if (!circuitBreaker.canProceed()) {
+    console.log(`   ⏸️  Circuit breaker open, skipping "${entity.name}"`);
+    return null;
+  }
+
   const contextsText = entity.contexts
     .slice(0, 5) // Use first 5 contexts
     .map(c => `- "${c.title}" (${c.eventType}, ${c.role})`)
@@ -150,21 +209,41 @@ Return ONLY valid JSON:
   "reasoning": "brief explanation"
 }`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: CONFIG.MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.1,
-      response_format: { type: "json_object" }
-    });
-    
-    const result = JSON.parse(response.choices[0].message.content);
-    return result;
-    
-  } catch (error) {
-    console.error(`❌ Classification failed for "${entity.name}":`, error.message);
-    return null;
+  // Retry loop with exponential backoff
+  for (let attempt = 0; attempt < CONFIG.MAX_RETRIES; attempt++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: CONFIG.MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        response_format: { type: "json_object" }
+      });
+      
+      const result = JSON.parse(response.choices[0].message.content);
+      circuitBreaker.recordSuccess();
+      return result;
+      
+    } catch (error) {
+      const isRetryable = error.status === 429 || error.status === 500 || 
+                          error.status === 502 || error.status === 503 ||
+                          error.message?.includes('fetch failed') ||
+                          error.message?.includes('Connection error');
+      
+      if (isRetryable && attempt < CONFIG.MAX_RETRIES - 1) {
+        const delay = getBackoffDelay(attempt);
+        console.log(`   ⏳ Retry ${attempt + 1}/${CONFIG.MAX_RETRIES} for "${entity.name}" in ${(delay/1000).toFixed(1)}s (${error.message})`);
+        await sleep(delay);
+        continue;
+      }
+      
+      // Non-retryable or max retries reached
+      circuitBreaker.recordFailure();
+      console.error(`❌ Classification failed for "${entity.name}": ${error.message}`);
+      return null;
+    }
   }
+  
+  return null;
 }
 
 /**
@@ -197,8 +276,14 @@ async function classifyBatch(entities) {
       console.log(`   ⚠️  Low confidence or failed\n`);
     }
     
-    // Rate limiting
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Rate limiting - use base delay with jitter
+    await sleep(CONFIG.BASE_DELAY_MS * (0.75 + Math.random() * 0.5));
+    
+    // Check circuit breaker between entities
+    if (!circuitBreaker.canProceed()) {
+      console.log(`\n⏸️  Circuit breaker open - stopping batch early`);
+      break;
+    }
   }
   
   return classifications;
@@ -332,6 +417,14 @@ async function runOntologyLearning() {
   console.log('═'.repeat(70) + '\n');
   
   try {
+    // Check circuit breaker before starting
+    if (!circuitBreaker.canProceed()) {
+      const waitTime = CONFIG.CIRCUIT_BREAKER_RESET_MS - (Date.now() - circuitBreaker.lastFailure);
+      console.log(`⏸️  Circuit breaker open. Waiting ${Math.round(waitTime / 1000)}s before retry...`);
+      await sleep(Math.max(waitTime, 60000)); // Wait at least 1 minute
+      return; // Let the cron restart handle it
+    }
+    
     // Step 1: Collect patterns
     const entityPatterns = await collectEntityPatterns();
     if (!entityPatterns) return;
@@ -388,6 +481,15 @@ async function runOntologyLearning() {
   } catch (error) {
     console.error('❌ Error:', error.message);
     console.error(error.stack);
+    
+    // Record failure for circuit breaker
+    circuitBreaker.recordFailure();
+    
+    // If circuit breaker is open, sleep instead of crashing
+    if (circuitBreaker.isOpen) {
+      console.log(`⏸️  Circuit breaker triggered. Sleeping for ${CONFIG.CIRCUIT_BREAKER_RESET_MS / 1000}s to prevent restart loop...`);
+      await sleep(CONFIG.CIRCUIT_BREAKER_RESET_MS);
+    }
   }
 }
 
