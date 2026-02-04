@@ -35,18 +35,41 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 /**
- * Extract domain from URL for company name
+ * URL Normalization - FAULT TOLERANT
+ * Handles: lovable.com, www.lovable.com, https://lovable.com, lovable, etc.
  */
 function extractDomain(url) {
-  const normalized = normalizeUrl(url);
-  return normalized.split('/')[0];
+  let input = String(url || '').trim().toLowerCase();
+  
+  // Remove protocol
+  input = input.replace(/^https?:\/\//i, '');
+  // Remove www.
+  input = input.replace(/^www\./i, '');
+  // Remove trailing slashes and paths
+  input = input.split('/')[0];
+  // Remove query strings
+  input = input.split('?')[0];
+  
+  return input;
+}
+
+/**
+ * Extract company name from any input
+ * "stripe.com" → "stripe"
+ * "www.stripe.com" → "stripe"
+ * "stripe" → "stripe"
+ */
+function extractCompanyName(input) {
+  const domain = extractDomain(input);
+  // Get the part before the first dot (or the whole thing if no dot)
+  return domain.split('.')[0].toLowerCase();
 }
 
 /**
  * Generate company name from domain
  */
 function domainToName(domain) {
-  const base = domain.split('.')[0];
+  const base = extractCompanyName(domain);
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
@@ -110,73 +133,106 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ error: 'URL required' });
     }
     
-    const url = String(urlRaw).trim();
-    const urlNormalized = normalizeUrl(url);
-    const domain = extractDomain(url);
+    // FAULT TOLERANT INPUT PARSING
+    const inputRaw = String(urlRaw).trim();
+    const companyName = extractCompanyName(inputRaw);
+    const domain = extractDomain(inputRaw);
+    const urlNormalized = normalizeUrl(inputRaw);
     
-    console.log(`⚡ [INSTANT] Processing URL: ${url} → ${urlNormalized}`);
+    console.log(`⚡ [INSTANT] Processing input: "${inputRaw}"`);
+    console.log(`   → Company name: "${companyName}", Domain: "${domain}", Normalized: "${urlNormalized}"`);
     
-    // 1. Find existing startup
+    // Validate we got something useful
+    if (!companyName || companyName.length < 2) {
+      return res.status(400).json({ 
+        error: 'Invalid URL',
+        message: 'Please enter a valid company website (e.g., stripe.com)'
+      });
+    }
+    
+    // 1. Find existing startup with FUZZY MATCHING
     let startupId = null;
     let startup = null;
     let isNew = false;
     
-    // Extract company name from domain (e.g., "lovable" from "lovable.com")
-    const companyNameFromDomain = domain.split('.')[0].toLowerCase();
+    // Build flexible search query - search by:
+    // - Full domain in website
+    // - Company name in website (handles different TLDs)
+    // - Company name in startup name
+    const searchPatterns = [
+      `website.ilike.%${domain}%`,
+      `website.ilike.%${companyName}.%`,
+      `name.ilike.%${companyName}%`
+    ];
     
-    // Search by URL OR company name (handles lovable.com → lovable.so case)
-    const { data: candidates } = await supabase
+    const { data: candidates, error: searchErr } = await supabase
       .from('startup_uploads')
       .select('id, name, website, sectors, stage, total_god_score, status')
-      .or(`website.ilike.%${domain}%,website.ilike.%${companyNameFromDomain}.%,name.ilike.%${companyNameFromDomain}%`)
+      .or(searchPatterns.join(','))
       .eq('status', 'approved')
-      .limit(50);
+      .limit(100);
+    
+    if (searchErr) {
+      console.error(`  ✗ Search error:`, searchErr);
+    }
+    
+    console.log(`   → Found ${candidates?.length || 0} candidate startups`);
     
     if (candidates && candidates.length > 0) {
-      // Priority 1: Exact URL match
-      let match = candidates.find(c => {
-        if (!c.website) return false;
-        return normalizeUrl(c.website) === urlNormalized;
+      // Score each candidate for best match
+      const scored = candidates.map(c => {
+        let score = 0;
+        const candidateCompanyName = extractCompanyName(c.website || '');
+        const candidateNameLower = (c.name || '').toLowerCase();
+        
+        // Exact normalized URL match = highest priority
+        if (c.website && normalizeUrl(c.website) === urlNormalized) {
+          score = 100;
+        }
+        // Exact company name match (stripe.com → stripe.io)
+        else if (candidateCompanyName === companyName) {
+          score = 90;
+        }
+        // Company name is in startup name
+        else if (candidateNameLower.includes(companyName)) {
+          score = 70;
+        }
+        // Startup name is in company name
+        else if (companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) {
+          score = 60;
+        }
+        // Partial website match
+        else if (c.website && c.website.toLowerCase().includes(companyName)) {
+          score = 50;
+        }
+        
+        return { ...c, matchScore: score };
       });
       
-      // Priority 2: Same company name but different TLD (e.g., lovable.com → lovable.so)
-      if (!match) {
-        match = candidates.find(c => {
-          if (!c.website) return false;
-          const candidateDomain = normalizeUrl(c.website).split('/')[0];
-          const candidateName = candidateDomain.split('.')[0].toLowerCase();
-          return candidateName === companyNameFromDomain;
-        });
-      }
+      // Sort by match score and take the best
+      scored.sort((a, b) => b.matchScore - a.matchScore);
       
-      // Priority 3: Name contains the company name
-      if (!match) {
-        match = candidates.find(c => 
-          c.name && c.name.toLowerCase().includes(companyNameFromDomain)
-        );
-      }
-      
-      if (match) {
-        startupId = match.id;
-        startup = match;
-        console.log(`  ✓ Found existing startup: ${match.name} (${match.id}) via smart matching`);
+      if (scored[0].matchScore >= 50) {
+        startup = scored[0];
+        startupId = startup.id;
+        console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore})`);
       }
     }
     
     // 2. Create new startup if not found
     if (!startupId) {
       isNew = true;
-      const companyName = domainToName(domain);
+      const displayName = domainToName(domain);
       
       // Generate unique name to avoid constraint violations
       const timestamp = Date.now().toString(36);
-      const uniqueName = `${companyName}-${timestamp}`;
+      const uniqueName = `${displayName}-${timestamp}`;
       
       const { data: newStartup, error: insertErr } = await supabase
         .from('startup_uploads')
         .insert({
           name: uniqueName,
-          website: `https://${urlNormalized}`,
+          website: `https://${domain}`,
           tagline: `Startup at ${domain}`,
           sectors: ['Technology'],
           stage: 1,
