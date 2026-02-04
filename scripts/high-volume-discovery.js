@@ -142,31 +142,146 @@ function extractEntitiesWithInference(title, content, source) {
   
   // Skip words that aren't company names
   const skipWords = new Set([
+    // ═══════════════════════════════════════════════════════════════════
+    // MATURE/PUBLIC COMPANIES (should not be in startup discovery)
+    // ═══════════════════════════════════════════════════════════════════
+    // Tech Giants
     'google', 'apple', 'microsoft', 'amazon', 'meta', 'openai', 'anthropic', 
     'nvidia', 'tesla', 'uber', 'airbnb', 'stripe', 'spacex', 'facebook', 'twitter',
     'linkedin', 'netflix', 'spotify', 'snapchat', 'tiktok', 'bytedance', 'alibaba',
-    'the', 'and', 'for', 'with', 'from', 'into', 'how', 'why', 'what', 'who',
+    'slack', 'lyft', 'dropbox', 'zoom', 'shopify', 'paypal', 'square', 'doordash',
+    'instacart', 'coinbase', 'robinhood', 'snap', 'pinterest', 'discord', 'reddit',
+    'palantir', 'snowflake', 'databricks', 'figma', 'canva', 'notion', 'airtable',
+    'twilio', 'cloudflare', 'datadog', 'mongodb', 'elastic', 'github', 'gitlab',
+    'hashicorp', 'confluent', 'servicenow', 'workday', 'splunk', 'crowdstrike',
+    'docusign', 'okta', 'zscaler', 'fortinet', 'hubspot', 'zendesk', 'freshworks',
+    'asana', 'monday', 'atlassian', 'miro', 'clickup', 'linear', 'amplitude',
+    'segment', 'braze', 'iterable', 'klaviyo', 'mailchimp', 'sendgrid', 'vercel',
+    'netlify', 'heroku', 'digitalocean', 'supabase', 'firebase', 'grammarly',
+    'peloton', 'fitbit', 'garmin', 'whoop', 'oura', 'flexport', 'samsara',
+    'rappi', 'grab', 'gojek', 'ola', 'didi', 'bolt', 'plaid', 'brex', 'ramp',
+    'gusto', 'rippling', 'deel', 'toast', 'affirm', 'marqeta', 'quora', 'medium',
+    'substack', 'wix', 'squarespace', 'wordpress', 'intercom', 'gong', 'outreach',
+    // International Tech
+    'tencent', 'baidu', 'samsung', 'sony', 'huawei', 'xiaomi', 'lg',
+    // Traditional Tech  
+    'dell', 'hp', 'lenovo', 'asus', 'acer', 'intel', 'ibm', 'oracle', 'salesforce',
+    'adobe', 'cisco', 'sap', 'vmware', 'citrix',
+    // Consulting/Services
+    'wipro', 'infosys', 'tcs', 'cognizant', 'accenture', 'deloitte', 'kpmg', 'pwc', 'ey',
+    'mckinsey', 'bain', 'bcg',
+    // Finance
+    'jpmorgan', 'goldman', 'visa', 'mastercard', 'discover', 'amex',
+    // Retail
+    'walmart', 'target', 'costco', 'cvs', 'walgreens',
+    // VC Firms (not startups)
+    'sequoia', 'andreessen', 'benchmark', 'greylock', 'kleiner', 'accel', 'lightspeed',
+    'khosla', 'nea', 'bessemer', 'a16z', 'techstars',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // COMMON ENGLISH WORDS (frequently extracted incorrectly)
+    // ═══════════════════════════════════════════════════════════════════
+    // Articles/Pronouns
+    'the', 'a', 'an', 'and', 'or', 'but', 'if', 'so', 'as', 'at', 'to', 'of', 'in', 'on', 'by',
+    'for', 'with', 'from', 'into', 'is', 'it', 'we', 'us', 'me', 'he', 'she', 'they', 'them',
+    // Question words
+    'how', 'why', 'what', 'who', 'when', 'where', 'which',
+    // Common adjectives/adverbs
     'new', 'top', 'best', 'first', 'last', 'next', 'more', 'most', 'this', 'that',
-    'series', 'seed', 'round', 'funding', 'raises', 'million', 'billion',
+    'here', 'there', 'some', 'many', 'few', 'all', 'any', 'each', 'every', 'both',
+    'also', 'just', 'even', 'still', 'now', 'yet', 'ever', 'already', 'only',
+    // Modal verbs
+    'will', 'can', 'could', 'should', 'would', 'may', 'might', 'must', 'shall',
+    // Common verbs (often extracted incorrectly)
+    'says', 'said', 'announces', 'announced', 'launches', 'launched', 'today',
+    'being', 'been', 'was', 'were', 'has', 'have', 'had', 'does', 'did', 'done',
+    'gets', 'got', 'gone', 'goes', 'going', 'come', 'came', 'takes', 'took',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // BUSINESS/FUNDING TERMS (not company names)
+    // ═══════════════════════════════════════════════════════════════════
+    'series', 'seed', 'round', 'funding', 'raises', 'raised', 'million', 'billion',
     'venture', 'capital', 'investor', 'investors', 'startup', 'startups',
-    'company', 'companies', 'firm', 'firms', 'fund', 'funds', 'backed',
+    'company', 'companies', 'firm', 'firms', 'fund', 'funds', 'backed', 'investment',
+    'portfolio', 'equity', 'valuation', 'unicorn', 'ipo', 'acquisition', 'merger',
+    'ceo', 'cto', 'cfo', 'coo', 'cmo', 'vp', 'director', 'manager', 'founder', 'founders',
+    'executive', 'partner', 'partners', 'board', 'chairman', 'president',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // TIME REFERENCES
+    // ═══════════════════════════════════════════════════════════════════
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
     'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
-    'september', 'october', 'november', 'december', 'report', 'news', 'update',
-    'says', 'said', 'announces', 'announced', 'launches', 'launched', 'today',
-    'here', 'there', 'will', 'can', 'could', 'should', 'would', 'may', 'might'
+    'september', 'october', 'november', 'december', 
+    'q1', 'q2', 'q3', 'q4', 'fy', 'h1', 'h2', 'year', 'month', 'week', 'day',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // NEWS/PUBLICATION TERMS
+    // ═══════════════════════════════════════════════════════════════════
+    'report', 'news', 'update', 'article', 'story', 'headline', 'insider', 'journal',
+    'finsmes', 'techcrunch', 'venturebeat', 'bloomberg', 'reuters', 'forbes', 'wsj',
+    'exclusive', 'breaking', 'featured', 'spotlight', 'digest', 'roundup', 'weekly',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // GENERIC INDUSTRY WORDS (alone, not company names)
+    // ═══════════════════════════════════════════════════════════════════
+    'tech', 'labs', 'data', 'cloud', 'app', 'pay', 'hub', 'box', 'go', 'one', 'pro',
+    'ai', 'ml', 'iot', 'saas', 'paas', 'iaas', 'api', 'sdk', 'ui', 'ux',
+    'media', 'digital', 'software', 'platform', 'solutions', 'services', 'systems',
+    'network', 'group', 'holdings', 'ventures', 'capital', 'inc', 'ltd', 'llc', 'corp',
+    'bio', 'med', 'health', 'pharma', 'energy', 'power', 'finance', 'bank', 'insurance',
+    'fintech', 'healthtech', 'biotech', 'edtech', 'proptech', 'insurtech', 'cleantech',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // CURRENCY/GEOGRAPHIC CODES
+    // ═══════════════════════════════════════════════════════════════════
+    'usd', 'eur', 'gbp', 'jpy', 'cny', 'cad', 'aud', 'inr', 'sgd', 'hkd',
+    'us', 'uk', 'eu', 'china', 'india', 'japan', 'korea', 'germany', 'france',
+    'global', 'international', 'worldwide', 'regional', 'local', 'national',
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // MISC JUNK COMMONLY EXTRACTED
+    // ═══════════════════════════════════════════════════════════════════
+    'null', 'undefined', 'error', 'unknown', 'na', 'tbd', 'tba', 'etc',
+    'via', 'per', 'ex', 'vs', 're', 'aka', 'ie', 'eg',
+    'read', 'list', 'view', 'see', 'click', 'watch', 'learn', 'discover',
+    'about', 'during', 'while', 'after', 'before', 'between', 'among',
+    'over', 'under', 'through', 'across', 'against', 'within', 'without'
   ]);
   
   // Helper to add name if valid
   const addName = (name) => {
     if (!name) return;
     name = name.trim();
-    if (name.length >= 2 && name.length < 50 && 
-        !skipWords.has(name.toLowerCase()) && 
-        !foundNames.has(name.toLowerCase()) &&
-        !/^\d+$/.test(name)) { // Skip pure numbers
-      foundNames.add(name.toLowerCase());
-    }
+    
+    // Basic length check (min 3 chars, max 50)
+    if (name.length < 3 || name.length > 50) return;
+    
+    // Skip if in blocklist
+    if (skipWords.has(name.toLowerCase())) return;
+    
+    // Skip if already found
+    if (foundNames.has(name.toLowerCase())) return;
+    
+    // Skip pure numbers or very numeric names
+    if (/^\d+$/.test(name) || /^\d{4}$/.test(name)) return;
+    
+    // Skip all-lowercase words (usually junk, real companies are capitalized)
+    if (name === name.toLowerCase() && !/\d/.test(name) && !name.includes('.')) return;
+    
+    // Skip 1-2 letter uppercase codes (AI, ML, UK, EU, etc.)
+    if (/^[A-Z]{1,2}$/.test(name)) return;
+    
+    // Skip names starting with news publication prefixes
+    if (/^(News|Finsmes|Insider|Journal|Article|Report)\s/i.test(name)) return;
+    
+    // Skip names ending with generic words
+    if (/\s(Partner|Board|The)$/i.test(name)) return;
+    
+    // Skip names that are just "X and Y" patterns
+    if (/^(And|Or|That|Can|Being|From|To|At)\s/i.test(name)) return;
+    
+    foundNames.add(name.toLowerCase());
   };
   
   let match;
