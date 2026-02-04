@@ -322,25 +322,190 @@ function extractEntitiesWithInference(title, content, source) {
   }
   
   // ═══════════════════════════════════════════════════════════════════
+  // RECENT JOINS & TEAM MOVEMENTS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 12: "[NAME] recently joined [startup]"
+  const recentJoinPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:recently|just|officially)\s+(?:joined|joined\s+the\s+team\s+at)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:welcomes?|welcomed)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:as|to)/gi,
+    /(?:new\s+)?(?:hire|addition|team\s+member)\s+(?:at|for)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:moves?|moved)\s+to\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of recentJoinPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      // Add company name (usually second group or first if it looks like a company)
+      if (match[2]) addName(match[2]);
+      if (match[1] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io)$/i.test(match[1])) addName(match[1]);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // PRODUCT & SERVICE LAUNCHES
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 13: "[startup] just launched [product/service]"
+  const productLaunchPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:just|recently|officially|finally)\s+(?:launched|released|unveiled|announced|introduced|rolled\s+out)\s+(?:its?|their|a|the|new)?\s*(?:\w+\s+)?(?:product|service|platform|app|tool|feature|api|sdk|solution)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:debuts?|debuted|introduces?|introduced|unveils?|unveiled)\s+(?:new\s+)?(?:product|service|platform|offering|tool|feature)/gi,
+    /(?:new|latest)\s+(?:product|service|platform|tool|feature)\s+(?:from|by)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:rolls?\s+out|shipping|ships?|releases?|launches?)\s+(?:v\d|version|\d\.\d|beta|alpha|new)/gi,
+  ];
+  
+  for (const pattern of productLaunchPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // INDIVIDUAL INVESTOR ACTIONS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 14: "[NAME] invested in [startup]"
+  const individualInvestorPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:invested|invests?)\s+(?:in|into)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:backs?|backed|bets?\s+on|bet\s+on)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /(?:angel|investor|entrepreneur)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:invested|invests?|backs?|backed)\s+(?:in\s+)?([A-Z][a-zA-Z0-9]+)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:gets?|got|receives?|received)\s+(?:investment|funding|backing)\s+from\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/gi,
+  ];
+  
+  for (const pattern of individualInvestorPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      // Add company (usually second group)
+      if (match[2] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io|ly|fy)$/i.test(match[2])) addName(match[2]);
+      else if (match[1] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io|ly|fy)$/i.test(match[1])) addName(match[1]);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // BOARD & ADVISOR APPOINTMENTS
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 15: "[NAME] joins board of [startup]"
+  const boardPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:joins?|joined|appointed\s+to)\s+(?:the\s+)?board\s+(?:of|at)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:appoints?|appointed|adds?|added|names?|named)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:to\s+)?(?:its?|the)?\s*board/gi,
+    /(?:new|newly)\s+board\s+(?:member|director|seat)\s+(?:at|for)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:takes?|took)\s+(?:a\s+)?board\s+seat\s+(?:at|with)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of boardPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      if (match[2]) addName(match[2]);
+      if (match[1] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io)$/i.test(match[1])) addName(match[1]);
+    }
+  }
+  
+  // Pattern 16: "[NAME INVESTOR] joining [startup] as advisor"
+  const advisorPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:joins?|joined|joining)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+as\s+(?:an?\s+)?advisor/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:adds?|added|brings?|brought\s+on|appoints?|appointed)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+as\s+(?:an?\s+)?advisor/gi,
+    /(?:advisor|strategic\s+advisor|special\s+advisor)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:joins?|joined|at)\s+([A-Z][a-zA-Z0-9]+)/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:becomes?|became)\s+(?:an?\s+)?advisor\s+(?:to|at|for)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+  ];
+  
+  for (const pattern of advisorPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      if (match[2]) addName(match[2]);
+      if (match[1] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io)$/i.test(match[1])) addName(match[1]);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // INVESTOR MOVEMENTS & COMMENTARY
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 17: "[NAME investor] joined [venture firm]"
+  const investorMovementPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:joins?|joined|moves?\s+to|moved\s+to)\s+([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners|VC|Fund|Investment))/gi,
+    /([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners|VC|Fund))\s+(?:hires?|hired|adds?|added|welcomes?|welcomed)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/gi,
+    /(?:partner|principal|associate|gp|general\s+partner)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:joins?|joined|leaves?|left)\s+([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners))/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:promoted|elevated)\s+(?:to\s+)?(?:partner|gp|managing\s+director)\s+at\s+([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners))/gi,
+  ];
+  
+  for (const pattern of investorMovementPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      // These are VC firms, not startups - but good for investor discovery
+      // We could track these separately if needed
+    }
+  }
+  
+  // Pattern 18: "[NAME investor] commented about [startup]" - Commentary patterns
+  const investorCommentaryPatterns = [
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:says?|said|comments?|commented|notes?|noted|believes?|believed|thinks?|thought)\s+(?:that\s+)?([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /(?:according\s+to|per)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?),?\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:is|has|will|could)/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\s+(?:of|from|at)\s+([A-Z][a-zA-Z]+\s+(?:Capital|Ventures|Partners))\s+(?:on|about)\s+([A-Z][a-zA-Z0-9]+)/gi,
+    /"[^"]*([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)[^"]*"\s+(?:says?|said)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/gi,
+  ];
+  
+  for (const pattern of investorCommentaryPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      // Extract company mentioned in commentary
+      if (match[3]) addName(match[3]);
+      else if (match[2] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io|ly|fy)$/i.test(match[2])) addName(match[2]);
+      else if (match[1] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io|ly|fy)$/i.test(match[1])) addName(match[1]);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // EXITS & MILESTONES
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 19: IPO, acquisition exits, milestones
+  const exitPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:files?|filed)\s+(?:for\s+)?(?:IPO|S-1|to\s+go\s+public)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:goes?|went|going)\s+public/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:hits?|hit|reaches?|reached|crosses?|crossed|surpasses?|surpassed)\s+\$?[\d,.]+[MBK]?\s+(?:in\s+)?(?:ARR|MRR|revenue|valuation|users|customers)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:becomes?|became)\s+(?:a\s+)?(?:unicorn|decacorn|profitable)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:acquired|bought)\s+by\s+([A-Z][a-zA-Z0-9]+)/gi,
+  ];
+  
+  for (const pattern of exitPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      addName(match[1]);
+      if (match[2]) addName(match[2]);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // CUSTOMER & TRACTION PATTERNS  
+  // ═══════════════════════════════════════════════════════════════════
+  
+  // Pattern 20: Customer wins and traction
+  const tractionPatterns = [
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:signs?|signed|wins?|won|lands?|landed|secures?|secured)\s+(?:deal|contract|partnership|customer)\s+with\s+([A-Z][a-zA-Z0-9]+)/gi,
+    /([A-Z][a-zA-Z]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:selects?|selected|chooses?|chose|picks?|picked|adopts?|adopted)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:now\s+)?(?:powers?|powering|used\s+by|serving|serves?)\s+(?:\d+|thousands?|millions?|hundreds?)/gi,
+    /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:grows?|grew|growing)\s+(?:\d+%|to\s+\d+|by\s+\d+)/gi,
+  ];
+  
+  for (const pattern of tractionPatterns) {
+    while ((match = pattern.exec(fullText)) !== null) {
+      addName(match[1]);
+      if (match[2] && /[A-Z][a-z]+[A-Z]|(?:Tech|Labs?|AI|App|Hub|io|ly|fy)$/i.test(match[2])) addName(match[2]);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
   // NAMING CONVENTION PATTERNS
   // ═══════════════════════════════════════════════════════════════════
   
-  // Pattern 12: CamelCase names (common for startups)
+  // Pattern 21: CamelCase names (common for startups)
   const camelCasePattern = /\b([A-Z][a-z]+[A-Z][a-zA-Z0-9]*)\b/g;
   while ((match = camelCasePattern.exec(title)) !== null) addName(match[1]);
   
-  // Pattern 13: Names ending with common startup suffixes
+  // Pattern 22: Names ending with common startup suffixes
   const suffixPattern = /\b([A-Z][a-zA-Z0-9]*(?:ly|fy|sy|zy|io|ai|\.ai|\.io|\.co|\.xyz|Labs?|Tech|Hub|App|Box|Bot|Bit|Pay|Go|Up|Me|It|Us|We|One|Now|Pro|Max|Flex|Flow|Dash|Loop|Wave|Link|Grid|Base|Nest|Mind|Wise|Path|Pulse|Stack|Cloud|Data|Edge|Core|Ware|Soft))\b/gi;
   while ((match = suffixPattern.exec(fullText)) !== null) addName(match[1]);
   
-  // Pattern 14: Quoted company names "Company Name"
+  // Pattern 23: Quoted company names "Company Name"
   const quotedPattern = /["']([A-Z][a-zA-Z0-9\s]+?)["']/g;
   while ((match = quotedPattern.exec(title)) !== null) {
     const name = match[1].trim();
     if (name.length >= 2 && name.length < 30) addName(name);
   }
   
-  // Pattern 15: Y Combinator / accelerator mentions
+  // Pattern 24: Y Combinator / accelerator mentions
   const acceleratorPatterns = [
     /(?:YC|Y\s*Combinator|Techstars|500\s*Startups|Plug\s*and\s*Play|MassChallenge)\s+(?:startup|company|alum|batch|graduate)\s+([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
     /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?),?\s+(?:a|an)?\s*(?:YC|Y\s*Combinator|Techstars|500\s*Startups)\s+(?:startup|company|alum|backed)/gi,
@@ -350,7 +515,7 @@ function extractEntitiesWithInference(title, content, source) {
     while ((match = pattern.exec(fullText)) !== null) addName(match[1]);
   }
   
-  // Pattern 16: Industry news patterns - "[Company] in the news"
+  // Pattern 25: Industry news patterns - "[Company] in the news"
   const newsPatterns = [
     /(?:watch|spotlight|profile|feature|interview)\s+(?:on|with)?\s*:?\s*([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)/gi,
     /([A-Z][a-zA-Z0-9]+(?:[-\.][a-zA-Z0-9]+)?)\s+(?:featured|profiled|spotlighted|highlighted|showcased)\s+(?:in|on|at)/gi,
