@@ -121,24 +121,45 @@ router.post('/submit', async (req, res) => {
     let startup = null;
     let isNew = false;
     
-    // Search by normalized URL
+    // Extract company name from domain (e.g., "lovable" from "lovable.com")
+    const companyNameFromDomain = domain.split('.')[0].toLowerCase();
+    
+    // Search by URL OR company name (handles lovable.com → lovable.so case)
     const { data: candidates } = await supabase
       .from('startup_uploads')
-      .select('id, name, website, sectors, stage, total_god_score')
-      .or(`website.ilike.%${domain}%`)
+      .select('id, name, website, sectors, stage, total_god_score, status')
+      .or(`website.ilike.%${domain}%,website.ilike.%${companyNameFromDomain}.%,name.ilike.%${companyNameFromDomain}%`)
+      .eq('status', 'approved')
       .limit(50);
     
     if (candidates && candidates.length > 0) {
-      // Find exact match by normalizing
-      const match = candidates.find(c => {
+      // Priority 1: Exact URL match
+      let match = candidates.find(c => {
         if (!c.website) return false;
         return normalizeUrl(c.website) === urlNormalized;
       });
       
+      // Priority 2: Same company name but different TLD (e.g., lovable.com → lovable.so)
+      if (!match) {
+        match = candidates.find(c => {
+          if (!c.website) return false;
+          const candidateDomain = normalizeUrl(c.website).split('/')[0];
+          const candidateName = candidateDomain.split('.')[0].toLowerCase();
+          return candidateName === companyNameFromDomain;
+        });
+      }
+      
+      // Priority 3: Name contains the company name
+      if (!match) {
+        match = candidates.find(c => 
+          c.name && c.name.toLowerCase().includes(companyNameFromDomain)
+        );
+      }
+      
       if (match) {
         startupId = match.id;
         startup = match;
-        console.log(`  ✓ Found existing startup: ${match.name} (${match.id})`);
+        console.log(`  ✓ Found existing startup: ${match.name} (${match.id}) via smart matching`);
       }
     }
     
