@@ -70,7 +70,7 @@ export const pythhRpc = {
   // Resolve startup by URL or name
   // FAST PATH: Try Supabase RPC first (always warm, <500ms for existing startups)
   // SLOW PATH: Fall back to Express backend API for new startups (scrape + score)
-  async resolveStartup(url: string): Promise<ResolverResponse> {
+  async resolveStartup(url: string, forceGenerate = false): Promise<ResolverResponse> {
     const sessionId = getOrCreateSessionId();
     
     // 1. FAST: Try direct Supabase RPC first (no cold start, always available)
@@ -81,10 +81,17 @@ export const pythhRpc = {
       if (!error) {
         const row = Array.isArray(data) ? data[0] : data;
         if (row?.found || row?.startup_id) {
-          const matchCount = row.match_count ?? 0;
+          // Use lightweight RPC for match count (avoids pulling rows)
+          let matchCount = row.match_count ?? 0;
+          try {
+            const { data: countData } = await supabase.rpc('get_match_count', {
+              p_startup_id: row.startup_id,
+            });
+            if (typeof countData === 'number') matchCount = countData;
+          } catch { /* fall back to row.match_count */ }
           
-          // If startup exists AND has matches → return immediately (fast path)
-          if (matchCount >= 20) {
+          // If startup exists AND has matches AND not forced → return immediately
+          if (matchCount >= 20 && !forceGenerate) {
             return {
               found: true,
               startup_id: row.startup_id,
@@ -94,9 +101,9 @@ export const pythhRpc = {
             };
           }
           
-          // Startup exists but has FEW/NO matches → call Express backend
-          // to generate matches, then return the startup_id we already have
-          console.log(`[pythhRpc] Startup found but only ${matchCount} matches — triggering match generation`);
+          // Startup exists but has FEW/NO matches (or forced) → call Express backend
+          // Express uses try_start_match_gen() lock to prevent thundering herd
+          console.log(`[pythhRpc] Startup found but only ${matchCount} matches${forceGenerate ? ' (forced regen)' : ''} — triggering match generation`);
           try {
             const apiUrl = '/api/instant/submit';
             await fetch(apiUrl, {
@@ -105,7 +112,11 @@ export const pythhRpc = {
                 'Content-Type': 'application/json',
                 'X-Session-Id': sessionId,
               },
-              body: JSON.stringify({ url, session_id: sessionId }),
+              body: JSON.stringify({ 
+                url, 
+                session_id: sessionId,
+                force_generate: forceGenerate,
+              }),
             });
           } catch (e) {
             console.warn('[pythhRpc] Match generation trigger failed (non-fatal):', e);
@@ -290,7 +301,7 @@ function setCache<T>(
 // -----------------------------------------------------------------------------
 // Resolves startup ID from URL query param
 
-export function useResolveStartup(url: string | null) {
+export function useResolveStartup(url: string | null, forceGenerate = false) {
   const [result, setResult] = useState<ResolverResponse | null>(null);
   const [loading, setLoading] = useState(!!url);
   const [error, setError] = useState<Error | null>(null);
@@ -305,7 +316,7 @@ export function useResolveStartup(url: string | null) {
     let cancelled = false;
     setLoading(true);
 
-    pythhRpc.resolveStartup(url)
+    pythhRpc.resolveStartup(url, forceGenerate)
       .then(data => {
         if (!cancelled) {
           setResult(data);
@@ -320,7 +331,7 @@ export function useResolveStartup(url: string | null) {
       });
 
     return () => { cancelled = true; };
-  }, [url]);
+  }, [url, forceGenerate]);
 
   return { result, loading, error };
 }

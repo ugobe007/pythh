@@ -104,6 +104,9 @@ export default function SignalMatches() {
   // DO NOT RENAME OR REMOVE - breaks entire pythh workflow
   const urlToResolve = searchParams.get('url');
   
+  // ?regen=1 forces match regeneration (ops/debugging override)
+  const forceGenerate = searchParams.get('regen') === '1';
+  
   // Local picker state (only used when no URL params)
   const [pickedStartupId, setPickedStartupId] = useState<string | null>(null);
   const [pickedStartupName, setPickedStartupName] = useState<string | null>(null);
@@ -113,7 +116,7 @@ export default function SignalMatches() {
   // RPC flow: scrape → extract → build → score → match
   // Returns: startup_id + name + 5 unlocked + 50 locked signals
   // DO NOT MODIFY - this is the pythh engine entry point
-  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(urlToResolve);
+  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(urlToResolve, forceGenerate);
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {

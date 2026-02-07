@@ -706,6 +706,7 @@ router.post('/submit', async (req, res) => {
     }
 
     // 3. Check for existing matches (use cache if >= 20 matches)
+    const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';
     const { count: existingMatchCount } = await supabase
       .from('startup_investor_matches')
       .select('*', { count: 'exact', head: true })
@@ -713,7 +714,7 @@ router.post('/submit', async (req, res) => {
       .eq('status', 'suggested');
     
     // Lower threshold from 100 to 20 - if startup has 20+ matches, use them
-    if (existingMatchCount && existingMatchCount >= 20 && !isNew) {
+    if (existingMatchCount && existingMatchCount >= 20 && !isNew && !forceGenerate) {
       // Already has matches - return quickly
       const { data: existingMatches } = await supabase
         .from('startup_investor_matches')
@@ -743,6 +744,24 @@ router.post('/submit', async (req, res) => {
       });
     }
     
+    // 3b. Acquire idempotent lock — prevents thundering herd
+    const { data: lockAcquired } = await supabase.rpc('try_start_match_gen', {
+      p_startup_id: startupId,
+      p_cooldown_minutes: 5,
+    });
+    if (!lockAcquired && !forceGenerate) {
+      console.log(`  ⏳ Match generation already running for ${startupId} — returning early`);
+      return res.json({
+        startup_id: startupId,
+        startup,
+        matches: [],
+        match_count: existingMatchCount || 0,
+        is_new: false,
+        gen_in_progress: true,
+        processing_time_ms: Date.now() - startTime,
+      });
+    }
+
     // 4. Generate matches INSTANTLY (using cached investors)
     console.log(`  ⚡ Generating instant matches...`);
     
@@ -818,6 +837,8 @@ router.post('/submit', async (req, res) => {
           }
         }
         console.log(`  ✓ Background insert complete: ${dbMatches.length} matches`);
+        // Mark generation complete
+        await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done' });
       })();
       
       // Wait only 500ms max for inserts, then return
@@ -896,6 +917,10 @@ router.post('/submit', async (req, res) => {
     
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
+    // Release idempotency lock on failure
+    if (typeof startupId !== 'undefined' && startupId) {
+      supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed' }).catch(() => {});
+    }
     return res.status(500).json({
       error: 'Processing failed',
       details: err.message
