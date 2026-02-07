@@ -340,7 +340,12 @@ export default function SignalMatches() {
   
   const showContext = !contextLoading && !!context;
   const unlocksRemaining = context?.entitlements?.unlocks_remaining ?? 0;
-  const displayName = resolvedName || 'Loading...';
+  const displayName = (() => {
+    const raw = resolvedName || context?.startup?.name || '';
+    if (!raw) return 'Loading...';
+    // Strip protocol + www prefix so URLs show as clean names
+    return raw.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+  })();
 
   return (
     <div className="min-h-screen bg-gray-950 text-white" data-testid="radar-page">
@@ -491,11 +496,39 @@ function formatPercentile(v: number | undefined): string {
 // Full Page Skeleton
 // -----------------------------------------------------------------------------
 function FullPageSkeleton({ message }: { message: string }) {
+  const steps = [
+    { label: 'Resolving startup', delay: 0 },
+    { label: 'Scanning website', delay: 2000 },
+    { label: 'Calculating GOD score', delay: 5000 },
+    { label: 'Matching investors', delay: 8000 },
+  ];
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(e => e + 500), 500);
+    return () => clearInterval(t);
+  }, []);
+  const activeStep = steps.reduce((acc, s, i) => (elapsed >= s.delay ? i : acc), 0);
+
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        <span className="text-gray-400">{message}</span>
+      <div className="flex flex-col items-center gap-6 max-w-xs w-full px-4">
+        <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
+        <div className="space-y-3 w-full">
+          {steps.map((s, i) => (
+            <div key={s.label} className={`flex items-center gap-3 transition-opacity duration-500 ${
+              i <= activeStep ? 'opacity-100' : 'opacity-30'
+            }`}>
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-300 ${
+                i < activeStep ? 'bg-emerald-400' : i === activeStep ? 'bg-cyan-400 animate-pulse' : 'bg-zinc-700'
+              }`} />
+              <span className={`text-sm ${
+                i < activeStep ? 'text-emerald-400' : i === activeStep ? 'text-white' : 'text-zinc-600'
+              }`}>{s.label}</span>
+              {i < activeStep && <span className="text-emerald-400 text-xs ml-auto">\u2713</span>}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-500 mt-2">First-time lookups take 5\u201310 seconds</p>
       </div>
     </div>
   );
