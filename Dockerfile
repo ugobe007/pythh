@@ -32,4 +32,5 @@ ENV PORT=8080
 EXPOSE 8080
 
 # Start the Express server (which serves both frontend + API)
-CMD ["node", "server/index.js"]
+# Use tsx for TypeScript support (Node 20 doesn't support .ts require natively)
+CMD ["npx", "tsx", "server/index.js"]
