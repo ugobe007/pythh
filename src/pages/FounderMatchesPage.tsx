@@ -174,7 +174,7 @@ export default function FounderMatchesPage() {
     setShowingDemo(false);
     try {
       const { data, error: rpcError } = await supabase.rpc('get_live_match_table', {
-        p_startup_id: sid, p_limit_unlocked: 5, p_limit_locked: 50
+        p_startup_id: sid, p_limit_unlocked: 5, p_limit_locked: 100
       });
       if (rpcError) throw rpcError;
       if (data && Array.isArray(data)) {

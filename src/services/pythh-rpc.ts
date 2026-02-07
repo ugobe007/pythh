@@ -80,7 +80,37 @@ export const pythhRpc = {
       });
       if (!error) {
         const row = Array.isArray(data) ? data[0] : data;
-        if (row?.resolved || row?.startup_id) {
+        if (row?.found || row?.startup_id) {
+          const matchCount = row.match_count ?? 0;
+          
+          // If startup exists AND has matches → return immediately (fast path)
+          if (matchCount >= 20) {
+            return {
+              found: true,
+              startup_id: row.startup_id,
+              name: row.startup_name,
+              website: row.canonical_url,
+              searched: url,
+            };
+          }
+          
+          // Startup exists but has FEW/NO matches → call Express backend
+          // to generate matches, then return the startup_id we already have
+          console.log(`[pythhRpc] Startup found but only ${matchCount} matches — triggering match generation`);
+          try {
+            const apiUrl = '/api/instant/submit';
+            await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'X-Session-Id': sessionId,
+              },
+              body: JSON.stringify({ url, session_id: sessionId }),
+            });
+          } catch (e) {
+            console.warn('[pythhRpc] Match generation trigger failed (non-fatal):', e);
+          }
+          
           return {
             found: true,
             startup_id: row.startup_id,
@@ -181,7 +211,7 @@ export const pythhRpc = {
   async getMatchTable(
     startupId: string,
     limitUnlocked = 5,
-    limitLocked = 50
+    limitLocked = 100
   ): Promise<MatchRow[]> {
     const { data, error } = await supabase.rpc('get_live_match_table', {
       p_startup_id: startupId,
