@@ -268,9 +268,8 @@ export default function PythhHome() {
             <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
-            <Link to="/engine" className="text-cyan-400 border border-cyan-500/40 px-2.5 py-0.5 rounded hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors">Engine</Link>
+            <Link to="/matches" className="text-cyan-400 border border-cyan-500/40 px-2.5 py-0.5 rounded hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors">Engine</Link>
             <Link to="/signals" className="hover:text-white">Signals</Link>
-            <Link to="/matches" className="hover:text-white">Matches</Link>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>

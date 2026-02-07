@@ -24,7 +24,8 @@ import {
   CheckCircle,
   ChevronRight,
   RefreshCw,
-  Info
+  Info,
+  Zap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import MatchHeatMap, { SectorMatch } from '../components/MatchHeatMap';
@@ -86,6 +87,7 @@ export default function FounderMatchesPage() {
   const [pipeline, setPipeline] = useState<PipelineCount>({ match: 127, signal: 45, outreach: 12, meeting: 3, term_sheet: 0 }); // Demo pipeline
   const [fitFilter, setFitFilter] = useState<string>('all');
   const [showingDemo, setShowingDemo] = useState(true);
+  const [platformStats, setPlatformStats] = useState({ total: 0, startups: 0, investors: 0 });
 
   useEffect(() => {
     const urlStartupId = searchParams.get('startup');
@@ -160,6 +162,16 @@ export default function FounderMatchesPage() {
     if (fitFilter === 'all') return matches;
     return matches.filter(m => m.fit_bucket === fitFilter);
   }, [matches, fitFilter]);
+
+  // Load platform-wide stats (total matches, startups, investors)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('get_platform_stats');
+        if (data) setPlatformStats({ total: data.matches || 0, startups: data.startups || 0, investors: data.investors || 0 });
+      } catch (e) { console.error('Platform stats error:', e); }
+    })();
+  }, []);
 
   // Live sector data from database
   const [liveSectorData, setLiveSectorData] = useState<SectorMatch[]>([]);
@@ -279,7 +291,7 @@ export default function FounderMatchesPage() {
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
-            <span className="text-white">Matches</span>
+            <span className="text-white">Engine</span>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
@@ -315,13 +327,35 @@ export default function FounderMatchesPage() {
       </div>
 
       <main className="max-w-6xl mx-auto px-4 py-4">
-        {/* PAGE HEADLINE - like Signals page */}
-        <div className="mb-6">
-          <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2">matches</div>
-          <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
-            Investor match distribution
-          </h1>
-          <p className="text-base text-zinc-400">Match strength by sector alignment.</p>
+        {/* PAGE HEADLINE + LIVE ENGINE STATS */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500">match engine</div>
+              <span className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[11px] text-emerald-400">Live</span>
+              </span>
+            </div>
+            <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
+              Startup ↔ Investor Matching
+            </h1>
+            <p className="text-base text-zinc-400">Real-time matching powered by GOD scores, signal analysis, and ML alignment.</p>
+          </div>
+          <div className="flex gap-6 text-right pt-2 shrink-0">
+            <div>
+              <p className="text-2xl font-bold text-white">{platformStats.total.toLocaleString()}</p>
+              <p className="text-xs text-zinc-500">Matches</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{platformStats.startups.toLocaleString()}</p>
+              <p className="text-xs text-zinc-500">Startups</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{platformStats.investors.toLocaleString()}</p>
+              <p className="text-xs text-zinc-500">Investors</p>
+            </div>
+          </div>
         </div>
 
         {/* Startup context */}
@@ -526,8 +560,38 @@ export default function FounderMatchesPage() {
           </div>
         </details>
 
+        {/* HOW THE ENGINE WORKS — 3-panel explainer */}
+        <section className="mt-8 mb-6">
+          <h2 className="text-xs text-zinc-500 uppercase tracking-widest mb-4">How the Engine Works</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                step: '01',
+                title: 'Continuous Matching',
+                desc: 'The engine runs ML models to match every startup with every investor, recalculating as new data arrives.',
+              },
+              {
+                step: '02',
+                title: 'URL Resolution',
+                desc: 'When a founder submits their URL, the engine scrapes, scores, and matches them with investors in seconds.',
+              },
+              {
+                step: '03',
+                title: 'GOD Score Integration',
+                desc: 'New startups are immediately scored by the 23-algorithm GOD system and matched with aligned investors.',
+              },
+            ].map((item) => (
+              <div key={item.step} className="border border-zinc-800/50 rounded-lg p-5 bg-zinc-900/20">
+                <span className="text-xs text-cyan-400 font-mono font-bold">{item.step}</span>
+                <h3 className="text-sm font-semibold text-white mt-2 mb-2">{item.title}</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Sign Up CTA — inline */}
-        <div className="mt-8 mb-4 flex items-center justify-between gap-4">
+        <div className="mt-4 mb-4 flex items-center justify-between gap-4">
           <p className="text-zinc-400 text-sm">
             Save your matches and get alerts when new investors enter your space.
             <span className="text-zinc-600 ml-1">Free — no credit card.</span>

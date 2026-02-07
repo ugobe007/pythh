@@ -519,7 +519,7 @@ const SignalTrends: React.FC = () => {
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
-            <Link to="/matches" className="hover:text-white">Matches</Link>
+            <Link to="/matches" className="hover:text-white">Engine</Link>
             <span className="text-white">Trends</span>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>

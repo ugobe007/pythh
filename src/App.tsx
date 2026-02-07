@@ -111,8 +111,8 @@ const App: React.FC = () => {
           ────────────────────────────────────────────────────────────── */}
           <Route path="/" element={<PythhMain />} />
 
-          {/* Core matching UI — GOD-scored startup↔investor carousel */}
-          <Route path="/engine" element={<MatchingEngine />} />
+          {/* Engine now redirects to combined matches page */}
+          <Route path="/engine" element={<Navigate to="/matches" replace />} />
 
           {/* Canonical submission results page */}
           <Route path="/signal-matches" element={<SignalMatches />} />

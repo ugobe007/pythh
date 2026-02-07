@@ -271,7 +271,7 @@ export default function PythhHome() {
             <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
-            <Link to="/matches" className="hover:text-white">Matches</Link>
+            <Link to="/matches" className="hover:text-white">Engine</Link>
             <Link to="/trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <a href="#" className="hover:text-white">Docs</a>

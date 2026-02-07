@@ -160,7 +160,7 @@ export default function HowItWorksPage() {
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
-            <Link to="/matches" className="hover:text-white">Matches</Link>
+            <Link to="/matches" className="hover:text-white">Engine</Link>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <span className="text-white">How it works</span>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
@@ -312,7 +312,7 @@ export default function HowItWorksPage() {
           <span>© 2026 Pythh · Signal Science</span>
           <div className="flex items-center gap-6">
             <Link to="/signals" className="hover:text-zinc-400">Signals</Link>
-            <Link to="/matches" className="hover:text-zinc-400">Matches</Link>
+            <Link to="/matches" className="hover:text-zinc-400">Engine</Link>
             <Link to="/signal-trends" className="hover:text-zinc-400">Trends</Link>
           </div>
         </div>
