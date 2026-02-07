@@ -8,7 +8,7 @@
  * - Clean table with minimal padding
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { 
   Search, 
@@ -27,6 +27,7 @@ import {
   Info,
   Zap
 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import MatchHeatMap, { SectorMatch } from '../components/MatchHeatMap';
 
@@ -59,6 +60,41 @@ interface PipelineCount {
   term_sheet: number;
 }
 
+// Engine carousel types
+interface EngineMatchRow {
+  id: string;
+  match_score: number;
+  startup_id: string;
+  investor_id: string;
+  reasoning: string[] | string | null;
+  startup: { id: string; name: string; tagline: string | null; sectors: string[] | null; stage: string | null; total_god_score: number | null; };
+  investor: { id: string; name: string; firm: string | null; sectors: string[] | null; stage: string[] | null; check_size_min: number | null; check_size_max: number | null; type: string | null; };
+}
+
+function engineScoreColor(score: number): string {
+  if (score >= 75) return 'text-emerald-400';
+  if (score >= 50) return 'text-cyan-400';
+  if (score >= 30) return 'text-amber-400';
+  return 'text-zinc-400';
+}
+function engineScoreBg(score: number): string {
+  if (score >= 75) return 'bg-emerald-500/10 border-emerald-500/20';
+  if (score >= 50) return 'bg-cyan-500/10 border-cyan-500/20';
+  if (score >= 30) return 'bg-amber-500/10 border-amber-500/20';
+  return 'bg-zinc-500/10 border-zinc-500/20';
+}
+function fmtCheck(min?: number | null, max?: number | null): string {
+  if (!min && !max) return '—';
+  const f = (n: number) => { if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`; if (n >= 1_000) return `$${Math.round(n / 1_000)}k`; return `$${n}`; };
+  return `${min ? f(min) : '$0'} – ${max ? f(max) : '$10M+'}`;
+}
+function parseReasoning(r: string[] | string | null): string[] {
+  if (!r) return [];
+  if (Array.isArray(r)) return r.filter((s) => typeof s === 'string' && s.trim());
+  if (typeof r === 'string') { try { const parsed = JSON.parse(r); if (Array.isArray(parsed)) return parsed; } catch { return [r.trim()]; } }
+  return [];
+}
+
 // Example matches shown when no startup selected (never empty page!)
 // All unlocked - matching database behavior after Feb 2026 migration
 const EXAMPLE_MATCHES: MatchRow[] = [
@@ -88,6 +124,13 @@ export default function FounderMatchesPage() {
   const [fitFilter, setFitFilter] = useState<string>('all');
   const [showingDemo, setShowingDemo] = useState(true);
   const [platformStats, setPlatformStats] = useState({ total: 0, startups: 0, investors: 0 });
+
+  // Engine carousel state
+  const [engineMatches, setEngineMatches] = useState<EngineMatchRow[]>([]);
+  const [engineLoading, setEngineLoading] = useState(true);
+  const [engineError, setEngineError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     const urlStartupId = searchParams.get('startup');
@@ -163,15 +206,53 @@ export default function FounderMatchesPage() {
     return matches.filter(m => m.fit_bucket === fitFilter);
   }, [matches, fitFilter]);
 
-  // Load platform-wide stats (total matches, startups, investors)
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase.rpc('get_platform_stats');
-        if (data) setPlatformStats({ total: data.matches || 0, startups: data.startups || 0, investors: data.investors || 0 });
-      } catch (e) { console.error('Platform stats error:', e); }
-    })();
+  // Fetch engine matches for carousel
+  const fetchEngineMatches = useCallback(async () => {
+    try {
+      setEngineLoading(true);
+      setEngineError(null);
+      const { data: matchData, error: matchErr } = await supabase
+        .from('startup_investor_matches')
+        .select('id, match_score, startup_id, investor_id, reasoning')
+        .eq('status', 'suggested')
+        .gte('match_score', 20)
+        .order('match_score', { ascending: false })
+        .limit(80);
+      if (matchErr) throw matchErr;
+      if (!matchData?.length) { setEngineError('Engine offline'); setEngineLoading(false); return; }
+      const seen = new Map<string, (typeof matchData)[0]>();
+      for (const m of matchData) { const k = `${m.startup_id}-${m.investor_id}`; const ex = seen.get(k); if (!ex || m.match_score > ex.match_score) seen.set(k, m); }
+      const unique = Array.from(seen.values());
+      const sIds = [...new Set(unique.map(m => m.startup_id).filter(Boolean))];
+      const iIds = [...new Set(unique.map(m => m.investor_id).filter(Boolean))];
+      const [sRes, iRes, platformRes] = await Promise.all([
+        supabase.from('startup_uploads').select('id, name, tagline, sectors, stage, total_god_score').in('id', sIds),
+        supabase.from('investors').select('id, name, firm, sectors, stage, check_size_min, check_size_max, type').in('id', iIds),
+        supabase.rpc('get_platform_stats'),
+      ]);
+      const sMap = new Map((sRes.data || []).map((s: any) => [s.id, s]));
+      const iMap = new Map((iRes.data || []).map((i: any) => [i.id, i]));
+      const usedS = new Set<string>(); const usedI = new Set<string>();
+      const rows: EngineMatchRow[] = [];
+      for (const m of unique) { const s = sMap.get(m.startup_id); const i = iMap.get(m.investor_id); if (!s || !i) continue; if (usedS.has(m.startup_id) || usedI.has(m.investor_id)) continue; usedS.add(m.startup_id); usedI.add(m.investor_id); rows.push({ ...m, startup: s, investor: i } as EngineMatchRow); }
+      for (let x = rows.length - 1; x > 0; x--) { const j = Math.floor(Math.random() * (x + 1)); [rows[x], rows[j]] = [rows[j], rows[x]]; }
+      setEngineMatches(rows);
+      const p = platformRes.data || { startups: 0, investors: 0, matches: 0 };
+      setPlatformStats({ total: p.matches || 0, startups: p.startups || 0, investors: p.investors || 0 });
+    } catch (err: any) { setEngineError(err?.message || 'Failed to load engine'); } finally { setEngineLoading(false); }
   }, []);
+
+  useEffect(() => { fetchEngineMatches(); }, [fetchEngineMatches]);
+
+  // Auto-rotate carousel
+  useEffect(() => {
+    if (engineMatches.length === 0 || isPaused) return;
+    const timer = setInterval(() => { setActiveIndex(prev => (prev + 1) % engineMatches.length); }, 6000);
+    return () => clearInterval(timer);
+  }, [engineMatches.length, isPaused]);
+
+  const activeEngine = engineMatches[activeIndex] || null;
+  const activeReasons = useMemo(() => activeEngine ? parseReasoning(activeEngine.reasoning) : [], [activeEngine]);
 
   // Live sector data from database
   const [liveSectorData, setLiveSectorData] = useState<SectorMatch[]>([]);
@@ -306,6 +387,7 @@ export default function FounderMatchesPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
               <input
+                id="url-bar-input"
                 type="text"
                 value={url}
                 onChange={e => { setUrl(e.target.value); setUrlError(''); }}
@@ -406,6 +488,105 @@ export default function FounderMatchesPage() {
             })}
           </div>
         </div>
+
+        {/* ——— LIVE ENGINE CAROUSEL ——————————————————————— */}
+        <section className="mb-6">
+          {engineLoading ? (
+            <div className="border border-zinc-800 rounded-lg p-8 text-center">
+              <RefreshCw className="w-5 h-5 text-zinc-500 animate-spin mx-auto mb-2" />
+              <p className="text-zinc-400 text-xs">Loading engine output...</p>
+            </div>
+          ) : engineError ? (
+            <div className="border border-red-500/20 bg-red-500/5 rounded-lg p-6 text-center">
+              <Zap className="w-5 h-5 text-red-400 mx-auto mb-2" />
+              <p className="text-red-300 font-medium text-sm mb-1">Engine Offline</p>
+              <p className="text-zinc-500 text-xs">{engineError}</p>
+              <button onClick={fetchEngineMatches} className="mt-3 px-3 py-1.5 text-xs border border-zinc-700 rounded hover:border-zinc-600 text-zinc-300 transition">Retry</button>
+            </div>
+          ) : activeEngine ? (
+            <div
+              className="border border-zinc-800 rounded-lg overflow-hidden hover:border-zinc-700 transition"
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => setIsPaused(false)}
+            >
+              <div className="px-4 py-2 bg-zinc-900/50 border-b border-zinc-800/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs text-zinc-400 uppercase tracking-wider">
+                    Match #{activeIndex + 1} of {engineMatches.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className={`text-sm font-mono font-bold ${engineScoreColor(activeEngine.match_score)}`}>
+                    {activeEngine.match_score}%
+                  </span>
+                  <div className="flex gap-1">
+                    {engineMatches.slice(0, 12).map((_, i) => (
+                      <button key={i} onClick={() => setActiveIndex(i)} className={`w-1.5 h-1.5 rounded-full transition ${i === activeIndex ? 'bg-cyan-400' : 'bg-zinc-700 hover:bg-zinc-600'}`} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 divide-x divide-zinc-800/50">
+                <div className="p-5">
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Startup</p>
+                  <h3 className="text-base font-semibold text-white mb-1">{activeEngine.startup.name}</h3>
+                  {activeEngine.startup.tagline && <p className="text-xs text-zinc-400 mb-2 line-clamp-2">{activeEngine.startup.tagline}</p>}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(activeEngine.startup.sectors || []).slice(0, 3).map((s, i) => (
+                      <span key={i} className="px-2 py-0.5 text-[10px] bg-zinc-800 text-zinc-300 rounded">{s}</span>
+                    ))}
+                    {activeEngine.startup.stage && <span className="px-2 py-0.5 text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded">{activeEngine.startup.stage}</span>}
+                  </div>
+                  {activeEngine.startup.total_god_score != null && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">GOD Score</span>
+                      <span className={`text-sm font-mono font-bold ${engineScoreColor(activeEngine.startup.total_god_score)}`}>{activeEngine.startup.total_god_score}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="p-5">
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Investor</p>
+                  <h3 className="text-base font-semibold text-white mb-1">
+                    {activeEngine.investor.name}
+                    {activeEngine.investor.firm && <span className="text-zinc-500 font-normal"> · {activeEngine.investor.firm}</span>}
+                  </h3>
+                  {activeEngine.investor.type && <p className="text-xs text-zinc-400 mb-2">{activeEngine.investor.type}</p>}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {(activeEngine.investor.sectors || []).slice(0, 3).map((s, i) => (
+                      <span key={i} className="px-2 py-0.5 text-[10px] bg-zinc-800 text-zinc-300 rounded">{s}</span>
+                    ))}
+                    {(activeEngine.investor.stage || []).slice(0, 2).map((s, i) => (
+                      <span key={i} className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded">{s}</span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">Check size</span>
+                    <span className="text-sm text-zinc-300 font-mono">{fmtCheck(activeEngine.investor.check_size_min, activeEngine.investor.check_size_max)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`px-4 py-3 border-t border-zinc-800/50 ${engineScoreBg(activeEngine.match_score)}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-zinc-500 uppercase tracking-wider mr-3">Match Score</span>
+                    <span className={`text-xl font-bold font-mono ${engineScoreColor(activeEngine.match_score)}`}>{activeEngine.match_score}%</span>
+                  </div>
+                  {activeReasons.length > 0 && (
+                    <div className="flex-1 ml-6 max-w-md">
+                      <p className="text-xs text-zinc-400 line-clamp-1">{activeReasons[0]}</p>
+                    </div>
+                  )}
+                  <button onClick={() => { const el = document.getElementById('url-bar-input'); el?.focus(); }} className="px-3 py-1.5 text-sm text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/10 transition flex items-center gap-2">
+                    Get your matches <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
 
         {/* MATCH HEAT MAP */}
         <section className="mb-6">
