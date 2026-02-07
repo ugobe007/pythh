@@ -68,12 +68,33 @@ export const pythhRpc = {
   },
 
   // Resolve startup by URL or name
-  // Uses backend API for fuzzy matching (lovable.com → lovable.so)
+  // FAST PATH: Try Supabase RPC first (always warm, <500ms for existing startups)
+  // SLOW PATH: Fall back to Express backend API for new startups (scrape + score)
   async resolveStartup(url: string): Promise<ResolverResponse> {
     const sessionId = getOrCreateSessionId();
     
-    // First try the backend API which has smart fuzzy matching
-    // Always use /api path - Vite proxies to localhost:3002 in dev
+    // 1. FAST: Try direct Supabase RPC first (no cold start, always available)
+    try {
+      const { data, error } = await supabase.rpc('resolve_startup_by_url', {
+        p_url: url,
+      });
+      if (!error) {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row?.resolved || row?.startup_id) {
+          return {
+            found: true,
+            startup_id: row.startup_id,
+            name: row.startup_name,
+            website: row.canonical_url,
+            searched: url,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[pythhRpc] RPC fast path failed:', e);
+    }
+    
+    // 2. SLOW: Startup not found in DB — use backend API to scrape + create + score
     try {
       const apiUrl = '/api/instant/submit';
       
@@ -99,25 +120,7 @@ export const pythhRpc = {
         }
       }
     } catch (e) {
-      console.warn('[pythhRpc] Backend API failed, falling back to RPC:', e);
-    }
-    
-    // Fallback to direct RPC (exact match only)
-    const { data, error } = await supabase.rpc('resolve_startup_by_url', {
-      p_url: url,
-    });
-    if (error) throw error;
-    
-    // Transform RPC response to ResolverResponse format
-    const row = Array.isArray(data) ? data[0] : data;
-    if (row?.resolved || row?.startup_id) {
-      return {
-        found: true,
-        startup_id: row.startup_id,
-        name: row.startup_name,
-        website: row.canonical_url,
-        searched: url,
-      };
+      console.warn('[pythhRpc] Backend API failed:', e);
     }
     
     return { found: false, searched: url };
