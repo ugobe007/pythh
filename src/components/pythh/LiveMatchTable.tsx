@@ -214,16 +214,13 @@ function RadarTableRow({ row, godScore, isPending, onUnlock, onView, unlocksDisa
 
         {/* Name + optional context */}
         <div className="min-w-0 flex-1">
-          {row.is_locked ? (
-            <>
-              <span className="text-zinc-500 font-medium text-sm">Locked Investor</span>
-              <div className="text-xs text-zinc-600 truncate">
-                {fitValue >= 0.8 ? 'Top-tier match' : fitValue >= 0.6 ? 'Strong fit' : 'Potential match'}
-              </div>
-            </>
-          ) : (
-            <span className="text-white font-medium text-sm">{row.investor_name}</span>
-          )}
+          <button
+            onClick={() => onView(row.investor_id)}
+            className="text-cyan-400 hover:text-cyan-300 hover:underline font-medium text-sm flex items-center gap-1.5 transition-colors"
+          >
+            {row.investor_name}
+            <Eye className="w-3 h-3" />
+          </button>
         </div>
       </div>
 

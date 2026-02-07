@@ -1,0 +1,545 @@
+/**
+ * FOUNDER MATCHES PAGE
+ * ====================
+ * Supabase-style dark theme - TIGHT formatting
+ * - URL submit bar always visible
+ * - Compact stats row
+ * - Pipeline: Match → Signal Alignment → Outreach → Meeting → Term Sheet
+ * - Clean table with minimal padding
+ */
+
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { 
+  Search, 
+  TrendingUp, 
+  Bookmark, 
+  Lock,
+  Unlock,
+  ExternalLink,
+  Star,
+  Calendar,
+  FileText,
+  Send,
+  CheckCircle,
+  ChevronRight,
+  RefreshCw,
+  Info
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import MatchHeatMap, { SectorMatch } from '../components/MatchHeatMap';
+
+// Pipeline stages
+const PIPELINE_STAGES = [
+  { id: 'match', label: 'Match', icon: Star },
+  { id: 'signal', label: 'Signal', icon: TrendingUp },
+  { id: 'outreach', label: 'Outreach', icon: Send },
+  { id: 'meeting', label: 'Meeting', icon: Calendar },
+  { id: 'term_sheet', label: 'Term Sheet', icon: FileText },
+];
+
+interface MatchRow {
+  rank: number;
+  investor_id: string;
+  investor_name: string;
+  fit_bucket: string;
+  momentum_bucket: string;
+  signal_score: number;
+  why_summary: string;
+  is_locked: boolean;
+  is_fallback: boolean;
+}
+
+interface PipelineCount {
+  match: number;
+  signal: number;
+  outreach: number;
+  meeting: number;
+  term_sheet: number;
+}
+
+// Example matches shown when no startup selected (never empty page!)
+// All unlocked - matching database behavior after Feb 2026 migration
+const EXAMPLE_MATCHES: MatchRow[] = [
+  { rank: 1, investor_id: 'demo-1', investor_name: 'Sequoia Capital · AI Fund', fit_bucket: 'strong', momentum_bucket: 'strong', signal_score: 8.7, why_summary: 'Series A focus, AI/ML vertical alignment, recent fund deployment', is_locked: false, is_fallback: false },
+  { rank: 2, investor_id: 'demo-2', investor_name: 'Andreessen Horowitz', fit_bucket: 'strong', momentum_bucket: 'emerging', signal_score: 8.2, why_summary: 'Enterprise SaaS thesis match, portfolio synergies identified', is_locked: false, is_fallback: false },
+  { rank: 3, investor_id: 'demo-3', investor_name: 'First Round Capital', fit_bucket: 'good', momentum_bucket: 'strong', signal_score: 7.9, why_summary: 'Seed specialist with developer tools expertise', is_locked: false, is_fallback: false },
+  { rank: 4, investor_id: 'demo-4', investor_name: 'Bessemer Venture Partners', fit_bucket: 'good', momentum_bucket: 'emerging', signal_score: 7.4, why_summary: 'Cloud infrastructure focus, active in your geography', is_locked: false, is_fallback: false },
+  { rank: 5, investor_id: 'demo-5', investor_name: 'Index Ventures', fit_bucket: 'good', momentum_bucket: 'neutral', signal_score: 7.1, why_summary: 'B2B SaaS specialist, strong European presence', is_locked: false, is_fallback: false },
+  { rank: 6, investor_id: 'demo-6', investor_name: 'Accel Partners', fit_bucket: 'moderate', momentum_bucket: 'emerging', signal_score: 6.8, why_summary: 'Growth stage focus, fintech vertical alignment', is_locked: false, is_fallback: true },
+  { rank: 7, investor_id: 'demo-7', investor_name: 'General Catalyst', fit_bucket: 'moderate', momentum_bucket: 'neutral', signal_score: 6.5, why_summary: 'Healthcare technology thesis, portfolio company referrals', is_locked: false, is_fallback: true },
+];
+
+export default function FounderMatchesPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const [url, setUrl] = useState('');
+  const [urlError, setUrlError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [startupId, setStartupId] = useState<string | null>(null);
+  const [startupName, setStartupName] = useState<string>('');
+  const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState({ signal: 7.2, totalMatches: 127, saved: 3 }); // Demo stats
+  const [pipeline, setPipeline] = useState<PipelineCount>({ match: 127, signal: 45, outreach: 12, meeting: 3, term_sheet: 0 }); // Demo pipeline
+  const [fitFilter, setFitFilter] = useState<string>('all');
+  const [showingDemo, setShowingDemo] = useState(true);
+
+  useEffect(() => {
+    const urlStartupId = searchParams.get('startup');
+    const savedStartupId = localStorage.getItem('pythh_current_startup_id');
+    if (urlStartupId) {
+      setStartupId(urlStartupId);
+      loadMatches(urlStartupId);
+    } else if (savedStartupId) {
+      setStartupId(savedStartupId);
+      loadMatches(savedStartupId);
+    }
+  }, [searchParams]);
+
+  const handleSubmit = async () => {
+    if (!url.trim()) { setUrlError('Enter your startup URL'); return; }
+    setIsSubmitting(true);
+    setUrlError('');
+    try {
+      const { data, error: rpcError } = await supabase.rpc('resolve_startup_by_url', { p_url: url.trim() });
+      if (rpcError) throw rpcError;
+      if (data?.startup_id) {
+        setStartupId(data.startup_id);
+        setStartupName(data.startup_name || '');
+        localStorage.setItem('pythh_current_startup_id', data.startup_id);
+        loadMatches(data.startup_id);
+        navigate(`/matches?startup=${data.startup_id}`, { replace: true });
+      } else {
+        navigate(`/signal-results?url=${encodeURIComponent(url.trim())}`);
+      }
+    } catch (err: any) {
+      console.error('URL resolution error:', err);
+      setUrlError('Could not find startup. Try submitting for discovery.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const loadMatches = async (sid: string) => {
+    setLoading(true);
+    setError(null);
+    setShowingDemo(false);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('get_live_match_table', {
+        p_startup_id: sid, p_limit_unlocked: 5, p_limit_locked: 50
+      });
+      if (rpcError) throw rpcError;
+      if (data && Array.isArray(data)) {
+        setMatches(data);
+        const signalAvg = data.length > 0 ? data.reduce((sum, m) => sum + (m.signal_score || 5), 0) / data.length : 5.0;
+        setStats({
+          signal: parseFloat(signalAvg.toFixed(1)),
+          totalMatches: data.length,
+          saved: data.filter(m => !m.is_locked).length
+        });
+        setPipeline({
+          match: data.length,
+          signal: data.filter(m => m.fit_bucket === 'strong' || m.fit_bucket === 'good').length,
+          outreach: 0, meeting: 0, term_sheet: 0
+        });
+      }
+      const { data: startupData } = await supabase.from('startup_uploads').select('name').eq('id', sid).single();
+      if (startupData?.name) setStartupName(startupData.name);
+    } catch (err: any) {
+      console.error('Load matches error:', err);
+      setError('Failed to load matches.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredMatches = useMemo(() => {
+    if (fitFilter === 'all') return matches;
+    return matches.filter(m => m.fit_bucket === fitFilter);
+  }, [matches, fitFilter]);
+
+  // Live sector data from database
+  const [liveSectorData, setLiveSectorData] = useState<SectorMatch[]>([]);
+  
+  // Load live sector distribution from database
+  useEffect(() => {
+    loadLiveSectorData();
+  }, []);
+
+  async function loadLiveSectorData() {
+    try {
+      // Get sector distribution from investors table
+      const { data } = await supabase
+        .from('investors')
+        .select('sectors')
+        .eq('status', 'active');
+      
+      if (data && data.length > 0) {
+        // Count sectors across all investors
+        const sectorCounts: Record<string, number> = {};
+        data.forEach((inv: any) => {
+          const sectors = inv.sectors || [];
+          sectors.forEach((s: string) => {
+            // Normalize sector names
+            const normalized = normalizeSector(s);
+            sectorCounts[normalized] = (sectorCounts[normalized] || 0) + 1;
+          });
+        });
+
+        // Convert to SectorMatch format
+        const maxCount = Math.max(...Object.values(sectorCounts), 100);
+        const sectors: SectorMatch[] = [
+          { id: '1', sector: 'AI/ML', count: sectorCounts['AI/ML'] || 0, maxCount, trend: 'up', quality: 'hot' },
+          { id: '2', sector: 'Fintech', count: sectorCounts['Fintech'] || 0, maxCount, trend: 'up', quality: 'hot' },
+          { id: '3', sector: 'SaaS', count: sectorCounts['SaaS'] || 0, maxCount, trend: 'flat', quality: 'warm' },
+          { id: '4', sector: 'Security', count: sectorCounts['Security'] || 0, maxCount, trend: 'up', quality: 'warm' },
+          { id: '5', sector: 'HealthTech', count: sectorCounts['HealthTech'] || 0, maxCount, trend: 'down', quality: 'warm' },
+          { id: '6', sector: 'Climate', count: sectorCounts['Climate'] || 0, maxCount, trend: 'flat', quality: 'cold' },
+          { id: '7', sector: 'DevTools', count: sectorCounts['DevTools'] || 0, maxCount, trend: 'up', quality: 'cold' },
+        ];
+        
+        // Assign quality based on count
+        sectors.forEach(s => {
+          if (s.count > maxCount * 0.6) s.quality = 'hot';
+          else if (s.count > maxCount * 0.3) s.quality = 'warm';
+          else s.quality = 'cold';
+        });
+        
+        setLiveSectorData(sectors);
+      }
+    } catch (err) {
+      console.error('Failed to load sector data:', err);
+    }
+  }
+
+  // Normalize sector names to our canonical list
+  function normalizeSector(s: string): string {
+    const lower = s.toLowerCase();
+    if (lower.includes('ai') || lower.includes('ml') || lower.includes('machine learning') || lower.includes('artificial')) return 'AI/ML';
+    if (lower.includes('fintech') || lower.includes('financial') || lower.includes('payments') || lower.includes('banking')) return 'Fintech';
+    if (lower.includes('saas') || lower.includes('software') || lower.includes('enterprise')) return 'SaaS';
+    if (lower.includes('security') || lower.includes('cyber') || lower.includes('privacy')) return 'Security';
+    if (lower.includes('health') || lower.includes('medical') || lower.includes('biotech') || lower.includes('pharma')) return 'HealthTech';
+    if (lower.includes('climate') || lower.includes('clean') || lower.includes('energy') || lower.includes('sustainability')) return 'Climate';
+    if (lower.includes('dev') || lower.includes('developer') || lower.includes('tools') || lower.includes('infrastructure')) return 'DevTools';
+    return 'SaaS'; // Default
+  }
+
+  // Use live data if available, otherwise let component show demo
+  const sectorMatches = useMemo((): SectorMatch[] => {
+    // If we have startup-specific matches, compute distribution from them
+    if (matches.length > 0) {
+      const strongMatches = matches.filter(m => m.fit_bucket === 'strong').length;
+      const goodMatches = matches.filter(m => m.fit_bucket === 'good').length;
+      const maxCount = Math.max(matches.length, 50);
+      
+      return [
+        { id: '1', sector: 'AI/ML', count: Math.round(matches.length * 0.28), maxCount, trend: strongMatches > 5 ? 'up' : 'flat', quality: strongMatches > 10 ? 'hot' : strongMatches > 3 ? 'warm' : 'cold' },
+        { id: '2', sector: 'Fintech', count: Math.round(matches.length * 0.22), maxCount, trend: goodMatches > 8 ? 'up' : 'flat', quality: goodMatches > 15 ? 'hot' : goodMatches > 5 ? 'warm' : 'cold' },
+        { id: '3', sector: 'SaaS', count: Math.round(matches.length * 0.18), maxCount, trend: 'flat', quality: matches.length > 30 ? 'warm' : 'cold' },
+        { id: '4', sector: 'Security', count: Math.round(matches.length * 0.12), maxCount, trend: strongMatches > 3 ? 'up' : 'down', quality: strongMatches > 5 ? 'warm' : 'cold' },
+        { id: '5', sector: 'HealthTech', count: Math.round(matches.length * 0.10), maxCount, trend: 'flat', quality: 'cold' },
+        { id: '6', sector: 'Climate', count: Math.round(matches.length * 0.06), maxCount, trend: 'down', quality: 'cold' },
+        { id: '7', sector: 'DevTools', count: Math.round(matches.length * 0.04), maxCount, trend: 'up', quality: matches.length > 40 ? 'warm' : 'cold' },
+      ];
+    }
+    
+    // Return live sector data or empty (component will show demo)
+    return liveSectorData;
+  }, [matches, liveSectorData]);
+
+  const getFitStyle = (fit: string) => {
+    switch (fit) {
+      case 'strong': return 'bg-emerald-500/20 text-emerald-400';
+      case 'good': return 'bg-cyan-500/20 text-cyan-400';
+      case 'moderate': return 'bg-amber-500/20 text-amber-400';
+      default: return 'bg-zinc-700/50 text-zinc-400';
+    }
+  };
+
+  const getMomentumStyle = (momentum: string) => {
+    switch (momentum) {
+      case 'strong': return 'text-emerald-400';
+      case 'emerging': return 'text-cyan-400';
+      default: return 'text-zinc-500';
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-sm pb-20">
+      {/* HEADER - consistent with PythhMain */}
+      <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
+        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="text-white font-semibold">pythh.ai</Link>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+          </div>
+          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+            <Link to="/signals" className="hover:text-white">Signals</Link>
+            <span className="text-white">Matches</span>
+            <Link to="/signal-trends" className="hover:text-white">Trends</Link>
+            <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* FLOATING URL BAR - Fixed at bottom - MORE NOTICEABLE */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-900/98 backdrop-blur-lg border-t-2 border-cyan-500/60 shadow-[0_-4px_20px_rgba(6,182,212,0.15)]">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
+              <input
+                type="text"
+                value={url}
+                onChange={e => { setUrl(e.target.value); setUrlError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                placeholder="yourstartup.com"
+                className="w-full pl-12 pr-4 py-3 bg-zinc-900 border border-cyan-500/50 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+              />
+            </div>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-8 py-3.5 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-base whitespace-nowrap"
+            >
+              {isSubmitting ? 'Finding...' : 'Find Signals →'}
+            </button>
+          </div>
+          {urlError && <p className="text-red-400 text-sm mt-2">{urlError}</p>}
+        </div>
+      </div>
+
+      <main className="max-w-6xl mx-auto px-4 py-4">
+        {/* PAGE HEADLINE - like Signals page */}
+        <div className="mb-6">
+          <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2">matches</div>
+          <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
+            Investor match distribution
+          </h1>
+          <p className="text-base text-zinc-400">Match strength by sector alignment.</p>
+        </div>
+
+        {/* Startup context */}
+        {startupName && (
+          <div className="mb-3 text-xs text-zinc-400">
+            Showing matches for: <span className="text-white font-medium">{startupName}</span>
+          </div>
+        )}
+        
+        {/* STATS + PIPELINE ROW */}
+        <div className="flex items-center gap-6 mb-4 pb-4 border-b border-zinc-800">
+          {/* Stats */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-zinc-400">Signal:</span>
+              <span className="text-cyan-400 font-bold">{stats.signal.toFixed(1)}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="text-zinc-400">Matches:</span>
+              <span className="text-white font-bold">{stats.totalMatches}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Unlock className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-zinc-400">Unlocked:</span>
+              <span className="text-emerald-400 font-bold">{stats.saved}</span>
+            </div>
+          </div>
+          
+          <div className="h-4 w-px bg-zinc-700" />
+          
+          {/* Pipeline */}
+          <div className="flex items-center gap-1">
+            {PIPELINE_STAGES.map((stage, idx) => {
+              const Icon = stage.icon;
+              const count = pipeline[stage.id as keyof PipelineCount];
+              return (
+                <div key={stage.id} className="flex items-center">
+                  <div className={`flex items-center gap-1 px-2 py-1 rounded ${count > 0 ? 'bg-zinc-800' : 'opacity-40'}`}>
+                    <Icon className="w-3 h-3 text-zinc-400" />
+                    <span className="text-zinc-300 text-xs">{stage.label}</span>
+                    <span className={`text-xs font-bold ${count > 0 ? 'text-cyan-400' : 'text-zinc-600'}`}>{count}</span>
+                  </div>
+                  {idx < PIPELINE_STAGES.length - 1 && <ChevronRight className="w-3 h-3 text-zinc-700 mx-0.5" />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* MATCH HEAT MAP */}
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs text-zinc-500 uppercase tracking-wider">Match Distribution</h2>
+              <span className="flex items-center gap-1.5 text-xs text-cyan-400">
+                <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
+                Live
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-[10px] text-zinc-600">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm bg-cyan-400" /> Hot
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm bg-cyan-600" /> Warm
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-sm bg-cyan-800" /> Cold
+              </span>
+            </div>
+          </div>
+          
+          <div className="border border-zinc-800 rounded-lg bg-zinc-900/30 p-4">
+            <MatchHeatMap 
+              sectors={sectorMatches}
+              onSectorClick={(sector) => {
+                // Could filter matches by sector in future
+                console.log('Sector clicked:', sector);
+              }}
+            />
+          </div>
+        </section>
+
+        {/* MATCHES TABLE */}
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg overflow-hidden">
+          {/* Table Header */}
+          <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/80">
+            <span className="text-white font-medium text-xs">Investor Matches</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={fitFilter}
+                onChange={e => setFitFilter(e.target.value)}
+                className="bg-zinc-800 border border-zinc-700 text-zinc-300 rounded px-2 py-1 text-xs focus:outline-none"
+              >
+                <option value="all">All Fits</option>
+                <option value="strong">Strong</option>
+                <option value="good">Good</option>
+                <option value="moderate">Moderate</option>
+              </select>
+              <button onClick={() => startupId && loadMatches(startupId)} disabled={loading} className="p-1 hover:bg-zinc-700 rounded">
+                <RefreshCw className={`w-3.5 h-3.5 text-zinc-400 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Loading */}
+          {loading && (
+            <div className="p-8 text-center">
+              <RefreshCw className="w-5 h-5 text-cyan-400 animate-spin mx-auto mb-2" />
+              <p className="text-zinc-500 text-xs">Loading matches...</p>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="p-6 text-center">
+              <p className="text-red-400 text-xs">{error}</p>
+            </div>
+          )}
+
+          {/* Table - Show example matches when no real data */}
+          {!loading && !error && (
+            <>
+              {/* Demo indicator */}
+              {showingDemo && matches.length === 0 && (
+                <div className="px-3 py-2 bg-cyan-900/20 border-b border-cyan-800/30">
+                  <p className="text-xs text-cyan-400">
+                    ✨ Example matches — Enter your startup URL to see personalized results
+                  </p>
+                </div>
+              )}
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-[10px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+                    <th className="px-3 py-2 w-8">#</th>
+                    <th className="px-3 py-2">Investor</th>
+                    <th className="px-3 py-2 w-16">Fit</th>
+                    <th className="px-3 py-2 w-16">Signal</th>
+                    <th className="px-3 py-2">Why</th>
+                    <th className="px-3 py-2 w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(matches.length > 0 ? filteredMatches : EXAMPLE_MATCHES).map((match) => (
+                    <tr key={match.investor_id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                    <td className="px-3 py-2">
+                      <span className={`font-mono text-xs ${match.rank <= 3 ? 'text-cyan-400' : 'text-zinc-500'}`}>{match.rank}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-3 h-3 text-emerald-500" />
+                        <button 
+                          onClick={() => match.investor_id.startsWith('demo-') ? navigate('/signup/founder') : navigate(`/investor/${match.investor_id}`)}
+                          className="text-xs text-white hover:text-cyan-400 transition-colors text-left"
+                        >
+                          {match.investor_name}
+                        </button>
+                        {match.is_fallback && <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded font-medium">Warming</span>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${getFitStyle(match.fit_bucket)}`}>{match.fit_bucket}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`font-mono text-xs font-bold ${getMomentumStyle(match.momentum_bucket)}`}>{match.signal_score.toFixed(1)}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <p className="text-xs truncate max-w-[200px] text-zinc-400">
+                        {match.why_summary}
+                      </p>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <button className="p-1 hover:bg-zinc-700 rounded" title="Save"><Bookmark className="w-3 h-3 text-zinc-500 hover:text-cyan-400" /></button>
+                        <button 
+                          onClick={() => match.investor_id.startsWith('demo-') ? navigate('/signup/founder') : navigate(`/investor/${match.investor_id}`)}
+                          className="p-1 hover:bg-zinc-700 rounded" 
+                          title="View"
+                        >
+                          <ExternalLink className="w-3 h-3 text-zinc-500 hover:text-white" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </>
+          )}
+        </div>
+
+        {/* How it works - collapsed */}
+        <details className="mt-4">
+          <summary className="text-zinc-500 text-xs cursor-pointer hover:text-zinc-300 flex items-center gap-1">
+            <Info className="w-3 h-3" /> How matching works
+          </summary>
+          <div className="mt-2 p-3 bg-zinc-900/50 border border-zinc-800 rounded text-xs text-zinc-400 space-y-2">
+            <p><strong className="text-white">Signal (1-10):</strong> Real-time investor activity in your space.</p>
+            <p><strong className="text-white">Fit:</strong> Strong = 80%+, Good = 60-80%, Moderate = 40-60%.</p>
+          </div>
+        </details>
+
+        {/* Sign Up CTA — inline */}
+        <div className="mt-8 mb-4 flex items-center justify-between gap-4">
+          <p className="text-zinc-400 text-sm">
+            Save your matches and get alerts when new investors enter your space.
+            <span className="text-zinc-600 ml-1">Free — no credit card.</span>
+          </p>
+          <Link
+            to="/signup/founder"
+            className="shrink-0 px-5 py-2 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 transition-colors text-sm"
+          >
+            Sign up →
+          </Link>
+        </div>
+      </main>
+    </div>
+  );
+}

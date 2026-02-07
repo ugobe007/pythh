@@ -107,11 +107,11 @@ export function LiveMatchTable({
       {/* Column Headers - Supabase style: minimal, clean */}
       <div className="h-10 flex items-center gap-4 px-4 text-xs font-medium text-zinc-500 border-b border-zinc-800/50">
         <div className="flex-1">Investor</div>
-        <div className="w-20 text-center">Signal</div>
-        <div className="w-16 text-center">GOD</div>
-        <div className="w-16 text-center">YC++</div>
-        <div className="w-12 text-center">Δ</div>
-        <div className="w-20 text-center">Fit</div>
+        <div className="w-20 text-center" title="Market signal strength (0-100)">Signal</div>
+        <div className="w-16 text-center" title="Match score with this investor (0-100)">Match</div>
+        <div className="w-16 text-center" title="How this investor perceives startups like yours (0-100)">YC++</div>
+        <div className="w-12 text-center" title="Weekly change">Δ</div>
+        <div className="w-20 text-center" title="Investor-startup fit alignment">Fit</div>
         <div className="w-20 text-center">Status</div>
         <div className="w-28 text-right">Action</div>
       </div>
@@ -173,20 +173,11 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
   // Supabase style: no glows, just clean borders and hover states
   const isHighSignal = row.signal.value >= RADAR_THRESHOLDS.SIGNAL_WINDOW_OPENING;
   
-  // Top 5 are unlocked, rows 6+ get blur effect if locked
-  const shouldBlur = row.entity.isLocked && rowIndex >= 5;
-  
   return (
     <div
-      className={`relative h-14 w-full flex items-center gap-4 px-4 border-b border-zinc-800/30 hover:bg-zinc-900/40 transition-colors ${
-        shouldBlur ? 'opacity-60' : ''
-      }`}
+      className="relative h-14 w-full flex items-center gap-4 px-4 border-b border-zinc-800/30 hover:bg-zinc-900/40 transition-colors"
       data-testid={`match-row-${row.investorId}`}
     >
-      {/* Blur overlay for rows 6+ */}
-      {shouldBlur && (
-        <div className="absolute inset-0 backdrop-blur-[1.5px] pointer-events-none" />
-      )}
       {/* ENTITY: Investor name + context - ALWAYS UNLOCKED */}
       <div className="flex-1 flex items-center gap-3 min-w-0">
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center flex-shrink-0">
@@ -194,20 +185,14 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            {/* TOP 5 UNLOCKED: Clickable investor name with link */}
-            {!row.entity.isLocked && rowIndex < 5 ? (
-              <button
-                onClick={() => onView(row.investorId)}
-                className="font-medium text-sm text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1.5 transition-colors"
-              >
-                {row.entity.name}
-                <ExternalLink className="w-3 h-3" />
-              </button>
-            ) : (
-              <span className="font-medium text-sm text-white">
-                {row.entity.name}
-              </span>
-            )}
+            {/* Clickable investor name with link */}
+            <button
+              onClick={() => onView(row.investorId)}
+              className="font-medium text-sm text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1.5 transition-colors"
+            >
+              {row.entity.name}
+              <ExternalLink className="w-3 h-3" />
+            </button>
             {/* Warming badge for fallback tier */}
             {row.status === 'WARMING' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -222,7 +207,7 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
         </div>
       </div>
 
-      {/* SIGNAL: value + direction arrow */}
+      {/* SIGNAL: value + direction arrow - normalized to 0-100 for display */}
       <div className="w-20 text-center">
         <SignalCell 
           value={row.signal.value} 
@@ -230,9 +215,9 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
         />
       </div>
 
-      {/* GOD: constant per startup */}
+      {/* MATCH: investor-specific match score (0-100) */}
       <div className="w-16 text-center">
-        <span className="font-mono text-sm text-zinc-200">{row.god}</span>
+        <span className="font-mono text-sm text-zinc-200">{row.matchScore}</span>
       </div>
 
       {/* YC++: perception score */}
@@ -348,7 +333,7 @@ function FitBars({ bars }: { bars: number }) {
   );
 }
 
-function StatusBadge({ status }: { status: 'LOCKED' | 'READY' | 'LIVE' }) {
+function StatusBadge({ status }: { status: 'LOCKED' | 'READY' | 'LIVE' | 'WARMING' }) {
   if (status === 'LOCKED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-gray-500">
@@ -362,6 +347,14 @@ function StatusBadge({ status }: { status: 'LOCKED' | 'READY' | 'LIVE' }) {
     return (
       <span className="text-xs text-cyan-400 animate-pulse">
         LIVE
+      </span>
+    );
+  }
+  
+  if (status === 'WARMING') {
+    return (
+      <span className="text-xs text-amber-400">
+        Warming
       </span>
     );
   }

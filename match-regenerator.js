@@ -8,22 +8,8 @@
  * PM2: pm2 start match-regenerator.js --name match-regen --cron "0 0,4,8,12,16,20 * * *"
  */
 
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
-
-// Create Supabase client with higher row limit for large signal fetches
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-  {
-    db: {
-      schema: 'public',
-    },
-    global: {
-      headers: { 'x-my-custom-header': 'match-regenerator' },
-    },
-  }
-);
+// Use shared Supabase client (same as server)
+const { supabase } = require('./server/lib/supabaseClient');
 
 // Matching configuration
 const CONFIG = {
@@ -38,14 +24,14 @@ const CONFIG = {
   BATCH_SIZE: 500
 };
 
-// Sector synonyms
-const SECTOR_SYNONYMS = {
-  'ai': ['artificial intelligence', 'machine learning', 'ml', 'deep learning', 'generative ai'],
-  'fintech': ['financial technology', 'payments', 'banking', 'insurtech'],
-  'healthtech': ['health tech', 'digital health', 'healthcare', 'medtech', 'biotech'],
-  'saas': ['software', 'b2b software', 'enterprise software', 'cloud'],
-  'ecommerce': ['e-commerce', 'retail', 'marketplace', 'dtc'],
-};
+// Use centralized sector taxonomy
+const { 
+  SECTOR_SYNONYMS,
+  RELATED_SECTORS,
+  normalizeSectors,
+  expandRelatedSectors,
+  calculateSectorMatchScore,
+} = require('./server/lib/sectorTaxonomy');
 
 // NORMALIZATION UTILITIES (centralized, run once)
 function normToken(s) {
@@ -66,7 +52,7 @@ function normalizeStr(s) {
 }
 
 /**
- * Calculate sector match with reasoning
+ * Calculate sector match with reasoning (uses centralized taxonomy)
  * @param {string[]} startupSectors - normalized sector list
  * @param {string[]} investorSectors - normalized sector list
  * @param {object[]} reasons - array to push match reasons
@@ -78,40 +64,23 @@ function calculateSectorMatch(startupSectors, investorSectors, reasons = []) {
     return 5;
   }
   
-  let matches = 0;
-  const matchDetails = [];
+  // Use centralized taxonomy for matching (includes cross-matching)
+  const result = calculateSectorMatchScore(startupSectors, investorSectors, true);
   
-  for (const ss of startupSectors) {
-    for (const is of investorSectors) {
-      if (ss === is) {
-        matches++;
-        matchDetails.push(`EXACT: ${ss}`);
-        continue;
-      }
-      if (ss.includes(is) || is.includes(ss)) {
-        matches++;
-        matchDetails.push(`PARTIAL: ${ss} ↔ ${is}`);
-        continue;
-      }
-      // Check synonyms
-      for (const [key, synonyms] of Object.entries(SECTOR_SYNONYMS)) {
-        const allTerms = [key, ...synonyms];
-        if (allTerms.some(t => ss.includes(t)) && allTerms.some(t => is.includes(t))) {
-          matches++;
-          matchDetails.push(`SYNONYM: ${ss} ↔ ${is} (via ${key})`);
-          break;
-        }
-      }
-    }
+  if (result.score > 0) {
+    const matchType = result.isRelated ? 'RELATED' : 'DIRECT';
+    const note = `${matchType}: ${result.matches.join(', ')}`;
+    reasons.push({ key: 'sector', points: result.score, note });
+    return result.score;
   }
   
-  const score = Math.min(matches * 10, CONFIG.SECTOR_MATCH);
-  const note = matches > 0 
-    ? `${matches} sector match${matches > 1 ? 'es' : ''}: ${matchDetails.slice(0, 2).join(', ')}`
-    : `No sector overlap (startup: ${startupSectors.join(', ')} | investor: ${investorSectors.join(', ')})`;
-  
-  reasons.push({ key: 'sector', points: score, note });
-  return score;
+  // No match found
+  reasons.push({ 
+    key: 'sector', 
+    points: 0, 
+    note: `No sector overlap (startup: ${startupSectors.join(', ')} | investor: ${investorSectors.join(', ')})` 
+  });
+  return 0;
 }
 
 // Map numeric stages to string stages

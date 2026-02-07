@@ -361,6 +361,28 @@ module.exports = {
       }
       // Monitors SUBMIT URL and Matching Engine health
       // Auto-heals stuck jobs and triggers match generation
+    },
+    
+    // ========================================
+    // SUBMIT FLOW GUARDIAN - Schema + Server Watchdog
+    // ========================================
+    {
+      name: 'submit-guardian',
+      script: 'node',
+      args: 'scripts/submit-flow-guardian.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 5,
+      cron_restart: '*/2 * * * *',  // Every 2 minutes
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Validates Express server alive, submit endpoint e2e,
+      // database schema integrity (column drift detection),
+      // and auto-heals via PM2 restart if server down.
     }
   ]
 };

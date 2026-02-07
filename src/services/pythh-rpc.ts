@@ -30,24 +30,60 @@ export interface ResolverResponse {
   searched?: string;
 }
 
+// Interface for saved match sessions
+export interface SavedSession {
+  id: string;
+  session_id: string;
+  startup_id: string;
+  startup_name?: string;
+  matches: any[];
+  top_5_investor_ids: string[];
+  top_5_investor_names: string[];
+  created_at: string;
+  expires_at: string;
+  claimed_by_user_id?: string;
+}
+
 // -----------------------------------------------------------------------------
 // RAW API (no React)
 // -----------------------------------------------------------------------------
 
+// Session ID management for match persistence
+const SESSION_KEY = 'pythh_session_id';
+
+function getOrCreateSessionId(): string {
+  let sessionId = localStorage.getItem(SESSION_KEY);
+  if (!sessionId) {
+    // Generate UUID v4-like session ID
+    sessionId = 'sess_' + crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, sessionId);
+  }
+  return sessionId;
+}
+
 export const pythhRpc = {
+  // Get current session ID
+  getSessionId(): string {
+    return getOrCreateSessionId();
+  },
+
   // Resolve startup by URL or name
   // Uses backend API for fuzzy matching (lovable.com → lovable.so)
   async resolveStartup(url: string): Promise<ResolverResponse> {
+    const sessionId = getOrCreateSessionId();
+    
     // First try the backend API which has smart fuzzy matching
+    // Always use /api path - Vite proxies to localhost:3002 in dev
     try {
-      const apiUrl = import.meta.env.PROD 
-        ? '/api/instant/submit' 
-        : 'http://localhost:3002/api/instant/submit';
+      const apiUrl = '/api/instant/submit';
       
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-Id': sessionId,
+        },
+        body: JSON.stringify({ url, session_id: sessionId }),
       });
       
       if (response.ok) {
@@ -85,6 +121,47 @@ export const pythhRpc = {
     }
     
     return { found: false, searched: url };
+  },
+
+  // Get saved sessions for returning user
+  async getSavedSessions(): Promise<SavedSession[] | null> {
+    const sessionId = getOrCreateSessionId();
+    try {
+      const apiUrl = import.meta.env.PROD 
+        ? `/api/instant/session/${sessionId}` 
+        : `http://localhost:3002/api/instant/session/${sessionId}`;
+      
+      const response = await fetch(apiUrl);
+      if (response.ok) {
+        const result = await response.json();
+        return result.sessions || [];
+      }
+      return null;
+    } catch (e) {
+      console.warn('[pythhRpc] Failed to get saved sessions:', e);
+      return null;
+    }
+  },
+
+  // Claim session after user signs up
+  async claimSession(userId: string): Promise<boolean> {
+    const sessionId = getOrCreateSessionId();
+    try {
+      const apiUrl = import.meta.env.PROD 
+        ? '/api/instant/claim-session' 
+        : 'http://localhost:3002/api/instant/claim-session';
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, user_id: userId }),
+      });
+      
+      return response.ok;
+    } catch (e) {
+      console.warn('[pythhRpc] Failed to claim session:', e);
+      return false;
+    }
   },
 
   // Get startup context (GOD, signals, comparison, entitlements)

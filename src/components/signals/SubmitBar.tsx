@@ -47,29 +47,13 @@ export default function SubmitBar(props: {
       />
 
       {/* Right-side gradient action zone */}
-      <div
-        className="h-full flex items-center"
-        style={{
-          width: 210,
-          background:
-            "linear-gradient(90deg, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.03) 22%, rgba(255,255,255,0.06) 100%)",
-          boxShadow: "inset 1px 0 0 rgba(255,255,255,0.06)",
-        }}
+      <button
+        onClick={onSubmit}
+        disabled={isLoading || !value.trim()}
+        className="h-full px-7 bg-transparent border border-cyan-500 text-cyan-400 font-semibold text-sm hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all whitespace-nowrap"
       >
-        <button
-          onClick={onSubmit}
-          disabled={isLoading || !value.trim()}
-          className="h-full w-full text-[13px] font-semibold tracking-widest disabled:opacity-45 disabled:cursor-not-allowed"
-          style={{
-            background: isLoading
-              ? "rgba(255,255,255,0.02)"
-              : "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.82) 100%)",
-            color: "rgba(10,12,16,0.92)",
-          }}
-        >
-          {isLoading ? "ANALYZING…" : "FIND SIGNALS →"}
-        </button>
-      </div>
+        {isLoading ? "Analyzing…" : "Find Signals →"}
+      </button>
     </div>
   );
 }

@@ -40,9 +40,10 @@ export default function AppLayout() {
           </div>
 
           <nav className="flex items-center gap-2">
-            <NavItem to="/app" label="Dashboard" />
-            <NavItem to="/app/signals" label="Signals" />
-            <NavItem to="/app/logs" label="Logs" />
+            <NavItem to="/app/signals-dashboard" label="Dashboard" />
+            <NavItem to="/app/signal-matches" label="Matches" />
+            <NavItem to="/app/engine" label="Engine" />
+            <NavItem to="/app/oracle" label="Oracle" />
           </nav>
         </div>
       </header>

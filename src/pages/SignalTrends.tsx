@@ -160,7 +160,7 @@ const VC_LENSES: VCLens[] = [
   },
 ];
 
-const TIME_WINDOWS = ['1h', '24h', '7d', '30d'];
+// No TIME_WINDOWS - removed non-functional controls
 
 // ═══════════════════════════════════════════════════════════════
 // VC SCORE CALCULATION — Normalized to handle different score scales
@@ -282,8 +282,7 @@ const DeltaBadge: React.FC<{ delta: number; accent: string }> = ({ delta, accent
 
 const SignalTrends: React.FC = () => {
   const [activeLens, setActiveLens] = useState(VC_LENSES[0]);
-  const [activeWindow, setActiveWindow] = useState('24h');
-  const [motionEnabled, setMotionEnabled] = useState(true);
+  const [motionEnabled, setMotionEnabled] = useState(false);
   const [rawStartups, setRawStartups] = useState<StartupRaw[]>([]);
   const [rankedStartups, setRankedStartups] = useState<StartupRanked[]>([]);
   const [totalStartupCount, setTotalStartupCount] = useState(0);
@@ -510,47 +509,35 @@ const SignalTrends: React.FC = () => {
       }}
     >
       {/* ═══════════════════════════════════════════════════════════════
-          PAGE HEADER — Quiet, heavy
+          PAGE HEADER — Consistent with Signals/Matches
       ═══════════════════════════════════════════════════════════════ */}
-      <header className="border-b border-zinc-800/60">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <nav className="flex items-center justify-between">
-            <Link to="/" className="text-white font-semibold text-lg tracking-tight">
-              pythh
-            </Link>
-            <div className="flex items-center gap-8 text-sm">
-              <Link to="/signals" className="text-zinc-400 hover:text-white transition-colors">
-                Signals
-              </Link>
-              <Link to="/matches" className="text-zinc-400 hover:text-white transition-colors">
-                Matches
-              </Link>
-              <span className="text-white">
-                Trends
-              </span>
-              <Link to="/how-it-works" className="text-zinc-400 hover:text-white transition-colors">
-                How it works
-              </Link>
-            </div>
+      <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
+        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="text-white font-semibold">pythh.ai</Link>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+          </div>
+          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+            <Link to="/signals" className="hover:text-white">Signals</Link>
+            <Link to="/matches" className="hover:text-white">Matches</Link>
+            <span className="text-white">Trends</span>
+            <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-6">
         {/* ═══════════════════════════════════════════════════════════════
-            TITLE — Bold with soft edge glow + Share
+            TITLE — Consistent with Signals/Matches style + Share
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-6 flex items-start justify-between">
           <div>
-            <h1 
-              className="text-4xl font-bold text-white tracking-tight"
-              style={{
-                textShadow: '0 0 40px rgba(34, 197, 94, 0.2), 0 0 80px rgba(34, 197, 94, 0.1)',
-              }}
-            >
-              Trends: Live Rankings
+            <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2">trends</div>
+            <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
+              Live Rankings
             </h1>
-            <p className="text-zinc-500 text-sm mt-2">
+            <p className="text-base text-zinc-400">
               How different investors score the same market
             </p>
           </div>
@@ -559,17 +546,14 @@ const SignalTrends: React.FC = () => {
               type: 'market_slice',
               lensId: activeLens.id,
               lensLabel: activeLens.name,
-              window: activeWindow,
               topCount: Math.min(rankedStartups.length, 50),
             }}
             expandable
             linkPayload={{
               share_type: 'market_slice',
               lens_id: activeLens.id,
-              window: activeWindow,
               filters: { mode: 'all' },
               top_n: 50,
-              // No snapshot - Option A uses live server-side ranking
             }}
             showLabel
             size="md"
@@ -579,22 +563,23 @@ const SignalTrends: React.FC = () => {
         {/* ═══════════════════════════════════════════════════════════════
             VC LENS BAR — The key interaction (SECRET SAUCE)
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="flex items-center flex-wrap gap-4 mb-6">
-          <div className="flex items-center gap-1 bg-zinc-900/50 rounded-lg p-1 border border-zinc-800/60 overflow-x-auto">
+        {/* VC LENS TABS — Full width row so all 8 are always visible */}
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-2 bg-zinc-900/50 rounded-lg p-1.5 border border-cyan-800/40">
             {VC_LENSES.map(lens => (
               <button
                 key={lens.id}
                 onClick={() => handleLensChange(lens)}
                 title={lens.description}
                 className={`
-                  px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
+                  px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 whitespace-nowrap
                   ${activeLens.id === lens.id 
-                    ? 'text-white' 
-                    : 'text-zinc-500 hover:text-zinc-300'
+                    ? 'text-cyan-400' 
+                    : 'text-zinc-400 hover:text-cyan-300 hover:bg-zinc-800/50'
                   }
                 `}
                 style={{
-                  backgroundColor: activeLens.id === lens.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  backgroundColor: activeLens.id === lens.id ? 'rgba(34, 211, 238, 0.1)' : undefined,
                   borderBottom: activeLens.id === lens.id ? `2px solid ${lens.accent}` : '2px solid transparent',
                 }}
               >
@@ -602,59 +587,19 @@ const SignalTrends: React.FC = () => {
               </button>
             ))}
           </div>
-
           {/* ACTIVE LENS DESCRIPTION */}
-          <div className="text-xs text-zinc-500 ml-4">
+          <div className="text-xs text-zinc-500 mt-2 ml-2">
             {activeLens.description}
           </div>
-
-          {/* TIME & MOTION CONTROLS */}
-          <div className="flex items-center gap-6 ml-auto">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-zinc-600">Window:</span>
-              {TIME_WINDOWS.map(w => (
-                <button
-                  key={w}
-                  onClick={() => setActiveWindow(w)}
-                  className={`
-                    px-2 py-1 rounded transition-colors
-                    ${activeWindow === w 
-                      ? 'text-white bg-zinc-800' 
-                      : 'text-zinc-500 hover:text-zinc-300'
-                    }
-                  `}
-                >
-                  {w}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-zinc-600">Motion:</span>
-              <button
-                onClick={() => setMotionEnabled(!motionEnabled)}
-                className={`
-                  px-2 py-1 rounded transition-colors flex items-center gap-1
-                  ${motionEnabled 
-                    ? 'text-white bg-zinc-800' 
-                    : 'text-zinc-500 hover:text-zinc-300'
-                  }
-                `}
-              >
-                <span 
-                  className={`inline-block w-2 h-2 rounded-full ${motionEnabled ? 'animate-pulse' : ''}`}
-                  style={{ backgroundColor: motionEnabled ? activeLens.accent : '#52525b' }}
-                />
-                {motionEnabled ? 'Live' : 'Paused'}
-              </button>
-            </div>
-          </div>
         </div>
+
+
 
         {/* ═══════════════════════════════════════════════════════════════
             SECONDARY FILTERS
         ═══════════════════════════════════════════════════════════════ */}
         <div className="flex items-center gap-3 mb-4">
-          <select className="bg-zinc-900 border border-zinc-800 text-zinc-400 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-zinc-700">
+          <select className="bg-zinc-900 border border-cyan-800/40 text-cyan-400/80 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 appearance-none cursor-pointer hover:border-cyan-600/50 transition">
             <option>All Sectors</option>
             <option>AI Infra</option>
             <option>FinTech API</option>
@@ -662,14 +607,14 @@ const SignalTrends: React.FC = () => {
             <option>Dev Tooling</option>
             <option>Data Security</option>
           </select>
-          <select className="bg-zinc-900 border border-zinc-800 text-zinc-400 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-zinc-700">
+          <select className="bg-zinc-900 border border-cyan-800/40 text-cyan-400/80 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 appearance-none cursor-pointer hover:border-cyan-600/50 transition">
             <option>All Stages</option>
             <option>Pre-Seed</option>
             <option>Seed</option>
             <option>Series A</option>
             <option>Series B+</option>
           </select>
-          <select className="bg-zinc-900 border border-zinc-800 text-zinc-400 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-zinc-700">
+          <select className="bg-zinc-900 border border-cyan-800/40 text-cyan-400/80 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 appearance-none cursor-pointer hover:border-cyan-600/50 transition">
             <option>All Regions</option>
             <option>US</option>
             <option>Europe</option>
@@ -839,23 +784,18 @@ const SignalTrends: React.FC = () => {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════
-            MICRO-CONTEXT — One line only
+            SIGN UP CTA — Convert visitors to users
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="mt-6 text-center">
-          <p className="text-zinc-600 text-xs">
-            Different investors weight team, traction, market, product, and vision differently. See how your rank changes.
+        <div className="mt-10 mb-6 flex items-center justify-between gap-4">
+          <p className="text-zinc-400 text-sm">
+            Get matched with VCs and angels based on your sector, stage, and traction.
+            <span className="text-zinc-600 ml-1">Free — no credit card.</span>
           </p>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════
-            IMPLICIT CTA — Existential nudge
-        ═══════════════════════════════════════════════════════════════ */}
-        <div className="mt-8 text-center">
-          <Link 
-            to="/"
-            className="text-zinc-500 hover:text-white text-sm transition-colors"
+          <Link
+            to="/signup/founder"
+            className="shrink-0 px-5 py-2 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 transition-colors text-sm"
           >
-            Want to see where your startup ranks?
+            Sign up →
           </Link>
         </div>
       </main>

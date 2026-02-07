@@ -64,30 +64,27 @@ export default function PythhHome() {
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0, avgSignal: 0 });
   const navigate = useNavigate();
 
-  // Fetch live platform stats
+  // Fetch live platform stats — uses fast RPC (pg_class estimates) to avoid count(*) timeouts on 1M+ rows
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [startupsRes, investorsRes, matchesRes, signalsRes] = await Promise.all([
-          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
-          supabase.from('investors').select('*', { count: 'exact', head: true }),
-          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-          // Get RECENT matches for accurate avg (old matches have inflated scores)
-          supabase.from('startup_investor_matches')
-            .select('match_score')
-            .not('match_score', 'is', null)
-            .order('created_at', { ascending: false })
+        const [platformRes, signalsRes] = await Promise.all([
+          supabase.rpc('get_platform_stats'),
+          supabase.from('startup_signal_scores')
+            .select('signals_total')
+            .not('signals_total', 'is', null)
             .limit(1000)
         ]);
         
+        const p = platformRes.data || { startups: 0, investors: 0, matches: 0 };
         const avgSignal = signalsRes.data?.length > 0
-          ? (signalsRes.data.reduce((sum, s) => sum + (s.match_score || 0), 0) / signalsRes.data.length).toFixed(1)
-          : '0.0';
+          ? (signalsRes.data.reduce((sum: number, s: any) => sum + (s.signals_total || 0), 0) / signalsRes.data.length).toFixed(1)
+          : '5.0';
         
         setStats({
-          startups: startupsRes.count || 0,
-          investors: investorsRes.count || 0,
-          matches: matchesRes.count || 0,
+          startups: p.startups || 0,
+          investors: p.investors || 0,
+          matches: p.matches || 0,
           avgSignal: avgSignal
         });
       } catch (err) {
@@ -271,11 +268,12 @@ export default function PythhHome() {
             <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
           </div>
           <nav className="flex items-center gap-6 text-sm text-zinc-400">
+            <Link to="/engine" className="text-cyan-400 border border-cyan-500/40 px-2.5 py-0.5 rounded hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors">Engine</Link>
+            <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/matches" className="hover:text-white">Matches</Link>
-            <Link to="/trends" className="hover:text-white">Trends</Link>
+            <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-            <a href="#" className="hover:text-white">Docs</a>
-            <a href="#" className="hover:text-white">Sign in</a>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>
         </div>
       </header>
@@ -334,14 +332,14 @@ export default function PythhHome() {
             }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="https://yourstartup.com"
-            className="flex-1 bg-zinc-900/80 border border-cyan-900/50 rounded-l px-4 py-3 text-white placeholder-zinc-600 outline-none focus:border-cyan-700/50"
+            className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-l px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
           />
           <button
             data-testid="home-analyze-button"
             onClick={submit}
-            className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 text-white border border-cyan-900/50 border-l-0 rounded-r transition whitespace-nowrap"
+            className="px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-r hover:bg-cyan-500/10 transition whitespace-nowrap"
           >
-            Submit
+            Find Signals →
           </button>
         </div>
         

@@ -33,12 +33,15 @@ export interface RadarRowViewModel {
     isLocked: boolean;
   };
   
-  // SIGNAL column (investor↔startup movement, 0.0-10.0)
+  // SIGNAL column (investor↔startup movement, 0-10 scale)
   signal: {
-    value: number;              // 0.0-10.0, one decimal
+    value: number;              // 0-10, one decimal
     delta: number | null;       // delta_7d: positive, negative, or null
     direction: 'up' | 'down' | 'flat';
   };
+  
+  // MATCH column (investor-specific match score, 0-100)
+  matchScore: number;           // From startup_investor_matches.match_score
   
   // GOD column (startup position, 0-100) - CONSTANT ACROSS ALL ROWS
   god: number;                  // Injected from startup_god_score.total
@@ -94,7 +97,7 @@ export interface RadarViewModel {
 // -----------------------------------------------------------------------------
 
 export const RADAR_THRESHOLDS = {
-  // SIGNAL levels
+  // SIGNAL levels (0-10 scale)
   SIGNAL_WINDOW_OPENING: 7.5,   // High urgency
   SIGNAL_ACTIVE: 5.5,           // Active interest
   SIGNAL_COOLING: 4.0,          // Cooling off
@@ -145,12 +148,18 @@ export function mapMatchRowToRadarRow(
   // Rows 6+ require unlock action
   const isAutoUnlocked = index !== undefined && index < 5;
   const effectivelyLocked = row.is_locked && !isAutoUnlocked;
+  
   // --- SIGNAL ---
-  // Source: row.signal_score (0-10 from RPC)
-  // Delta source: momentum_bucket (until we have investor_startup_signal.delta_7d)
+  // Source: row.signal_score (0-10 from RPC) - NO SCALING, keep 1-10 scale
   const signalValue = row.signal_score ?? 5.0;
   const signalDirection = deriveSignalDirection(row.momentum_bucket);
   const signalDelta = deriveDeltaFromMomentum(row.momentum_bucket);
+  
+  // --- MATCH SCORE ---
+  // This is the investor-specific match score from startup_investor_matches
+  // We get it from the RPC via the match_score field (though not in current MatchRow type)
+  // For now, derive from GOD + signal until we add it to the RPC
+  const matchScore = Math.round(godScore * 0.6 + signalValue * 4); // Weighted blend (signal scaled)
   
   // --- YC++ ---
   // Currently derived from signal_score + fit_bucket
@@ -208,10 +217,12 @@ export function mapMatchRowToRadarRow(
     },
     
     signal: {
-      value: Math.round(signalValue * 10) / 10, // 1 decimal
+      value: Math.round(signalValue * 10) / 10, // 1 decimal, 0-10 scale
       delta: signalDelta,
       direction: signalDirection,
     },
+    
+    matchScore, // Investor-specific match score (0-100)
     
     god: godScore, // Injected, NOT computed
     

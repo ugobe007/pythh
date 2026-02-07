@@ -26,6 +26,71 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 // Import Phase-Change parser directly (tsx handles TypeScript)
 const { parseFrameFromTitle, toCapitalEvent, setOntologyEntities } = require('../../src/services/rss/frameParser.ts');
 
+// Import v2 Inference Extractor + REAL GOD Scoring
+const { extractInferenceData, extractSectors: v2ExtractSectors, assessConfidence } = require('../../lib/inference-extractor');
+const { calculateHotScore } = require('../../server/services/startupScoringService.ts');
+
+/**
+ * Transform a startup row into a scoring profile (matches recalculate-scores.ts SSOT).
+ */
+function toScoringProfile(startup) {
+  const extracted = startup.extracted_data || {};
+  return {
+    tagline: startup.tagline || extracted.tagline,
+    pitch: startup.description || startup.pitch || extracted.pitch || extracted.description,
+    problem: startup.problem || extracted.problem,
+    solution: startup.solution || extracted.solution,
+    market_size: startup.market_size || extracted.market_size,
+    industries: startup.industries || startup.sectors || extracted.industries || extracted.sectors || [],
+    team: extracted.team || [],
+    founders_count: startup.team_size || extracted.team_size || 1,
+    technical_cofounders: (extracted.has_technical_cofounder ? 1 : 0),
+    mrr: extracted.mrr,
+    revenue: extracted.revenue || extracted.arr,
+    growth_rate: extracted.growth_rate || extracted.growth_rate_monthly,
+    customers: extracted.customers || extracted.customer_count,
+    active_users: extracted.active_users || extracted.users,
+    gmv: extracted.gmv,
+    retention_rate: extracted.retention_rate,
+    churn_rate: extracted.churn_rate,
+    has_revenue: extracted.has_revenue,
+    has_customers: extracted.has_customers,
+    execution_signals: extracted.execution_signals || [],
+    team_signals: extracted.team_signals || [],
+    funding_amount: extracted.funding_amount,
+    funding_stage: extracted.funding_stage,
+    launched: extracted.is_launched || extracted.launched,
+    demo_available: extracted.has_demo || extracted.demo_available,
+    unique_ip: extracted.unique_ip,
+    defensibility: extracted.defensibility,
+    mvp_stage: extracted.mvp_stage,
+    founded_date: extracted.founded_date,
+    value_proposition: extracted.value_proposition,
+    backed_by: extracted.backed_by || extracted.investors,
+    ...startup,
+    ...extracted
+  };
+}
+
+/**
+ * Calculate REAL GOD score using the official scoring service.
+ */
+function calculateGODScore(startup) {
+  const profile = toScoringProfile(startup);
+  const result = calculateHotScore(profile);
+  const total = Math.round(result.total * 10);
+  const teamCombined = (result.breakdown.team_execution || 0) + (result.breakdown.team_age || 0);
+  const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
+  return {
+    team_score: Math.round((teamCombined / 3.5) * 100),
+    traction_score: Math.round(((result.breakdown.traction || 0) / 3.0) * 100),
+    market_score: Math.round((marketCombined / 2.0) * 100),
+    product_score: Math.round(((result.breakdown.product || 0) / 1.3) * 100),
+    vision_score: Math.round(((result.breakdown.product_vision || 0) / 1.3) * 100),
+    total_god_score: total
+  };
+}
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -348,7 +413,49 @@ async function scrapeRssFeeds() {
 
               // Only insert if the startup doesn't exist (existingError means no match)
               if (existingError) {
-                // Create new startup only if website doesn't exist
+                // === V2 INFERENCE + REAL GOD SCORING ===
+                const articleText = `${primaryEntity.name} ${event.source.title} ${item.contentSnippet || item.content || ''}`;
+                let extractedData = {};
+                let inferredSectors = detectSectors(event.source.title);
+                let godScores = {};
+
+                try {
+                  extractedData = extractInferenceData(articleText, website);
+                  // Use v2's 18-category sectors if available
+                  if (extractedData.sectors && extractedData.sectors.length > 0) {
+                    inferredSectors = extractedData.sectors;
+                  }
+                  // Merge funding info from Phase-Change parser
+                  if (event.amounts && event.amounts.length > 0 && !extractedData.funding_amount) {
+                    extractedData.funding_amount = event.amounts[0];
+                  }
+                  if (event.round && !extractedData.funding_stage) {
+                    extractedData.funding_stage = event.round;
+                  }
+                  const confidence = assessConfidence(extractedData);
+                  extractedData.confidence = confidence;
+                  console.log(`   📊 Inference: ${primaryEntity.name} → Tier ${confidence.tier} (${confidence.score}/100)`);
+                } catch (infErr) {
+                  console.log(`   ⚠️  Inference failed for ${primaryEntity.name}: ${infErr.message}`);
+                }
+
+                // Calculate REAL GOD score
+                try {
+                  const startupForScoring = {
+                    name: primaryEntity.name,
+                    description: event.source.title.slice(0, 500),
+                    website,
+                    sectors: inferredSectors,
+                    extracted_data: extractedData,
+                  };
+                  godScores = calculateGODScore(startupForScoring);
+                  console.log(`   🔥 GOD Score: ${primaryEntity.name} → ${godScores.total_god_score}/100`);
+                } catch (scoreErr) {
+                  console.log(`   ⚠️  GOD Score failed for ${primaryEntity.name}: ${scoreErr.message}`);
+                  godScores = { total_god_score: 50 }; // Fallback only on error
+                }
+
+                // Create new startup with v2 inference data + real GOD score
                 const { data: newRow, error: err } = await supabase
                   .from('startup_uploads')
                   .insert({
@@ -356,10 +463,13 @@ async function scrapeRssFeeds() {
                     description: event.source.title.slice(0, 500),
                     website,
                     status: 'pending',
-                    sectors: detectSectors(event.source.title),
+                    sectors: inferredSectors,
                     source_type: 'rss',
                     source_url: event.source.url,
                     discovery_event_id: insertedEvent.id,
+                    extracted_data: Object.keys(extractedData).length > 0 ? extractedData : null,
+                    tagline: extractedData.tagline || null,
+                    ...godScores,
                   })
                   .select('id')
                   .single();

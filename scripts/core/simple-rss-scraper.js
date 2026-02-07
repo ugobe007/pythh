@@ -22,6 +22,19 @@ try {
   frameParser = null;
 }
 
+// Import v2 Inference Extractor for better sector detection (18 categories vs 5)
+let v2ExtractSectors, extractInferenceData;
+try {
+  const inferenceExtractor = require('../../lib/inference-extractor');
+  v2ExtractSectors = inferenceExtractor.extractSectors;
+  extractInferenceData = inferenceExtractor.extractInferenceData;
+  console.log('✅ Inference extractor v2 loaded (18-category sectors)');
+} catch (e) {
+  console.log('⚠️  Inference extractor not available, using basic 10-category sectors');
+  v2ExtractSectors = null;
+  extractInferenceData = null;
+}
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -376,6 +389,13 @@ function extractCompanyName(title) {
 
 // Detect sectors from text
 function detectSectors(text) {
+  // Prefer v2 inference extractor (18 categories) over inline (10 categories)
+  if (v2ExtractSectors) {
+    const v2Sectors = v2ExtractSectors(text);
+    if (v2Sectors && v2Sectors.length > 0) return v2Sectors;
+  }
+
+  // Fallback: inline detection (10 categories)
   const sectors = [];
   const lowerText = text.toLowerCase();
   
@@ -519,8 +539,17 @@ async function scrapeRssFeeds() {
           continue;
         }
         
-        // Detect sectors
-        const sectors = detectSectors(`${item.title} ${item.contentSnippet || ''}`);
+        // Detect sectors + run inference extraction
+        const articleText = `${item.title} ${item.contentSnippet || ''}`;
+        const sectors = detectSectors(articleText);
+        
+        // Run v2 inference to enrich discovered startup data
+        let inferenceData = {};
+        if (extractInferenceData) {
+          try {
+            inferenceData = extractInferenceData(articleText, item.link);
+          } catch (e) { /* silent */ }
+        }
         
         // Insert - using correct column names (with timeout handling)
         try {
@@ -535,7 +564,14 @@ async function scrapeRssFeeds() {
             article_date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
             sectors: sectors,
             discovered_at: new Date().toISOString(),
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            // v2 inference enrichment
+            funding_amount: inferenceData.funding_amount || null,
+            funding_stage: inferenceData.funding_stage || null,
+            value_proposition: inferenceData.value_proposition || null,
+            team_signals: inferenceData.team_signals || null,
+            execution_signals: inferenceData.execution_signals || null,
+            metadata: Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : null,
           });
           
           // Add 10-second timeout for database operations

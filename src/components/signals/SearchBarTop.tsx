@@ -45,9 +45,9 @@ export function SearchBarTop({ onSubmit, isLoading }: SearchBarTopProps) {
           <button
             type="submit"
             disabled={isLoading || !url.trim()}
-            className="px-8 py-3 rounded-xl bg-blue-600 text-white font-bold text-base hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="px-8 py-3 rounded-lg bg-transparent border border-cyan-500 text-cyan-400 font-semibold text-sm hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all whitespace-nowrap"
           >
-            {isLoading ? "Scanning..." : "get signals..."}
+            {isLoading ? "Analyzing…" : "Find Signals →"}
           </button>
         </form>
       </div>

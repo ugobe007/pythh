@@ -3,6 +3,7 @@
  *
  * Public (pythh.ai):
  * - /                  PythhMain
+ * - /engine             MatchingEngine (core matching UI)
  * - /signal-matches     URL submission results (SignalMatches)
  * - /signals            Public Signals page (OR redirects to /signal-matches when ?url=...)
  * - /signals-significance  What signals mean
@@ -37,16 +38,40 @@ import SignalMatches from "./pages/SignalMatches";
 import SignalsRouteSwitch from "./pages/SignalsRouteSwitch";
 import SignalsSignificance from "./pages/SignalsSignificance";
 import SignalTrends from "./pages/SignalTrends";
+import FounderSignalsPage from "./pages/FounderSignalsPage";
+import HowItWorksPage from "./pages/HowItWorksPage";
 
 // APP (instrument mode)
 import SignalsDashboard from "./pages/app/SignalsDashboard";
 import InSignalMatches from "./pages/inSignalMatches";
+import InvestorRevealPage from "./pages/app/InvestorRevealPage";
+
+// Oracle (signal wizard & coaching)
+import OracleDashboard from "./pages/app/OracleDashboard";
+import OracleWizard from "./pages/app/OracleWizard";
+import OracleCohorts from "./pages/app/OracleCohorts";
+import OracleActions from "./pages/app/OracleActions";
+import OracleVCStrategy from "./pages/app/OracleVCStrategy";
+import OraclePredictions from "./pages/app/OraclePredictions";
+import OracleCoaching from "./pages/app/OracleCoaching";
+
+// Core matching UI
+import MatchingEngine from "./components/MatchingEngine";
+
+// Pipeline View (how Pythh works — trust page)
+import EnginePipelineView from "./pages/app/Engine";
 
 // Legacy / preserved
 import DemoPageDoctrine from "./pages/DemoPageDoctrine";
 import Live from "./pages/public/Live";
 import SignalResultsPage from "./pages/SignalResultsPage";
 import InvestorProfile from "./pages/InvestorProfile";
+import FounderMatchesPage from "./pages/FounderMatchesPage";
+
+// Signup pages (Pythh-branded)
+import SignupLanding from "./pages/SignupLanding";
+import SignupFounderPythh from "./pages/SignupFounderPythh";
+import InvestorSignupPythh from "./pages/InvestorSignupPythh";
 
 // Admin (preserved)
 import AdminRouteWrapper from "./components/AdminRouteWrapper";
@@ -86,13 +111,16 @@ const App: React.FC = () => {
           ────────────────────────────────────────────────────────────── */}
           <Route path="/" element={<PythhMain />} />
 
+          {/* Core matching UI — GOD-scored startup↔investor carousel */}
+          <Route path="/engine" element={<MatchingEngine />} />
+
           {/* Canonical submission results page */}
           <Route path="/signal-matches" element={<SignalMatches />} />
 
-          {/* /signals is now a smart route:
-              - no query → render public Signals page
-              - ?url=... or ?startup=... → redirect to /signal-matches preserving QS */}
-          <Route path="/signals" element={<SignalsRouteSwitch />} />
+          {/* /signals is now the new Pythh signals page with live bars
+              - no query → render FounderSignalsPage
+              - ?url=... or ?startup=... → still redirect to /signal-matches preserving QS */}
+          <Route path="/signals" element={<FounderSignalsPage />} />
 
           {/* Legacy alias: /signals-radar ALWAYS redirects to /signal-matches */}
           <Route path="/signals-radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
@@ -112,6 +140,17 @@ const App: React.FC = () => {
           {/* Investor profile (public) */}
           <Route path="/investor/:id" element={<InvestorProfile />} />
 
+          {/* Founder matches page (public) */}
+          <Route path="/matches" element={<FounderMatchesPage />} />
+
+          {/* How it works */}
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+
+          {/* Signup flow (Pythh-branded) */}
+          <Route path="/signup" element={<SignupLanding />} />
+          <Route path="/signup/founder" element={<SignupFounderPythh />} />
+          <Route path="/signup/investor" element={<InvestorSignupPythh />} />
+
           {/* Legacy (consider deprecating later) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />
 
@@ -128,6 +167,22 @@ const App: React.FC = () => {
 
             {/* Mirror route: allow internal navigation to same results page */}
             <Route path="signal-matches" element={<SignalMatches />} />
+
+            {/* Investor reveal (after unlock/view) */}
+            <Route path="investors/:investorId" element={<InvestorRevealPage />} />
+
+            {/* Engine — Pipeline View (how Pythh works) */}
+            <Route path="engine" element={<EnginePipelineView />} />
+
+            {/* Oracle — signal wizard & coaching */}
+            <Route path="oracle" element={<OracleDashboard />} />
+            <Route path="oracle/wizard" element={<OracleWizard />} />
+            <Route path="oracle/cohorts" element={<OracleCohorts />} />
+            <Route path="oracle/cohort" element={<OracleCohorts />} />
+            <Route path="oracle/actions" element={<OracleActions />} />
+            <Route path="oracle/vc-strategy" element={<OracleVCStrategy />} />
+            <Route path="oracle/predictions" element={<OraclePredictions />} />
+            <Route path="oracle/coaching" element={<OracleCoaching />} />
           </Route>
 
           {/* ──────────────────────────────────────────────────────────────

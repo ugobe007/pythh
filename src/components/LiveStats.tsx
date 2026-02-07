@@ -42,7 +42,7 @@ export default function LiveStats() {
         supabase.from('startup_uploads').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
         supabase.from('investors').select('id', { count: 'exact', head: true }),
         supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }),
-        supabase.from('agent_feed_signals').select('id', { count: 'exact', head: true }),
+        supabase.from('startup_signal_scores').select('id', { count: 'exact', head: true }),
         supabase
           .from('startup_uploads')
           .select('total_god_score')

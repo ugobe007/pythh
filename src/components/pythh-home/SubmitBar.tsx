@@ -37,17 +37,9 @@ export default function SubmitBar(props: {
       <button
         onClick={onSubmit}
         disabled={isLoading || !value.trim()}
-        className="h-full px-7 text-[13px] font-semibold tracking-[0.18em] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
-        style={{
-          background: isArmed
-            ? "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.05))"
-            : "rgba(255,255,255,0.04)",
-          boxShadow: isArmed
-            ? "inset 0 0 0 1px rgba(255,255,255,0.14), 0 0 22px rgba(34,211,238,0.22)"
-            : "inset 0 0 0 1px rgba(255,255,255,0.08)",
-        }}
+        className="h-full px-7 bg-transparent border border-cyan-500 text-cyan-400 font-semibold text-sm hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 whitespace-nowrap"
       >
-        {isLoading ? "ANALYZING…" : "FIND SIGNALS →"}
+        {isLoading ? "Analyzing…" : "Find Signals →"}
       </button>
     </div>
   );

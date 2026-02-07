@@ -98,18 +98,15 @@ export function FindInvestorSignals({
             <button
               type="submit"
               disabled={pageState === 'analyzing' || !urlInput.trim()}
-              className="h-11 px-5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+              className="h-11 px-6 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 whitespace-nowrap"
             >
               {pageState === 'analyzing' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing...
+                  Analyzing…
                 </>
               ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  Find Signals
-                </>
+                'Find Signals →'
               )}
             </button>
           </form>

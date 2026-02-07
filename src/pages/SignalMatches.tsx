@@ -45,7 +45,7 @@
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate, useSearchParams, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams, useLocation, Link } from 'react-router-dom';
 import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
@@ -413,8 +413,15 @@ export default function SignalMatches() {
             )}
           </div>
           
-          {/* GOD Score - subtle badge */}
-          {showContext && context?.god?.total !== undefined && (
+          {/* Signal Score - startup's market signal (upper right) */}
+          {showContext && context?.signals?.total !== undefined && (
+            <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded">
+              <p className="text-xs text-gray-500 mb-0.5">Signal Score</p>
+              <p className="text-lg font-semibold text-white">{context.signals.total}</p>
+            </div>
+          )}
+          {/* Fallback to GOD if no signal score */}
+          {showContext && context?.signals?.total === undefined && context?.god?.total !== undefined && (
             <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded">
               <p className="text-xs text-gray-500 mb-0.5">GOD Score</p>
               <p className="text-lg font-semibold text-white">{context.god.total}</p>
@@ -438,6 +445,20 @@ export default function SignalMatches() {
             {unlockedCount} ready • {lockedCount} available
           </div>
         )}
+
+        {/* Oracle CTA */}
+        <Link
+          to="/app/oracle"
+          className="mt-6 block rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 hover:bg-amber-500/10 transition group"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-200 group-hover:text-amber-100">Boost your signals with the Oracle</p>
+              <p className="text-xs text-amber-300/50 mt-1">VC thesis alignment, founder DNA analysis & coaching prompts</p>
+            </div>
+            <span className="text-amber-400/60 group-hover:text-amber-400 transition text-lg">→</span>
+          </div>
+        </Link>
 
         {/* Daily Limit Warning */}
         {showContext && unlocksRemaining === 0 && (
