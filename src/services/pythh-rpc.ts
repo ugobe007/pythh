@@ -453,7 +453,7 @@ export function useLiveMatchTable(
 
     const task = (async () => {
       try {
-        const data = await pythhRpc.getMatchTable(currentStartupId, 5, 50);
+        const data = await pythhRpc.getMatchTable(currentStartupId, 5, 100);
         
         // Check if this request is still relevant
         if (thisRequest.cancelled || startupIdRef.current !== currentStartupId) {

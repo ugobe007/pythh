@@ -146,26 +146,9 @@ export default function FounderMatchesPage() {
 
   const handleSubmit = async () => {
     if (!url.trim()) { setUrlError('Enter your startup URL'); return; }
-    setIsSubmitting(true);
-    setUrlError('');
-    try {
-      const { data, error: rpcError } = await supabase.rpc('resolve_startup_by_url', { p_url: url.trim() });
-      if (rpcError) throw rpcError;
-      if (data?.startup_id) {
-        setStartupId(data.startup_id);
-        setStartupName(data.startup_name || '');
-        localStorage.setItem('pythh_current_startup_id', data.startup_id);
-        loadMatches(data.startup_id);
-        navigate(`/matches?startup=${data.startup_id}`, { replace: true });
-      } else {
-        navigate(`/signal-matches?url=${encodeURIComponent(url.trim())}`);
-      }
-    } catch (err: any) {
-      console.error('URL resolution error:', err);
-      setUrlError('Could not find startup. Try submitting for discovery.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Always route to /signal-matches — it uses pythhRpc.resolveStartup()
+    // which checks match_count and triggers Express backend for match generation
+    navigate(`/signal-matches?url=${encodeURIComponent(url.trim())}`);
   };
 
   const loadMatches = async (sid: string) => {
