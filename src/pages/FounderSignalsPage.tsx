@@ -100,8 +100,8 @@ export default function FounderSignalsPage() {
     setUrlError('');
 
     try {
-      // Navigate to matches with URL
-      window.location.href = `/matches?url=${encodeURIComponent(trimmed)}`;
+      // Navigate to signal analysis page
+      window.location.href = `/signal-matches?url=${encodeURIComponent(trimmed)}`;
     } catch (err) {
       setUrlError('Failed to process URL');
       setIsSubmitting(false);

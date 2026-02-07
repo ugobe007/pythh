@@ -158,7 +158,7 @@ export default function FounderMatchesPage() {
         loadMatches(data.startup_id);
         navigate(`/matches?startup=${data.startup_id}`, { replace: true });
       } else {
-        navigate(`/signal-results?url=${encodeURIComponent(url.trim())}`);
+        navigate(`/signal-matches?url=${encodeURIComponent(url.trim())}`);
       }
     } catch (err: any) {
       console.error('URL resolution error:', err);
