@@ -920,18 +920,26 @@ async function main() {
   console.log('🧠 Using local inference engine (no AI API required)\n');
   
   // Get starting counts
-  const { count: startupsBefore } = await supabase
-    .from('discovered_startups')
-    .select('*', { count: 'exact', head: true });
-  
-  const { count: investorsBefore } = await supabase
-    .from('investors')
-    .select('*', { count: 'exact', head: true });
+  let startupsBefore = 0, investorsBefore = 0;
+  try {
+    const { count: sc } = await supabase
+      .from('discovered_startups')
+      .select('*', { count: 'exact', head: true });
+    startupsBefore = sc || 0;
+    
+    const { count: ic } = await supabase
+      .from('investors')
+      .select('*', { count: 'exact', head: true });
+    investorsBefore = ic || 0;
+  } catch (err) {
+    console.warn('⚠️  Could not get starting counts:', err.message);
+  }
   
   console.log(`📊 BEFORE: ${startupsBefore} startups, ${investorsBefore} investors\n`);
   
   let totalStartups = 0;
   let totalInvestors = 0;
+  let sourceErrors = 0;
   
   // Process startup sources
   console.log('━'.repeat(70));
@@ -939,14 +947,19 @@ async function main() {
   console.log('━'.repeat(70));
   
   for (const source of STARTUP_SOURCES) {
-    process.stdout.write(`  ${source.name.padEnd(30)}... `);
-    const results = await scrapeFeed(source);
-    console.log(`📰 ${results.articles} articles → 🚀 ${results.startups} startups, 💼 ${results.investors} investors`);
-    totalStartups += results.startups;
-    totalInvestors += results.investors;
+    try {
+      process.stdout.write(`  ${source.name.padEnd(30)}... `);
+      const results = await scrapeFeed(source);
+      console.log(`📰 ${results.articles} articles → 🚀 ${results.startups} startups, 💼 ${results.investors} investors`);
+      totalStartups += results.startups;
+      totalInvestors += results.investors;
+    } catch (err) {
+      sourceErrors++;
+      console.log(`❌ Error: ${(err.message || '').substring(0, 60)}`);
+    }
     
-    // Rate limit
-    await new Promise(r => setTimeout(r, 1000));
+    // Rate limit (reduced from 1000ms to 500ms)
+    await new Promise(r => setTimeout(r, 500));
   }
   
   // Process investor sources
@@ -955,24 +968,36 @@ async function main() {
   console.log('━'.repeat(70));
   
   for (const source of INVESTOR_SOURCES) {
-    process.stdout.write(`  ${source.name.padEnd(30)}... `);
-    const results = await scrapeFeed(source);
-    console.log(`📰 ${results.articles} articles → 🚀 ${results.startups} startups, 💼 ${results.investors} investors`);
-    totalStartups += results.startups;
-    totalInvestors += results.investors;
+    try {
+      process.stdout.write(`  ${source.name.padEnd(30)}... `);
+      const results = await scrapeFeed(source);
+      console.log(`📰 ${results.articles} articles → 🚀 ${results.startups} startups, 💼 ${results.investors} investors`);
+      totalStartups += results.startups;
+      totalInvestors += results.investors;
+    } catch (err) {
+      sourceErrors++;
+      console.log(`❌ Error: ${(err.message || '').substring(0, 60)}`);
+    }
     
     // Rate limit
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 500));
   }
   
   // Final counts
-  const { count: startupsAfter } = await supabase
-    .from('discovered_startups')
-    .select('*', { count: 'exact', head: true });
-  
-  const { count: investorsAfter } = await supabase
-    .from('investors')
-    .select('*', { count: 'exact', head: true });
+  let startupsAfter = startupsBefore, investorsAfter = investorsBefore;
+  try {
+    const { count: sc } = await supabase
+      .from('discovered_startups')
+      .select('*', { count: 'exact', head: true });
+    startupsAfter = sc || startupsBefore;
+    
+    const { count: ic } = await supabase
+      .from('investors')
+      .select('*', { count: 'exact', head: true });
+    investorsAfter = ic || investorsBefore;
+  } catch (err) {
+    console.warn('⚠️  Could not get final counts:', err.message);
+  }
   
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   
@@ -981,23 +1006,46 @@ async function main() {
   console.log('═'.repeat(70));
   console.log(`  Startups:  ${startupsBefore} → ${startupsAfter} (+${startupsAfter - startupsBefore})`);
   console.log(`  Investors: ${investorsBefore} → ${investorsAfter} (+${investorsAfter - investorsBefore})`);
+  console.log(`  Errors:    ${sourceErrors}`);
   console.log(`  Duration:  ${duration}s`);
   console.log('═'.repeat(70));
   
-  // Log to database
-  await supabase.from('ai_logs').insert({
-    type: 'discovery',
-    action: 'high_volume_run',
-    status: 'success',
-    output: {
-      startups_added: startupsAfter - startupsBefore,
-      investors_added: investorsAfter - investorsBefore,
+  // Log to database (wrapped in try/catch)
+  try {
+    await supabase.from('scraper_runs').insert({
+      scraper_name: 'high_volume_discovery',
+      started_at: new Date(startTime).toISOString(),
+      finished_at: new Date().toISOString(),
       sources_scraped: STARTUP_SOURCES.length + INVESTOR_SOURCES.length,
+      articles_found: 0,
+      startups_discovered: startupsAfter - startupsBefore,
+      errors: sourceErrors,
       duration_seconds: parseFloat(duration)
-    }
-  });
+    });
+  } catch (err) {
+    console.warn('⚠️  Could not log run:', err.message);
+  }
+  
+  // Also log to ai_logs for backward compat
+  try {
+    await supabase.from('ai_logs').insert({
+      type: 'discovery',
+      action: 'high_volume_run',
+      status: 'success',
+      output: {
+        startups_added: startupsAfter - startupsBefore,
+        investors_added: investorsAfter - investorsBefore,
+        sources_scraped: STARTUP_SOURCES.length + INVESTOR_SOURCES.length,
+        errors: sourceErrors,
+        duration_seconds: parseFloat(duration)
+      }
+    });
+  } catch (err) { /* silent */ }
   
   console.log('\n✅ Done!\n');
 }
 
-main().catch(console.error);
+main().catch(err => {
+  console.error('💥 Fatal error in high-volume-discovery:', err);
+  process.exit(1);
+});

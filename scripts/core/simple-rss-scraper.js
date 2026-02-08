@@ -48,21 +48,21 @@ const parser = new Parser({
   }
 });
 
-// Rate limiting configuration
+// Rate limiting configuration — tuned for throughput (100-300 startups per 6-8h)
 const RATE_LIMIT_CONFIG = {
-  DEFAULT_DELAY: 3000,  // 3 seconds between sources
+  DEFAULT_DELAY: 1000,  // 1 second between sources (was 3s — too slow)
   RATE_LIMITED_SOURCES: {
-    'hacker news': 45000,      // 45 seconds for HN (strict rate limiting)
-    'hackernews': 45000,
-    'hn': 45000,
-    'show hn': 45000,
-    'crunchbase': 20000,       // 20 seconds for Crunchbase
-    'techcrunch': 10000,       // 10 seconds for TechCrunch
+    'hacker news': 30000,      // 30 seconds for HN
+    'hackernews': 30000,
+    'hn': 30000,
+    'show hn': 30000,
+    'crunchbase': 10000,       // 10 seconds for Crunchbase
+    'techcrunch': 5000,        // 5 seconds for TechCrunch
   },
   BACKOFF: {
-    initial: 5000,
-    max: 180000,               // 3 minutes max
-    multiplier: 2,
+    initial: 3000,
+    max: 120000,               // 2 minutes max (was 3 min)
+    multiplier: 1.5,           // Gentler backoff
   }
 };
 
@@ -485,8 +485,8 @@ async function scrapeRssFeeds() {
       // Success - reset backoff for this source
       resetSourceBackoff(source.name);
       
-      // Increased from 10 to 50 items per feed to scale to 200-500 startups/day
-      const items = feed.items?.slice(0, 50) || [];
+      // Increased to 75 items per feed for higher throughput
+      const items = feed.items?.slice(0, 75) || [];
       
       console.log(`   Found ${items.length} items`);
       

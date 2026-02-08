@@ -95,10 +95,7 @@ module.exports = {
     
     // ========================================
     // SIMPLE RSS SCRAPER (writes to discovered_startups)
-    // This is the ORIGINAL high-volume discovery scraper
-    // It was replaced by ssot-rss-scraper but needs to run SEPARATELY
-    // ssot-rss-scraper -> startup_events (for Phase Change)
-    // simple-rss-scraper -> discovered_startups (for discovery pipeline)
+    // Tuned for throughput: 1s delay, 75 items per feed
     // ========================================
     {
       name: 'simple-rss-discovery',
@@ -107,10 +104,10 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
-      max_restarts: 5,
+      max_restarts: 10,
       watch: false,
       max_memory_restart: '500M',
-      cron_restart: '0 */2 * * *',  // Every 2 hours (on the hour)
+      cron_restart: '0 */1 * * *',  // Every 1 hour (was 2 hours — too slow!)
       env: {
         NODE_ENV: 'production'
       }
@@ -227,9 +224,12 @@ module.exports = {
       args: 'scripts/event-rescue-agent.js',
       cwd: './',
       instances: 1,
-      autorestart: false,  // Run once per cron cycle
+      autorestart: true,   // CHANGED: was false — keep it alive
       watch: false,
       max_memory_restart: '500M',
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 30000,
       cron_restart: '*/30 * * * *',  // Every 30 minutes
       env: {
         NODE_ENV: 'production'
@@ -237,6 +237,28 @@ module.exports = {
       // Rescues startups from misclassified "OTHER" events
       // Uses inference engine first (free), GPT-4 as fallback
       // Saves ~80% on API costs vs pure GPT approach
+    },
+    
+    // ========================================
+    // AUTO-IMPORT PIPELINE (discovered_startups → startup_uploads)
+    // Imports quality startups, assigns GOD scores, queues for matching
+    // ========================================
+    {
+      name: 'auto-import-pipeline',
+      script: 'node',
+      args: 'scripts/core/auto-import-pipeline.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle, exits when done
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 5,
+      cron_restart: '15 */1 * * *',  // Every hour at :15 (15 min after scrapers)
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Converts discovered_startups → startup_uploads with quality filtering
+      // Generates initial GOD scores and queues for match generation
     },
     // ========================================
     // MATCH ENGINE - Pattern A v1.1 (PRODUCTION)
@@ -327,6 +349,7 @@ module.exports = {
     
     // ========================================
     // HIGH-VOLUME DISCOVERY (200+ startups/day, 100+ investors/day)
+    // CRITICAL: This was dying silently — now has autorestart + more restarts
     // ========================================
     {
       name: 'high-volume-discovery',
@@ -334,15 +357,17 @@ module.exports = {
       args: 'scripts/high-volume-discovery.js',
       cwd: './',
       instances: 1,
-      autorestart: false,  // Run once per cron cycle
+      autorestart: true,   // CHANGED: was false — if it crashes, restart!
       watch: false,
       max_memory_restart: '500M',
-      max_restarts: 5,
-      cron_restart: '0 */2 * * *',  // Every 2 hours
+      max_restarts: 10,    // CHANGED: was 5
+      min_uptime: '30s',   // Must run 30s to count
+      restart_delay: 60000, // Wait 1 min between restarts
+      cron_restart: '0 */1 * * *',  // Every 1 hour (was 2 hours)
       env: {
         NODE_ENV: 'production'
       }
-      // Uses AI entity extraction from 40+ RSS sources
+      // Uses AI entity extraction from 65+ RSS sources + Google News
       // Goal: 200+ startups/day, 100+ investors/day
     },
     {
