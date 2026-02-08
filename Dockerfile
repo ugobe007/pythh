@@ -1,12 +1,16 @@
-# Combined Frontend + Backend for Fly.io
-# Serves React frontend AND Express API from a single container
+# Combined Frontend + Backend + Background Workers for Fly.io
+# Serves React frontend, Express API, and all scrapers/workers from a single container
+# Managed by PM2 process manager
 
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install build dependencies + curl for health checks
+RUN apk add --no-cache python3 make g++ curl
+
+# Install PM2 globally (process manager for production)
+RUN npm install -g pm2
 
 # Copy package files
 COPY package*.json ./
@@ -23,6 +27,7 @@ RUN npm run build
 # The server will serve both:
 # - Static files from /app/dist (frontend)
 # - API endpoints at /api/* (backend)
+# PM2 also manages all background scrapers, ML pipelines, and match engine
 
 # Set production environment
 ENV NODE_ENV=production
@@ -31,6 +36,6 @@ ENV PORT=8080
 # Expose the port Fly.io expects
 EXPOSE 8080
 
-# Start the Express server (which serves both frontend + API)
-# Use tsx for TypeScript support (Node 20 doesn't support .ts require natively)
-CMD ["npx", "tsx", "server/index.js"]
+# Start all processes via PM2 (Express server + scrapers + workers)
+# pm2-runtime keeps the container alive and handles signals properly
+CMD ["pm2-runtime", "start", "ecosystem.prod.config.js"]

@@ -14,8 +14,18 @@ primary_region = 'lax'
   auto_start_machines = true
   min_machines_running = 1
 
+[checks]
+  [checks.health]
+    port = 8080
+    type = "http"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/api/health"
+
 [[vm]]
-  memory = '512mb'
+  memory = '4096mb'
   cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 512
+  cpus = 2
+  memory_mb = 4096
