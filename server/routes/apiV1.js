@@ -64,6 +64,9 @@ router.get('/meta', requireApiKey(), async (req, res) => {
     { path: '/api/v1/v2/scorecard/:startupId', scope: 'signals', method: 'GET', note: 'full scorecard with verification pipeline' },
     { path: '/api/v1/v2/evidence-center/:startupId', scope: 'signals', method: 'GET', note: 'evidence center with sources and conflicts' },
     { path: '/api/v1/webhooks/:provider', scope: 'signals', method: 'POST', note: 'webhook ingestion (stripe, github, etc.)' },
+    // Investor signal distribution
+    { path: '/api/v1/signals/rollup', scope: 'signals', method: 'POST', note: 'refresh investor signal distribution from vc_faith_signals' },
+    { path: '/api/v1/signals/investor/:investorId', scope: 'signals', method: 'GET', note: 'investor signal profile (source + theme distributions)' },
     // Core endpoints
     { path: '/api/v1/startups/search', scope: 'lookup', method: 'GET' },
     { path: '/api/v1/startups/:id/score-snapshot', scope: 'score_snapshot', method: 'GET' },
@@ -2092,6 +2095,80 @@ router.get('/v2/evidence-center/:startupId', requireApiKey('signals'), async (re
     
   } catch (err) {
     console.error('[apiV1] v2/evidence-center error:', err);
+    logApiRequest(req, 500, Date.now() - startTime);
+    return apiError(res, 'server_error', err.message, 500);
+  }
+});
+
+// POST /api/v1/signals/rollup - Refresh investor signal distribution from vc_faith_signals
+router.post('/signals/rollup', requireApiKey('signals'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { data, error } = await supabase.rpc('refresh_investor_signal_distribution');
+    if (error) throw error;
+
+    const result = data || {};
+    const summary = `Investor signal rollup complete: ${result.source_rows || 0} source rows, ${result.theme_rows || 0} theme rows across ${result.investors_updated || 0} investors.`;
+
+    logApiRequest(req, 200, Date.now() - startTime);
+    return res.json({
+      ok: true,
+      schema_version: '1.0',
+      request_id: req.requestId || `req_${Date.now()}`,
+      generated_at: new Date().toISOString(),
+      summary,
+      data: result
+    });
+  } catch (err) {
+    console.error('[apiV1] signals/rollup error:', err);
+    logApiRequest(req, 500, Date.now() - startTime);
+    return apiError(res, 'server_error', err.message, 500);
+  }
+});
+
+// GET /api/v1/signals/investor/:investorId - Get investor signal profile
+router.get('/signals/investor/:investorId', requireApiKey('signals'), async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { investorId } = req.params;
+    const type = req.query.type || 'all'; // 'source', 'theme', 'all'
+
+    let query = supabase
+      .from('investor_signal_distribution')
+      .select('*')
+      .eq('investor_id', investorId)
+      .order('occurrence_count', { ascending: false });
+
+    if (type === 'source') query = query.like('signal_type', 'source:%');
+    else if (type === 'theme') query = query.like('signal_type', 'theme:%');
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Also fetch the summary from investors.signals
+    const { data: investor } = await supabase
+      .from('investors')
+      .select('name, firm, signals')
+      .eq('id', investorId)
+      .single();
+
+    const summary = `${investor?.name || investorId}: ${data?.length || 0} signal dimensions.`;
+
+    logApiRequest(req, 200, Date.now() - startTime);
+    return res.json({
+      ok: true,
+      schema_version: '1.0',
+      request_id: req.requestId || `req_${Date.now()}`,
+      generated_at: new Date().toISOString(),
+      summary,
+      data: {
+        investor: { name: investor?.name, firm: investor?.firm },
+        signal_summary: investor?.signals || null,
+        distributions: data || []
+      }
+    });
+  } catch (err) {
+    console.error('[apiV1] signals/investor error:', err);
     logApiRequest(req, 500, Date.now() - startTime);
     return apiError(res, 'server_error', err.message, 500);
   }
