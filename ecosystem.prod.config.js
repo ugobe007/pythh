@@ -5,8 +5,13 @@
  * The Vite dev server (hot-match-server) is NOT included — in production,
  * the frontend is pre-built and served as static files by Express.
  * 
+ * ALL processes use tsx as interpreter to handle TypeScript imports
+ * (several .js files require .ts modules — plain node can't parse them).
+ * 
  * Started via: pm2-runtime start ecosystem.prod.config.js
  */
+
+const TSX = '/app/node_modules/.bin/tsx';
 
 module.exports = {
   apps: [
@@ -16,8 +21,8 @@ module.exports = {
     // ========================================
     {
       name: 'api-server',
-      script: 'node',
-      args: 'server/index.js',
+      interpreter: TSX,
+      script: 'server/index.js',
       cwd: '/app',
       instances: 1,
       autorestart: true,
@@ -35,34 +40,34 @@ module.exports = {
     // ========================================
     {
       name: 'simple-rss-discovery',
-      script: 'node',
-      args: 'scripts/core/simple-rss-scraper.js',
+      interpreter: TSX,
+      script: 'scripts/core/simple-rss-scraper.js',
       cwd: '/app',
       instances: 1,
       autorestart: true,
       max_restarts: 10,
       watch: false,
       max_memory_restart: '400M',
-      cron_restart: '0 */1 * * *',  // Every 1 hour
+      cron_restart: '0 */1 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'rss-scraper',
-      script: 'node',
-      args: 'scripts/core/ssot-rss-scraper.js',
+      interpreter: TSX,
+      script: 'scripts/core/ssot-rss-scraper.js',
       cwd: '/app',
       instances: 1,
       autorestart: true,
       max_restarts: 10,
       watch: false,
       max_memory_restart: '400M',
-      cron_restart: '*/15 * * * *',  // Every 15 minutes
+      cron_restart: '*/15 * * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'high-volume-discovery',
-      script: 'node',
-      args: 'scripts/high-volume-discovery.js',
+      interpreter: TSX,
+      script: 'scripts/high-volume-discovery.js',
       cwd: '/app',
       instances: 1,
       autorestart: true,
@@ -71,38 +76,38 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '30s',
       restart_delay: 60000,
-      cron_restart: '0 */1 * * *',  // Every 1 hour
+      cron_restart: '0 */1 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'html-scraper',
-      script: 'node',
-      args: 'scripts/scrapers/html-startup-scraper.js',
+      interpreter: TSX,
+      script: 'scripts/scrapers/html-startup-scraper.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '300M',
-      cron_restart: '0 */6 * * *',  // Every 6 hours
+      cron_restart: '0 */6 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'vc-team-scraper',
-      script: 'node',
-      args: 'scripts/vc-team-scraper.js',
+      interpreter: TSX,
+      script: 'scripts/vc-team-scraper.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '400M',
       max_restarts: 3,
-      cron_restart: '0 */6 * * *',  // Every 6 hours
+      cron_restart: '0 */6 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'event-rescue-agent',
-      script: 'node',
-      args: 'scripts/event-rescue-agent.js',
+      interpreter: TSX,
+      script: 'scripts/event-rescue-agent.js',
       cwd: '/app',
       instances: 1,
       autorestart: true,
@@ -111,7 +116,7 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '10s',
       restart_delay: 30000,
-      cron_restart: '*/30 * * * *',  // Every 30 minutes
+      cron_restart: '*/30 * * * *',
       env: { NODE_ENV: 'production' }
     },
 
@@ -120,21 +125,21 @@ module.exports = {
     // ========================================
     {
       name: 'auto-import-pipeline',
-      script: 'node',
-      args: 'scripts/core/auto-import-pipeline.js',
+      interpreter: TSX,
+      script: 'scripts/core/auto-import-pipeline.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '300M',
       max_restarts: 5,
-      cron_restart: '15 */1 * * *',  // Every hour at :15
+      cron_restart: '15 */1 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'discovery-job-processor',
-      script: 'node',
-      args: 'process-discovery-jobs.js',
+      interpreter: TSX,
+      script: 'process-discovery-jobs.js',
       cwd: '/app',
       instances: 1,
       autorestart: true,
@@ -149,15 +154,16 @@ module.exports = {
     // ========================================
     {
       name: 'ml-training-scheduler',
-      script: 'node',
-      args: 'scripts/cron/ml-training-scheduler.js --daemon',
+      interpreter: TSX,
+      script: 'scripts/cron/ml-training-scheduler.js',
+      args: '--daemon',
       cwd: '/app',
       instances: 1,
       autorestart: true,
       max_restarts: 10,
       watch: false,
       max_memory_restart: '400M',
-      cron_restart: '0 */2 * * *',  // Every 2 hours
+      cron_restart: '0 */2 * * *',
       env: {
         NODE_ENV: 'production',
         ML_TRAINING_SCHEDULE: '0 */2 * * *'
@@ -165,20 +171,20 @@ module.exports = {
     },
     {
       name: 'ml-auto-apply',
-      script: 'node',
-      args: 'ml-auto-apply.js',
+      interpreter: TSX,
+      script: 'ml-auto-apply.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '300M',
-      cron_restart: '30 */2 * * *',  // Every 2 hours at :30
+      cron_restart: '30 */2 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'ml-ontology-agent',
-      script: 'node',
-      args: 'scripts/ml-ontology-agent.js',
+      interpreter: TSX,
+      script: 'scripts/ml-ontology-agent.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
@@ -187,7 +193,7 @@ module.exports = {
       max_restarts: 3,
       min_uptime: '30s',
       restart_delay: 300000,
-      cron_restart: '0 */6 * * *',  // Every 6 hours
+      cron_restart: '0 */6 * * *',
       env: { NODE_ENV: 'production' }
     },
 
@@ -196,38 +202,40 @@ module.exports = {
     // ========================================
     {
       name: 'pythia-collector',
-      script: 'node',
-      args: 'scripts/pythia/collect-from-forums.js 50',
+      interpreter: TSX,
+      script: 'scripts/pythia/collect-from-forums.js',
+      args: '50',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '300M',
-      cron_restart: '0 */2 * * *',  // Every 2 hours
+      cron_restart: '0 */2 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'pythia-scorer',
-      script: 'node',
-      args: 'scripts/pythia/score-entities.js score startup 500',
+      interpreter: TSX,
+      script: 'scripts/pythia/score-entities.js',
+      args: 'score startup 500',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '300M',
-      cron_restart: '30 */2 * * *',  // Every 2 hours at :30
+      cron_restart: '30 */2 * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'pythia-sync',
-      script: 'node',
-      args: 'scripts/pythia/sync-pythia-scores.js',
+      interpreter: TSX,
+      script: 'scripts/pythia/sync-pythia-scores.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '200M',
-      cron_restart: '45 */2 * * *',  // Every 2 hours at :45
+      cron_restart: '45 */2 * * *',
       env: { NODE_ENV: 'production' }
     },
 
@@ -236,8 +244,8 @@ module.exports = {
     // ========================================
     {
       name: 'match-worker',
-      script: 'node',
-      args: 'server/matchRunWorker.js',
+      interpreter: TSX,
+      script: 'server/matchRunWorker.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
@@ -247,7 +255,7 @@ module.exports = {
       exp_backoff_restart_delay: 10000,
       max_restarts: 10,
       min_uptime: '5s',
-      cron_restart: '*/10 * * * * *',  // Every 10 seconds
+      cron_restart: '*/10 * * * * *',
       env: {
         NODE_ENV: 'production',
         MAX_RUNS_PER_BATCH: '2',
@@ -256,19 +264,20 @@ module.exports = {
     },
     {
       name: 'match-regen-delta',
-      script: 'node',
-      args: 'match-regenerator.js --delta',
+      interpreter: TSX,
+      script: 'match-regenerator.js',
+      args: '--delta',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
-      max_memory_restart: '1G',
+      max_memory_restart: '1500M',
       restart_delay: 60000,
       exp_backoff_restart_delay: 300000,
       max_restarts: 3,
       min_uptime: '60s',
       kill_timeout: 3600000,
-      cron_restart: '0 3 */2 * *',  // Every 2 days at 3 AM
+      cron_restart: '0 3 */2 * *',
       env: {
         NODE_ENV: 'production',
         BATCH_SIZE: '500',
@@ -277,19 +286,20 @@ module.exports = {
     },
     {
       name: 'match-regen-full',
-      script: 'node',
-      args: 'match-regenerator.js --full',
+      interpreter: TSX,
+      script: 'match-regenerator.js',
+      args: '--full',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
-      max_memory_restart: '2G',  // Higher limit for Fly (more RAM available)
+      max_memory_restart: '2G',
       restart_delay: 60000,
       exp_backoff_restart_delay: 300000,
       max_restarts: 2,
       min_uptime: '60s',
       kill_timeout: 7200000,
-      cron_restart: '0 2 * * 0',  // Weekly: Sunday 2 AM
+      cron_restart: '0 2 * * 0',
       env: {
         NODE_ENV: 'production',
         BATCH_SIZE: '500',
@@ -302,40 +312,40 @@ module.exports = {
     // ========================================
     {
       name: 'system-guardian',
-      script: 'node',
-      args: 'scripts/archive/utilities/system-guardian.js',
+      interpreter: TSX,
+      script: 'scripts/archive/utilities/system-guardian.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '200M',
-      cron_restart: '*/10 * * * *',  // Every 10 minutes
+      cron_restart: '*/10 * * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'pythh-url-monitor',
-      script: 'node',
-      args: 'scripts/pythh-url-monitor.js',
+      interpreter: TSX,
+      script: 'scripts/pythh-url-monitor.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '256M',
       max_restarts: 3,
-      cron_restart: '*/5 * * * *',  // Every 5 minutes
+      cron_restart: '*/5 * * * *',
       env: { NODE_ENV: 'production' }
     },
     {
       name: 'submit-guardian',
-      script: 'node',
-      args: 'scripts/submit-flow-guardian.js',
+      interpreter: TSX,
+      script: 'scripts/submit-flow-guardian.js',
       cwd: '/app',
       instances: 1,
       autorestart: false,
       watch: false,
       max_memory_restart: '256M',
       max_restarts: 5,
-      cron_restart: '*/2 * * * *',  // Every 2 minutes
+      cron_restart: '*/2 * * * *',
       env: { NODE_ENV: 'production' }
     }
   ]
