@@ -410,25 +410,23 @@ module.exports = {
     },
     
     // ========================================
-    // SUBMIT FLOW GUARDIAN - Schema + Server Watchdog
+    // SUBMIT FLOW GUARDIAN - DISABLED (causes api-server restart loop)
+    // The guardian kills the api-server every 2 min if health check is slow,
+    // which on a memory-constrained Fly machine creates a crash loop.
+    // Re-enable only after adding a boot grace period.
     // ========================================
-    {
-      name: 'submit-guardian',
-      script: 'node',
-      args: 'scripts/submit-flow-guardian.js',
-      cwd: './',
-      instances: 1,
-      autorestart: false,  // Run once per cron cycle
-      watch: false,
-      max_memory_restart: '256M',
-      max_restarts: 5,
-      cron_restart: '*/2 * * * *',  // Every 2 minutes
-      env: {
-        NODE_ENV: 'production'
-      }
-      // Validates Express server alive, submit endpoint e2e,
-      // database schema integrity (column drift detection),
-      // and auto-heals via PM2 restart if server down.
-    }
+    // {
+    //   name: 'submit-guardian',
+    //   script: 'node',
+    //   args: 'scripts/submit-flow-guardian.js',
+    //   cwd: './',
+    //   instances: 1,
+    //   autorestart: false,
+    //   watch: false,
+    //   max_memory_restart: '256M',
+    //   max_restarts: 5,
+    //   cron_restart: '*/2 * * * *',
+    //   env: { NODE_ENV: 'production' }
+    // }
   ]
 };
