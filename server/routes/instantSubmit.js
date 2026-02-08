@@ -740,7 +740,7 @@ router.post('/submit', async (req, res) => {
         reason: 'existing_matches',
         candidate_count: existingMatchCount,
         duration_ms: processingTime,
-      }).catch(() => {});
+      }).then(() => {}).catch(() => {});
       
       return res.json({
         startup_id: startupId,
@@ -768,7 +768,7 @@ router.post('/submit', async (req, res) => {
         startup_id: startupId, event: 'skipped',
         source: genSource, reason: 'cooldown',
         duration_ms: Date.now() - startTime,
-      }).catch(() => {});
+      }).then(() => {}).catch(() => {});
       
       return res.json({
         startup_id: startupId,
@@ -785,7 +785,7 @@ router.post('/submit', async (req, res) => {
     supabase.from('match_gen_logs').insert({
       startup_id: startupId, run_id: runId,
       event: 'started', source: genSource,
-    }).catch(() => {});
+    }).then(() => {}).catch(() => {});
 
     // 4. Generate matches INSTANTLY (using cached investors)
     console.log(`  ⚡ Generating instant matches...`);
@@ -872,7 +872,7 @@ router.post('/submit', async (req, res) => {
           candidate_count: investors.length,
           inserted_count: dbMatches.length,
           duration_ms: genDuration,
-        }).catch(() => {});
+        }).then(() => {}).catch(() => {});
       })();
       
       // Wait only 500ms max for inserts, then return
@@ -954,14 +954,14 @@ router.post('/submit', async (req, res) => {
     // Release idempotency lock on failure (with run_id if available)
     if (typeof startupId !== 'undefined' && startupId) {
       const failRunId = typeof runId !== 'undefined' ? runId : null;
-      supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: failRunId }).catch(() => {});
+      supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: failRunId }).then(() => {}).catch(() => {});
       // Log: failed
       supabase.from('match_gen_logs').insert({
         startup_id: startupId, run_id: failRunId,
         event: 'failed', source: typeof genSource !== 'undefined' ? genSource : 'unknown',
         reason: err.message,
         duration_ms: Date.now() - startTime,
-      }).catch(() => {});
+      }).then(() => {}).catch(() => {});
     }
     return res.status(500).json({
       error: 'Processing failed',
