@@ -199,6 +199,23 @@ export default function SignalMatches() {
       onUpdated: ({ at }) => setLastRefreshAt(at.getTime()),
     });
 
+  // Match generation in-progress detection:
+  // If we resolved a startup from URL but have 0 rows, match gen was likely triggered.
+  // Show a "generating" banner and poll faster (every 5s) until matches arrive.
+  const matchGenPending = !!(
+    resolvedStartupId &&
+    urlToResolve &&  // came from URL submission (not picker/direct ID)
+    !tableLoading &&
+    rows.length === 0
+  );
+
+  // Fast-poll when generation is pending (supplement the 10s default)
+  useEffect(() => {
+    if (!matchGenPending) return;
+    const fastPoll = setInterval(() => refreshTable(), 5000);
+    return () => clearInterval(fastPoll);
+  }, [matchGenPending, refreshTable]);
+
   // Derived counts (memoized)
   const { unlockedCount, lockedCount } = useMemo(() => {
     let unlocked = 0;
@@ -445,6 +462,7 @@ export default function SignalMatches() {
           isPending={isPending}
           onUnlock={handleUnlock}
           unlocksRemaining={unlocksRemaining}
+          matchGenPending={matchGenPending}
         />
           
         {/* Count summary */}
@@ -898,6 +916,7 @@ function RadarMatchTable({
   isPending,
   onUnlock,
   unlocksRemaining,
+  matchGenPending = false,
 }: {
   rows: MatchRow[];
   context: StartupContext | null;
@@ -905,9 +924,26 @@ function RadarMatchTable({
   isPending: (investorId: string) => boolean;
   onUnlock: (investorId: string) => Promise<void>;
   unlocksRemaining: number;
+  matchGenPending?: boolean;
 }) {
   // Use the legacy adapter to transform rows to view model format
   const { unlockedRows, lockedRows } = useLegacyRadarAdapter(rows, context?.god?.total, context);
+  
+  // Show generation-in-progress banner instead of "No matches found"
+  if (matchGenPending && unlockedRows.length === 0 && lockedRows.length === 0) {
+    return (
+      <div className="mb-8 flex items-center justify-center py-20" data-testid="match-table">
+        <div className="flex flex-col items-center gap-4 text-gray-400">
+          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-lg font-medium text-cyan-400">Generating matches&hellip;</p>
+          <p className="text-sm text-gray-500">
+            Our engine is analyzing investor alignment. This usually takes 30-60 seconds.
+          </p>
+          <p className="text-xs text-gray-600">Auto-refreshing every 5 seconds</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="mb-8" data-testid="match-table">
