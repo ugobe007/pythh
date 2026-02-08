@@ -734,11 +734,11 @@ router.post('/submit', async (req, res) => {
       console.log(`  ⚡ Returned ${existingMatchCount} existing matches in ${processingTime}ms`);
       
       // Log: skipped (existing matches)
-      supabase.from('match_gen_logs').insert({
+      void supabase.from('match_gen_logs').insert({
         startup_id: startupId, event: 'skipped',
         source: forceGenerate ? 'force' : 'rpc',
         reason: 'existing_matches',
-        candidate_count: existingMatchCount,
+        existing_match_count: existingMatchCount,
         duration_ms: processingTime,
       }).then(() => {}).catch(() => {});
       
@@ -764,9 +764,10 @@ router.post('/submit', async (req, res) => {
       console.log(`  ⏳ Match generation already running for ${startupId} — returning early`);
       
       // Log: skipped (cooldown/locked)
-      supabase.from('match_gen_logs').insert({
+      void supabase.from('match_gen_logs').insert({
         startup_id: startupId, event: 'skipped',
         source: genSource, reason: 'cooldown',
+        existing_match_count: existingMatchCount || 0,
         duration_ms: Date.now() - startTime,
       }).then(() => {}).catch(() => {});
       
@@ -782,9 +783,10 @@ router.post('/submit', async (req, res) => {
     }
     
     // Log: started
-    supabase.from('match_gen_logs').insert({
+    void supabase.from('match_gen_logs').insert({
       startup_id: startupId, run_id: runId,
       event: 'started', source: genSource,
+      existing_match_count: existingMatchCount || 0,
     }).then(() => {}).catch(() => {});
 
     // 4. Generate matches INSTANTLY (using cached investors)
@@ -866,10 +868,10 @@ router.post('/submit', async (req, res) => {
         await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId });
         // Log: completed
         const genDuration = Date.now() - startTime;
-        supabase.from('match_gen_logs').insert({
+        void supabase.from('match_gen_logs').insert({
           startup_id: startupId, run_id: runId,
           event: 'completed', source: genSource,
-          candidate_count: investors.length,
+          candidate_investor_count: investors.length,
           inserted_count: dbMatches.length,
           duration_ms: genDuration,
         }).then(() => {}).catch(() => {});
@@ -954,9 +956,9 @@ router.post('/submit', async (req, res) => {
     // Release idempotency lock on failure (with run_id if available)
     if (typeof startupId !== 'undefined' && startupId) {
       const failRunId = typeof runId !== 'undefined' ? runId : null;
-      supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: failRunId }).then(() => {}).catch(() => {});
+      void supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: failRunId }).then(() => {}).catch(() => {});
       // Log: failed
-      supabase.from('match_gen_logs').insert({
+      void supabase.from('match_gen_logs').insert({
         startup_id: startupId, run_id: failRunId,
         event: 'failed', source: typeof genSource !== 'undefined' ? genSource : 'unknown',
         reason: err.message,
