@@ -18,7 +18,9 @@ const CONFIG = {
   GEO_MATCH: 5,          // Reduced: geography less important (modern VC is global)
   INVESTOR_QUALITY: 20,  // Reduced slightly 
   STARTUP_QUALITY: 25,   // Increased: GOD score matters more
-  SIGNAL_BONUS: 10,      // NEW: Market signal bonus (0-10 from startup_signals)
+  SIGNAL_BONUS: 10,      // Market signal bonus (0-10 from startup_signals)
+  FAITH_ALIGNMENT: 15,   // NEW: Investor conviction alignment (0-15 from vc_faith_signals)
+  SUPER_MATCH_THRESHOLD: 12, // Faith alignment >= 12 = SUPER MATCH
   MIN_MATCH_SCORE: 45,   // ⚠️ UI LABEL ONLY - not used as persistence gate (see PERSISTENCE_FLOOR: 30)
   TOP_MATCHES_PER_STARTUP: 100, // Only keep top 100 matches per startup
   BATCH_SIZE: 500
@@ -245,13 +247,24 @@ function generateReasoning(startup, investor, fitAnalysis) {
     reasons.push(`Strong startup metrics and team`);
   }
   
-  // Signal reasoning (NEW)
+  // Signal reasoning
   if (fitAnalysis.signal >= 8) {
     reasons.push(`High market signal: strong momentum and investor interest detected`);
   } else if (fitAnalysis.signal >= 6) {
     reasons.push(`Emerging market signal: positive momentum building`);
   } else if (fitAnalysis.signal >= 4) {
     reasons.push(`Early market signal: initial traction indicators present`);
+  }
+  
+  // 🔥 Faith alignment reasoning (SUPER MATCH)
+  if (fitAnalysis.is_super_match) {
+    const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.join(', ') : 'multiple areas';
+    reasons.push(`🔥 SUPER MATCH: Investor has deep conviction in ${themes} — directly aligned with this startup`);
+  } else if (fitAnalysis.faith >= 7) {
+    const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.join(', ') : 'aligned areas';
+    reasons.push(`Strong conviction alignment: investor actively invests based on ${themes} thesis`);
+  } else if (fitAnalysis.faith >= 3) {
+    reasons.push(`Conviction signal detected: investor thesis partially aligns`);
   }
   
   // Tier-specific reasoning
@@ -296,11 +309,220 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
     matches.push(`Signal: Emerging (${fitAnalysis.signal}/10)`);
   }
   
+  // Faith alignment / SUPER MATCH
+  if (fitAnalysis.is_super_match) {
+    const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.slice(0, 3).join(', ') : 'aligned thesis';
+    matches.unshift(`🔥 SUPER MATCH: ${themes}`); // Put at front — it's the strongest signal
+  } else if (fitAnalysis.faith >= 7) {
+    const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.slice(0, 2).join(', ') : 'thesis match';
+    matches.push(`Conviction: ${themes}`);
+  } else if (fitAnalysis.faith >= 3) {
+    matches.push(`Conviction signal detected`);
+  }
+  
   if (fitAnalysis.startup_quality >= 18) {
     matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
   }
   
   return matches.length > 0 ? matches : ['Algorithmic match'];
+}
+
+// ============================================
+// FAITH ALIGNMENT: Theme → Sector crosswalk
+// ============================================
+// Maps investor faith themes (from vc_faith_signals) to canonical sector names.
+// Uses the same SECTOR_SYNONYMS from sectorTaxonomy but adds extra faith-specific mappings.
+
+// Build a reverse lookup: lowered synonym → canonical sector
+const THEME_TO_SECTOR = {};
+for (const [canonical, synonyms] of Object.entries(SECTOR_SYNONYMS)) {
+  for (const syn of synonyms) {
+    THEME_TO_SECTOR[syn] = canonical;
+  }
+  // Also map the canonical name itself (lowered)
+  THEME_TO_SECTOR[canonical.toLowerCase()] = canonical;
+}
+// Extra faith-specific theme mappings not covered by sector taxonomy
+const FAITH_EXTRA_MAPPINGS = {
+  'climate tech': 'CleanTech',
+  'climate adaptation': 'CleanTech',
+  'carbon removal': 'CleanTech',
+  'environmental technology': 'CleanTech',
+  'clean energy': 'CleanTech',
+  'cleantech': 'CleanTech',
+  'rare diseases': 'Biotech',
+  'life sciences': 'Biotech',
+  'biomedical': 'Biotech',
+  'biotechnology': 'Biotech',
+  'developer tools': 'Developer Tools',
+  'software development': 'Developer Tools',
+  'platforms': 'Infrastructure',
+  'industrial innovation': 'DeepTech',
+  'defense': 'Defense',
+  'security': 'Cybersecurity',
+  'blockchain': 'Crypto/Web3',
+  'consumer technology': 'Consumer',
+  'consumer': 'Consumer',
+  'education': 'EdTech',
+  'scalability': 'Infrastructure',
+  'vertical markets': 'SaaS',
+  'automation': 'Robotics',
+};
+Object.assign(THEME_TO_SECTOR, FAITH_EXTRA_MAPPINGS);
+
+/**
+ * Resolve a faith theme string to a canonical sector (or null if generic/non-sector)
+ */
+function resolveThemeToSector(theme) {
+  if (!theme) return null;
+  const lower = theme.toLowerCase().trim();
+  // Direct lookup
+  if (THEME_TO_SECTOR[lower]) return THEME_TO_SECTOR[lower];
+  // Partial match: check if theme contains any synonym
+  for (const [syn, canonical] of Object.entries(THEME_TO_SECTOR)) {
+    if (lower.includes(syn) || syn.includes(lower)) return canonical;
+  }
+  return null; // Generic themes like 'innovation', 'entrepreneurship' → no sector
+}
+
+/**
+ * Load investor faith themes from investors.signals jsonb column.
+ * Returns Map<investor_id, { themes: string[], sectors: string[], avgConviction: number }>
+ */
+async function loadFaithThemes() {
+  console.log('🔮 Loading investor faith themes...');
+  
+  let allInvestors = [];
+  let page = 0;
+  const pageSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from('investors')
+      .select('id, signals')
+      .not('signals', 'is', null)
+      .order('id', { ascending: true })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+    
+    if (error) {
+      console.log(`   Error fetching faith themes page ${page}: ${error.message}`);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    allInvestors = allInvestors.concat(data);
+    if (data.length < pageSize) break;
+    page++;
+  }
+  
+  const themeMap = new Map();
+  
+  for (const inv of allInvestors) {
+    if (!inv.signals || !inv.signals.top_themes) continue;
+    const themes = Array.isArray(inv.signals.top_themes) ? inv.signals.top_themes : [];
+    if (themes.length === 0) continue;
+    
+    // Resolve themes to canonical sectors
+    const resolvedSectors = new Set();
+    for (const t of themes) {
+      const sector = resolveThemeToSector(t);
+      if (sector) resolvedSectors.add(sector.toLowerCase());
+    }
+    
+    themeMap.set(inv.id, {
+      themes,
+      sectors: [...resolvedSectors],
+      avgConviction: parseFloat(inv.signals.avg_conviction) || 0.7,
+      totalSignals: parseInt(inv.signals.total_signals) || 0,
+    });
+  }
+  
+  console.log(`   ✅ Loaded faith themes for ${themeMap.size} investors (${allInvestors.length} total with signals)`);
+  return themeMap;
+}
+
+/**
+ * Calculate faith alignment score between startup sectors and investor faith themes.
+ * Returns { score: 0-15, matchingThemes: string[], isSuperMatch: boolean }
+ */
+function calculateFaithAlignment(startupSectors, investorFaith, reasons = []) {
+  if (!investorFaith || investorFaith.sectors.length === 0) {
+    // No faith data for this investor → 0 points (no penalty)
+    return { score: 0, matchingThemes: [], isSuperMatch: false };
+  }
+  
+  if (!startupSectors || startupSectors.length === 0) {
+    return { score: 0, matchingThemes: [], isSuperMatch: false };
+  }
+  
+  // Normalize startup sectors for comparison
+  const startupNorm = startupSectors.map(s => s.toLowerCase().trim());
+  
+  // Find matching themes: investor faith sectors that overlap with startup sectors
+  const matchingThemes = [];
+  for (const faithSector of investorFaith.sectors) {
+    // Check if any startup sector matches this faith sector
+    const faithNorm = faithSector.toLowerCase().trim();
+    for (const startupSec of startupNorm) {
+      // Use the sector taxonomy's own matching (handles synonyms)
+      const result = calculateSectorMatchScore([startupSec], [faithNorm], false);
+      if (result.score > 0) {
+        matchingThemes.push(faithSector);
+        break; // Only count each faith sector once
+      }
+      // Also check direct contains (for cases taxonomy misses)
+      if (faithNorm.includes(startupSec) || startupSec.includes(faithNorm)) {
+        matchingThemes.push(faithSector);
+        break;
+      }
+    }
+  }
+  
+  if (matchingThemes.length === 0) {
+    return { score: 0, matchingThemes: [], isSuperMatch: false };
+  }
+  
+  // Score based on number of matching themes + conviction strength
+  const conviction = investorFaith.avgConviction || 0.7;
+  let score = 0;
+  
+  if (matchingThemes.length >= 3) {
+    // Deep alignment: 3+ themes match → 10-15 points
+    score = conviction >= 0.85 ? 15 : conviction >= 0.7 ? 12 : 10;
+  } else if (matchingThemes.length === 2) {
+    // Good alignment: 2 themes match → 7-10 points
+    score = conviction >= 0.85 ? 10 : conviction >= 0.7 ? 8 : 7;
+  } else {
+    // Single theme: 1 match → 3-7 points
+    score = conviction >= 0.85 ? 7 : conviction >= 0.7 ? 5 : 3;
+  }
+  
+  // Cap at CONFIG max
+  score = Math.min(score, CONFIG.FAITH_ALIGNMENT);
+  
+  const isSuperMatch = score >= CONFIG.SUPER_MATCH_THRESHOLD;
+  
+  // Add to reasoning
+  if (isSuperMatch) {
+    reasons.push({
+      key: 'faith',
+      points: score,
+      note: `🔥 SUPER MATCH: Deep conviction alignment (${matchingThemes.join(', ')}) — conviction ${(conviction * 100).toFixed(0)}%`
+    });
+  } else if (score >= 7) {
+    reasons.push({
+      key: 'faith',
+      points: score,
+      note: `Strong conviction alignment (${matchingThemes.join(', ')}) — conviction ${(conviction * 100).toFixed(0)}%`
+    });
+  } else if (score > 0) {
+    reasons.push({
+      key: 'faith',
+      points: score,
+      note: `Conviction signal (${matchingThemes.join(', ')}) — conviction ${(conviction * 100).toFixed(0)}%`
+    });
+  }
+  
+  return { score, matchingThemes, isSuperMatch };
 }
 
 /**
@@ -355,13 +577,16 @@ async function loadSignalScores() {
 async function regenerateMatches() {
   const startTime = Date.now();
   console.log('\n' + '═'.repeat(60));
-  console.log('🔄 AUTO MATCH REGENERATION (with Signal Scoring)');
+  console.log('🔄 AUTO MATCH REGENERATION (with Signal + Faith Scoring)');
   console.log('═'.repeat(60));
   console.log(`⏰ Started: ${new Date().toISOString()}\n`);
   
   try {
-    // Load signal scores first
-    const signalScores = await loadSignalScores();
+    // Load signal scores and faith themes in parallel
+    const [signalScores, faithThemes] = await Promise.all([
+      loadSignalScores(),
+      loadFaithThemes(),
+    ]);
     
     // Fetch ALL approved startups (paginated)
     console.log('📥 Fetching all startups...');
@@ -460,10 +685,18 @@ async function regenerateMatches() {
           reasons.push({ key: 'signal', points: terms.signal, note: `Early market signal (${signalScore.toFixed(1)}/10)` });
         }
         
-        const totalScore = terms.sector + terms.stage + terms.investor_quality + terms.startup_quality + terms.signal;
+        // 🔮 FAITH ALIGNMENT: pair-specific investor conviction × startup sector match
+        const investorFaith = faithThemes.get(investor.id) || null;
+        const faithResult = calculateFaithAlignment(startupNorm.sectors, investorFaith, reasons);
+        terms.faith = faithResult.score;
+        
+        const totalScore = terms.sector + terms.stage + terms.investor_quality + terms.startup_quality + terms.signal + terms.faith;
         
         // Generate human-readable fields
-        const fitAnalysis = { ...terms };
+        const fitAnalysis = { ...terms, is_super_match: faithResult.isSuperMatch };
+        if (faithResult.matchingThemes.length > 0) {
+          fitAnalysis.faith_themes = faithResult.matchingThemes;
+        }
         const reasoning = generateReasoning(startup, investor, terms);
         const whyYouMatch = generateWhyYouMatch(startup, investor, terms);
         
@@ -534,6 +767,8 @@ async function regenerateMatches() {
     console.log(`   Investors: ${investors.length}`);
     console.log(`   Matches: ${saved}`);
     console.log(`   High confidence: ${allMatches.filter(m => m.confidence_level === 'high').length}`);
+    console.log(`   Faith-boosted: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.faith > 0).length}`);
+    console.log(`   🔥 SUPER MATCHES: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.is_super_match).length}`);
     console.log(`   Time: ${elapsed}s`);
     console.log('═'.repeat(60) + '\n');
     
