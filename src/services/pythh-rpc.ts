@@ -222,7 +222,7 @@ export const pythhRpc = {
   async getMatchTable(
     startupId: string,
     limitUnlocked = 5,
-    limitLocked = 100
+    limitLocked = 50
   ): Promise<MatchRow[]> {
     const { data, error } = await supabase.rpc('get_live_match_table', {
       p_startup_id: startupId,

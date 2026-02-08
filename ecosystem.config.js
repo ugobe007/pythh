@@ -265,9 +265,9 @@ module.exports = {
       // Uses get_top_matches(limit:200) - instant with index
     },
     {
-      name: 'match-regenerator',
+      name: 'match-regen-delta',
       script: 'node',
-      args: 'match-regenerator.js',
+      args: 'match-regenerator.js --delta',
       cwd: './',
       instances: 1,  // CRITICAL: Exactly one instance
       autorestart: false,  // Run once per cron, then exit
@@ -275,19 +275,40 @@ module.exports = {
       max_memory_restart: '1G',
       restart_delay: 60000,  // 1 min backoff if crash
       exp_backoff_restart_delay: 300000,  // Exponential up to 5 min
-      max_restarts: 3,  // Max 3 restarts per hour (this is a heavy job)
-      min_uptime: '60s',  // Must run 1 min to count as successful
+      max_restarts: 3,
+      min_uptime: '60s',
       kill_timeout: 3600000,  // Hard kill after 1 hour if stuck
-      cron_restart: '0 2 * * *',  // Daily at 2 AM (controlled nightly maintenance)
+      cron_restart: '0 3 */2 * *',  // Every 2 days at 3 AM (delta: only changed startups)
       env: {
         NODE_ENV: 'production',
-        BATCH_SIZE: '1000',  // Process 1000 matches per batch
-        MAX_RUNTIME_MINUTES: '60'  // Self-terminate after 60 min
+        BATCH_SIZE: '500',
+        MAX_RUNTIME_MINUTES: '30'
       }
-      // MUST implement advisory lock: pg_try_advisory_lock(hashtext('match_regenerator'))
-      // If lock fails → exit immediately (another instance running)
-      // On exit → pg_advisory_unlock
-      // Purpose: Keep 4.1M corpus fresh with new investor/startup data
+      // Delta mode: only re-scores startups updated in last 48h
+      // Typical run: ~200-500 startups × 3,855 investors → ~25K matches → ~5 min
+    },
+    {
+      name: 'match-regen-full',
+      script: 'node',
+      args: 'match-regenerator.js --full',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '1G',
+      restart_delay: 60000,
+      exp_backoff_restart_delay: 300000,
+      max_restarts: 2,
+      min_uptime: '60s',
+      kill_timeout: 7200000,  // Hard kill after 2 hours
+      cron_restart: '0 2 * * 0',  // Weekly: Sunday 2 AM (full refresh)
+      env: {
+        NODE_ENV: 'production',
+        BATCH_SIZE: '500',
+        MAX_RUNTIME_MINUTES: '120'
+      }
+      // Full mode: re-scores ALL startups × ALL investors
+      // ~7,200 startups × 3,855 investors → ~360K matches → ~50 min
     },
     {
       name: 'discovery-job-processor',

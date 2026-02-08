@@ -2,10 +2,14 @@
 /**
  * AUTO MATCH REGENERATION
  * =======================
- * Runs every 4 hours to keep matches fresh.
- * Called by PM2 automation pipeline.
- * 
- * PM2: pm2 start match-regenerator.js --name match-regen --cron "0 0,4,8,12,16,20 * * *"
+ * Two modes:
+ *   --full     : Re-score ALL startups × ALL investors (weekly, Sunday 2AM)
+ *   --delta    : Re-score only startups updated in last 2 days (every 2 days)
+ *   (default)  : --delta if no flag provided
+ *
+ * PM2 schedule: see ecosystem.config.js
+ * Manual:  node match-regenerator.js --full
+ *          node match-regenerator.js --delta
  */
 
 // Use shared Supabase client (same as server)
@@ -22,8 +26,9 @@ const CONFIG = {
   FAITH_ALIGNMENT: 15,   // NEW: Investor conviction alignment (0-15 from vc_faith_signals)
   SUPER_MATCH_THRESHOLD: 12, // Faith alignment >= 12 = SUPER MATCH
   MIN_MATCH_SCORE: 45,   // ⚠️ UI LABEL ONLY - not used as persistence gate (see PERSISTENCE_FLOOR: 30)
-  TOP_MATCHES_PER_STARTUP: 100, // Only keep top 100 matches per startup
-  BATCH_SIZE: 500
+  TOP_MATCHES_PER_STARTUP: 50, // Only keep top 50 matches per startup (frontend shows max ~105)
+  BATCH_SIZE: 500,
+  DELTA_LOOKBACK_HOURS: 48, // Delta mode: only re-score startups updated in last 48h
 };
 
 // Use centralized sector taxonomy
@@ -576,10 +581,19 @@ async function loadSignalScores() {
 
 async function regenerateMatches() {
   const startTime = Date.now();
+  
+  // Parse CLI flags
+  const args = process.argv.slice(2);
+  const isFullRun = args.includes('--full');
+  const isDelta = !isFullRun; // Default to delta mode
+  const mode = isFullRun ? 'FULL' : 'DELTA';
+  
   console.log('\n' + '═'.repeat(60));
-  console.log('🔄 AUTO MATCH REGENERATION (with Signal + Faith Scoring)');
+  console.log(`🔄 AUTO MATCH REGENERATION [${mode}] (with Signal + Faith Scoring)`);
   console.log('═'.repeat(60));
-  console.log(`⏰ Started: ${new Date().toISOString()}\n`);
+  console.log(`⏰ Started: ${new Date().toISOString()}`);
+  if (isDelta) console.log(`📋 Delta mode: only startups updated in last ${CONFIG.DELTA_LOOKBACK_HOURS}h`);
+  console.log();
   
   try {
     // Load signal scores and faith themes in parallel
@@ -588,18 +602,29 @@ async function regenerateMatches() {
       loadFaithThemes(),
     ]);
     
-    // Fetch ALL approved startups (paginated)
-    console.log('📥 Fetching all startups...');
+    // Fetch startups — full or delta
+    console.log(`📥 Fetching ${isDelta ? 'recently updated' : 'all'} startups...`);
     let allStartups = [];
     let page = 0;
     const pageSize = 1000;
     
+    // Build query
+    const deltaThreshold = isDelta 
+      ? new Date(Date.now() - CONFIG.DELTA_LOOKBACK_HOURS * 3600 * 1000).toISOString()
+      : null;
+    
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('startup_uploads')
         .select('id, name, sectors, stage, total_god_score')
-        .eq('status', 'approved')
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+        .eq('status', 'approved');
+      
+      // In delta mode, only fetch startups updated since the lookback window
+      if (deltaThreshold) {
+        query = query.gte('updated_at', deltaThreshold);
+      }
+      
+      const { data, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
       
       if (error) throw new Error(`Startup fetch error: ${error.message}`);
       if (!data || data.length === 0) break;
@@ -609,6 +634,12 @@ async function regenerateMatches() {
       
       if (data.length < pageSize) break; // Last page
       page++;
+    }
+    
+    if (isDelta && allStartups.length === 0) {
+      console.log('   No startups updated in the lookback window. Nothing to do.');
+      console.log('🏁 Done (no-op delta)');
+      return;
     }
     
     // Fetch ALL investors (paginated)
@@ -761,11 +792,12 @@ async function regenerateMatches() {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     
     console.log('\n\n' + '═'.repeat(60));
-    console.log('✅ MATCH REGENERATION COMPLETE');
+    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}]`);
     console.log('═'.repeat(60));
+    console.log(`   Mode: ${mode}`);
     console.log(`   Startups: ${startups.length}`);
     console.log(`   Investors: ${investors.length}`);
-    console.log(`   Matches: ${saved}`);
+    console.log(`   Matches saved: ${saved} (cap: ${CONFIG.TOP_MATCHES_PER_STARTUP}/startup)`);
     console.log(`   High confidence: ${allMatches.filter(m => m.confidence_level === 'high').length}`);
     console.log(`   Faith-boosted: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.faith > 0).length}`);
     console.log(`   🔥 SUPER MATCHES: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.is_super_match).length}`);
@@ -776,9 +808,11 @@ async function regenerateMatches() {
     await supabase.from('system_logs').insert({
       event: 'match_regeneration',
       details: {
+        mode,
         startups: startups.length,
         investors: investors.length,
         matches: saved,
+        top_n: CONFIG.TOP_MATCHES_PER_STARTUP,
         elapsed_seconds: parseFloat(elapsed)
       }
     }).then(() => {}).catch(() => {}); // Ignore if table doesn't exist
