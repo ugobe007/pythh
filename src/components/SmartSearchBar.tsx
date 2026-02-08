@@ -43,7 +43,7 @@ export default function SmartSearchBar() {
     
     if (!isValid) return;
     
-    navigate(`/discover?url=${encodeURIComponent(normalizedValue)}`);
+    navigate(`/signal-matches?url=${encodeURIComponent(normalizedValue)}`);
   };
 
   return (

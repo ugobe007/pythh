@@ -113,7 +113,7 @@ export default function Home() {
     e?.preventDefault();
     const trimmed = url.trim();
     if (!trimmed) return;
-    navigate(`/app/signals?url=${encodeURIComponent(trimmed)}`);
+    navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
   };
 
   const secondsAgo = lastUpdatedAt ? Math.round((Date.now() - lastUpdatedAt.getTime()) / 1000) : 7;

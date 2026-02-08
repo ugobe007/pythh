@@ -8,41 +8,27 @@ require('dotenv').config();
 const { supabase } = require('../server/lib/supabaseClient');
 
 const TOP_N = 50;
-const CONCURRENCY = 15; // parallel RPC calls
+const CONCURRENCY = 8; // parallel RPC calls (reduced from 15 to avoid rate limits)
+const MAX_RETRIES = 3;
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function pruneWithRetry(sid) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const { data, error } = await supabase.rpc('prune_one_startup', {
+      p_startup_id: sid,
+      p_top_n: TOP_N
+    });
+    if (!error) return { sid, deleted: data || 0 };
+    if (attempt < MAX_RETRIES) await sleep(500 * attempt); // backoff
+  }
+  return { sid, error: 'max retries', deleted: 0 };
+}
 
 async function pruneMatches() {
-  console.log(`\n🔪 PRUNING matches to top-${TOP_N} per startup\n`);
+  console.log(`\n🔪 PRUNING matches to top-${TOP_N} per startup (concurrency=${CONCURRENCY}, retries=${MAX_RETRIES})\n`);
   
-  // Step 1: Find all startups with more than TOP_N matches
-  // Use the match table directly with GROUP BY (works within timeout for top-heavy)
-  console.log('📋 Finding startups with >' + TOP_N + ' matches...');
-  
-  let overstuffed = [];
-  let lastId = '00000000-0000-0000-0000-000000000000';
-  
-  while (true) {
-    // Paginated: fetch startups with >50 matches, keyset pagination by ID
-    const { data, error } = await supabase
-      .from('startup_investor_matches')
-      .select('startup_id')
-      .gt('startup_id', lastId)
-      .order('startup_id', { ascending: true })
-      .limit(1000);
-    
-    if (error || !data || data.length === 0) break;
-    
-    // Count per startup in this page
-    const counts = {};
-    for (const r of data) {
-      counts[r.startup_id] = (counts[r.startup_id] || 0) + 1;
-    }
-    
-    // This approach won't give accurate counts because we're limited to 1000 rows.
-    // Better: just get all startup_ids from startup_uploads and check each.
-    break;
-  }
-  
-  // Simpler approach: get all startup IDs, then prune each via SQL function
+  // Get all startup IDs
   let startupIds = [];
   let offset = 0;
   
@@ -73,17 +59,7 @@ async function pruneMatches() {
     const batch = startupIds.slice(i, i + CONCURRENCY);
     
     const results = await Promise.allSettled(
-      batch.map(async (sid) => {
-        const { data, error } = await supabase.rpc('prune_one_startup', {
-          p_startup_id: sid,
-          p_top_n: TOP_N
-        });
-        
-        if (error) {
-          return { sid, error: error.message, deleted: 0 };
-        }
-        return { sid, deleted: data || 0 };
-      })
+      batch.map(sid => pruneWithRetry(sid))
     );
     
     for (const r of results) {

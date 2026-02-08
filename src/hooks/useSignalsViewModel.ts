@@ -3,10 +3,14 @@
 // ============================================================================
 // Manages state machine and provides InvestorSignalRowViewModel[]
 // All data transformation happens here, not in components
+//
+// Now uses unified submitStartup() so that "Find Signals" can also
+// create and score startups — not just look up existing ones.
 // ============================================================================
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { submitStartup } from '@/services/submitStartup';
 import { 
   SignalsPageState,
   InvestorSignalRowViewModel, 
@@ -41,6 +45,7 @@ export function useSignalsViewModel(): UseSignalsViewModelResult {
   const [startupName, setStartupName] = useState<string | null>(null);
 
   // Find signals for a given URL
+  // Uses unified submitStartup() so it can create + score new startups too
   const findSignals = useCallback(async (url: string) => {
     setPageState('analyzing');
     setError(null);
@@ -49,56 +54,28 @@ export function useSignalsViewModel(): UseSignalsViewModelResult {
     setStartupName(null);
 
     try {
-      // Step 1: Extract domain for lookup
-      const domain = extractDomainForLookup(url);
-      if (!domain) {
+      // Step 1: Resolve startup via unified service (creates if needed)
+      const result = await submitStartup(url);
+
+      if (!result.startup_id || result.status === 'not_found' || result.status === 'error') {
         setPageState('not_found');
         return;
       }
 
-      // Step 2: Try to find startup by URL/domain
-      // Search in multiple fields that might contain the URL
-      const { data: startups, error: startupError } = await supabase
+      setStartupId(result.startup_id);
+      setStartupName(result.name || null);
+
+      // Step 2: Get sector info for fallback
+      const { data: startupRow } = await supabase
         .from('startup_uploads')
-        .select('id, name, sector, sectors, website, extracted_data')
-        .eq('status', 'approved')
-        .or(`website.ilike.%${domain}%,name.ilike.%${domain}%`)
-        .limit(1);
+        .select('sectors, sector')
+        .eq('id', result.startup_id)
+        .single();
 
-      if (startupError) {
-        throw new Error(`Failed to find startup: ${startupError.message}`);
-      }
-
-      if (!startups || startups.length === 0) {
-        // Try a looser search in extracted_data
-        const { data: fallbackStartups } = await supabase
-          .from('startup_uploads')
-          .select('id, name, sector, sectors, website, extracted_data')
-          .eq('status', 'approved')
-          .textSearch('name', domain.replace(/\./g, ' '), { type: 'websearch' })
-          .limit(1);
-
-        if (!fallbackStartups || fallbackStartups.length === 0) {
-          setPageState('not_found');
-          return;
-        }
-
-        // Use fallback result
-        const startup = fallbackStartups[0];
-        setStartupId(startup.id);
-        setStartupName(startup.name);
-        
-        // Fetch matches for this startup
-        await fetchMatchesForStartup(startup.id, startup.sectors || [startup.sector]);
-        return;
-      }
-
-      const startup = startups[0];
-      setStartupId(startup.id);
-      setStartupName(startup.name);
+      const sectors = startupRow?.sectors || (startupRow?.sector ? [startupRow.sector] : []);
 
       // Step 3: Fetch investor matches for this startup
-      await fetchMatchesForStartup(startup.id, startup.sectors || [startup.sector]);
+      await fetchMatchesForStartup(result.startup_id, sectors);
 
     } catch (err) {
       console.error('[Signals] Error finding signals:', err);

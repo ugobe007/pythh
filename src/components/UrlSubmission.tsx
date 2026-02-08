@@ -100,7 +100,7 @@ export default function UrlSubmission({ className = '' }: UrlSubmissionProps) {
           // Startup exists - go to their match page
           setSuccess(true);
           setTimeout(() => {
-            navigate(`/match?startup_id=${existingStartup.id}`);
+            navigate(`/signal-matches?startup=${existingStartup.id}`);
           }, 1000);
         } else {
           // New startup - create a pending entry and go to enrichment/signup
@@ -126,8 +126,8 @@ export default function UrlSubmission({ className = '' }: UrlSubmissionProps) {
 
           setSuccess(true);
           setTimeout(() => {
-            // Navigate to get-matched page with startup ID
-            navigate(`/get-matched?startup_id=${newStartup.id}&url=${encodeURIComponent(normalizedUrl)}`);
+            // Navigate to signal-matches page with startup ID
+            navigate(`/signal-matches?startup=${newStartup.id}`);
           }, 1000);
         }
       } else {

@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { submitStartup as unifiedSubmit, getSessionId as unifiedGetSessionId } from '@/services/submitStartup';
 import type {
   MatchRow,
   StartupContext,
@@ -48,123 +49,30 @@ export interface SavedSession {
 // RAW API (no React)
 // -----------------------------------------------------------------------------
 
-// Session ID management for match persistence
+// Session ID management — delegates to unified submitStartup service
 const SESSION_KEY = 'pythh_session_id';
 
 function getOrCreateSessionId(): string {
-  let sessionId = localStorage.getItem(SESSION_KEY);
-  if (!sessionId) {
-    // Generate UUID v4-like session ID
-    sessionId = 'sess_' + crypto.randomUUID();
-    localStorage.setItem(SESSION_KEY, sessionId);
-  }
-  return sessionId;
+  return unifiedGetSessionId();
 }
 
 export const pythhRpc = {
   // Get current session ID
   getSessionId(): string {
-    return getOrCreateSessionId();
+    return unifiedGetSessionId();
   },
 
   // Resolve startup by URL or name
-  // FAST PATH: Try Supabase RPC first (always warm, <500ms for existing startups)
-  // SLOW PATH: Fall back to Express backend API for new startups (scrape + score)
+  // DELEGATES to unified submitStartup() service — single source of truth
   async resolveStartup(url: string, forceGenerate = false): Promise<ResolverResponse> {
-    const sessionId = getOrCreateSessionId();
-    
-    // 1. FAST: Try direct Supabase RPC first (no cold start, always available)
-    try {
-      const { data, error } = await supabase.rpc('resolve_startup_by_url', {
-        p_url: url,
-      });
-      if (!error) {
-        const row = Array.isArray(data) ? data[0] : data;
-        if (row?.found || row?.startup_id) {
-          // Use lightweight RPC for match count (avoids pulling rows)
-          let matchCount = row.match_count ?? 0;
-          try {
-            const { data: countData } = await supabase.rpc('get_match_count', {
-              p_startup_id: row.startup_id,
-            });
-            if (typeof countData === 'number') matchCount = countData;
-          } catch { /* fall back to row.match_count */ }
-          
-          // If startup exists AND has matches AND not forced → return immediately
-          if (matchCount >= 20 && !forceGenerate) {
-            return {
-              found: true,
-              startup_id: row.startup_id,
-              name: row.startup_name,
-              website: row.canonical_url,
-              searched: url,
-            };
-          }
-          
-          // Startup exists but has FEW/NO matches (or forced) → call Express backend
-          // Express uses try_start_match_gen() lock to prevent thundering herd
-          console.log(`[pythhRpc] Startup found but only ${matchCount} matches${forceGenerate ? ' (forced regen)' : ''} — triggering match generation`);
-          try {
-            const apiUrl = '/api/instant/submit';
-            await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'X-Session-Id': sessionId,
-              },
-              body: JSON.stringify({ 
-                url, 
-                session_id: sessionId,
-                force_generate: forceGenerate,
-              }),
-            });
-          } catch (e) {
-            console.warn('[pythhRpc] Match generation trigger failed (non-fatal):', e);
-          }
-          
-          return {
-            found: true,
-            startup_id: row.startup_id,
-            name: row.startup_name,
-            website: row.canonical_url,
-            searched: url,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[pythhRpc] RPC fast path failed:', e);
-    }
-    
-    // 2. SLOW: Startup not found in DB — use backend API to scrape + create + score
-    try {
-      const apiUrl = '/api/instant/submit';
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Session-Id': sessionId,
-        },
-        body: JSON.stringify({ url, session_id: sessionId }),
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.startup_id) {
-          return {
-            found: true,
-            startup_id: result.startup_id,
-            name: result.startup?.name,
-            website: result.startup?.website,
-            searched: url,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('[pythhRpc] Backend API failed:', e);
-    }
-    
-    return { found: false, searched: url };
+    const result = await unifiedSubmit(url, { forceGenerate });
+    return {
+      found: result.status !== 'not_found' && result.status !== 'error',
+      startup_id: result.startup_id ?? undefined,
+      name: result.name ?? undefined,
+      website: result.website ?? undefined,
+      searched: result.searched,
+    };
   },
 
   // Get saved sessions for returning user

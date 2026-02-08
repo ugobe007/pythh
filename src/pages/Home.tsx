@@ -114,7 +114,7 @@ export default function Home() {
   const handleSubmit = () => {
     const trimmed = url.trim();
     if (!trimmed) return;
-    navigate(`/app/signals?url=${encodeURIComponent(trimmed)}`);
+    navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
   };
 
   // Compute system state from live data

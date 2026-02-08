@@ -1,22 +1,26 @@
 /**
  * Phase A Router (IA locked - Feb 2026)
  *
+ * CANONICAL SUBMISSION: /signal-matches?url=...
+ * Every URL input bar in the app navigates here. The unified submitStartup()
+ * service (src/services/submitStartup.ts) handles resolution + creation + matching.
+ *
  * Public (pythh.ai):
  * - /                  PythhMain
- * - /engine             MatchingEngine (core matching UI)
- * - /signal-matches     URL submission results (SignalMatches)
- * - /signals            Public Signals page (OR redirects to /signal-matches when ?url=...)
+ * - /signal-matches     URL submission results (THE canonical submit surface)
+ * - /signals            Public Signals page (sector dashboard)
  * - /signals-significance  What signals mean
  * - /signal-trends      Trends
+ * - /matches            Founder matches page
  *
  * App (instrument mode - inside pythh):
  * - /app/signals-dashboard     SignalsDashboard
  * - /app/in-signal-matches     Internal matches surface
- * - /app/signal-matches        Same as public submission page (optional mirror)
+ * - /app/signal-matches        Same as public submission page
  *
- * Backwards compatibility:
- * - /signals?url=...   redirects to /signal-matches?url=...
- * - /signals-radar?... redirects to /signal-matches?...  (legacy)
+ * Legacy redirects (ALL → /signal-matches):
+ * - /discover, /get-matched, /match, /signals-radar
+ * - /app/signals, /app/radar
  */
 
 import React, { useEffect } from "react";
@@ -125,6 +129,11 @@ const App: React.FC = () => {
           {/* Legacy alias: /signals-radar ALWAYS redirects to /signal-matches */}
           <Route path="/signals-radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
 
+          {/* Legacy aliases: all roads lead to /signal-matches */}
+          <Route path="/discover" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+          <Route path="/get-matched" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+          <Route path="/match" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+
           {/* Educational explainer */}
           <Route path="/signals-significance" element={<SignalsSignificance />} />
 
@@ -167,6 +176,10 @@ const App: React.FC = () => {
 
             {/* Mirror route: allow internal navigation to same results page */}
             <Route path="signal-matches" element={<SignalMatches />} />
+
+            {/* Legacy aliases → canonical /signal-matches */}
+            <Route path="signals" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            <Route path="radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
 
             {/* Investor reveal (after unlock/view) */}
             <Route path="investors/:investorId" element={<InvestorRevealPage />} />

@@ -29,9 +29,9 @@ export default function FindMyInvestors() {
     const inputUrl = url.trim();
     if (!inputUrl) return;
 
-    // Navigate directly to discovery page - convergence API will handle startup resolution + matching
-    console.log('[FindMyInvestors] Navigating to discovery for:', inputUrl);
-    navigate(`/discover?url=${encodeURIComponent(inputUrl)}`);
+    // Navigate to canonical signal-matches page — unified submitStartup() handles resolution + matching
+    console.log('[FindMyInvestors] Navigating to signal-matches for:', inputUrl);
+    navigate(`/signal-matches?url=${encodeURIComponent(inputUrl)}`);
   };
 
   // Auto-scroll ticker
