@@ -118,7 +118,7 @@ export function useSignalsViewModel(): UseSignalsViewModelResult {
           investor_id,
           match_score,
           semantic_similarity,
-          investors!inner(id, name, firm_name, sectors, stage)
+          investors!inner(id, name, firm, sectors, stage)
         `)
         .eq('startup_id', startupId)
         .order('match_score', { ascending: false })
@@ -132,7 +132,7 @@ export function useSignalsViewModel(): UseSignalsViewModelResult {
         // No existing matches - try to find similar investors by sector
         const { data: investors, error: investorError } = await supabase
           .from('investors')
-          .select('id, name, firm_name, sectors, stage')
+          .select('id, name, firm, sectors, stage')
           .overlaps('sectors', sectors)
           .limit(30);
 
