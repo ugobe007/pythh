@@ -49,6 +49,7 @@ import { useNavigate, useSearchParams, useParams, useLocation, Link } from 'reac
 import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
+import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import {
   useResolveStartup,
   useStartupContext,
@@ -485,6 +486,14 @@ export default function SignalMatches() {
             <span className="text-amber-400/60 group-hover:text-amber-400 transition text-lg">→</span>
           </div>
         </Link>
+
+        {/* Signal Path Dashboard — "This is the way." */}
+        <SignalPathDashboard
+          context={context}
+          rows={rows}
+          startupName={displayName}
+          loading={contextLoading || tableLoading}
+        />
 
         {/* Daily Limit Warning */}
         {showContext && unlocksRemaining === 0 && (
