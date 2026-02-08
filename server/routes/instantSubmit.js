@@ -864,6 +864,11 @@ router.post('/submit', async (req, res) => {
           }
         }
         console.log(`  ✓ Background insert complete: ${dbMatches.length} matches`);
+        // Count actual saved matches (may differ from inserted due to uniqueness)
+        const { count: savedCount } = await supabase
+          .from('startup_investor_matches')
+          .select('id', { count: 'exact', head: true })
+          .eq('startup_id', startupId);
         // Mark generation complete (safe: requires matching run_id)
         await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId });
         // Log: completed
@@ -873,6 +878,7 @@ router.post('/submit', async (req, res) => {
           event: 'completed', source: genSource,
           candidate_investor_count: investors.length,
           inserted_count: dbMatches.length,
+          top_saved_count: savedCount || dbMatches.length,
           duration_ms: genDuration,
         }).then(() => {}).catch(() => {});
       })();
