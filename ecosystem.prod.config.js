@@ -22,6 +22,7 @@ module.exports = {
     {
       name: 'api-server',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'server/index.js',
       cwd: '/app',
       instances: 1,
@@ -41,6 +42,7 @@ module.exports = {
     {
       name: 'simple-rss-discovery',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/core/simple-rss-scraper.js',
       cwd: '/app',
       instances: 1,
@@ -54,6 +56,7 @@ module.exports = {
     {
       name: 'rss-scraper',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/core/ssot-rss-scraper.js',
       cwd: '/app',
       instances: 1,
@@ -67,6 +70,7 @@ module.exports = {
     {
       name: 'high-volume-discovery',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/high-volume-discovery.js',
       cwd: '/app',
       instances: 1,
@@ -82,6 +86,7 @@ module.exports = {
     {
       name: 'html-scraper',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/scrapers/html-startup-scraper.js',
       cwd: '/app',
       instances: 1,
@@ -94,6 +99,7 @@ module.exports = {
     {
       name: 'vc-team-scraper',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/vc-team-scraper.js',
       cwd: '/app',
       instances: 1,
@@ -107,6 +113,7 @@ module.exports = {
     {
       name: 'event-rescue-agent',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/event-rescue-agent.js',
       cwd: '/app',
       instances: 1,
@@ -126,6 +133,7 @@ module.exports = {
     {
       name: 'auto-import-pipeline',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/core/auto-import-pipeline.js',
       cwd: '/app',
       instances: 1,
@@ -139,6 +147,7 @@ module.exports = {
     {
       name: 'discovery-job-processor',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'process-discovery-jobs.js',
       cwd: '/app',
       instances: 1,
@@ -155,6 +164,7 @@ module.exports = {
     {
       name: 'ml-training-scheduler',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/cron/ml-training-scheduler.js',
       args: '--daemon',
       cwd: '/app',
@@ -172,6 +182,7 @@ module.exports = {
     {
       name: 'ml-auto-apply',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'ml-auto-apply.js',
       cwd: '/app',
       instances: 1,
@@ -184,6 +195,7 @@ module.exports = {
     {
       name: 'ml-ontology-agent',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/ml-ontology-agent.js',
       cwd: '/app',
       instances: 1,
@@ -203,6 +215,7 @@ module.exports = {
     {
       name: 'pythia-collector',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/pythia/collect-from-forums.js',
       args: '50',
       cwd: '/app',
@@ -216,6 +229,7 @@ module.exports = {
     {
       name: 'pythia-scorer',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/pythia/score-entities.js',
       args: 'score startup 500',
       cwd: '/app',
@@ -229,6 +243,7 @@ module.exports = {
     {
       name: 'pythia-sync',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/pythia/sync-pythia-scores.js',
       cwd: '/app',
       instances: 1,
@@ -245,6 +260,7 @@ module.exports = {
     {
       name: 'match-worker',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'server/matchRunWorker.js',
       cwd: '/app',
       instances: 1,
@@ -265,6 +281,7 @@ module.exports = {
     {
       name: 'match-regen-delta',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'match-regenerator.js',
       args: '--delta',
       cwd: '/app',
@@ -287,6 +304,7 @@ module.exports = {
     {
       name: 'match-regen-full',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'match-regenerator.js',
       args: '--full',
       cwd: '/app',
@@ -313,6 +331,7 @@ module.exports = {
     {
       name: 'system-guardian',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/archive/utilities/system-guardian.js',
       cwd: '/app',
       instances: 1,
@@ -325,6 +344,7 @@ module.exports = {
     {
       name: 'pythh-url-monitor',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/pythh-url-monitor.js',
       cwd: '/app',
       instances: 1,
@@ -338,6 +358,7 @@ module.exports = {
     {
       name: 'submit-guardian',
       interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/submit-flow-guardian.js',
       cwd: '/app',
       instances: 1,
