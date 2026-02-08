@@ -24,13 +24,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY || (() => {
-    console.error('❌ OPENAI_API_KEY not found in environment!');
-    console.error('Available env keys:', Object.keys(process.env).filter(k => k.includes('OPENAI')));
-    process.exit(1);
-  })()
-});
+// GPT is OPTIONAL - inference-only mode works fine without an API key
+const OPENAI_KEY = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY || null;
+const GPT_AVAILABLE = OPENAI_KEY && !OPENAI_KEY.includes('your') && OPENAI_KEY.length > 20;
+let openai = null;
+if (GPT_AVAILABLE) {
+  openai = new OpenAI({ apiKey: OPENAI_KEY });
+  console.log('✅ OpenAI API key found — GPT fallback enabled');
+} else {
+  console.log('⚠️  No valid OpenAI API key — running inference-only mode (free)');
+}
 
 // Configuration
 const CONFIG = {
@@ -208,6 +211,8 @@ function calculateInferenceConfidence(name, type, funding, sectors) {
  * Step 3: Use GPT-4 for complex cases (ONLY when inference fails)
  */
 async function gptExtract(title, description = '') {
+  if (!openai) return null;  // GPT not available
+  
   const prompt = `You are an expert at extracting structured startup information from news headlines.
 
 Headline: "${title}"
@@ -263,8 +268,8 @@ async function processEvent(event) {
   
   console.log(`   🧠 Inference: confidence=${result.confidence.toFixed(2)}, type=${result.event_type}, name=${result.startup_name || 'null'}`);
   
-  // If inference confidence is low, use GPT
-  if (result.confidence < 0.6) {
+  // If inference confidence is low, use GPT (only if available)
+  if (result.confidence < 0.6 && GPT_AVAILABLE) {
     console.log(`   💡 Low confidence - using GPT-4...`);
     const gptResult = await gptExtract(event.source_title, event.semantic_context?.[0]?.text);
     
@@ -272,6 +277,8 @@ async function processEvent(event) {
       result = gptResult;
       console.log(`   ✅ GPT: confidence=${result.confidence.toFixed(2)}, type=${result.event_type}, name=${result.startup_name || 'null'}`);
     }
+  } else if (result.confidence < 0.6) {
+    console.log(`   ⏭️  Low confidence — GPT unavailable, skipping`);
   }
   
   // Only proceed if we have a startup name and decent confidence
