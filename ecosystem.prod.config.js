@@ -355,19 +355,22 @@ module.exports = {
       cron_restart: '*/5 * * * *',
       env: { NODE_ENV: 'production' }
     },
-    {
-      name: 'submit-guardian',
-      interpreter: TSX,
-      exec_mode: 'fork',
-      script: 'scripts/submit-flow-guardian.js',
-      cwd: '/app',
-      instances: 1,
-      autorestart: false,
-      watch: false,
-      max_memory_restart: '256M',
-      max_restarts: 5,
-      cron_restart: '*/2 * * * *',
-      env: { NODE_ENV: 'production' }
-    }
+    // DISABLED: submit-guardian causes api-server restart loop.
+    // It kills the server every 2 min if health check is slow during boot.
+    // Re-enable only after adding a boot grace period.
+    // {
+    //   name: 'submit-guardian',
+    //   interpreter: TSX,
+    //   exec_mode: 'fork',
+    //   script: 'scripts/submit-flow-guardian.js',
+    //   cwd: '/app',
+    //   instances: 1,
+    //   autorestart: false,
+    //   watch: false,
+    //   max_memory_restart: '256M',
+    //   max_restarts: 5,
+    //   cron_restart: '*/2 * * * *',
+    //   env: { NODE_ENV: 'production' }
+    // }
   ]
 };
