@@ -25,6 +25,8 @@ const {
   normalizeSectors, 
   expandRelatedSectors,
   getExpandedInvestorSectors,
+  calculateSectorMatchScore,
+  SECTOR_SYNONYMS,
 } = require('../lib/sectorTaxonomy');
 
 // =============================================================================
@@ -154,7 +156,7 @@ async function getInvestors(supabase) {
     console.log(`  📦 Loading investors into cache...`);
     const { data: investors, error } = await supabase
       .from('investors')
-      .select('id, name, firm, url, sectors, stage, total_investments, active_fund_size, investment_thesis, type')
+      .select('id, name, firm, url, sectors, stage, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals')
       .eq('status', 'active');
     
     if (error) throw error;
@@ -277,49 +279,218 @@ function domainToName(domain) {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
-/**
- * Calculate match score between startup and investor
- */
-function calculateMatchScore(startup, investor) {
-  let score = startup.total_god_score || 50;
-  
-  // Sector alignment bonus
-  const startupSectors = Array.isArray(startup.sectors) ? startup.sectors : [];
-  const investorSectors = Array.isArray(investor.sectors) ? investor.sectors : [];
-  const sectorOverlap = startupSectors.filter(s => investorSectors.includes(s)).length;
-  if (sectorOverlap > 0) score += 10 * Math.min(sectorOverlap, 3);
-  
-  // Stage alignment bonus
-  const startupStage = startup.stage || 1;
-  const investorStages = Array.isArray(investor.stage) ? investor.stage : [investor.stage];
-  if (investorStages.includes(startupStage) || investorStages.includes(String(startupStage))) {
-    score += 15;
+// ============================================================================
+// MATCH SCORING — Full 6-component model (ported from match-regenerator.js)
+// ============================================================================
+
+const MATCH_CONFIG = {
+  SECTOR_MATCH: 40,
+  STAGE_MATCH: 20,
+  INVESTOR_QUALITY: 20,
+  STARTUP_QUALITY: 25,
+  SIGNAL_BONUS: 10,
+  FAITH_ALIGNMENT: 15,
+  SUPER_MATCH_THRESHOLD: 12,
+  PERSISTENCE_FLOOR: 30,
+  TOP_MATCHES_PER_STARTUP: 50,
+};
+
+const STAGE_MAP = {
+  0: 'Pre-Seed', 1: 'Seed', 2: 'Series A', 3: 'Series B', 4: 'Series C', 5: 'Growth'
+};
+
+function normToken(s) {
+  if (s == null) return null;
+  return String(s).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function normTokenList(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(normToken).filter(Boolean);
+}
+
+function normalizeStartupForScoring(s) {
+  const sectors = normTokenList(s.sectors);
+  const stage = (typeof s.stage === 'number') ? STAGE_MAP[s.stage] : s.stage;
+  const stageNorm = normToken(stage);
+  const godScore = Number.isFinite(Number(s.total_god_score)) ? Number(s.total_god_score) : null;
+  return { id: s.id, name: s.name, sectors, stage: stageNorm, godScore };
+}
+
+function normalizeInvestorForScoring(i) {
+  const sectors = normTokenList(i.sectors);
+  const stagesRaw = Array.isArray(i.stage) ? i.stage : (i.stage ? [i.stage] : []);
+  const stages = stagesRaw
+    .map(x => (typeof x === 'number' ? STAGE_MAP[x] : x))
+    .map(normToken)
+    .filter(Boolean);
+  return {
+    id: i.id, name: i.name, sectors, stages,
+    score: Number.isFinite(Number(i.investor_score)) ? Number(i.investor_score) : null,
+    tier: normToken(i.investor_tier),
+  };
+}
+
+function scoreSectorMatch(startupSectors, investorSectors) {
+  if (!startupSectors?.length || !investorSectors?.length) return 5;
+  const result = calculateSectorMatchScore(startupSectors, investorSectors, true);
+  return result.score > 0 ? result.score : 0;
+}
+
+function scoreStageMatch(startupStage, investorStages) {
+  const s = normToken(startupStage);
+  const iStages = Array.isArray(investorStages) ? investorStages.map(normToken).filter(Boolean) : [];
+  if (!s || !iStages.length) return 5;
+  const sNorm = s.replace(/[-_\s]/g, '');
+  const iNorms = iStages.map(x => x.replace(/[-_\s]/g, ''));
+  if (iNorms.some(is => is === sNorm || is.includes(sNorm) || sNorm.includes(is))) {
+    return MATCH_CONFIG.STAGE_MATCH;
   }
-  
-  return Math.min(100, Math.max(0, Math.round(score)));
+  return 5;
+}
+
+function scoreInvestorQuality(score, tier) {
+  const baseScore = (score || 5) * 2;
+  const tierBonus = { elite: 5, strong: 3, solid: 1, emerging: 0 }[tier] || 0;
+  return Math.min(baseScore + tierBonus, MATCH_CONFIG.INVESTOR_QUALITY);
+}
+
+function scoreStartupQuality(godScore) {
+  if (!godScore || godScore < 40) return 8;
+  const normalized = Math.max(0, (godScore - 40) / 60);
+  return Math.round(10 + normalized * 15);
+}
+
+// Faith alignment: investor conviction themes × startup sectors
+// Build theme→sector reverse lookup
+const THEME_TO_SECTOR = {};
+for (const [canonical, synonyms] of Object.entries(SECTOR_SYNONYMS)) {
+  for (const syn of synonyms) THEME_TO_SECTOR[syn] = canonical;
+  THEME_TO_SECTOR[canonical.toLowerCase()] = canonical;
+}
+Object.assign(THEME_TO_SECTOR, {
+  'climate tech': 'CleanTech', 'climate adaptation': 'CleanTech', 'clean energy': 'CleanTech',
+  'rare diseases': 'Biotech', 'life sciences': 'Biotech', 'biotechnology': 'Biotech',
+  'developer tools': 'Developer Tools', 'defense': 'Defense', 'security': 'Cybersecurity',
+  'blockchain': 'Crypto/Web3', 'consumer': 'Consumer', 'education': 'EdTech',
+  'automation': 'Robotics', 'platforms': 'Infrastructure',
+});
+
+function resolveThemeToSector(theme) {
+  if (!theme) return null;
+  const lower = theme.toLowerCase().trim();
+  if (THEME_TO_SECTOR[lower]) return THEME_TO_SECTOR[lower];
+  for (const [syn, canonical] of Object.entries(THEME_TO_SECTOR)) {
+    if (lower.includes(syn) || syn.includes(lower)) return canonical;
+  }
+  return null;
+}
+
+function scoreFaithAlignment(startupSectors, investorSignals) {
+  if (!investorSignals?.top_themes?.length || !startupSectors?.length) {
+    return { score: 0, matchingThemes: [], isSuperMatch: false };
+  }
+  const resolvedSectors = new Set();
+  for (const t of investorSignals.top_themes) {
+    const sector = resolveThemeToSector(t);
+    if (sector) resolvedSectors.add(sector.toLowerCase());
+  }
+  if (resolvedSectors.size === 0) return { score: 0, matchingThemes: [], isSuperMatch: false };
+
+  const startupNorm = startupSectors.map(s => s.toLowerCase().trim());
+  const matchingThemes = [];
+  for (const faithSector of resolvedSectors) {
+    for (const startupSec of startupNorm) {
+      const result = calculateSectorMatchScore([startupSec], [faithSector], false);
+      if (result.score > 0 || faithSector.includes(startupSec) || startupSec.includes(faithSector)) {
+        matchingThemes.push(faithSector);
+        break;
+      }
+    }
+  }
+  if (matchingThemes.length === 0) return { score: 0, matchingThemes: [], isSuperMatch: false };
+
+  const conviction = parseFloat(investorSignals.avg_conviction) || 0.7;
+  let score = 0;
+  if (matchingThemes.length >= 3) score = conviction >= 0.85 ? 15 : conviction >= 0.7 ? 12 : 10;
+  else if (matchingThemes.length === 2) score = conviction >= 0.85 ? 10 : conviction >= 0.7 ? 8 : 7;
+  else score = conviction >= 0.85 ? 7 : conviction >= 0.7 ? 5 : 3;
+  score = Math.min(score, MATCH_CONFIG.FAITH_ALIGNMENT);
+  return { score, matchingThemes, isSuperMatch: score >= MATCH_CONFIG.SUPER_MATCH_THRESHOLD };
 }
 
 /**
- * Generate reasoning for match
+ * Full 6-component match scoring (same as match-regenerator.js)
  */
-function generateReasoning(startup, investor, score) {
+function calculateMatchScore(startup, investor, signalScore, investorSignals) {
+  const sNorm = normalizeStartupForScoring(startup);
+  const iNorm = normalizeInvestorForScoring(investor);
+
+  const sector = scoreSectorMatch(sNorm.sectors, iNorm.sectors);
+  const stage = scoreStageMatch(sNorm.stage, iNorm.stages);
+  const invQ = scoreInvestorQuality(iNorm.score, iNorm.tier);
+  const startQ = scoreStartupQuality(sNorm.godScore);
+  const signal = Math.round(signalScore || 0);
+  const faith = scoreFaithAlignment(sNorm.sectors, investorSignals);
+
+  const total = sector + stage + invQ + startQ + signal + faith.score;
+  return {
+    score: Math.min(total, 100),
+    fitAnalysis: {
+      sector, stage, investor_quality: invQ, startup_quality: startQ,
+      signal, faith: faith.score, is_super_match: faith.isSuperMatch,
+      faith_themes: faith.matchingThemes,
+    },
+    confidence: total >= 75 ? 'high' : total >= 55 ? 'medium' : 'low',
+  };
+}
+
+function formatSectors(sectors) {
+  if (!sectors) return 'their target sectors';
+  if (Array.isArray(sectors)) return sectors.slice(0, 3).join(', ');
+  return sectors;
+}
+
+/**
+ * Generate human-readable reasoning (same as match-regenerator.js)
+ */
+function generateReasoning(startup, investor, fitAnalysis) {
   const reasons = [];
-  
-  const startupSectors = Array.isArray(startup.sectors) ? startup.sectors : [];
-  const investorSectors = Array.isArray(investor.sectors) ? investor.sectors : [];
-  const overlap = startupSectors.filter(s => investorSectors.includes(s));
-  
-  if (overlap.length > 0) {
-    reasons.push(`Sector alignment: ${overlap.join(', ')}`);
+  if (fitAnalysis.sector >= 30) reasons.push(`Strong sector alignment: ${investor.name || investor.firm} actively invests in ${formatSectors(startup.sectors)}`);
+  else if (fitAnalysis.sector >= 20) reasons.push(`Good sector fit: Investment focus overlaps with ${startup.name}'s market`);
+  else if (fitAnalysis.sector >= 10) reasons.push(`Adjacent sector interest detected`);
+  if (fitAnalysis.stage >= 15) reasons.push(`Stage match: ${investor.name || investor.firm} targets ${startup.stage || 'early'}-stage companies`);
+  if (fitAnalysis.investor_quality >= 18) reasons.push(`Top-tier investor with strong track record`);
+  else if (fitAnalysis.investor_quality >= 15) reasons.push(`Established investor with relevant portfolio`);
+  if (fitAnalysis.startup_quality >= 22) reasons.push(`Exceptional startup fundamentals (GOD Score: ${startup.total_god_score || 'N/A'})`);
+  else if (fitAnalysis.startup_quality >= 18) reasons.push(`Strong startup metrics and team`);
+  if (fitAnalysis.signal >= 8) reasons.push(`High market signal: strong momentum and investor interest detected`);
+  else if (fitAnalysis.signal >= 5) reasons.push(`Emerging market signal: positive momentum building`);
+  if (fitAnalysis.is_super_match) {
+    const themes = fitAnalysis.faith_themes?.join(', ') || 'multiple areas';
+    reasons.push(`🔥 SUPER MATCH: Deep conviction in ${themes} — directly aligned with this startup`);
+  } else if (fitAnalysis.faith >= 7) {
+    reasons.push(`Strong conviction alignment: investor thesis aligns`);
+  } else if (fitAnalysis.faith >= 3) {
+    reasons.push(`Conviction signal detected`);
   }
-  
-  if (startup.total_god_score >= 70) {
-    reasons.push(`High GOD score: ${startup.total_god_score}`);
+  return reasons.length > 0 ? reasons.slice(0, 5).join('. ') + '.' : `Match score: ${fitAnalysis.sector + fitAnalysis.stage + fitAnalysis.investor_quality + fitAnalysis.startup_quality}/100`;
+}
+
+function generateWhyYouMatch(startup, investor, fitAnalysis) {
+  const matches = [];
+  if (fitAnalysis.is_super_match) {
+    const themes = fitAnalysis.faith_themes?.slice(0, 3).join(', ') || 'aligned thesis';
+    matches.unshift(`🔥 SUPER MATCH: ${themes}`);
   }
-  
-  reasons.push(`Match score: ${score}/100`);
-  
-  return reasons.join('. ');
+  if (fitAnalysis.sector >= 20) matches.push(`Sector: ${formatSectors(startup.sectors)}`);
+  if (fitAnalysis.stage >= 10) matches.push(`Stage: ${startup.stage || 'Early'}`);
+  if (fitAnalysis.investor_quality >= 15) matches.push(`Investor Tier: ${investor.investor_tier || 'Active'}`);
+  if (fitAnalysis.signal >= 7) matches.push(`Signal: Strong (${fitAnalysis.signal}/10)`);
+  else if (fitAnalysis.signal >= 5) matches.push(`Signal: Emerging (${fitAnalysis.signal}/10)`);
+  if (fitAnalysis.faith >= 7 && !fitAnalysis.is_super_match) matches.push(`Conviction: thesis match`);
+  if (fitAnalysis.startup_quality >= 18) matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
+  return matches.length > 0 ? matches : ['Algorithmic match'];
 }
 
 /**
@@ -532,22 +703,42 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
     const investors = getRelevantInvestors(startupSectors);
     
-    const matches = [];
+    // Load signal score for this startup (just seeded in scoring step)
+    let signalScore = 0;
+    try {
+      const { data: sigData } = await supabase
+        .from('startup_signal_scores')
+        .select('signal_score')
+        .eq('startup_id', startupId)
+        .single();
+      signalScore = sigData?.signal_score || 0;
+    } catch (_) { /* signal scores optional */ }
+
+    const allMatches = [];
     for (const investor of investors) {
-      const score = calculateMatchScore(enrichedStartup, investor);
-      if (score >= 40) {
-        matches.push({
+      const investorSignals = investor.signals || null;
+      const result = calculateMatchScore(enrichedStartup, investor, signalScore, investorSignals);
+      if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+        const fitAnalysis = result.fitAnalysis;
+        allMatches.push({
           startup_id: startupId,
           investor_id: investor.id,
-          match_score: score,
-          reasoning: generateReasoning(enrichedStartup, investor, score),
+          match_score: result.score,
+          reasoning: generateReasoning(enrichedStartup, investor, fitAnalysis),
+          fit_analysis: fitAnalysis,
+          confidence_level: result.confidence,
+          why_you_match: generateWhyYouMatch(enrichedStartup, investor, fitAnalysis),
           status: 'suggested',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
       }
     }
-    console.log(`  🔄 [BG] Generated ${matches.length} matches (${investors.length} investors evaluated)`);
+
+    // Rank-first: sort by score desc, take top N
+    allMatches.sort((a, b) => b.match_score - a.match_score);
+    const matches = allMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
+    console.log(`  🔄 [BG] Generated ${matches.length} matches (${allMatches.length} above floor, ${investors.length} evaluated)`);
 
     // ── STEP 8: Upsert matches to DB ──
     if (matches.length > 0) {
