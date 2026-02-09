@@ -521,7 +521,7 @@ const SignalTrends: React.FC = () => {
           <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/matches" className="hover:text-white">Engine</Link>
-            <span className="text-white">Trends</span>
+            <span className="text-white">Rankings</span>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>
@@ -540,7 +540,7 @@ const SignalTrends: React.FC = () => {
         ═══════════════════════════════════════════════════════════════ */}
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2">trends</div>
+            <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2">rankings</div>
             <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
               Live Rankings
             </h1>

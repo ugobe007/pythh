@@ -162,7 +162,7 @@ export default function HowItWorksPage() {
           <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/matches" className="hover:text-white">Engine</Link>
-            <Link to="/signal-trends" className="hover:text-white">Trends</Link>
+            <Link to="/rankings" className="hover:text-white">Rankings</Link>
             <span className="text-white">How it works</span>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>
@@ -320,7 +320,7 @@ export default function HowItWorksPage() {
           <div className="flex items-center gap-6">
             <Link to="/signals" className="hover:text-zinc-400">Signals</Link>
             <Link to="/matches" className="hover:text-zinc-400">Engine</Link>
-            <Link to="/signal-trends" className="hover:text-zinc-400">Trends</Link>
+            <Link to="/rankings" className="hover:text-zinc-400">Rankings</Link>
           </div>
         </div>
       </footer>

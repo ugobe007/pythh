@@ -356,7 +356,7 @@ export default function FounderMatchesPage() {
           <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <span className="text-white">Engine</span>
-            <Link to="/signal-trends" className="hover:text-white">Trends</Link>
+            <Link to="/rankings" className="hover:text-white">Rankings</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>

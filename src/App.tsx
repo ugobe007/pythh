@@ -147,8 +147,9 @@ const App: React.FC = () => {
           {/* Educational explainer */}
           <Route path="/signals-significance" element={<SignalsSignificance />} />
 
-          {/* Trends */}
-          <Route path="/signal-trends" element={<SignalTrends />} />
+          {/* Rankings (was Trends) */}
+          <Route path="/rankings" element={<SignalTrends />} />
+          <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
 
           {/* Optional preserved pages */}
           <Route element={<PublicLayout />}>
