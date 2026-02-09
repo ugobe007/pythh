@@ -129,8 +129,8 @@ export function LiveMatchTable({
         />
       ))}
 
-      {/* Locked rows */}
-      {lockedRows.map((row, index) => (
+      {/* Locked rows - show max 5 */}
+      {lockedRows.slice(0, 5).map((row, index) => (
         <RadarTableRow
           key={row.investorId}
           row={row}
@@ -141,6 +141,14 @@ export function LiveMatchTable({
           unlocksDisabled={unlocksRemaining === 0}
         />
       ))}
+
+      {/* More locked indicator */}
+      {lockedRows.length > 5 && (
+        <div className="h-12 flex items-center justify-center text-xs text-zinc-500 border-t border-zinc-800/30">
+          <Lock className="w-3.5 h-3.5 mr-1.5" />
+          +{lockedRows.length - 5} more investors available — unlock to reveal
+        </div>
+      )}
     </div>
   );
 }

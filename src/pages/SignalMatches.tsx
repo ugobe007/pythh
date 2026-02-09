@@ -455,6 +455,14 @@ export default function SignalMatches() {
           )}
         </div>
 
+        {/* Signal Path Dashboard — front and center */}
+        <SignalPathDashboard
+          context={context}
+          rows={rows}
+          startupName={displayName}
+          loading={contextLoading || tableLoading}
+        />
+
         {/* Match Table - using canonical view model */}
         <RadarMatchTable
           rows={rows}
@@ -486,14 +494,6 @@ export default function SignalMatches() {
             <span className="text-amber-400/60 group-hover:text-amber-400 transition text-lg">→</span>
           </div>
         </Link>
-
-        {/* Signal Path Dashboard — "This is the way." */}
-        <SignalPathDashboard
-          context={context}
-          rows={rows}
-          startupName={displayName}
-          loading={contextLoading || tableLoading}
-        />
 
         {/* Daily Limit Warning */}
         {showContext && unlocksRemaining === 0 && (
