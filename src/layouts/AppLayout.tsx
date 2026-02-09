@@ -4,9 +4,11 @@ import { Link, Outlet, useLocation } from "react-router-dom";
 function NavItem({
   to,
   label,
+  description,
 }: {
   to: string;
   label: string;
+  description?: string;
 }) {
   const { pathname } = useLocation();
   const active = pathname === to || (to !== "/app" && pathname.startsWith(to));
@@ -14,6 +16,7 @@ function NavItem({
   return (
     <Link
       to={to}
+      title={description}
       className={[
         "text-sm px-3 py-2 rounded-lg border transition",
         active
@@ -49,10 +52,10 @@ export default function AppLayout() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-2">
-            <NavItem to="/app/signals-dashboard" label="Dashboard" />
-            <NavItem to="/app/signal-matches" label="Matches" />
-            <NavItem to="/app/engine" label="Engine" />
-            <NavItem to="/app/oracle" label="Oracle" />
+            <NavItem to="/app/signals-dashboard" label="Dashboard" description="Your scores, signals, and what changed" />
+            <NavItem to="/app/signal-matches" label="Matches" description="Ranked investor matches for your startup" />
+            <NavItem to="/app/engine" label="Engine" description="How Pythh processes your data into matches" />
+            <NavItem to="/app/oracle" label="Oracle" description="AI coaching to improve your investor readiness" />
           </nav>
 
           {/* Mobile hamburger */}
@@ -75,11 +78,16 @@ export default function AppLayout() {
         {mobileNavOpen && (
           <div className="md:hidden border-t border-white/10 bg-black/95 px-4 py-3">
             <nav className="flex flex-col gap-2">
-              <NavItem to="/app/signals-dashboard" label="Dashboard" />
-              <NavItem to="/app/signal-matches" label="Matches" />
-              <NavItem to="/app/engine" label="Engine" />
-              <NavItem to="/app/oracle" label="Oracle" />
+              <NavItem to="/app/signals-dashboard" label="Dashboard" description="Your scores, signals, and what changed" />
+              <NavItem to="/app/signal-matches" label="Matches" description="Ranked investor matches for your startup" />
+              <NavItem to="/app/engine" label="Engine" description="How Pythh processes your data into matches" />
+              <NavItem to="/app/oracle" label="Oracle" description="AI coaching to improve your investor readiness" />
             </nav>
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <p className="text-xs text-white/40 leading-relaxed">
+                <strong className="text-white/60">New here?</strong> Go to Dashboard for a guided walkthrough of each section.
+              </p>
+            </div>
           </div>
         )}
       </header>

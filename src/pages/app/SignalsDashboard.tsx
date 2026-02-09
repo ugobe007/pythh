@@ -127,16 +127,181 @@ export default function Dashboard() {
     return m.slice(0, 3);
   }, [data]);
 
-  const topNav = [
-    { label: "Dashboard", href: "/app", active: true },
-    { label: "Engine", href: "/app/engine", active: false },
-    { label: "Signals", href: "/app/signals", active: false },
-    { label: "Matches", href: "/app/matches", active: false },
-    { label: "How it works", href: "/app/how-it-works", active: false },
-    { label: "Submit", href: "/app/submit", active: false },
-  ];
-
   const hasStartup = !!startupId;
+
+  // ── Onboarding / Getting Started (no startup linked yet) ──
+  if (!hasStartup) {
+    return (
+      <div className="py-bg-dashboard" style={{ color: "var(--py-text)" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 18px 60px" }}>
+          {/* Welcome header */}
+          <div style={{ marginBottom: 32, textAlign: "center" }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em" }}>
+              Welcome to Pythh
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 15, color: "rgba(255,255,255,.55)", maxWidth: 520, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
+              Pythh matches your startup with the right investors using signal intelligence.
+              Here's how to get started and what each section does.
+            </p>
+          </div>
+
+          {/* Step 1 — Submit your startup */}
+          <div className="py-panel" style={{ marginBottom: 20 }}>
+            <div className="py-panel-inner" style={{ padding: "20px 24px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(6,182,212,.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16, fontWeight: 800, color: "rgb(6,182,212)" }}>
+                  1
+                </div>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontSize: 17, fontWeight: 700 }}>Submit your startup</div>
+                  <p style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.5 }}>
+                    Paste your company URL on the home page — Pythh will automatically extract your company info,
+                    score your startup, and start finding matching investors. It takes about 30 seconds.
+                  </p>
+                  <div style={{ marginTop: 14 }}>
+                    <Link
+                      to="/"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 20px",
+                        borderRadius: 10,
+                        background: "rgb(6,182,212)",
+                        color: "#000",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Go to Home Page &amp; Submit URL →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* What each section does */}
+          <div style={{ marginBottom: 16 }}>
+            <div className="py-kicker" style={{ marginBottom: 6 }}>your tools</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700 }}>What each section does</h2>
+            <p style={{ marginTop: 4, fontSize: 13, color: "rgba(255,255,255,.45)", lineHeight: 1.4 }}>
+              Once you've submitted your startup, these sections will populate with live data.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, marginBottom: 24 }}>
+            {/* Dashboard */}
+            <div className="py-panel">
+              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                    📊
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>Dashboard</div>
+                </div>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
+                  Your command center. See your startup's GOD score, signal strength, verification status,
+                  and what changed since your last visit. Track score movements and get recommended next actions.
+                </p>
+                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
+                  <strong style={{ color: "rgba(255,255,255,.5)" }}>GOD Score</strong> — Our proprietary 0–100 rating of startup quality (team + traction + market + product + vision).
+                </div>
+              </div>
+            </div>
+
+            {/* Matches */}
+            <div className="py-panel">
+              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                    🎯
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>Matches</div>
+                </div>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
+                  Your personalized investor matchbook. See which VCs and angels are the best fit for your
+                  startup, ranked by match score. Each match shows why that investor aligns with your sector,
+                  stage, and thesis.
+                </p>
+                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
+                  Higher match scores = stronger alignment between your startup and the investor's portfolio.
+                </div>
+              </div>
+            </div>
+
+            {/* Engine */}
+            <div className="py-panel">
+              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                    ⚙️
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>Engine</div>
+                </div>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
+                  See exactly how Pythh processes your data — from website scraping to entity parsing to signal
+                  generation to investor matching. This is the transparent view of our pipeline so you
+                  understand how matches are produced.
+                </p>
+                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
+                  Inputs → Normalization → Signal Layer → Outputs.
+                </div>
+              </div>
+            </div>
+
+            {/* Oracle */}
+            <div className="py-panel">
+              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,182,2,.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                    🔮
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#FFB402" }}>Oracle</div>
+                </div>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
+                  AI-powered coaching to improve your investor readiness. The Oracle wizard walks you through
+                  a guided assessment, generates a personalized action plan, and provides strategic recommendations
+                  — including VC strategy, cohort benchmarking, and score predictions.
+                </p>
+                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
+                  Wizard → Actions → Cohorts → VC Strategy → Predictions → Coaching.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick tips */}
+          <div className="py-panel">
+            <div className="py-panel-inner" style={{ padding: "18px 24px" }}>
+              <div className="py-kicker" style={{ marginBottom: 8 }}>how it works</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>1. Submit</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.4 }}>
+                    Paste your startup URL. We extract company data, score it, and generate matches automatically.
+                  </p>
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>2. Review matches</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.4 }}>
+                    Browse your ranked investor matches. Each match includes why the investor is a fit and their investment focus.
+                  </p>
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>3. Improve &amp; track</div>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.4 }}>
+                    Use Oracle coaching to raise your score. Report actions and attach proof to unlock stronger matches.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-bg-dashboard" style={{ color: "var(--py-text)" }}>
@@ -148,10 +313,7 @@ export default function Dashboard() {
             <div className="py-kicker">app / dashboard</div>
             <div className="py-title-wrap">
               <h1 className="py-title">
-                Dashboard{" "}
-                <span className="py-glyph">
-                  []—I <strong>^ (+)</strong> H→ [] 0.00
-                </span>
+                Dashboard
               </h1>
               <div className="py-hairline" />
             </div>
@@ -163,58 +325,20 @@ export default function Dashboard() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button
               className="py-btn primary"
-              disabled={!hasStartup}
               onClick={() => setIsReportOpen(true)}
-              title={!hasStartup ? "Add ?startupId=... to URL or set pythh_startup_id in localStorage" : ""}
-              style={{ opacity: !hasStartup ? 0.55 : 1 }}
             >
               ＋ Report action
             </button>
-            <button className="py-btn" onClick={() => refresh?.()} disabled={!hasStartup}>
+            <button className="py-btn" onClick={() => refresh?.()}>
               Refresh
             </button>
           </div>
         </div>
 
         {/* Grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr",
-            gap: 14,
-          }}
-        >
+        <div className="py-dashboard-grid" style={{ display: "grid", gap: 14 }}>
           {/* MAIN LANE */}
           <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* If no startup selected */}
-            {!hasStartup ? (
-              <div className="py-panel">
-                <div className="py-panel-inner">
-                  <div className="py-kicker">setup</div>
-                  <div style={{ marginTop: 10, fontSize: 16, fontWeight: 700 }}>
-                    Claim your startup
-                  </div>
-                  <div style={{ marginTop: 8, fontSize: 13, color: "var(--py-muted)", lineHeight: 1.35 }}>
-                    Dashboard needs a startup context. Add <span style={{ color: "rgba(255,255,255,.78)" }}>?startupId=…</span> to the URL or set{" "}
-                    <span style={{ color: "rgba(255,255,255,.78)" }}>localStorage.pythh_startup_id</span>.
-                  </div>
-                  <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <Link to="/app/submit" className="py-btn">
-                      Submit a startup URL
-                    </Link>
-                    <button
-                      className="py-btn"
-                      onClick={() => {
-                        localStorage.removeItem("pythh_startup_id");
-                        window.location.reload();
-                      }}
-                    >
-                      Clear local startupId
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
 
             {/* YOUR EDGE (PRIMARY OBJECT) */}
             <div className="py-panel">
