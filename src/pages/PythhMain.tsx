@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import { supabase } from '../lib/supabase';
+import { submitStartup } from '../services/submitStartup';
 
 /*
  * PYTHH HOME - Signal Science
@@ -58,6 +59,7 @@ export default function PythhHome() {
   const [url, setUrl] = useState('');
   const [urlError, setUrlError] = useState('');
   const [suggestion, setSuggestion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [tapeX, setTapeX] = useState(0);
   const [signalTape, setSignalTape] = useState(STATIC_SIGNAL_TAPE);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
@@ -165,8 +167,8 @@ export default function PythhHome() {
     const trimmed = url.trim();
     console.log('[PythhMain] Submit called with:', trimmed);
     
-    if (!trimmed) {
-      console.log('[PythhMain] Empty URL - aborting');
+    if (!trimmed || submitting) {
+      console.log('[PythhMain] Empty URL or already submitting - aborting');
       return;
     }
     
@@ -194,9 +196,26 @@ export default function PythhHome() {
       return;
     }
     
-    // All checks passed - proceed to canonical pythh engine (direct to /signal-matches)
-    console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(trimmed)}`);
-    navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
+    // PREFETCH: Fire submitStartup immediately (don't wait for SignalMatches page)
+    // Race: if we get a startup_id within 2s, navigate with it directly (skips re-resolution)
+    setSubmitting(true);
+    const navigateFallback = () => {
+      console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(trimmed)}`);
+      navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
+    };
+    
+    const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 2000));
+    Promise.race([submitStartup(trimmed), timeout])
+      .then((result) => {
+        if (result?.startup_id) {
+          console.log('[PythhMain] Prefetch resolved startup:', result.startup_id, 'in <2s');
+          navigate(`/signal-matches?startup=${encodeURIComponent(result.startup_id)}&url=${encodeURIComponent(trimmed)}`);
+        } else {
+          navigateFallback();
+        }
+      })
+      .catch(() => navigateFallback())
+      .finally(() => setSubmitting(false));
   };
 
   const applySuggestion = () => {
@@ -342,9 +361,10 @@ export default function PythhHome() {
           <button
             data-testid="home-analyze-button"
             onClick={submit}
-            className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap"
+            disabled={submitting}
+            className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
           >
-            Find Signals →
+            {submitting ? 'Finding...' : 'Find Signals →'}
           </button>
         </div>
         

@@ -177,7 +177,7 @@ export async function submitStartup(
       signal: combinedSignal,
     });
 
-    const TIMEOUT_MS = 5_000; // Backend returns in ~2s; 5s is generous
+    const TIMEOUT_MS = 8_000; // Backend should early-return in ~1s; 8s allows for Fly.io cold starts
     const timeoutPromise = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
 
     const raceResult = await Promise.race([
@@ -218,7 +218,7 @@ export async function submitStartup(
     }
 
     // ── TIMEOUT: Backend still working — abort fetch, check DB ──────────
-    console.log('[submitStartup] Backend slow (>8s) — aborting fetch, checking DB');
+    console.log(`[submitStartup] Backend slow (>${TIMEOUT_MS / 1000}s) — aborting fetch, checking DB`);
     // ABORT the fetch immediately — never block UI waiting for backend.
     // Backend has early-return architecture; if it hasn't responded in 8s
     // something is wrong. The background pipeline will still complete.

@@ -116,8 +116,12 @@ export default function SignalMatches() {
   // useResolveStartup calls resolve_startup_by_url RPC
   // RPC flow: scrape → extract → build → score → match
   // Returns: startup_id + name + 5 unlocked + 50 locked signals
-  // DO NOT MODIFY - this is the pythh engine entry point
-  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(urlToResolve, forceGenerate);
+  // SKIP if we already have startup_id from query param (prefetch from PythhMain)
+  const skipUrlResolve = !!(startupIdFromQuery && urlToResolve);
+  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(
+    skipUrlResolve ? null : urlToResolve,
+    forceGenerate
+  );
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {
@@ -213,7 +217,7 @@ export default function SignalMatches() {
   // Fast-poll when generation is pending (supplement the 10s default)
   useEffect(() => {
     if (!matchGenPending) return;
-    const fastPoll = setInterval(() => refreshTable(), 5000);
+    const fastPoll = setInterval(() => refreshTable(), 3000);
     return () => clearInterval(fastPoll);
   }, [matchGenPending, refreshTable]);
 
