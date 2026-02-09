@@ -440,8 +440,8 @@ router.post('/submit', async (req, res) => {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           },
-          timeout: 15000,
-          maxRedirects: 5,
+          timeout: 5000,
+          maxRedirects: 3,
         });
         websiteContent = response.data
           .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -486,9 +486,12 @@ router.post('/submit', async (req, res) => {
       if (dataTier === 'C') {
         console.log(`  🤖 Tier C → scraper fallback chain...`);
         
-        // Fallback 1: GPT-4o URL scraping service
+        // Fallback 1: GPT-4o URL scraping service (5s timeout to keep response fast)
         try {
-          const scrapeResult = await scrapeAndScoreStartup(fullUrl);
+          const scrapeResult = await Promise.race([
+            scrapeAndScoreStartup(fullUrl),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('AI scraper timeout (5s)')), 5000))
+          ]);
           aiData = scrapeResult.data;
           const hasRichAI = !!(aiData.mrr || aiData.arr || aiData.revenue || aiData.customer_count || aiData.active_users);
           const hasSomeAI = !!(aiData.description || aiData.pitch || aiData.problem || aiData.solution);
@@ -498,19 +501,22 @@ router.post('/submit', async (req, res) => {
           console.warn(`  ⚠ AI scraper failed: ${aiErr.message}`);
         }
         
-        // Fallback 2: DynamicParser (cheerio + AI structured extraction)
+        // Fallback 2: DynamicParser (cheerio + AI structured extraction, 5s timeout)
         if (dataTier === 'C') {
           try {
             const DynamicParser = require('../../lib/dynamic-parser');
             const parser = new DynamicParser();
-            const dpResult = await parser.parse(fullUrl, {
-              extractionSchema: {
-                name: 'string', description: 'string', pitch: 'string',
-                problem: 'string', solution: 'string', sectors: 'array',
-                funding_amount: 'number', funding_stage: 'string',
-                founders: 'array', team_size: 'number',
-              }
-            });
+            const dpResult = await Promise.race([
+              parser.parse(fullUrl, {
+                extractionSchema: {
+                  name: 'string', description: 'string', pitch: 'string',
+                  problem: 'string', solution: 'string', sectors: 'array',
+                  funding_amount: 'number', funding_stage: 'string',
+                  founders: 'array', team_size: 'number',
+                }
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('DynamicParser timeout (5s)')), 5000))
+            ]);
             if (dpResult && (dpResult.description || dpResult.pitch)) {
               aiData = { ...(aiData || {}), ...dpResult };
               dataTier = 'B';
