@@ -21,7 +21,13 @@ RUN npm ci --legacy-peer-deps
 # Copy source code
 COPY . .
 
-# Build the frontend
+# Vite inlines VITE_* env vars at build time — pass them as build args
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
+# Build the frontend (VITE_* vars are now available to Vite)
 RUN npm run build
 
 # The server will serve both:

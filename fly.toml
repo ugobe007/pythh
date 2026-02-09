@@ -7,6 +7,10 @@ primary_region = 'lax'
 [build]
   dockerfile = 'Dockerfile'
 
+  [build.args]
+    VITE_SUPABASE_URL = "https://unkpogyhhjbvxxjvmxlt.supabase.co"
+    VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua3BvZ3loaGpidnh4anZteGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTkwMzUsImV4cCI6MjA3NjczNTAzNX0.DdtBUf-liELSfKs2akrrHMcmlX4vHEkTuytWnvAYpJ8"
+
 [http_service]
   internal_port = 8080
   force_https = true
