@@ -398,7 +398,7 @@ export default function FounderMatchesPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-4">
         {/* PAGE HEADLINE + LIVE ENGINE STATS */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500">match engine</div>
@@ -407,22 +407,22 @@ export default function FounderMatchesPage() {
                 <span className="text-[11px] text-emerald-400">Live</span>
               </span>
             </div>
-            <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
+            <h1 className="text-2xl sm:text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
               Startup ↔ Investor Matching
             </h1>
-            <p className="text-base text-zinc-400">Real-time matching powered by GOD scores, signal analysis, and ML alignment.</p>
+            <p className="text-sm sm:text-base text-zinc-400">Real-time matching powered by GOD scores, signal analysis, and ML alignment.</p>
           </div>
-          <div className="flex gap-6 text-right pt-2 shrink-0">
+          <div className="flex gap-4 sm:gap-6 sm:text-right pt-0 sm:pt-2 shrink-0">
             <div>
-              <p className="text-2xl font-bold text-white">{platformStats.total.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold text-white">{platformStats.total.toLocaleString()}</p>
               <p className="text-xs text-zinc-500">Matches</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-white">{platformStats.startups.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold text-white">{platformStats.startups.toLocaleString()}</p>
               <p className="text-xs text-zinc-500">Startups</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-white">{platformStats.investors.toLocaleString()}</p>
+              <p className="text-xl sm:text-2xl font-bold text-white">{platformStats.investors.toLocaleString()}</p>
               <p className="text-xs text-zinc-500">Investors</p>
             </div>
           </div>
@@ -436,35 +436,35 @@ export default function FounderMatchesPage() {
         )}
         
         {/* STATS + PIPELINE ROW */}
-        <div className="flex items-center gap-6 mb-4 pb-4 border-b border-zinc-800">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mb-4 pb-4 border-b border-zinc-800">
           {/* Stats */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 text-sm">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-zinc-400">Signal:</span>
+              <span className="text-zinc-400 hidden sm:inline">Signal:</span>
               <span className="text-cyan-400 font-bold">{stats.signal.toFixed(1)}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Star className="w-3.5 h-3.5 text-zinc-400" />
-              <span className="text-zinc-400">Matches:</span>
+              <span className="text-zinc-400 hidden sm:inline">Matches:</span>
               <span className="text-white font-bold">{stats.totalMatches}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Unlock className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-zinc-400">Unlocked:</span>
+              <span className="text-zinc-400 hidden sm:inline">Unlocked:</span>
               <span className="text-emerald-400 font-bold">{stats.saved}</span>
             </div>
           </div>
           
-          <div className="h-4 w-px bg-zinc-700" />
+          <div className="hidden sm:block h-4 w-px bg-zinc-700" />
           
-          {/* Pipeline */}
-          <div className="flex items-center gap-1">
+          {/* Pipeline — scroll on mobile */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 -mx-1 px-1">
             {PIPELINE_STAGES.map((stage, idx) => {
               const Icon = stage.icon;
               const count = pipeline[stage.id as keyof PipelineCount];
               return (
-                <div key={stage.id} className="flex items-center">
+                <div key={stage.id} className="flex items-center shrink-0">
                   <div className={`flex items-center gap-1 px-2 py-1 rounded ${count > 0 ? 'bg-zinc-800' : 'opacity-40'}`}>
                     <Icon className="w-3 h-3 text-zinc-400" />
                     <span className="text-zinc-300 text-xs">{stage.label}</span>
@@ -516,8 +516,8 @@ export default function FounderMatchesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 divide-x divide-zinc-800/50">
-                <div className="p-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/50">
+                <div className="p-4 sm:p-5">
                   <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Startup</p>
                   <h3 className="text-base font-semibold text-white mb-1">{activeEngine.startup.name}</h3>
                   {activeEngine.startup.tagline && <p className="text-xs text-zinc-400 mb-2 line-clamp-2">{activeEngine.startup.tagline}</p>}
@@ -534,7 +534,7 @@ export default function FounderMatchesPage() {
                     </div>
                   )}
                 </div>
-                <div className="p-5">
+                <div className="p-4 sm:p-5">
                   <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">Investor</p>
                   <h3 className="text-base font-semibold text-white mb-1">
                     {activeEngine.investor.name}
@@ -557,17 +557,17 @@ export default function FounderMatchesPage() {
               </div>
 
               <div className={`px-4 py-3 border-t border-zinc-800/50 ${engineScoreBg(activeEngine.match_score)}`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-zinc-500 uppercase tracking-wider mr-3">Match Score</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-500 uppercase tracking-wider">Match Score</span>
                     <span className={`text-xl font-bold font-mono ${engineScoreColor(activeEngine.match_score)}`}>{activeEngine.match_score}%</span>
                   </div>
                   {activeReasons.length > 0 && (
-                    <div className="flex-1 ml-6 max-w-md">
+                    <div className="hidden sm:block flex-1 ml-6 max-w-md">
                       <p className="text-xs text-zinc-400 line-clamp-1">{activeReasons[0]}</p>
                     </div>
                   )}
-                  <button onClick={() => { const el = document.getElementById('url-bar-input'); el?.focus(); }} className="px-3 py-1.5 text-sm text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/10 transition flex items-center gap-2">
+                  <button onClick={() => { const el = document.getElementById('url-bar-input'); el?.focus(); }} className="px-3 py-1.5 text-sm text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/10 transition flex items-center gap-2 w-full sm:w-auto justify-center">
                     Get your matches <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -658,7 +658,8 @@ export default function FounderMatchesPage() {
                   </p>
                 </div>
               )}
-              <table className="w-full">
+              {/* Desktop table */}
+              <table className="hidden sm:table w-full">
                 <thead>
                   <tr className="text-left text-[10px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
                     <th className="px-3 py-2 w-8">#</th>
@@ -714,6 +715,30 @@ export default function FounderMatchesPage() {
                 ))}
               </tbody>
             </table>
+
+              {/* Mobile list */}
+              <div className="sm:hidden divide-y divide-zinc-800/50">
+                {(matches.length > 0 ? filteredMatches : EXAMPLE_MATCHES).map((match) => (
+                  <button
+                    key={match.investor_id}
+                    onClick={() => match.investor_id.startsWith('demo-') ? navigate('/signup/founder') : navigate(`/investor/${match.investor_id}`)}
+                    className="w-full px-3 py-3 flex items-center gap-3 hover:bg-zinc-800/30 transition text-left"
+                  >
+                    <span className={`font-mono text-xs w-5 shrink-0 ${match.rank <= 3 ? 'text-cyan-400' : 'text-zinc-500'}`}>{match.rank}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white truncate">{match.investor_name}</span>
+                        {match.is_fallback && <span className="text-[9px] px-1 py-0.5 bg-cyan-500/20 text-cyan-400 rounded shrink-0">Warming</span>}
+                      </div>
+                      <p className="text-[11px] text-zinc-500 truncate mt-0.5">{match.why_summary}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${getFitStyle(match.fit_bucket)}`}>{match.fit_bucket}</span>
+                      <span className={`font-mono text-xs font-bold ${getMomentumStyle(match.momentum_bucket)}`}>{match.signal_score.toFixed(1)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </>
           )}
         </div>
@@ -760,14 +785,14 @@ export default function FounderMatchesPage() {
         </section>
 
         {/* Sign Up CTA — inline */}
-        <div className="mt-4 mb-4 flex items-center justify-between gap-4">
+        <div className="mt-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <p className="text-zinc-400 text-sm">
             Save your matches and get alerts when new investors enter your space.
             <span className="text-zinc-600 ml-1">Free — no credit card.</span>
           </p>
           <Link
             to="/signup/founder"
-            className="shrink-0 px-5 py-2 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 transition-colors text-sm"
+            className="shrink-0 px-5 py-2 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 transition-colors text-sm text-center"
           >
             Sign up →
           </Link>
