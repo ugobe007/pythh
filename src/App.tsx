@@ -84,6 +84,9 @@ import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 
+// Shared dashboard views (public, read-only)
+import SharedDashboardView from "./pages/SharedDashboardView";
+
 // Admin (preserved)
 import AdminRouteWrapper from "./components/AdminRouteWrapper";
 import UnifiedAdminDashboard from "./pages/UnifiedAdminDashboardV2";
@@ -176,6 +179,9 @@ const App: React.FC = () => {
           <Route path="/profile/account" element={<ProfilePage />} />
           <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
           <Route path="/settings" element={<Settings />} />
+
+          {/* Shared dashboard views (public, read-only — no auth required) */}
+          <Route path="/s/:shareId" element={<SharedDashboardView />} />
 
           {/* ──────────────────────────────────────────────────────────────
               APP (instrument mode - inside pythh)

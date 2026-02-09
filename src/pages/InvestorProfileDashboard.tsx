@@ -28,6 +28,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import ShareDashboardButton from '../components/ShareDashboardButton';
 import {
   getDiscoveryFlow,
   getObservatorySummary,
@@ -276,6 +277,29 @@ export default function InvestorProfileDashboard() {
   const maxPathPct = Math.max(...entryPaths.map(p => p.percentage), 1);
   const maxQuality = Math.max(...qualityDrift.map(w => w.quality_score), 100);
 
+  // Build share payload (frozen snapshot of current pipeline)
+  const sharePayload = useMemo(() => ({
+    investor_name: displayName,
+    firm: firmLabel,
+    title: investor?.title || null,
+    sectors,
+    check_size: checkSize !== '—' ? checkSize : null,
+    summary: summary ? {
+      total_in_flow: summary.total_in_flow,
+      new_this_week: summary.new_this_week,
+      strong_alignment_count: summary.strong_alignment_count,
+      quality_trend: qualityStatus?.trend || null,
+    } : {},
+    matches: startupMatches.slice(0, 15).map(m => ({
+      name: m.startup.name,
+      god_score: m.startup.total_god_score,
+      match_score: Math.round(m.score * 100),
+      stage: m.startup.stage || null,
+      sectors: m.startup.sectors || [],
+      reasons: m.reasons?.slice(0, 2) || [],
+    })),
+  }), [displayName, firmLabel, investor, sectors, checkSize, summary, qualityStatus, startupMatches]);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       <LogoDropdownMenu />
@@ -291,10 +315,16 @@ export default function InvestorProfileDashboard() {
             )}
           </div>
           <h1 className="text-[28px] font-semibold text-zinc-100 leading-tight">{displayName}</h1>
-          <p className="text-zinc-500 text-sm mt-1">
-            {[firmLabel, investor?.title].filter(Boolean).join(' · ')}
-            {sectors.length > 0 && <> · {sectors.join(', ')}</>}
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-zinc-500 text-sm">
+              {[firmLabel, investor?.title].filter(Boolean).join(' · ')}
+              {sectors.length > 0 && <> · {sectors.join(', ')}</>}
+            </p>
+            <ShareDashboardButton
+              shareType="investor_pipeline"
+              payload={sharePayload}
+            />
+          </div>
 
           {/* Investment profile row */}
           <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-xs text-zinc-600">

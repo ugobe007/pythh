@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
     const { share_type, payload, expires_in_days } = req.body;
     
     // Validate share_type
-    const validTypes = ['score_snapshot', 'investor_brief', 'market_slice'];
+    const validTypes = ['score_snapshot', 'investor_brief', 'market_slice', 'founder_dashboard', 'investor_pipeline'];
     if (!validTypes.includes(share_type)) {
       return res.status(400).json({ 
         error: 'invalid_share_type', 

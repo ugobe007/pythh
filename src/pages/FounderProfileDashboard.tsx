@@ -24,6 +24,7 @@ import { supabase } from '../lib/supabase';
 import { useOracleStartupId } from '../hooks/useOracleStartupId';
 import { pythhRpc } from '../services/pythh-rpc';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import ShareDashboardButton from '../components/ShareDashboardButton';
 import type { StartupContext, MatchRow } from '../lib/pythh-types';
 import { GOD_MAX_SCORES, SIGNAL_WEIGHTS, MOMENTUM_DISPLAY } from '../lib/pythh-types';
 
@@ -382,6 +383,48 @@ export default function FounderProfileDashboard() {
   const topMatches = matches.slice(0, 7);
   const unlockedCount = matches.filter(m => !m.is_locked).length;
 
+  // Build share payload (frozen snapshot of current dashboard state)
+  const sharePayload = useMemo(() => ({
+    startup_name: startupName,
+    display_name: displayName,
+    plan,
+    signals: signals ? {
+      total: signals.total,
+      investor_receptivity: signals.investor_receptivity,
+      capital_convergence: signals.capital_convergence,
+      execution_velocity: signals.execution_velocity,
+      founder_language_shift: signals.founder_language_shift,
+      news_momentum: signals.news_momentum,
+    } : {},
+    god: god ? {
+      total: god.total,
+      team: god.team,
+      traction: god.traction,
+      market: god.market,
+      product: god.product,
+      vision: god.vision,
+    } : {},
+    comparison: comparison ? {
+      percentile: comparison.percentile,
+      sectors: comparison.sectors,
+      industry_avg: comparison.industry_avg,
+      top_quartile: comparison.top_quartile,
+    } : {},
+    matches: topMatches.map((m, i) => ({
+      rank: i + 1,
+      investor_name: m.investor_name || 'Investor',
+      fit_bucket: m.fit_bucket,
+      signal_score: m.signal_score,
+      why_summary: m.why_summary,
+    })),
+    actions: actions.slice(0, 5).map(a => ({
+      title: a.title,
+      detail: a.detail,
+      priority: a.priority,
+      lift: a.lift,
+    })),
+  }), [startupName, displayName, plan, signals, god, comparison, topMatches, actions]);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       <LogoDropdownMenu />
@@ -395,9 +438,16 @@ export default function FounderProfileDashboard() {
             <span className="text-[11px] uppercase tracking-[1.5px] text-zinc-600">{plan} plan</span>
           </div>
           <h1 className="text-[28px] font-semibold text-zinc-100 leading-tight">{startupName}</h1>
-          <p className="text-zinc-500 text-sm mt-1">
-            {displayName} · {comparison?.sectors?.[0] || 'Startup'} · {comparison?.percentile ?? '—'}th percentile
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-zinc-500 text-sm">
+              {displayName} · {comparison?.sectors?.[0] || 'Startup'} · {comparison?.percentile ?? '—'}th percentile
+            </p>
+            <ShareDashboardButton
+              shareType="founder_dashboard"
+              payload={sharePayload}
+              startupId={startupId || undefined}
+            />
+          </div>
         </header>
 
 
