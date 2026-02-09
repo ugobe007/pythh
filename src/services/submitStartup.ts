@@ -191,7 +191,7 @@ export async function submitStartup(
         const result = await response.json();
         if (result.startup_id) {
           return {
-            status: 'created',
+            status: result.timed_out ? 'generating' : 'created',
             startup_id: result.startup_id,
             name: result.startup?.name || result.name || null,
             website: result.startup?.website || result.website || null,

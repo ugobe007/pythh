@@ -331,10 +331,50 @@ function generateReasoning(startup, investor, score) {
 router.post('/submit', async (req, res) => {
   const startTime = Date.now();
   
+  // ================================================================
+  // SAFETY TIMEOUT — guarantee response within 12s no matter what
+  // ================================================================
+  const HARD_TIMEOUT_MS = 12000;
+  let hasResponded = false;
+  let startupId = null;
+  let startup = null;
+  let isNew = false;
+  let genSource = 'unknown';
+  let runId = null;
+  
+  const sendResponse = (data, statusCode = 200) => {
+    if (hasResponded) return false;
+    hasResponded = true;
+    clearTimeout(safetyTimer);
+    if (statusCode === 200) {
+      res.json(data);
+    } else {
+      res.status(statusCode).json(data);
+    }
+    return true;
+  };
+  
+  const safetyTimer = setTimeout(() => {
+    if (!hasResponded) {
+      console.log(`  ⏱️ HARD TIMEOUT (${HARD_TIMEOUT_MS}ms) - returning partial result for ${startupId || 'unknown'}`);
+      sendResponse({
+        startup_id: startupId,
+        startup,
+        matches: [],
+        match_count: 0,
+        is_new: isNew,
+        timed_out: true,
+        generating_matches: true,
+        processing_time_ms: HARD_TIMEOUT_MS,
+        message: 'Startup created. Matches generating in background — reload in a few seconds.',
+      });
+    }
+  }, HARD_TIMEOUT_MS);
+  
   try {
     const urlRaw = req.body?.url;
     if (!urlRaw) {
-      return res.status(400).json({ error: 'URL required' });
+      return sendResponse({ error: 'URL required' }, 400);
     }
     
     // FAULT TOLERANT INPUT PARSING
@@ -348,16 +388,11 @@ router.post('/submit', async (req, res) => {
     
     // Validate we got something useful
     if (!companyName || companyName.length < 2) {
-      return res.status(400).json({ 
+      return sendResponse({ 
         error: 'Invalid URL',
         message: 'Please enter a valid company website (e.g., stripe.com)'
-      });
+      }, 400);
     }
-    
-    // 1. Find existing startup with FUZZY MATCHING
-    let startupId = null;
-    let startup = null;
-    let isNew = false;
     
     // Build flexible search query - search by:
     // - Full domain in website
@@ -674,10 +709,10 @@ router.post('/submit', async (req, res) => {
           isNew = false;
           console.log(`  ✓ Race resolved: ${retry.name} (${retry.id})`);
         } else {
-          return res.status(500).json({
+          return sendResponse({
             error: 'Failed to create startup',
             details: insertErr.message
-          });
+          }, 500);
         }
       } else {
         startupId = newStartup.id;
@@ -750,7 +785,7 @@ router.post('/submit', async (req, res) => {
         duration_ms: processingTime,
       }).then(() => {}).catch(() => {});
       
-      return res.json({
+      return sendResponse({
         startup_id: startupId,
         startup,
         matches: existingMatches || [],
@@ -763,11 +798,12 @@ router.post('/submit', async (req, res) => {
     
     // 3b. Acquire idempotent lock — prevents thundering herd
     //     Returns run_id (uuid) if acquired, NULL if denied
-    const genSource = forceGenerate ? 'force' : (isNew ? 'new' : 'rpc');
-    const { data: runId } = await supabase.rpc('try_start_match_gen', {
+    genSource = forceGenerate ? 'force' : (isNew ? 'new' : 'rpc');
+    const { data: matchRunId } = await supabase.rpc('try_start_match_gen', {
       p_startup_id: startupId,
       p_cooldown_minutes: 5,
     });
+    runId = matchRunId;
     if (!runId && !forceGenerate) {
       console.log(`  ⏳ Match generation already running for ${startupId} — returning early`);
       
@@ -779,7 +815,7 @@ router.post('/submit', async (req, res) => {
         duration_ms: Date.now() - startTime,
       }).then(() => {}).catch(() => {});
       
-      return res.json({
+      return sendResponse({
         startup_id: startupId,
         startup,
         matches: [],
@@ -804,10 +840,10 @@ router.post('/submit', async (req, res) => {
     const allInvestors = await getInvestors(supabase);
     
     if (!allInvestors || allInvestors.length === 0) {
-      return res.status(500).json({
+      return sendResponse({
         error: 'Failed to load investors',
         details: 'No active investors found'
-      });
+      }, 500);
     }
     
     // Get RELEVANT investors based on startup sectors (much faster!)
@@ -955,7 +991,7 @@ router.post('/submit', async (req, res) => {
     
     console.log(`  ⚡ COMPLETE in ${processingTime}ms - ${matches.length} matches`);
     
-    return res.json({
+    return sendResponse({
       startup_id: startupId,
       startup,
       matches: sortedMatches,
@@ -967,22 +1003,21 @@ router.post('/submit', async (req, res) => {
     
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
-    // Release idempotency lock on failure (with run_id if available)
-    if (typeof startupId !== 'undefined' && startupId) {
-      const failRunId = typeof runId !== 'undefined' ? runId : null;
-      void supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: failRunId }).then(() => {}).catch(() => {});
-      // Log: failed
+    clearTimeout(safetyTimer);
+    // Release idempotency lock on failure
+    if (startupId) {
+      void supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
       void supabase.from('match_gen_logs').insert({
-        startup_id: startupId, run_id: failRunId,
-        event: 'failed', source: typeof genSource !== 'undefined' ? genSource : 'unknown',
+        startup_id: startupId, run_id: runId,
+        event: 'failed', source: genSource,
         reason: err.message,
         duration_ms: Date.now() - startTime,
       }).then(() => {}).catch(() => {});
     }
-    return res.status(500).json({
+    return sendResponse({
       error: 'Processing failed',
       details: err.message
-    });
+    }, 500);
   }
 });
 
