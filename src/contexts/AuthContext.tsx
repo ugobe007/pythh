@@ -14,9 +14,11 @@ interface Profile {
   email: string;
   plan: 'free' | 'pro' | 'elite';
   role?: string;
+  display_name?: string;
   email_alerts_enabled?: boolean;
   digest_enabled?: boolean;
   timezone?: string;
+  created_at?: string;
 }
 
 interface AuthContextType {

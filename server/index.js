@@ -4346,6 +4346,153 @@ app.get('/api/profile/settings', async (req, res) => {
 });
 
 // ============================================================
+// USER PROFILE MANAGEMENT
+// ============================================================
+
+// GET /api/profile - Get full user profile
+app.get('/api/profile', async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const supabase = getSupabaseClient();
+    
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('[profile] Query failed:', error);
+      return res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+    
+    // Get Supabase auth user metadata for name
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(user.id);
+    
+    res.json({
+      id: user.id,
+      email: profile?.email ?? authUser?.email ?? '',
+      display_name: profile?.display_name ?? authUser?.user_metadata?.name ?? '',
+      plan: profile?.plan ?? 'free',
+      plan_status: profile?.plan_status ?? 'active',
+      role: profile?.role ?? 'founder',
+      email_alerts_enabled: profile?.email_alerts_enabled ?? true,
+      digest_enabled: profile?.digest_enabled ?? false,
+      timezone: profile?.timezone ?? 'America/Los_Angeles',
+      preferences: profile?.preferences ?? {},
+      created_at: profile?.created_at ?? null,
+    });
+    
+  } catch (error) {
+    console.error('[profile] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/profile - Update user profile fields (name, role, preferences)
+app.put('/api/profile', async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const { display_name, role, preferences } = req.body;
+    const supabase = getSupabaseClient();
+    
+    // Build update object
+    const updates = {};
+    if (typeof display_name === 'string' && display_name.trim()) {
+      updates.display_name = display_name.trim().slice(0, 100);
+    }
+    if (role && ['founder', 'investor', 'operator', 'other'].includes(role)) {
+      updates.role = role;
+    }
+    
+    // Handle preferences merge
+    if (preferences && typeof preferences === 'object') {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('preferences')
+        .eq('id', user.id)
+        .single();
+      
+      const existingPrefs = existingProfile?.preferences || {};
+      updates.preferences = { ...existingPrefs, ...preferences };
+    }
+    
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', user.id);
+    
+    if (error) {
+      console.error('[profile] Update failed:', error);
+      return res.status(500).json({ error: 'Failed to update profile' });
+    }
+    
+    // Also update Supabase auth metadata if display_name changed
+    if (updates.display_name) {
+      await supabase.auth.admin.updateUserById(user.id, {
+        user_metadata: { name: updates.display_name }
+      });
+    }
+    
+    console.log(`[profile] Updated for user ${user.id}:`, Object.keys(updates));
+    res.json({ success: true, updated: updates });
+    
+  } catch (error) {
+    console.error('[profile] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/profile - Delete user account
+app.delete('/api/profile', async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const supabase = getSupabaseClient();
+    
+    // Delete profile row (cascade will handle related data)
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', user.id);
+    
+    if (profileError) {
+      console.error('[profile/delete] Profile deletion failed:', profileError);
+    }
+    
+    // Delete auth user
+    const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
+    
+    if (authError) {
+      console.error('[profile/delete] Auth deletion failed:', authError);
+      return res.status(500).json({ error: 'Failed to delete account' });
+    }
+    
+    console.log(`[profile/delete] Account deleted: ${user.id}`);
+    res.json({ success: true });
+    
+  } catch (error) {
+    console.error('[profile/delete] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
 // REFERRAL/INVITE SYSTEM
 // ============================================================
 

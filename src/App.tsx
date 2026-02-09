@@ -77,6 +77,12 @@ import SignupLanding from "./pages/SignupLanding";
 import SignupFounderPythh from "./pages/SignupFounderPythh";
 import InvestorSignupPythh from "./pages/InvestorSignupPythh";
 
+// User account pages
+import ProfilePage from "./pages/ProfilePage";
+import FounderProfileDashboard from "./pages/FounderProfileDashboard";
+import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+
 // Admin (preserved)
 import AdminRouteWrapper from "./components/AdminRouteWrapper";
 import UnifiedAdminDashboard from "./pages/UnifiedAdminDashboardV2";
@@ -162,6 +168,12 @@ const App: React.FC = () => {
 
           {/* Legacy (consider deprecating later) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />
+
+          {/* User account pages */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/profile" element={<FounderProfileDashboard />} />
+          <Route path="/profile/account" element={<ProfilePage />} />
+          <Route path="/settings" element={<Settings />} />
 
           {/* ──────────────────────────────────────────────────────────────
               APP (instrument mode - inside pythh)
