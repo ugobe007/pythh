@@ -866,7 +866,7 @@ router.post('/submit', async (req, res) => {
         const { data: existingMatches } = await supabase
           .from('startup_investor_matches')
           .select(`
-            id, match_score, reasoning, created_at,
+            id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at,
             investors:investor_id (
               id, name, firm, url, sectors, stage,
               total_investments, active_fund_size, investment_thesis
@@ -877,8 +877,24 @@ router.post('/submit', async (req, res) => {
           .order('match_score', { ascending: false })
           .limit(50);
         
+        // Detect stale matches (old scorer = no fit_analysis)
+        const staleCount = (existingMatches || []).filter(m => !m.fit_analysis).length;
+        const isStale = staleCount > (existingMatches || []).length * 0.5;
+        if (isStale) {
+          console.log(`  🔄 Stale matches detected (${staleCount}/${existingMatches?.length} without fit_analysis) — triggering background regen`);
+          const { data: runId } = await supabase.rpc('try_start_match_gen', {
+            p_startup_id: startupId,
+            p_cooldown_minutes: 5,
+          });
+          if (runId) {
+            runBackgroundPipeline({
+              startupId, domain, inputRaw, genSource: 'stale_regen', runId, startTime
+            }).catch(e => console.error('[BG] Stale regen error:', e.message));
+          }
+        }
+        
         const processingTime = Date.now() - startTime;
-        console.log(`  ⚡ Returned ${existingMatchCount} cached matches in ${processingTime}ms`);
+        console.log(`  ⚡ Returned ${existingMatchCount} cached matches in ${processingTime}ms${isStale ? ' (regen queued)' : ''}`);
         
         void supabase.from('match_gen_logs').insert({
           startup_id: startupId, event: 'skipped',
@@ -894,6 +910,7 @@ router.post('/submit', async (req, res) => {
           match_count: existingMatchCount,
           is_new: false,
           cached: true,
+          regen_queued: isStale,
           processing_time_ms: processingTime
         });
       }
