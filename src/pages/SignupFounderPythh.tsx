@@ -98,112 +98,155 @@ export default function SignupFounderPythh() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      {/* Top Nav */}
+    <div className="min-h-screen bg-[#090909]">
       <PythhTopNav showSignup={false} />
 
-      <div className="flex items-center justify-center p-4 min-h-[calc(100vh-65px)]">
-        <div className="w-full max-w-sm relative z-10">
-          {/* Back link */}
-          <Link
-            to="/signup"
-            className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-white text-sm mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Link>
+      <div className="min-h-[calc(100vh-65px)] flex">
+        {/* LEFT — Form */}
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-sm">
+            {/* Back link */}
+            <Link
+              to="/signup"
+              className="inline-flex items-center gap-1.5 text-zinc-600 hover:text-zinc-400 text-xs mb-6 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back
+            </Link>
 
-          {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-xl font-semibold text-white mb-1">Create your account</h1>
-            <p className="text-zinc-500 text-sm">
-              Sign up as a founder to track investor signals
-            </p>
-          </div>
-
-          {/* Context message - if coming from matches */}
-          {matchCount && (
-            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
-              <p className="text-emerald-400 text-sm text-center">
-                {matchCount} investors matched — create account to save
+            {/* Header */}
+            <div className="mb-6">
+              <h1 className="text-xl font-semibold text-white mb-1">Create your account</h1>
+              <p className="text-sm text-zinc-500">
+                Start tracking investor signals in under 60 seconds.
               </p>
             </div>
-          )}
 
-          {/* Error message */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-md text-red-400 text-sm">
-              {error}
-            </div>
-          )}
+            {/* Context message - if coming from matches */}
+            {matchCount && (
+              <div className="mb-4 px-3 py-2 border-l-2 border-emerald-500/60 bg-emerald-500/5">
+                <p className="text-emerald-400/80 text-xs">
+                  {matchCount} investors matched — create account to save your results
+                </p>
+              </div>
+            )}
 
-          {/* Form */}
-          <form className="space-y-4" onSubmit={handleSubmit}>
+            {/* Error message */}
+            {error && (
+              <div className="mb-4 px-3 py-2 border-l-2 border-red-500/60 bg-red-500/5 text-red-400/80 text-xs">
+                {error}
+              </div>
+            )}
+
+            {/* Form */}
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div>
+                <label className="block text-zinc-500 text-xs mb-1.5">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-700" />
+                  <input
+                    type="email"
+                    placeholder="you@startup.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-700 focus:border-zinc-600 focus:outline-none transition-colors"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-500 text-xs mb-1.5">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-700" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Min 8 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-700 focus:border-zinc-600 focus:outline-none transition-colors"
+                    required
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-700 hover:text-zinc-400 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Creating account...' : 'Create account'}
+              </button>
+            </form>
+
+            <div className="my-6 border-t border-zinc-800/60" />
+
+            <p className="text-center text-zinc-600 text-xs">
+              Already have an account?{' '}
+              <Link 
+                to={`/login${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`}
+                className="text-zinc-400 hover:text-white transition-colors"
+              >
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        {/* RIGHT — Instructive content */}
+        <div className="hidden lg:flex flex-1 items-center justify-center bg-[#0c0c0c] border-l border-zinc-800/40 p-12">
+          <div className="max-w-sm space-y-8">
             <div>
-              <label className="block text-zinc-400 text-sm mb-1.5">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                <input
-                  type="email"
-                  placeholder="you@startup.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-600 focus:border-zinc-600 focus:outline-none transition-colors"
-                  required
-                  autoFocus
-                />
+              <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+                What you get
+              </h2>
+              <p className="text-sm text-zinc-500 leading-relaxed">
+                Your account activates a live signal dashboard — investor matches that update as market conditions shift.
+              </p>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-1">
+                <p className="text-sm text-zinc-300">Top investor matches</p>
+                <p className="text-xs text-zinc-600">
+                  5 unlocked investor profiles with fit scores, thesis alignment details, and outreach guidance. Ranked by signal strength.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-zinc-300">Live signal scoring</p>
+                <p className="text-xs text-zinc-600">
+                  Your startup scored across 5 signal dimensions in real-time: language shift, capital convergence, investor receptivity, news momentum, execution velocity.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-zinc-300">GOD score breakdown</p>
+                <p className="text-xs text-zinc-600">
+                  22+ models evaluate your startup's intrinsic position — team, traction, market, product, vision. Scores recalibrate continuously.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-zinc-300">Actionable next moves</p>
+                <p className="text-xs text-zinc-600">
+                  Prioritized actions based on your specific signal data. Not generic advice — derived from your startup's current market position.
+                </p>
               </div>
             </div>
 
-            <div>
-              <label className="block text-zinc-400 text-sm mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-600 focus:border-zinc-600 focus:outline-none transition-colors"
-                  required
-                  minLength={8}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+            <div className="pt-4 border-t border-zinc-800/40">
+              <p className="text-xs text-zinc-600">
+                Free tier includes 5 unlocked investors and 3 daily unlocks. Matches refresh every 10 seconds.
+              </p>
             </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Creating account...' : 'Sign up'}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="my-6 border-t border-zinc-800" />
-
-          {/* Footer */}
-          <p className="text-center text-zinc-500 text-sm">
-            Already have an account?{' '}
-            <Link 
-              to={`/login${redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : ''}`}
-              className="text-white hover:underline"
-            >
-              Sign in
-            </Link>
-          </p>
+          </div>
         </div>
       </div>
     </div>
