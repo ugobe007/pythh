@@ -37,6 +37,8 @@ interface LiveMatchTableProps {
   unlocksRemaining: number;
   /** Additional CSS classes */
   className?: string;
+  /** Render mode: 'unlocked' = only unlocked rows, 'locked' = only locked rows, 'all' = both */
+  mode?: 'unlocked' | 'locked' | 'all';
 }
 
 // -----------------------------------------------------------------------------
@@ -68,6 +70,7 @@ export function LiveMatchTable({
   onUnlock,
   unlocksRemaining,
   className = '',
+  mode = 'all',
 }: LiveMatchTableProps) {
   const navigate = useNavigate();
 
@@ -75,8 +78,14 @@ export function LiveMatchTable({
     navigate(`/investor/${investorId}`);
   };
 
+  const showUnlocked = mode === 'unlocked' || mode === 'all';
+  const showLocked = mode === 'locked' || mode === 'all';
+
+  const relevantUnlocked = showUnlocked ? unlockedRows : [];
+  const relevantLocked = showLocked ? lockedRows : [];
+
   // Empty states
-  if (loading && unlockedRows.length === 0 && lockedRows.length === 0) {
+  if (loading && relevantUnlocked.length === 0 && relevantLocked.length === 0) {
     return (
       <div className={`flex items-center justify-center py-20 ${className}`}>
         <div className="flex flex-col items-center gap-4 text-gray-400">
@@ -87,7 +96,8 @@ export function LiveMatchTable({
     );
   }
 
-  if (unlockedRows.length === 0 && lockedRows.length === 0) {
+  if (relevantUnlocked.length === 0 && relevantLocked.length === 0) {
+    if (mode === 'locked') return null; // Don't show empty state for locked-only
     return (
       <div className={`flex items-center justify-center py-20 ${className}`}>
         <div className="text-center text-gray-400">
@@ -101,10 +111,10 @@ export function LiveMatchTable({
 
   return (
     <div
-      data-testid="match-table"
+      data-testid={mode === 'all' ? 'match-table' : `match-table-${mode}`}
       className={`space-y-0 ${className}`}
     >
-      {/* Column Headers - Supabase style: minimal, clean */}
+      {/* Column Headers */}
       <div className="h-10 flex items-center gap-4 px-4 text-xs font-medium text-zinc-500 border-b border-zinc-800/50">
         <div className="flex-1">Investor</div>
         <div className="w-20 text-center" title="Market signal strength (0-100)">Signal</div>
@@ -116,8 +126,8 @@ export function LiveMatchTable({
         <div className="w-28 text-right">Action</div>
       </div>
 
-      {/* Unlocked rows first (Ready) */}
-      {unlockedRows.map((row, index) => (
+      {/* Unlocked rows */}
+      {showUnlocked && unlockedRows.map((row, index) => (
         <RadarTableRow
           key={row.investorId}
           row={row}
@@ -130,11 +140,11 @@ export function LiveMatchTable({
       ))}
 
       {/* Locked rows - show max 5 */}
-      {lockedRows.slice(0, 5).map((row, index) => (
+      {showLocked && lockedRows.slice(0, 5).map((row, index) => (
         <RadarTableRow
           key={row.investorId}
           row={row}
-          rowIndex={unlockedRows.length + index}
+          rowIndex={(showUnlocked ? unlockedRows.length : 0) + index}
           isPending={isPending(row.investorId)}
           onUnlock={onUnlock}
           onView={handleView}
@@ -143,7 +153,7 @@ export function LiveMatchTable({
       ))}
 
       {/* More locked indicator */}
-      {lockedRows.length > 5 && (
+      {showLocked && lockedRows.length > 5 && (
         <div className="h-12 flex items-center justify-center text-xs text-zinc-500 border-t border-zinc-800/30">
           <Lock className="w-3.5 h-3.5 mr-1.5" />
           +{lockedRows.length - 5} more investors available — unlock to reveal

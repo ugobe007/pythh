@@ -455,15 +455,7 @@ export default function SignalMatches() {
           )}
         </div>
 
-        {/* Signal Path Dashboard — front and center */}
-        <SignalPathDashboard
-          context={context}
-          rows={rows}
-          startupName={displayName}
-          loading={contextLoading || tableLoading}
-        />
-
-        {/* Match Table - using canonical view model */}
+        {/* ═══ TOP MATCHES — What founders came here for ═══ */}
         <RadarMatchTable
           rows={rows}
           context={context}
@@ -472,7 +464,35 @@ export default function SignalMatches() {
           onUnlock={handleUnlock}
           unlocksRemaining={unlocksRemaining}
           matchGenPending={matchGenPending}
+          mode="unlocked"
         />
+
+        {/* ═══ YOUR POSITION — Signal Health + Match Landscape + GOD Breakdown ═══ */}
+        <SignalPathDashboard
+          context={context}
+          rows={rows}
+          startupName={displayName}
+          loading={contextLoading || tableLoading}
+        />
+
+        {/* ═══ LOCKED MATCHES — Below position, limited to 5 ═══ */}
+        {rows.some(r => r.is_locked) && (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">More Matches</h3>
+              <span className="text-xs text-zinc-600">{lockedCount} available</span>
+            </div>
+            <RadarMatchTable
+              rows={rows}
+              context={context}
+              loading={tableLoading && rows.length === 0}
+              isPending={isPending}
+              onUnlock={handleUnlock}
+              unlocksRemaining={unlocksRemaining}
+              mode="locked"
+            />
+          </div>
+        )}
           
         {/* Count summary */}
         {rows.length > 0 && (
@@ -926,6 +946,7 @@ function RadarMatchTable({
   onUnlock,
   unlocksRemaining,
   matchGenPending = false,
+  mode = 'all' as 'unlocked' | 'locked' | 'all',
 }: {
   rows: MatchRow[];
   context: StartupContext | null;
@@ -934,6 +955,7 @@ function RadarMatchTable({
   onUnlock: (investorId: string) => Promise<void>;
   unlocksRemaining: number;
   matchGenPending?: boolean;
+  mode?: 'unlocked' | 'locked' | 'all';
 }) {
   // Use the legacy adapter to transform rows to view model format
   const { unlockedRows, lockedRows } = useLegacyRadarAdapter(rows, context?.god?.total, context);
@@ -955,7 +977,7 @@ function RadarMatchTable({
   }
   
   return (
-    <div className="mb-8" data-testid="match-table">
+    <div className="mb-4" data-testid={`match-table-${mode}`}>
       <LiveMatchTable
         unlockedRows={unlockedRows}
         lockedRows={lockedRows}
@@ -963,6 +985,7 @@ function RadarMatchTable({
         isPending={isPending}
         onUnlock={onUnlock}
         unlocksRemaining={unlocksRemaining}
+        mode={mode}
       />
     </div>
   );

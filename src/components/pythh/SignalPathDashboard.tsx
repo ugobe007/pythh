@@ -86,7 +86,6 @@ interface PathStep {
   title: string;
   detail: string;
   urgency: 'now' | 'soon' | 'later';
-  icon: string;
 }
 
 function generatePath(
@@ -98,7 +97,6 @@ function generatePath(
 
   // --- IMMEDIATE ACTIONS ---
 
-  // High-fit investors with strong momentum = outreach NOW
   if (analytics.strongMomentum > 0 || analytics.emergingMomentum > 0) {
     const hot = analytics.strongMomentum + analytics.emergingMomentum;
     steps.push({
@@ -106,24 +104,20 @@ function generatePath(
       title: `Reach out to your top ${Math.min(hot, 3)} investors`,
       detail: `${hot} investor${hot > 1 ? 's' : ''} show${hot === 1 ? 's' : ''} active momentum toward your space. Their attention window is open — warm outreach converts best when signals are strong.`,
       urgency: 'now',
-      icon: '🎯',
     });
   }
 
-  // Unlock recommendation
   if (analytics.lockedCount > 0 && analytics.unlockedCount < 5) {
     steps.push({
       order: order++,
       title: 'Unlock your next investor profiles',
       detail: `You have ${analytics.lockedCount} matched investors waiting. Unlock 2-3 at a time, review their thesis overlap, and draft a short tailored note.`,
       urgency: 'now',
-      icon: '🔓',
     });
   }
 
   // --- SIGNAL IMPROVEMENT ---
 
-  // Weak GOD components
   if (context?.god) {
     const god = context.god;
     const weakest = [
@@ -151,11 +145,9 @@ function generatePath(
         title: `Strengthen your ${lowest.name} signal`,
         detail: `${lowest.name} is your weakest dimension at ${lowestPct}%. ${remedies[lowest.name] || 'Focus on improving this area to unlock stronger matches.'}`,
         urgency: 'soon',
-        icon: '📈',
       });
     }
 
-    // Second weakest if also under threshold
     const secondLowest = weakest[1];
     const secondPct = Math.round((secondLowest.score / secondLowest.max) * 100);
     if (secondPct < 50) {
@@ -164,38 +156,31 @@ function generatePath(
         title: `Shore up your ${secondLowest.name} score`,
         detail: `${secondLowest.name} is at ${secondPct}% — bringing both weak areas above 60% dramatically improves match quality.`,
         urgency: 'later',
-        icon: '🔧',
       });
     }
   }
 
-  // Signal-specific guidance
   if (context?.signals) {
     const sig = context.signals;
-    // Capital convergence is low = investors aren't focused on your space yet
     if (sig.capital_convergence < 1.0) {
       steps.push({
         order: order++,
         title: 'Increase capital convergence',
         detail: 'Investor capital isn\'t flowing to your exact space yet. Consider positioning your narrative closer to an active thesis area, or target investors actively building the category.',
         urgency: 'soon',
-        icon: '💰',
       });
     }
 
-    // Investor receptivity low = cold market
     if (sig.investor_receptivity < 1.2) {
       steps.push({
         order: order++,
         title: 'Warm up investor receptivity',
         detail: 'Receptivity in your sector is below median. Build social proof through warm intros, founder networks, or angel syndicates before approaching institutional capital.',
         urgency: 'soon',
-        icon: '🌡️',
       });
     }
   }
 
-  // Percentile-based guidance
   if (context?.comparison) {
     const pct = context.comparison.percentile;
     if (pct >= 80) {
@@ -204,7 +189,6 @@ function generatePath(
         title: 'You\'re in the top tier — move fast',
         detail: `Top ${100 - pct}% of startups in your cohort. Your signals are aligned. Don't overthink it — start conversations with your strongest matches this week.`,
         urgency: 'now',
-        icon: '⚡',
       });
     } else if (pct < 40) {
       steps.push({
@@ -212,14 +196,12 @@ function generatePath(
         title: 'Build signal before outreach',
         detail: 'Your position is developing. Focus on 2-3 concrete wins (users, revenue, partnerships) that shift your GOD score before heavy outreach. Quality over quantity.',
         urgency: 'later',
-        icon: '🏗️',
       });
     }
   }
 
   // --- STRATEGIC ---
 
-  // Mostly cooling momentum = market timing concern
   const coolingRatio = analytics.total > 0 ? analytics.coolingMomentum / analytics.total : 0;
   if (coolingRatio > 0.5 && analytics.total > 5) {
     steps.push({
@@ -227,18 +209,15 @@ function generatePath(
       title: 'Investor attention is shifting',
       detail: `${Math.round(coolingRatio * 100)}% of your matches show cooling momentum. Consider pivoting your narrative to a hotter thesis area, or target contrarian investors who deploy against consensus.`,
       urgency: 'soon',
-      icon: '🔄',
     });
   }
 
-  // General fallback if no strong signals
   if (steps.length < 2) {
     steps.push({
       order: order++,
       title: 'Keep building and checking back',
       detail: 'Signals are dynamic. As market conditions shift and your startup grows, new investor windows open. Check back weekly for updated match intelligence.',
       urgency: 'later',
-      icon: '🔁',
     });
   }
 
@@ -400,22 +379,13 @@ export default function SignalPathDashboard({
   // Don't render until we have both matches and context
   if (loading || !context || rows.length === 0) return null;
 
-  const urgencyColors = {
-    now: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-    soon: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', text: 'text-cyan-400', badge: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
-    later: { bg: 'bg-gray-500/10', border: 'border-gray-500/20', text: 'text-gray-400', badge: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
-  };
-
   return (
-    <div className="mt-10 space-y-8">
+    <div className="mt-8 space-y-6">
       {/* Section Header */}
-      <div className="border-t border-zinc-800/50 pt-8">
-        <div className="flex items-center gap-3 mb-1">
-          <h2 className="text-xl font-semibold text-white">The Signal Path</h2>
-          <span className="text-xs text-amber-400/80 font-medium italic">"This is the way."</span>
-        </div>
-        <p className="text-sm text-gray-500">
-          Your personalized roadmap based on {analytics.total} investor signals for <span className="text-gray-300">{startupName}</span>.
+      <div className="border-t border-zinc-800/50 pt-6">
+        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">Your Position</h2>
+        <p className="text-xs text-zinc-600 mt-1">
+          Signal intelligence for <span className="text-zinc-400">{startupName}</span> across {analytics.total} investors.
         </p>
       </div>
 
@@ -500,56 +470,38 @@ export default function SignalPathDashboard({
         )}
       </div>
 
-      {/* === ROW 3: THE PATH — Action Steps === */}
+      {/* === ROW 3: NEXT MOVES — Supabase inline style === */}
       <div className="bg-gray-900/40 border border-zinc-800/50 rounded-xl p-6">
-        <div className="mb-5">
-          <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-1">Your Next Moves</h3>
-          <p className="text-xs text-gray-500">Prioritized actions based on your signal data. Start from the top.</p>
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Next moves</h3>
         </div>
 
-        <div className="space-y-4">
+        <div className="divide-y divide-zinc-800/40">
           {pathSteps.map((step, i) => {
-            const colors = urgencyColors[step.urgency];
+            const urgencyColor = step.urgency === 'now' 
+              ? 'text-emerald-400' 
+              : step.urgency === 'soon' 
+                ? 'text-zinc-400' 
+                : 'text-zinc-600';
             return (
-              <div
-                key={i}
-                className={`${colors.bg} border ${colors.border} rounded-lg p-4 flex gap-4`}
-              >
-                {/* Step number + icon */}
-                <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                  <span className="text-lg">{step.icon}</span>
-                  <span className="text-[10px] text-gray-600 font-mono">#{step.order}</span>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className={`text-sm font-semibold ${colors.text}`}>{step.title}</h4>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium uppercase tracking-wider ${colors.badge}`}>
-                      {step.urgency}
-                    </span>
+              <div key={i} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex items-baseline gap-3">
+                  <span className={`text-[10px] font-mono uppercase tracking-wider w-10 flex-shrink-0 ${urgencyColor}`}>
+                    {step.urgency}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-white/90">{step.title}</span>
+                    <span className="text-sm text-zinc-500 ml-1.5">— {step.detail}</span>
                   </div>
-                  <p className="text-xs text-gray-400 leading-relaxed">{step.detail}</p>
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Oracle hook */}
-        <div className="mt-6 pt-4 border-t border-zinc-800/30 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-amber-400/60 text-sm">⊛</span>
-            <p className="text-xs text-gray-500">
-              Want deeper coaching? The <span className="text-amber-300/80">Oracle</span> can generate custom outreach plans, thesis decks, and founder personas.
-            </p>
-          </div>
-          <a
-            href="/app/oracle"
-            className="text-xs text-amber-400/80 hover:text-amber-300 font-medium transition-colors flex-shrink-0"
-          >
-            Open Oracle →
-          </a>
+        {/* Oracle — single inline line */}
+        <div className="mt-4 pt-3 border-t border-zinc-800/30 text-xs text-zinc-500">
+          Need custom outreach plans or thesis decks? <a href="/app/oracle" className="text-zinc-400 hover:text-white transition-colors">Open the Oracle →</a>
         </div>
       </div>
     </div>
