@@ -252,6 +252,9 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
                 <>
                   <MenuItem to="/app/oracle" label="Pythh Oracle" sub="Signal coaching & VC alignment" onClose={handleClose} />
                   <MenuItem to="/profile" label="Dashboard" sub="Signals, matches, actions" onClose={handleClose} />
+                  {userRole === 'investor' && (
+                    <MenuItem to="/investor/dashboard" label="Observatory" sub="Discovery flow & quality drift" onClose={handleClose} />
+                  )}
                   <MenuItem to="/saved-matches" label="Saved Matches" sub="Your signal map" onClose={handleClose} />
                 </>
               ) : (

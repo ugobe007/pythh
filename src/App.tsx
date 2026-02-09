@@ -80,6 +80,7 @@ import InvestorSignupPythh from "./pages/InvestorSignupPythh";
 // User account pages
 import ProfilePage from "./pages/ProfilePage";
 import FounderProfileDashboard from "./pages/FounderProfileDashboard";
+import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 
@@ -173,6 +174,7 @@ const App: React.FC = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/profile" element={<FounderProfileDashboard />} />
           <Route path="/profile/account" element={<ProfilePage />} />
+          <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
           <Route path="/settings" element={<Settings />} />
 
           {/* ──────────────────────────────────────────────────────────────
