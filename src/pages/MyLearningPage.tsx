@@ -183,9 +183,9 @@ export default function MyLearningPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       {/* Header */}
-      <header className="border-b border-gray-800 px-8 py-6">
+      <header className="border-b border-gray-800 px-4 sm:px-8 py-6">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                 <BookOpen className="w-7 h-7 text-amber-400" />
@@ -224,7 +224,7 @@ export default function MyLearningPage() {
       </header>
       
       {/* Tabs */}
-      <nav className="border-b border-gray-800 px-8">
+      <nav className="border-b border-gray-800 px-4 sm:px-8">
         <div className="max-w-6xl mx-auto flex gap-1">
           <TabButton 
             id="saved" 
@@ -271,7 +271,7 @@ export default function MyLearningPage() {
       </nav>
       
       {/* Content */}
-      <main className="px-8 py-8">
+      <main className="px-4 sm:px-8 py-8">
         <div className="max-w-6xl mx-auto">
           {activeTab === 'saved' && (
             <SavedPatternsTab stories={library?.savedPatterns || []} />

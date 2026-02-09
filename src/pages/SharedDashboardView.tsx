@@ -161,17 +161,17 @@ function SharedFounderDashboard({ payload, createdAt }: { payload: Record<string
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       {/* Shared badge */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800/50">
-        <div className="max-w-3xl mx-auto px-6 h-12 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium">pythh.ai</Link>
             <span className="text-zinc-800">·</span>
             <span className="text-[11px] uppercase tracking-[1.5px] text-zinc-600">Shared dashboard</span>
           </div>
-          <span className="text-[11px] text-zinc-700 tabular-nums">Snapshot from {sharedDate}</span>
+          <span className="text-[11px] text-zinc-700 tabular-nums hidden sm:inline">Snapshot from {sharedDate}</span>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 pt-20 pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-20 pb-20">
 
         {/* Identity */}
         <header className="mb-10">
@@ -179,7 +179,7 @@ function SharedFounderDashboard({ payload, createdAt }: { payload: Record<string
             <p className="text-[11px] uppercase tracking-[1.5px] text-zinc-500">founder dashboard</p>
             {p.plan && <span className="text-[11px] uppercase tracking-[1.5px] text-zinc-600">{p.plan} plan</span>}
           </div>
-          <h1 className="text-[28px] font-semibold text-zinc-100 leading-tight">{p.startup_name || 'Startup'}</h1>
+          <h1 className="text-[22px] sm:text-[28px] font-semibold text-zinc-100 leading-tight">{p.startup_name || 'Startup'}</h1>
           <p className="text-zinc-500 text-sm mt-1">
             {[p.display_name, comparison.sectors?.[0], comparison.percentile != null && `${comparison.percentile}th percentile`].filter(Boolean).join(' · ')}
           </p>
@@ -282,11 +282,11 @@ function SharedFounderDashboard({ payload, createdAt }: { payload: Record<string
               <span className="text-xs text-zinc-500 tabular-nums">{matches.length} shown</span>
             </div>
             <div className="border border-zinc-800/50 rounded-lg divide-y divide-zinc-800/50">
-              <div className="grid grid-cols-[2rem_1fr_5rem_4rem] gap-2 px-4 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
+              <div className="grid grid-cols-[2rem_1fr_5rem_4rem] sm:grid-cols-[2rem_1fr_5rem_4rem] gap-2 px-3 sm:px-4 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
                 <span>#</span><span>Investor</span><span className="text-right">Fit</span><span className="text-right">Signal</span>
               </div>
               {matches.map((m: any, i: number) => (
-                <div key={i} className="grid grid-cols-[2rem_1fr_5rem_4rem] gap-2 px-4 py-3">
+                <div key={i} className="grid grid-cols-[2rem_1fr_5rem_4rem] sm:grid-cols-[2rem_1fr_5rem_4rem] gap-2 px-3 sm:px-4 py-3">
                   <span className="text-xs text-zinc-600 tabular-nums">{m.rank || i + 1}</span>
                   <div className="min-w-0">
                     <p className="text-sm text-zinc-200 truncate">{m.investor_name || 'Investor'}</p>
@@ -354,24 +354,24 @@ function SharedInvestorPipeline({ payload, createdAt }: { payload: Record<string
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       {/* Shared badge */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800/50">
-        <div className="max-w-3xl mx-auto px-6 h-12 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium">pythh.ai</Link>
             <span className="text-zinc-800">·</span>
             <span className="text-[11px] uppercase tracking-[1.5px] text-zinc-600">Shared pipeline</span>
           </div>
-          <span className="text-[11px] text-zinc-700 tabular-nums">Snapshot from {sharedDate}</span>
+          <span className="text-[11px] text-zinc-700 tabular-nums hidden sm:inline">Snapshot from {sharedDate}</span>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 pt-20 pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-20 pb-20">
 
         {/* Identity */}
         <header className="mb-10">
           <div className="flex items-baseline justify-between mb-1">
             <p className="text-[11px] uppercase tracking-[1.5px] text-zinc-500">deal flow pipeline</p>
           </div>
-          <h1 className="text-[28px] font-semibold text-zinc-100 leading-tight">{p.investor_name || 'Investor'}</h1>
+          <h1 className="text-[22px] sm:text-[28px] font-semibold text-zinc-100 leading-tight">{p.investor_name || 'Investor'}</h1>
           <p className="text-zinc-500 text-sm mt-1">
             {[p.firm, p.title].filter(Boolean).join(' · ')}
             {p.sectors?.length > 0 && <> · {p.sectors.slice(0, 3).join(', ')}</>}
@@ -386,7 +386,7 @@ function SharedInvestorPipeline({ payload, createdAt }: { payload: Record<string
           <section className="mb-10">
             <h2 className="text-[15px] font-medium text-zinc-300 mb-4">Pipeline overview</h2>
             <div className="border border-zinc-800/50 rounded-lg">
-              <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-zinc-800/50">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 divide-x divide-zinc-800/50">
                 {summary.total_in_flow != null && (
                   <div className="px-4 py-4">
                     <p className="text-[11px] uppercase tracking-wider text-zinc-600 mb-1">In flow</p>

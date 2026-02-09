@@ -117,17 +117,22 @@ export default function FounderSignalsPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-sm pb-24">
       {/* HEADER - consistent with PythhMain */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-white font-semibold">pythh.ai</Link>
-            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
           </div>
-          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <span className="text-white">Signals</span>
             <Link to="/matches" className="hover:text-white">Engine</Link>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
+          </nav>
+          <nav className="flex md:hidden items-center gap-3 text-sm text-zinc-400">
+            <span className="text-white text-xs">Signals</span>
+            <Link to="/matches" className="hover:text-white text-xs">Engine</Link>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300 text-xs">Sign up</Link>
           </nav>
         </div>
       </header>
@@ -222,8 +227,8 @@ export default function FounderSignalsPage() {
         {/* SECTOR TABLE */}
         <section className="mb-6">
           <div className="border border-zinc-800 rounded-lg overflow-hidden">
-            {/* Header */}
-            <div className="grid grid-cols-[1fr_80px_70px_70px_60px_100px] gap-2 px-4 py-2 bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+            {/* Header — desktop */}
+            <div className="hidden sm:grid grid-cols-[1fr_80px_70px_70px_60px_100px] gap-2 px-4 py-2 bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
               <span>Sector</span>
               <span className="text-center">State</span>
               <span className="text-right">Strength</span>
@@ -231,29 +236,45 @@ export default function FounderSignalsPage() {
               <span className="text-right">Age</span>
               <span className="text-center">Activity</span>
             </div>
+            {/* Header — mobile */}
+            <div className="grid sm:hidden grid-cols-[1fr_auto_3.5rem] gap-2 px-4 py-2 bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+              <span>Sector</span>
+              <span className="text-center">State</span>
+              <span className="text-right">Str</span>
+            </div>
             
             {/* Rows */}
             {sectors.map(s => (
-              <div 
-                key={s.id}
-                className="grid grid-cols-[1fr_80px_70px_70px_60px_100px] gap-2 px-4 py-2.5 border-b border-zinc-800/50 hover:bg-zinc-900/30 transition items-center"
-              >
-                <span className="text-white font-medium text-xs">{s.sector}</span>
-                <span className="text-center">
-                  <StateTag state={s.state} />
-                </span>
-                <span className="text-right font-mono text-xs text-white">
-                  {s.strength.toFixed(2)}
-                </span>
-                <span className={`text-right font-mono text-xs ${
-                  s.delta > 0 ? 'text-emerald-400' : s.delta < 0 ? 'text-red-400' : 'text-zinc-500'
-                }`}>
-                  {s.delta > 0 ? '+' : ''}{s.delta.toFixed(2)}
-                </span>
-                <span className="text-right text-xs text-zinc-500">{s.age}</span>
-                <span className="flex justify-center">
-                  <ActivityBars value={s.strength} />
-                </span>
+              <div key={s.id}>
+                {/* Desktop row */}
+                <div className="hidden sm:grid grid-cols-[1fr_80px_70px_70px_60px_100px] gap-2 px-4 py-2.5 border-b border-zinc-800/50 hover:bg-zinc-900/30 transition items-center">
+                  <span className="text-white font-medium text-xs">{s.sector}</span>
+                  <span className="text-center">
+                    <StateTag state={s.state} />
+                  </span>
+                  <span className="text-right font-mono text-xs text-white">
+                    {s.strength.toFixed(2)}
+                  </span>
+                  <span className={`text-right font-mono text-xs ${
+                    s.delta > 0 ? 'text-emerald-400' : s.delta < 0 ? 'text-red-400' : 'text-zinc-500'
+                  }`}>
+                    {s.delta > 0 ? '+' : ''}{s.delta.toFixed(2)}
+                  </span>
+                  <span className="text-right text-xs text-zinc-500">{s.age}</span>
+                  <span className="flex justify-center">
+                    <ActivityBars value={s.strength} />
+                  </span>
+                </div>
+                {/* Mobile row */}
+                <div className="grid sm:hidden grid-cols-[1fr_auto_3.5rem] gap-2 px-4 py-2.5 border-b border-zinc-800/50 items-center">
+                  <span className="text-white font-medium text-xs truncate">{s.sector}</span>
+                  <span className="text-center">
+                    <StateTag state={s.state} />
+                  </span>
+                  <span className="text-right font-mono text-xs text-white">
+                    {s.strength.toFixed(2)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -278,8 +299,8 @@ export default function FounderSignalsPage() {
 
       {/* FLOATING URL BAR — matches the Matches page exactly */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-900/98 backdrop-blur-lg border-t-2 border-cyan-500/60 shadow-[0_-4px_20px_rgba(6,182,212,0.15)]">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
               <input
@@ -294,7 +315,7 @@ export default function FounderSignalsPage() {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-8 py-3.5 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-base whitespace-nowrap"
+              className="px-6 sm:px-8 py-3 sm:py-3.5 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm sm:text-base whitespace-nowrap"
             >
               {isSubmitting ? 'Analyzing…' : 'Find Signals →'}
             </button>

@@ -15,7 +15,7 @@ export default function About() {
         </Link>
       </div>
 
-      <div className="max-w-3xl mx-auto px-8 pt-24 pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 pt-24 pb-20">
         {/* Title - understated */}
         <h1 className="text-3xl font-bold text-white mb-2">
           Why Pyth Exists

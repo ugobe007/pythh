@@ -153,22 +153,29 @@ export default function HowItWorksPage() {
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-white font-semibold">pythh.ai</Link>
-            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
           </div>
-          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/matches" className="hover:text-white">Engine</Link>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <span className="text-white">How it works</span>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>
+          {/* Mobile nav */}
+          <nav className="flex md:hidden items-center gap-4 text-sm text-zinc-400">
+            <Link to="/signals" className="hover:text-white">Signals</Link>
+            <Link to="/matches" className="hover:text-white">Engine</Link>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
+          </nav>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-8">
         {/* ═══════════════════════════════════════════════════════════════
             HOOK — Stop pitching. Start timing.
         ═══════════════════════════════════════════════════════════════ */}
@@ -308,7 +315,7 @@ export default function HowItWorksPage() {
 
       {/* FOOTER - with padding for floating bar */}
       <footer className="border-t border-zinc-800/50 py-8 pb-24">
-        <div className="max-w-6xl mx-auto px-8 flex items-center justify-between text-xs text-zinc-600">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 flex items-center justify-between text-xs text-zinc-600">
           <span>© 2026 Pythh · Signal Science</span>
           <div className="flex items-center gap-6">
             <Link to="/signals" className="hover:text-zinc-400">Signals</Link>
@@ -322,8 +329,8 @@ export default function HowItWorksPage() {
           FLOATING CTA BAR — Sticky bottom
       ═══════════════════════════════════════════════════════════════ */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-md border-t border-zinc-800/50">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider whitespace-nowrap">Check your timing</span>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+          <span className="text-xs text-zinc-500 uppercase tracking-wider whitespace-nowrap hidden sm:block">Check your timing</span>
           <input
             type="text"
             value={url}

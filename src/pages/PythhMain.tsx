@@ -262,17 +262,22 @@ export default function PythhHome() {
           HEADER
           ═══════════════════════════════════════════════════════════════════ */}
       <header className="w-full border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-white font-semibold">pythh.ai</span>
-            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
           </div>
-          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/matches" className="text-cyan-400 border border-cyan-500/40 px-2.5 py-0.5 rounded hover:bg-cyan-500/10 hover:text-cyan-300 transition-colors">Engine</Link>
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
+          </nav>
+          <nav className="flex md:hidden items-center gap-3 text-sm text-zinc-400">
+            <Link to="/matches" className="text-cyan-400 border border-cyan-500/40 px-2 py-0.5 rounded text-xs">Engine</Link>
+            <Link to="/signals" className="hover:text-white text-xs">Signals</Link>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300 text-xs">Sign up</Link>
           </nav>
         </div>
       </header>
@@ -280,13 +285,13 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO - Left aligned with cyan edge trace + RIGHT SIDE STATS
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 pt-16 pb-8">
-        <div className="flex justify-between items-start mb-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-10 sm:pt-16 pb-8">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-8 gap-6">
           {/* Left: Hero text */}
           <div className="space-y-4 max-w-3xl">
             {/* Pre-headline with cyan glow */}
             <p 
-              className="text-xl tracking-wide text-zinc-300"
+              className="text-base sm:text-xl tracking-wide text-zinc-300"
               style={{ 
                 textShadow: '0 0 12px rgba(0, 200, 255, 0.5), 0 0 24px rgba(0, 200, 255, 0.25)'
               }}
@@ -296,18 +301,18 @@ export default function PythhHome() {
             
             {/* Main headline with cyan ghost stroke */}
             <h1 
-              className="text-6xl font-bold tracking-tight text-white"
+              className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white"
               style={{ 
                 textShadow: '0 0 2px rgba(0, 200, 255, 0.6), 0 0 12px rgba(0, 200, 255, 0.3), 0 0 24px rgba(0, 200, 255, 0.15)'
               }}
             >
               Find your investors. Now.
             </h1>
-            <p className="text-zinc-400 text-lg">We align your startup with investor signals. No guessing. Just math.</p>
+            <p className="text-zinc-400 text-base sm:text-lg">We align your startup with investor signals. No guessing. Just math.</p>
           </div>
           
-          {/* Right: Live stats - subtle Supabase style, positioned lower */}
-          <div className="text-right space-y-1.5 text-white text-sm font-normal pr-8 mt-6">
+          {/* Right: Live stats - subtle Supabase style */}
+          <div className="flex md:flex-col gap-4 md:gap-1.5 md:text-right text-white text-sm font-normal md:pr-8 md:mt-6 flex-wrap">
             <div>Startups: {stats.startups.toLocaleString()}</div>
             <div>Investors: {stats.investors.toLocaleString()}</div>
             <div>Matches: {stats.matches.toLocaleString()}</div>
@@ -317,7 +322,7 @@ export default function PythhHome() {
 
         {/* Submit bar - matches table width with cyan glow */}
         <div 
-          className="flex items-center"
+          className="flex flex-col sm:flex-row"
           style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
         >
           <input
@@ -331,12 +336,12 @@ export default function PythhHome() {
             }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="https://yourstartup.com"
-            className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-l px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+            className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
           />
           <button
             data-testid="home-analyze-button"
             onClick={submit}
-            className="px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-r hover:bg-cyan-500/10 transition whitespace-nowrap"
+            className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap"
           >
             Find Signals →
           </button>
@@ -375,7 +380,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 py-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         <div className="border border-zinc-800/50 rounded-lg overflow-hidden bg-zinc-900/30">
           {/* Table header */}
           <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-between">
@@ -386,28 +391,44 @@ export default function PythhHome() {
             </span>
           </div>
 
-          {/* Column headers */}
-          <div className="grid grid-cols-[1fr_100px_70px_70px_80px_80px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+          {/* Column headers — desktop */}
+          <div className="hidden sm:grid grid-cols-[1fr_80px_50px_50px_60px_60px] gap-2 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
             <span>Investor / Firm</span>
-            <span className="text-right">Signal<br/><span className="text-zinc-600 normal-case">(move)</span></span>
+            <span className="text-right">Signal</span>
             <span className="text-center">Δ</span>
-            <span className="text-center">GOD<br/><span className="text-zinc-600 normal-case">(pos)</span></span>
-            <span className="text-center">VC++<br/><span className="text-zinc-600 normal-case">(optics)</span></span>
+            <span className="text-center">GOD</span>
+            <span className="text-center">VC++</span>
             <span className="text-center">Σ</span>
           </div>
 
-          {/* Table rows - Unlocked investor names */}
+          {/* Column headers — mobile */}
+          <div className="grid sm:hidden grid-cols-[1fr_4rem_3rem] gap-2 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+            <span>Investor</span>
+            <span className="text-right">Signal</span>
+            <span className="text-center">Σ</span>
+          </div>
+
+          {/* Table rows — desktop */}
           {investorSignals.map((row, i) => (
-            <div 
-              key={i} 
-              className="grid grid-cols-[1fr_100px_70px_70px_80px_80px] gap-4 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
-            >
-              <span className="text-cyan-300 font-medium">{row.investor}</span>
-              <span className="text-right text-white font-mono">{row.signal}</span>
-              <span className={`text-center font-mono ${deltaColor(row.delta)}`}>{row.delta}</span>
-              <span className="text-center text-zinc-400">{row.god}</span>
-              <span className="text-center text-zinc-400">{row.vcp}</span>
-              <span className="flex justify-center">{renderBars(row.bars)}</span>
+            <div key={i}>
+              <div 
+                className="hidden sm:grid grid-cols-[1fr_80px_50px_50px_60px_60px] gap-2 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
+              >
+                <span className="text-cyan-300 font-medium truncate">{row.investor}</span>
+                <span className="text-right text-white font-mono">{row.signal}</span>
+                <span className={`text-center font-mono ${deltaColor(row.delta)}`}>{row.delta}</span>
+                <span className="text-center text-zinc-400">{row.god}</span>
+                <span className="text-center text-zinc-400">{row.vcp}</span>
+                <span className="flex justify-center">{renderBars(row.bars)}</span>
+              </div>
+              {/* Mobile row */}
+              <div 
+                className="grid sm:hidden grid-cols-[1fr_4rem_3rem] gap-2 px-4 py-3 border-b border-zinc-800/20 items-center"
+              >
+                <span className="text-cyan-300 font-medium text-xs truncate">{row.investor}</span>
+                <span className="text-right text-white font-mono text-xs">{row.signal}</span>
+                <span className="flex justify-center">{renderBars(row.bars)}</span>
+              </div>
             </div>
           ))}
 
@@ -421,15 +442,15 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           LIVE MATCHING ACTIVITY
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 py-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         <h2 className="text-xs text-zinc-500 uppercase tracking-widest mb-4">Investor Matching Happening Now</h2>
         <div className="space-y-3">
           {liveMatching.map((item, i) => (
-            <div key={i} className="flex items-center gap-3">
+            <div key={i} className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-zinc-600">•</span>
-              <span className="text-zinc-300">{item.text}</span>
-              <span className="text-amber-400 font-mono">(GOD: {item.god})</span>
-              <span className="text-zinc-600 text-sm ml-auto">{item.time}</span>
+              <span className="text-zinc-300 text-sm sm:text-base">{item.text}</span>
+              <span className="text-amber-400 font-mono text-xs sm:text-sm">(GOD: {item.god})</span>
+              <span className="text-zinc-600 text-xs sm:text-sm ml-auto">{item.time}</span>
             </div>
           ))}
         </div>
@@ -439,7 +460,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
-      <footer className="max-w-6xl mx-auto px-8 py-12 border-t border-zinc-800/30">
+      <footer className="max-w-6xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
         <p className="text-zinc-600 text-xs text-center">
           Signals reflect investor intent and timing based on observed behavior. No guessing. Just math.
         </p>

@@ -227,7 +227,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
           {/* Panel - positioned from the right side */}
           <div
             ref={menuRef}
-            className="absolute right-4 top-4 w-[320px] z-10 rounded-2xl border border-white/10 bg-[#0a0a0a]/95 shadow-2xl overflow-hidden"
+            className="absolute right-2 sm:right-4 top-4 w-[calc(100vw-1rem)] sm:w-[320px] max-w-[320px] z-10 rounded-2xl border border-white/10 bg-[#0a0a0a]/95 shadow-2xl overflow-hidden"
           >
             {/* Header - Brand lockup */}
             <div className="px-4 py-4 border-b border-white/10">

@@ -304,7 +304,7 @@ export default function InvestorProfileDashboard() {
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       <LogoDropdownMenu />
 
-      <div className="max-w-3xl mx-auto px-6 pt-20 pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-20 pb-20">
 
         {/* ═══════ 1. IDENTITY BAR ═══════════════════════════════════════ */}
         <header className="mb-10">

@@ -348,25 +348,30 @@ export default function FounderMatchesPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-sm pb-20">
       {/* HEADER - consistent with PythhMain */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-white font-semibold">pythh.ai</Link>
-            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
           </div>
-          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <span className="text-white">Engine</span>
             <Link to="/signal-trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
           </nav>
+          <nav className="flex md:hidden items-center gap-3 text-sm text-zinc-400">
+            <Link to="/signals" className="hover:text-white text-xs">Signals</Link>
+            <span className="text-white text-xs">Engine</span>
+            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300 text-xs">Sign up</Link>
+          </nav>
         </div>
       </header>
 
       {/* FLOATING URL BAR - Fixed at bottom - MORE NOTICEABLE */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-900/98 backdrop-blur-lg border-t-2 border-cyan-500/60 shadow-[0_-4px_20px_rgba(6,182,212,0.15)]">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
               <input
@@ -382,7 +387,7 @@ export default function FounderMatchesPage() {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="px-8 py-3.5 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-base whitespace-nowrap"
+              className="px-6 sm:px-8 py-3 sm:py-3.5 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm sm:text-base whitespace-nowrap"
             >
               {isSubmitting ? 'Finding...' : 'Find Signals →'}
             </button>

@@ -429,7 +429,7 @@ export default function FounderProfileDashboard() {
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
       <LogoDropdownMenu />
 
-      <div className="max-w-3xl mx-auto px-6 pt-20 pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-20 pb-20">
 
         {/* ═══════ 1. IDENTITY BAR ═══════════════════════════════════════ */}
         <header className="mb-10">
@@ -559,44 +559,70 @@ export default function FounderProfileDashboard() {
 
           {topMatches.length > 0 ? (
             <div className="border border-zinc-800/50 rounded-lg divide-y divide-zinc-800/50">
-              {/* Header */}
-              <div className="grid grid-cols-[2rem_1fr_5rem_5rem_4rem] gap-2 px-4 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
+              {/* Header — desktop */}
+              <div className="hidden sm:grid grid-cols-[2rem_1fr_5rem_5rem_4rem] gap-2 px-4 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
                 <span>#</span>
                 <span>Investor</span>
                 <span className="text-right">Fit</span>
                 <span className="text-right">Momentum</span>
                 <span className="text-right">Signal</span>
               </div>
+              {/* Header — mobile */}
+              <div className="grid sm:hidden grid-cols-[1.5rem_1fr_3rem] gap-2 px-3 py-2 text-[11px] uppercase tracking-wider text-zinc-600">
+                <span>#</span>
+                <span>Investor</span>
+                <span className="text-right">Sig</span>
+              </div>
 
               {topMatches.map((m) => (
-                <div
-                  key={m.investor_id}
-                  className="grid grid-cols-[2rem_1fr_5rem_5rem_4rem] gap-2 px-4 py-3 hover:bg-zinc-900/40 transition-colors group"
-                >
-                  <span className="text-xs text-zinc-600 tabular-nums">{m.rank}</span>
-                  <div className="min-w-0">
-                    {m.is_locked ? (
-                      <span className="text-zinc-600 text-sm">Locked investor</span>
-                    ) : (
-                      <Link
-                        to={`/app/investors/${m.investor_id}?startup=${startupId}`}
-                        className="text-sm text-zinc-200 hover:text-cyan-400 transition-colors truncate block"
-                      >
-                        {m.investor_name}
-                      </Link>
-                    )}
-                    <p className="text-[11px] text-zinc-600 truncate mt-0.5">{m.why_summary}</p>
-                  </div>
-                  <span className="text-xs text-zinc-400 text-right self-center">{fitLabel(m.fit_bucket)}</span>
-                  <div className="flex items-center justify-end gap-1.5 self-center">
-                    <span className={`w-1.5 h-1.5 rounded-full ${momentumDot(m.momentum_bucket)}`} />
-                    <span className="text-xs text-zinc-400">
-                      {MOMENTUM_DISPLAY[m.momentum_bucket as keyof typeof MOMENTUM_DISPLAY]?.label || m.momentum_bucket}
+                <div key={m.investor_id}>
+                  {/* Desktop row */}
+                  <div className="hidden sm:grid grid-cols-[2rem_1fr_5rem_5rem_4rem] gap-2 px-4 py-3 hover:bg-zinc-900/40 transition-colors group">
+                    <span className="text-xs text-zinc-600 tabular-nums">{m.rank}</span>
+                    <div className="min-w-0">
+                      {m.is_locked ? (
+                        <span className="text-zinc-600 text-sm">Locked investor</span>
+                      ) : (
+                        <Link
+                          to={`/app/investors/${m.investor_id}?startup=${startupId}`}
+                          className="text-sm text-zinc-200 hover:text-cyan-400 transition-colors truncate block"
+                        >
+                          {m.investor_name}
+                        </Link>
+                      )}
+                      <p className="text-[11px] text-zinc-600 truncate mt-0.5">{m.why_summary}</p>
+                    </div>
+                    <span className="text-xs text-zinc-400 text-right self-center">{fitLabel(m.fit_bucket)}</span>
+                    <div className="flex items-center justify-end gap-1.5 self-center">
+                      <span className={`w-1.5 h-1.5 rounded-full ${momentumDot(m.momentum_bucket)}`} />
+                      <span className="text-xs text-zinc-400">
+                        {MOMENTUM_DISPLAY[m.momentum_bucket as keyof typeof MOMENTUM_DISPLAY]?.label || m.momentum_bucket}
+                      </span>
+                    </div>
+                    <span className={`text-xs tabular-nums text-right self-center ${signalColor(m.signal_score, 10)}`}>
+                      {m.signal_score.toFixed(1)}
                     </span>
                   </div>
-                  <span className={`text-xs tabular-nums text-right self-center ${signalColor(m.signal_score, 10)}`}>
-                    {m.signal_score.toFixed(1)}
-                  </span>
+                  {/* Mobile row */}
+                  <div className="grid sm:hidden grid-cols-[1.5rem_1fr_3rem] gap-2 px-3 py-3">
+                    <span className="text-xs text-zinc-600 tabular-nums">{m.rank}</span>
+                    <div className="min-w-0">
+                      {m.is_locked ? (
+                        <span className="text-zinc-600 text-sm">Locked</span>
+                      ) : (
+                        <Link
+                          to={`/app/investors/${m.investor_id}?startup=${startupId}`}
+                          className="text-sm text-zinc-200 truncate block"
+                        >
+                          {m.investor_name}
+                        </Link>
+                      )}
+                      <p className="text-[11px] text-zinc-600 truncate mt-0.5">{m.why_summary}</p>
+                    </div>
+                    <span className={`text-xs tabular-nums text-right self-center ${signalColor(m.signal_score, 10)}`}>
+                      {m.signal_score.toFixed(1)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

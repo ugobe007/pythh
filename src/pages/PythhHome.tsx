@@ -265,16 +265,22 @@ export default function PythhHome() {
           HEADER
           ═══════════════════════════════════════════════════════════════════ */}
       <header className="w-full border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-white font-semibold">pythh.ai</span>
-            <span className="text-zinc-500 text-xs tracking-widest uppercase">Signal Science</span>
+            <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
           </div>
-          <nav className="flex items-center gap-6 text-sm text-zinc-400">
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
             <Link to="/matches" className="hover:text-white">Engine</Link>
             <Link to="/trends" className="hover:text-white">Trends</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
             <a href="#" className="hover:text-white">Docs</a>
+            <a href="#" className="hover:text-white">Sign in</a>
+          </nav>
+          {/* Mobile nav */}
+          <nav className="flex md:hidden items-center gap-4 text-sm text-zinc-400">
+            <Link to="/matches" className="hover:text-white">Engine</Link>
             <a href="#" className="hover:text-white">Sign in</a>
           </nav>
         </div>
@@ -283,8 +289,8 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO - Left aligned with cyan edge trace + RIGHT SIDE STATS
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 pt-16 pb-8">
-        <div className="flex justify-between items-start mb-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-16 pb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start mb-8">
           {/* Left: Hero text */}
           <div className="space-y-4 max-w-3xl">
             {/* Pre-headline with cyan glow */}
@@ -378,7 +384,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 py-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         <div className="border border-zinc-800/50 rounded-lg overflow-hidden bg-zinc-900/30">
           {/* Table header */}
           <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-between">
@@ -389,8 +395,8 @@ export default function PythhHome() {
             </span>
           </div>
 
-          {/* Column headers */}
-          <div className="grid grid-cols-[1fr_100px_70px_70px_80px_80px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+          {/* Desktop column headers */}
+          <div className="hidden sm:grid grid-cols-[1fr_100px_70px_70px_80px_80px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
             <span>Investor / Firm</span>
             <span className="text-right">Signal<br/><span className="text-zinc-600 normal-case">(move)</span></span>
             <span className="text-center">Δ</span>
@@ -398,18 +404,35 @@ export default function PythhHome() {
             <span className="text-center">VC++<br/><span className="text-zinc-600 normal-case">(optics)</span></span>
             <span className="text-center">Σ</span>
           </div>
+          {/* Mobile column headers */}
+          <div className="grid sm:hidden grid-cols-[1fr_80px_60px] gap-3 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+            <span>Investor</span>
+            <span className="text-right">Signal</span>
+            <span className="text-center">Σ</span>
+          </div>
 
-          {/* Table rows - Unlocked investor names */}
+          {/* Desktop table rows */}
           {investorSignals.map((row, i) => (
             <div 
               key={i} 
-              className="grid grid-cols-[1fr_100px_70px_70px_80px_80px] gap-4 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
+              className="hidden sm:grid grid-cols-[1fr_100px_70px_70px_80px_80px] gap-4 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
             >
               <span className="text-cyan-300 font-medium">{row.investor}</span>
               <span className="text-right text-white font-mono">{row.signal}</span>
               <span className={`text-center font-mono ${deltaColor(row.delta)}`}>{row.delta}</span>
               <span className="text-center text-zinc-400">{row.god}</span>
               <span className="text-center text-zinc-400">{row.vcp}</span>
+              <span className="flex justify-center">{renderBars(row.bars)}</span>
+            </div>
+          ))}
+          {/* Mobile table rows */}
+          {investorSignals.map((row, i) => (
+            <div 
+              key={`m-${i}`} 
+              className="grid sm:hidden grid-cols-[1fr_80px_60px] gap-3 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
+            >
+              <span className="text-cyan-300 font-medium truncate">{row.investor}</span>
+              <span className="text-right text-white font-mono">{row.signal}</span>
               <span className="flex justify-center">{renderBars(row.bars)}</span>
             </div>
           ))}
@@ -424,14 +447,14 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           LIVE MATCHING ACTIVITY
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-8 py-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         <h2 className="text-xs text-zinc-500 uppercase tracking-widest mb-4">Investor Matching Happening Now</h2>
         <div className="space-y-3">
           {liveMatching.map((item, i) => (
-            <div key={i} className="flex items-center gap-3">
+            <div key={i} className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-zinc-600">•</span>
-              <span className="text-zinc-300">{item.text}</span>
-              <span className="text-amber-400 font-mono">(GOD: {item.god})</span>
+              <span className="text-zinc-300 text-sm sm:text-base">{item.text}</span>
+              <span className="text-amber-400 font-mono text-sm">(GOD: {item.god})</span>
               <span className="text-zinc-600 text-sm ml-auto">{item.time}</span>
             </div>
           ))}
@@ -442,7 +465,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
-      <footer className="max-w-6xl mx-auto px-8 py-12 border-t border-zinc-800/30">
+      <footer className="max-w-6xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
         <p className="text-zinc-600 text-xs text-center">
           Signals reflect investor intent and timing based on observed behavior. No guessing. Just math.
         </p>
