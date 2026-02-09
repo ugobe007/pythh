@@ -190,8 +190,10 @@ export async function submitStartup(
       if (response.ok) {
         const result = await response.json();
         if (result.startup_id) {
+          // gen_in_progress means background pipeline is running — show "generating" UI
+          const isGenerating = result.gen_in_progress || result.timed_out || (result.is_new && result.match_count === 0);
           return {
-            status: result.timed_out ? 'generating' : 'created',
+            status: isGenerating ? 'generating' : 'created',
             startup_id: result.startup_id,
             name: result.startup?.name || result.name || null,
             website: result.startup?.website || result.website || null,

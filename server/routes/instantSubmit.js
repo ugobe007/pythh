@@ -328,53 +328,283 @@ function generateReasoning(startup, investor, score) {
  * Body: { url: string }
  * Returns: { startup_id, matches, match_count, processing_time_ms }
  */
+// ============================================================================
+// BACKGROUND PIPELINE — heavy work runs AFTER HTTP response
+// ============================================================================
+async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, runId, startTime }) {
+  const fullUrl = inputRaw.startsWith('http') ? inputRaw : `https://${domain}`;
+  const displayName = domainToName(domain);
+  
+  try {
+    console.log(`  🔄 [BG] Starting background pipeline for ${startupId} (${domain})`);
+    
+    // ── STEP 1: Fetch website content (5s hard timeout via AbortController) ──
+    let websiteContent = null;
+    try {
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 5000);
+      try {
+        const response = await axios.get(fullUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          timeout: 5000,
+          maxRedirects: 3,
+          signal: ac.signal,
+        });
+        websiteContent = response.data
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 15000);
+        console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
+      } finally {
+        clearTimeout(t);
+      }
+    } catch (fetchErr) {
+      console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
+    }
+
+    // ── STEP 2: Inference engine (free, instant) ──
+    let inferenceData = null;
+    let dataTier = 'C';
+    if (websiteContent && websiteContent.length >= 50) {
+      inferenceData = extractInferenceData(websiteContent, fullUrl);
+      if (inferenceData) {
+        dataTier = inferenceData.confidence?.tier || 'C';
+        console.log(`  🔄 [BG] Inference: Tier ${dataTier}`);
+      }
+    }
+
+    // ── STEP 3: Scraper fallback chain (only for Tier C, bounded) ──
+    let aiData = null;
+    if (dataTier === 'C') {
+      // GPT-4o scraper (5s)
+      try {
+        const ac2 = new AbortController();
+        const t2 = setTimeout(() => ac2.abort(), 5000);
+        try {
+          const scrapeResult = await scrapeAndScoreStartup(fullUrl);
+          aiData = scrapeResult.data;
+          const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
+          dataTier = hasSomeAI ? 'B' : 'C';
+        } finally {
+          clearTimeout(t2);
+        }
+      } catch (aiErr) {
+        console.warn(`  🔄 [BG] AI scraper failed: ${aiErr.message}`);
+      }
+
+      // DynamicParser fallback (5s)
+      if (dataTier === 'C') {
+        try {
+          const DynamicParser = require('../../lib/dynamic-parser');
+          const parser = new DynamicParser();
+          const dpResult = await Promise.race([
+            parser.parse(fullUrl, {
+              extractionSchema: {
+                name: 'string', description: 'string', pitch: 'string',
+                problem: 'string', solution: 'string', sectors: 'array',
+                funding_amount: 'number', funding_stage: 'string',
+                founders: 'array', team_size: 'number',
+              }
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('DynamicParser timeout')), 5000))
+          ]);
+          if (dpResult && (dpResult.description || dpResult.pitch)) {
+            aiData = { ...(aiData || {}), ...dpResult };
+            dataTier = 'B';
+          }
+        } catch (dpErr) {
+          console.warn(`  🔄 [BG] DynamicParser failed: ${dpErr.message}`);
+        }
+      }
+    }
+
+    // ── STEP 4: Merge data + calculate GOD score ──
+    const inferredName = inferenceData?.name;
+    const bestName = aiData?.name || inferredName || displayName;
+    const merged = {
+      name: bestName,
+      tagline: aiData?.tagline || inferenceData?.tagline || null,
+      description: aiData?.description || aiData?.pitch || inferenceData?.product_description || null,
+      pitch: aiData?.pitch || inferenceData?.value_proposition || null,
+      sectors: inferenceData?.sectors?.length > 0 ? inferenceData.sectors : (aiData?.sectors || ['Technology']),
+      stage: aiData?.stage || (inferenceData?.funding_stage ?
+        ({'pre-seed': 1, 'pre seed': 1, 'seed': 2, 'series a': 3, 'series b': 4}[inferenceData.funding_stage.toLowerCase()] || 1) : 1),
+      is_launched: inferenceData?.is_launched || aiData?.is_launched || false,
+      has_demo: inferenceData?.has_demo || aiData?.has_demo || false,
+      has_technical_cofounder: inferenceData?.has_technical_cofounder || aiData?.has_technical_cofounder || false,
+      team_size: inferenceData?.team_size || aiData?.founders_count || null,
+      mrr: aiData?.mrr || null,
+      arr: aiData?.arr || null,
+      customer_count: inferenceData?.customer_count || aiData?.customer_count || null,
+      growth_rate_monthly: inferenceData?.growth_rate || aiData?.growth_rate || null,
+    };
+    
+    const enrichedRow = {
+      ...merged,
+      name: merged.name || displayName,
+      website: `https://${domain}`,
+      extracted_data: {
+        ...(inferenceData || {}),
+        ...(aiData || {}),
+        data_tier: dataTier,
+        enrichment_method: aiData ? 'inference+ai' : 'inference_only',
+        scraped_at: new Date().toISOString(),
+      },
+    };
+
+    const scores = calculateGODScore(enrichedRow);
+    console.log(`  🔄 [BG] GOD Score: ${scores.total_god_score} (T${scores.team_score} Tr${scores.traction_score} M${scores.market_score} P${scores.product_score} V${scores.vision_score})`);
+
+    // ── STEP 5: Update startup row with enriched data + real scores ──
+    await supabase
+      .from('startup_uploads')
+      .update({
+        name: enrichedRow.name,
+        tagline: enrichedRow.tagline || `Startup at ${domain}`,
+        description: enrichedRow.description,
+        pitch: enrichedRow.pitch,
+        sectors: enrichedRow.sectors,
+        stage: enrichedRow.stage,
+        is_launched: enrichedRow.is_launched,
+        has_demo: enrichedRow.has_demo,
+        has_technical_cofounder: enrichedRow.has_technical_cofounder,
+        team_size: enrichedRow.team_size,
+        mrr: enrichedRow.mrr,
+        arr: enrichedRow.arr,
+        customer_count: enrichedRow.customer_count,
+        growth_rate_monthly: enrichedRow.growth_rate_monthly,
+        extracted_data: enrichedRow.extracted_data,
+        total_god_score: scores.total_god_score,
+        team_score: scores.team_score,
+        traction_score: scores.traction_score,
+        market_score: scores.market_score,
+        product_score: scores.product_score,
+        vision_score: scores.vision_score,
+      })
+      .eq('id', startupId);
+
+    // ── STEP 6: Seed signal score ──
+    const godScore = scores.total_god_score || 50;
+    const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
+    const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+    const factor = signalTotal / 7.0;
+    await supabase
+      .from('startup_signal_scores')
+      .upsert({
+        startup_id: startupId,
+        signals_total: signalTotal,
+        founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
+        investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
+        news_momentum: parseFloat((1.1 * factor).toFixed(1)),
+        capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
+        execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
+        as_of: new Date().toISOString(),
+      }, { onConflict: 'startup_id' })
+      .then(() => console.log(`  🔄 [BG] Signal score: ${signalTotal}`))
+      .catch(e => console.warn(`  🔄 [BG] Signal seed failed: ${e.message}`));
+
+    // ── STEP 7: Generate matches ──
+    // Refresh startup object with enriched data for scoring
+    const enrichedStartup = {
+      id: startupId,
+      name: enrichedRow.name,
+      sectors: enrichedRow.sectors,
+      stage: enrichedRow.stage,
+      total_god_score: scores.total_god_score,
+    };
+
+    const allInvestors = await getInvestors(supabase);
+    if (!allInvestors || allInvestors.length === 0) {
+      console.error(`  🔄 [BG] No investors loaded — aborting match gen`);
+      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
+      return;
+    }
+
+    const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
+    const investors = getRelevantInvestors(startupSectors);
+    
+    const matches = [];
+    for (const investor of investors) {
+      const score = calculateMatchScore(enrichedStartup, investor);
+      if (score >= 40) {
+        matches.push({
+          startup_id: startupId,
+          investor_id: investor.id,
+          match_score: score,
+          reasoning: generateReasoning(enrichedStartup, investor, score),
+          status: 'suggested',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+    console.log(`  🔄 [BG] Generated ${matches.length} matches (${investors.length} investors evaluated)`);
+
+    // ── STEP 8: Upsert matches to DB ──
+    if (matches.length > 0) {
+      await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+      const batchSize = 500;
+      for (let i = 0; i < matches.length; i += batchSize) {
+        const batch = matches.slice(i, i + batchSize);
+        const { error: batchErr } = await supabase
+          .from('startup_investor_matches')
+          .insert(batch);
+        if (batchErr) console.error(`  🔄 [BG] Batch ${i} error: ${batchErr.message}`);
+      }
+    }
+
+    // ── STEP 9: Complete lock + log ──
+    await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
+    const duration = Date.now() - startTime;
+    console.log(`  🔄 [BG] COMPLETE: ${matches.length} matches in ${duration}ms`);
+    void supabase.from('match_gen_logs').insert({
+      startup_id: startupId, run_id: runId,
+      event: 'completed', source: genSource,
+      candidate_investor_count: investors.length,
+      inserted_count: matches.length,
+      duration_ms: duration,
+    }).then(() => {}).catch(() => {});
+
+    // Log completion
+    void supabase.from('ai_logs').insert({
+      log_type: 'instant_submit',
+      action_type: 'background_complete',
+      input_data: { url: inputRaw, domain },
+      output_data: { startup_id: startupId, match_count: matches.length, duration_ms: duration, data_tier: dataTier },
+      created_at: new Date().toISOString()
+    }).then(() => {}).catch(() => {});
+
+  } catch (err) {
+    console.error(`  🔄 [BG] FATAL: ${err.message}`);
+    await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
+    void supabase.from('match_gen_logs').insert({
+      startup_id: startupId, run_id: runId,
+      event: 'failed', source: genSource,
+      reason: err.message,
+      duration_ms: Date.now() - startTime,
+    }).then(() => {}).catch(() => {});
+  }
+}
+
+// ============================================================================
+// POST /api/instant/submit — PHASE A: fast resolve + create + early return
+// ============================================================================
 router.post('/submit', async (req, res) => {
   const startTime = Date.now();
-  
-  // ================================================================
-  // SAFETY TIMEOUT — guarantee response within 12s no matter what
-  // ================================================================
-  const HARD_TIMEOUT_MS = 12000;
-  let hasResponded = false;
-  let startupId = null;
-  let startup = null;
-  let isNew = false;
-  let genSource = 'unknown';
-  let runId = null;
-  
-  const sendResponse = (data, statusCode = 200) => {
-    if (hasResponded) return false;
-    hasResponded = true;
-    clearTimeout(safetyTimer);
-    if (statusCode === 200) {
-      res.json(data);
-    } else {
-      res.status(statusCode).json(data);
-    }
-    return true;
-  };
-  
-  const safetyTimer = setTimeout(() => {
-    if (!hasResponded) {
-      console.log(`  ⏱️ HARD TIMEOUT (${HARD_TIMEOUT_MS}ms) - returning partial result for ${startupId || 'unknown'}`);
-      sendResponse({
-        startup_id: startupId,
-        startup,
-        matches: [],
-        match_count: 0,
-        is_new: isNew,
-        timed_out: true,
-        generating_matches: true,
-        processing_time_ms: HARD_TIMEOUT_MS,
-        message: 'Startup created. Matches generating in background — reload in a few seconds.',
-      });
-    }
-  }, HARD_TIMEOUT_MS);
   
   try {
     const urlRaw = req.body?.url;
     if (!urlRaw) {
-      return sendResponse({ error: 'URL required' }, 400);
+      return res.status(400).json({ error: 'URL required' });
     }
     
     // FAULT TOLERANT INPUT PARSING
@@ -383,21 +613,20 @@ router.post('/submit', async (req, res) => {
     const domain = extractDomain(inputRaw);
     const urlNormalized = normalizeUrl(inputRaw);
     
-    console.log(`⚡ [INSTANT] Processing input: "${inputRaw}"`);
-    console.log(`   → Company name: "${companyName}", Domain: "${domain}", Normalized: "${urlNormalized}"`);
+    console.log(`⚡ [INSTANT] Processing: "${inputRaw}" → company="${companyName}" domain="${domain}"`);
     
-    // Validate we got something useful
     if (!companyName || companyName.length < 2) {
-      return sendResponse({ 
+      return res.status(400).json({ 
         error: 'Invalid URL',
         message: 'Please enter a valid company website (e.g., stripe.com)'
-      }, 400);
+      });
     }
     
-    // Build flexible search query - search by:
-    // - Full domain in website
-    // - Company name in website (handles different TLDs)
-    // - Company name in startup name
+    // ── Resolve existing startup (fuzzy match) ──
+    let startupId = null;
+    let startup = null;
+    let isNew = false;
+    
     const searchPatterns = [
       `website.ilike.%${domain}%`,
       `website.ilike.%${companyName}.%`,
@@ -411,46 +640,21 @@ router.post('/submit', async (req, res) => {
       .eq('status', 'approved')
       .limit(100);
     
-    if (searchErr) {
-      console.error(`  ✗ Search error:`, searchErr);
-    }
-    
-    console.log(`   → Found ${candidates?.length || 0} candidate startups`);
+    if (searchErr) console.error(`  ✗ Search error:`, searchErr);
     
     if (candidates && candidates.length > 0) {
-      // Score each candidate for best match
       const scored = candidates.map(c => {
         let score = 0;
         const candidateCompanyName = extractCompanyName(c.website || '');
         const candidateNameLower = (c.name || '').toLowerCase();
-        
-        // Exact normalized URL match = highest priority
-        if (c.website && normalizeUrl(c.website) === urlNormalized) {
-          score = 100;
-        }
-        // Exact company name match (stripe.com → stripe.io)
-        else if (candidateCompanyName === companyName) {
-          score = 90;
-        }
-        // Company name is in startup name
-        else if (candidateNameLower.includes(companyName)) {
-          score = 70;
-        }
-        // Startup name is in company name
-        else if (companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) {
-          score = 60;
-        }
-        // Partial website match
-        else if (c.website && c.website.toLowerCase().includes(companyName)) {
-          score = 50;
-        }
-        
+        if (c.website && normalizeUrl(c.website) === urlNormalized) score = 100;
+        else if (candidateCompanyName === companyName) score = 90;
+        else if (candidateNameLower.includes(companyName)) score = 70;
+        else if (companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) score = 60;
+        else if (c.website && c.website.toLowerCase().includes(companyName)) score = 50;
         return { ...c, matchScore: score };
       });
-      
-      // Sort by match score and take the best
       scored.sort((a, b) => b.matchScore - a.matchScore);
-      
       if (scored[0].matchScore >= 50) {
         startup = scored[0];
         startupId = startup.id;
@@ -458,566 +662,208 @@ router.post('/submit', async (req, res) => {
       }
     }
     
-    // 2. Create new startup if not found — WITH REAL SCORING
-    if (!startupId) {
-      isNew = true;
-      const displayName = domainToName(domain);
-      const fullUrl = inputRaw.startsWith('http') ? inputRaw : `https://${domain}`;
+    // ── EXISTING STARTUP: check for cached matches ──
+    if (startupId) {
+      const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';
+      const { count: existingMatchCount } = await supabase
+        .from('startup_investor_matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('startup_id', startupId)
+        .eq('status', 'suggested');
       
-      // ================================================================
-      // STEP A: Fetch website content (free HTTP GET, shared by both paths)
-      // ================================================================
-      console.log(`  🌐 Fetching ${fullUrl}...`);
-      let websiteContent = null;
-      try {
-        const response = await axios.get(fullUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          },
-          timeout: 5000,
-          maxRedirects: 3,
+      if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate) {
+        const { data: existingMatches } = await supabase
+          .from('startup_investor_matches')
+          .select(`
+            id, match_score, reasoning, created_at,
+            investors:investor_id (
+              id, name, firm, url, sectors, stage,
+              total_investments, active_fund_size, investment_thesis
+            )
+          `)
+          .eq('startup_id', startupId)
+          .eq('status', 'suggested')
+          .order('match_score', { ascending: false })
+          .limit(50);
+        
+        const processingTime = Date.now() - startTime;
+        console.log(`  ⚡ Returned ${existingMatchCount} cached matches in ${processingTime}ms`);
+        
+        void supabase.from('match_gen_logs').insert({
+          startup_id: startupId, event: 'skipped',
+          source: 'rpc', reason: 'existing_matches',
+          existing_match_count: existingMatchCount,
+          duration_ms: processingTime,
+        }).then(() => {}).catch(() => {});
+        
+        return res.json({
+          startup_id: startupId,
+          startup,
+          matches: existingMatches || [],
+          match_count: existingMatchCount,
+          is_new: false,
+          cached: true,
+          processing_time_ms: processingTime
         });
-        websiteContent = response.data
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-          .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .substring(0, 15000);
-        console.log(`  ✓ Fetched ${websiteContent.length} chars`);
-      } catch (fetchErr) {
-        console.warn(`  ⚠ Fetch failed: ${fetchErr.message}`);
       }
       
-      // ================================================================
-      // STEP B: Run INFERENCE ENGINE v2 first (free, instant, no API calls)
-      // v2 includes: URL-based name, value proposition, confidence scoring
-      // ================================================================
-      let inferenceData = null;
-      let dataTier = 'C';
-      if (websiteContent && websiteContent.length >= 50) {
-        inferenceData = extractInferenceData(websiteContent, fullUrl);
-        if (inferenceData) {
-          // v2: Use confidence.tier directly (replaces inline tier computation)
-          dataTier = inferenceData.confidence?.tier || 'C';
-          const conf = inferenceData.confidence || {};
-          console.log(`  ⚡ Inference v2: Tier ${dataTier} (score: ${conf.score || 0}/100, missing: [${(conf.missing || []).join(', ')}])`);
-          console.log(`    signals: ${inferenceData.execution_signals?.length || 0} exec, ${inferenceData.team_signals?.length || 0} team, sectors: ${inferenceData.sectors?.join(', ') || 'none'}`);
-          if (inferenceData.value_proposition) console.log(`    value prop: "${inferenceData.value_proposition.substring(0, 80)}..."`);
-        }
-      }
-      
-      // ================================================================
-      // STEP C: SCRAPER FALLBACK CHAIN — only when inference is too sparse
-      // Tier A/B → use inference data as-is (no API cost)
-      // Tier C → try scrapeAndScoreStartup (GPT-4o via urlScrapingService)
-      //       → if that also fails → try DynamicParser (cheerio + AI)
-      // ================================================================
-      let aiData = null;
-      if (dataTier === 'C') {
-        console.log(`  🤖 Tier C → scraper fallback chain...`);
+      // Has startup but needs match generation — fire background + return
+      if (forceGenerate || !existingMatchCount || existingMatchCount < 20) {
+        const genSource = forceGenerate ? 'force' : 'rpc';
+        const { data: runId } = await supabase.rpc('try_start_match_gen', {
+          p_startup_id: startupId,
+          p_cooldown_minutes: 5,
+        });
         
-        // Fallback 1: GPT-4o URL scraping service (5s timeout to keep response fast)
-        try {
-          const scrapeResult = await Promise.race([
-            scrapeAndScoreStartup(fullUrl),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('AI scraper timeout (5s)')), 5000))
-          ]);
-          aiData = scrapeResult.data;
-          const hasRichAI = !!(aiData.mrr || aiData.arr || aiData.revenue || aiData.customer_count || aiData.active_users);
-          const hasSomeAI = !!(aiData.description || aiData.pitch || aiData.problem || aiData.solution);
-          dataTier = hasRichAI ? 'A' : (hasSomeAI ? 'B' : 'C');
-          console.log(`  ✓ AI scraper: Tier ${dataTier} → "${aiData.name}"`);
-        } catch (aiErr) {
-          console.warn(`  ⚠ AI scraper failed: ${aiErr.message}`);
+        if (runId || forceGenerate) {
+          // Fire background pipeline (no await!)
+          runBackgroundPipeline({
+            startupId, domain, inputRaw, genSource, runId, startTime
+          }).catch(e => console.error('[BG] Unhandled:', e.message));
         }
         
-        // Fallback 2: DynamicParser (cheerio + AI structured extraction, 5s timeout)
-        if (dataTier === 'C') {
-          try {
-            const DynamicParser = require('../../lib/dynamic-parser');
-            const parser = new DynamicParser();
-            const dpResult = await Promise.race([
-              parser.parse(fullUrl, {
-                extractionSchema: {
-                  name: 'string', description: 'string', pitch: 'string',
-                  problem: 'string', solution: 'string', sectors: 'array',
-                  funding_amount: 'number', funding_stage: 'string',
-                  founders: 'array', team_size: 'number',
-                }
-              }),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('DynamicParser timeout (5s)')), 5000))
-            ]);
-            if (dpResult && (dpResult.description || dpResult.pitch)) {
-              aiData = { ...(aiData || {}), ...dpResult };
-              dataTier = 'B';
-              console.log(`  ✓ DynamicParser fallback: Tier B → "${dpResult.name || 'unknown'}"`);
-            }
-          } catch (dpErr) {
-            console.warn(`  ⚠ DynamicParser fallback failed: ${dpErr.message}`);
-          }
-        }
-      } else {
-        console.log(`  ✅ Inference Tier ${dataTier} — skipping scrapers (saves cost)`);
+        const processingTime = Date.now() - startTime;
+        console.log(`  ⚡ Early return (existing, needs regen) in ${processingTime}ms`);
+        
+        return res.json({
+          startup_id: startupId,
+          startup,
+          matches: [],
+          match_count: existingMatchCount || 0,
+          is_new: false,
+          gen_in_progress: true,
+          processing_time_ms: processingTime
+        });
       }
-      
-      // ================================================================
-      // STEP D: Merge inference + AI data into enriched startup row
-      // ================================================================
-      // v2: Name always comes from URL via parseStartupNameFromUrl (clean, reliable)
-      // AI name only used if it looks more complete (e.g. "Rippling Inc" vs "Rippling")
-      const inferredName = inferenceData?.name; // v2: always from URL, never from text
-      const bestName = aiData?.name || inferredName || displayName;
-      
-      const merged = {
-        name: bestName,
-        tagline: aiData?.tagline || inferenceData?.tagline || null,
-        description: aiData?.description || aiData?.pitch || inferenceData?.product_description || null,
-        pitch: aiData?.pitch || inferenceData?.value_proposition || null,
-        sectors: inferenceData?.sectors?.length > 0 ? inferenceData.sectors : (aiData?.sectors || ['Technology']),
-        stage: aiData?.stage || (inferenceData?.funding_stage ? 
-          ({'pre-seed': 1, 'pre seed': 1, 'seed': 2, 'series a': 3, 'series b': 4}[inferenceData.funding_stage.toLowerCase()] || 1) : 1),
-        is_launched: inferenceData?.is_launched || aiData?.is_launched || false,
-        has_demo: inferenceData?.has_demo || aiData?.has_demo || false,
-        has_technical_cofounder: inferenceData?.has_technical_cofounder || aiData?.has_technical_cofounder || false,
-        team_size: inferenceData?.team_size || aiData?.founders_count || null,
-        mrr: aiData?.mrr || null,
-        arr: aiData?.arr || null,
-        customer_count: inferenceData?.customer_count || aiData?.customer_count || null,
-        growth_rate_monthly: inferenceData?.growth_rate || aiData?.growth_rate || null,
-        // NOTE: team_companies column does NOT exist in startup_uploads schema
-      };
-      
-      // Use the best available startup name
-      const startupName = merged.name || displayName;
-      
-      const enrichedRow = {
-        ...merged,
-        name: startupName,
+    }
+    
+    // ── NEW STARTUP: create minimal row + fire background ──
+    isNew = true;
+    const displayName = domainToName(domain);
+    
+    // Insert minimal startup row immediately (no scraping, no AI)
+    let insertName = displayName;
+    let { data: newStartup, error: insertErr } = await supabase
+      .from('startup_uploads')
+      .insert({
+        name: insertName,
         website: `https://${domain}`,
-        extracted_data: {
-          // Inference signals (free)
-          ...(inferenceData || {}),
-          // AI data overlay (if used)
-          ...(aiData || {}),
-          data_tier: dataTier,
-          enrichment_method: aiData ? 'inference+ai' : 'inference_only',
-          scraped_at: new Date().toISOString(),
-        },
-      };
-      
-      // ================================================================
-      // STEP E: Calculate REAL GOD score from enriched data
-      // ================================================================
-      const scores = calculateGODScore(enrichedRow);
-      console.log(`  🎯 REAL GOD Score: ${scores.total_god_score} (team:${scores.team_score} traction:${scores.traction_score} market:${scores.market_score} product:${scores.product_score} vision:${scores.vision_score}) [${aiData ? 'inference+AI' : 'inference only'}]`);
-      
-      // ================================================================
-      // STEP F: Insert startup with REAL scores
-      // ================================================================
-      let insertName = startupName;
-      let { data: newStartup, error: insertErr } = await supabase
+        tagline: `Startup at ${domain}`,
+        sectors: ['Technology'],
+        stage: 1,
+        status: 'approved',
+        source_type: 'url',
+        // Placeholder GOD score (will be updated by background pipeline)
+        total_god_score: 50,
+        team_score: 50,
+        traction_score: 50,
+        market_score: 50,
+        product_score: 50,
+        vision_score: 50,
+        created_at: new Date().toISOString()
+      })
+      .select('id, name, website, sectors, stage, total_god_score')
+      .single();
+    
+    // Handle name conflict
+    if (insertErr && (insertErr.message?.includes('unique') || insertErr.code === '23505')) {
+      insertName = `${displayName} (${domain})`;
+      const retry = await supabase
         .from('startup_uploads')
         .insert({
           name: insertName,
           website: `https://${domain}`,
-          tagline: enrichedRow.tagline || `Startup at ${domain}`,
-          description: enrichedRow.description,
-          pitch: enrichedRow.pitch,
-          sectors: enrichedRow.sectors,
-          stage: enrichedRow.stage,
+          tagline: `Startup at ${domain}`,
+          sectors: ['Technology'],
+          stage: 1,
           status: 'approved',
           source_type: 'url',
-          is_launched: enrichedRow.is_launched,
-          has_demo: enrichedRow.has_demo,
-          has_technical_cofounder: enrichedRow.has_technical_cofounder,
-          team_size: enrichedRow.team_size,
-          mrr: enrichedRow.mrr,
-          arr: enrichedRow.arr,
-          customer_count: enrichedRow.customer_count,
-          growth_rate_monthly: enrichedRow.growth_rate_monthly,
-          extracted_data: enrichedRow.extracted_data,
-          // REAL GOD scores from the official scoring service
-          total_god_score: scores.total_god_score,
-          team_score: scores.team_score,
-          traction_score: scores.traction_score,
-          market_score: scores.market_score,
-          product_score: scores.product_score,
-          vision_score: scores.vision_score,
+          total_god_score: 50,
+          team_score: 50,
+          traction_score: 50,
+          market_score: 50,
+          product_score: 50,
+          vision_score: 50,
           created_at: new Date().toISOString()
         })
-        .select('id, name, website, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+        .select('id, name, website, sectors, stage, total_god_score')
+        .single();
+      newStartup = retry.data;
+      insertErr = retry.error;
+    }
+    
+    // Race condition fallback — find existing
+    if (insertErr) {
+      console.error(`  ✗ Insert error: ${insertErr.message}`);
+      const { data: found } = await supabase
+        .from('startup_uploads')
+        .select('id, name, website, sectors, stage, total_god_score')
+        .or(`website.ilike.%${domain}%`)
+        .limit(1)
         .single();
       
-      // If name conflict, retry with domain suffix
-      if (insertErr && (insertErr.message?.includes('unique') || insertErr.code === '23505')) {
-        insertName = `${startupName} (${domain})`;
-        const retry2 = await supabase
-          .from('startup_uploads')
-          .insert({
-            name: insertName,
-            website: `https://${domain}`,
-            tagline: enrichedRow.tagline || `Startup at ${domain}`,
-            description: enrichedRow.description,
-            pitch: enrichedRow.pitch,
-            sectors: enrichedRow.sectors,
-            stage: enrichedRow.stage,
-            status: 'approved',
-            source_type: 'url',
-            is_launched: enrichedRow.is_launched,
-            has_demo: enrichedRow.has_demo,
-            has_technical_cofounder: enrichedRow.has_technical_cofounder,
-            team_size: enrichedRow.team_size,
-            mrr: enrichedRow.mrr,
-            arr: enrichedRow.arr,
-            customer_count: enrichedRow.customer_count,
-            growth_rate_monthly: enrichedRow.growth_rate_monthly,
-            extracted_data: enrichedRow.extracted_data,
-            // REAL GOD scores
-            total_god_score: scores.total_god_score,
-            team_score: scores.team_score,
-            traction_score: scores.traction_score,
-            market_score: scores.market_score,
-            product_score: scores.product_score,
-            vision_score: scores.vision_score,
-            created_at: new Date().toISOString()
-          })
-          .select('id, name, website, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
-          .single();
-        newStartup = retry2.data;
-        insertErr = retry2.error;
-      }
-      
-      if (insertErr) {
-        console.error(`  ✗ Insert error: ${insertErr.message}`);
-        
-        // Handle race condition - try to find the startup again
-        const { data: retry } = await supabase
-          .from('startup_uploads')
-          .select('id, name, website, sectors, stage, total_god_score')
-          .or(`website.ilike.%${domain}%`)
-          .limit(1)
-          .single();
-        
-        if (retry) {
-          startupId = retry.id;
-          startup = retry;
-          isNew = false;
-          console.log(`  ✓ Race resolved: ${retry.name} (${retry.id})`);
-        } else {
-          return sendResponse({
-            error: 'Failed to create startup',
-            details: insertErr.message
-          }, 500);
-        }
+      if (found) {
+        startupId = found.id;
+        startup = found;
+        isNew = false;
       } else {
-        startupId = newStartup.id;
-        startup = newStartup;
-        console.log(`  ✓ Created startup: ${newStartup.name} → GOD ${scores.total_god_score} (${newStartup.id})`);
+        return res.status(500).json({ error: 'Failed to create startup', details: insertErr.message });
       }
+    } else {
+      startupId = newStartup.id;
+      startup = newStartup;
+      console.log(`  ✓ Created minimal startup: ${insertName} (${startupId})`);
     }
     
-    // 2b. Seed signal score for new startups (derived from real GOD component scores)
-    if (isNew && startupId) {
-      try {
-        const godScore = startup?.total_god_score || 50;
-        // Derive signal from real GOD score: maps 40-100 → 5.5-9.5 range
-        // Floor at 40 (DB trigger), so normalize: (god - 35) / 65 → 0.08..1.0 → scale to 5.5..9.5
-        const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-        const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1)); // 5.5 min, 9.5 max
-        const factor = signalTotal / 7.0;  // center components around 1.0 at signal ~7.0
-        await supabase
-          .from('startup_signal_scores')
-          .upsert({
-            startup_id: startupId,
-            signals_total: signalTotal,
-            founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
-            investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
-            news_momentum: parseFloat((1.1 * factor).toFixed(1)),
-            capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
-            execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
-            as_of: new Date().toISOString(),
-          }, { onConflict: 'startup_id' });
-        console.log(`  ✓ Seeded signal score: ${signalTotal} (from real GOD ${godScore})`);
-      } catch (signalErr) {
-        console.warn(`  ⚠ Signal score seed failed (non-fatal):`, signalErr.message);
-      }
-    }
-
-    // 3. Check for existing matches (use cache if >= 20 matches)
-    const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';
-    const { count: existingMatchCount } = await supabase
-      .from('startup_investor_matches')
-      .select('*', { count: 'exact', head: true })
-      .eq('startup_id', startupId)
-      .eq('status', 'suggested');
-    
-    // Lower threshold from 100 to 20 - if startup has 20+ matches, use them
-    if (existingMatchCount && existingMatchCount >= 20 && !isNew && !forceGenerate) {
-      // Already has matches - return quickly
-      const { data: existingMatches } = await supabase
-        .from('startup_investor_matches')
-        .select(`
-          id, match_score, reasoning, created_at,
-          investors:investor_id (
-            id, name, firm, url, sectors, stage,
-            total_investments, active_fund_size, investment_thesis
-          )
-        `)
-        .eq('startup_id', startupId)
-        .eq('status', 'suggested')
-        .order('match_score', { ascending: false })
-        .limit(50);
-      
-      const processingTime = Date.now() - startTime;
-      console.log(`  ⚡ Returned ${existingMatchCount} existing matches in ${processingTime}ms`);
-      
-      // Log: skipped (existing matches)
-      void supabase.from('match_gen_logs').insert({
-        startup_id: startupId, event: 'skipped',
-        source: forceGenerate ? 'force' : 'rpc',
-        reason: 'existing_matches',
-        existing_match_count: existingMatchCount,
-        duration_ms: processingTime,
-      }).then(() => {}).catch(() => {});
-      
-      return sendResponse({
-        startup_id: startupId,
-        startup,
-        matches: existingMatches || [],
-        match_count: existingMatchCount,
-        is_new: false,
-        cached: true,
-        processing_time_ms: processingTime
-      });
-    }
-    
-    // 3b. Acquire idempotent lock — prevents thundering herd
-    //     Returns run_id (uuid) if acquired, NULL if denied
-    genSource = forceGenerate ? 'force' : (isNew ? 'new' : 'rpc');
-    const { data: matchRunId } = await supabase.rpc('try_start_match_gen', {
+    // Acquire lock + fire background
+    const genSource = isNew ? 'new' : 'rpc';
+    const { data: runId } = await supabase.rpc('try_start_match_gen', {
       p_startup_id: startupId,
       p_cooldown_minutes: 5,
     });
-    runId = matchRunId;
-    if (!runId && !forceGenerate) {
-      console.log(`  ⏳ Match generation already running for ${startupId} — returning early`);
-      
-      // Log: skipped (cooldown/locked)
-      void supabase.from('match_gen_logs').insert({
-        startup_id: startupId, event: 'skipped',
-        source: genSource, reason: 'cooldown',
-        existing_match_count: existingMatchCount || 0,
-        duration_ms: Date.now() - startTime,
-      }).then(() => {}).catch(() => {});
-      
-      return sendResponse({
-        startup_id: startupId,
-        startup,
-        matches: [],
-        match_count: existingMatchCount || 0,
-        is_new: false,
-        gen_in_progress: true,
-        processing_time_ms: Date.now() - startTime,
-      });
-    }
     
-    // Log: started
-    void supabase.from('match_gen_logs').insert({
-      startup_id: startupId, run_id: runId,
-      event: 'started', source: genSource,
-      existing_match_count: existingMatchCount || 0,
-    }).then(() => {}).catch(() => {});
-
-    // 4. Generate matches INSTANTLY (using cached investors)
-    console.log(`  ⚡ Generating instant matches...`);
+    // Fire background pipeline (no await!)
+    runBackgroundPipeline({
+      startupId, domain, inputRaw, genSource, runId, startTime
+    }).catch(e => console.error('[BG] Unhandled:', e.message));
     
-    // Load investors into cache (fast if already cached)
-    const allInvestors = await getInvestors(supabase);
-    
-    if (!allInvestors || allInvestors.length === 0) {
-      return sendResponse({
-        error: 'Failed to load investors',
-        details: 'No active investors found'
-      }, 500);
-    }
-    
-    // Get RELEVANT investors based on startup sectors (much faster!)
-    const startupSectors = Array.isArray(startup.sectors) ? startup.sectors : [];
-    const investors = getRelevantInvestors(startupSectors);
-    
-    console.log(`  ✓ Using ${investors.length}/${allInvestors.length} relevant investors (sectors: ${startupSectors.join(', ') || 'none'})`);
-    
-    // Calculate matches (only keep scores >= 40 for faster processing)
-    const matches = [];
-    for (const investor of investors) {
-      const score = calculateMatchScore(startup, investor);
-      
-      // Raise threshold from 20 to 40 - below 40 won't be shown anyway
-      if (score >= 40) {
-        matches.push({
-          startup_id: startupId,
-          investor_id: investor.id,
-          match_score: score,
-          reasoning: generateReasoning(startup, investor, score),
-          status: 'suggested',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          // Include investor data for response
-          _investor: investor
-        });
-      }
-    }
-    
-    console.log(`  ✓ Generated ${matches.length} matches (score >= 40)`);
-    
-    // 5. Store matches in database (async - don't wait)
-    if (matches.length > 0) {
-      // Start background insert (non-blocking)
-      const insertPromise = (async () => {
-        // Delete old matches first
-        await supabase
-          .from('startup_investor_matches')
-          .delete()
-          .eq('startup_id', startupId);
-        
-        // Insert new matches in batches
-        const dbMatches = matches.map(m => ({
-          startup_id: m.startup_id,
-          investor_id: m.investor_id,
-          match_score: m.match_score,
-          reasoning: m.reasoning,
-          status: m.status,
-          created_at: m.created_at,
-          updated_at: m.updated_at
-        }));
-        
-        const batchSize = 500; // Larger batches for fewer round trips
-        for (let i = 0; i < dbMatches.length; i += batchSize) {
-          const batch = dbMatches.slice(i, i + batchSize);
-          const { error: batchErr } = await supabase
-            .from('startup_investor_matches')
-            .insert(batch);
-          
-          if (batchErr) {
-            console.error(`  ⚠ Batch ${i}/${dbMatches.length} error:`, batchErr.message);
-          }
-        }
-        console.log(`  ✓ Background insert complete: ${dbMatches.length} matches`);
-        // Count actual saved matches (may differ from inserted due to uniqueness)
-        const { count: savedCount } = await supabase
-          .from('startup_investor_matches')
-          .select('id', { count: 'exact', head: true })
-          .eq('startup_id', startupId);
-        // Mark generation complete (safe: requires matching run_id)
-        await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId });
-        // Log: completed
-        const genDuration = Date.now() - startTime;
-        void supabase.from('match_gen_logs').insert({
-          startup_id: startupId, run_id: runId,
-          event: 'completed', source: genSource,
-          candidate_investor_count: investors.length,
-          inserted_count: dbMatches.length,
-          top_saved_count: savedCount || dbMatches.length,
-          duration_ms: genDuration,
-        }).then(() => {}).catch(() => {});
-      })();
-      
-      // Wait only 500ms max for inserts, then return
-      // The rest will complete in background
-      await Promise.race([
-        insertPromise,
-        new Promise(resolve => setTimeout(resolve, 500))
-      ]);
-    }
-    
-    // 6. Log to ai_logs
-    const processingTime = Date.now() - startTime;
-    
-    await supabase.from('ai_logs').insert({
-      log_type: 'instant_submit',
-      action_type: 'process',
-      input_data: { url: inputRaw, urlNormalized, domain },
-      output_data: {
-        startup_id: startupId,
-        match_count: matches.length,
-        is_new: isNew,
-        processing_time_ms: processingTime
-      },
-      created_at: new Date().toISOString()
-    });
-    
-    // 7. Return matches with investor data (sorted by score)
-    const sortedMatches = matches
-      .sort((a, b) => b.match_score - a.match_score)
-      .slice(0, 50) // Top 50
-      .map(m => ({
-        id: m.investor_id, // Use investor ID as match ID for frontend
-        match_score: m.match_score,
-        reasoning: m.reasoning,
-        created_at: m.created_at,
-        investors: m._investor
-      }));
-    
-    // 8. Save to temp_match_sessions for returning users (30 day retention)
+    // Save session pointer
     const sessionId = req.body?.session_id || req.headers['x-session-id'];
     if (sessionId) {
-      const top5 = sortedMatches.slice(0, 5);
-      const top5Ids = top5.map(m => m.investors?.id).filter(Boolean);
-      const top5Names = top5.map(m => m.investors?.name || 'Unknown').filter(Boolean);
-      
-      // Save session (async, don't wait)
-      supabase.from('temp_match_sessions').insert({
+      void supabase.from('temp_match_sessions').insert({
         session_id: sessionId,
         startup_id: startupId,
         startup_name: startup?.name,
         startup_website: startup?.website,
         input_url: inputRaw,
-        matches: sortedMatches,
-        match_count: matches.length,
-        top_5_investor_ids: top5Ids,
-        top_5_investor_names: top5Names,
+        matches: [],
+        match_count: 0,
+        top_5_investor_ids: [],
+        top_5_investor_names: [],
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-      }).then(({ error }) => {
-        if (error) console.warn(`  ⚠ Session save failed: ${error.message}`);
-        else console.log(`  ✓ Session saved: ${sessionId.slice(0, 8)}...`);
-      });
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      }).then(() => {}).catch(() => {});
     }
     
-    console.log(`  ⚡ COMPLETE in ${processingTime}ms - ${matches.length} matches`);
+    const processingTime = Date.now() - startTime;
+    console.log(`  ⚡ Early return (new startup) in ${processingTime}ms — background pipeline started`);
     
-    return sendResponse({
+    return res.json({
       startup_id: startupId,
       startup,
-      matches: sortedMatches,
-      match_count: matches.length,
-      is_new: isNew,
-      cached: false,
+      matches: [],
+      match_count: 0,
+      is_new: true,
+      gen_in_progress: true,
       processing_time_ms: processingTime
     });
     
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
-    clearTimeout(safetyTimer);
-    // Release idempotency lock on failure
-    if (startupId) {
-      void supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
-      void supabase.from('match_gen_logs').insert({
-        startup_id: startupId, run_id: runId,
-        event: 'failed', source: genSource,
-        reason: err.message,
-        duration_ms: Date.now() - startTime,
-      }).then(() => {}).catch(() => {});
-    }
-    return sendResponse({
+    return res.status(500).json({
       error: 'Processing failed',
       details: err.message
-    }, 500);
+    });
   }
 });
 
