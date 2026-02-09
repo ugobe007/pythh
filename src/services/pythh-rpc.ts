@@ -64,8 +64,19 @@ export const pythhRpc = {
 
   // Resolve startup by URL or name
   // DELEGATES to unified submitStartup() service — single source of truth
+  // Hard 10s safety timeout prevents UI from ever blocking indefinitely
   async resolveStartup(url: string, forceGenerate = false): Promise<ResolverResponse> {
-    const result = await unifiedSubmit(url, { forceGenerate });
+    const HARD_TIMEOUT = 10_000;
+    const resultPromise = unifiedSubmit(url, { forceGenerate });
+    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), HARD_TIMEOUT));
+
+    const result = await Promise.race([resultPromise, timeoutPromise]);
+
+    if (!result) {
+      console.error('[pythhRpc] resolveStartup HARD TIMEOUT after 10s for:', url);
+      return { found: false, searched: url };
+    }
+
     return {
       found: result.status !== 'not_found' && result.status !== 'error',
       startup_id: result.startup_id ?? undefined,

@@ -177,7 +177,7 @@ export async function submitStartup(
       signal: combinedSignal,
     });
 
-    const TIMEOUT_MS = 8_000;
+    const TIMEOUT_MS = 5_000; // Backend returns in ~2s; 5s is generous
     const timeoutPromise = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
 
     const raceResult = await Promise.race([
@@ -217,9 +217,13 @@ export async function submitStartup(
       };
     }
 
-    // ── TIMEOUT: Backend still working — check DB for early result ──────
-    console.log('[submitStartup] Backend slow (>8s) — checking DB for early result');
-    // Don't abort the backend — let it finish in background
+    // ── TIMEOUT: Backend still working — abort fetch, check DB ──────────
+    console.log('[submitStartup] Backend slow (>8s) — aborting fetch, checking DB');
+    // ABORT the fetch immediately — never block UI waiting for backend.
+    // Backend has early-return architecture; if it hasn't responded in 8s
+    // something is wrong. The background pipeline will still complete.
+    fetchController.abort();
+
     try {
       const { data } = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
       const row = Array.isArray(data) ? data[0] : data;
@@ -233,24 +237,10 @@ export async function submitStartup(
           searched,
         };
       }
-    } catch { /* ignore — still waiting */ }
+    } catch { /* ignore */ }
 
-    // Backend hasn't created it yet — wait for the full response
-    const response = await fetchPromise;
-    if (response.ok) {
-      const result = await response.json();
-      if (result.startup_id) {
-        return {
-          status: 'created',
-          startup_id: result.startup_id,
-          name: result.startup?.name || result.name || null,
-          website: result.startup?.website || result.website || null,
-          match_count: result.match_count || 0,
-          searched,
-        };
-      }
-    }
-
+    // Backend hasn't created the startup yet — return not_found.
+    // User can retry; SignalMatches will show appropriate UI.
     return {
       status: 'not_found',
       startup_id: null,
@@ -258,7 +248,7 @@ export async function submitStartup(
       website: null,
       match_count: 0,
       searched,
-      error: 'Startup could not be created',
+      error: 'Request timed out — please try again',
     };
   } catch (e: any) {
     if (e?.name === 'AbortError') {
