@@ -155,8 +155,15 @@ export async function submitStartup(
   }
 
   // ── STEP 2: Slow path — Express backend (scrape + score + match) ─────────
+  // Race the backend call against a timeout. If backend takes > 8s, check the
+  // DB directly (backend may have created the startup but still be matching).
   try {
-    const response = await fetch('/api/instant/submit', {
+    const fetchController = new AbortController();
+    const combinedSignal = signal
+      ? (AbortSignal as any).any?.([signal, fetchController.signal]) ?? fetchController.signal
+      : fetchController.signal;
+
+    const fetchPromise = fetch('/api/instant/submit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -167,9 +174,67 @@ export async function submitStartup(
         session_id: sessionId,
         force_generate: forceGenerate,
       }),
-      signal,
+      signal: combinedSignal,
     });
 
+    const TIMEOUT_MS = 8_000;
+    const timeoutPromise = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
+
+    const raceResult = await Promise.race([
+      fetchPromise.then(r => ({ type: 'response' as const, response: r })),
+      timeoutPromise.then(() => ({ type: 'timeout' as const })),
+    ]);
+
+    if (raceResult.type === 'response') {
+      const response = raceResult.response;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.startup_id) {
+          return {
+            status: 'created',
+            startup_id: result.startup_id,
+            name: result.startup?.name || result.name || null,
+            website: result.startup?.website || result.website || null,
+            match_count: result.match_count || 0,
+            searched,
+          };
+        }
+      }
+
+      // Non-OK response
+      const errText = await response.text().catch(() => '');
+      console.error('[submitStartup] Backend returned', response.status, errText);
+      return {
+        status: 'not_found',
+        startup_id: null,
+        name: null,
+        website: null,
+        match_count: 0,
+        searched,
+        error: `Backend returned ${response.status}`,
+      };
+    }
+
+    // ── TIMEOUT: Backend still working — check DB for early result ──────
+    console.log('[submitStartup] Backend slow (>8s) — checking DB for early result');
+    // Don't abort the backend — let it finish in background
+    try {
+      const { data } = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row?.startup_id) {
+        return {
+          status: 'generating',
+          startup_id: row.startup_id,
+          name: row.startup_name ?? null,
+          website: row.canonical_url ?? null,
+          match_count: row.match_count ?? 0,
+          searched,
+        };
+      }
+    } catch { /* ignore — still waiting */ }
+
+    // Backend hasn't created it yet — wait for the full response
+    const response = await fetchPromise;
     if (response.ok) {
       const result = await response.json();
       if (result.startup_id) {
@@ -184,9 +249,6 @@ export async function submitStartup(
       }
     }
 
-    // Non-OK response
-    const errText = await response.text().catch(() => '');
-    console.error('[submitStartup] Backend returned', response.status, errText);
     return {
       status: 'not_found',
       startup_id: null,
@@ -194,7 +256,7 @@ export async function submitStartup(
       website: null,
       match_count: 0,
       searched,
-      error: `Backend returned ${response.status}`,
+      error: 'Startup could not be created',
     };
   } catch (e: any) {
     if (e?.name === 'AbortError') {

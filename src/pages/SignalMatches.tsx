@@ -1009,12 +1009,12 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
         const godScore = s.total_god_score || 50;
         
         // Derive Signal Score (0-10) from GOD components + match velocity
-        // This is a proxy until we have real signal infrastructure
+        // Maps GOD 40-100 → signal 5.5-9.5, with match velocity bonus
         const matchCount = countMap.get(s.id) || 0;
-        const signalBase = (godScore / 100) * 6; // Base from GOD (0-6)
-        const matchBonus = Math.min(matchCount / 10, 2); // Match velocity bonus (0-2)
-        const variance = (Math.random() - 0.5) * 2; // Some variance (±1)
-        const signalScore = Math.max(0, Math.min(10, signalBase + matchBonus + variance));
+        const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
+        const signalBase = 5.5 + normalized * 4.0; // 5.5-9.5 range
+        const matchBonus = Math.min(matchCount / 50, 0.5); // Match velocity bonus (0-0.5)
+        const signalScore = Math.max(5.0, Math.min(10, signalBase + matchBonus));
         
         // Derive YC++ Score (0-100) from GOD + category premium
         // Elite VCs favor: high traction, strong teams, hot sectors

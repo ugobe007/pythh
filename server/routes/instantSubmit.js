@@ -684,9 +684,11 @@ router.post('/submit', async (req, res) => {
     if (isNew && startupId) {
       try {
         const godScore = startup?.total_god_score || 50;
-        // Derive signal from real GOD score: maps 40-100 → ~3.4-8.5 range
-        const signalTotal = Math.min(10, Math.max(3, parseFloat((godScore / 100 * 10 * 0.85).toFixed(1))));
-        const factor = signalTotal / 5.5;
+        // Derive signal from real GOD score: maps 40-100 → 5.5-9.5 range
+        // Floor at 40 (DB trigger), so normalize: (god - 35) / 65 → 0.08..1.0 → scale to 5.5..9.5
+        const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
+        const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1)); // 5.5 min, 9.5 max
+        const factor = signalTotal / 7.0;  // center components around 1.0 at signal ~7.0
         await supabase
           .from('startup_signal_scores')
           .upsert({
