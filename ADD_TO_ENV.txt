@@ -20,3 +20,8 @@ APP_BASE_URL=https://hot-honey.fly.dev
 # Generate with: openssl rand -hex 32
 EMAIL_SECRET=your-random-secret-key-change-in-production
 
+# ============================================================
+# ORACLE AI INSIGHTS - OpenAI Integration
+# ============================================================
+# Get your API key at https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx

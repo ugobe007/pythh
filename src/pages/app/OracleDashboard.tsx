@@ -34,22 +34,30 @@ import {
   BookOpen,
 } from 'lucide-react';
 import {
-  getOracleDashboard,
+  getOrCreateActiveSession,
+  listActions,
+  listInsights,
   updateActionStatus,
-  type OracleDashboard,
+  generateDemoActions,
+  generateDemoInsights,
+  generateAIInsights,
+  type OracleSession,
   type OracleAction,
   type OracleInsight,
-  ORACLE_STEPS,
-} from '../../services/oracleService';
+} from '../../services/oracleApiService';
 import { useOracleStartupId } from '../../hooks/useOracleStartupId';
 
 export default function OracleDashboardPage() {
   const navigate = useNavigate();
   const startupId = useOracleStartupId();
 
-  const [dashboard, setDashboard] = useState<OracleDashboard | null>(null);
+  const [session, setSession] = useState<OracleSession | null>(null);
+  const [actions, setActions] = useState<OracleAction[]>([]);
+  const [insights, setInsights] = useState<OracleInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [generatingDemo, setGeneratingDemo] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
 
   useEffect(() => {
     if (!startupId) {
@@ -57,14 +65,73 @@ export default function OracleDashboardPage() {
       setLoading(false);
       return;
     }
-    getOracleDashboard(startupId)
-      .then(setDashboard)
+    
+    // Load session, actions, and insights in parallel
+    Promise.all([
+      getOrCreateActiveSession(startupId).catch(() => null),
+      listActions({ startup_id: startupId }).catch(() => []),
+      listInsights({ startup_id: startupId }).catch(() => []),
+    ])
+      .then(([sessionData, actionsData, insightsData]) => {
+        setSession(sessionData);
+        setActions(actionsData);
+        setInsights(insightsData);
+      })
       .catch((e) => {
         console.warn('Oracle dashboard load failed, showing landing:', e.message);
         // Don't set error — show landing instead
       })
       .finally(() => setLoading(false));
   }, [startupId]);
+
+  // Generate demo data
+  const handleGenerateDemo = async () => {
+    if (!session || generatingDemo) return;
+    
+    setGeneratingDemo(true);
+    try {
+      // Generate demo actions and insights in parallel
+      await Promise.all([
+        generateDemoActions(session.id),
+        generateDemoInsights(session.id),
+      ]);
+      
+      // Refresh data
+      const [newActions, newInsights] = await Promise.all([
+        listActions({ startup_id: startupId }),
+        listInsights({ startup_id: startupId }),
+      ]);
+      
+      setActions(newActions);
+      setInsights(newInsights);
+    } catch (e: any) {
+      console.error('Failed to generate demo data:', e);
+      setError(e.message);
+    } finally {
+      setGeneratingDemo(false);
+    }
+  };
+
+  // Generate AI insights
+  const handleGenerateAI = async () => {
+    if (!session || !startupId || generatingAI) return;
+    
+    setGeneratingAI(true);
+    try {
+      const newInsights = await generateAIInsights(session.id, startupId);
+      
+      // Refresh insights list
+      const allInsights = await listInsights({ startup_id: startupId });
+      setInsights(allInsights);
+      
+      console.log('✅ Generated', newInsights.length, 'AI insights');
+    } catch (e: any) {
+      console.error('Failed to generate AI insights:', e);
+      setError(e.message);
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -75,17 +142,12 @@ export default function OracleDashboardPage() {
   }
 
   // No startup or failed to load → show the Oracle landing / exploration mode
-  if (!dashboard) {
+  if (!session) {
     return <OracleLanding navigate={navigate} />;
   }
 
-  const hasSession = !!dashboard.session;
-  const sessionComplete = dashboard.session?.status === 'completed';
-  const wizardProgress = dashboard.session?.steps
-    ? Math.round(
-        (dashboard.session.steps.filter((s) => s.status === 'completed').length / ORACLE_STEPS.length) * 100,
-      )
-    : 0;
+  const sessionComplete = session.status === 'completed';
+  const wizardProgress = session.progress_percentage || 0;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -102,21 +164,65 @@ export default function OracleDashboardPage() {
                 <p className="text-xs text-white/40">Signal coaching & investor alignment</p>
               </div>
             </div>
-            <SignalScoreBadge score={dashboard.signal_score} />
+            <div className="flex items-center gap-4">
+              {/* Demo Data Button */}
+              {actions.length === 0 && insights.length === 0 && (
+                <button
+                  onClick={handleGenerateDemo}
+                  disabled={generatingDemo}
+                  className="flex items-center gap-2 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 px-4 py-2 rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingDemo ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4" />
+                      Generate Demo Data
+                    </>
+                  )}
+                </button>
+              )}
+              
+              {/* AI Insights Button - show when session exists */}
+              {session && session.progress_percentage > 0 && (
+                <button
+                  onClick={handleGenerateAI}
+                  disabled={generatingAI}
+                  className="flex items-center gap-2 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-4 py-2 rounded-xl text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingAI ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-4 h-4" />
+                      Generate AI Insights
+                    </>
+                  )}
+                </button>
+              )}
+              
+              <SignalScoreBadge score={session.signal_score || 0} />
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         {/* Signal Score Hero */}
-        <SignalScoreHero score={dashboard.signal_score} />
+        <SignalScoreHero score={session.signal_score || 0} />
 
         {/* Wizard CTA */}
         <WizardCard
-          hasSession={hasSession}
+          hasSession={true}
           sessionComplete={sessionComplete}
           wizardProgress={wizardProgress}
-          currentStep={dashboard.session?.current_step || 1}
+          currentStep={session.current_step || 1}
           startupId={startupId || ''}
           navigate={navigate}
         />
@@ -125,19 +231,18 @@ export default function OracleDashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Signal Actions */}
           <ActionsCard
-            actions={dashboard.actions}
+            actions={actions}
             startupId={startupId || ''}
             onUpdate={async (id, status) => {
               await updateActionStatus(id, status);
-              if (startupId) {
-                const updated = await getOracleDashboard(startupId);
-                setDashboard(updated);
-              }
+              // Refresh actions list
+              const updated = await listActions({ startup_id: startupId });
+              setActions(updated);
             }}
           />
 
           {/* AI Insights */}
-          <InsightsCard insights={dashboard.insights} />
+          <InsightsCard insights={insights} />
         </div>
 
         {/* Cohort */}

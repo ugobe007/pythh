@@ -4958,6 +4958,10 @@ app.use('/api/discovery', discoveryResults);
 app.use('/api/discovery', deltaResults);
 app.use('/api/discovery', discoveryDiagnostic);
 
+// Oracle API routes
+const oracleRouter = require('./routes/oracle');
+app.use('/api/oracle', oracleRouter);
+
 // Startup API routes (including signal history)
 const startupsRouter = require('./routes/startups');
 app.use('/api/startups', startupsRouter);

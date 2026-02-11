@@ -59,6 +59,11 @@ import OracleVCStrategy from "./pages/app/OracleVCStrategy";
 import OraclePredictions from "./pages/app/OraclePredictions";
 import OracleCoaching from "./pages/app/OracleCoaching";
 
+// Signal navigation tools (premium features)
+import SignalPlaybook from "./pages/app/SignalPlaybook";
+import PitchSignalScan from "./pages/app/PitchSignalScan";
+import FundraisingTimingMap from "./pages/app/FundraisingTimingMap";
+
 // Core matching UI
 import MatchingEngine from "./components/MatchingEngine";
 
@@ -83,6 +88,13 @@ import FounderProfileDashboard from "./pages/FounderProfileDashboard";
 import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+
+// Explore
+import ExplorePage from "./pages/ExplorePage";
+
+// Commercial pages
+import PricingPage from "./pages/PricingPage";
+import ValuePage from "./pages/ValuePage";
 
 // Shared dashboard views (public, read-only)
 import SharedDashboardView from "./pages/SharedDashboardView";
@@ -151,6 +163,9 @@ const App: React.FC = () => {
           <Route path="/rankings" element={<SignalTrends />} />
           <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
 
+          {/* Explore — startup search by name/sector/stage */}
+          <Route path="/explore" element={<ExplorePage />} />
+
           {/* Optional preserved pages */}
           <Route element={<PublicLayout />}>
             <Route path="/live" element={<Live />} />
@@ -180,6 +195,10 @@ const App: React.FC = () => {
           <Route path="/profile/account" element={<ProfilePage />} />
           <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
           <Route path="/settings" element={<Settings />} />
+
+          {/* Commercial pages */}
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/value" element={<ValuePage />} />
 
           {/* Shared dashboard views (public, read-only — no auth required) */}
           <Route path="/s/:shareId" element={<SharedDashboardView />} />
@@ -217,6 +236,11 @@ const App: React.FC = () => {
             <Route path="oracle/vc-strategy" element={<OracleVCStrategy />} />
             <Route path="oracle/predictions" element={<OraclePredictions />} />
             <Route path="oracle/coaching" element={<OracleCoaching />} />
+
+            {/* Signal navigation tools (premium) */}
+            <Route path="playbook" element={<SignalPlaybook />} />
+            <Route path="pitch-scan" element={<PitchSignalScan />} />
+            <Route path="timing-map" element={<FundraisingTimingMap />} />
           </Route>
 
           {/* ──────────────────────────────────────────────────────────────
