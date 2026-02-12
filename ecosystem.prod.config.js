@@ -326,6 +326,38 @@ module.exports = {
     },
 
     // ========================================
+    // ORACLE RETENTION SYSTEM
+    // ========================================
+    {
+      name: 'oracle-weekly-refresh',
+      interpreter: TSX,
+      exec_mode: 'fork',
+      script: 'server/jobs/oracle-weekly-refresh.js',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 3,
+      cron_restart: '0 20 * * 0', // Sunday 8pm
+      env: { NODE_ENV: 'production' }
+    },
+    {
+      name: 'oracle-digest-sender',
+      interpreter: TSX,
+      exec_mode: 'fork',
+      script: 'server/jobs/oracle-digest-sender.js',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 3,
+      cron_restart: '0 9 * * 1', // Monday 9am
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // HEALTH MONITORING
     // ========================================
     {
