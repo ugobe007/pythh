@@ -502,6 +502,30 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
 // ============================================================================
 // BACKGROUND PIPELINE — heavy work runs AFTER HTTP response
 // ============================================================================
+// Concurrency limiter: max 1 pipeline at a time to avoid event loop starvation
+let activePipelineCount = 0;
+const MAX_CONCURRENT_PIPELINES = 1;
+const pipelineQueue = [];
+
+function startBackgroundPipeline(args) {
+  if (activePipelineCount >= MAX_CONCURRENT_PIPELINES) {
+    console.log(`  ⏳ [BG] Pipeline queued for ${args.domain} (active=${activePipelineCount})`);
+    pipelineQueue.push(args);
+    return;
+  }
+  activePipelineCount++;
+  runBackgroundPipeline(args)
+    .catch(e => console.error(`[BG] Pipeline error: ${e.message}`))
+    .finally(() => {
+      activePipelineCount--;
+      if (pipelineQueue.length > 0) {
+        const next = pipelineQueue.shift();
+        console.log(`  ▶️ [BG] Dequeuing pipeline for ${next.domain}`);
+        setTimeout(() => startBackgroundPipeline(next), 100);
+      }
+    });
+}
+
 async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, runId, startTime }) {
   const fullUrl = inputRaw.startsWith('http') ? inputRaw : `https://${domain}`;
   const displayName = domainToName(domain);
@@ -941,9 +965,9 @@ router.post('/submit', async (req, res) => {
           });
           if (runId) {
             // Defer so HTTP response flushes first
-            setTimeout(() => runBackgroundPipeline({
+            setTimeout(() => startBackgroundPipeline({
               startupId, domain, inputRaw, genSource: 'stale_regen', runId, startTime
-            }).catch(e => console.error('[BG] Stale regen error:', e.message)), 50);
+            }), 50);
           }
         }
         
@@ -979,9 +1003,9 @@ router.post('/submit', async (req, res) => {
         
         if (runId || forceGenerate) {
           // Defer so HTTP response flushes first
-          setTimeout(() => runBackgroundPipeline({
+          setTimeout(() => startBackgroundPipeline({
             startupId, domain, inputRaw, genSource, runId, startTime
-          }).catch(e => console.error('[BG] Unhandled:', e.message)), 50);
+          }), 50);
         }
         
         const processingTime = Date.now() - startTime;
@@ -1085,9 +1109,9 @@ router.post('/submit', async (req, res) => {
     });
     
     // Defer so HTTP response flushes first
-    setTimeout(() => runBackgroundPipeline({
+    setTimeout(() => startBackgroundPipeline({
       startupId, domain, inputRaw, genSource, runId, startTime
-    }).catch(e => console.error('[BG] Unhandled:', e.message)), 50);
+    }), 50);
     
     // Save session pointer
     const sessionId = req.body?.session_id || req.headers['x-session-id'];
