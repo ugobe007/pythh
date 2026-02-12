@@ -173,8 +173,8 @@ export default function InvestorSignupPythh() {
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
                     placeholder="Jane Smith"
+                    autoComplete="off"
                     className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-700 focus:border-zinc-600 focus:outline-none transition-colors"
-                    autoFocus
                   />
                 </div>
 
@@ -185,6 +185,7 @@ export default function InvestorSignupPythh() {
                     value={formData.email}
                     onChange={e => setFormData({...formData, email: e.target.value})}
                     placeholder="jane@firm.com"
+                    autoComplete="off"
                     className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-700 focus:border-zinc-600 focus:outline-none transition-colors"
                   />
                 </div>
@@ -197,6 +198,7 @@ export default function InvestorSignupPythh() {
                       value={formData.firm}
                       onChange={e => setFormData({...formData, firm: e.target.value})}
                       placeholder="Acme Ventures"
+                      autoComplete="off"
                       className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-700 focus:border-zinc-600 focus:outline-none transition-colors"
                     />
                   </div>
@@ -207,6 +209,7 @@ export default function InvestorSignupPythh() {
                       value={formData.title}
                       onChange={e => setFormData({...formData, title: e.target.value})}
                       placeholder="Partner"
+                      autoComplete="off"
                       className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm placeholder-zinc-700 focus:border-zinc-600 focus:outline-none transition-colors"
                     />
                   </div>

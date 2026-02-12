@@ -206,7 +206,6 @@ const SavedItemRow: React.FC<{
                   className="w-full bg-[#1c1c1c] border border-[#3a3a3a] rounded px-3 py-2 text-sm text-white placeholder-[#5f5f5f] focus:outline-none focus:border-[#3ECF8E] resize-none"
                   rows={3}
                   placeholder="Add your notes..."
-                  autoFocus
                 />
                 <div className="flex gap-2">
                   <button

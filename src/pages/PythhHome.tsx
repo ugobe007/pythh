@@ -340,6 +340,7 @@ export default function PythhHome() {
             }}
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder="https://yourstartup.com"
+            autoComplete="off"
             className="flex-1 bg-zinc-900/80 border border-cyan-900/50 rounded-l px-4 py-3 text-white placeholder-zinc-600 outline-none focus:border-cyan-700/50"
           />
           <button

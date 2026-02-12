@@ -291,8 +291,8 @@ export default function HomePage() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="Paste your website"
+                autoComplete="off"
                 className="w-full px-6 py-4 bg-[#111] border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 text-lg text-center"
-                autoFocus
               />
               <button
                 type="submit"

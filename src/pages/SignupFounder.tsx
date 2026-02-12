@@ -161,9 +161,9 @@ export default function SignupFounder() {
                   placeholder="you@startup.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="off"
                   className="w-full pl-11 pr-4 py-3 bg-[#0a0a0a] border border-gray-700 rounded-xl text-white placeholder-gray-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 outline-none transition-all"
                   required
-                  autoFocus
                 />
               </div>
             </div>

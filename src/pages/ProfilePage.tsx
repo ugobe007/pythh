@@ -256,8 +256,8 @@ export default function ProfilePage() {
                         value={editName}
                         onChange={e => setEditName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                        autoComplete="off"
                         className="bg-white/5 border border-white/20 rounded-lg px-3 py-1.5 text-white text-lg font-semibold focus:outline-none focus:border-cyan-500/50 w-full max-w-[240px]"
-                        autoFocus
                         maxLength={100}
                       />
                       <button

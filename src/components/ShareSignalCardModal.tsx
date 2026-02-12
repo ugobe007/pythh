@@ -400,7 +400,7 @@ export default function ShareSignalCardModal({ isOpen, onClose, item }: ShareSig
                     value={newCollectionName}
                     onChange={(e) => setNewCollectionName(e.target.value)}
                     placeholder="Collection name..."
-                    autoFocus
+                    autoComplete="off"
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
                   />
                   <div className="flex gap-2">

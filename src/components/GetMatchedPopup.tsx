@@ -128,8 +128,8 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://yourstartup.com"
+                autoComplete="off"
                 className="w-full px-4 py-3 bg-black/50 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all"
-                autoFocus
               />
             </div>
             
