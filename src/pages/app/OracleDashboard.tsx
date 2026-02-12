@@ -552,6 +552,7 @@ function getNextMilestone(
 
   // All milestones unlocked
   return null;
+}
 
 // ---------------------------------------------------------------------------
 // Sub-Components
