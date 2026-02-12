@@ -47,10 +47,12 @@ module.exports = {
       cwd: '/app',
       instances: 1,
       autorestart: true,
-      max_restarts: 10,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 30000,
       watch: false,
       max_memory_restart: '400M',
-      cron_restart: '0 */1 * * *',
+      cron_restart: '0 */2 * * *',  // Every 2 hours (prevents connection storms)
       env: { NODE_ENV: 'production' }
     },
     {
@@ -61,10 +63,12 @@ module.exports = {
       cwd: '/app',
       instances: 1,
       autorestart: true,
-      max_restarts: 10,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 30000,
       watch: false,
       max_memory_restart: '400M',
-      cron_restart: '*/15 * * * *',
+      cron_restart: '0 */1 * * *',  // Every hour (was every 15min — too aggressive)
       env: { NODE_ENV: 'production' }
     },
     {
@@ -77,10 +81,10 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '512M',
-      max_restarts: 10,
+      max_restarts: 3,
       min_uptime: '30s',
       restart_delay: 60000,
-      cron_restart: '0 */1 * * *',
+      cron_restart: '0 */2 * * *',  // Every 2 hours (prevents connection storms)
       env: { NODE_ENV: 'production' }
     },
     {
@@ -120,10 +124,10 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '400M',
-      max_restarts: 10,
-      min_uptime: '10s',
-      restart_delay: 30000,
-      cron_restart: '*/30 * * * *',
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 60000,
+      cron_restart: '0 */1 * * *',  // Every hour (was every 30min)
       env: { NODE_ENV: 'production' }
     },
 
@@ -152,7 +156,9 @@ module.exports = {
       cwd: '/app',
       instances: 1,
       autorestart: true,
-      max_restarts: 10,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 30000,
       watch: false,
       max_memory_restart: '400M',
       env: { NODE_ENV: 'production' }
@@ -170,10 +176,12 @@ module.exports = {
       cwd: '/app',
       instances: 1,
       autorestart: true,
-      max_restarts: 10,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 30000,
       watch: false,
       max_memory_restart: '400M',
-      cron_restart: '0 */2 * * *',
+      cron_restart: '0 */4 * * *',  // Every 4 hours (was 2)
       env: {
         NODE_ENV: 'production',
         ML_TRAINING_SCHEDULE: '0 */2 * * *'
