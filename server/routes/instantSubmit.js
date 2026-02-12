@@ -509,40 +509,97 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
   try {
     console.log(`  🔄 [BG] Starting background pipeline for ${startupId} (${domain})`);
     
-    // ── STEP 1: Fetch website content (5s hard timeout via AbortController) ──
+    // =========================================================================
+    // PHASE 1: FAST MATCHES (~3-5s) — Generate matches with placeholder data
+    // so the user sees results immediately while enrichment runs
+    // =========================================================================
+    const phase1Start = Date.now();
+    
+    // Load investors (cached after first call)
+    const allInvestors = await getInvestors(supabase);
+    if (!allInvestors || allInvestors.length === 0) {
+      console.error(`  🔄 [BG] No investors loaded — aborting`);
+      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
+      return;
+    }
+    
+    // Quick match with placeholder data (sectors=['Technology'], god_score=50)
+    const placeholderStartup = {
+      id: startupId,
+      name: displayName,
+      sectors: ['Technology'],
+      stage: 1,
+      total_god_score: 50,
+    };
+    
+    const quickInvestors = getRelevantInvestors(['Technology']);
+    const quickMatches = [];
+    for (const investor of quickInvestors) {
+      const result = calculateMatchScore(placeholderStartup, investor, 0, investor.signals || null);
+      if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+        quickMatches.push({
+          startup_id: startupId,
+          investor_id: investor.id,
+          match_score: result.score,
+          reasoning: generateReasoning(placeholderStartup, investor, result.fitAnalysis),
+          fit_analysis: result.fitAnalysis,
+          confidence_level: result.confidence,
+          why_you_match: generateWhyYouMatch(placeholderStartup, investor, result.fitAnalysis),
+          status: 'suggested',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+    quickMatches.sort((a, b) => b.match_score - a.match_score);
+    const fastMatches = quickMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
+    
+    // Insert fast matches so frontend picks them up on next poll (~3s)
+    if (fastMatches.length > 0) {
+      await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+      const { error: fastErr } = await supabase
+        .from('startup_investor_matches')
+        .insert(fastMatches);
+      if (fastErr) console.error(`  🔄 [BG] Fast match insert error: ${fastErr.message}`);
+    }
+    
+    console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
+    
+    // =========================================================================
+    // PHASE 2: ENRICHMENT (~5-15s) — Scrape, infer, score, re-match
+    // Matches are already visible; this refines them with real data
+    // =========================================================================
+    
+    // ── Fetch website content (3s hard timeout) ──
     let websiteContent = null;
     try {
-      const ac = new AbortController();
-      const t = setTimeout(() => ac.abort(), 5000);
-      try {
-        const response = await axios.get(fullUrl, {
+      const response = await Promise.race([
+        axios.get(fullUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           },
-          timeout: 5000,
+          timeout: 3000,
           maxRedirects: 3,
-          signal: ac.signal,
-        });
-        websiteContent = response.data
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-          .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .substring(0, 15000);
-        console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
-      } finally {
-        clearTimeout(t);
-      }
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), 3500))
+      ]);
+      websiteContent = response.data
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 15000);
+      console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
     } catch (fetchErr) {
       console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
     }
 
-    // ── STEP 2: Inference engine (free, instant) ──
+    // ── Inference engine (free, instant) ──
     let inferenceData = null;
     let dataTier = 'C';
     if (websiteContent && websiteContent.length >= 50) {
@@ -553,26 +610,22 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     }
 
-    // ── STEP 3: Scraper fallback chain (only for Tier C, bounded) ──
+    // ── AI scraper fallback (ONLY for Tier C, hard 8s race timeout) ──
     let aiData = null;
     if (dataTier === 'C') {
-      // GPT-4o scraper (5s)
       try {
-        const ac2 = new AbortController();
-        const t2 = setTimeout(() => ac2.abort(), 5000);
-        try {
-          const scrapeResult = await scrapeAndScoreStartup(fullUrl);
-          aiData = scrapeResult.data;
-          const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
-          dataTier = hasSomeAI ? 'B' : 'C';
-        } finally {
-          clearTimeout(t2);
-        }
+        const scrapeResult = await Promise.race([
+          scrapeAndScoreStartup(fullUrl),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('AI scraper timeout (8s)')), 8000))
+        ]);
+        aiData = scrapeResult?.data;
+        const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
+        dataTier = hasSomeAI ? 'B' : 'C';
       } catch (aiErr) {
-        console.warn(`  🔄 [BG] AI scraper failed: ${aiErr.message}`);
+        console.warn(`  🔄 [BG] AI scraper skipped: ${aiErr.message}`);
       }
 
-      // DynamicParser fallback (5s)
+      // DynamicParser fallback (only if still Tier C, 5s)
       if (dataTier === 'C') {
         try {
           const DynamicParser = require('../../lib/dynamic-parser');
@@ -593,12 +646,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             dataTier = 'B';
           }
         } catch (dpErr) {
-          console.warn(`  🔄 [BG] DynamicParser failed: ${dpErr.message}`);
+          console.warn(`  🔄 [BG] DynamicParser skipped: ${dpErr.message}`);
         }
       }
     }
 
-    // ── STEP 4: Merge data + calculate GOD score ──
+    // ── Merge data + calculate GOD score ──
     const inferredName = inferenceData?.name;
     const bestName = aiData?.name || inferredName || displayName;
     const merged = {
@@ -635,7 +688,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     const scores = calculateGODScore(enrichedRow);
     console.log(`  🔄 [BG] GOD Score: ${scores.total_god_score} (T${scores.team_score} Tr${scores.traction_score} M${scores.market_score} P${scores.product_score} V${scores.vision_score})`);
 
-    // ── STEP 5: Update startup row with enriched data + real scores ──
+    // ── Update startup row with enriched data ──
     await supabase
       .from('startup_uploads')
       .update({
@@ -663,12 +716,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       })
       .eq('id', startupId);
 
-    // ── STEP 6: Seed signal score ──
+    // ── Seed signal score ──
     const godScore = scores.total_god_score || 50;
     const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
     const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
     const factor = signalTotal / 7.0;
-    await supabase
+    void supabase
       .from('startup_signal_scores')
       .upsert({
         startup_id: startupId,
@@ -683,94 +736,88 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       .then(() => console.log(`  🔄 [BG] Signal score: ${signalTotal}`))
       .catch(e => console.warn(`  🔄 [BG] Signal seed failed: ${e.message}`));
 
-    // ── STEP 7: Generate matches ──
-    // Refresh startup object with enriched data for scoring
-    const enrichedStartup = {
-      id: startupId,
-      name: enrichedRow.name,
-      sectors: enrichedRow.sectors,
-      stage: enrichedRow.stage,
-      total_god_score: scores.total_god_score,
-    };
-
-    const allInvestors = await getInvestors(supabase);
-    if (!allInvestors || allInvestors.length === 0) {
-      console.error(`  🔄 [BG] No investors loaded — aborting match gen`);
-      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
-      return;
-    }
-
-    const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
-    const investors = getRelevantInvestors(startupSectors);
+    // =========================================================================
+    // PHASE 3: RE-GENERATE MATCHES with enriched data (only if sectors changed)
+    // =========================================================================
+    const sectorsChanged = JSON.stringify(enrichedRow.sectors) !== JSON.stringify(['Technology']);
     
-    // Load signal score for this startup (just seeded in scoring step)
-    let signalScore = 0;
-    try {
-      const { data: sigData } = await supabase
-        .from('startup_signal_scores')
-        .select('signal_score')
-        .eq('startup_id', startupId)
-        .single();
-      signalScore = sigData?.signal_score || 0;
-    } catch (_) { /* signal scores optional */ }
+    if (sectorsChanged || scores.total_god_score !== 50) {
+      const enrichedStartup = {
+        id: startupId,
+        name: enrichedRow.name,
+        sectors: enrichedRow.sectors,
+        stage: enrichedRow.stage,
+        total_god_score: scores.total_god_score,
+      };
 
-    const allMatches = [];
-    for (const investor of investors) {
-      const investorSignals = investor.signals || null;
-      const result = calculateMatchScore(enrichedStartup, investor, signalScore, investorSignals);
-      if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
-        const fitAnalysis = result.fitAnalysis;
-        allMatches.push({
-          startup_id: startupId,
-          investor_id: investor.id,
-          match_score: result.score,
-          reasoning: generateReasoning(enrichedStartup, investor, fitAnalysis),
-          fit_analysis: fitAnalysis,
-          confidence_level: result.confidence,
-          why_you_match: generateWhyYouMatch(enrichedStartup, investor, fitAnalysis),
-          status: 'suggested',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+      const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
+      const investors = getRelevantInvestors(startupSectors);
+      
+      let signalScore = 0;
+      try {
+        const { data: sigData } = await supabase
+          .from('startup_signal_scores')
+          .select('signal_score')
+          .eq('startup_id', startupId)
+          .single();
+        signalScore = sigData?.signal_score || 0;
+      } catch (_) { /* optional */ }
+
+      const allMatches = [];
+      for (const investor of investors) {
+        const result = calculateMatchScore(enrichedStartup, investor, signalScore, investor.signals || null);
+        if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+          allMatches.push({
+            startup_id: startupId,
+            investor_id: investor.id,
+            match_score: result.score,
+            reasoning: generateReasoning(enrichedStartup, investor, result.fitAnalysis),
+            fit_analysis: result.fitAnalysis,
+            confidence_level: result.confidence,
+            why_you_match: generateWhyYouMatch(enrichedStartup, investor, result.fitAnalysis),
+            status: 'suggested',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
       }
+
+      allMatches.sort((a, b) => b.match_score - a.match_score);
+      const matches = allMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
+      
+      if (matches.length > 0) {
+        await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+        const batchSize = 500;
+        for (let i = 0; i < matches.length; i += batchSize) {
+          const batch = matches.slice(i, i + batchSize);
+          const { error: batchErr } = await supabase
+            .from('startup_investor_matches')
+            .insert(batch);
+          if (batchErr) console.error(`  🔄 [BG] Batch ${i} error: ${batchErr.message}`);
+        }
+      }
+      console.log(`  🔄 [BG] PHASE 3: Re-generated ${matches.length} enriched matches (${investors.length} evaluated)`);
+    } else {
+      console.log(`  🔄 [BG] PHASE 3: Skipped — no enrichment data changed`);
     }
 
-    // Rank-first: sort by score desc, take top N
-    allMatches.sort((a, b) => b.match_score - a.match_score);
-    const matches = allMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
-    console.log(`  🔄 [BG] Generated ${matches.length} matches (${allMatches.length} above floor, ${investors.length} evaluated)`);
-
-    // ── STEP 8: Upsert matches to DB ──
-    if (matches.length > 0) {
-      await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
-      const batchSize = 500;
-      for (let i = 0; i < matches.length; i += batchSize) {
-        const batch = matches.slice(i, i + batchSize);
-        const { error: batchErr } = await supabase
-          .from('startup_investor_matches')
-          .insert(batch);
-        if (batchErr) console.error(`  🔄 [BG] Batch ${i} error: ${batchErr.message}`);
-      }
-    }
-
-    // ── STEP 9: Complete lock + log ──
+    // ── Complete lock + log ──
     await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
     const duration = Date.now() - startTime;
-    console.log(`  🔄 [BG] COMPLETE: ${matches.length} matches in ${duration}ms`);
+    console.log(`  🔄 [BG] COMPLETE in ${duration}ms (phase1: ${Date.now() - phase1Start}ms)`);
     void supabase.from('match_gen_logs').insert({
       startup_id: startupId, run_id: runId,
       event: 'completed', source: genSource,
-      candidate_investor_count: investors.length,
-      inserted_count: matches.length,
+      candidate_investor_count: allInvestors.length,
+      inserted_count: fastMatches.length,
       duration_ms: duration,
     }).then(() => {}).catch(() => {});
 
-    // Log completion
     void supabase.from('ai_logs').insert({
       log_type: 'instant_submit',
       action_type: 'background_complete',
       input_data: { url: inputRaw, domain },
-      output_data: { startup_id: startupId, match_count: matches.length, duration_ms: duration, data_tier: dataTier },
+      output_data: { startup_id: startupId, match_count: fastMatches.length, duration_ms: duration, data_tier: dataTier },
       created_at: new Date().toISOString()
     }).then(() => {}).catch(() => {});
 
