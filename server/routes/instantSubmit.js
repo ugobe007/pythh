@@ -582,12 +582,25 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     const fastMatches = quickMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
     
     // Insert fast matches so frontend picks them up on next poll (~3s)
+    // SAFETY: Insert new matches first, only delete old ones after successful insert
     if (fastMatches.length > 0) {
-      await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
       const { error: fastErr } = await supabase
         .from('startup_investor_matches')
-        .insert(fastMatches);
-      if (fastErr) console.error(`  🔄 [BG] Fast match insert error: ${fastErr.message}`);
+        .upsert(fastMatches, { onConflict: 'id', ignoreDuplicates: false });
+      if (fastErr) {
+        console.error(`  🔄 [BG] Fast match upsert error: ${fastErr.message}`);
+        // Fallback: try delete-then-insert if upsert fails (e.g., no unique constraint)
+        await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+        const { error: retryErr } = await supabase.from('startup_investor_matches').insert(fastMatches);
+        if (retryErr) console.error(`  🔄 [BG] Fast match retry insert error: ${retryErr.message}`);
+      } else {
+        // Clean up any old matches not in the new set
+        const newIds = fastMatches.map(m => m.id);
+        await supabase.from('startup_investor_matches')
+          .delete()
+          .eq('startup_id', startupId)
+          .not('id', 'in', `(${newIds.join(',')})`);
+      }
     }
     
     console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
@@ -816,14 +829,26 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       const matches = allMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
       
       if (matches.length > 0) {
-        await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+        // SAFETY: Upsert new matches first, then clean up stale ones
         const batchSize = 500;
+        let insertOk = true;
         for (let i = 0; i < matches.length; i += batchSize) {
           const batch = matches.slice(i, i + batchSize);
           const { error: batchErr } = await supabase
             .from('startup_investor_matches')
-            .insert(batch);
-          if (batchErr) console.error(`  🔄 [BG] Batch ${i} error: ${batchErr.message}`);
+            .upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
+          if (batchErr) {
+            console.error(`  🔄 [BG] Batch ${i} upsert error: ${batchErr.message}`);
+            insertOk = false;
+          }
+        }
+        // Only clean up old matches if all inserts succeeded
+        if (insertOk) {
+          const newIds = matches.map(m => m.id);
+          await supabase.from('startup_investor_matches')
+            .delete()
+            .eq('startup_id', startupId)
+            .not('id', 'in', `(${newIds.join(',')})`);
         }
       }
       console.log(`  🔄 [BG] PHASE 3: Re-generated ${matches.length} enriched matches (${investors.length} evaluated)`);
@@ -1093,7 +1118,7 @@ router.post('/submit', async (req, res) => {
         startup = found;
         isNew = false;
       } else {
-        return res.status(500).json({ error: 'Failed to create startup', details: insertErr.message });
+        return res.status(500).json({ error: 'Failed to create startup' });
       }
     } else {
       startupId = newStartup.id;
@@ -1147,8 +1172,7 @@ router.post('/submit', async (req, res) => {
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
     return res.status(500).json({
-      error: 'Processing failed',
-      details: err.message
+      error: 'Processing failed'
     });
   }
 });

@@ -46,19 +46,46 @@ if (envResult.error) {
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
+const helmet = require('helmet');
 const { pool } = require('./db');
 const { getSupabaseClient } = require('./lib/supabaseClient');
 // fs and path are already declared above
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
-// Enable CORS with explicit configuration
+// Security headers (helmet)
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now (React injects inline scripts)
+  crossOriginEmbedderPolicy: false,
+}));
+
+// CORS: locked to known domains in production, permissive in dev
+const ALLOWED_ORIGINS = [
+  'https://hot-honey.fly.dev',
+  'https://pythh.ai',
+  'https://www.pythh.ai',
+  'https://hothoney.ai',
+  'https://www.hothoney.ai',
+];
+if (!IS_PRODUCTION) {
+  ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:3002', 'http://localhost:3000');
+}
+
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, curl, mobile apps)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    // In production, reject unknown origins
+    if (IS_PRODUCTION) return callback(new Error('CORS not allowed'), false);
+    // In dev, allow all
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key', 'X-Session-Id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key', 'X-Session-Id', 'x-admin-key']
 }));
 app.use(express.json());
 
@@ -428,7 +455,7 @@ app.get('/api/discovery/convergence', convergenceEndpoint);
 // Reads plan from profiles table (updated by Stripe webhooks)
 // DEV/STAGING: Allow x-user-plan header for testing
 // ============================================================
-const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.FLY_APP_NAME;
+// IS_PRODUCTION already declared at top of file
 
 // Simple in-memory cache for plan lookups (5 minute TTL)
 const planCache = new Map();
@@ -5029,7 +5056,7 @@ function spawnAutomationScript(scriptName, description) {
 }
 
 // RSS refresh endpoint - actually runs the scraper
-app.post('/api/rss/refresh', async (req, res) => {
+app.post('/api/rss/refresh', requireAdminToken, async (req, res) => {
   try {
     console.log('📡 RSS refresh triggered');
     spawnAutomationScript('run-rss-scraper.js', 'RSS Scraper');
@@ -5045,7 +5072,7 @@ app.post('/api/rss/refresh', async (req, res) => {
 });
 
 // Discover startups from RSS endpoint - actually runs the discovery script
-app.post('/api/rss/discover-startups', async (req, res) => {
+app.post('/api/rss/discover-startups', requireAdminToken, async (req, res) => {
   try {
     console.log('🚀 Startup discovery triggered');
     spawnAutomationScript('discover-startups-from-rss.js', 'Startup Discovery');
@@ -5061,7 +5088,7 @@ app.post('/api/rss/discover-startups', async (req, res) => {
 });
 
 // Investor scraper endpoint
-app.post('/api/investors/scrape', async (req, res) => {
+app.post('/api/investors/scrape', requireAdminToken, async (req, res) => {
   try {
     console.log('💼 Investor scraper triggered');
     spawnAutomationScript('investor-mega-scraper.js', 'Investor Scraper');
@@ -5077,7 +5104,7 @@ app.post('/api/investors/scrape', async (req, res) => {
 });
 
 // GOD score calculation endpoint
-app.post('/api/god-scores/calculate', async (req, res) => {
+app.post('/api/god-scores/calculate', requireAdminToken, async (req, res) => {
   try {
     console.log('⚡ GOD score calculation triggered');
     spawnAutomationScript('calculate-component-scores.js', 'GOD Score Calculation');
@@ -5331,7 +5358,7 @@ app.post('/api/startup/enrich-url', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN: INFERENCE ENGINE STATUS
 // ═══════════════════════════════════════════════════════════════════════════
-app.get('/api/admin/inference-status', async (req, res) => {
+app.get('/api/admin/inference-status', requireAdminToken, async (req, res) => {
   try {
     const supabase = getSupabaseClient();
     
@@ -6374,6 +6401,8 @@ try {
 // Handle server errors (these are fine outside app.listen)
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', error);
+  // Node is in undefined state after uncaught exception — must exit and let PM2 restart
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {

@@ -15,6 +15,7 @@ import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { trackEvent } from './analytics';
+import { isAdminEmail } from './adminConfig';
 
 // Session state stored in sessionStorage (not localStorage - ephemeral)
 const SESSION_KEY = 'pyth_session';
@@ -214,14 +215,7 @@ export function L5Guard({ children }: GuardProps): React.ReactElement {
   const { user } = useAuth();
   const location = useLocation();
   
-  const ADMIN_EMAILS = [
-    'aabramson@comunicano.com',
-    'ugobe07@gmail.com',
-    'ugobe1@mac.com'
-  ];
-  
-  const isAdmin = user?.isAdmin === true || 
-                  (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
+  const isAdmin = user?.isAdmin === true || isAdminEmail(user?.email);
   
   useEffect(() => {
     if (!isAdmin) {

@@ -29,7 +29,7 @@ import "./App.css";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { L5Guard } from "./lib/routeGuards";
+import { L5Guard, AuthGuard } from "./lib/routeGuards";
 import { trackEvent } from "./lib/analytics";
 
 // Layouts
@@ -190,12 +190,12 @@ const App: React.FC = () => {
           {/* Legacy (consider deprecating later) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />
 
-          {/* User account pages */}
+          {/* User account pages (auth required) */}
           <Route path="/login" element={<Login />} />
-          <Route path="/profile" element={<FounderProfileDashboard />} />
-          <Route path="/profile/account" element={<ProfilePage />} />
-          <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<AuthGuard><FounderProfileDashboard /></AuthGuard>} />
+          <Route path="/profile/account" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+          <Route path="/investor/dashboard" element={<AuthGuard><InvestorProfileDashboard /></AuthGuard>} />
+          <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
 
           {/* Commercial pages */}
           <Route path="/pricing" element={<PricingPage />} />
@@ -207,7 +207,7 @@ const App: React.FC = () => {
           {/* ──────────────────────────────────────────────────────────────
               APP (instrument mode - inside pythh)
           ────────────────────────────────────────────────────────────── */}
-          <Route path="/app" element={<AppLayout />}>
+          <Route path="/app" element={<AuthGuard><AppLayout /></AuthGuard>}>
             {/* Dashboard renamed */}
             <Route index element={<Navigate to="signals-dashboard" replace />} />
             <Route path="signals-dashboard" element={<SignalsDashboard />} />

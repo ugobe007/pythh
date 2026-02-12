@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { isAdminEmail } from '../lib/adminConfig';
 import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -26,33 +25,16 @@ export default function Login() {
       });
       
       if (authError) {
-        // If user doesn't exist, sign them up
-        if (authError.message.includes('Invalid login credentials')) {
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: { name: email.split('@')[0] }
-            }
-          });
-          
-          if (signUpError) throw signUpError;
-          
-          // Profile is auto-created by database trigger
-          console.log('[Login] Created new user:', signUpData.user?.id);
-        } else {
-          throw authError;
-        }
+        // Show error — do NOT auto-create accounts on failed login
+        throw authError;
       } else {
         console.log('[Login] Signed in:', data.user?.id);
       }
       
-      // Also update localStorage auth for backward compatibility
-      login(email, password);
+      // Supabase onAuthStateChange will sync user state automatically
       
       // Check if admin and redirect accordingly
-      const isAdmin = email.includes('admin') || email.includes('ugobe');
-      if (isAdmin) {
+      if (isAdminEmail(email)) {
         navigate('/admin');
       } else {
         const params = new URLSearchParams(window.location.search);
