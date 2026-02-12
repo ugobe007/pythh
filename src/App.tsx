@@ -58,6 +58,7 @@ import OracleActions from "./pages/app/OracleActions";
 import OracleVCStrategy from "./pages/app/OracleVCStrategy";
 import OraclePredictions from "./pages/app/OraclePredictions";
 import OracleCoaching from "./pages/app/OracleCoaching";
+import OracleScribe from "./pages/app/OracleScribe";
 
 // Signal navigation tools (premium features)
 import SignalPlaybook from "./pages/app/SignalPlaybook";
@@ -236,6 +237,7 @@ const App: React.FC = () => {
             <Route path="oracle/vc-strategy" element={<OracleVCStrategy />} />
             <Route path="oracle/predictions" element={<OraclePredictions />} />
             <Route path="oracle/coaching" element={<OracleCoaching />} />
+            <Route path="oracle/scribe" element={<OracleScribe />} />
 
             {/* Signal navigation tools (premium) */}
             <Route path="playbook" element={<SignalPlaybook />} />

@@ -32,6 +32,7 @@ import {
   Brain,
   Compass,
   BookOpen,
+  Trophy,
 } from 'lucide-react';
 import {
   getOrCreateActiveSession,
@@ -46,6 +47,26 @@ import {
   type OracleInsight,
 } from '../../services/oracleApiService';
 import { useOracleStartupId } from '../../hooks/useOracleStartupId';
+import { OracleScoreHistoryChart } from '../../components/OracleScoreHistoryChart';
+import {
+  MilestoneCelebrationModal,
+  MilestoneProgressCard,
+  AchievementBadgeGrid,
+} from '../../components/OracleMilestones';
+import { OracleScribe } from '../../components/OracleScribe';
+import { supabase } from '../../lib/supabase';
+
+interface Milestone {
+  id: string;
+  milestone_type: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  reward_text: string | null;
+  reward_action_url: string | null;
+  achieved_at: string | null;
+  is_celebrated: boolean;
+}
 
 export default function OracleDashboardPage() {
   const navigate = useNavigate();
@@ -54,10 +75,13 @@ export default function OracleDashboardPage() {
   const [session, setSession] = useState<OracleSession | null>(null);
   const [actions, setActions] = useState<OracleAction[]>([]);
   const [insights, setInsights] = useState<OracleInsight[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [celebratingMilestone, setCelebratingMilestone] = useState<Milestone | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generatingDemo, setGeneratingDemo] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'scribe'>('dashboard');
 
   useEffect(() => {
     if (!startupId) {
@@ -66,16 +90,18 @@ export default function OracleDashboardPage() {
       return;
     }
     
-    // Load session, actions, and insights in parallel
+    // Load session, actions, insights, and milestones in parallel
     Promise.all([
       getOrCreateActiveSession(startupId).catch(() => null),
       listActions({ startup_id: startupId }).catch(() => []),
       listInsights({ startup_id: startupId }).catch(() => []),
+      fetchMilestones().catch(() => []),
     ])
-      .then(([sessionData, actionsData, insightsData]) => {
+      .then(([sessionData, actionsData, insightsData, milestonesData]) => {
         setSession(sessionData);
         setActions(actionsData);
         setInsights(insightsData);
+        setMilestones(milestonesData);
       })
       .catch((e) => {
         console.warn('Oracle dashboard load failed, showing landing:', e.message);
@@ -83,6 +109,89 @@ export default function OracleDashboardPage() {
       })
       .finally(() => setLoading(false));
   }, [startupId]);
+
+  // Check for new milestones after session completes
+  useEffect(() => {
+    if (session?.status === 'completed') {
+      checkForNewMilestones();
+    }
+  }, [session?.status]);
+
+  const fetchMilestones = async () => {
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (!authSession) return [];
+
+      const response = await fetch('/api/oracle/milestones?achieved_only=true', {
+        headers: {
+          Authorization: `Bearer ${authSession.access_token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch milestones');
+
+      const data = await response.json();
+      return data.milestones || [];
+    } catch (err) {
+      console.error('Failed to fetch milestones:', err);
+      return [];
+    }
+  };
+
+  const checkForNewMilestones = async () => {
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (!authSession) return;
+
+      const response = await fetch('/api/oracle/milestones/check', {
+        headers: {
+          Authorization: `Bearer ${authSession.access_token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to check milestones');
+
+      const data = await response.json();
+      
+      if (data.newMilestones && data.newMilestones.length > 0) {
+        // Show celebration for first uncelebrated milestone
+        const uncelebrated = data.newMilestones.find((m: Milestone) => !m.is_celebrated);
+        if (uncelebrated) {
+          setCelebratingMilestone(uncelebrated);
+        }
+        
+        // Refresh milestones list
+        const updated = await fetchMilestones();
+        setMilestones(updated);
+      }
+    } catch (err) {
+      console.error('Failed to check milestones:', err);
+    }
+  };
+
+  const handleMilestoneCelebrated = async () => {
+    if (!celebratingMilestone) return;
+
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (!authSession) return;
+
+      await fetch(`/api/oracle/milestones/${celebratingMilestone.id}/celebrate`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${authSession.access_token}`,
+        },
+      });
+
+      setCelebratingMilestone(null);
+      
+      // Refresh milestones
+      const updated = await fetchMilestones();
+      setMilestones(updated);
+    } catch (err) {
+      console.error('Failed to mark milestone celebrated:', err);
+    }
+  };
 
   // Generate demo data
   const handleGenerateDemo = async () => {
@@ -213,7 +322,38 @@ export default function OracleDashboardPage() {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="flex gap-4 border-b border-white/10">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition ${
+              activeTab === 'dashboard'
+                ? 'border-amber-400 text-white'
+                : 'border-transparent text-white/60 hover:text-white'
+            }`}
+          >
+            <Compass className="w-4 h-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('scribe')}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition ${
+              activeTab === 'scribe'
+                ? 'border-purple-400 text-white'
+                : 'border-transparent text-white/60 hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            Scribe Journal
+          </button>
+        </div>
+      </div>
+
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        {/* Dashboard Tab Content */}
+        {activeTab === 'dashboard' && (
+          <>
         {/* Signal Score Hero */}
         <SignalScoreHero score={session.signal_score || 0} />
 
@@ -226,6 +366,21 @@ export default function OracleDashboardPage() {
           startupId={startupId || ''}
           navigate={navigate}
         />
+
+        {/* Score History Chart */}
+        <OracleScoreHistoryChart
+          userId={session.user_id}
+          startupId={startupId || undefined}
+          showBreakdown={true}
+        />
+
+        {/* Milestone Progress (next milestone to unlock) */}
+        {sessionComplete && (
+          <MilestoneProgressCard
+            currentMilestones={milestones}
+            nextMilestone={getNextMilestone(milestones, actions.length, session.signal_score || 0)}
+          />
+        )}
 
         {/* Two-Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -276,10 +431,127 @@ export default function OracleDashboardPage() {
 
         {/* Deep Oracle Intelligence */}
         <DeepOracleCards navigate={navigate} />
+
+        {/* Achievement Badges (if any milestones unlocked) */}
+        {milestones.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-white font-semibold flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-amber-400" />
+              Achievements ({milestones.length})
+            </h3>
+            <AchievementBadgeGrid
+              milestones={milestones}
+              onClick={(milestone) => {
+                if (!milestone.is_celebrated) {
+                  setCelebratingMilestone(milestone);
+                }
+              }}
+            />
+          </div>
+        )}
+          </>
+        )}
+
+        {/* Scribe Journal Tab Content */}
+        {activeTab === 'scribe' && (
+          <OracleScribe startupId={startupId || undefined} />
+        )}
       </div>
+
+      {/* Milestone Celebration Modal */}
+      {celebratingMilestone && (
+        <MilestoneCelebrationModal
+          milestone={celebratingMilestone}
+          onClose={() => {
+            handleMilestoneCelebrated();
+          }}
+          onContinue={() => {
+            handleMilestoneCelebrated();
+            if (celebratingMilestone.reward_action_url) {
+              navigate(celebratingMilestone.reward_action_url);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
+
+// Helper function to determine next milestone
+function getNextMilestone(
+  currentMilestones: Milestone[],
+  completedActionsCount: number,
+  currentScore: number
+) {
+  const achievedTypes = new Set(currentMilestones.map(m => m.milestone_type));
+
+  // Check wizard complete
+  if (!achievedTypes.has('wizard_complete')) {
+    return {
+      type: 'wizard_complete',
+      title: 'Complete Oracle Wizard',
+      description: 'Finish all 8 steps of the Oracle assessment',
+      progress: 0,
+      target: 1,
+      current: 0,
+      icon: '🏆',
+    };
+  }
+
+  // Check 5 actions
+  if (!achievedTypes.has('5_actions_done')) {
+    return {
+      type: '5_actions_done',
+      title: 'Complete 5 Actions',
+      description: 'Complete 5 recommended signal actions',
+      progress: Math.min((completedActionsCount / 5) * 100, 100),
+      target: 5,
+      current: completedActionsCount,
+      icon: '🎯',
+    };
+  }
+
+  // Check score 70+
+  if (!achievedTypes.has('score_70_plus')) {
+    return {
+      type: 'score_70_plus',
+      title: 'Reach Fundable Score',
+      description: 'Achieve a score of 70 or higher',
+      progress: Math.min((currentScore / 70) * 100, 100),
+      target: 70,
+      current: Math.round(currentScore),
+      icon: '⭐',
+    };
+  }
+
+  // Check score 80+
+  if (!achievedTypes.has('score_80_plus')) {
+    return {
+      type: 'score_80_plus',
+      title: 'High Performer Status',
+      description: 'Achieve a score of 80 or higher',
+      progress: Math.min((currentScore / 80) * 100, 100),
+      target: 80,
+      current: Math.round(currentScore),
+      icon: '🌟',
+    };
+  }
+
+  // Check score 90+
+  if (!achievedTypes.has('score_90_plus')) {
+    return {
+      type: 'score_90_plus',
+      title: 'Elite Startup Status',
+      description: 'Achieve a score of 90 or higher',
+      progress: Math.min((currentScore / 90) * 100, 100),
+      target: 90,
+      current: Math.round(currentScore),
+      icon: '⚡',
+    };
+  }
+
+  // All milestones unlocked
+  return null;
 
 // ---------------------------------------------------------------------------
 // Sub-Components
