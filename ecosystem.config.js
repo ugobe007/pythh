@@ -81,7 +81,9 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
-      max_restarts: 10,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 10000,
       watch: false,
       max_memory_restart: '500M',
       cron_restart: '*/15 * * * *',  // Every 15 minutes
@@ -104,10 +106,12 @@ module.exports = {
       cwd: './',
       instances: 1,
       autorestart: true,
-      max_restarts: 10,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 10000,
       watch: false,
       max_memory_restart: '500M',
-      cron_restart: '0 */1 * * *',  // Every 1 hour (was 2 hours — too slow!)
+      cron_restart: '0 */2 * * *',  // Every 2 hours (was 1 hour — too aggressive)
       env: {
         NODE_ENV: 'production'
       }
@@ -227,9 +231,9 @@ module.exports = {
       autorestart: true,   // CHANGED: was false — keep it alive
       watch: false,
       max_memory_restart: '500M',
-      max_restarts: 10,
-      min_uptime: '10s',
-      restart_delay: 30000,
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 60000,
       cron_restart: '*/30 * * * *',  // Every 30 minutes
       env: {
         NODE_ENV: 'production'
@@ -259,6 +263,47 @@ module.exports = {
       }
       // Converts discovered_startups → startup_uploads with quality filtering
       // Generates initial GOD scores and queues for match generation
+    },
+    
+    // ========================================
+    // ORACLE WEEKLY REFRESH (Retention System)
+    // Regenerates insights for returning users every Sunday
+    // ========================================
+    {
+      name: 'oracle-weekly-refresh',
+      script: 'node',
+      args: 'server/jobs/oracle-weekly-refresh.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '300M',
+      cron_restart: '0 20 * * 0',  // Sunday at 8pm (week=0)
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Finds sessions completed 7+ days ago
+      // Generates fresh insights using inference engine
+      // Creates notifications to bring users back
+      // Target: 60% 7-day retention (vs 15% baseline)
+    },
+    {
+      name: 'oracle-digest-sender',
+      script: 'node',
+      args: 'server/jobs/oracle-digest-sender.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '300M',
+      cron_restart: '0 9 * * 1',  // Monday at 9am (week=1)
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Sends weekly email digest with fresh insights
+      // Uses Resend API (alerts@pythh.ai)
+      // Includes: insights, actions, score updates
+      // Target: 45% open rate, 15% click-through
     },
     // ========================================
     // MATCH ENGINE - Pattern A v1.1 (PRODUCTION)
@@ -360,10 +405,10 @@ module.exports = {
       autorestart: true,   // CHANGED: was false — if it crashes, restart!
       watch: false,
       max_memory_restart: '500M',
-      max_restarts: 10,    // CHANGED: was 5
+      max_restarts: 3,    // Prevent connection pool exhaustion
       min_uptime: '30s',   // Must run 30s to count
       restart_delay: 60000, // Wait 1 min between restarts
-      cron_restart: '0 */1 * * *',  // Every 1 hour (was 2 hours)
+      cron_restart: '0 */2 * * *',  // Every 2 hours (prevent connection storms)
       env: {
         NODE_ENV: 'production'
       }
