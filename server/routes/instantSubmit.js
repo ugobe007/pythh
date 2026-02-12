@@ -534,7 +534,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     
     const quickInvestors = getRelevantInvestors(['Technology']);
     const quickMatches = [];
-    for (const investor of quickInvestors) {
+    for (let idx = 0; idx < quickInvestors.length; idx++) {
+      const investor = quickInvestors[idx];
+      // Yield event loop every 100 investors so server stays responsive
+      if (idx > 0 && idx % 100 === 0) await new Promise(r => setImmediate(r));
       const result = calculateMatchScore(placeholderStartup, investor, 0, investor.signals || null);
       if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
         quickMatches.push({
@@ -764,7 +767,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       } catch (_) { /* optional */ }
 
       const allMatches = [];
-      for (const investor of investors) {
+      for (let idx = 0; idx < investors.length; idx++) {
+        const investor = investors[idx];
+        // Yield event loop every 100 investors so server stays responsive
+        if (idx > 0 && idx % 100 === 0) await new Promise(r => setImmediate(r));
         const result = calculateMatchScore(enrichedStartup, investor, signalScore, investor.signals || null);
         if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
           allMatches.push({
@@ -934,9 +940,10 @@ router.post('/submit', async (req, res) => {
             p_cooldown_minutes: 5,
           });
           if (runId) {
-            runBackgroundPipeline({
+            // Defer so HTTP response flushes first
+            setTimeout(() => runBackgroundPipeline({
               startupId, domain, inputRaw, genSource: 'stale_regen', runId, startTime
-            }).catch(e => console.error('[BG] Stale regen error:', e.message));
+            }).catch(e => console.error('[BG] Stale regen error:', e.message)), 50);
           }
         }
         
@@ -971,10 +978,10 @@ router.post('/submit', async (req, res) => {
         });
         
         if (runId || forceGenerate) {
-          // Fire background pipeline (no await!)
-          runBackgroundPipeline({
+          // Defer so HTTP response flushes first
+          setTimeout(() => runBackgroundPipeline({
             startupId, domain, inputRaw, genSource, runId, startTime
-          }).catch(e => console.error('[BG] Unhandled:', e.message));
+          }).catch(e => console.error('[BG] Unhandled:', e.message)), 50);
         }
         
         const processingTime = Date.now() - startTime;
@@ -1077,10 +1084,10 @@ router.post('/submit', async (req, res) => {
       p_cooldown_minutes: 5,
     });
     
-    // Fire background pipeline (no await!)
-    runBackgroundPipeline({
+    // Defer so HTTP response flushes first
+    setTimeout(() => runBackgroundPipeline({
       startupId, domain, inputRaw, genSource, runId, startTime
-    }).catch(e => console.error('[BG] Unhandled:', e.message));
+    }).catch(e => console.error('[BG] Unhandled:', e.message)), 50);
     
     // Save session pointer
     const sessionId = req.body?.session_id || req.headers['x-session-id'];
