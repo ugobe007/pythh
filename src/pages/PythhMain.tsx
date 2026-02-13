@@ -291,13 +291,18 @@ export default function PythhHome() {
             <Link to="/signals" className="hover:text-white">Signals</Link>
             <Link to="/rankings" className="hover:text-white">Rankings</Link>
             <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+            <Link to="/about" className="hover:text-white">About</Link>
+            <Link to="/support" className="hover:text-white">Support</Link>
             <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
+            <Link to="/login" className="hover:text-white">Sign in</Link>
           </nav>
           <nav className="flex md:hidden items-center gap-3 text-sm text-zinc-400">
             <Link to="/matches" className="hover:text-white text-xs">Engine</Link>
             <Link to="/signals" className="hover:text-white text-xs">Signals</Link>
-            <Link to="/how-it-works" className="hover:text-white text-xs">Learn more</Link>
+            <Link to="/about" className="hover:text-white text-xs">About</Link>
+            <Link to="/support" className="hover:text-white text-xs">Support</Link>
             <Link to="/signup" className="bg-cyan-500 text-black font-semibold px-3 py-1 rounded-md text-xs hover:bg-cyan-400 transition">Sign up</Link>
+            <Link to="/login" className="hover:text-white text-xs">Sign in</Link>
           </nav>
         </div>
       </header>

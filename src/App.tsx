@@ -44,6 +44,7 @@ import HowItWorksPage from "./pages/HowItWorksPage";
 import SignalsSignificance from "./pages/SignalsSignificance";
 import SignalTrends from "./pages/SignalTrends";
 import AboutPage from "./pages/AboutPage";
+import SupportPage from "./pages/SupportPage";
 
 // APP (instrument mode)
 import SignalsDashboard from "./pages/app/SignalsDashboard";
@@ -141,6 +142,7 @@ const App: React.FC = () => {
 
           {/* About pythh.ai — the Pythia story */}
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/support" element={<SupportPage />} />
 
           {/* Engine now redirects to combined matches page */}
           <Route path="/engine" element={<Navigate to="/matches" replace />} />

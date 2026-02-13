@@ -38,6 +38,8 @@ export default function PythhTopNav({ showSignup = true }: TopNavProps) {
           <Link to="/matches" className={linkClass('/matches')}>Matches</Link>
           <Link to="/rankings" className={linkClass('/rankings')}>Rankings</Link>
           <Link to="/how-it-works" className={linkClass('/how-it-works')}>How it works</Link>
+          <Link to="/about" className={linkClass('/about')}>About</Link>
+          <Link to="/support" className={linkClass('/support')}>Support</Link>
           {showSignup && (
             <Link 
               to="/signup" 
@@ -50,6 +52,7 @@ export default function PythhTopNav({ showSignup = true }: TopNavProps) {
               Sign up
             </Link>
           )}
+          <Link to="/login" className={linkClass('/login')}>Sign in</Link>
         </nav>
       </div>
     </header>
