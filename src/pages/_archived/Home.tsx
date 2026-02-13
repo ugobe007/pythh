@@ -1,357 +1,241 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import SubmitBar from "@/components/pythh-home/SubmitBar";
+import StatusLine from "@/components/pythh-home/StatusLine";
+import SignalLegend from "@/components/pythh-home/SignalLegend";
+import SignalTicker from "@/components/pythh-home/SignalTicker";
+import LiveMatchesTable, { LiveMatchRow, Heat } from "@/components/pythh-home/LiveMatchesTable";
+import AboutPythh from "@/components/pythh-home/AboutPythh";
+import LiveStats from "@/components/LiveStats";
+import { useLivePairings } from "@/hooks/useLivePairings";
 
-interface Startup {
-  id: number;
-  name: string;
-  tagline: string;
-  problem: string;
-  solution: string;
-  market: string;
-  team: string;
-  momentum: string;
-  yesVotes: number;
-  noVotes: number;
-}
+/**
+ * PYTHH Home v1 (locked)
+ * Header → Submit → Status → Ticker → Live Matches (buffered) → About
+ *
+ * LIVE SIGNALS: Fetches from API, rotates every 30 seconds, refreshes hourly
+ * Falls back to static buffer if API fails (UI never blanks)
+ */
 
-const featuredStartups: Startup[] = [
-  {
-    id: 1,
-    name: "NeuraMind AI",
-    tagline: "AI-powered mental health companion",
-    problem: "65% of people struggle with mental health but can't access affordable therapy",
-    solution: "24/7 AI therapist trained on cognitive behavioral therapy, available via text",
-    market: "$280B global mental health market, targeting 50M underserved Americans",
-    team: "Ex-Headspace engineers + licensed therapists from Stanford Medicine",
-    momentum: "$2M ARR, 100K active users, 4.8★ app rating, partnerships with 3 Fortune 500s",
-    yesVotes: 127,
-    noVotes: 23
-  },
-  {
-    id: 2,
-    name: "GreenCharge",
-    tagline: "Solar-powered EV charging network",
-    problem: "EV charging infrastructure is slow, expensive, and grid-dependent",
-    solution: "Modular solar charging stations that install in 48 hours, no grid connection needed",
-    market: "$50B EV charging market growing 35% annually, 2M stations needed by 2030",
-    team: "Tesla Supercharger founding team + SunPower solar engineers",
-    momentum: "12 stations live, $400K MRR, LOIs from Walmart & Target for 500 locations",
-    yesVotes: 203,
-    noVotes: 45
-  },
-  {
-    id: 3,
-    name: "CodeMentor Pro",
-    tagline: "AI pair programmer for developers",
-    problem: "Developers spend 40% of time debugging and searching Stack Overflow",
-    solution: "AI coding assistant that understands your entire codebase and writes production-ready code",
-    market: "$30B developer tools market, 27M developers worldwide",
-    team: "GitHub Copilot early team + Google AI researchers",
-    momentum: "50K developers, $1.5M ARR, 92% retention, used at Stripe & Airbnb",
-    yesVotes: 189,
-    noVotes: 31
-  }
+// Static fallback buffer (never blank UI)
+const STATIC_BUFFER: LiveMatchRow[] = [
+  { id: "a16z", investorName: "Andreessen Horowitz", firm: "a16z", signal: 8.7, delta: +0.4, god: 76, vc: 88, tension: 4, heat: "warm", actionLabel: "View" },
+  { id: "sequoia", investorName: "Sequoia Capital", firm: "Sequoia", signal: 9.1, delta: +0.7, god: 81, vc: 92, tension: 5, heat: "hot", actionLabel: "View" },
+  { id: "foundersfund", investorName: "Founders Fund", firm: "Founders Fund", signal: 7.9, delta: +0.2, god: 69, vc: 86, tension: 3, heat: "warming", actionLabel: "View" },
+  { id: "greylock", investorName: "Greylock", firm: "Greylock Partners", signal: 6.6, delta: -0.1, god: 63, vc: 78, tension: 2, heat: "neutral", actionLabel: "View" },
+  { id: "khosla", investorName: "Khosla Ventures", firm: "Khosla", signal: 8.3, delta: +0.3, god: 72, vc: 83, tension: 4, heat: "warm", actionLabel: "View" },
+  { id: "accel", investorName: "Accel", firm: "Accel", signal: 7.2, delta: +0.1, god: 67, vc: 80, tension: 3, heat: "warming", actionLabel: "View" },
+  { id: "benchmark", investorName: "Benchmark", firm: "Benchmark", signal: 8.0, delta: +0.5, god: 74, vc: 85, tension: 4, heat: "warm", actionLabel: "View" },
+  { id: "index", investorName: "Index Ventures", firm: "Index", signal: 7.5, delta: +0.2, god: 70, vc: 82, tension: 3, heat: "warming", actionLabel: "View" },
+  { id: "lightspeed", investorName: "Lightspeed", firm: "Lightspeed VP", signal: 6.9, delta: -0.2, god: 65, vc: 77, tension: 2, heat: "neutral", actionLabel: "View" },
+  { id: "nea", investorName: "NEA", firm: "New Enterprise", signal: 7.1, delta: +0.3, god: 68, vc: 79, tension: 3, heat: "warming", actionLabel: "View" },
+  { id: "gc", investorName: "General Catalyst", firm: "GC", signal: 8.2, delta: +0.6, god: 75, vc: 87, tension: 4, heat: "warm", actionLabel: "View" },
+  { id: "bessemer", investorName: "Bessemer VP", firm: "Bessemer", signal: 7.7, delta: +0.1, god: 71, vc: 81, tension: 3, heat: "warming", actionLabel: "View" },
 ];
 
-function StartupCard({ startup, onVote }: { startup: Startup; onVote: (id: number, vote: 'yes' | 'no') => void }) {
-  const [voted, setVoted] = useState(false);
-  const [voteType, setVoteType] = useState<'yes' | 'no' | null>(null);
-  const [showComment, setShowComment] = useState(false);
-  const [comment, setComment] = useState('');
+const STATIC_TICKER = [
+  { label: "Sequoia", delta: +0.7, topic: "AI agents", ageMin: 5, heat: "hot" as const },
+  { label: "Founders Fund", delta: +0.6, topic: "infra", ageMin: 3, heat: "warm" as const },
+  { label: "Greylock", delta: +0.2, topic: "dev tools", ageMin: 14, heat: "warming" as const },
+  { label: "Khosla", delta: +0.3, topic: "climate", ageMin: 8, heat: "warming" as const },
+  { label: "a16z", delta: +0.4, topic: "enterprise", ageMin: 6, heat: "warm" as const },
+  { label: "Benchmark", delta: +0.5, topic: "marketplaces", ageMin: 4, heat: "warm" as const },
+  { label: "Index", delta: +0.2, topic: "fintech", ageMin: 9, heat: "warming" as const },
+];
 
-  const heatPercentage = Math.round(
-    (startup.yesVotes / (startup.yesVotes + startup.noVotes)) * 100
-  );
-
-  const handleVote = (vote: 'yes' | 'no') => {
-    console.log('Vote clicked:', vote); // Debug log
-    if (voted) {
-      console.log('Already voted, ignoring');
-      return;
-    }
-    
-    console.log('Setting voted state');
-    setVoted(true);
-    setVoteType(vote);
-    
-    // Update votes immediately
-    onVote(startup.id, vote);
-    
-    // Reset after animation
-    setTimeout(() => {
-      console.log('Resetting vote state');
-      setVoted(false);
-      setVoteType(null);
-    }, 700);
-  };
-
-  const handleCommentSubmit = () => {
-    if (comment.trim()) {
-      console.log('Comment submitted:', comment);
-      setShowComment(false);
-      setComment('');
-      alert('💬 Comment saved!');
-    }
-  };
-
-  const handleHoneypot = () => {
-    console.log('Added to Honeypot:', startup.name);
-    alert(`🔮 ${startup.name} added to your Honeypot!`);
-  };
-
-  return (
-    <div 
-      className={`bg-white rounded-3xl shadow-2xl p-8 transition-all duration-700 ${
-        voted 
-          ? voteType === 'yes' 
-            ? 'transform scale-105 shadow-green-500/50' 
-            : 'transform scale-95 opacity-70'
-          : 'transform scale-100 opacity-100'
-      }`}
-    >
-      {/* Header */}
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h3 className="text-3xl font-bold text-gray-900 mb-2">
-            {startup.name}
-          </h3>
-          <p className="text-lg text-cyan-600 font-semibold">
-            {startup.tagline}
-          </p>
-        </div>
-        <button
-          onClick={handleHoneypot}
-          className="text-4xl hover:scale-110 transition-transform"
-          title="Add to Honeypot"
-        >
-          🔮
-        </button>
-      </div>
-
-      {/* Heat Meter */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-semibold text-gray-600">Heat Meter 🔥</span>
-          <span className="text-sm font-bold text-cyan-600">{heatPercentage}% Hot</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div
-            className="bg-gradient-to-r from-cyan-400 to-blue-500 h-3 rounded-full transition-all duration-300"
-            style={{ width: `${heatPercentage}%` }}
-          />
-        </div>
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>👍 {startup.yesVotes}</span>
-          <span>👎 {startup.noVotes}</span>
-        </div>
-      </div>
-
-      {/* Five Points */}
-      <div className="space-y-3 mb-6">
-        <div className="bg-slate-900 rounded-xl p-3">
-          <h4 className="font-bold text-cyan-600 text-sm mb-1">💡 Problem</h4>
-          <p className="text-gray-700 text-sm">{startup.problem}</p>
-        </div>
-
-        <div className="bg-blue-50 rounded-xl p-3">
-          <h4 className="font-bold text-blue-600 text-sm mb-1">⚡ Solution</h4>
-          <p className="text-gray-700 text-sm">{startup.solution}</p>
-        </div>
-
-        <div className="bg-green-50 rounded-xl p-3">
-          <h4 className="font-bold text-green-600 text-sm mb-1">📊 Market</h4>
-          <p className="text-gray-700 text-sm">{startup.market}</p>
-        </div>
-
-        <div className="bg-purple-50 rounded-xl p-3">
-          <h4 className="font-bold text-purple-600 text-sm mb-1">👥 Team</h4>
-          <p className="text-gray-700 text-sm">{startup.team}</p>
-        </div>
-
-        <div className="bg-yellow-50 rounded-xl p-3">
-          <h4 className="font-bold text-yellow-600 text-sm mb-1">🚀 Momentum</h4>
-          <p className="text-gray-700 text-sm">{startup.momentum}</p>
-        </div>
-      </div>
-
-      {/* Voting Buttons */}
-      <div className="flex gap-4 mb-4">
-        <button
-          onClick={() => handleVote('no')}
-          disabled={voted}
-          className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 px-6 rounded-2xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
-        >
-          👎 Pass
-        </button>
-        <button
-          onClick={() => handleVote('yes')}
-          disabled={voted}
-          className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-6 rounded-2xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
-        >
-          👍 Hot!
-        </button>
-      </div>
-
-      {/* Comment Toggle */}
-      <button
-        onClick={() => setShowComment(!showComment)}
-        className="w-full text-cyan-600 font-semibold py-2 hover:text-cyan-400 transition-colors"
-      >
-        💬 {showComment ? 'Hide Comment' : 'Add Comment'}
-      </button>
-
-      {/* Comment Box */}
-      {showComment && (
-        <div className="mt-4 bg-gray-50 rounded-2xl p-4">
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Share your thoughts..."
-            className="w-full px-4 py-3 border-2 border-slate-600 rounded-xl focus:border-cyan-500 focus:outline-none transition-colors resize-none"
-            rows={3}
-          />
-          <button
-            onClick={handleCommentSubmit}
-            className="mt-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-2 px-6 rounded-xl shadow transition-all"
-          >
-            Submit Comment
-          </button>
-        </div>
-      )}
-    </div>
-  );
+// Helper to determine heat from signal/delta
+function getHeat(signal: number, delta: number): Heat {
+  if (signal >= 8.5 && delta >= 0.5) return "hot";
+  if (signal >= 7.5 || delta >= 0.3) return "warm";
+  if (delta > 0) return "warming";
+  return "neutral";
 }
 
 export default function Home() {
   const navigate = useNavigate();
-  const [startups, setStartups] = useState(featuredStartups);
+  const [url, setUrl] = useState("");
+  const [sliceIndex, setSliceIndex] = useState(0);
+  
+  // Fetch LIVE signals from API (refresh every 60 minutes, enable polling)
+  const { data: liveData, loading, error, lastUpdatedAt, refetch } = useLivePairings("free", true, 60000);
 
-  const handleVote = (id: number, vote: 'yes' | 'no') => {
-    console.log('Parent handleVote called:', id, vote); // Debug log
-    const updatedStartups = startups.map(startup => {
-      if (startup.id === id) {
-        const updated = {
-          ...startup,
-          yesVotes: vote === 'yes' ? startup.yesVotes + 1 : startup.yesVotes,
-          noVotes: vote === 'no' ? startup.noVotes + 1 : startup.noVotes,
-        };
-        console.log('Updated startup:', updated); // Debug log
-        return updated;
-      }
-      return startup;
-    });
-    setStartups(updatedStartups);
+  // Transform live data to table row format, fallback to static
+  const fullBuffer: LiveMatchRow[] = useMemo(() => {
+    if (!liveData || liveData.length === 0) return STATIC_BUFFER;
+    
+    return liveData.map((p: any, i: number) => ({
+      id: p.id || `live-${i}`,
+      investorName: p.investor_name || p.name || p.firm_name || STATIC_BUFFER[i % STATIC_BUFFER.length]?.investorName || "Partner",
+      firm: p.firm || p.firm_name || p.investor_firm || STATIC_BUFFER[i % STATIC_BUFFER.length]?.firm,
+      signal: Number(p.signal_score || p.score || p.match_score || 7),
+      delta: Number(p.delta || p.signal_delta || 0),
+      god: Number(p.god_score || p.total_god_score || 65),
+      vc: Number(p.vc_plus || p.vc_score || 75),
+      tension: Math.min(5, Math.max(1, Math.round(Number(p.tension || p.fit_tier || 3)))),
+      heat: getHeat(
+        Number(p.signal_score || p.score || 7),
+        Number(p.delta || p.signal_delta || 0)
+      ),
+      actionLabel: "View",
+    }));
+  }, [liveData]);
+
+  // Slice size and rotation (show 6 rows, rotate every 30 seconds)
+  const SLICE_SIZE = 6;
+  const visibleSlice = useMemo(() => {
+    const start = (sliceIndex * SLICE_SIZE) % fullBuffer.length;
+    const slice: LiveMatchRow[] = [];
+    for (let i = 0; i < SLICE_SIZE; i++) {
+      slice.push(fullBuffer[(start + i) % fullBuffer.length]);
+    }
+    return slice;
+  }, [fullBuffer, sliceIndex]);
+
+  // Rotate slice every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSliceIndex((prev) => (prev + 1) % Math.ceil(fullBuffer.length / SLICE_SIZE));
+    }, 30000); // 30 seconds
+    return () => clearInterval(interval);
+  }, [fullBuffer.length]);
+
+  // Ticker items (use live data if available, else static)
+  const ticker = useMemo(() => {
+    if (!liveData || liveData.length < 5) return STATIC_TICKER;
+    return liveData.slice(0, 7).map((p: any) => ({
+      label: p.firm || p.firm_name || p.investor_name || "Fund",
+      delta: Number(p.delta || p.signal_delta || 0),
+      topic: p.sector || p.thesis || p.context || "venture",
+      ageMin: Math.floor(Math.random() * 15) + 1, // TODO: wire real age
+      heat: getHeat(Number(p.signal_score || 7), Number(p.delta || 0)),
+    }));
+  }, [liveData]);
+
+  const handleSubmit = () => {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
   };
 
+  // Compute system state from live data
+  const systemState = loading ? "BUSY" : error ? "STALE" : "LIVE";
+  const lastUpdatedAtMs = lastUpdatedAt?.getTime() || Date.now();
+  const mode = "global";
+  const bufferState = error ? "stale" : liveData?.length ? "warm" : "cold";
+  const refreshMins = Math.max(1, 60 - Math.floor((Date.now() - lastUpdatedAtMs) / 60000));
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-cyan-600 via-blue-600 to-violet-600 text-white py-20 px-8">
-        <div className="max-w-6xl mx-auto text-center relative z-10">
-          <h1 className="text-6xl md:text-7xl font-bold mb-6 drop-shadow-lg">
-            🔮 pyth ai
-          </h1>
-          <p className="text-3xl md:text-4xl font-semibold mb-4">
-            "Get Them While They're Hot."
-          </p>
-          <p className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
-            Discover startups that match your vibe. Vote, vibe-check, and invest in what's heating up. 🔥
-          </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <button
-              onClick={() => navigate('/investor/signup')}
-              className="bg-white text-cyan-600 font-bold py-4 px-8 rounded-2xl shadow-lg hover:bg-gray-100 transition-all text-lg"
-            >
-              🚀 Join as Investor
-            </button>
-            <button
-              onClick={() => navigate('/get-matched')}
-              className="bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white font-bold py-4 px-8 rounded-2xl shadow-lg transition-all text-lg"
-            >
-              💡 Submit Your Startup
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Hot 5 Section */}
-      <div className="max-w-6xl mx-auto px-8 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-5xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent mb-4">
-            🔥 Today's Hot 5
-          </h2>
-          <p className="text-xl text-gray-700">
-            The most exciting startups heating up right now
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {startups.map((startup) => (
-            <StartupCard key={startup.id} startup={startup} onVote={handleVote} />
-          ))}
-        </div>
-
-        <div className="text-center mt-12">
-          <button
-            onClick={() => navigate('/vote-demo')}
-            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-4 px-8 rounded-2xl shadow-lg transition-all text-lg"
-          >
-            🔍 Discover More Startups →
-          </button>
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <div className="bg-white py-16 px-8">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-4xl font-bold text-center text-gray-900 mb-12">
-            How It Works
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center p-6">
-              <div className="text-6xl mb-4">🔍</div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">Discover</h3>
-              <p className="text-gray-700">
-                Swipe through curated startup cards. Each card shows 5 key points: Problem, Solution, Market, Team, and Momentum.
-              </p>
+    <div className="min-h-screen bg-[#0B0F14] text-white">
+      <div className="mx-auto max-w-[1120px] px-6 pt-5 pb-10">
+        {/* =========================
+            HEADER (thin)
+        ========================== */}
+        <div className="h-[44px] flex items-center justify-between">
+          <div className="flex items-baseline gap-3">
+            <div className="text-[12.5px] tracking-[0.28em] text-white/70">
+              PYTHH
             </div>
-            <div className="text-center p-6">
-              <div className="text-6xl mb-4">🔥</div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">Vote</h3>
-              <p className="text-gray-700">
-                Vote "Hot" or "Pass" based on your gut. Your votes help startups build momentum and appear in the Hot 5 feed.
-              </p>
-            </div>
-            <div className="text-center p-6">
-              <div className="text-6xl mb-4">🤝</div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">Connect</h3>
-              <p className="text-gray-700">
-                When you find a startup you love, add it to your Honeypot 🔮 and connect directly with founders.
-              </p>
+            <div className="text-[12.5px] text-white/35">
+              Signal Science
             </div>
           </div>
+          <div className="text-[12.5px] text-white/35">
+            {/* keep empty for v1; don't add nav noise */}
+          </div>
         </div>
-      </div>
 
-      {/* CTA Section */}
-      <div className="bg-gradient-to-r from-cyan-500 to-blue-600 py-16 px-8 text-white text-center">
-        <h2 className="text-4xl font-bold mb-4">Ready to Find Your Next Investment?</h2>
-        <p className="text-xl mb-8 max-w-2xl mx-auto">
-          Join thousands of investors discovering startups before they blow up.
-        </p>
-        <div className="flex gap-4 justify-center flex-wrap">
-          <button
-            onClick={() => navigate('/signup')}
-            className="bg-white text-cyan-600 font-bold py-4 px-8 rounded-2xl shadow-lg hover:bg-gray-100 transition-all text-lg"
+        {/* =========================
+            TITLE (dominant + cyan glow)
+        ========================== */}
+        <div className="mb-4">
+          <div
+            className="text-[32px] leading-[1.05] font-semibold tracking-[-0.02em] text-white"
+            style={{ 
+              textShadow: "0 0 20px rgba(34,211,238,0.35), 0 0 40px rgba(34,211,238,0.15), 0 0 60px rgba(34,211,238,0.08)" 
+            }}
           >
-            Get Started Free
-          </button>
-          <button
-            onClick={() => navigate('/about')}
-            className="bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-4 px-8 rounded-2xl shadow-lg transition-all text-lg"
-          >
-            Learn More
-          </button>
+            FIND INVESTOR SIGNALS
+          </div>
+          <div className="text-[13px] text-white/50 mt-2">
+            Discover which investors are aligned with you — now
+          </div>
+        </div>
+
+        {/* =========================
+            LIVE STATS (Supabase-style)
+        ========================== */}
+        <div className="mb-6 pb-6 border-b border-white/10">
+          <LiveStats />
+        </div>
+
+        {/* =========================
+            SUBMIT BAR
+        ========================== */}
+        <div className="mt-4">
+          <SubmitBar
+            value={url}
+            onChange={setUrl}
+            onSubmit={handleSubmit}
+            isLoading={false}
+          />
+        </div>
+
+        {/* =========================
+            STATUS LINE
+        ========================== */}
+        <div className="mt-2">
+          <StatusLine
+            state={systemState}
+            lastUpdatedAtMs={lastUpdatedAtMs}
+            mode={mode}
+            bufferState={bufferState}
+            refreshMins={refreshMins}
+          />
+          <SignalLegend />
+        </div>
+
+        {/* =========================
+            TICKER (horizontal)
+        ========================== */}
+        <div className="mt-4">
+          <SignalTicker items={ticker} />
+        </div>
+
+        {/* =========================
+            LIVE MATCHES TABLE (buffer)
+        ========================== */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between">
+            <div className="text-[12px] tracking-[0.22em] text-white/55">
+              LIVE MATCHES (BUFFERED)
+            </div>
+            <div className="text-[12px] text-white/35 tabular-nums">
+              slice {sliceIndex + 1} / {Math.ceil(fullBuffer.length / SLICE_SIZE)}&nbsp;&nbsp;•&nbsp;&nbsp;rotates 30s&nbsp;&nbsp;•&nbsp;&nbsp;refresh 60m
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <LiveMatchesTable
+              rows={visibleSlice}
+              onAction={(row) => {
+                // v1: route to signal-matches (or investor reveal later)
+                // For now keep the UI wired.
+                navigate("/signal-matches");
+              }}
+            />
+          </div>
+
+          {/* One-line guidance (locked) */}
+          <div className="mt-3 text-[12.5px] text-white/45">
+            Signal = timing · GOD = position · VC++ = investor optics · σ = surface tension
+          </div>
+        </div>
+
+        {/* =========================
+            ABOUT
+        ========================== */}
+        <div className="mt-8">
+          <AboutPythh />
         </div>
       </div>
     </div>

@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdminEmail } from '../lib/adminConfig';
 import { supabase } from '../lib/supabase';
 import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff } from 'lucide-react';
 
@@ -13,6 +12,28 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleForgotPassword = useCallback(async () => {
+    if (!email) {
+      setError('Enter your email address first, then click Forgot password');
+      return;
+    }
+    setResetLoading(true);
+    setError('');
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) throw resetError;
+      setResetSent(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email');
+    } finally {
+      setResetLoading(false);
+    }
+  }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +48,23 @@ export default function Login() {
       });
       
       if (authError) {
-        // Don't auto-signup — show error to user
-        throw authError;
+        // If user doesn't exist, sign them up
+        if (authError.message.includes('Invalid login credentials')) {
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: { name: email.split('@')[0] }
+            }
+          });
+          
+          if (signUpError) throw signUpError;
+          
+          // Profile is auto-created by database trigger
+          console.log('[Login] Created new user:', signUpData.user?.id);
+        } else {
+          throw authError;
+        }
       } else {
         console.log('[Login] Signed in:', data.user?.id);
       }
@@ -37,7 +73,8 @@ export default function Login() {
       login(email, password);
       
       // Check if admin and redirect accordingly
-      if (isAdminEmail(email)) {
+      const isAdmin = email.includes('admin') || email.includes('ugobe');
+      if (isAdmin) {
         navigate('/admin');
       } else {
         const params = new URLSearchParams(window.location.search);
@@ -81,7 +118,12 @@ export default function Login() {
             <p className="text-slate-400">Sign in to access your matches</p>
           </div>
 
-          {/* Error message */}
+          {/* Success / Error messages */}
+          {resetSent && (
+            <div className="mb-6 p-3 bg-emerald-500/20 border border-emerald-500/50 rounded-lg text-emerald-300 text-sm text-center">
+              Password reset email sent! Check your inbox.
+            </div>
+          )}
           {error && (
             <div className="mb-6 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm text-center">
               {error}
@@ -136,8 +178,13 @@ export default function Login() {
                 <input type="checkbox" className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500" />
                 Remember me
               </label>
-              <button type="button" className="text-cyan-400 hover:text-cyan-300 transition-colors">
-                Forgot password?
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="text-cyan-400 hover:text-cyan-300 transition-colors disabled:opacity-50"
+              >
+                {resetLoading ? 'Sending...' : 'Forgot password?'}
               </button>
             </div>
 

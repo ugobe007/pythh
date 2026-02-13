@@ -19,6 +19,7 @@
 
 const express = require('express');
 const router = express.Router();
+const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { 

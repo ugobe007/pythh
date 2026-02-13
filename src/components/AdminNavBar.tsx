@@ -90,9 +90,9 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         </Link>
         <span className="text-gray-600">|</span>
         <Link 
-          to="/admin/ml-dashboard" 
+          to="/admin/ai-intelligence" 
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
-            isActive('/admin/ml-dashboard') || isActive('/admin/ai-intelligence')
+            isActive('/admin/ai-intelligence')
               ? 'bg-purple-500/20 text-purple-300 font-semibold' 
               : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
           }`}

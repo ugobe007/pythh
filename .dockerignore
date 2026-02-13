@@ -7,3 +7,13 @@ node_modules
 .env.*
 *.log
 *.pid
+logs/
+*.tar.gz
+*.txt
+*.json.bak
+ml-data/
+data/
+FS_TREE_L4.txt
+server_backup_*.tar.gz
+*.md
+!README.md

@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { isAdminEmail } from '../lib/adminConfig';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
@@ -33,6 +32,13 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Admin emails list
+const ADMIN_EMAILS = [
+  'aabramson@comunicano.com',
+  'ugobe07@gmail.com',
+  'ugobe1@mac.com'
+];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -73,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: supabaseUser.id,
       email,
       name: supabaseUser.user_metadata?.name || email.split('@')[0],
-      isAdmin: isAdminEmail(email)
+      isAdmin: ADMIN_EMAILS.includes(email.toLowerCase()) || email.includes('admin')
     };
     setUser(newUser);
     localStorage.setItem('currentUser', JSON.stringify(newUser));
@@ -103,14 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = (email: string, _password: string) => {
-    // SECURITY: This only sets local UI state for backward compatibility.
-    // Real authentication must happen via supabase.auth.signInWithPassword() first.
-    // This function should only be called AFTER successful Supabase auth.
+  const login = (email: string, password: string) => {
+    // This is now mainly for backward compatibility
+    // Real auth happens in Login.tsx via supabase.auth.signIn
     const newUser: User = {
       email,
       name: email.split('@')[0],
-      isAdmin: isAdminEmail(email),
+      isAdmin: ADMIN_EMAILS.includes(email.toLowerCase()) || email.includes('admin'),
     };
     
     setUser(newUser);

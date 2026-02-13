@@ -47,6 +47,7 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const helmet = require('helmet');
+const logger = require('./logger');
 const { pool } = require('./db');
 const { getSupabaseClient } = require('./lib/supabaseClient');
 // fs and path are already declared above
@@ -99,7 +100,23 @@ app.use(rateLimitGeneral);
 
 // Request logging
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path} [${req.requestId}]`);
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const logData = {
+      component: 'http',
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      duration,
+      requestId: req.requestId,
+    };
+    if (res.statusCode >= 400) {
+      logger.warn(logData, '%s %s %d %dms', req.method, req.path, res.statusCode, duration);
+    } else {
+      logger.info(logData, '%s %s %d %dms', req.method, req.path, res.statusCode, duration);
+    }
+  });
   next();
 });
 
@@ -6297,8 +6314,7 @@ app.use((err, req, res, next) => {
 // Start server with error handling
 try {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ Server is running on http://localhost:${PORT}`);
-    console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
+    logger.info({ component: 'startup', port: PORT, env: IS_PRODUCTION ? 'production' : 'development' }, 'Server started on port %d', PORT);
     
     // Prompt 14: Scheduled alerts sweep
     // Run every 15 minutes (900000ms)
@@ -6399,17 +6415,17 @@ try {
     console.log(`📊 Daily digest check scheduled every ${DIGEST_INTERVAL_MS / 1000 / 60} minutes`);
   });
 } catch (error) {
-  console.error('❌ Failed to start server:', error);
+  logger.fatal({ component: 'startup', err: error }, 'Failed to start server');
   process.exit(1);
 }
 
 // Handle server errors (these are fine outside app.listen)
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
+  logger.fatal({ component: 'process', err: error }, 'Uncaught Exception — exiting');
   // Node is in undefined state after uncaught exception — must exit and let PM2 restart
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error({ component: 'process', err: reason }, 'Unhandled Rejection');
 });

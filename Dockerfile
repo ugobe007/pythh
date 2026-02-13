@@ -1,21 +1,17 @@
-# Combined Frontend + Backend + Background Workers for Fly.io
-# Serves React frontend, Express API, and all scrapers/workers from a single container
-# Managed by PM2 process manager
-
-FROM node:20-alpine
+# ============================================
+# Stage 1: BUILD (compile frontend + install all deps)
+# ============================================
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies + curl for health checks
-RUN apk add --no-cache python3 make g++ curl
+# Build-time deps for native modules (pg, bcrypt, etc.)
+RUN apk add --no-cache python3 make g++
 
-# Install PM2 globally (process manager for production)
-RUN npm install -g pm2
-
-# Copy package files
+# Copy package files first (Docker layer caching)
 COPY package*.json ./
 
-# Install all dependencies (including dev for build)
+# Install ALL dependencies (including devDependencies for Vite build)
 RUN npm ci --legacy-peer-deps
 
 # Copy source code
@@ -27,21 +23,43 @@ ARG VITE_SUPABASE_ANON_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
-# Build the frontend (VITE_* vars are now available to Vite)
+# Build the frontend
 RUN npm run build
 
-# The server will serve both:
-# - Static files from /app/dist (frontend)
-# - API endpoints at /api/* (backend)
-# PM2 also manages all background scrapers, ML pipelines, and match engine
+# Prune devDependencies — only production deps for the final image
+RUN npm prune --production --legacy-peer-deps
+
+# ============================================
+# Stage 2: PRODUCTION (lean runtime image)
+# ============================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Only curl needed at runtime (for health checks)
+RUN apk add --no-cache curl
+
+# Install PM2 globally
+RUN npm install -g pm2
+
+# Copy production node_modules (no devDependencies)
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy built frontend
+COPY --from=builder /app/dist ./dist
+
+# Copy server code + config files needed at runtime
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/ecosystem.prod.config.js ./ecosystem.prod.config.js
+COPY --from=builder /app/system-guardian.js ./system-guardian.js
 
 # Set production environment
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Expose the port Fly.io expects
 EXPOSE 8080
 
-# Start all processes via PM2 (Express server + scrapers + workers)
-# pm2-runtime keeps the container alive and handles signals properly
+# Start via PM2 runtime
 CMD ["pm2-runtime", "start", "ecosystem.prod.config.js"]

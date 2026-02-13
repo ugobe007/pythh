@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { isAdminEmail } from '../lib/adminConfig';
 import {
   User,
   Settings,
@@ -69,6 +68,12 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
   // Single source of truth: logged in = user exists
   const isLoggedIn = !!user;
 
+  const ADMIN_EMAILS = [
+    'aabramson@comunicano.com',
+    'ugobe07@gmail.com',
+    'ugobe1@mac.com'
+  ];
+
   useEffect(() => {
     const checkAuth = () => {
       // Get session state (scan status)
@@ -79,8 +84,15 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
       const savedRole = (localStorage.getItem('userRole') as 'founder' | 'investor') || 'founder';
       setUserRole(savedRole);
 
-      // Admin check: use shared admin config as single source of truth
-      const adminStatus = user ? (Boolean(user.isAdmin) || isAdminEmail(user.email)) : false;
+      // Admin check: use user from useAuth() as primary source
+      let adminStatus = false;
+
+      if (user) {
+        adminStatus =
+          Boolean(user.isAdmin) ||
+          (user.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false);
+      }
+
       setIsAdmin(adminStatus);
     };
 
@@ -243,7 +255,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
                   {userRole === 'investor' && (
                     <MenuItem to="/investor/dashboard" label="Observatory" sub="Discovery flow & quality drift" onClose={handleClose} />
                   )}
-                  <MenuItem to="/saved-matches" label="Saved Matches" sub="Your signal map" onClose={handleClose} />
+                  <MenuItem to="/matches" label="Saved Matches" sub="Your signal map" onClose={handleClose} />
                 </>
               ) : (
                 <MenuItem to="/login" label="Sign in" sub="Access saved matches + outreach" onClose={handleClose} />
@@ -273,7 +285,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
                   </div>
                   <MenuItem to="/admin/control" label="Control" sub="System settings" onClose={handleClose} />
                   <MenuItem to="/admin/health" label="Health" sub="System status" onClose={handleClose} />
-                  <MenuItem to="/admin/pipeline" label="Pipelines" sub="Data flows" onClose={handleClose} />
+                  <MenuItem to="/admin/scrapers" label="Pipelines" sub="Data flows" onClose={handleClose} />
                 </>
               )}
 

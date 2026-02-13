@@ -29,7 +29,7 @@ import "./App.css";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { L5Guard, AuthGuard } from "./lib/routeGuards";
+import { L5Guard } from "./lib/routeGuards";
 import { trackEvent } from "./lib/analytics";
 
 // Layouts
@@ -39,11 +39,10 @@ import AppLayout from "./layouts/AppLayout";
 // PUBLIC
 import PythhMain from "./pages/PythhMain";
 import SignalMatches from "./pages/SignalMatches";
-import SignalsRouteSwitch from "./pages/SignalsRouteSwitch";
-import SignalsSignificance from "./pages/SignalsSignificance";
-import SignalTrends from "./pages/SignalTrends";
 import FounderSignalsPage from "./pages/FounderSignalsPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
+import SignalsSignificance from "./pages/SignalsSignificance";
+import SignalTrends from "./pages/SignalTrends";
 
 // APP (instrument mode)
 import SignalsDashboard from "./pages/app/SignalsDashboard";
@@ -89,6 +88,7 @@ import FounderProfileDashboard from "./pages/FounderProfileDashboard";
 import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 
 // Explore
 import ExplorePage from "./pages/ExplorePage";
@@ -190,12 +190,13 @@ const App: React.FC = () => {
           {/* Legacy (consider deprecating later) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />
 
-          {/* User account pages (auth required) */}
+          {/* User account pages */}
           <Route path="/login" element={<Login />} />
-          <Route path="/profile" element={<AuthGuard><FounderProfileDashboard /></AuthGuard>} />
-          <Route path="/profile/account" element={<AuthGuard><ProfilePage /></AuthGuard>} />
-          <Route path="/investor/dashboard" element={<AuthGuard><InvestorProfileDashboard /></AuthGuard>} />
-          <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/profile" element={<FounderProfileDashboard />} />
+          <Route path="/profile/account" element={<ProfilePage />} />
+          <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
+          <Route path="/settings" element={<Settings />} />
 
           {/* Commercial pages */}
           <Route path="/pricing" element={<PricingPage />} />
@@ -207,7 +208,7 @@ const App: React.FC = () => {
           {/* ──────────────────────────────────────────────────────────────
               APP (instrument mode - inside pythh)
           ────────────────────────────────────────────────────────────── */}
-          <Route path="/app" element={<AuthGuard><AppLayout /></AuthGuard>}>
+          <Route path="/app" element={<AppLayout />}>
             {/* Dashboard renamed */}
             <Route index element={<Navigate to="signals-dashboard" replace />} />
             <Route path="signals-dashboard" element={<SignalsDashboard />} />
