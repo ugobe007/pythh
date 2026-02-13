@@ -83,9 +83,12 @@ export default function TopBar({
 /**
  * BRAND MARK (for TopBar left)
  */
+import PythiaLogo from '@/components/PythiaLogo';
+
 export function TopBarBrand() {
   return (
-    <Link to="/" className="flex items-center gap-2 group">
+    <Link to="/" className="flex items-center gap-2.5 group">
+      <PythiaLogo size={26} />
       <div className="text-base font-bold tracking-tight group-hover:text-orange-400 transition">
         pythh.ai
       </div>

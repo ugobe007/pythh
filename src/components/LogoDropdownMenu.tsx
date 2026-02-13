@@ -178,7 +178,8 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
         <div className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
             {/* Logo (left side) */}
-            <Link to="/" className="group flex items-baseline gap-2">
+            <Link to="/" className="group flex items-center gap-2.5">
+              <img src="/pythia-square.png" alt="" className="w-6 h-6 rounded-full" />
               <span className="text-sm font-semibold tracking-wide text-white/90 group-hover:text-white">
                 pythh.ai
               </span>
@@ -231,7 +232,10 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
           >
             {/* Header - Brand lockup */}
             <div className="px-4 py-4 border-b border-white/10">
-              <div className="text-xs tracking-[0.25em] text-white/40">PYTHH.AI</div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <img src="/pythia-square.png" alt="" className="w-7 h-7 rounded-full" />
+                <div className="text-xs tracking-[0.25em] text-white/40">PYTHH.AI</div>
+              </div>
               <div className="text-sm font-semibold text-white/90">Find my investors</div>
               <div className="text-xs text-white/45 mt-1">Investor discovery for founders</div>
             </div>

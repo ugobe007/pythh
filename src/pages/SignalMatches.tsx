@@ -420,8 +420,11 @@ export default function SignalMatches() {
       {!isInApp && (
         <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
           <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
+            <div className="flex items-center gap-3">
+              <Link to="/" className="flex items-center gap-2.5">
+                <img src="/pythia-square.png" alt="" className="w-6 h-6 rounded-full" />
+                <span className="text-lg font-bold text-white tracking-tight">pythh.ai</span>
+              </Link>
               <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
             </div>
             <nav className="flex items-center gap-6 text-sm text-zinc-400">
