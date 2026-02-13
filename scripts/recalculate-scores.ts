@@ -37,7 +37,8 @@ interface ScoreBreakdown {
   vision_score: number;
   total_god_score: number;
   // Phase 1 Psychological Signals (Feb 12, 2026)
-  psychological_bonus?: number;
+  // Note: Column named psychological_multiplier but stores additive bonus
+  psychological_multiplier?: number; // -0.3 to +1.0 (on 0-10 scale)
   enhanced_god_score?: number;
   psychological_signals?: {
     fomo: number;
@@ -268,8 +269,9 @@ async function recalculateScores(): Promise<void> {
     const finalScore = Math.min(Math.round(scores.total_god_score + bootstrapBonus + signalsBonus), 100);
     
     // Phase 1 Psychological Signals (Feb 12, 2026) - Apply additive bonus to create enhanced score
-    // enhanced_god_score = finalScore + psychological_bonus (capped at 100)
-    const psychBonus = scores.psychological_bonus || 0;
+    // enhanced_god_score = finalScore + psychological_multiplier (capped at 100)
+    // Note: psychological_multiplier column stores additive bonus values (0-1.0 scale)
+    const psychBonus = scores.psychological_multiplier || 0;
     const enhancedScore = Math.min(Math.round(finalScore + (psychBonus * 10)), 100); // Convert 0-10 scale to 0-100
 
     // Only update if score changed (any change, removed threshold to fix corrupted scores)
@@ -284,7 +286,8 @@ async function recalculateScores(): Promise<void> {
           product_score: scores.product_score,
           vision_score: scores.vision_score,
           // Phase 1 Psychological Signals (Feb 12, 2026) - ADDITIVE
-          psychological_bonus: psychBonus,
+          // Note: Column named psychological_multiplier but stores additive bonus
+          psychological_multiplier: psychBonus,
           enhanced_god_score: enhancedScore,
           updated_at: new Date().toISOString()
         })

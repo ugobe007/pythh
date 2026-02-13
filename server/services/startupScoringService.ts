@@ -616,7 +616,8 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
     }),
     tier,
     // Psychological signals (LAYERED ON TOP, ADDITIVE)
-    psychological_bonus: psychologicalBonus,
+    // Note: Column still named psychological_multiplier in DB, but we use it for additive bonus
+    psychological_multiplier: psychologicalBonus, // Storing additive bonus (0-1.0 scale)
     enhanced_total: enhancedTotal,
     psychological_signals: {
       fomo: startup.fomo_signal_strength || 0,
