@@ -111,10 +111,10 @@ BEGIN
   RAISE NOTICE '  🌉 Risk (bridge): 45 days';
   RAISE NOTICE '';
   RAISE NOTICE 'Example decay curves:';
-  RAISE NOTICE '  Signal strength 1.0 (100%):';
-  RAISE NOTICE '    - After 30 days: 50% for FOMO, 81% for Conviction';
-  RAISE NOTICE '    - After 90 days: 12.5% for FOMO, 50% for Conviction';
-  RAISE NOTICE '    - After 180 days: 1.6% for FOMO, 25% for Conviction';
+  RAISE NOTICE '  Signal strength 1.0 (100%%):';
+  RAISE NOTICE '    - After 30 days: 50%% for FOMO, 81%% for Conviction';
+  RAISE NOTICE '    - After 90 days: 12.5%% for FOMO, 50%% for Conviction';
+  RAISE NOTICE '    - After 180 days: 1.6%% for FOMO, 25%% for Conviction';
   RAISE NOTICE '';
   RAISE NOTICE '💡 TIP: Run recalculate-scores.ts to apply decay to existing signals';
 END $$;
