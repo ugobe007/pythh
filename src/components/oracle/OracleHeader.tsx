@@ -11,7 +11,12 @@ export default function OracleHeader({ onOpenMenu }: OracleHeaderProps) {
     <header className="w-full">
       <div className="flex w-full items-center justify-between">
         {/* Brand lockup (always visible) */}
-        <Link to="/" className="group flex items-baseline gap-2">
+        <Link to="/" className="group flex items-center gap-2">
+          <img
+            src="/pythia-outline.png"
+            alt=""
+            className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
+          />
           <span className="text-sm font-semibold tracking-wide text-white/90 group-hover:text-white">
             pythh.ai
           </span>
