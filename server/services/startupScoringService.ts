@@ -332,9 +332,9 @@ interface StartupProfile {
   is_bridge_round?: boolean;
   risk_signal_strength?: number; // 0-1.0
   
-  // Calculated multiplier (applied to base GOD score)
-  psychological_multiplier?: number; // 0.70 - 1.60
-  enhanced_god_score?: number; // total_god_score * psychological_multiplier (capped at 100)
+  // Calculated bonus (additive to base GOD score)
+  psychological_bonus?: number; // -3 to +10 points (additive)
+  enhanced_god_score?: number; // total_god_score + psychological_bonus (capped at 100)
 }
 
 interface HotScore {
@@ -360,8 +360,8 @@ interface HotScore {
   // ============================================================================
   // PSYCHOLOGICAL SIGNALS (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
   // ============================================================================
-  psychological_multiplier?: number; // 0.70 - 1.60
-  enhanced_total?: number; // total * psychological_multiplier (on 0-10 scale)
+  psychological_bonus?: number; // -0.3 to +1.0 (on 0-10 scale)
+  enhanced_total?: number; // total + psychological_bonus (on 0-10 scale)
   psychological_signals?: {
     fomo?: number; // 0-1.0
     conviction?: number; // 0-1.0
@@ -577,14 +577,15 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   const tier = total >= 7 ? 'hot' : total >= 4 ? 'warm' : 'cold';
   
   // ============================================================================
-  // PSYCHOLOGICAL MULTIPLIER (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
+  // PSYCHOLOGICAL BONUS (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
   // ============================================================================
-  // Apply behavioral intelligence multiplier (LAYERED ON TOP, doesn't modify GOD)
+  // Apply behavioral intelligence bonus (ADDITIVE, not multiplicative)
+  // Per architecture spec: "FINAL SCORE = GOD base + Signals bonus (0-10)"
+  // Expected: 1-3 points typical, 7+ rare, 10 max
   // Ref: PSYCHOLOGICAL_SIGNALS_PHASE1_COMPLETE.md
-  // Ref: BEHAVIORAL_SIGNAL_AUDIT.md
   // ============================================================================
-  const psychologicalMultiplier = calculatePsychologicalMultiplier(startup);
-  const enhancedTotal = total * psychologicalMultiplier;
+  const psychologicalBonus = calculatePsychologicalBonus(startup);
+  const enhancedTotal = Math.min(total + psychologicalBonus, 10); // Cap at 10 (0-10 scale)
   
   return {
     total,
@@ -614,8 +615,8 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
       productScore
     }),
     tier,
-    // Psychological signals (LAYERED ON TOP)
-    psychological_multiplier: psychologicalMultiplier,
+    // Psychological signals (LAYERED ON TOP, ADDITIVE)
+    psychological_bonus: psychologicalBonus,
     enhanced_total: enhancedTotal,
     psychological_signals: {
       fomo: startup.fomo_signal_strength || 0,
@@ -627,9 +628,12 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
 }
 
 // ============================================================================
-// PSYCHOLOGICAL MULTIPLIER CALCULATION (Phase 1 - Feb 12, 2026)
+// PSYCHOLOGICAL BONUS CALCULATION (Phase 1 - Feb 12, 2026)
 // ============================================================================
-// ADMIN APPROVED: Behavioral intelligence layer
+// ADMIN APPROVED: Behavioral intelligence layer (ADDITIVE, not multiplicative)
+// Per architecture spec: "FINAL SCORE = GOD base + Signals bonus (0-10)"
+// Expected: 1-3 points typical, 7+ rare, 10 max
+// 
 // Core philosophy: "Investors are humans showing human behavior, psychology,
 // greed, pride, and ego. We listen to those signals to predict their actions."
 // 
@@ -638,71 +642,75 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
 // ============================================================================
 
 /**
- * Calculate psychological multiplier based on behavioral signals
+ * Calculate psychological bonus points based on behavioral signals
  * 
- * Formula: 1.0 + (FOMO boost) + (Conviction boost) + (Urgency boost) - (Risk penalty)
+ * Formula: (FOMO bonus) + (Conviction bonus) + (Urgency bonus) - (Risk penalty)
  * 
- * Components:
- * - FOMO (oversubscription): 0.30 weight - scarcity drives action
- * - Conviction (follow-on): 0.25 weight - highest trust signal
- * - Urgency (competitive): 0.20 weight - social proof cascade
- * - Risk (bridge): 0.15 weight - negative signal (penalty)
+ * Components (on 0-10 point scale):
+ * - FOMO (oversubscription): 0-5 points - scarcity drives action
+ * - Conviction (follow-on): 0-5 points - highest trust signal
+ * - Urgency (competitive): 0-3 points - social proof cascade
+ * - Risk (bridge): 0-3 points penalty - negative signal
  * 
- * Range: 0.70 (high risk) to 1.60 (maximum boost)
+ * Range: -3 (high risk) to +10 (maximum boost, capped)
  * 
  * Examples:
- * - Baseline (no signals): 1.00 (no change)
- * - 3x oversubscribed: 1.18 (18% boost)
- * - Sequoia follow-on: 1.17 (17% boost)
- * - 3x oversubscribed + Sequoia + competitive: 1.55 (55% boost)
- * - Bridge round: 0.89 (11% penalty)
+ * - Baseline (no signals): 0 points (no change)
+ * - 3x oversubscribed (0.60 strength): +3.0 points
+ * - Sequoia follow-on (0.68 strength): +3.4 points
+ * - 3x oversubscribed + Sequoia + competitive: +6-9 points
+ * - Bridge round (0.75 strength): -2.25 points
  * 
  * @param startup StartupProfile with psychological signal fields
- * @returns multiplier (0.70 - 1.60)
+ * @returns bonus points (-3 to +10)
  */
-function calculatePsychologicalMultiplier(startup: StartupProfile): number {
-  let multiplier = 1.0; // Baseline
+function calculatePsychologicalBonus(startup: StartupProfile): number {
+  let bonus = 0; // Baseline
   
-  // FOMO Boost (Oversubscription)
+  // FOMO Bonus (Oversubscription)
   // When a round is "3x oversubscribed", it signals high demand and market validation
   // Psychology: Scarcity drives action, fast movers win
+  // Max: 5 points (on 0-10 scale)
   if (startup.is_oversubscribed && startup.fomo_signal_strength) {
-    const fomoBoost = startup.fomo_signal_strength * 0.30;
-    multiplier += fomoBoost;
+    const fomoBonus = startup.fomo_signal_strength * 0.5; // 0-0.5 on 0-10 scale
+    bonus += fomoBonus;
   }
   
-  // Conviction Boost (Follow-On Investment)
+  // Conviction Bonus (Follow-On Investment)
   // Existing investors doubling down is THE strongest trust signal
   // They have inside information, board access, and are risking reputation
   // Psychology: Follow the smart money, especially Tier 1 firms
+  // Max: 5 points (on 0-10 scale)
   if (startup.has_followon && startup.conviction_signal_strength) {
-    const convictionBoost = startup.conviction_signal_strength * 0.25;
-    multiplier += convictionBoost;
+    const convictionBonus = startup.conviction_signal_strength * 0.5; // 0-0.5 on 0-10 scale
+    bonus += convictionBonus;
   }
   
-  // Urgency Boost (Competitive Round)
+  // Urgency Bonus (Competitive Round)
   // Multiple term sheets = social proof cascade
   // Psychology: FOMO amplified by scarcity, decision paralysis breaks → rapid action
+  // Max: 3 points (on 0-10 scale)
   if (startup.is_competitive && startup.urgency_signal_strength) {
-    const urgencyBoost = startup.urgency_signal_strength * 0.20;
-    multiplier += urgencyBoost;
+    const urgencyBonus = startup.urgency_signal_strength * 0.3; // 0-0.3 on 0-10 scale
+    bonus += urgencyBonus;
   }
   
   // Risk Penalty (Bridge Round)
   // Bridge financing = struggle signal
   // Startup missed milestones, buyer for next round at risk
   // Psychology: Flight, not fight (existing investors trapped, new investors cautious)
+  // Max penalty: 3 points (on 0-10 scale)
   if (startup.is_bridge_round && startup.risk_signal_strength) {
-    const riskPenalty = startup.risk_signal_strength * 0.15;
-    multiplier -= riskPenalty;
+    const riskPenalty = startup.risk_signal_strength * 0.3; // 0-0.3 on 0-10 scale
+    bonus -= riskPenalty;
   }
   
-  // Cap multiplier between 0.70 and 1.60
-  // 0.70 = high risk (bridge + no positive signals)
-  // 1.60 = maximum boost (3x oversubscribed + follow-on + competitive)
-  multiplier = Math.max(0.70, Math.min(1.60, multiplier));
+  // Cap bonus between -3 and +10 (on 0-10 scale)
+  // -3 = high risk (bridge + no positive signals)
+  // +10 = maximum boost (capped at 1.0, which becomes 10 points on 0-100 scale)
+  bonus = Math.max(-0.3, Math.min(1.0, bonus));
   
-  return multiplier;
+  return bonus;
 }
 
 /**

@@ -37,7 +37,7 @@ interface ScoreBreakdown {
   vision_score: number;
   total_god_score: number;
   // Phase 1 Psychological Signals (Feb 12, 2026)
-  psychological_multiplier?: number;
+  psychological_bonus?: number;
   enhanced_god_score?: number;
   psychological_signals?: {
     fomo: number;
@@ -186,8 +186,8 @@ function calculateGODScore(startup: any): ScoreBreakdown {
     product_score: Math.round(((result.breakdown.product || 0) / 1.3) * 100),   // Practical max ~1.3 (was 2.0, created 65% cap)
     vision_score: Math.round(((result.breakdown.product_vision || 0) / 1.3) * 100), // Practical max ~1.3 (was 2.0)
     total_god_score: total,
-    // Phase 1 Psychological Signals (Feb 12, 2026) - ADMIN APPROVED
-    psychological_multiplier: result.psychological_multiplier || 1.0,
+    // Phase 1 Psychological Signals (Feb 12, 2026) - ADMIN APPROVED (ADDITIVE)
+    psychological_bonus: result.psychological_bonus || 0,
     enhanced_god_score: result.enhanced_total ? Math.round(result.enhanced_total * 10) : total,
     psychological_signals: result.psychological_signals || { fomo: 0, conviction: 0, urgency: 0, risk: 0 }
   };
@@ -267,10 +267,10 @@ async function recalculateScores(): Promise<void> {
     // Final score = GOD score + Bootstrap bonus + Signals bonus (capped at 100, rounded to integer)
     const finalScore = Math.min(Math.round(scores.total_god_score + bootstrapBonus + signalsBonus), 100);
     
-    // Phase 1 Psychological Signals (Feb 12, 2026) - Apply multiplier to create enhanced score
-    // enhanced_god_score = finalScore * psychological_multiplier (capped at 100)
-    const psychMultiplier = scores.psychological_multiplier || 1.0;
-    const enhancedScore = Math.min(Math.round(finalScore * psychMultiplier), 100);
+    // Phase 1 Psychological Signals (Feb 12, 2026) - Apply additive bonus to create enhanced score
+    // enhanced_god_score = finalScore + psychological_bonus (capped at 100)
+    const psychBonus = scores.psychological_bonus || 0;
+    const enhancedScore = Math.min(Math.round(finalScore + (psychBonus * 10)), 100); // Convert 0-10 scale to 0-100
 
     // Only update if score changed (any change, removed threshold to fix corrupted scores)
     if (finalScore !== oldScore) {
@@ -283,8 +283,8 @@ async function recalculateScores(): Promise<void> {
           traction_score: scores.traction_score,
           product_score: scores.product_score,
           vision_score: scores.vision_score,
-          // Phase 1 Psychological Signals (Feb 12, 2026)
-          psychological_multiplier: psychMultiplier,
+          // Phase 1 Psychological Signals (Feb 12, 2026) - ADDITIVE
+          psychological_bonus: psychBonus,
           enhanced_god_score: enhancedScore,
           updated_at: new Date().toISOString()
         })
