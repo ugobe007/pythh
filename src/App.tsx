@@ -43,6 +43,7 @@ import FounderSignalsPage from "./pages/FounderSignalsPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
 import SignalsSignificance from "./pages/SignalsSignificance";
 import SignalTrends from "./pages/SignalTrends";
+import AboutPage from "./pages/AboutPage";
 
 // APP (instrument mode)
 import SignalsDashboard from "./pages/app/SignalsDashboard";
@@ -137,6 +138,9 @@ const App: React.FC = () => {
               PUBLIC (pythh.ai)
           ────────────────────────────────────────────────────────────── */}
           <Route path="/" element={<PythhMain />} />
+
+          {/* About pythh.ai — the Pythia story */}
+          <Route path="/about" element={<AboutPage />} />
 
           {/* Engine now redirects to combined matches page */}
           <Route path="/engine" element={<Navigate to="/matches" replace />} />
