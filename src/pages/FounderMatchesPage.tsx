@@ -67,7 +67,24 @@ interface EngineMatchRow {
   startup_id: string;
   investor_id: string;
   reasoning: string[] | string | null;
-  startup: { id: string; name: string; tagline: string | null; sectors: string[] | null; stage: string | null; total_god_score: number | null; };
+  startup: { 
+    id: string; 
+    name: string; 
+    tagline: string | null; 
+    sectors: string[] | null; 
+    stage: string | null; 
+    total_god_score: number | null; 
+    enhanced_god_score?: number | null;
+    psychological_multiplier?: number | null;
+    is_oversubscribed?: boolean | null;
+    has_followon?: boolean | null;
+    is_competitive?: boolean | null;
+    is_bridge_round?: boolean | null;
+    has_sector_pivot?: boolean | null;
+    has_social_proof_cascade?: boolean | null;
+    is_repeat_founder?: boolean | null;
+    has_cofounder_exit?: boolean | null;
+  };
   investor: { id: string; name: string; firm: string | null; sectors: string[] | null; stage: string[] | null; check_size_min: number | null; check_size_max: number | null; type: string | null; };
 }
 
@@ -209,7 +226,7 @@ export default function FounderMatchesPage() {
       const sIds = [...new Set(unique.map(m => m.startup_id).filter(Boolean))];
       const iIds = [...new Set(unique.map(m => m.investor_id).filter(Boolean))];
       const [sRes, iRes, platformRes] = await Promise.all([
-        supabase.from('startup_uploads').select('id, name, tagline, sectors, stage, total_god_score').in('id', sIds),
+        supabase.from('startup_uploads').select('id, name, tagline, sectors, stage, total_god_score, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit').in('id', sIds),
         supabase.from('investors').select('id, name, firm, sectors, stage, check_size_min, check_size_max, type').in('id', iIds),
         supabase.rpc('get_platform_stats'),
       ]);
@@ -528,9 +545,72 @@ export default function FounderMatchesPage() {
                     {activeEngine.startup.stage && <span className="px-2 py-0.5 text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded">{activeEngine.startup.stage}</span>}
                   </div>
                   {activeEngine.startup.total_god_score != null && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500">GOD Score</span>
-                      <span className={`text-sm font-mono font-bold ${engineScoreColor(activeEngine.startup.total_god_score)}`}>{activeEngine.startup.total_god_score}</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500">GOD Score</span>
+                        {activeEngine.startup.enhanced_god_score && activeEngine.startup.enhanced_god_score > (activeEngine.startup.total_god_score || 0) ? (
+                          <>
+                            <span className="text-sm font-mono font-bold text-zinc-500 line-through">{activeEngine.startup.total_god_score}</span>
+                            <ChevronRight size={14} className="text-zinc-600" />
+                            <span className={`text-sm font-mono font-bold ${engineScoreColor(activeEngine.startup.enhanced_god_score)}`}>
+                              {activeEngine.startup.enhanced_god_score}
+                            </span>
+                            {activeEngine.startup.psychological_multiplier && (
+                              <span className="text-xs text-emerald-400 font-semibold">
+                                +{Math.round((activeEngine.startup.psychological_multiplier - 1) * 100)}%
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className={`text-sm font-mono font-bold ${engineScoreColor(activeEngine.startup.total_god_score)}`}>{activeEngine.startup.total_god_score}</span>
+                        )}
+                      </div>
+                      
+                      {/* Psychological Signals */}
+                      {(activeEngine.startup.is_oversubscribed || activeEngine.startup.has_followon || activeEngine.startup.is_competitive || activeEngine.startup.is_bridge_round || activeEngine.startup.has_sector_pivot || activeEngine.startup.has_social_proof_cascade || activeEngine.startup.is_repeat_founder || activeEngine.startup.has_cofounder_exit) && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {activeEngine.startup.is_oversubscribed && (
+                            <span className="px-2 py-0.5 text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded flex items-center gap-1" title="Oversubscribed round - high FOMO">
+                              🚀 Oversubscribed
+                            </span>
+                          )}
+                          {activeEngine.startup.has_followon && (
+                            <span className="px-2 py-0.5 text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded flex items-center gap-1" title="Follow-on investment - strong conviction">
+                              💎 Follow-on
+                            </span>
+                          )}
+                          {activeEngine.startup.is_competitive && (
+                            <span className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded flex items-center gap-1" title="Competitive round - high urgency">
+                              ⚡ Competitive
+                            </span>
+                          )}
+                          {activeEngine.startup.is_bridge_round && (
+                            <span className="px-2 py-0.5 text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded flex items-center gap-1" title="Bridge round - elevated risk">
+                              🌉 Bridge
+                            </span>
+                          )}
+                          {activeEngine.startup.has_sector_pivot && (
+                            <span className="px-2 py-0.5 text-[10px] bg-teal-500/10 text-teal-400 border border-teal-500/20 rounded flex items-center gap-1" title="Sector pivot detected">
+                              🔄 Pivot
+                            </span>
+                          )}
+                          {activeEngine.startup.has_social_proof_cascade && (
+                            <span className="px-2 py-0.5 text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded flex items-center gap-1" title="Social proof cascade">
+                              🌊 Social Proof
+                            </span>
+                          )}
+                          {activeEngine.startup.is_repeat_founder && (
+                            <span className="px-2 py-0.5 text-[10px] bg-green-500/10 text-green-400 border border-green-500/20 rounded flex items-center gap-1" title="Repeat founder">
+                              🔁 Repeat Founder
+                            </span>
+                          )}
+                          {activeEngine.startup.has_cofounder_exit && (
+                            <span className="px-2 py-0.5 text-[10px] bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded flex items-center gap-1" title="Cofounder departure">
+                              🚪 Cofounder Exit
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

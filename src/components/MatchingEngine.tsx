@@ -34,6 +34,16 @@ interface MatchRow {
     stage: string | null;
     total_god_score: number | null;
     website: string | null;
+    enhanced_god_score?: number | null;
+    psychological_multiplier?: number | null;
+    is_oversubscribed?: boolean | null;
+    has_followon?: boolean | null;
+    is_competitive?: boolean | null;
+    is_bridge_round?: boolean | null;
+    has_sector_pivot?: boolean | null;
+    has_social_proof_cascade?: boolean | null;
+    is_repeat_founder?: boolean | null;
+    has_cofounder_exit?: boolean | null;
   };
   investor: {
     id: string;
@@ -140,7 +150,7 @@ export default function MatchingEngine() {
       const [sRes, iRes, platformRes] = await Promise.all([
         supabase
           .from("startup_uploads")
-          .select("id, name, tagline, sectors, stage, total_god_score, website")
+          .select("id, name, tagline, sectors, stage, total_god_score, website, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit")
           .in("id", sIds),
         supabase
           .from("investors")
@@ -345,11 +355,59 @@ export default function MatchingEngine() {
                   )}
                 </div>
                 {active.startup.total_god_score != null && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-500">GOD Score</span>
-                    <span className={`text-sm font-mono font-bold ${scoreColor(active.startup.total_god_score)}`}>
-                      {active.startup.total_god_score}
-                    </span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">GOD Score</span>
+                      {active.startup.enhanced_god_score && active.startup.enhanced_god_score > (active.startup.total_god_score || 0) ? (
+                        <>
+                          <span className="text-sm font-mono font-bold text-zinc-500 line-through">{active.startup.total_god_score}</span>
+                          <ArrowRight size={14} className="text-zinc-600" />
+                          <span className={`text-sm font-mono font-bold ${scoreColor(active.startup.enhanced_god_score)}`}>
+                            {active.startup.enhanced_god_score}
+                          </span>
+                          {active.startup.psychological_multiplier && (
+                            <span className="text-xs text-emerald-400 font-semibold">
+                              +{Math.round((active.startup.psychological_multiplier - 1) * 100)}%
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className={`text-sm font-mono font-bold ${scoreColor(active.startup.total_god_score)}`}>
+                          {active.startup.total_god_score}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Psychological Signals */}
+                    {(active.startup.is_oversubscribed || active.startup.has_followon || active.startup.has_social_proof_cascade || active.startup.is_repeat_founder) && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {active.startup.is_oversubscribed && (
+                          <span className="px-2 py-0.5 text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded" title="Oversubscribed">
+                            🚀 Oversubscribed
+                          </span>
+                        )}
+                        {active.startup.has_followon && (
+                          <span className="px-2 py-0.5 text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded" title="Follow-on">
+                            💎 Follow-on
+                          </span>
+                        )}
+                        {active.startup.is_competitive && (
+                          <span className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded" title="Competitive">
+                            ⚡ Competitive
+                          </span>
+                        )}
+                        {active.startup.has_social_proof_cascade && (
+                          <span className="px-2 py-0.5 text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded" title="Social Proof">
+                            🌊 Social Proof
+                          </span>
+                        )}
+                        {active.startup.is_repeat_founder && (
+                          <span className="px-2 py-0.5 text-[10px] bg-green-500/10 text-green-400 border border-green-500/20 rounded" title="Repeat Founder">
+                            🔁 Repeat Founder
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

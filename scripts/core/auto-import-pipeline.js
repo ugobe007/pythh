@@ -13,6 +13,7 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
+const { extractInferenceData } = require('../../lib/inference-extractor.js');
 
 // Validate environment variables
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -194,11 +195,57 @@ async function importDiscoveredStartups(limit = 50) {
     // Generate GOD score (will be recalculated later, but provide initial estimate)
     const godScore = 55 + Math.floor(Math.random() * 20);
     
-    // Insert into startup_uploads
+    // Extract psychological signals (Phase 1 + Phase 2)
+    const textToAnalyze = [
+      enrichedData.description,
+      enrichedData.tagline,
+      enrichedData.value_proposition
+    ].filter(Boolean).join(' ');
+    
+    let psychologicalSignals = {};
+    try {
+      const extracted = extractInferenceData(textToAnalyze, enrichedData.website || '');
+      psychologicalSignals = {
+        // Phase 1 signals
+        is_oversubscribed: extracted.is_oversubscribed || false,
+        oversubscribed_evidence: extracted.oversubscribed_evidence || null,
+        oversubscription_strength: extracted.oversubscription_strength || null,
+        has_followon: extracted.has_followon || false,
+        followon_lead_investor: extracted.followon_lead_investor || null,
+        followon_strength: extracted.followon_strength || null,
+        is_competitive: extracted.is_competitive || false,
+        competitor_count: extracted.competitor_count || null,
+        is_bridge_round: extracted.is_bridge_round || false,
+        // Phase 2 signals
+        has_sector_pivot: extracted.has_sector_pivot || false,
+        pivot_investor: extracted.pivot_investor || null,
+        pivot_from_sector: extracted.pivot_from_sector || null,
+        pivot_to_sector: extracted.pivot_to_sector || null,
+        pivot_strength: extracted.pivot_strength || null,
+        has_social_proof_cascade: extracted.has_social_proof_cascade || false,
+        tier1_leader: extracted.tier1_leader || null,
+        follower_count: extracted.follower_count || null,
+        cascade_strength: extracted.cascade_strength || null,
+        is_repeat_founder: extracted.is_repeat_founder || false,
+        previous_companies: extracted.previous_companies || null,
+        previous_exits: extracted.previous_exits || null,
+        founder_strength: extracted.founder_strength || null,
+        has_cofounder_exit: extracted.has_cofounder_exit || false,
+        departed_role: extracted.departed_role || null,
+        departed_name: extracted.departed_name || null,
+        exit_risk_strength: extracted.exit_risk_strength || null,
+      };
+    } catch (extractError) {
+      // Silent fail - signals are optional enhancement
+      console.log(`   ⚠️  Signal extraction skipped for ${startup.name}`);
+    }
+    
+    // Insert into startup_uploads with psychological signals
     const { data: inserted, error: insertError } = await supabase
       .from('startup_uploads')
       .insert({
         ...enrichedData,
+        ...psychologicalSignals,
         total_god_score: godScore,
         team_score: 50 + Math.floor(Math.random() * 20),
         traction_score: 45 + Math.floor(Math.random() * 25),
@@ -212,6 +259,21 @@ async function importDiscoveredStartups(limit = 50) {
     if (insertError) {
       console.error(`   ❌ Failed to import ${startup.name}:`, insertError.message);
       continue;
+    }
+    
+    // Log psychological signals detected
+    const detectedSignals = [];
+    if (psychologicalSignals.is_oversubscribed) detectedSignals.push('🚀 Oversubscribed');
+    if (psychologicalSignals.has_followon) detectedSignals.push('💎 Follow-on');
+    if (psychologicalSignals.is_competitive) detectedSignals.push('⚡ Competitive');
+    if (psychologicalSignals.is_bridge_round) detectedSignals.push('🌉 Bridge');
+    if (psychologicalSignals.has_sector_pivot) detectedSignals.push('🔄 Sector Pivot');
+    if (psychologicalSignals.has_social_proof_cascade) detectedSignals.push('🌊 Social Proof');
+    if (psychologicalSignals.is_repeat_founder) detectedSignals.push('🔁 Repeat Founder');
+    if (psychologicalSignals.has_cofounder_exit) detectedSignals.push('🚪 Cofounder Exit');
+    
+    if (detectedSignals.length > 0) {
+      console.log(`   🧠 Signals: ${detectedSignals.join(', ')}`);
     }
     
     // Mark as imported

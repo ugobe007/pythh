@@ -269,9 +269,22 @@ function parseRound(title: string): string | null {
 
 /**
  * Production guardrail: Validate entity quality (ENHANCED with Ontology System)
+ * 
+ * IMPORTANT: This function validates extracted ENTITY NAMES, not headline content.
+ * - Semantic terms like "funding", "Series A", "raises" are KEPT in headlines for event detection
+ * - They are only blocked when they appear as the extracted company NAME
+ * 
+ * Example:
+ *   ✅ Headline: "Acme raises $25M Series A funding" 
+ *      → Extract entity: "Acme" (valid)
+ *      → Store context: round="Series A", amounts=[{value:25, magnitude:"M"}]
+ * 
+ *   ❌ Headline: "Series A Funding raises concerns"
+ *      → Extract entity: "Series A Funding" (INVALID - rejected here)
+ * 
  * Uses Tier 1 & Tier 2 ontologies for semantic classification
- * Rejects: possessives, pronouns, generic terms, places, long statements, 
- *          headline fragments, person names (non-startup founders)
+ * Rejects: financing terms as names, possessives, pronouns, generic terms, places, 
+ *          long statements, headline fragments, person names (non-startup founders)
  */
 function validateEntityQuality(entity: string): boolean {
   if (entity.length < 2) return false;
@@ -292,12 +305,25 @@ function validateEntityQuality(entity: string): boolean {
     return false;
   }
   
+  // Tier 1: Standalone financing/business terms (reject as entity NAMES only, not semantic signals)
+  // These are CONTEXT terms that help identify events, but should never be the company name
+  const financingTerms = ['Funding', 'Investment', 'Round', 'Capital', 'Venture'];
+  if (financingTerms.some(term => entity.toLowerCase() === term.toLowerCase())) {
+    return false; // Reject "Funding" as a company name
+  }
+  
+  // Tier 1: Funding stage terms (reject as entity NAMES only)
+  const fundingStages = ['Seed', 'Series A', 'Series B', 'Series C', 'Series D', 'Series E', 'IPO', 'SPAC'];
+  if (fundingStages.some(term => entity.toLowerCase() === term.toLowerCase())) {
+    return false; // Reject "Series A" as a company name (but keep as round metadata)
+  }
+  
   // Tier 1: Generic categories (NOT concrete entities)
   const genericTerms = [
     'Researchers', 'Founders', 'Startups', 'VCs', 'Investors', 'Executives',
     'Leaders', 'People', 'Companies', 'Firms', 'Teams', 'Scientists',
     'MIT Researchers', 'Stanford Researchers', 'Former USDS Leaders',
-    'Indian Startups', 'Big VCs', 'SMEs', 'IPO', 'Series A', 'Series B',
+    'Indian Startups', 'Big VCs', 'SMEs',
     // Real-world patterns from RSS feeds
     'Show', 'Show HN', 'How To', 'Humans',
     // Geographic adjectives (standalone)
@@ -324,9 +350,40 @@ function validateEntityQuality(entity: string): boolean {
     return false; // "Startup Amissa" → should extract "Amissa" only
   }
   
-  // Block "X Company" patterns (descriptive)
-  if (/^(Satellite|Tech|Software|AI|Crypto|Fintech)\s+(Company|Firm)/i.test(entity)) {
-    return false; // "Satellite Company Astranis" → should extract "Astranis" only
+  // Block "X startup" or "X company" patterns (ENHANCED)
+  // BUT allow actual company names like "The Funding Company" or "Acme Company"
+  // Target: descriptive patterns like "AI startup", "crypto company", not proper names
+  if (/\b(startup|firm|platform|service|solution|provider)s?\b$/i.test(entity) && entity.split(/\s+/).length > 1) {
+    // Block patterns ending with startup/firm/platform/etc (rarely proper names)
+    return false; // "Virtual psychiatry startup" → reject
+  }
+  
+  // Special handling for "company" - only block if it's descriptive, not a proper name
+  if (/\bcompany\b$/i.test(entity) && entity.split(/\s+/).length > 1) {
+    // Allow if starts with "The" (proper names like "The Compression Company")
+    if (/^The\s+/i.test(entity)) {
+      // Allow "The X Company" patterns
+    } else {
+      // Block single-word + "company" like "Tech Company", "AI Company"
+      if (entity.split(/\s+/).length === 2) {
+        return false;
+      }
+    }
+  }
+  
+  // Block "X Funding" or "X Round" patterns (compound financing terms)
+  if (/\b(funding|investment|round|capital)\b$/i.test(entity) && entity.split(/\s+/).length > 1) {
+    return false; // "Series A Funding" → reject, "Seed Round" → reject
+  }
+  
+  // Block descriptive industry patterns (adjective + industry term + business term)
+  if (/^(Virtual|Digital|Online|Remote|Cloud|AI|Tech|Mobile)\s+\w+\s+(startup|company|platform)$/i.test(entity)) {
+    return false; // "Virtual psychiatry startup", "Digital health platform"
+  }
+  
+  // Block "X Company" patterns (descriptive) - but allow "The X Company" (legitimate names)
+  if (/^(Satellite|Tech|Software|AI|Crypto|Fintech|Health)\s+Company$/i.test(entity) && !/^The\s+/i.test(entity)) {
+    return false; // "Satellite Company" → reject, but "The Compression Company" → allow
   }
   
   // Block "Finnish X" patterns (geographic adjectives as prefixes)
@@ -358,6 +415,11 @@ function validateEntityQuality(entity: string): boolean {
   }
   
   // === NEW TIER 3: Headline fragment detection ===
+  
+  // Block question/temporal starters (headline fragments)
+  if (/^(When|How|Why|What|Where|While|If|As|Since|After|Before)\s+/i.test(entity)) {
+    return false; // "When Openai", "How Google", etc.
+  }
   
   // Block "Former X" patterns (people/roles, not companies)
   if (/^Former\s+/i.test(entity)) {
@@ -392,8 +454,22 @@ function validateEntityQuality(entity: string): boolean {
     /^(CEOs?|CFOs?|CTOs?|Directors?)\s+/i,  // "CEO X", "Directors Leave"
     /^(Best|Top|Busy|One-time|Focus on)\s+/i,  // Listicle/adjective starts
     /^(Troubles|Agenda|Windows Mac)\b/i,  // Specific garbage
+    /^(Virtual|Digital|Online|Remote|Mobile|Cloud)\s+[A-Z][a-z]+$/i, // "Virtual Psychiatry" (adj + noun fragment)
   ];
   if (verbPatterns.some(p => p.test(entity))) {
+    return false;
+  }
+  
+  // Block standalone business/industry descriptors (not company names)
+  // BUT only if they're single words without articles/prefixes
+  const businessDescriptors = [
+    'Psychiatry', 'Healthcare', 'Technology', 'Software', 'Hardware', 'Services',
+    'Solutions', 'Platform', 'Marketplace', 'Analytics', 'Intelligence', 'Systems',
+    'Computing', 'Engineering', 'Development', 'Management', 'Consulting',
+    'Virtual', 'Digital', 'Online', 'Remote', 'Mobile', 'Cloud', 'AI', 'Tech', // Single adjectives
+  ];
+  // Note: "Compression" removed - can be part of legit names like "The Compression Company"
+  if (businessDescriptors.some(desc => entity.toLowerCase() === desc.toLowerCase())) {
     return false;
   }
   
@@ -1321,7 +1397,7 @@ export function toCapitalEvent(
   // Normalize entities from slots
   const entities: CapitalEventEntity[] = [];
   
-  if (frame.slots.subject) {
+  if (frame.slots.subject && validateEntityQuality(frame.slots.subject)) {
     entities.push({
       name: frame.slots.subject,
       role: "SUBJECT",
@@ -1330,7 +1406,7 @@ export function toCapitalEvent(
     });
   }
   
-  if (frame.slots.object) {
+  if (frame.slots.object && validateEntityQuality(frame.slots.object)) {
     // Detect if object is a CHANNEL (distributor/retailer pattern)
     const isChannel = /\b(Whole\s*Foods|Amazon|Walmart|Target|Best\s*Buy|CVS|Walgreens)\b/i.test(frame.slots.object);
     
@@ -1342,7 +1418,7 @@ export function toCapitalEvent(
     });
   }
   
-  if (frame.slots.tertiary) {
+  if (frame.slots.tertiary && validateEntityQuality(frame.slots.tertiary)) {
     entities.push({
       name: frame.slots.tertiary,
       role: "COUNTERPARTY",
@@ -1351,7 +1427,7 @@ export function toCapitalEvent(
     });
   }
   
-  if (frame.slots.other) {
+  if (frame.slots.other && validateEntityQuality(frame.slots.other)) {
     entities.push({
       name: frame.slots.other,
       role: "COUNTERPARTY",
@@ -1376,10 +1452,14 @@ export function toCapitalEvent(
     const slashPattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*\/\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/;
     const slashMatch = cleanedTitle.match(slashPattern);
     if (slashMatch) {
-      entities.push(
-        { name: slashMatch[1].trim(), role: "SUBJECT", confidence: 0.6, source: "heuristic" },
-        { name: slashMatch[2].trim(), role: "OBJECT", confidence: 0.6, source: "heuristic" }
-      );
+      const name1 = slashMatch[1].trim();
+      const name2 = slashMatch[2].trim();
+      if (validateEntityQuality(name1)) {
+        entities.push({ name: name1, role: "SUBJECT", confidence: 0.6, source: "heuristic" });
+      }
+      if (validateEntityQuality(name2)) {
+        entities.push({ name: name2, role: "OBJECT", confidence: 0.6, source: "heuristic" });
+      }
     } else {
       // 2. Look for possessive patterns: "OpenAI's new..." → extract "OpenAI"
       const possessivePattern = /\b([A-Z][a-zA-Z0-9]+(?:\s+[A-Z][a-zA-Z0-9]+)?)'s\b/g;
@@ -1387,7 +1467,7 @@ export function toCapitalEvent(
       if (possessiveMatches.length > 0) {
         possessiveMatches.slice(0, 2).forEach((m, idx) => {
           const name = m[1].trim();
-          if (name.length >= 2 && !["It", "How", "What", "Why", "The", "This"].includes(name)) {
+          if (name.length >= 2 && !["It", "How", "What", "Why", "The", "This"].includes(name) && validateEntityQuality(name)) {
             entities.push({
               name,
               role: idx === 0 ? "SUBJECT" : "OBJECT",
@@ -1413,7 +1493,7 @@ export function toCapitalEvent(
                           "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
         const companyNames = matches
           .map(m => m[1])
-          .filter(name => !stopWords.includes(name) && name.length > 2)
+          .filter(name => !stopWords.includes(name) && name.length > 2 && validateEntityQuality(name))
           .slice(0, 2); // Max 2 entities for OTHER events
         
         companyNames.forEach((name, idx) => {

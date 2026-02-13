@@ -360,32 +360,57 @@ export default function ExplorePage() {
                       {rank}
                     </div>
 
-                    {/* Name + tagline */}
+                    {/* Name + tagline + signals */}
                     <div className="min-w-0">
                       <div className="text-sm text-white truncate">{startup.name || 'Unnamed'}</div>
                       {startup.tagline && (
                         <div className="text-[11px] text-zinc-600 truncate mt-0.5">{startup.tagline}</div>
+                      )}
+                      {/* Psychological signals */}
+                      {(startup.is_oversubscribed || startup.has_followon || startup.has_social_proof_cascade || startup.is_repeat_founder) && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {startup.is_oversubscribed && <span className="text-[9px] px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded" title="Oversubscribed">🚀</span>}
+                          {startup.has_followon && <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded" title="Follow-on">💎</span>}
+                          {startup.is_competitive && <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded" title="Competitive">⚡</span>}
+                          {startup.has_social_proof_cascade && <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded" title="Social Proof">🌊</span>}
+                          {startup.is_repeat_founder && <span className="text-[9px] px-1.5 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded" title="Repeat Founder">🔁</span>}
+                        </div>
                       )}
                     </div>
 
                     {/* Sector */}
                     <div className="text-xs text-zinc-500 truncate self-center">{sectorDisplay}</div>
 
-                    {/* GOD Score — clickable */}
+                    {/* GOD Score — clickable, shows enhanced if available */}
                     <div
                       className="self-center cursor-pointer"
                       onClick={() => handleScoreClick(startup, rank)}
                       title="Click for score breakdown"
                     >
-                      <span
-                        className="text-sm font-semibold tabular-nums"
-                        style={{
-                          color: godScore >= 70 ? '#22d3ee' : godScore >= 50 ? '#a1a1aa' : '#52525b',
-                          textShadow: godScore >= 70 ? '0 0 15px rgba(34,211,238,0.3)' : 'none',
-                        }}
-                      >
-                        {godScore.toFixed(1)}
-                      </span>
+                      {startup.enhanced_god_score && startup.enhanced_god_score > godScore ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-mono text-zinc-600 line-through">{godScore.toFixed(0)}</span>
+                          <span
+                            className="text-sm font-semibold tabular-nums"
+                            style={{
+                              color: startup.enhanced_god_score >= 70 ? '#22d3ee' : startup.enhanced_god_score >= 50 ? '#a1a1aa' : '#52525b',
+                              textShadow: startup.enhanced_god_score >= 70 ? '0 0 15px rgba(34,211,238,0.3)' : 'none',
+                            }}
+                          >
+                            {startup.enhanced_god_score.toFixed(0)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span
+                          className="text-sm font-semibold tabular-nums"
+                          style={{
+                            color: godScore >= 70 ? '#22d3ee' : godScore >= 50 ? '#a1a1aa' : '#52525b',
+                            textShadow: godScore >= 70 ? '0 0 15px rgba(34,211,238,0.3)' : 'none',
+                          }}
+                        >
+                          {godScore.toFixed(1)}
+                        </span>
+                      )}
                     </div>
 
                     {/* Sub-scores */}

@@ -21,10 +21,17 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { execSync, spawn } = require('child_process');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Missing Supabase credentials');
+  console.error('SUPABASE_URL:', supabaseUrl || 'NOT SET');
+  console.error('SUPABASE_KEY:', supabaseKey ? 'SET' : 'NOT SET');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * THRESHOLD CONFIGURATION
@@ -109,8 +116,8 @@ async function checkScraperHealth() {
     const pm2Status = execSync('pm2 jlist 2>/dev/null || echo "[]"').toString();
     const processes = JSON.parse(pm2Status);
     
-    // Updated to match ecosystem.config.js process names (Feb 4, 2026)
-    const scrapers = ['rss-scraper', 'simple-rss-discovery', 'high-volume-discovery'];
+    // Updated to match current architecture (Feb 2026 - SSOT scraper only)
+    const scrapers = ['rss-scraper'];
     
     for (const name of scrapers) {
       const proc = processes.find(p => p.name === name);
@@ -236,55 +243,79 @@ async function checkDatabaseIntegrity() {
   const issues = [];
   
   try {
-    // Check startup_uploads has required columns
-    const { data: startupCols } = await supabase.rpc('exec_sql_rows', {
-      sql_query: `
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'startup_uploads'
-      `
-    });
+    // Check critical tables exist and data quality using basic queries
+    const { data: startups, error: startupError } = await supabase
+      .from('startup_uploads')
+      .select('id, name, status, total_god_score')
+      .limit(10);
     
-    const requiredStartupCols = ['id', 'name', 'status', 'total_god_score', 'sectors', 'stage'];
-    const existingCols = (startupCols || []).map(c => c.column_name);
+    if (startupError) {
+      console.error('Startup query error details:', startupError);
+      issues.push(`startup_uploads table error: ${startupError.message || JSON.stringify(startupError)}`);
+    } else if (!startups || startups.length === 0) {
+      issues.push('startup_uploads table is empty');
+    } else {
+      console.log(`✓ startup_uploads: ${startups.length} records sampled`);
+    }
     
-    for (const col of requiredStartupCols) {
-      if (!existingCols.includes(col)) {
-        issues.push(`startup_uploads missing column: ${col}`);
+    const { data: investors, error: investorError } = await supabase
+      .from('investors')
+      .select('id, name, sectors, stage')
+      .limit(10);
+    
+    if (investorError) {
+      console.error('Investor query error details:', investorError);
+      issues.push(`investors table error: ${investorError.message || JSON.stringify(investorError)}`);
+    } else if (!investors || investors.length === 0) {
+      issues.push('investors table is empty');
+    } else {
+      console.log(`✓ investors: ${investors.length} records sampled`);
+    }
+    
+    const { data: matches, error: matchError } = await supabase
+      .from('startup_investor_matches')
+      .select('id')
+      .limit(10);
+    
+    if (matchError) {
+      issues.push(`startup_investor_matches table error: ${matchError.message}`);
+    } else if (!matches || matches.length === 0) {
+      issues.push('No matches exist - run match-regenerator.js');
+    }
+    
+    // Check for orphaned data (only if basic queries succeed)
+    if (!startupError && startups) {
+      const { data: nullStatus } = await supabase
+        .from('startup_uploads')
+        .select('id')
+        .is('status', null)
+        .limit(100);
+      
+      if (nullStatus && nullStatus.length > 0) {
+        issues.push(`${nullStatus.length}+ startups with NULL status`);
+      }
+      
+      const { data: nullName } = await supabase
+        .from('startup_uploads')
+        .select('id')
+        .or('name.is.null,name.eq.')
+        .limit(100);
+      
+      if (nullName && nullName.length > 0) {
+        issues.push(`${nullName.length}+ startups with no name`);
       }
     }
     
-    // Check investors has required columns
-    const { data: investorCols } = await supabase.rpc('exec_sql_rows', {
-      sql_query: `
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'investors'
-      `
-    });
-    
-    const requiredInvestorCols = ['id', 'name', 'sectors', 'stage', 'investor_score'];
-    const existingInvCols = (investorCols || []).map(c => c.column_name);
-    
-    for (const col of requiredInvestorCols) {
-      if (!existingInvCols.includes(col)) {
-        issues.push(`investors missing column: ${col}`);
+    if (!investorError && investors) {
+      const { data: nullInvName } = await supabase
+        .from('investors')
+        .select('id')
+        .or('name.is.null,name.eq.')
+        .limit(100);
+      
+      if (nullInvName && nullInvName.length > 0) {
+        issues.push(`${nullInvName.length}+ investors with no name`);
       }
-    }
-    
-    // Check for orphaned data
-    const { data: orphanCheck } = await supabase.rpc('exec_sql_rows', {
-      sql_query: `
-        SELECT 
-          (SELECT COUNT(*) FROM startup_uploads WHERE status IS NULL) as null_status,
-          (SELECT COUNT(*) FROM startup_uploads WHERE name IS NULL OR name = '') as null_name,
-          (SELECT COUNT(*) FROM investors WHERE name IS NULL OR name = '') as null_inv_name
-      `
-    });
-    
-    if (orphanCheck && orphanCheck[0]) {
-      const o = orphanCheck[0];
-      if (parseInt(o.null_status) > 0) issues.push(`${o.null_status} startups with NULL status`);
-      if (parseInt(o.null_name) > 0) issues.push(`${o.null_name} startups with no name`);
-      if (parseInt(o.null_inv_name) > 0) issues.push(`${o.null_inv_name} investors with no name`);
     }
     
   } catch (err) {

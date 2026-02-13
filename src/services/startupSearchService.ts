@@ -33,6 +33,16 @@ export interface StartupSearchResult {
   website: string | null;
   raise_type: string | null;
   created_at: string | null;
+  enhanced_god_score?: number | null;
+  psychological_multiplier?: number | null;
+  is_oversubscribed?: boolean | null;
+  has_followon?: boolean | null;
+  is_competitive?: boolean | null;
+  is_bridge_round?: boolean | null;
+  has_sector_pivot?: boolean | null;
+  has_social_proof_cascade?: boolean | null;
+  is_repeat_founder?: boolean | null;
+  has_cofounder_exit?: boolean | null;
 }
 
 // Map display stage labels to numeric values in DB
@@ -60,7 +70,7 @@ export async function searchStartups(filters: StartupSearchFilters): Promise<{
   let qb = supabase
     .from('startup_uploads')
     .select(
-      'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, final_score, website, raise_type, created_at',
+      'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, final_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit',
       { count: 'exact' }
     )
     .eq('status', 'approved')

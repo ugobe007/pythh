@@ -303,6 +303,38 @@ interface StartupProfile {
   founded_date?: string;
   tagline?: string;
   pitch?: string;
+  
+  // ============================================================================
+  // PSYCHOLOGICAL SIGNALS (Phase 1 - Feb 12, 2026)
+  // ============================================================================
+  // ADMIN APPROVED: Behavioral intelligence layer
+  // These are SIGNALS (layered on top), not GOD components
+  // Ref: PSYCHOLOGICAL_SIGNALS_PHASE1_COMPLETE.md
+  // Ref: BEHAVIORAL_SIGNAL_AUDIT.md
+  // ============================================================================
+  
+  // Oversubscription Signal (FOMO indicator)
+  is_oversubscribed?: boolean;
+  oversubscription_multiple?: number; // 2x, 3x, 5x, etc.
+  fomo_signal_strength?: number; // 0-1.0
+  
+  // Follow-On Signal (Conviction indicator)
+  has_followon?: boolean;
+  followon_investors?: string[]; // ['Sequoia Capital', 'Greylock Partners']
+  conviction_signal_strength?: number; // 0-1.0
+  
+  // Competitive Signal (Urgency indicator)
+  is_competitive?: boolean;
+  term_sheet_count?: number; // Number of term sheets received
+  urgency_signal_strength?: number; // 0-1.0
+  
+  // Bridge Round Signal (Risk indicator)
+  is_bridge_round?: boolean;
+  risk_signal_strength?: number; // 0-1.0
+  
+  // Calculated multiplier (applied to base GOD score)
+  psychological_multiplier?: number; // 0.70 - 1.60
+  enhanced_god_score?: number; // total_god_score * psychological_multiplier (capped at 100)
 }
 
 interface HotScore {
@@ -324,6 +356,18 @@ interface HotScore {
   tier: 'hot' | 'warm' | 'cold';
   // ⛔ REMOVED: velocitySignals, efficiencySignals, timingSignals, matchedSectors
   // These concepts should be in SIGNAL layer
+  
+  // ============================================================================
+  // PSYCHOLOGICAL SIGNALS (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
+  // ============================================================================
+  psychological_multiplier?: number; // 0.70 - 1.60
+  enhanced_total?: number; // total * psychological_multiplier (on 0-10 scale)
+  psychological_signals?: {
+    fomo?: number; // 0-1.0
+    conviction?: number; // 0-1.0
+    urgency?: number; // 0-1.0
+    risk?: number; // 0-1.0
+  };
 }
 
 /**
@@ -532,6 +576,16 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   
   const tier = total >= 7 ? 'hot' : total >= 4 ? 'warm' : 'cold';
   
+  // ============================================================================
+  // PSYCHOLOGICAL MULTIPLIER (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
+  // ============================================================================
+  // Apply behavioral intelligence multiplier (LAYERED ON TOP, doesn't modify GOD)
+  // Ref: PSYCHOLOGICAL_SIGNALS_PHASE1_COMPLETE.md
+  // Ref: BEHAVIORAL_SIGNAL_AUDIT.md
+  // ============================================================================
+  const psychologicalMultiplier = calculatePsychologicalMultiplier(startup);
+  const enhancedTotal = total * psychologicalMultiplier;
+  
   return {
     total,
     breakdown: {
@@ -559,8 +613,96 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
       marketScore,
       productScore
     }),
-    tier
+    tier,
+    // Psychological signals (LAYERED ON TOP)
+    psychological_multiplier: psychologicalMultiplier,
+    enhanced_total: enhancedTotal,
+    psychological_signals: {
+      fomo: startup.fomo_signal_strength || 0,
+      conviction: startup.conviction_signal_strength || 0,
+      urgency: startup.urgency_signal_strength || 0,
+      risk: startup.risk_signal_strength || 0
+    }
   };
+}
+
+// ============================================================================
+// PSYCHOLOGICAL MULTIPLIER CALCULATION (Phase 1 - Feb 12, 2026)
+// ============================================================================
+// ADMIN APPROVED: Behavioral intelligence layer
+// Core philosophy: "Investors are humans showing human behavior, psychology,
+// greed, pride, and ego. We listen to those signals to predict their actions."
+// 
+// Ref: PSYCHOLOGICAL_SIGNALS_PHASE1_COMPLETE.md
+// Ref: BEHAVIORAL_SIGNAL_AUDIT.md
+// ============================================================================
+
+/**
+ * Calculate psychological multiplier based on behavioral signals
+ * 
+ * Formula: 1.0 + (FOMO boost) + (Conviction boost) + (Urgency boost) - (Risk penalty)
+ * 
+ * Components:
+ * - FOMO (oversubscription): 0.30 weight - scarcity drives action
+ * - Conviction (follow-on): 0.25 weight - highest trust signal
+ * - Urgency (competitive): 0.20 weight - social proof cascade
+ * - Risk (bridge): 0.15 weight - negative signal (penalty)
+ * 
+ * Range: 0.70 (high risk) to 1.60 (maximum boost)
+ * 
+ * Examples:
+ * - Baseline (no signals): 1.00 (no change)
+ * - 3x oversubscribed: 1.18 (18% boost)
+ * - Sequoia follow-on: 1.17 (17% boost)
+ * - 3x oversubscribed + Sequoia + competitive: 1.55 (55% boost)
+ * - Bridge round: 0.89 (11% penalty)
+ * 
+ * @param startup StartupProfile with psychological signal fields
+ * @returns multiplier (0.70 - 1.60)
+ */
+function calculatePsychologicalMultiplier(startup: StartupProfile): number {
+  let multiplier = 1.0; // Baseline
+  
+  // FOMO Boost (Oversubscription)
+  // When a round is "3x oversubscribed", it signals high demand and market validation
+  // Psychology: Scarcity drives action, fast movers win
+  if (startup.is_oversubscribed && startup.fomo_signal_strength) {
+    const fomoBoost = startup.fomo_signal_strength * 0.30;
+    multiplier += fomoBoost;
+  }
+  
+  // Conviction Boost (Follow-On Investment)
+  // Existing investors doubling down is THE strongest trust signal
+  // They have inside information, board access, and are risking reputation
+  // Psychology: Follow the smart money, especially Tier 1 firms
+  if (startup.has_followon && startup.conviction_signal_strength) {
+    const convictionBoost = startup.conviction_signal_strength * 0.25;
+    multiplier += convictionBoost;
+  }
+  
+  // Urgency Boost (Competitive Round)
+  // Multiple term sheets = social proof cascade
+  // Psychology: FOMO amplified by scarcity, decision paralysis breaks → rapid action
+  if (startup.is_competitive && startup.urgency_signal_strength) {
+    const urgencyBoost = startup.urgency_signal_strength * 0.20;
+    multiplier += urgencyBoost;
+  }
+  
+  // Risk Penalty (Bridge Round)
+  // Bridge financing = struggle signal
+  // Startup missed milestones, buyer for next round at risk
+  // Psychology: Flight, not fight (existing investors trapped, new investors cautious)
+  if (startup.is_bridge_round && startup.risk_signal_strength) {
+    const riskPenalty = startup.risk_signal_strength * 0.15;
+    multiplier -= riskPenalty;
+  }
+  
+  // Cap multiplier between 0.70 and 1.60
+  // 0.70 = high risk (bridge + no positive signals)
+  // 1.60 = maximum boost (3x oversubscribed + follow-on + competitive)
+  multiplier = Math.max(0.70, Math.min(1.60, multiplier));
+  
+  return multiplier;
 }
 
 /**
