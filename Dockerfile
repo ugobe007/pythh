@@ -51,9 +51,9 @@ COPY --from=builder /app/dist ./dist
 # Copy server code + config files needed at runtime
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/ecosystem.prod.config.js ./ecosystem.prod.config.js
-COPY --from=builder /app/system-guardian.js ./system-guardian.js
 
 # Set production environment
 ENV NODE_ENV=production
