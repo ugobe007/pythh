@@ -153,7 +153,7 @@ export default function HowItWorksPage() {
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* HEADER */}
       <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-white font-semibold">pythh.ai</Link>
             <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
@@ -175,37 +175,63 @@ export default function HowItWorksPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8">
         {/* ═══════════════════════════════════════════════════════════════
             HOOK — Stop pitching. Start timing.
         ═══════════════════════════════════════════════════════════════ */}
-        <section className="py-12">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl font-bold text-white mb-4">
-              Stop pitching. <span className="text-cyan-400">Start timing.</span>
-            </h1>
-            
-            <p className="text-lg text-zinc-400 mb-6">
-              <span className="text-white font-semibold">90% of pitches are rejected</span> because of signal timing.
-              <br />
-              <span className="text-zinc-500">Not your product. Not your team. Just bad timing.</span>
-            </p>
+        <section className="pt-6 pb-2">
+          <div className="flex flex-col md:flex-row md:items-start gap-8">
+            {/* Left: Headline + stats */}
+            <div className="max-w-xl">
+              <h1 className="text-3xl font-bold text-white mb-2">
+                Stop pitching. <span className="text-cyan-400">Start timing.</span>
+              </h1>
+              
+              <p className="text-base text-zinc-400 mb-4">
+                <span className="text-white font-semibold">90% of pitches are rejected</span> because of signal timing.
+                <br />
+                <span className="text-zinc-500">Not your product. Not your team. Just bad timing.</span>
+              </p>
 
-            <div className="flex items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-white">{stats.investors.toLocaleString()}</span>
-                <span className="text-zinc-500">investors</span>
+              <div className="flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-white">{stats.investors.toLocaleString()}</span>
+                  <span className="text-zinc-500">investors</span>
+                </div>
+                <div className="w-px h-6 bg-zinc-800" />
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-cyan-400">87%</span>
+                  <span className="text-zinc-500">timing accuracy</span>
+                </div>
+                <div className="w-px h-6 bg-zinc-800" />
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-emerald-400">3.2x</span>
+                  <span className="text-zinc-500">response rate</span>
+                </div>
               </div>
-              <div className="w-px h-6 bg-zinc-800" />
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-cyan-400">87%</span>
-                <span className="text-zinc-500">timing accuracy</span>
-              </div>
-              <div className="w-px h-6 bg-zinc-800" />
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-emerald-400">3.2x</span>
-                <span className="text-zinc-500">response rate</span>
-              </div>
+            </div>
+
+          </div>
+
+          {/* Playbook — full-width horizontal strip */}
+          <div className="mt-4 border border-zinc-800/60 rounded-lg px-4 py-3 bg-zinc-900/30">
+            <h3 className="text-[11px] text-zinc-500 uppercase tracking-widest mb-2">The Playbook</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2">
+              {PLAYBOOK.map((strategy, i) => (
+                <Link 
+                  key={strategy.id} 
+                  to="/app/playbook"
+                  className="flex gap-2.5 text-xs leading-snug group cursor-pointer hover:bg-zinc-800/40 -mx-2 px-2 py-1.5 rounded transition"
+                >
+                  <span className="text-cyan-500 font-mono mt-px shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                  <div className="flex-1">
+                    <span className="text-zinc-200 font-medium group-hover:text-cyan-400 transition">{strategy.name}</span>
+                    <span className="text-zinc-600 mx-1">—</span>
+                    <span className="text-emerald-400">{strategy.trigger}</span>
+                  </div>
+                  <span className="text-zinc-600 group-hover:text-zinc-400 transition text-[10px] mt-px">→</span>
+                </Link>
+              ))}
             </div>
           </div>
         </section>
@@ -213,8 +239,14 @@ export default function HowItWorksPage() {
         {/* ═══════════════════════════════════════════════════════════════
             LIVE SIGNAL TABLE
         ═══════════════════════════════════════════════════════════════ */}
-        <section className="py-12 border-b border-zinc-800/50">
-          <div className="flex items-center justify-between mb-6">
+        <section className="py-6 border-b border-zinc-800/50">
+          <p className="text-sm text-zinc-400 leading-relaxed mb-4">
+            Signals only matter if you act on them. These are four timing patterns we see consistently 
+            convert to <span className="text-cyan-400">meetings</span> — each one tied to a specific signal state in the table below. 
+            Read the trigger, match it to your data, move fast.
+          </p>
+
+          <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm text-zinc-400 uppercase tracking-widest">Investor Signals</h2>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
@@ -224,7 +256,7 @@ export default function HowItWorksPage() {
 
           <div className="bg-zinc-900/40 border border-zinc-800 rounded-xl overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-[1fr,100px,80px,80px,80px,100px] gap-4 px-6 py-4 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider">
+            <div className="grid grid-cols-[1fr,100px,80px,80px,80px,100px] gap-4 px-4 py-2.5 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider">
               <div>Investor / Firm</div>
               {COLUMNS.map(col => (
                 <div 
@@ -250,7 +282,7 @@ export default function HowItWorksPage() {
             {animatedSignals.map((inv, i) => (
               <div 
                 key={inv.name}
-                className={`grid grid-cols-[1fr,100px,80px,80px,80px,100px] gap-4 px-6 py-5 items-center hover:bg-zinc-800/30 transition ${i !== animatedSignals.length - 1 ? 'border-b border-zinc-800/50' : ''}`}
+                className={`grid grid-cols-[1fr,100px,80px,80px,80px,100px] gap-4 px-4 py-3 items-center hover:bg-zinc-800/30 transition ${i !== animatedSignals.length - 1 ? 'border-b border-zinc-800/50' : ''}`}
               >
                 <div className="text-cyan-400 font-semibold">{inv.name}</div>
                 <div className="text-right text-white font-mono">{inv.signal.toFixed(1)}</div>
@@ -271,51 +303,11 @@ export default function HowItWorksPage() {
           </p>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            THE PLAYBOOK — Actionable Strategies
-        ═══════════════════════════════════════════════════════════════ */}
-        <section className="py-12 border-b border-zinc-800/50">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">The Playbook</h2>
-            <p className="text-zinc-400">Four timing strategies that actually work.</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {PLAYBOOK.map((strategy, i) => (
-              <div 
-                key={strategy.id}
-                className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-xl hover:border-zinc-700 transition group"
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="w-8 h-8 flex items-center justify-center bg-cyan-500/10 text-cyan-400 font-bold rounded-lg text-sm">
-                    {i + 1}
-                  </span>
-                  <h3 className="text-lg font-semibold text-white">{strategy.name}</h3>
-                </div>
-                
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <span className="text-zinc-500">Trigger:</span>
-                    <span className="text-emerald-400 ml-2">{strategy.trigger}</span>
-                  </div>
-                  <div>
-                    <span className="text-zinc-500">Action:</span>
-                    <span className="text-white ml-2">{strategy.action}</span>
-                  </div>
-                  <div className="pt-2 border-t border-zinc-800">
-                    <span className="text-zinc-600 text-xs">{strategy.why}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
       </main>
 
-      {/* FOOTER - with padding for floating bar */}
-      <footer className="border-t border-zinc-800/50 py-8 pb-24">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 flex items-center justify-between text-xs text-zinc-600">
+      {/* FOOTER */}
+      <footer className="border-t border-zinc-800/50 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-between text-xs text-zinc-600">
           <span>© 2026 Pythh · Signal Science</span>
           <div className="flex items-center gap-6">
             <Link to="/signals" className="hover:text-zinc-400">Signals</Link>
@@ -324,29 +316,6 @@ export default function HowItWorksPage() {
           </div>
         </div>
       </footer>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          FLOATING CTA BAR — Sticky bottom
-      ═══════════════════════════════════════════════════════════════ */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-md border-t border-zinc-800/50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider whitespace-nowrap hidden sm:block">Check your timing</span>
-          <input
-            type="text"
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            placeholder="yourstartup.com"
-            className="flex-1 px-4 py-3 bg-zinc-900 border border-cyan-500/50 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
-          />
-          <button
-            onClick={handleSubmit}
-            className="px-6 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-lg hover:bg-cyan-500/10 transition text-sm whitespace-nowrap"
-          >
-            Find Signals →
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

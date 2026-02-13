@@ -3112,7 +3112,7 @@ app.post('/api/admin/alerts/sweep', async (req, res) => {
     const adminKey = req.headers['x-admin-key'];
     const expectedKey = process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY;
     
-    if (!adminKey || adminKey !== expectedKey) {
+    if (!adminKey || !expectedKey || adminKey !== expectedKey) {
       // Try to check user role instead
       const user = await getAuthenticatedUser(req);
       if (!user || user.user_metadata?.role !== 'admin') {
@@ -3597,7 +3597,7 @@ app.post('/api/admin/email/deliver', async (req, res) => {
     const adminKey = req.headers['x-admin-key'];
     const expectedKey = process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY;
     
-    if (!adminKey || adminKey !== expectedKey) {
+    if (!adminKey || !expectedKey || adminKey !== expectedKey) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     
@@ -4127,7 +4127,7 @@ app.post('/api/admin/digests/run', async (req, res) => {
     const adminKey = req.headers['x-admin-key'];
     const expectedKey = process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY;
     
-    if (!adminKey || adminKey !== expectedKey) {
+    if (!adminKey || !expectedKey || adminKey !== expectedKey) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     
@@ -5437,8 +5437,8 @@ app.get('/api/admin/metrics/overview', async (req, res) => {
   try {
     // Require admin key
     const adminKey = req.headers['x-admin-key'] || req.query.admin_key;
-    if (adminKey !== process.env.ADMIN_KEY && IS_PRODUCTION) {
-      return res.status(403).json({ error: 'Admin key required' });
+    if (!adminKey || !process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      if (IS_PRODUCTION) return res.status(403).json({ error: 'Admin key required' });
     }
     
     const days = parseInt(req.query.days) || 7;
@@ -5506,8 +5506,8 @@ app.get('/api/admin/metrics/funnel', async (req, res) => {
   try {
     // Require admin key
     const adminKey = req.headers['x-admin-key'] || req.query.admin_key;
-    if (adminKey !== process.env.ADMIN_KEY && IS_PRODUCTION) {
-      return res.status(403).json({ error: 'Admin key required' });
+    if (!adminKey || !process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      if (IS_PRODUCTION) return res.status(403).json({ error: 'Admin key required' });
     }
     
     const days = parseInt(req.query.days) || 7;
@@ -5576,8 +5576,8 @@ app.get('/api/admin/metrics/attribution', async (req, res) => {
   try {
     // Require admin key
     const adminKey = req.headers['x-admin-key'] || req.query.admin_key;
-    if (adminKey !== process.env.ADMIN_KEY && IS_PRODUCTION) {
-      return res.status(403).json({ error: 'Admin key required' });
+    if (!adminKey || !process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      if (IS_PRODUCTION) return res.status(403).json({ error: 'Admin key required' });
     }
     
     const days = parseInt(req.query.days) || 30;
@@ -5667,7 +5667,12 @@ function verifyAdminToken(token) {
 function requireAdminToken(req, res, next) {
   // Allow direct admin key for local dev/testing
   const adminKey = req.headers['x-admin-key'];
-  if (adminKey === process.env.ADMIN_KEY || (!IS_PRODUCTION && adminKey)) {
+  if (adminKey && process.env.ADMIN_KEY && adminKey === process.env.ADMIN_KEY) {
+    req.adminUserId = 'admin-key-user';
+    return next();
+  }
+  // In non-production, accept any admin key value for convenience
+  if (!IS_PRODUCTION && adminKey) {
     req.adminUserId = 'admin-key-user';
     return next();
   }
@@ -5692,8 +5697,8 @@ function requireAdminToken(req, res, next) {
 app.post('/api/admin/session', async (req, res) => {
   try {
     const adminKey = req.headers['x-admin-key'];
-    if (adminKey !== process.env.ADMIN_KEY && IS_PRODUCTION) {
-      return res.status(403).json({ error: 'Admin key required' });
+    if (!adminKey || !process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      if (IS_PRODUCTION) return res.status(403).json({ error: 'Admin key required' });
     }
     
     const { userId } = req.body;

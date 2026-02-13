@@ -56,60 +56,60 @@ const PLANS: PricingPlan[] = [
     name: 'Free',
     tier: 'free',
     price: 0,
-    tagline: 'Test the signal',
+    tagline: 'See your signals',
     color: 'border-zinc-700 hover:border-zinc-600',
     iconColor: 'text-zinc-400',
     ctaText: 'Get Started',
     features: [
-      { text: '1 Live Pairing (masked)', included: true },
-      { text: '3 Trending startups (no deep fields)', included: true },
-      { text: '3 Investor matches (masked names)', included: true },
-      { text: 'Watchlist', included: true },
-      { text: 'Real-time alerts', included: false },
-      { text: 'Export CSV', included: false },
-      { text: 'Deal Memo', included: false },
-      { text: 'Share links', included: false },
+      { text: 'Unlimited URL scans', included: true },
+      { text: '3 Investor matches (masked)', included: true },
+      { text: 'GOD Score overview', included: true },
+      { text: 'Match reasoning', included: true },
+      { text: 'Pitch Signal Scan (preview)', included: false },
+      { text: 'Signal Playbook', included: false },
+      { text: 'Timing Map', included: false },
+      { text: 'Export & Share', included: false },
     ],
   },
   {
-    name: 'Pro',
+    name: 'Signal Map',
     tier: 'pro',
     price: 49,
     annualPrice: 39,
-    tagline: 'Stop wasting intros',
+    tagline: 'Understand your position',
     color: 'border-amber-500/50 hover:border-amber-500',
     iconColor: 'text-amber-400',
-    ctaText: 'Upgrade to Pro',
+    ctaText: 'Upgrade to Signal Map',
     features: [
-      { text: '3 Live Pairings (investors visible)', included: true },
-      { text: '10 Trending + global score', included: true },
-      { text: '10 Investor matches (full identity)', included: true },
-      { text: 'Watchlist', included: true },
+      { text: '50+ Investor matches (full identity)', included: true },
+      { text: 'Pitch Signal Scan (5 dimensions)', included: true },
+      { text: 'Daily signal updates', included: true },
+      { text: 'Saved matches + Watchlist', included: true },
+      { text: 'Signal Playbook', included: false },
+      { text: 'Timing Map', included: false },
       { text: 'Real-time alerts', included: false },
-      { text: 'Export CSV', included: false },
-      { text: 'Deal Memo', included: false },
-      { text: 'Share links', included: false },
+      { text: 'Export CSV + Share links', included: false },
     ],
   },
   {
-    name: 'Elite',
+    name: 'Navigator',
     tier: 'elite',
     price: 149,
     annualPrice: 119,
-    tagline: 'Full intelligence suite',
+    tagline: 'Full signal navigation',
     color: 'border-violet-500 hover:border-violet-400',
     iconColor: 'text-violet-400',
-    ctaText: 'Go Elite',
+    ctaText: 'Go Navigator',
     popular: true,
     features: [
-      { text: '10 Live Pairings + confidence', included: true, highlight: true },
-      { text: '50 Trending + quantiles + reasons + risk', included: true, highlight: true },
-      { text: '50 Matches + explainability + confidence', included: true, highlight: true },
-      { text: 'Watchlist', included: true },
-      { text: 'Real-time alerts + "Why" explainability', included: true, highlight: true },
-      { text: 'Export CSV', included: true, highlight: true },
-      { text: 'Deal Memo generation', included: true, highlight: true },
-      { text: 'Share links', included: true, highlight: true },
+      { text: '50+ Matches + explainability + confidence', included: true, highlight: true },
+      { text: 'Signal Playbook (per-investor strategy)', included: true, highlight: true },
+      { text: 'Pitch Signal Scan (full 5 dimensions)', included: true, highlight: true },
+      { text: 'Fundraising Timing Map + weekly cadence', included: true, highlight: true },
+      { text: 'Real-time alerts + signal shift notifications', included: true, highlight: true },
+      { text: 'Export CSV + Deal Memo generation', included: true, highlight: true },
+      { text: 'Oracle coaching sessions', included: true, highlight: true },
+      { text: 'Share links for advisors', included: true, highlight: true },
     ],
   },
 ];
@@ -329,10 +329,10 @@ export default function PricingPage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
-            Clarity is cheaper than guessing.
+            Navigate fundraising with clarity.
           </h1>
           <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto">
-            Early access to institutional-grade signals — pricing will increase as features expand.
+            Signal-to-target navigation for founders. See your signals, understand your position, know exactly what to do.
           </p>
 
           {/* Billing Toggle */}

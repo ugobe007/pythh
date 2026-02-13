@@ -132,172 +132,151 @@ export default function Dashboard() {
   // ── Onboarding / Getting Started (no startup linked yet) ──
   if (!hasStartup) {
     return (
-      <div className="py-bg-dashboard" style={{ color: "var(--py-text)" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 18px 60px" }}>
-          {/* Welcome header */}
-          <div style={{ marginBottom: 32, textAlign: "center" }}>
-            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.02em" }}>
-              Welcome to Pythh
-            </h1>
-            <p style={{ marginTop: 8, fontSize: 15, color: "rgba(255,255,255,.55)", maxWidth: 520, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
-              Pythh matches your startup with the right investors using signal intelligence.
-              Here's how to get started and what each section does.
+      <div className="min-h-screen bg-[#0a0a0a] text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-8 py-12">
+
+          {/* Intro */}
+          <p className="text-sm text-zinc-400 leading-relaxed mb-10">
+            Pythh matches your startup with the right investors using{' '}
+            <span className="text-cyan-400">signal intelligence</span>. We scrape, score, and rank
+            every investor in our network against your company — then give you a playbook
+            for who to talk to, when, and what to say. Start by submitting your URL below.
+          </p>
+
+          {/* Get started */}
+          <div className="border-b border-zinc-800/50 pb-8 mb-8">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Get started</div>
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              Paste your company URL on the{' '}
+              <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">home page</Link>
+              . Pythh will automatically extract your company info, generate a GOD score, and start
+              finding matching investors. It takes about 30 seconds. Everything below populates once
+              your startup is in the system.
             </p>
           </div>
 
-          {/* Step 1 — Submit your startup */}
-          <div className="py-panel" style={{ marginBottom: 20 }}>
-            <div className="py-panel-inner" style={{ padding: "20px 24px" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(6,182,212,.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16, fontWeight: 800, color: "rgb(6,182,212)" }}>
-                  1
-                </div>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ fontSize: 17, fontWeight: 700 }}>Submit your startup</div>
-                  <p style={{ marginTop: 6, fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.5 }}>
-                    Paste your company URL on the home page — Pythh will automatically extract your company info,
-                    score your startup, and start finding matching investors. It takes about 30 seconds.
-                  </p>
-                  <div style={{ marginTop: 14 }}>
-                    <Link
-                      to="/"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "10px 20px",
-                        borderRadius: 10,
-                        background: "rgb(6,182,212)",
-                        color: "#000",
-                        fontWeight: 700,
-                        fontSize: 14,
-                        textDecoration: "none",
-                      }}
-                    >
-                      Go to Home Page &amp; Submit URL →
-                    </Link>
-                  </div>
-                </div>
-              </div>
+          {/* What you get */}
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-4">What you get</div>
+
+          <div className="space-y-0">
+            {/* Table header */}
+            <div className="hidden sm:grid grid-cols-[140px_1fr] gap-4 px-2 py-2 text-[11px] text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+              <span>Section</span>
+              <span>What it does</span>
             </div>
-          </div>
 
-          {/* What each section does */}
-          <div style={{ marginBottom: 16 }}>
-            <div className="py-kicker" style={{ marginBottom: 6 }}>your tools</div>
-            <h2 style={{ fontSize: 18, fontWeight: 700 }}>What each section does</h2>
-            <p style={{ marginTop: 4, fontSize: 13, color: "rgba(255,255,255,.45)", lineHeight: 1.4 }}>
-              Once you've submitted your startup, these sections will populate with live data.
-            </p>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, marginBottom: 24 }}>
             {/* Dashboard */}
-            <div className="py-panel">
-              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-                    📊
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>Dashboard</div>
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
-                  Your command center. See your startup's GOD score, signal strength, verification status,
-                  and what changed since your last visit. Track score movements and get recommended next actions.
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/dashboard" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">Dashboard</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Your command center. GOD score, signal strength, verification status, and what changed since your last visit.
+                  Track score movements and get recommended next actions.
                 </p>
-                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
-                  <strong style={{ color: "rgba(255,255,255,.5)" }}>GOD Score</strong> — Our proprietary 0–100 rating of startup quality (team + traction + market + product + vision).
-                </div>
+                <p className="text-xs text-zinc-600 mt-1">
+                  GOD Score — proprietary 0–100 rating of startup quality (team + traction + market + product + vision)
+                </p>
               </div>
             </div>
 
             {/* Matches */}
-            <div className="py-panel">
-              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-                    🎯
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>Matches</div>
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
-                  Your personalized investor matchbook. See which VCs and angels are the best fit for your
-                  startup, ranked by match score. Each match shows why that investor aligns with your sector,
-                  stage, and thesis.
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/signal-matches" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">Matches</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Your personalized investor matchbook — ranked by signal alignment. Each match shows
+                  why that investor fits your sector, stage, and thesis. Higher scores mean stronger alignment.
                 </p>
-                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
-                  Higher match scores = stronger alignment between your startup and the investor's portfolio.
-                </div>
               </div>
             </div>
 
             {/* Engine */}
-            <div className="py-panel">
-              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-                    ⚙️
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>Engine</div>
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
-                  See exactly how Pythh processes your data — from website scraping to entity parsing to signal
-                  generation to investor matching. This is the transparent view of our pipeline so you
-                  understand how matches are produced.
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/engine" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">Engine</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  See exactly how Pythh processes your data — website scraping, entity parsing, signal
+                  generation, investor matching. The transparent view of the pipeline so you understand
+                  how matches are produced.
                 </p>
-                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
-                  Inputs → Normalization → Signal Layer → Outputs.
-                </div>
+                <p className="text-xs text-zinc-600 mt-1">
+                  Inputs → Normalization → Signal Layer → Outputs
+                </p>
               </div>
             </div>
 
             {/* Oracle */}
-            <div className="py-panel">
-              <div className="py-panel-inner" style={{ padding: "18px 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(255,182,2,.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-                    🔮
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "#FFB402" }}>Oracle</div>
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,.55)", lineHeight: 1.45 }}>
-                  AI-powered coaching to improve your investor readiness. The Oracle wizard walks you through
-                  a guided assessment, generates a personalized action plan, and provides strategic recommendations
-                  — including VC strategy, cohort benchmarking, and score predictions.
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/oracle" className="text-amber-400 hover:text-amber-300 text-sm font-medium transition">Oracle</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  AI-powered coaching. The Oracle runs a guided assessment, generates a personalized action plan,
+                  and gives you strategic recommendations — VC strategy, cohort benchmarking, score predictions.
                 </p>
-                <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,.35)" }}>
-                  Wizard → Actions → Cohorts → VC Strategy → Predictions → Coaching.
-                </div>
+                <p className="text-xs text-zinc-600 mt-1">
+                  Wizard → Actions → Cohorts → VC Strategy → Predictions → Coaching
+                </p>
+              </div>
+            </div>
+
+            {/* Signal Playbook */}
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">Playbook</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Per-investor approach strategies. Timing, thesis alignment, warm paths, talking points,
+                  conviction triggers — everything you need to run a tight outreach sequence.
+                </p>
+              </div>
+            </div>
+
+            {/* Pitch Signal Scan */}
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/pitch-scan" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">Pitch Scan</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Five-dimension analysis of your pitch signal surface — narrative coherence, obsession density,
+                  conviction-evidence ratio, fragility, and trajectory momentum. Shows where you're credible
+                  and where you're exposed.
+                </p>
+              </div>
+            </div>
+
+            {/* Timing Map */}
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-1 sm:gap-4 px-2 py-4 border-b border-zinc-800/30">
+              <Link to="/app/timing-map" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition">Timing Map</Link>
+              <div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  Your fundraising readiness dashboard. Tracks where you are in the process, what the market
+                  looks like, and exactly what to do each week. Timing is the difference between a contested
+                  round and a cold outreach graveyard.
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Quick tips */}
-          <div className="py-panel">
-            <div className="py-panel-inner" style={{ padding: "18px 24px" }}>
-              <div className="py-kicker" style={{ marginBottom: 8 }}>how it works</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>1. Submit</div>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.4 }}>
-                    Paste your startup URL. We extract company data, score it, and generate matches automatically.
-                  </p>
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>2. Review matches</div>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.4 }}>
-                    Browse your ranked investor matches. Each match includes why the investor is a fit and their investment focus.
-                  </p>
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>3. Improve &amp; track</div>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,.5)", lineHeight: 1.4 }}>
-                    Use Oracle coaching to raise your score. Report actions and attach proof to unlock stronger matches.
-                  </p>
-                </div>
-              </div>
+          {/* How it works */}
+          <div className="mt-10 border-t border-zinc-800/50 pt-8">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-4">How it works</div>
+            <div className="space-y-3 text-sm">
+              <p className="text-zinc-400">
+                <span className="text-zinc-300 font-medium mr-3">1</span>
+                Submit your startup URL. We extract company data, score it, and generate matches automatically.
+              </p>
+              <p className="text-zinc-400">
+                <span className="text-zinc-300 font-medium mr-3">2</span>
+                Review your ranked investor matches. Each match includes why the investor is a fit and their investment focus.
+              </p>
+              <p className="text-zinc-400">
+                <span className="text-zinc-300 font-medium mr-3">3</span>
+                Use Oracle coaching and the Playbook to raise your score, sharpen your pitch, and run a tight fundraise.
+              </p>
             </div>
           </div>
+
+          <p className="text-xs text-zinc-600 mt-10 text-center">
+            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Submit your URL</Link> to get started — everything activates in about 30 seconds
+          </p>
         </div>
       </div>
     );

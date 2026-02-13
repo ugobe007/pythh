@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { OracleNotificationBell } from "../components/OracleNotificationBell";
 
 function NavItem({
   to,
@@ -56,6 +57,11 @@ export default function AppLayout() {
             <NavItem to="/app/signal-matches" label="Matches" description="Ranked investor matches for your startup" />
             <NavItem to="/app/engine" label="Engine" description="How Pythh processes your data into matches" />
             <NavItem to="/app/oracle" label="Oracle" description="AI coaching to improve your investor readiness" />
+            
+            {/* Oracle Notification Bell */}
+            <div className="ml-2 pl-2 border-l border-white/10">
+              <OracleNotificationBell />
+            </div>
           </nav>
 
           {/* Mobile hamburger */}

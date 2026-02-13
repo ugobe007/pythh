@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { isAdminEmail } from '../lib/adminConfig';
 import {
   User,
   Settings,
@@ -18,7 +19,6 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { trackEvent } from '../lib/analytics';
 import { getSession } from '../lib/routeGuards';
-import { isAdminEmail } from '../lib/adminConfig';
 
 interface Props {
   onPythClick?: () => void;
@@ -79,8 +79,9 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
       const savedRole = (localStorage.getItem('userRole') as 'founder' | 'investor') || 'founder';
       setUserRole(savedRole);
 
-      // Admin check: use shared admin config (single source of truth)
-      setIsAdmin(Boolean(user?.isAdmin) || isAdminEmail(user?.email));
+      // Admin check: use shared admin config as single source of truth
+      const adminStatus = user ? (Boolean(user.isAdmin) || isAdminEmail(user.email)) : false;
+      setIsAdmin(adminStatus);
     };
 
     checkAuth();

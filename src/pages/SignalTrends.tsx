@@ -540,9 +540,13 @@ const SignalTrends: React.FC = () => {
         ═══════════════════════════════════════════════════════════════ */}
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2">rankings</div>
-            <h1 className="text-[32px] font-semibold text-zinc-100 leading-tight mb-2">
-              Live Rankings
+            <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2 flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              rankings
+            </div>
+            <h1 className="text-[32px] font-semibold leading-tight mb-2">
+              <span className="text-white">Live </span>
+              <span className="text-cyan-400" style={{ textShadow: '0 0 30px rgba(34,211,238,0.3)' }}>Rankings</span>
             </h1>
             <p className="text-base text-zinc-400">
               How different investors score the same market
@@ -568,6 +572,52 @@ const SignalTrends: React.FC = () => {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════
+            DESCRIPTION — What rankings are and how tabs work
+        ═══════════════════════════════════════════════════════════════ */}
+        <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+          Rankings show how the same startups reorder under different investor scoring models.
+          The default <span className="text-cyan-400">GOD Score</span> is pythh's balanced baseline — equal weight across
+          team, traction, market, product, and vision. It is the most reliable way to rank startups
+          for signal review because it has no thesis bias. Click any tab below to see how a specific
+          investor (YC, Sequoia, a16z, etc.) would rescore and reorder the same companies using their
+          actual investment criteria. Watch startups jump or drop — that delta is the signal.
+        </p>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            LIVE STATS STRIP — The POP
+        ═══════════════════════════════════════════════════════════════ */}
+        <div className="flex items-center gap-4 mb-5 py-3 px-4 rounded-lg border border-zinc-800/50 bg-zinc-900/40">
+          <div className="flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs text-zinc-500">Live</span>
+          </div>
+          <div className="h-4 w-px bg-zinc-800" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-lg font-bold text-white">{totalStartupCount.toLocaleString()}</span>
+            <span className="text-xs text-zinc-500">startups ranked</span>
+          </div>
+          <div className="h-4 w-px bg-zinc-800" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-lg font-bold" style={{ color: activeLens.accent }}>{VC_LENSES.length}</span>
+            <span className="text-xs text-zinc-500">investor models</span>
+          </div>
+          <div className="h-4 w-px bg-zinc-800" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-zinc-500">Active lens</span>
+            <span className="text-sm font-semibold" style={{ color: activeLens.accent, textShadow: `0 0 12px ${activeLens.accent}40` }}>{activeLens.name}</span>
+          </div>
+          {hasUserChangedLens && (moversUp > 0 || moversDown > 0) && (
+            <>
+              <div className="h-4 w-px bg-zinc-800 ml-auto" />
+              <div className="flex items-center gap-3 text-xs">
+                {moversUp > 0 && <span style={{ color: activeLens.accent }}>↑ {moversUp} rose</span>}
+                {moversDown > 0 && <span className="text-red-400">↓ {moversDown} fell</span>}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════
             VC LENS BAR — The key interaction (SECRET SAUCE)
         ═══════════════════════════════════════════════════════════════ */}
         {/* VC LENS TABS — Full width row so all 8 are always visible */}
@@ -588,6 +638,7 @@ const SignalTrends: React.FC = () => {
                 style={{
                   backgroundColor: activeLens.id === lens.id ? 'rgba(34, 211, 238, 0.1)' : undefined,
                   borderBottom: activeLens.id === lens.id ? `2px solid ${lens.accent}` : '2px solid transparent',
+                  boxShadow: activeLens.id === lens.id ? `0 0 12px ${lens.accent}25` : undefined,
                 }}
               >
                 {lens.name}
@@ -656,8 +707,8 @@ const SignalTrends: React.FC = () => {
             ${isTransitioning ? 'opacity-60 scale-[0.995]' : 'opacity-100 scale-100'}
           `}
           style={{
-            borderColor: (lensFlash && hasUserChangedLens) ? activeLens.accent : 'rgba(63, 63, 70, 0.6)',
-            boxShadow: (lensFlash && hasUserChangedLens) ? `0 0 30px ${activeLens.accent}30` : 'none',
+            borderColor: (lensFlash && hasUserChangedLens) ? activeLens.accent : `${activeLens.accent}30`,
+            boxShadow: (lensFlash && hasUserChangedLens) ? `0 0 30px ${activeLens.accent}30` : `0 0 15px ${activeLens.accent}10`,
           }}
         >
           {/* Table Header */}
@@ -712,14 +763,18 @@ const SignalTrends: React.FC = () => {
                     `}
                     style={{
                       animation: isAnimating ? 'pulse 0.8s ease-out' : 'none',
+                      borderLeft: startup.rank <= 3 ? `2px solid ${activeLens.accent}` : '2px solid transparent',
+                      backgroundColor: startup.rank <= 3 ? `${activeLens.accent}06` : undefined,
                     }}
                   >
                     {/* Rank */}
                     <div className={`
                     font-mono text-sm tabular-nums
-                    ${startup.rank <= 10 ? 'text-white font-medium' : 'text-zinc-500'}
+                    ${startup.rank <= 3 ? 'font-bold' : startup.rank <= 10 ? 'text-white font-medium' : 'text-zinc-500'}
                     ${isAnimating && startup.delta !== 0 ? 'animate-bounce' : ''}
-                  `}>
+                  `}
+                    style={{ color: startup.rank <= 3 ? activeLens.accent : undefined }}
+                  >
                     {startup.rank}
                   </div>
 

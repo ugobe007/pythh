@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { isAdminEmail } from '../lib/adminConfig';
+import { supabase } from '../lib/supabase';
 import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -25,13 +27,14 @@ export default function Login() {
       });
       
       if (authError) {
-        // Show error — do NOT auto-create accounts on failed login
+        // Don't auto-signup — show error to user
         throw authError;
       } else {
         console.log('[Login] Signed in:', data.user?.id);
       }
       
-      // Supabase onAuthStateChange will sync user state automatically
+      // Also update localStorage auth for backward compatibility
+      login(email, password);
       
       // Check if admin and redirect accordingly
       if (isAdminEmail(email)) {

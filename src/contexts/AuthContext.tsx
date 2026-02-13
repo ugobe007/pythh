@@ -103,11 +103,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = (_email: string, _password: string) => {
-    // DEPRECATED: This no longer sets auth state directly.
-    // Real auth is handled by Supabase via syncUserFromSupabase().
-    // Kept for interface compatibility — callers should use supabase.auth.signInWithPassword instead.
-    console.warn('[AuthContext] login() called directly — this is a no-op. Use Supabase auth.');
+  const login = (email: string, _password: string) => {
+    // SECURITY: This only sets local UI state for backward compatibility.
+    // Real authentication must happen via supabase.auth.signInWithPassword() first.
+    // This function should only be called AFTER successful Supabase auth.
+    const newUser: User = {
+      email,
+      name: email.split('@')[0],
+      isAdmin: isAdminEmail(email),
+    };
+    
+    setUser(newUser);
+    localStorage.setItem('currentUser', JSON.stringify(newUser));
+    localStorage.setItem('isLoggedIn', 'true');
   };
 
   const logout = async () => {

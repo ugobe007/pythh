@@ -75,6 +75,7 @@ type UIState =
 
 export default function SignalMatches() {
   const location = useLocation();
+  const isInApp = location.pathname.startsWith('/app/');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = useParams<{ startupId?: string }>();
@@ -289,37 +290,41 @@ export default function SignalMatches() {
   
   if (uiState.mode === 'not_found') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center" data-testid="radar-not-found">
-        <div className="text-center max-w-md px-4">
-          <Search className="w-12 h-12 mx-auto mb-4 text-gray-500" />
-          <p className="text-lg font-medium text-gray-300">Startup not found</p>
-          <p className="text-sm text-gray-500 mt-2">
-            No startup matched "<span className="text-gray-400">{uiState.searched}</span>"
+      <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'} data-testid="radar-not-found">
+        {!isInApp && (
+          <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
+                <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
+              </div>
+              <nav className="flex items-center gap-6 text-sm text-zinc-400">
+                <Link to="/signals" className="hover:text-white">Signals</Link>
+                <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
+                <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+              </nav>
+            </div>
+          </header>
+        )}
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Not found</div>
+          <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+            No startup matched "<span className="text-white">{uiState.searched}</span>"
           </p>
-          
-          {/* Helpful hints */}
-          <div className="mt-4 text-xs text-gray-500 space-y-1">
-            <p>Tips:</p>
-            <p>• Check for typos in the domain name</p>
-            <p>• Use the full domain (e.g., stripe.com, not stripe)</p>
-            <p>• Make sure it's a real company website</p>
+
+          <div className="text-sm text-zinc-500 space-y-1.5 mb-8">
+            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Check for typos in the domain name</p>
+            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Use the full domain (e.g. stripe.com, not stripe)</p>
+            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Make sure it is a real company website</p>
           </div>
-          
-          <div className="mt-6 flex gap-3 justify-center">
-            <button
-              onClick={() => navigate('/')}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 rounded text-sm font-medium transition-colors"
-            >
-              Try again
-            </button>
-            <button
-              onClick={() => navigate('/signal-matches')}
-              className="px-4 py-2 bg-transparent hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 rounded text-sm font-medium transition-colors"
-            >
-              Browse startups
-            </button>
-          </div>
-        </div>
+
+          <p className="text-sm text-zinc-400">
+            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
+            <span className="text-zinc-700 mx-3">·</span>
+            <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
+          </p>
+        </main>
       </div>
     );
   }
@@ -327,30 +332,66 @@ export default function SignalMatches() {
   // MISSING CONTEXT: No URL/ID provided (routing broken or direct access)
   if (uiState.mode === 'missing_context') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center p-8">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="flex justify-center">
-            <AlertCircle className="w-16 h-16 text-yellow-500/80" />
-          </div>
-          <h2 className="text-2xl font-bold text-white">No Startup Selected</h2>
-          <p className="text-gray-400 leading-relaxed">
-            Submit a URL from the homepage to see personalized investor signals and matches.
+      <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'}>
+        {!isInApp && (
+          <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
+                <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
+              </div>
+              <nav className="flex items-center gap-6 text-sm text-zinc-400">
+                <Link to="/signals" className="hover:text-white">Signals</Link>
+                <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
+                <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+              </nav>
+            </div>
+          </header>
+        )}
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
+          <p className="text-sm text-zinc-400 leading-relaxed mb-10">
+            This is where your <span className="text-cyan-400">investor matches</span> live — ranked by signal alignment,
+            thesis fit, and timing. Every investor in our network is scored against your startup. The best
+            fits surface here with a playbook for how to approach each one.
           </p>
-          <div className="flex flex-col gap-3 pt-4">
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-            >
-              ← Analyze a Startup
-            </button>
-            <button
-              onClick={() => navigate('/signal-matches')}
-              className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors"
-            >
-              Browse Startups
-            </button>
+
+          <div className="border-b border-zinc-800/50 pb-8 mb-8">
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">No startup connected</div>
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              Submit your company URL on the{' '}
+              <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">home page</Link>{' '}
+              to generate matches. Pythh will scrape your site, build a signal profile, calculate
+              your GOD score, and rank every investor in the network against your company.
+              It takes about 30 seconds.
+            </p>
           </div>
-        </div>
+
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-4">What you will see</div>
+          <div className="space-y-3 text-sm">
+            <p className="text-zinc-400">
+              <span className="text-zinc-300 font-medium mr-2">Ranked matches</span>
+              Investors sorted by alignment score — strongest fits first.
+            </p>
+            <p className="text-zinc-400">
+              <span className="text-zinc-300 font-medium mr-2">Signal scores</span>
+              Timing, thesis fit, and momentum indicators for each investor.
+            </p>
+            <p className="text-zinc-400">
+              <span className="text-zinc-300 font-medium mr-2">Unlock system</span>
+              Top 5 investors free. Upgrade to unlock the full network.
+            </p>
+            <p className="text-zinc-400">
+              <span className="text-zinc-300 font-medium mr-2">Approach strategy</span>
+              For each match — talking points, warm paths, and timing windows.
+            </p>
+          </div>
+
+          <p className="text-xs text-zinc-600 mt-10 text-center">
+            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Submit your URL</Link>{' '}
+            to activate your investor matches
+          </p>
+        </main>
       </div>
     );
   }
@@ -373,90 +414,65 @@ export default function SignalMatches() {
   })();
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white" data-testid="radar-page">
-      {/* Header - Supabase style: flat, minimal */}
-      <header className="border-b border-zinc-800/50">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          {/* Navigation breadcrumb */}
-          <div className="flex items-center gap-2 mb-4 text-sm">
-            <button 
-              onClick={() => navigate('/')}
-              className="text-cyan-400 hover:text-cyan-300 hover:underline transition-colors"
-            >
-              ← Home
-            </button>
-            <span className="text-gray-600">/</span>
-            <span className="text-gray-400">Signal Matches</span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            {/* Left: Title + Founder Guidance */}
-            <div className="flex-1 max-w-3xl">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-semibold text-white">
-                  Signal Matches
-                </h1>
-                <span className="px-2 py-0.5 text-xs font-medium bg-emerald-600/20 text-emerald-400 border border-emerald-600/30 rounded">
-                  Top 5 Free
-                </span>
-              </div>
-              <p className="text-base text-gray-300 mb-2">
-                Investor alignment for your startup.
-              </p>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                <strong className="text-gray-300">Signal</strong> = timing. <strong className="text-gray-300">GOD</strong> = your position. <strong className="text-gray-300">YC++</strong> = how investors likely perceive you. Start with the top 3 rows—those are your fastest outreach wins.
-              </p>
-              <p className="text-sm text-emerald-400 mt-3">
-                → Unlock 2–3 investors → open each profile → generate a short outreach plan.
-              </p>
+    <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'} data-testid="radar-page">
+      {/* Header — only on public route (AppLayout provides nav on /app/* routes) */}
+      {!isInApp && (
+        <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
+              <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
             </div>
-
-            {/* Right: Simple refresh button */}
-            <div className="flex items-center gap-3">
-              <div className="text-xs text-gray-500 uppercase tracking-wide">
-                Live
-              </div>
-              
-              <button
+            <nav className="flex items-center gap-6 text-sm text-zinc-400">
+              <Link to="/signals" className="hover:text-white">Signals</Link>
+              <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
+              <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+              <span
                 onClick={handleRefresh}
-                className="px-3 py-1.5 text-sm text-gray-300 hover:text-white border border-zinc-700 hover:border-zinc-600 rounded transition-colors"
-                title="Refresh matches"
+                className="cursor-pointer hover:text-white transition"
               >
-                <RefreshCw className={`w-4 h-4 inline mr-1 ${tableLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            </div>
+                {tableLoading ? 'Refreshing...' : 'Refresh'}
+              </span>
+            </nav>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {/* Startup Context Bar - clean and minimal */}
-        <div className="mb-6 flex items-center justify-between pb-4 border-b border-zinc-800/30">
-          <div>
-            <h2 className="text-lg font-medium text-white">{displayName}</h2>
-            {context?.comparison?.sectors && context.comparison.sectors.length > 0 && (
-              <p className="text-sm text-gray-500 mt-1">
-                {context.comparison.sectors.slice(0, 3).join(' • ')}
-              </p>
-            )}
-          </div>
-          
-          {/* Signal Score - startup's market signal (upper right) */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
+        {/* Intro */}
+        <p className="text-sm text-zinc-400 leading-relaxed mb-8">
+          <span className="text-cyan-400">Signal</span> = timing.
+          <span className="text-zinc-300 ml-1">GOD</span> = your position.
+          <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
+          Start with the top rows — those are your fastest outreach wins.
+        </p>
+
+        {/* Startup context line */}
+        <div className="flex items-center gap-6 text-sm border-b border-zinc-800/50 pb-6 mb-6 flex-wrap">
+          <span className="text-white font-medium">{displayName}</span>
+          {context?.comparison?.sectors && context.comparison.sectors.length > 0 && (
+            <>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 text-xs">{context.comparison.sectors.slice(0, 3).join(' · ')}</span>
+            </>
+          )}
           {showContext && context?.signals?.total !== undefined && (
-            <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded">
-              <p className="text-xs text-gray-500 mb-0.5">Signal Score</p>
-              <p className="text-lg font-semibold text-white">{context.signals.total}</p>
-            </div>
+            <>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 text-xs">Signal</span>
+              <span className="text-cyan-400 font-mono text-xs">{context.signals.total}</span>
+            </>
           )}
-          {/* Fallback to GOD if no signal score */}
           {showContext && context?.signals?.total === undefined && context?.god?.total !== undefined && (
-            <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded">
-              <p className="text-xs text-gray-500 mb-0.5">GOD Score</p>
-              <p className="text-lg font-semibold text-white">{context.god.total}</p>
-            </div>
+            <>
+              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500 text-xs">GOD</span>
+              <span className="text-cyan-400 font-mono text-xs">{context.god.total}</span>
+            </>
           )}
+          <span className="text-zinc-700">·</span>
+          <span className="text-emerald-400 text-xs">Top {unlockedCount} free</span>
         </div>
 
         {/* ═══ TOP MATCHES — What founders came here for ═══ */}
@@ -505,31 +521,26 @@ export default function SignalMatches() {
           </div>
         )}
 
-        {/* Oracle CTA */}
-        <Link
-          to="/app/oracle"
-          className="mt-6 block rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 hover:bg-amber-500/10 transition group"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-amber-200 group-hover:text-amber-100">Boost your signals with the Oracle</p>
-              <p className="text-xs text-amber-300/50 mt-1">VC thesis alignment, founder DNA analysis & coaching prompts</p>
-            </div>
-            <span className="text-amber-400/60 group-hover:text-amber-400 transition text-lg">→</span>
-          </div>
-        </Link>
+        {/* Tools */}
+        <div className="mt-8 flex items-center gap-6 text-sm">
+          <Link to="/app/oracle" className="text-amber-400 hover:text-amber-300 transition">
+            Oracle coaching →
+          </Link>
+          <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 transition">
+            Signal Playbook →
+          </Link>
+          <Link to="/app/pitch-scan" className="text-zinc-400 hover:text-white transition">
+            Pitch Scan →
+          </Link>
+        </div>
 
         {/* Daily Limit Warning */}
         {showContext && unlocksRemaining === 0 && (
-          <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-amber-200">Daily unlock limit reached</p>
-              <p className="text-sm text-amber-300/70 mt-1">
-                Your free unlocks reset at midnight. Upgrade to Pro for unlimited unlocks.
-              </p>
-            </div>
-          </div>
+          <p className="text-sm text-amber-400/70 mt-6">
+            Daily unlock limit reached — resets at midnight.
+            <Link to="/pricing" className="text-cyan-400 hover:text-cyan-300 ml-1 transition">Upgrade</Link>{' '}
+            for unlimited.
+          </p>
         )}
       </main>
     </div>
@@ -1114,7 +1125,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
   
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Header - per spec: restrained, professional */}
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-white mb-1">

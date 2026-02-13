@@ -14,8 +14,8 @@
 import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { trackEvent } from './analytics';
 import { isAdminEmail } from './adminConfig';
+import { trackEvent } from './analytics';
 
 // Session state stored in sessionStorage (not localStorage - ephemeral)
 const SESSION_KEY = 'pyth_session';

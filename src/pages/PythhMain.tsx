@@ -281,7 +281,7 @@ export default function PythhHome() {
           HEADER
           ═══════════════════════════════════════════════════════════════════ */}
       <header className="w-full border-b border-zinc-800/30">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-white font-semibold">pythh.ai</span>
             <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
@@ -305,25 +305,33 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO - Left aligned with cyan edge trace + RIGHT SIDE STATS
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-10 sm:pt-16 pb-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-10 sm:pt-16 pb-8">
         <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-8 gap-6">
           {/* Left: Hero text */}
           <div className="space-y-4 max-w-3xl">
             {/* Pre-headline with cyan glow */}
             <p 
-              className="text-base sm:text-xl tracking-wide text-zinc-300"
+              className="text-base sm:text-xl tracking-wide text-cyan-100"
               style={{ 
-                textShadow: '0 0 12px rgba(0, 200, 255, 0.5), 0 0 24px rgba(0, 200, 255, 0.25)'
+                textShadow: '0 0 6px rgba(0, 210, 255, 0.4), 0 0 16px rgba(0, 210, 255, 0.15)'
               }}
             >
               Investor signals. Live.
             </p>
             
-            {/* Main headline with cyan ghost stroke */}
+            {/* Main headline with cyan silhouette glow */}
             <h1 
               className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white"
               style={{ 
-                textShadow: '0 0 2px rgba(0, 200, 255, 0.6), 0 0 12px rgba(0, 200, 255, 0.3), 0 0 24px rgba(0, 200, 255, 0.15)'
+                textShadow: [
+                  /* Inner edge glow */
+                  '0 0 3px rgba(0, 220, 255, 0.5)',
+                  /* Mid bloom */
+                  '0 0 12px rgba(0, 200, 255, 0.3)',
+                  '0 0 24px rgba(0, 200, 255, 0.15)',
+                  /* Outer haze */
+                  '0 0 48px rgba(0, 200, 255, 0.07)',
+                ].join(', ')
               }}
             >
               Find your investors. Now.
@@ -401,7 +409,16 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-2 pb-8">
+        {/* Context intro — Supabase-style inline text, full table width */}
+        <div className="mb-5">
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            Every investor leaves a trail — portfolio moves, thesis shifts, check-size changes. 
+            We track these <span className="text-cyan-400">signals</span> in real time and score them against your startup. 
+            A rising Δ means growing alignment. A high GOD score means the math says <em className="text-zinc-300 not-italic">go</em>.
+          </p>
+        </div>
+
         <div className="border border-zinc-800/50 rounded-lg overflow-hidden bg-zinc-900/30">
           {/* Table header */}
           <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-between">
@@ -413,7 +430,7 @@ export default function PythhHome() {
           </div>
 
           {/* Column headers — desktop */}
-          <div className="hidden sm:grid grid-cols-[1fr_80px_50px_50px_60px_60px] gap-2 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
+          <div className="hidden sm:grid grid-cols-[1fr_100px_80px_80px_80px_100px] gap-4 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800/30">
             <span>Investor / Firm</span>
             <span className="text-right">Signal</span>
             <span className="text-center">Δ</span>
@@ -433,7 +450,7 @@ export default function PythhHome() {
           {investorSignals.map((row, i) => (
             <div key={i}>
               <div 
-                className="hidden sm:grid grid-cols-[1fr_80px_50px_50px_60px_60px] gap-2 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
+                className="hidden sm:grid grid-cols-[1fr_100px_80px_80px_80px_100px] gap-4 px-4 py-3 border-b border-zinc-800/20 hover:bg-zinc-800/20 transition items-center"
               >
                 <span className="text-cyan-300 font-medium truncate">{row.investor}</span>
                 <span className="text-right text-white font-mono">{row.signal}</span>
@@ -463,7 +480,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           LIVE MATCHING ACTIVITY
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
         <h2 className="text-xs text-zinc-500 uppercase tracking-widest mb-4">Investor Matching Happening Now</h2>
         <div className="space-y-3">
           {liveMatching.map((item, i) => (
@@ -481,7 +498,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
-      <footer className="max-w-6xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
+      <footer className="max-w-7xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
         <p className="text-zinc-600 text-xs text-center">
           Signals reflect investor intent and timing based on observed behavior. No guessing. Just math.
         </p>
