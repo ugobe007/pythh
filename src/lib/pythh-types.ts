@@ -99,6 +99,10 @@ export interface UnlockResponse {
 // Used by: /app/startup
 
 export interface StartupContext {
+  startup: {
+    name: string;
+    website: string;
+  };
   god: {
     total: number;
     team: number;

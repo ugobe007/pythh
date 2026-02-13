@@ -408,6 +408,10 @@ BEGIN
     AND sectors && v_startup.sectors;
   
   RETURN jsonb_build_object(
+    'startup', jsonb_build_object(
+      'name', v_startup.name,
+      'website', v_startup.website
+    ),
     'god', jsonb_build_object(
       'total', v_startup.total_god_score,
       'team', v_startup.team_score,
@@ -446,7 +450,7 @@ $$;
 
 COMMENT ON FUNCTION public.get_startup_context IS 
   'Returns data for /app/startup page.
-   GOD breakdown, signals, industry comparison.
+   Startup metadata, GOD breakdown, signals, industry comparison.
    No optimization hints - builds trust, not behavior.';
 
 COMMIT;
