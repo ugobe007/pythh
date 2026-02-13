@@ -102,6 +102,9 @@ export interface StartupContext {
   startup: {
     name: string;
     website: string;
+    tagline: string | null;
+    description: string | null;
+    stage: number | null;
   };
   god: {
     total: number;

@@ -44,12 +44,11 @@
 //   - Resumes 1s after unlock completes
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate, useSearchParams, useParams, useLocation, Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
-import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
 import {
   useResolveStartup,
@@ -74,24 +73,13 @@ type UIState =
   | { mode: 'picker' }
   | { mode: 'missing_context' };  // NEW: No URL/ID provided from public flow
 
-export default function SignalMatches() {
-  const location = useLocation();
-  const isInApp = location.pathname.startsWith('/app/');
+export default function SignalsRadarPage() {
+  // Route truth beacon
+  console.log('[SignalsRadarPage] HIT:', window.location.pathname + window.location.search);
+  
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = useParams<{ startupId?: string }>();
-  
-  // Route truth beacon (logs once per navigation, not per render)
-  const lastRoute = useRef<string>('');
-  useEffect(() => {
-    const key = `${location.pathname}${location.search}`;
-    if (lastRoute.current === key) return;
-    lastRoute.current = key;
-    
-    if (import.meta.env.DEV) {
-      console.log('[SignalMatches] HIT:', key);
-    }
-  }, [location.pathname, location.search]);
   
   // -----------------------------------------------------------------------------
   // SINGLE SOURCE OF TRUTH: resolvedStartupId
@@ -107,9 +95,6 @@ export default function SignalMatches() {
   // DO NOT RENAME OR REMOVE - breaks entire pythh workflow
   const urlToResolve = searchParams.get('url');
   
-  // ?regen=1 forces match regeneration (ops/debugging override)
-  const forceGenerate = searchParams.get('regen') === '1';
-  
   // Local picker state (only used when no URL params)
   const [pickedStartupId, setPickedStartupId] = useState<string | null>(null);
   const [pickedStartupName, setPickedStartupName] = useState<string | null>(null);
@@ -118,16 +103,12 @@ export default function SignalMatches() {
   // useResolveStartup calls resolve_startup_by_url RPC
   // RPC flow: scrape → extract → build → score → match
   // Returns: startup_id + name + 5 unlocked + 50 locked signals
-  // SKIP if we already have startup_id from query param (prefetch from PythhMain)
-  const skipUrlResolve = !!(startupIdFromQuery && urlToResolve);
-  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(
-    skipUrlResolve ? null : urlToResolve,
-    forceGenerate
-  );
+  // DO NOT MODIFY - this is the pythh engine entry point
+  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(urlToResolve);
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {
-    // Priority 1: Path param /signal-matches/:startupId
+    // Priority 1: Path param /app/radar/:startupId
     if (startupIdFromPath) return startupIdFromPath;
     
     // Priority 2: Query param ?startup=UUID
@@ -206,23 +187,6 @@ export default function SignalMatches() {
       onUpdated: ({ at }) => setLastRefreshAt(at.getTime()),
     });
 
-  // Match generation in-progress detection:
-  // If we resolved a startup from URL but have 0 rows, match gen was likely triggered.
-  // Show a "generating" banner and poll faster (every 5s) until matches arrive.
-  const matchGenPending = !!(
-    resolvedStartupId &&
-    urlToResolve &&  // came from URL submission (not picker/direct ID)
-    !tableLoading &&
-    rows.length === 0
-  );
-
-  // Fast-poll when generation is pending (supplement the 10s default)
-  useEffect(() => {
-    if (!matchGenPending) return;
-    const fastPoll = setInterval(() => refreshTable(), 3000);
-    return () => clearInterval(fastPoll);
-  }, [matchGenPending, refreshTable]);
-
   // Derived counts (memoized)
   const { unlockedCount, lockedCount } = useMemo(() => {
     let unlocked = 0;
@@ -291,41 +255,20 @@ export default function SignalMatches() {
   
   if (uiState.mode === 'not_found') {
     return (
-      <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'} data-testid="radar-not-found">
-        {!isInApp && (
-          <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
-                <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
-              </div>
-              <nav className="flex items-center gap-6 text-sm text-zinc-400">
-                <Link to="/signals" className="hover:text-white">Signals</Link>
-                <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
-                <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-              </nav>
-            </div>
-          </header>
-        )}
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Not found</div>
-          <p className="text-sm text-zinc-400 leading-relaxed mb-6">
-            No startup matched "<span className="text-white">{uiState.searched}</span>"
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center" data-testid="radar-not-found">
+        <div className="text-center max-w-md">
+          <Search className="w-12 h-12 mx-auto mb-4 text-gray-500" />
+          <p className="text-lg font-medium text-gray-300">Startup not found</p>
+          <p className="text-sm text-gray-500 mt-2">
+            No startup matched "<span className="text-gray-400">{uiState.searched}</span>"
           </p>
-
-          <div className="text-sm text-zinc-500 space-y-1.5 mb-8">
-            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Check for typos in the domain name</p>
-            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Use the full domain (e.g. stripe.com, not stripe)</p>
-            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Make sure it is a real company website</p>
-          </div>
-
-          <p className="text-sm text-zinc-400">
-            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
-            <span className="text-zinc-700 mx-3">·</span>
-            <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
-          </p>
-        </main>
+          <button
+            onClick={() => navigate('/app/radar')}
+            className="mt-6 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+          >
+            Browse all startups
+          </button>
+        </div>
       </div>
     );
   }
@@ -333,66 +276,30 @@ export default function SignalMatches() {
   // MISSING CONTEXT: No URL/ID provided (routing broken or direct access)
   if (uiState.mode === 'missing_context') {
     return (
-      <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'}>
-        {!isInApp && (
-          <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
-                <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
-              </div>
-              <nav className="flex items-center gap-6 text-sm text-zinc-400">
-                <Link to="/signals" className="hover:text-white">Signals</Link>
-                <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
-                <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-              </nav>
-            </div>
-          </header>
-        )}
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
-          <p className="text-sm text-zinc-400 leading-relaxed mb-10">
-            This is where your <span className="text-cyan-400">investor matches</span> live — ranked by signal alignment,
-            thesis fit, and timing. Every investor in our network is scored against your startup. The best
-            fits surface here with a playbook for how to approach each one.
-          </p>
-
-          <div className="border-b border-zinc-800/50 pb-8 mb-8">
-            <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">No startup connected</div>
-            <p className="text-sm text-zinc-300 leading-relaxed">
-              Submit your company URL on the{' '}
-              <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">home page</Link>{' '}
-              to generate matches. Pythh will scrape your site, build a signal profile, calculate
-              your GOD score, and rank every investor in the network against your company.
-              It takes about 30 seconds.
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center p-8">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="flex justify-center">
+            <AlertCircle className="w-16 h-16 text-yellow-500/80" />
           </div>
-
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-4">What you will see</div>
-          <div className="space-y-3 text-sm">
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Ranked matches</span>
-              Investors sorted by alignment score — strongest fits first.
-            </p>
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Signal scores</span>
-              Timing, thesis fit, and momentum indicators for each investor.
-            </p>
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Unlock system</span>
-              Top 5 investors free. Upgrade to unlock the full network.
-            </p>
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Approach strategy</span>
-              For each match — talking points, warm paths, and timing windows.
-            </p>
-          </div>
-
-          <p className="text-xs text-zinc-600 mt-10 text-center">
-            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Submit your URL</Link>{' '}
-            to activate your investor matches
+          <h2 className="text-2xl font-bold text-white">No Startup Selected</h2>
+          <p className="text-gray-400 leading-relaxed">
+            Submit a URL from the homepage to see personalized investor signals and matches.
           </p>
-        </main>
+          <div className="flex flex-col gap-3 pt-4">
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            >
+              ← Analyze a Startup
+            </button>
+            <button
+              onClick={() => navigate('/app/radar')}
+              className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium rounded-lg transition-colors"
+            >
+              Browse Startups
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -407,48 +314,62 @@ export default function SignalMatches() {
   
   const showContext = !contextLoading && !!context;
   const unlocksRemaining = context?.entitlements?.unlocks_remaining ?? 0;
-  const displayName = (() => {
-    const raw = resolvedName || context?.startup?.name || '';
-    if (!raw) return 'Loading...';
-    // Strip protocol + www prefix so URLs show as clean names
-    return raw.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
-  })();
+  const displayName = resolvedName || 'Loading...';
 
   return (
-    <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'} data-testid="radar-page">
-      {/* Header — only on public route (AppLayout provides nav on /app/* routes) */}
-      {!isInApp && (
-        <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
-              <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
-            </div>
-            <nav className="flex items-center gap-6 text-sm text-zinc-400">
-              <Link to="/signals" className="hover:text-white">Signals</Link>
-              <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
-              <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-              <span
-                onClick={handleRefresh}
-                className="cursor-pointer hover:text-white transition"
-              >
-                {tableLoading ? 'Refreshing...' : 'Refresh'}
-              </span>
-            </nav>
+    <div className="min-h-screen bg-gray-950 text-white" data-testid="radar-page">
+      {/* Header - per spec: "SIGNAL RADAR" with subtitle and live indicator */}
+      <header className="border-b border-gray-800 bg-gray-900/50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          {/* Navigation breadcrumb */}
+          <div className="flex items-center gap-2 mb-3 text-sm">
+            <button 
+              onClick={() => navigate('/')}
+              className="text-cyan-400 hover:text-cyan-300 hover:underline transition-colors"
+            >
+              ← Home
+            </button>
+            <span className="text-gray-600">/</span>
+            <span className="text-gray-400">Signal Radar</span>
           </div>
-        </header>
-      )}
+          
+          <div className="flex items-center justify-between">
+            {/* Left: Title + Subtitle */}
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1.5, color: "#6b7280", marginBottom: 4 }}>signal radar</div>
+              <h1 style={{ fontSize: 20, fontWeight: 600, color: "#f3f4f6", margin: 0, lineHeight: 1.3 }}>
+                Live investor alignment
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Movement, position, and optics
+              </p>
+            </div>
+
+            {/* Right: Live Status + Entitlements + Refresh */}
+            <div className="flex items-center gap-4">
+              <LiveIndicator 
+                lastRefreshAt={lastRefreshAt} 
+                isPaused={isAnyPending}
+                busySince={busySince}
+                isStale={isStale} 
+              />
+              
+              <EntitlementPill entitlements={context?.entitlements ?? null} />
+              
+              <button
+                onClick={handleRefresh}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className={`w-5 h-5 ${tableLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
-        {/* Intro */}
-        <p className="text-sm text-zinc-400 leading-relaxed mb-8">
-          <span className="text-cyan-400">Signal</span> = timing.
-          <span className="text-zinc-300 ml-1">GOD</span> = your position.
-          <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
-          Start with the top rows — those are your fastest outreach wins.
-        </p>
-
+      <main className="max-w-7xl mx-auto px-6 py-6">
         {/* Startup Profile Card */}
         <StartupProfileCard
           context={context}
@@ -458,7 +379,12 @@ export default function SignalMatches() {
           totalMatches={rows.length}
         />
 
-        {/* ═══ TOP MATCHES — What founders came here for ═══ */}
+        {/* Guidance line - per spec: one line, always visible */}
+        <div className="mb-4 text-sm text-gray-500">
+          <strong className="text-gray-400">Signal</strong> shows timing. <strong className="text-gray-400">GOD</strong> shows position. <strong className="text-gray-400">YC++</strong> shows how each investor is likely to perceive you.
+        </div>
+
+        {/* Match Table - using canonical view model */}
         <RadarMatchTable
           rows={rows}
           context={context}
@@ -466,64 +392,26 @@ export default function SignalMatches() {
           isPending={isPending}
           onUnlock={handleUnlock}
           unlocksRemaining={unlocksRemaining}
-          matchGenPending={matchGenPending}
-          mode="unlocked"
         />
-
-        {/* ═══ YOUR POSITION — Signal Health + Match Landscape + GOD Breakdown ═══ */}
-        <SignalPathDashboard
-          context={context}
-          rows={rows}
-          startupName={displayName}
-          loading={contextLoading || tableLoading}
-        />
-
-        {/* ═══ LOCKED MATCHES — Below position, limited to 5 ═══ */}
-        {rows.some(r => r.is_locked) && (
-          <div className="mt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">More Matches</h3>
-              <span className="text-xs text-zinc-600">{lockedCount} available</span>
-            </div>
-            <RadarMatchTable
-              rows={rows}
-              context={context}
-              loading={tableLoading && rows.length === 0}
-              isPending={isPending}
-              onUnlock={handleUnlock}
-              unlocksRemaining={unlocksRemaining}
-              mode="locked"
-            />
-          </div>
-        )}
           
         {/* Count summary */}
         {rows.length > 0 && (
-          <div className="mt-4 text-xs text-gray-500">
-            {unlockedCount} ready • {lockedCount} available
+          <div className="mt-2 mb-8 text-sm text-gray-500">
+            {unlockedCount} unlocked · {lockedCount} locked
           </div>
         )}
 
-        {/* Tools */}
-        <div className="mt-8 flex items-center gap-6 text-sm">
-          <Link to="/app/oracle" className="text-amber-400 hover:text-amber-300 transition">
-            Oracle coaching →
-          </Link>
-          <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 transition">
-            Signal Playbook →
-          </Link>
-          <Link to="/app/pitch-scan" className="text-zinc-400 hover:text-white transition">
-            Pitch Scan →
-          </Link>
-        </div>
-
         {/* Daily Limit Warning */}
         {showContext && unlocksRemaining === 0 && (
-          <p className="text-sm text-amber-400/70 mt-6">
-            Daily unlock limit reached — resets at midnight.
-            <Link to="/pricing" className="text-cyan-400 hover:text-cyan-300 ml-1 transition">Upgrade</Link>{' '}
-            for unlimited.
-          </p>
+          <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-amber-200">Daily unlock limit reached</p>
+              <p className="text-sm text-amber-300/70 mt-1">
+                Your free unlocks reset at midnight. Upgrade to Pro for unlimited unlocks.
+              </p>
+            </div>
+          </div>
         )}
       </main>
     </div>
@@ -544,39 +432,11 @@ function formatPercentile(v: number | undefined): string {
 // Full Page Skeleton
 // -----------------------------------------------------------------------------
 function FullPageSkeleton({ message }: { message: string }) {
-  const steps = [
-    { label: 'Resolving startup', delay: 0 },
-    { label: 'Scanning website', delay: 2000 },
-    { label: 'Calculating GOD score', delay: 5000 },
-    { label: 'Matching investors', delay: 8000 },
-  ];
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setElapsed(e => e + 500), 500);
-    return () => clearInterval(t);
-  }, []);
-  const activeStep = steps.reduce((acc, s, i) => (elapsed >= s.delay ? i : acc), 0);
-
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-      <div className="flex flex-col items-center gap-6 max-w-xs w-full px-4">
-        <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
-        <div className="space-y-3 w-full">
-          {steps.map((s, i) => (
-            <div key={s.label} className={`flex items-center gap-3 transition-opacity duration-500 ${
-              i <= activeStep ? 'opacity-100' : 'opacity-30'
-            }`}>
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-300 ${
-                i < activeStep ? 'bg-emerald-400' : i === activeStep ? 'bg-cyan-400 animate-pulse' : 'bg-zinc-700'
-              }`} />
-              <span className={`text-sm ${
-                i < activeStep ? 'text-emerald-400' : i === activeStep ? 'text-white' : 'text-zinc-600'
-              }`}>{s.label}</span>
-              {i < activeStep && <span className="text-emerald-400 text-xs ml-auto">\u2713</span>}
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-zinc-500 mt-2">First-time lookups take 5\u201310 seconds</p>
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <span className="text-gray-400">{message}</span>
       </div>
     </div>
   );
@@ -943,8 +803,6 @@ function RadarMatchTable({
   isPending,
   onUnlock,
   unlocksRemaining,
-  matchGenPending = false,
-  mode = 'all' as 'unlocked' | 'locked' | 'all',
 }: {
   rows: MatchRow[];
   context: StartupContext | null;
@@ -952,30 +810,12 @@ function RadarMatchTable({
   isPending: (investorId: string) => boolean;
   onUnlock: (investorId: string) => Promise<void>;
   unlocksRemaining: number;
-  matchGenPending?: boolean;
-  mode?: 'unlocked' | 'locked' | 'all';
 }) {
   // Use the legacy adapter to transform rows to view model format
   const { unlockedRows, lockedRows } = useLegacyRadarAdapter(rows, context?.god?.total, context);
   
-  // Show generation-in-progress banner instead of "No matches found"
-  if (matchGenPending && unlockedRows.length === 0 && lockedRows.length === 0) {
-    return (
-      <div className="mb-8 flex items-center justify-center py-20" data-testid="match-table">
-        <div className="flex flex-col items-center gap-4 text-gray-400">
-          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-lg font-medium text-cyan-400">Generating matches&hellip;</p>
-          <p className="text-sm text-gray-500">
-            Our engine is analyzing investor alignment. This usually takes 30-60 seconds.
-          </p>
-          <p className="text-xs text-gray-600">Auto-refreshing every 5 seconds</p>
-        </div>
-      </div>
-    );
-  }
-  
   return (
-    <div className="mb-4" data-testid={`match-table-${mode}`}>
+    <div className="mb-8" data-testid="match-table">
       <LiveMatchTable
         unlockedRows={unlockedRows}
         lockedRows={lockedRows}
@@ -983,7 +823,6 @@ function RadarMatchTable({
         isPending={isPending}
         onUnlock={onUnlock}
         unlocksRemaining={unlocksRemaining}
-        mode={mode}
       />
     </div>
   );
@@ -1030,12 +869,12 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
         const godScore = s.total_god_score || 50;
         
         // Derive Signal Score (0-10) from GOD components + match velocity
-        // Maps GOD 40-100 → signal 5.5-9.5, with match velocity bonus
+        // This is a proxy until we have real signal infrastructure
         const matchCount = countMap.get(s.id) || 0;
-        const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-        const signalBase = 5.5 + normalized * 4.0; // 5.5-9.5 range
-        const matchBonus = Math.min(matchCount / 50, 0.5); // Match velocity bonus (0-0.5)
-        const signalScore = Math.max(5.0, Math.min(10, signalBase + matchBonus));
+        const signalBase = (godScore / 100) * 6; // Base from GOD (0-6)
+        const matchBonus = Math.min(matchCount / 10, 2); // Match velocity bonus (0-2)
+        const variance = (Math.random() - 0.5) * 2; // Some variance (±1)
+        const signalScore = Math.max(0, Math.min(10, signalBase + matchBonus + variance));
         
         // Derive YC++ Score (0-100) from GOD + category premium
         // Elite VCs favor: high traction, strong teams, hot sectors
@@ -1108,7 +947,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
   
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Header - per spec: restrained, professional */}
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-white mb-1">

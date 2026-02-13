@@ -410,7 +410,10 @@ BEGIN
   RETURN jsonb_build_object(
     'startup', jsonb_build_object(
       'name', v_startup.name,
-      'website', v_startup.website
+      'website', v_startup.website,
+      'tagline', v_startup.tagline,
+      'description', COALESCE(v_startup.description, v_startup.pitch),
+      'stage', v_startup.stage
     ),
     'god', jsonb_build_object(
       'total', v_startup.total_god_score,
