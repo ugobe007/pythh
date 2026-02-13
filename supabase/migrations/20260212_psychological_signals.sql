@@ -188,7 +188,7 @@ ALTER TABLE startup_uploads
   ADD COLUMN IF NOT EXISTS is_bridge_round BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS risk_signal_strength DECIMAL(3,2),
   
-  ADD COLUMN IF NOT EXISTS psychological_multiplier DECIMAL(4,2) DEFAULT 1.00,
+  ADD COLUMN IF NOT EXISTS psychological_multiplier DECIMAL(4,2) DEFAULT 0.00,
   ADD COLUMN IF NOT EXISTS enhanced_god_score INT; -- GOD score with psychological boost
 
 -- Comment on columns
@@ -196,8 +196,8 @@ COMMENT ON COLUMN startup_uploads.is_oversubscribed IS 'Detected from "3x oversu
 COMMENT ON COLUMN startup_uploads.has_followon IS 'Existing investors doubling down - conviction indicator';
 COMMENT ON COLUMN startup_uploads.is_competitive IS 'Multiple term sheets detected - urgency indicator';
 COMMENT ON COLUMN startup_uploads.is_bridge_round IS 'Bridge financing detected - risk indicator';
-COMMENT ON COLUMN startup_uploads.psychological_multiplier IS 'Calculated multiplier based on behavioral signals (1.0 = neutral, >1.0 = boost, <1.0 = penalty)';
-COMMENT ON COLUMN startup_uploads.enhanced_god_score IS 'total_god_score * psychological_multiplier (capped at 100)';
+COMMENT ON COLUMN startup_uploads.psychological_multiplier IS 'Additive bonus points based on behavioral signals (-0.3 to +1.0 on 0-10 scale, stores additive bonus not multiplier)';
+COMMENT ON COLUMN startup_uploads.enhanced_god_score IS 'total_god_score + (psychological_multiplier × 10) - ADDITIVE formula (capped at 100)';
 
 
 -- ===========================================================================
@@ -246,7 +246,7 @@ ORDER BY avg_momentum_4weeks DESC;
 -- FUNCTIONS
 -- ===========================================================================
 
--- Function to calculate psychological multiplier from signals
+-- Function to calculate psychological bonus (ADDITIVE, not multiplicative)
 CREATE OR REPLACE FUNCTION calculate_psychological_multiplier(startup_uuid UUID)
 RETURNS DECIMAL(4,2) AS $$
 DECLARE
@@ -254,7 +254,7 @@ DECLARE
   conviction_boost DECIMAL(3,2) := 0;
   urgency_boost DECIMAL(3,2) := 0;
   risk_penalty DECIMAL(3,2) := 0;
-  final_multiplier DECIMAL(4,2);
+  final_bonus DECIMAL(4,2);
 BEGIN
   -- Get all signals for this startup
   SELECT 
@@ -266,18 +266,19 @@ BEGIN
   FROM psychological_signals
   WHERE startup_id = startup_uuid;
   
-  -- Calculate multiplier
-  -- Formula: 1 + (FOMO * 0.3) + (Conviction * 0.25) + (Urgency * 0.2) - (Risk * 0.15)
-  final_multiplier := 1.0 + 
-                      (fomo_boost * 0.3) + 
-                      (conviction_boost * 0.25) + 
-                      (urgency_boost * 0.2) - 
-                      (risk_penalty * 0.15);
+  -- Calculate ADDITIVE bonus (not multiplicative)
+  -- Formula: 0 + (FOMO × 5pt) + (Conviction × 5pt) + (Urgency × 3pt) - (Risk × 3pt)
+  -- Returns: -0.3 to +1.0 (on 0-10 scale)
+  final_bonus := 0.0 + 
+                 (fomo_boost * 0.5) + 
+                 (conviction_boost * 0.5) + 
+                 (urgency_boost * 0.3) - 
+                 (risk_penalty * 0.3);
   
-  -- Cap multiplier between 0.70 and 1.60
-  final_multiplier := GREATEST(0.70, LEAST(1.60, final_multiplier));
+  -- Cap bonus between -0.3 and +1.0 (on 0-10 scale)
+  final_bonus := GREATEST(-0.3, LEAST(1.0, final_bonus));
   
-  RETURN final_multiplier;
+  RETURN final_bonus;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -285,11 +286,12 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION update_enhanced_god_score()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Recalculate psychological multiplier
+  -- Recalculate psychological bonus (ADDITIVE formula)
   NEW.psychological_multiplier := calculate_psychological_multiplier(NEW.id);
   
-  -- Calculate enhanced score (capped at 100)
-  NEW.enhanced_god_score := LEAST(100, ROUND(NEW.total_god_score * NEW.psychological_multiplier));
+  -- Calculate enhanced score using ADDITION (capped at 100)
+  -- psychological_multiplier stores bonus on 0-10 scale, so multiply by 10 for 0-100 scale
+  NEW.enhanced_god_score := LEAST(100, ROUND(NEW.total_god_score + (NEW.psychological_multiplier * 10)));
   
   RETURN NEW;
 END;
@@ -324,6 +326,9 @@ BEGIN
   RAISE NOTICE 'Psychological signals schema created successfully!';
   RAISE NOTICE 'Tables: psychological_signals, investor_behavior_patterns, sector_momentum';
   RAISE NOTICE 'New columns added to startup_uploads: is_oversubscribed, has_followon, is_competitive, is_bridge_round, psychological_multiplier, enhanced_god_score';
-  RAISE NOTICE 'Function: calculate_psychological_multiplier(startup_uuid)';
+  RAISE NOTICE 'Function: calculate_psychological_multiplier(startup_uuid) - Returns ADDITIVE bonus (-0.3 to +1.0)';
+  RAISE NOTICE 'Formula: enhanced_god_score = total_god_score + (psychological_multiplier × 10) - ADDITIVE not multiplicative';
   RAISE NOTICE 'Views: hot_startups_with_signals, sector_momentum_trend';
+  RAISE NOTICE '';
+  RAISE NOTICE '⚠️  NOTE: Column named psychological_multiplier but stores ADDITIVE bonus for compatibility';
 END $$;
