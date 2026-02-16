@@ -105,6 +105,31 @@ module.exports = {
     },
     
     // ========================================
+    // GOD SCORE MONITOR (Distribution health check)
+    // Runs 5 min after score-recalc to verify distribution, logs to ai_logs
+    // ========================================
+    {
+      name: 'god-score-monitor',
+      script: 'node',
+      args: 'scripts/god-score-monitor.js',
+      cwd: './',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '200M',
+      max_restarts: 3,
+      min_uptime: '10s',
+      restart_delay: 30000,
+      cron_restart: '5 */2 * * *',  // Every 2 hours at :05 (5 min after score-recalc)
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Reports distribution stats to ai_logs table (not chat)
+      // Checks: avg, median, tiers, top/bottom startups, health flag
+    },
+    
+    // ========================================
     // SIGNAL SCORING (Product velocity, funding, adoption, market, competitive)
     // Calculates 5 signal dimensions → signals_bonus (0-10 pts)
     // ========================================
