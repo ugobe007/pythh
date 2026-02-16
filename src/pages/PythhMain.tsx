@@ -237,7 +237,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO - Bold headline + URL submit + Rankings CTA
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 pb-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 pb-4">
         <div className="space-y-6">
           {/* Pre-headline */}
           <p 
@@ -269,7 +269,7 @@ export default function PythhHome() {
         </div>
 
         {/* Submit bar */}
-        <div className="mt-8 max-w-3xl">
+        <div className="mt-8">
           <div 
             className="flex flex-col sm:flex-row"
             style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
@@ -285,13 +285,13 @@ export default function PythhHome() {
               }}
               onKeyDown={e => e.key === 'Enter' && submit()}
               placeholder="https://yourstartup.com"
-              className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+              className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-5 py-4 text-white text-base placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
             />
             <button
               data-testid="home-analyze-button"
               onClick={submit}
               disabled={submitting}
-              className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+              className="px-8 sm:px-10 py-4 bg-transparent border border-cyan-500 text-cyan-400 text-base font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
             >
               {submitting ? 'Finding...' : 'Find Signals →'}
             </button>
@@ -348,7 +348,7 @@ export default function PythhHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-2 pb-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-0 pb-8">
         <div className="mb-5">
           <p className="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-3xl">
             Every investor leaves a trail — portfolio moves, thesis shifts, check-size changes. 
