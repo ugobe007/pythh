@@ -66,35 +66,8 @@ export default function PythhHome() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch live investor signals for table
-  useEffect(() => {
-    async function fetchLiveSignals() {
-      try {
-        const { data, error } = await supabase
-          .from('investors')
-          .select('name, sectors, stage, created_at')
-          .order('created_at', { ascending: false })
-          .limit(20);
-        
-        if (!error && data && data.length >= 8) {
-          const liveTable = data.slice(0, 8).map((inv, i) => ({
-            investor: inv.name || 'Unknown Investor',
-            signal: (9.0 - i * 0.3).toFixed(1),
-            delta: ['+0.4', '0.0', '-0.2', '-0.2', '-0.2', '-0.2', '+0.1', '0.0'][i],
-            god: 76 - i * 3,
-            vcp: 88 - i * 4,
-            bars: Math.max(1, 5 - i),
-          }));
-          setInvestorSignals(liveTable);
-        }
-      } catch (err) {
-        console.error('Failed to fetch live signals:', err);
-      }
-    }
-    fetchLiveSignals();
-    const interval = setInterval(fetchLiveSignals, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  // Investor signals table uses curated top-tier VCs (signal scores are illustrative)
+  // Live data query removed — DB investor names were low-quality scraper artifacts
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PYTHH ENGINE ENTRY POINT - DO NOT MODIFY
