@@ -323,7 +323,7 @@ export default function PythhHome() {
           ═══════════════════════════════════════════════════════════════════ */}
       <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-2 pb-8">
         <div className="mb-5">
-          <p className="text-sm text-zinc-400 leading-relaxed max-w-3xl">
+          <p className="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-3xl">
             Every investor leaves a trail — portfolio moves, thesis shifts, check-size changes. 
             We track these <span className="text-cyan-400">signals</span> in real time and score them against your startup.
           </p>
