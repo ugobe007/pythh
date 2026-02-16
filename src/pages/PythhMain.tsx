@@ -241,65 +241,61 @@ export default function PythhHome() {
           </p>
         </div>
 
-        {/* Submit bar + inline stats */}
-        <div className="mt-8 flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
-          {/* URL input */}
-          <div className="flex-1 max-w-3xl">
-            <div 
-              className="flex flex-col sm:flex-row"
-              style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
+        {/* Submit bar */}
+        <div className="mt-8 max-w-3xl">
+          <div 
+            className="flex flex-col sm:flex-row"
+            style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
+          >
+            <input
+              data-testid="home-url-input"
+              type="text"
+              value={url}
+              onChange={e => {
+                setUrl(e.target.value);
+                setUrlError('');
+                setSuggestion('');
+              }}
+              onKeyDown={e => e.key === 'Enter' && submit()}
+              placeholder="https://yourstartup.com"
+              className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+            />
+            <button
+              data-testid="home-analyze-button"
+              onClick={submit}
+              disabled={submitting}
+              className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
             >
-              <input
-                data-testid="home-url-input"
-                type="text"
-                value={url}
-                onChange={e => {
-                  setUrl(e.target.value);
-                  setUrlError('');
-                  setSuggestion('');
-                }}
-                onKeyDown={e => e.key === 'Enter' && submit()}
-                placeholder="https://yourstartup.com"
-                className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
-              />
-              <button
-                data-testid="home-analyze-button"
-                onClick={submit}
-                disabled={submitting}
-                className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
-              >
-                {submitting ? 'Finding...' : 'Find Signals →'}
-              </button>
-            </div>
-            
-            {/* URL error/suggestion */}
-            <div className="mt-2 min-h-[24px]">
-              {urlError ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-amber-400">{urlError}</span>
-                  {suggestion && (
-                    <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
-                      Use "{suggestion}"
-                    </button>
-                  )}
-                </div>
-              ) : url.trim() ? (
-                <div className="text-xs text-zinc-500">
-                  Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
-                </div>
-              ) : null}
-            </div>
+              {submitting ? 'Finding...' : 'Find Signals →'}
+            </button>
           </div>
-
-          {/* Inline stats — pushed to far right on desktop, below on mobile */}
-          <div className="flex md:flex-col items-center md:items-end gap-3 md:gap-2 text-zinc-500 md:pt-1 flex-wrap md:ml-auto">
-            <span className="text-base md:text-lg"><span className="text-zinc-200 tabular-nums font-medium">{stats.startups.toLocaleString()}</span> <span className="text-sm text-zinc-500">startups</span></span>
-            <span className="text-zinc-700 md:hidden">·</span>
-            <span className="text-base md:text-lg"><span className="text-zinc-200 tabular-nums font-medium">{stats.investors.toLocaleString()}</span> <span className="text-sm text-zinc-500">investors</span></span>
-            <span className="text-zinc-700 md:hidden">·</span>
-            <span className="text-base md:text-lg"><span className="text-cyan-400 tabular-nums font-medium">{stats.matches.toLocaleString()}</span> <span className="text-sm text-zinc-500">matches</span></span>
-            <span className="text-zinc-700 md:hidden">·</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/70 text-sm">Live</span></span>
+          
+          {/* Sub-bar: error/suggestion OR inline stats */}
+          <div className="mt-2.5 min-h-[20px]">
+            {urlError ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-amber-400">{urlError}</span>
+                {suggestion && (
+                  <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
+                    Use "{suggestion}"
+                  </button>
+                )}
+              </div>
+            ) : url.trim() ? (
+              <div className="text-xs text-zinc-500">
+                Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4 text-[13px] text-zinc-500">
+                <span><span className="text-zinc-300 tabular-nums">{stats.startups.toLocaleString()}</span> startups</span>
+                <span className="text-zinc-700">·</span>
+                <span><span className="text-zinc-300 tabular-nums">{stats.investors.toLocaleString()}</span> investors</span>
+                <span className="text-zinc-700">·</span>
+                <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
+                <span className="text-zinc-700">·</span>
+                <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/60">live</span></span>
+              </div>
+            )}
           </div>
         </div>
 
