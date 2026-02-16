@@ -268,8 +268,8 @@ export default function PythhHome() {
           </p>
         </div>
 
-        {/* Submit bar */}
-        <div className="mt-8">
+        {/* Submit bar — narrower for visual funnel effect */}
+        <div className="mt-8 max-w-2xl">
           <div 
             className="flex flex-col sm:flex-row"
             style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
