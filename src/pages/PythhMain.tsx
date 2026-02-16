@@ -241,56 +241,70 @@ export default function PythhHome() {
           </p>
         </div>
 
-        {/* Submit bar */}
-        <div className="mt-8 max-w-4xl">
-          <div 
-            className="flex flex-col sm:flex-row"
-            style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
-          >
-            <input
-              data-testid="home-url-input"
-              type="text"
-              value={url}
-              onChange={e => {
-                setUrl(e.target.value);
-                setUrlError('');
-                setSuggestion('');
-              }}
-              onKeyDown={e => e.key === 'Enter' && submit()}
-              placeholder="https://yourstartup.com"
-              className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
-            />
-            <button
-              data-testid="home-analyze-button"
-              onClick={submit}
-              disabled={submitting}
-              className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+        {/* Submit bar + inline stats */}
+        <div className="mt-8 flex flex-col md:flex-row md:items-start gap-4 md:gap-8">
+          {/* URL input */}
+          <div className="flex-1 max-w-3xl">
+            <div 
+              className="flex flex-col sm:flex-row"
+              style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
             >
-              {submitting ? 'Finding...' : 'Find Signals →'}
-            </button>
+              <input
+                data-testid="home-url-input"
+                type="text"
+                value={url}
+                onChange={e => {
+                  setUrl(e.target.value);
+                  setUrlError('');
+                  setSuggestion('');
+                }}
+                onKeyDown={e => e.key === 'Enter' && submit()}
+                placeholder="https://yourstartup.com"
+                className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-4 py-3 text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+              />
+              <button
+                data-testid="home-analyze-button"
+                onClick={submit}
+                disabled={submitting}
+                className="px-6 sm:px-8 py-3 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+              >
+                {submitting ? 'Finding...' : 'Find Signals →'}
+              </button>
+            </div>
+            
+            {/* URL error/suggestion */}
+            <div className="mt-2 min-h-[24px]">
+              {urlError ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-amber-400">{urlError}</span>
+                  {suggestion && (
+                    <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
+                      Use "{suggestion}"
+                    </button>
+                  )}
+                </div>
+              ) : url.trim() ? (
+                <div className="text-xs text-zinc-500">
+                  Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
+                </div>
+              ) : null}
+            </div>
           </div>
-          
-          {/* URL error/suggestion */}
-          <div className="mt-2 min-h-[24px]">
-            {urlError ? (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-amber-400">{urlError}</span>
-                {suggestion && (
-                  <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
-                    Use "{suggestion}"
-                  </button>
-                )}
-              </div>
-            ) : url.trim() ? (
-              <div className="text-xs text-zinc-500">
-                Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
-              </div>
-            ) : null}
+
+          {/* Inline stats — to the right of submit on desktop, below on mobile */}
+          <div className="flex md:flex-col items-center md:items-end gap-3 md:gap-1 text-sm text-zinc-500 md:pt-2.5 flex-wrap">
+            <span><span className="text-zinc-300 tabular-nums">{stats.startups.toLocaleString()}</span> startups</span>
+            <span className="text-zinc-700 md:hidden">·</span>
+            <span><span className="text-zinc-300 tabular-nums">{stats.investors.toLocaleString()}</span> investors</span>
+            <span className="text-zinc-700 md:hidden">·</span>
+            <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
+            <span className="text-zinc-700 md:hidden">·</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/70 text-xs">Live</span></span>
           </div>
         </div>
 
-        {/* Secondary CTA: Rankings exploration hook */}
-        <div className="mt-6 flex flex-wrap items-center gap-6">
+        {/* Secondary CTA */}
+        <div className="mt-5 flex flex-wrap items-center gap-6">
           <Link
             to="/rankings"
             className="group inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-cyan-400 transition-colors"
@@ -305,66 +319,6 @@ export default function PythhHome() {
           >
             Browse {stats.startups.toLocaleString()} startups
           </Link>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════
-            LIVE STATS — The scale proof founders crave
-            ═══════════════════════════════════════════════════════════ */}
-        <div className="mt-10 relative">
-          {/* Glow behind stats */}
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-emerald-500/5 to-cyan-500/5 rounded-2xl blur-xl pointer-events-none" />
-          
-          <div className="relative border border-cyan-500/20 rounded-2xl bg-zinc-900/60 backdrop-blur-sm px-6 py-6 sm:px-10 sm:py-8">
-            {/* Live badge */}
-            <div className="flex items-center justify-between mb-5">
-              <p className="text-xs sm:text-sm text-zinc-400 uppercase tracking-widest font-medium">Platform Scale</p>
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/5">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Live</span>
-              </div>
-            </div>
-
-            {/* Stats grid */}
-            <div className="grid grid-cols-3 gap-4 sm:gap-8">
-              {/* Startups */}
-              <div className="text-center sm:text-left">
-                <p 
-                  className="text-3xl sm:text-5xl font-bold text-white tabular-nums tracking-tight"
-                  style={{ textShadow: '0 0 20px rgba(34, 211, 238, 0.3), 0 0 40px rgba(34, 211, 238, 0.1)' }}
-                >
-                  {stats.startups.toLocaleString()}
-                </p>
-                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-medium">Startups Scored</p>
-              </div>
-
-              {/* Investors */}
-              <div className="text-center sm:text-left">
-                <p 
-                  className="text-3xl sm:text-5xl font-bold text-white tabular-nums tracking-tight"
-                  style={{ textShadow: '0 0 20px rgba(34, 211, 238, 0.3), 0 0 40px rgba(34, 211, 238, 0.1)' }}
-                >
-                  {stats.investors.toLocaleString()}
-                </p>
-                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-medium">Investors Tracked</p>
-              </div>
-
-              {/* Matches */}
-              <div className="text-center sm:text-left">
-                <p 
-                  className="text-3xl sm:text-5xl font-bold text-cyan-400 tabular-nums tracking-tight"
-                  style={{ textShadow: '0 0 20px rgba(34, 211, 238, 0.4), 0 0 50px rgba(34, 211, 238, 0.15)' }}
-                >
-                  {stats.matches.toLocaleString()}
-                </p>
-                <p className="mt-1 text-xs sm:text-sm text-cyan-400/70 font-medium">Live Matches</p>
-              </div>
-            </div>
-
-            {/* Bottom tagline */}
-            <p className="mt-5 text-xs text-zinc-500 border-t border-zinc-800/50 pt-4">
-              Every match scored by the GOD Algorithm — updated in real time as investor signals shift.
-            </p>
-          </div>
         </div>
       </section>
 
