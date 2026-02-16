@@ -1,22 +1,18 @@
-# GOD Score Monitor - Runs every 2 hours
-# Reports to ai_logs table (not chat window)
-
 name: GOD Score Monitor
 
 on:
   schedule:
-    # Run every 2 hours
-    - cron: '0 */2 * * *'
-  workflow_dispatch: # Allow manual trigger
+    - cron: '5 */2 * * *'  # Every 2 hours at :05 (5 min after recalc)
+  workflow_dispatch:
 
 jobs:
-  check-scores:
+  monitor:
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -25,8 +21,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Run GOD Score Monitor
+      - name: Check GOD Score Distribution
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node scripts/god-score-monitor.js
