@@ -1,16 +1,22 @@
 /**
- * INVESTOR SCORING SERVICE - THE VC GOD ALGORITHM
- * ================================================
- * Evaluates investors/VCs based on quality metrics similar to how we score startups.
- * Scores 1-10 where 10 = highest quality investor match.
+ * INVESTOR SCORING SERVICE - THE VC GOD ALGORITHM v2
+ * ====================================================
+ * Evaluates investors/VCs based on quality metrics.
+ * Scores 0-10 where 10 = highest quality investor.
  * 
- * Why rank VCs?
- * - Not all VCs are equal for all startups
- * - Active VCs (deploying capital) > Dormant VCs
- * - Sector experts > Generalists (for specific startups)
- * - Responsive VCs > Slow VCs
- * - Lead investors > Followers (for new rounds)
- * - VCs with successful exits > VCs with no exits
+ * v2 REBALANCE: Weights aligned to data we ACTUALLY HAVE:
+ *   - 78% have: check_size, bio, sectors
+ *   - 98% have: stage
+ *   - 100% have: leads_rounds, type
+ *   - 38% have: investment_thesis
+ *   - 8% have: total_investments (bonus)
+ *   - 9% have: active_fund_size (bonus)
+ * 
+ * Scoring Dimensions (0-10 total):
+ *   Profile Completeness (0-3): Data quality signals seriousness
+ *   Investment Focus     (0-3): Clear thesis, focused sectors, stage clarity
+ *   Capital Readiness    (0-2): Check size defined, fund size, leads rounds
+ *   Track Record         (0-2): Investments, exits (bonus when available)
  */
 
 interface InvestorProfile {
@@ -63,11 +69,10 @@ interface InvestorScore {
   total: number; // 0-10 scale
   percentile: number; // 0-100 percentile among all VCs
   breakdown: {
-    track_record: number; // 0-3: Exits, unicorns, portfolio quality
-    activity_level: number; // 0-2: Recent investments, deployment pace
-    fund_health: number; // 0-2: Dry powder, fund size
-    sector_expertise: number; // 0-1.5: Deep vs broad focus
-    responsiveness: number; // 0-1.5: Response time, decision maker
+    profile_completeness: number; // 0-3: Data quality
+    investment_focus: number;     // 0-3: Thesis, sectors, stage
+    capital_readiness: number;    // 0-2: Check size, fund, leads
+    track_record: number;         // 0-2: Investments, exits (bonus)
   };
   tier: 'elite' | 'strong' | 'solid' | 'emerging';
   signals: string[];
@@ -76,225 +81,232 @@ interface InvestorScore {
 
 /**
  * Main scoring function - evaluates investor quality
+ * v2: Rebalanced to score based on data we actually have
  */
 export function calculateInvestorScore(investor: InvestorProfile): InvestorScore {
   const signals: string[] = [];
   
   // ============================================
-  // TRACK RECORD (0-3 points)
+  // PROFILE COMPLETENESS (0-3 points)
+  // Reward investors who provide rich data
   // ============================================
-  let trackRecordScore = 0;
+  let profileScore = 0;
   
-  // Total investments (0-1.5)
-  const investments = investor.total_investments || 0;
-  if (investments >= 100) {
-    trackRecordScore += 1.5;
-    signals.push('Highly experienced: 100+ investments');
-  } else if (investments >= 50) {
-    trackRecordScore += 1.2;
-    signals.push('Experienced: 50+ investments');
-  } else if (investments >= 20) {
-    trackRecordScore += 0.8;
-    signals.push('Active investor: 20+ investments');
-  } else if (investments >= 5) {
-    trackRecordScore += 0.4;
-    signals.push('Established: 5+ investments');
+  // Has bio (0-0.8)
+  const bio = investor.bio || '';
+  if (bio.length > 200) {
+    profileScore += 0.8;
+    signals.push('Detailed bio');
+  } else if (bio.length > 50) {
+    profileScore += 0.5;
+    signals.push('Has bio');
+  } else if (bio.length > 0) {
+    profileScore += 0.2;
   }
   
-  // Successful exits (0-1.0)
-  const exits = investor.successful_exits || 0;
-  if (exits >= 20) {
-    trackRecordScore += 1.0;
-    signals.push('Exceptional track record: 20+ exits');
-  } else if (exits >= 10) {
-    trackRecordScore += 0.8;
-    signals.push('Strong exits: 10+');
-  } else if (exits >= 5) {
-    trackRecordScore += 0.5;
-    signals.push('Solid exits: 5+');
-  } else if (exits >= 1) {
-    trackRecordScore += 0.2;
-    signals.push('Has exits');
+  // Has name + firm (0-0.4)
+  if (investor.name && investor.firm) {
+    profileScore += 0.4;
+  } else if (investor.name || investor.firm) {
+    profileScore += 0.2;
   }
   
-  // Exit rate bonus
-  if (investments > 0 && exits > 0) {
-    const exitRate = exits / investments;
-    if (exitRate >= 0.2) {
-      trackRecordScore += 0.5;
-      signals.push(`High exit rate: ${(exitRate * 100).toFixed(0)}%`);
-    }
+  // Has geography focus (0-0.5)
+  const geos = investor.geography_focus || [];
+  if (geos.length >= 1) {
+    profileScore += 0.5;
+    signals.push(`Geography: ${geos.slice(0, 2).join(', ')}`);
   }
   
-  trackRecordScore = Math.min(trackRecordScore, 3);
-  
-  // ============================================
-  // ACTIVITY LEVEL (0-2 points)
-  // ============================================
-  let activityScore = 0;
-  
-  // Investment pace
-  const pace = investor.investment_pace_per_year || 0;
-  if (pace >= 20) {
-    activityScore += 1.0;
-    signals.push('High velocity: 20+ deals/year');
-  } else if (pace >= 10) {
-    activityScore += 0.7;
-    signals.push('Active pace: 10+ deals/year');
-  } else if (pace >= 5) {
-    activityScore += 0.4;
+  // Has investment thesis (0-0.8)
+  const thesis = investor.investment_thesis || '';
+  if (thesis.length > 200) {
+    profileScore += 0.8;
+    signals.push('Deep investment thesis');
+  } else if (thesis.length > 50) {
+    profileScore += 0.5;
+    signals.push('Has investment thesis');
+  } else if (thesis.length > 0) {
+    profileScore += 0.2;
   }
   
-  // Recent activity
-  if (investor.last_investment_date) {
-    const lastInvestment = new Date(investor.last_investment_date);
-    const monthsAgo = (Date.now() - lastInvestment.getTime()) / (1000 * 60 * 60 * 24 * 30);
-    
-    if (monthsAgo <= 3) {
-      activityScore += 1.0;
-      signals.push('Very active: invested in last 3 months');
-    } else if (monthsAgo <= 6) {
-      activityScore += 0.7;
-      signals.push('Active: invested in last 6 months');
-    } else if (monthsAgo <= 12) {
-      activityScore += 0.4;
-      signals.push('Recent activity within 12 months');
-    }
-  }
+  // Social proof / contact info (0-0.5)
+  let socialCount = 0;
+  if (investor.linkedin_url) socialCount++;
+  if (investor.twitter_url) socialCount++;
+  if (investor.is_verified) socialCount++;
+  profileScore += Math.min(socialCount * 0.25, 0.5);
   
-  activityScore = Math.min(activityScore, 2);
+  profileScore = Math.min(profileScore, 3);
   
   // ============================================
-  // FUND HEALTH (0-2 points)
+  // INVESTMENT FOCUS (0-3 points)
+  // Clear thesis + focused sectors = better matches
   // ============================================
-  let fundHealthScore = 0;
+  let focusScore = 0;
   
-  // Fund size
-  const fundSize = investor.active_fund_size || 0;
-  if (fundSize >= 500000000) { // $500M+
-    fundHealthScore += 1.0;
-    signals.push('Large fund: $500M+');
-  } else if (fundSize >= 100000000) { // $100M+
-    fundHealthScore += 0.7;
-    signals.push('Mid-size fund: $100M+');
-  } else if (fundSize >= 20000000) { // $20M+
-    fundHealthScore += 0.4;
-  }
-  
-  // Dry powder (capital available)
-  const dryPowder = investor.dry_powder_estimate || 0;
-  if (dryPowder >= 100000000) {
-    fundHealthScore += 1.0;
-    signals.push('High dry powder: $100M+ available');
-  } else if (dryPowder >= 20000000) {
-    fundHealthScore += 0.6;
-    signals.push('Capital available: $20M+');
-  } else if (dryPowder >= 5000000) {
-    fundHealthScore += 0.3;
-  }
-  
-  // If no fund data, give partial credit for active investors
-  if (fundSize === 0 && dryPowder === 0 && investments >= 10) {
-    fundHealthScore += 0.5;
-  }
-  
-  fundHealthScore = Math.min(fundHealthScore, 2);
-  
-  // ============================================
-  // SECTOR EXPERTISE (0-1.5 points)
-  // ============================================
-  let expertiseScore = 0;
-  
-  // Sector focus depth
+  // Sector focus depth (0-1.2)
   const sectors = investor.sectors || [];
   if (sectors.length >= 1 && sectors.length <= 3) {
-    expertiseScore += 1.0;
+    focusScore += 1.2;
     signals.push(`Focused expertise: ${sectors.slice(0, 3).join(', ')}`);
   } else if (sectors.length <= 6) {
-    expertiseScore += 0.6;
-    signals.push('Broad sector coverage');
-  } else if (sectors.length > 0) {
-    expertiseScore += 0.3;
+    focusScore += 0.9;
+    signals.push('Multi-sector investor');
+  } else if (sectors.length > 6) {
+    focusScore += 0.5;
     signals.push('Generalist investor');
   }
   
-  // Investment thesis quality
-  if (investor.investment_thesis && investor.investment_thesis.length > 100) {
-    expertiseScore += 0.5;
-    signals.push('Clear investment thesis');
+  // Stage clarity (0-1.0)
+  const stages = investor.stage || [];
+  if (stages.length >= 1 && stages.length <= 2) {
+    focusScore += 1.0;
+    signals.push(`Stage focus: ${stages.join(', ')}`);
+  } else if (stages.length <= 4) {
+    focusScore += 0.7;
+    signals.push('Multi-stage investor');
+  } else if (stages.length > 0) {
+    focusScore += 0.4;
+    signals.push('All-stage investor');
   }
   
-  expertiseScore = Math.min(expertiseScore, 1.5);
+  // Type specificity bonus (0-0.8)
+  const invType = (investor as any).type || '';
+  if (invType === 'VC' || invType === 'vc') {
+    focusScore += 0.6;
+    signals.push('Venture Capital firm');
+  } else if (invType === 'Angel' || invType === 'angel') {
+    focusScore += 0.5;
+    signals.push('Angel investor');
+  } else if (invType === 'PE' || invType === 'CVC' || invType === 'Family Office') {
+    focusScore += 0.4;
+  } else if (invType) {
+    focusScore += 0.3;
+  }
+  
+  focusScore = Math.min(focusScore, 3);
   
   // ============================================
-  // RESPONSIVENESS (0-1.5 points)
+  // CAPITAL READINESS (0-2 points)
+  // Can they actually write a check?
   // ============================================
-  let responsivenessScore = 0;
+  let capitalScore = 0;
   
-  // Response time
-  const responseTime = investor.avg_response_time_days || 0;
-  if (responseTime > 0 && responseTime <= 3) {
-    responsivenessScore += 0.75;
-    signals.push('Fast responder: <3 days');
-  } else if (responseTime <= 7) {
-    responsivenessScore += 0.5;
-    signals.push('Good response time: <1 week');
-  } else if (responseTime <= 14) {
-    responsivenessScore += 0.25;
+  // Check size defined (0-0.8) — 78% have this
+  const minCheck = investor.check_size_min || 0;
+  const maxCheck = investor.check_size_max || 0;
+  if (minCheck > 0 && maxCheck > 0) {
+    capitalScore += 0.8;
+    signals.push(`Check: $${formatAmount(minCheck)}-$${formatAmount(maxCheck)}`);
+  } else if (minCheck > 0 || maxCheck > 0) {
+    capitalScore += 0.4;
   }
   
-  // Decision maker status
-  if (investor.decision_maker) {
-    responsivenessScore += 0.5;
-    signals.push('Decision maker: faster process');
+  // Fund size (0-0.7)
+  const fundSize = investor.active_fund_size || 0;
+  if (fundSize >= 500_000_000) {
+    capitalScore += 0.7;
+    signals.push('Large fund: $500M+');
+  } else if (fundSize >= 100_000_000) {
+    capitalScore += 0.6;
+    signals.push('Mid-size fund: $100M+');
+  } else if (fundSize >= 20_000_000) {
+    capitalScore += 0.4;
+    signals.push('Fund: $20M+');
+  } else if (fundSize > 0) {
+    capitalScore += 0.2;
   }
   
-  // Lead investor capability
+  // Leads rounds (0-0.5)
   if (investor.leads_rounds) {
-    responsivenessScore += 0.25;
+    capitalScore += 0.5;
     signals.push('Leads rounds');
+  } else if (investor.follows_rounds) {
+    capitalScore += 0.2;
+    signals.push('Follows rounds');
   }
   
-  responsivenessScore = Math.min(responsivenessScore, 1.5);
+  capitalScore = Math.min(capitalScore, 2);
+  
+  // ============================================
+  // TRACK RECORD (0-2 points) — bonus dimension
+  // Only 8% have this data, so it's additive not gating
+  // ============================================
+  let trackScore = 0;
+  
+  const investments = investor.total_investments || 0;
+  if (investments >= 100) {
+    trackScore += 1.0;
+    signals.push('Highly experienced: 100+ investments');
+  } else if (investments >= 50) {
+    trackScore += 0.8;
+    signals.push('Experienced: 50+ investments');
+  } else if (investments >= 20) {
+    trackScore += 0.6;
+    signals.push('Active investor: 20+ investments');
+  } else if (investments >= 5) {
+    trackScore += 0.3;
+    signals.push('Established: 5+ investments');
+  }
+  
+  const exits = investor.successful_exits || 0;
+  if (exits >= 10) {
+    trackScore += 1.0;
+    signals.push('Strong exits: 10+');
+  } else if (exits >= 5) {
+    trackScore += 0.6;
+    signals.push('Solid exits: 5+');
+  } else if (exits >= 1) {
+    trackScore += 0.3;
+    signals.push('Has exits');
+  }
+  
+  trackScore = Math.min(trackScore, 2);
   
   // ============================================
   // CALCULATE TOTAL & TIER
   // ============================================
   const total = Math.min(
-    trackRecordScore + activityScore + fundHealthScore + expertiseScore + responsivenessScore,
+    profileScore + focusScore + capitalScore + trackScore,
     10
   );
   
-  // Determine tier
+  // Tier thresholds — recalibrated for v2 distribution
+  // Expected: ~15% emerging, ~40% solid, ~35% strong, ~10% elite
   let tier: 'elite' | 'strong' | 'solid' | 'emerging';
-  if (total >= 8) {
+  if (total >= 7) {
     tier = 'elite';
-  } else if (total >= 6) {
+  } else if (total >= 5) {
     tier = 'strong';
-  } else if (total >= 4) {
+  } else if (total >= 3) {
     tier = 'solid';
   } else {
     tier = 'emerging';
   }
   
-  // Calculate match multiplier (for weighting in matches)
-  // Elite investors get up to 2x weight in match ranking
+  // Match multiplier: 1.0-2.0x
   const matchMultiplier = 1 + (total / 10);
   
   return {
     total: Math.round(total * 10) / 10,
-    percentile: Math.round(total * 10), // Rough percentile
+    percentile: Math.round(total * 10),
     breakdown: {
-      track_record: Math.round(trackRecordScore * 10) / 10,
-      activity_level: Math.round(activityScore * 10) / 10,
-      fund_health: Math.round(fundHealthScore * 10) / 10,
-      sector_expertise: Math.round(expertiseScore * 10) / 10,
-      responsiveness: Math.round(responsivenessScore * 10) / 10,
+      profile_completeness: Math.round(profileScore * 10) / 10,
+      investment_focus: Math.round(focusScore * 10) / 10,
+      capital_readiness: Math.round(capitalScore * 10) / 10,
+      track_record: Math.round(trackScore * 10) / 10,
     },
     tier,
     signals,
     matchMultiplier: Math.round(matchMultiplier * 100) / 100,
   };
+}
+
+function formatAmount(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(0) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
+  return n.toString();
 }
 
 /**

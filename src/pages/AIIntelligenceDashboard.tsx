@@ -1,1057 +1,677 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { 
-  Brain, 
-  TrendingUp, 
-  Activity, 
-  Zap, 
-  Database, 
+import {
+  Brain,
+  TrendingUp,
+  Activity,
+  Zap,
+  Database,
   BarChart3,
   Sparkles,
   RefreshCw,
   AlertCircle,
   CheckCircle,
   ArrowLeft,
-  Network,
   Target,
   DollarSign,
-  Lightbulb
+  Radio,
+  Gauge,
+  ChevronRight,
+  XCircle,
+  Clock,
+  Hash,
+  Layers,
+  BarChart,
 } from 'lucide-react';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
 
-interface RSSDataPoint {
-  source: string;
-  company: string;
-  funding_amount: string;
-  valuation?: string;
+/* ─── types ─── */
+interface DiscoveredStartup {
+  id: string;
+  name: string;
+  source: string | null;
+  created_at: string;
+  funding_amount: string | null;
+  funding_stage: string | null;
+  sectors: string | null;
+  article_title: string | null;
+  rss_source: string | null;
+}
+
+interface RSSSource {
+  id: string;
+  name: string;
+  url: string;
+  category: string | null;
+  active: boolean;
+  last_scraped: string | null;
+  total_discoveries: number;
+  avg_yield_per_scrape: number;
+  consecutive_failures: number;
+  priority: number;
+}
+
+interface ScoreDistribution {
+  tier: string;
+  count: number;
+  pct: number;
+}
+
+interface SectorTrend {
   sector: string;
-  stage: string;
-  timestamp: Date;
-  sentiment_score: number;
+  count: number;
+  avgScore: number;
+  recentCount: number;
 }
 
-interface MLMetrics {
-  model_version: string;
-  accuracy: number;
-  last_training: Date;
-  data_points: number;
-  improvement_rate: number;
+/* ─── helpers ─── */
+function formatTimeAgo(dateStr: string) {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 0) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
-interface TrendInsight {
-  sector: string;
-  trend: 'hot' | 'rising' | 'cooling';
-  avg_valuation: string;
-  funding_velocity: number;
-  confidence: number;
-}
-
-interface ProfileUpdate {
-  entity_type: 'startup' | 'investor';
-  entity_name: string;
-  field_updated: string;
-  old_value: string;
-  new_value: string;
-  reason: string;
-  timestamp: Date;
-}
-
-interface MatchOptimization {
-  startup: string;
-  investor: string;
-  old_score: number;
-  new_score: number;
-  optimization_reason: string;
-  data_source: string;
-}
-
+/* ─── component ─── */
 export default function AIIntelligenceDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'rss' | 'ml' | 'trends' | 'profiles' | 'matches'>('rss');
-  
-  // Debug: Log component mount
-  useEffect(() => {
-    console.log('AIIntelligenceDashboard mounted');
-  }, []);
-  
-  // RSS Data Stream
-  const [rssData, setRssData] = useState<RSSDataPoint[]>([]);
-  const [rssStats, setRssStats] = useState({
-    total_scraped: 0,
-    new_today: 0,
-    unique_sectors: 0,
-    avg_sentiment: 0
-  });
+  const [selectedTab, setSelectedTab] = useState<'rss' | 'ml' | 'trends' | 'scores' | 'matches'>('rss');
 
-  // ML Model Metrics
-  const [mlMetrics, setMlMetrics] = useState<MLMetrics>({
-    model_version: 'v2.5.3',
-    accuracy: 0,
-    last_training: new Date(),
-    data_points: 0,
-    improvement_rate: 0
-  });
+  const [recentDiscoveries, setRecentDiscoveries] = useState<DiscoveredStartup[]>([]);
+  const [totalDiscovered, setTotalDiscovered] = useState(0);
+  const [discoveredToday, setDiscoveredToday] = useState(0);
+  const [rssSources, setRssSources] = useState<RSSSource[]>([]);
+  const [scoreDist, setScoreDist] = useState<ScoreDistribution[]>([]);
+  const [scoreStats, setScoreStats] = useState({ avg: 0, median: 0, max: 0, total: 0, withMomentum: 0 });
+  const [matchCount, setMatchCount] = useState(0);
+  const [investorCount, setInvestorCount] = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
+  const [sectorTrends, setSectorTrends] = useState<SectorTrend[]>([]);
+  const [recentLogs, setRecentLogs] = useState<Array<{ operation: string; status: string; created_at: string; error_message?: string }>>([]);
+  const [recentlyScored, setRecentlyScored] = useState<Array<{ name: string; total_god_score: number; momentum_score: number; updated_at: string }>>([]);
 
-  // Market Trends
-  const [trends, setTrends] = useState<TrendInsight[]>([]);
-  
-  // Profile Updates
-  const [profileUpdates, setProfileUpdates] = useState<ProfileUpdate[]>([]);
-  
-  // Match Optimizations
-  const [matchOptimizations, setMatchOptimizations] = useState<MatchOptimization[]>([]);
-
-  const loadAIIntelligence = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Simulate RSS data stream (in production, pull from actual RSS scraper logs)
-      const mockRSSData: RSSDataPoint[] = [
-        {
-          source: 'TechCrunch',
-          company: 'DataFlow AI',
-          funding_amount: '$15M Series A',
-          valuation: '$75M',
-          sector: 'AI/ML Infrastructure',
-          stage: 'Series A',
-          timestamp: new Date(Date.now() - 1000 * 60 * 15),
-          sentiment_score: 0.89
-        },
-        {
-          source: 'VentureBeat',
-          company: 'HealthTech Pro',
-          funding_amount: '$8M Seed',
-          valuation: '$32M',
-          sector: 'Healthcare Tech',
-          stage: 'Seed',
-          timestamp: new Date(Date.now() - 1000 * 60 * 45),
-          sentiment_score: 0.92
-        },
-        {
-          source: 'The Information',
-          company: 'Fintech Solutions',
-          funding_amount: '$50M Series B',
-          valuation: '$300M',
-          sector: 'Fintech',
-          stage: 'Series B',
-          timestamp: new Date(Date.now() - 1000 * 60 * 120),
-          sentiment_score: 0.85
-        },
-        {
-          source: 'TechCrunch',
-          company: 'Quantum Labs',
-          funding_amount: '$100M Series C',
-          valuation: '$800M',
-          sector: 'Deep Tech',
-          stage: 'Series C',
-          timestamp: new Date(Date.now() - 1000 * 60 * 180),
-          sentiment_score: 0.95
-        },
-        {
-          source: 'VentureBeat',
-          company: 'AI Vision Corp',
-          funding_amount: '$25M Series A',
-          valuation: '$120M',
-          sector: 'Computer Vision',
-          stage: 'Series A',
-          timestamp: new Date(Date.now() - 1000 * 60 * 240),
-          sentiment_score: 0.88
-        }
-      ];
+      // 1. Recent RSS discoveries
+      const { data: discoveries } = await supabase
+        .from('discovered_startups')
+        .select('id, name, source, created_at, funding_amount, funding_stage, sectors, article_title, rss_source')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      setRecentDiscoveries(discoveries || []);
 
-      setRssData(mockRSSData);
-      setRssStats({
-        total_scraped: 847,
-        new_today: 23,
-        unique_sectors: 15,
-        avg_sentiment: 0.87
-      });
+      // 2. Total discovered count
+      const { count: discCount } = await supabase
+        .from('discovered_startups')
+        .select('*', { count: 'exact', head: true });
+      setTotalDiscovered(discCount || 0);
 
-      // ML Model Metrics (would come from training pipeline)
-      // Fetch startups count - don't block if it fails
-      let dataPoints = 0;
-      try {
-        const { count, error: startupsError } = await supabase
-          .from('startup_uploads')
-          .select('*', { count: 'exact', head: true });
-        
-        if (!startupsError && count !== null) {
-          dataPoints = count;
-        }
-      } catch (err) {
-        console.warn('Error in startups query:', err);
-        // Continue with default value of 0
+      // 3. Discovered today
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const { count: todayNum } = await supabase
+        .from('discovered_startups')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', todayStart.toISOString());
+      setDiscoveredToday(todayNum || 0);
+
+      // 4. RSS Sources
+      const { data: sources } = await supabase
+        .from('rss_sources')
+        .select('id, name, url, category, active, last_scraped, total_discoveries, avg_yield_per_scrape, consecutive_failures, priority')
+        .order('total_discoveries', { ascending: false });
+      setRssSources(sources || []);
+
+      // 5. Approved startup count
+      const { count: apprCount } = await supabase
+        .from('startup_uploads')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved');
+      setApprovedCount(apprCount || 0);
+
+      // 6. GOD score distribution
+      const { data: scoreData } = await supabase
+        .from('startup_uploads')
+        .select('total_god_score, momentum_score')
+        .eq('status', 'approved')
+        .not('total_god_score', 'is', null)
+        .order('total_god_score', { ascending: true });
+
+      if (scoreData && scoreData.length > 0) {
+        const scores = scoreData.map((s: any) => s.total_god_score as number);
+        const avg = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+        const median = scores[Math.floor(scores.length / 2)];
+        const max = scores[scores.length - 1];
+        const withMom = scoreData.filter((s: any) => s.momentum_score && s.momentum_score > 0).length;
+        setScoreStats({ avg: Math.round(avg * 10) / 10, median, max, total: scores.length, withMomentum: withMom });
+
+        const tiers: Record<string, number> = { '90-100': 0, '80-89': 0, '70-79': 0, '60-69': 0, '50-59': 0, '40-49': 0, '<40': 0 };
+        scores.forEach((s: number) => {
+          if (s >= 90) tiers['90-100']++;
+          else if (s >= 80) tiers['80-89']++;
+          else if (s >= 70) tiers['70-79']++;
+          else if (s >= 60) tiers['60-69']++;
+          else if (s >= 50) tiers['50-59']++;
+          else if (s >= 40) tiers['40-49']++;
+          else tiers['<40']++;
+        });
+        setScoreDist(Object.entries(tiers).map(([tier, count]) => ({
+          tier, count, pct: Math.round((count / scores.length) * 1000) / 10,
+        })));
       }
 
-      setMlMetrics({
-        model_version: 'v2.5.3',
-        accuracy: 94.7,
-        last_training: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        data_points: dataPoints,
-        improvement_rate: 3.2
-      });
+      // 7. Match count
+      const { count: mCount } = await supabase
+        .from('startup_investor_matches')
+        .select('*', { count: 'exact', head: true });
+      setMatchCount(mCount || 0);
 
-      // Market Trends (derived from RSS data analysis)
-      setTrends([
-        {
-          sector: 'AI/ML Infrastructure',
-          trend: 'hot',
-          avg_valuation: '$95M',
-          funding_velocity: 8.5, // deals per week
-          confidence: 0.94
-        },
-        {
-          sector: 'Fintech',
-          trend: 'rising',
-          avg_valuation: '$180M',
-          funding_velocity: 6.2,
-          confidence: 0.88
-        },
-        {
-          sector: 'Healthcare Tech',
-          trend: 'hot',
-          avg_valuation: '$65M',
-          funding_velocity: 7.8,
-          confidence: 0.91
-        },
-        {
-          sector: 'Climate Tech',
-          trend: 'rising',
-          avg_valuation: '$45M',
-          funding_velocity: 4.5,
-          confidence: 0.83
-        },
-        {
-          sector: 'Web3/Crypto',
-          trend: 'cooling',
-          avg_valuation: '$120M',
-          funding_velocity: 2.1,
-          confidence: 0.79
-        }
-      ]);
+      // 8. Investor count
+      const { count: iCount } = await supabase
+        .from('investors')
+        .select('*', { count: 'exact', head: true });
+      setInvestorCount(iCount || 0);
 
-      // Profile Updates (AI-driven updates based on RSS data)
-      setProfileUpdates([
-        {
-          entity_type: 'investor',
-          entity_name: 'Sequoia Capital',
-          field_updated: 'focus_sectors',
-          old_value: 'Enterprise SaaS, AI/ML',
-          new_value: 'Enterprise SaaS, AI/ML, Climate Tech',
-          reason: 'Detected 3 new Climate Tech investments in last 30 days from RSS feed',
-          timestamp: new Date(Date.now() - 1000 * 60 * 30)
-        },
-        {
-          entity_type: 'startup',
-          entity_name: 'DataFlow AI',
-          field_updated: 'valuation',
-          old_value: '$50M',
-          new_value: '$75M',
-          reason: 'TechCrunch reported Series A at $75M valuation',
-          timestamp: new Date(Date.now() - 1000 * 60 * 15)
-        },
-        {
-          entity_type: 'investor',
-          entity_name: 'Andreessen Horowitz',
-          field_updated: 'check_size',
-          old_value: '$10M - $50M',
-          new_value: '$15M - $75M',
-          reason: 'Increased average check size detected from recent deals',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60)
-        },
-        {
-          entity_type: 'startup',
-          entity_name: 'Quantum Labs',
-          field_updated: 'stage',
-          old_value: 'Series B',
-          new_value: 'Series C',
-          reason: 'The Information reported $100M Series C funding',
-          timestamp: new Date(Date.now() - 1000 * 60 * 180)
-        }
-      ]);
+      // 9. AI logs
+      const { data: logs } = await supabase
+        .from('ai_logs')
+        .select('operation, status, created_at, error_message')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setRecentLogs(logs || []);
 
-      // Match Optimizations (how RSS data improved match scores)
-      setMatchOptimizations([
-        {
-          startup: 'AI Vision Corp',
-          investor: 'Insight Partners',
-          old_score: 76,
-          new_score: 91,
-          optimization_reason: 'Detected Insight Partners increased Computer Vision investments by 40%',
-          data_source: 'RSS + Portfolio Analysis'
-        },
-        {
-          startup: 'HealthTech Pro',
-          investor: 'Khosla Ventures',
-          old_score: 68,
-          new_score: 88,
-          optimization_reason: 'Khosla announced $200M healthcare fund, aligning with startup stage',
-          data_source: 'TechCrunch RSS'
-        },
-        {
-          startup: 'Fintech Solutions',
-          investor: 'Tiger Global',
-          old_score: 82,
-          new_score: 95,
-          optimization_reason: 'Tiger Global deployed $150M in fintech Q4, signaling active deployment',
-          data_source: 'The Information RSS'
-        },
-        {
-          startup: 'DataFlow AI',
-          investor: 'Accel',
-          old_score: 71,
-          new_score: 89,
-          optimization_reason: 'Accel partner publicly praised AI infrastructure companies on Twitter',
-          data_source: 'Social Media + RSS'
-        }
-      ]);
+      // 10. Recently scored
+      const { data: recent } = await supabase
+        .from('startup_uploads')
+        .select('name, total_god_score, momentum_score, updated_at')
+        .eq('status', 'approved')
+        .order('updated_at', { ascending: false })
+        .limit(10);
+      setRecentlyScored(recent || []);
 
-      setLoading(false);
-      setError(null);
-    } catch (error) {
-      console.error('Error loading AI intelligence:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load AI intelligence data');
+      // 11. Sector trends
+      const { data: sectorRaw } = await supabase
+        .from('discovered_startups')
+        .select('sectors, created_at')
+        .not('sectors', 'is', null);
+      if (sectorRaw) {
+        const sMap: Record<string, { count: number; recent: number }> = {};
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        sectorRaw.forEach((r: any) => {
+          const s = r.sectors as string;
+          if (!s) return;
+          if (!sMap[s]) sMap[s] = { count: 0, recent: 0 };
+          sMap[s].count++;
+          if (new Date(r.created_at).getTime() > weekAgo) sMap[s].recent++;
+        });
+        setSectorTrends(
+          Object.entries(sMap)
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, 12)
+            .map(([sector, data]) => ({ sector, count: data.count, avgScore: 0, recentCount: data.recent }))
+        );
+      }
+    } catch (err) {
+      console.error('Error loading AI intelligence:', err);
+    } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadAIIntelligence();
-    
-    if (autoRefresh) {
-      const interval = setInterval(loadAIIntelligence, 10000); // 10 seconds
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, loadAIIntelligence]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const getTrendColor = (trend: string) => {
-    switch (trend) {
-      case 'hot': return 'text-red-400 bg-red-500/20 border-red-500/50';
-      case 'rising': return 'text-cyan-400 bg-cyan-600/20 border-cyan-500/50';
-      case 'cooling': return 'text-blue-400 bg-blue-500/20 border-blue-500/50';
-      default: return 'text-gray-400 bg-gray-500/20 border-gray-500/50';
-    }
-  };
-
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'hot': return '🔥';
-      case 'rising': return '📈';
-      case 'cooling': return '❄️';
-      default: return '📊';
-    }
-  };
-
-  const formatTimeAgo = (date: Date) => {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
-
+  /* ─── Loading ─── */
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0f0729] via-[#1a0f3a] to-[#2d1558] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="flex items-center gap-3">
-          <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
+          <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
           <span className="text-white text-xl">Loading AI Intelligence...</span>
         </div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0f0729] via-[#1a0f3a] to-[#2d1558] flex items-center justify-center p-8">
-        <div className="text-center max-w-md">
-          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">Error Loading Dashboard</h2>
-          <p className="text-gray-300 mb-4">{error}</p>
-          <button
-            onClick={() => {
-              setError(null);
-              setLoading(true);
-              loadAIIntelligence();
-            }}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const activeSources = rssSources.filter(s => s.active).length;
+  const totalSourceDiscoveries = rssSources.reduce((sum, s) => sum + (s.total_discoveries || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f0729] via-[#1a0f3a] to-[#2d1558] text-white p-8 relative overflow-hidden">
-      {/* Global Navigation */}
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
       <LogoDropdownMenu />
 
-      {/* Animated background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
-      </div>
-      
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="max-w-7xl mx-auto px-6 pt-6 pb-16">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/admin/control')}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6" />
+            <button onClick={() => navigate(-1)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+              <ArrowLeft className="w-5 h-5 text-zinc-400" />
             </button>
             <div>
-              <h1 className="text-4xl font-bold flex items-center gap-3 mb-2">
-                <span className="bg-gradient-to-r from-amber-400 via-orange-400 to-cyan-400 bg-clip-text text-transparent">[pyth]</span> <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-violet-400 bg-clip-text text-transparent">ai</span>
-                <span className="text-white">AI Intelligence</span>
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                <span className="text-amber-400">[pyth]</span>
+                <span className="text-cyan-400">ai</span>
+                <span>AI Intelligence</span>
               </h1>
-              <p className="text-gray-300 mt-1 text-lg">
-                Real-time view of how RSS data trains models, detects trends, and optimizes matches
-              </p>
+              <p className="text-zinc-500 mt-1">Real-time system overview — scraper, scoring, matching, and ML pipeline</p>
             </div>
           </div>
-
-          <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-              autoRefresh
-                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-            }`}
-          >
-            <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
-            {autoRefresh ? 'Live' : 'Paused'}
+          <button onClick={loadData} className="px-4 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors flex items-center gap-2 text-sm font-medium">
+            <RefreshCw className="w-4 h-4" /> Refresh
           </button>
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <button
-            onClick={() => navigate('/admin/discovered-startups')}
-            className="bg-gradient-to-br from-purple-900/60 to-pink-900/60 backdrop-blur-xl border-2 border-purple-500/50 rounded-xl p-6 shadow-lg shadow-purple-900/50 hover:scale-105 transition-all cursor-pointer text-left"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Database className="w-8 h-8 text-purple-400" />
-              <span className="text-3xl font-bold text-white">{rssStats.total_scraped}</span>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <Database className="w-6 h-6 text-purple-400" />
+              <span className="text-2xl font-bold">{totalDiscovered.toLocaleString()}</span>
             </div>
-            <div className="text-sm text-gray-300">RSS Articles Scraped</div>
-            <div className="text-xs text-purple-400 mt-1">+{rssStats.new_today} today</div>
-          </button>
-
-          <button
-            onClick={() => navigate('/admin/ml-dashboard')}
-            className="bg-gradient-to-br from-cyan-900/60 to-blue-900/60 backdrop-blur-xl border-2 border-cyan-500/50 rounded-xl p-6 shadow-lg shadow-cyan-900/50 hover:scale-105 transition-all cursor-pointer text-left"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <BarChart3 className="w-8 h-8 text-cyan-400" />
-              <span className="text-3xl font-bold text-white">{mlMetrics.accuracy}%</span>
+            <div className="text-sm text-zinc-400">Startups Discovered</div>
+            <div className="text-xs text-cyan-400 mt-1">+{discoveredToday} today</div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <Gauge className="w-6 h-6 text-cyan-400" />
+              <span className="text-2xl font-bold">{approvedCount.toLocaleString()}</span>
             </div>
-            <div className="text-sm text-gray-300">ML Model Accuracy</div>
-            <div className="text-xs text-cyan-400 mt-1">+{mlMetrics.improvement_rate}% this week</div>
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedTab('trends');
-              // Scroll to trends section
-              setTimeout(() => {
-                const element = document.getElementById('trends-section');
-                element?.scrollIntoView({ behavior: 'smooth' });
-              }, 100);
-            }}
-            className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-xl border-2 border-cyan-500/50 rounded-xl p-6 shadow-lg shadow-slate-900/50 hover:scale-105 transition-all cursor-pointer text-left"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <TrendingUp className="w-8 h-8 text-cyan-400" />
-              <span className="text-3xl font-bold text-white">{trends.filter(t => t.trend === 'hot').length}</span>
+            <div className="text-sm text-zinc-400">Approved &amp; Scored</div>
+            <div className="text-xs text-green-400 mt-1">avg GOD: {scoreStats.avg}</div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <Target className="w-6 h-6 text-green-400" />
+              <span className="text-2xl font-bold">{matchCount.toLocaleString()}</span>
             </div>
-            <div className="text-sm text-gray-300">Hot Sectors Detected</div>
-            <div className="text-xs text-cyan-400 mt-1">{rssStats.unique_sectors} total sectors</div>
-          </button>
-
-          <button
-            onClick={() => navigate('/admin/edit-startups')}
-            className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 backdrop-blur-xl border-2 border-green-500/50 rounded-xl p-6 shadow-lg shadow-green-900/50 hover:scale-105 transition-all cursor-pointer text-left"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <Target className="w-8 h-8 text-green-400" />
-              <span className="text-3xl font-bold text-white">{matchOptimizations.length}</span>
+            <div className="text-sm text-zinc-400">Active Matches</div>
+            <div className="text-xs text-zinc-500 mt-1">{investorCount.toLocaleString()} investors</div>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <Radio className="w-6 h-6 text-amber-400" />
+              <span className="text-2xl font-bold">{activeSources}/{rssSources.length}</span>
             </div>
-            <div className="text-sm text-gray-300">Matches Optimized</div>
-            <div className="text-xs text-green-400 mt-1">Last hour</div>
-          </button>
+            <div className="text-sm text-zinc-400">RSS Sources Active</div>
+            <div className="text-xs text-zinc-500 mt-1">{totalSourceDiscoveries} total finds</div>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-white/20 pb-2">
-          {[
-            { id: 'rss', label: '📡 RSS Data Stream', icon: Activity },
-            { id: 'ml', label: '🤖 ML Training', icon: Brain },
-            { id: 'trends', label: '📈 Market Trends', icon: TrendingUp },
-            { id: 'profiles', label: '🔄 Profile Updates', icon: RefreshCw },
-            { id: 'matches', label: '✨ Match Optimization', icon: Sparkles }
-          ].map(tab => (
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+          {([
+            { id: 'rss' as const, label: 'RSS Data Stream', icon: Activity },
+            { id: 'scores' as const, label: 'GOD Scores', icon: BarChart3 },
+            { id: 'trends' as const, label: 'Sector Trends', icon: TrendingUp },
+            { id: 'matches' as const, label: 'Match Engine', icon: Sparkles },
+            { id: 'ml' as const, label: 'ML Pipeline', icon: Brain },
+          ]).map(tab => (
             <button
               key={tab.id}
-              onClick={() => setSelectedTab(tab.id as any)}
-              className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+              onClick={() => setSelectedTab(tab.id)}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 whitespace-nowrap ${
                 selectedTab === tab.id
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-2 border-purple-400'
-                  : 'bg-white/10 text-gray-300 hover:bg-white/20 border-2 border-white/20'
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
+                  : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'
               }`}
             >
+              <tab.icon className="w-4 h-4" />
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* RSS Data Stream Tab */}
+        {/* ─── RSS Data Stream Tab ─── */}
         {selectedTab === 'rss' && (
-          <div className="space-y-4">
-            <div className="bg-gradient-to-br from-purple-900/40 to-indigo-900/40 backdrop-blur-xl border-2 border-purple-400/50 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Activity className="w-6 h-6 text-purple-400" />
-                Live RSS Data Stream
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Radio className="w-5 h-5 text-cyan-400" />
+                RSS Source Health
               </h2>
-              <p className="text-gray-300 mb-6 text-lg">
-                Real-time funding announcements scraped from TechCrunch, VentureBeat, The Information, and more.
-                This data feeds directly into ML training and market trend analysis.
-              </p>
-
-              <div className="space-y-3">
-                {rssData.map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => navigate('/admin/discovered-startups', { state: { search: item.company } })}
-                    className="w-full bg-purple-950/40 backdrop-blur-sm border-2 border-purple-400/30 rounded-lg p-4 hover:border-purple-400/60 hover:bg-purple-950/60 transition-all shadow-lg text-left"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-purple-500/30 p-2 rounded-lg">
-                          <DollarSign className="w-5 h-5 text-purple-400" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{item.company}</h3>
-                          <p className="text-sm text-gray-400">via {item.source}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-green-400">{item.funding_amount}</div>
-                        {item.valuation && (
-                          <div className="text-sm text-gray-400">@ {item.valuation} valuation</div>
-                        )}
-                      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {rssSources.slice(0, 9).map(src => (
+                  <div key={src.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-white truncate">{src.name}</div>
+                      <div className="text-xs text-zinc-500">{src.category || 'Uncategorized'}</div>
                     </div>
-
-                    <div className="flex items-center gap-4 mb-3">
-                      <span className="px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-sm border border-cyan-500/30">
-                        {item.sector}
-                      </span>
-                      <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-sm border border-purple-500/30">
-                        {item.stage}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-400">Sentiment:</span>
-                        <div className="flex items-center gap-1">
-                          <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
-                              style={{ width: `${item.sentiment_score * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium text-green-400">
-                            {Math.round(item.sentiment_score * 100)}%
-                          </span>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-3 ml-3">
+                      <span className="text-xs text-zinc-400">{src.total_discoveries} finds</span>
+                      <span className={`w-2 h-2 rounded-full ${src.active ? 'bg-green-400' : 'bg-zinc-600'}`} />
                     </div>
-
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Scraped {formatTimeAgo(item.timestamp)}</span>
-                      <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3 text-green-400" />
-                          Added to ML training set
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Zap className="w-3 h-3 text-yellow-400" />
-                          Triggered trend analysis
-                        </span>
-                      </div>
-                    </div>
-                  </button>
+                  </div>
                 ))}
               </div>
+              {rssSources.length > 9 && (
+                <div className="mt-3 text-xs text-zinc-500 text-center">+{rssSources.length - 9} more sources</div>
+              )}
+            </div>
 
-              <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Lightbulb className="w-5 h-5 text-blue-400 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-blue-300 mb-1">How This Data Powers [pyth] ai</h4>
-                    <ul className="text-sm text-gray-300 space-y-1">
-                      <li>• <strong>ML Training:</strong> Each article trains models to recognize funding patterns</li>
-                      <li>• <strong>Trend Detection:</strong> Aggregated data reveals which sectors are heating up</li>
-                      <li>• <strong>Profile Updates:</strong> Automatically updates startup/investor profiles with latest info</li>
-                      <li>• <strong>Match Optimization:</strong> Improves match scores based on investor activity signals</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => navigate('/admin/discovered-startups')}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2"
-                >
-                  View All RSS Discoveries →
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-purple-400" />
+                  Recent Discoveries
+                </h2>
+                <button onClick={() => navigate('/admin/discovered-startups')} className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+                  View all <ChevronRight className="w-3 h-3" />
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ML Training Tab */}
-        {selectedTab === 'ml' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-cyan-500/30 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Brain className="w-6 h-6 text-cyan-400" />
-                ML Model Training Pipeline
-              </h2>
-
-              <div className="grid grid-cols-2 gap-6 mb-6">
-                <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold mb-4 text-cyan-300">Model Performance</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-400">Accuracy</span>
-                        <span className="text-lg font-bold text-white">{mlMetrics.accuracy}%</span>
-                      </div>
-                      <div className="w-full h-3 bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-cyan-500 to-blue-500"
-                          style={{ width: `${mlMetrics.accuracy}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-400">Training Data Points</span>
-                        <span className="text-lg font-bold text-white">{mlMetrics.data_points.toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-400">Model Version</span>
-                        <span className="text-lg font-bold text-white">{mlMetrics.model_version}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-400">Last Training</span>
-                        <span className="text-sm text-cyan-400">{formatTimeAgo(mlMetrics.last_training)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold mb-4 text-purple-300">Training Impact</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
+              <div className="space-y-2">
+                {recentDiscoveries.slice(0, 10).map(d => (
+                  <div key={d.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors cursor-pointer" onClick={() => navigate('/admin/discovered-startups')}>
+                    <div className="flex items-start justify-between">
                       <div>
-                        <div className="font-semibold text-white">GOD Score Improvements</div>
-                        <div className="text-sm text-gray-400">+{mlMetrics.improvement_rate}% accuracy this week from RSS training data</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
-                      <div>
-                        <div className="font-semibold text-white">Match Quality</div>
-                        <div className="text-sm text-gray-400">15% increase in successful connections</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
-                      <div>
-                        <div className="font-semibold text-white">Trend Prediction</div>
-                        <div className="text-sm text-gray-400">Detecting hot sectors 3-4 weeks ahead of competitors</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
-                      <div>
-                        <div className="font-semibold text-white">Valuation Accuracy</div>
-                        <div className="text-sm text-gray-400">92% accuracy in predicting funding round sizes</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <Network className="w-5 h-5 text-blue-400 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-blue-300 mb-2">How RSS Data Trains The Model</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-300">
-                      <div>
-                        <strong className="text-white">Input Features:</strong>
-                        <ul className="mt-1 space-y-1">
-                          <li>• Funding amounts and valuations</li>
-                          <li>• Investor participation patterns</li>
-                          <li>• Sector and stage distributions</li>
-                          <li>• Media sentiment scores</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <strong className="text-white">Model Outputs:</strong>
-                        <ul className="mt-1 space-y-1">
-                          <li>• GOD scores (60-100 scale)</li>
-                          <li>• Match compatibility scores</li>
-                          <li>• Trend predictions</li>
-                          <li>• Optimal timing recommendations</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Market Trends Tab */}
-        {selectedTab === 'trends' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-cyan-500/30 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <TrendingUp className="w-6 h-6 text-cyan-400" />
-                Market Trends Detection
-              </h2>
-              <p className="text-gray-400 mb-6">
-                AI analyzes RSS data to detect funding trends, valuation patterns, and sector momentum.
-                These insights give [pyth] ai users an edge in spotting opportunities before competitors.
-              </p>
-
-              <div className="space-y-3" id="trends-section">
-                {trends.map((trend, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => navigate('/admin/discovered-startups', { state: { filterSector: trend.sector } })}
-                    className={`w-full border rounded-lg p-5 text-left hover:scale-[1.02] transition-all ${getTrendColor(trend.trend)}`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">{getTrendIcon(trend.trend)}</span>
-                        <div>
-                          <h3 className="text-xl font-bold text-white">{trend.sector}</h3>
-                          <span className="text-sm font-medium capitalize">{trend.trend} Trend</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-white">{trend.avg_valuation}</div>
-                        <div className="text-sm">Avg Valuation</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 mb-3">
-                      <div className="bg-white/10 rounded-lg p-3">
-                        <div className="text-sm text-gray-300">Funding Velocity</div>
-                        <div className="text-lg font-bold text-white">{trend.funding_velocity} deals/week</div>
-                      </div>
-                      <div className="bg-white/10 rounded-lg p-3">
-                        <div className="text-sm text-gray-300">AI Confidence</div>
-                        <div className="text-lg font-bold text-white">{Math.round(trend.confidence * 100)}%</div>
-                      </div>
-                      <div className="bg-white/10 rounded-lg p-3">
-                        <div className="text-sm text-gray-300">Data Points</div>
-                        <div className="text-lg font-bold text-white">{Math.floor(Math.random() * 50 + 20)}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>
-                        {trend.trend === 'hot' && 'Investors are actively deploying capital in this sector'}
-                        {trend.trend === 'rising' && 'Deal flow increasing, valuations trending up'}
-                        {trend.trend === 'cooling' && 'Funding activity slowing, exercise caution'}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-yellow-400 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-yellow-300 mb-1">Competitive Intelligence Edge</h4>
-                    <p className="text-sm text-gray-300">
-                      [pyth] ai's RSS feed processes <strong>847 articles</strong> from top sources, analyzing funding patterns 
-                      <strong> 3-4 weeks before</strong> they become common knowledge. This gives our users first-mover advantage 
-                      in hot sectors like AI/ML Infrastructure and Healthcare Tech.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => {
-                    setSelectedTab('trends');
-                    setTimeout(() => {
-                      document.getElementById('trends-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }, 100);
-                  }}
-                  className="px-6 py-3 bg-cyan-700 hover:bg-cyan-600 text-white rounded-lg font-semibold transition-all flex items-center gap-2"
-                >
-                  View All Trends →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Profile Updates Tab */}
-        {selectedTab === 'profiles' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-green-500/30 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <RefreshCw className="w-6 h-6 text-green-400" />
-                AI-Powered Profile Updates
-              </h2>
-              <p className="text-gray-400 mb-6">
-                RSS data automatically updates startup and investor profiles in real-time. 
-                No manual data entry required - the AI keeps everything current.
-              </p>
-
-              <div className="space-y-3">
-                {profileUpdates.map((update, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      if (update.entity_type === 'startup') {
-                        navigate('/admin/edit-startups', { state: { search: update.entity_name } });
-                      } else {
-                        navigate('/admin/investor-enrichment', { state: { search: update.entity_name } });
-                      }
-                    }}
-                    className="w-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-4 hover:border-green-500/60 hover:from-green-500/20 hover:to-emerald-500/20 transition-all text-left"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${
-                          update.entity_type === 'startup'
-                            ? 'bg-cyan-600/30'
-                            : 'bg-cyan-500/30'
-                        }`}>
-                          <span className="text-2xl">
-                            {update.entity_type === 'startup' ? '🚀' : '💼'}
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{update.entity_name}</h3>
-                          <span className="text-sm text-gray-400 capitalize">{update.entity_type}</span>
-                        </div>
-                      </div>
-                      <span className="text-xs text-gray-500">{formatTimeAgo(update.timestamp)}</span>
-                    </div>
-
-                    <div className="bg-white/10 rounded-lg p-3 mb-3">
-                      <div className="text-sm text-gray-400 mb-1">Field Updated: <strong className="text-white">{update.field_updated}</strong></div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <div className="text-xs text-red-400 mb-1">Old Value:</div>
-                          <div className="text-sm text-gray-300">{update.old_value}</div>
-                        </div>
-                        <span className="text-2xl">→</span>
-                        <div className="flex-1">
-                          <div className="text-xs text-green-400 mb-1">New Value:</div>
-                          <div className="text-sm text-white font-medium">{update.new_value}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2 text-sm">
-                      <Lightbulb className="w-4 h-4 text-yellow-400 mt-0.5" />
-                      <span className="text-gray-300">
-                        <strong className="text-white">AI Reasoning:</strong> {update.reason}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Zap className="w-5 h-5 text-purple-400 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-purple-300 mb-1">Dynamic Profile Evolution</h4>
-                    <p className="text-sm text-gray-300 mb-2">
-                      Traditional platforms have stale data. [pyth] ai's profiles evolve in real-time as RSS data flows in:
-                    </p>
-                    <ul className="text-sm text-gray-300 space-y-1">
-                      <li>• <strong>Investor Focus Shifts:</strong> Detect new sector interests from deal announcements</li>
-                      <li>• <strong>Valuation Updates:</strong> Automatically sync latest funding rounds</li>
-                      <li>• <strong>Check Size Changes:</strong> Adjust based on recent deployment patterns</li>
-                      <li>• <strong>Stage Progression:</strong> Update startup stages as they raise new rounds</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => navigate('/admin/edit-startups')}
-                  className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2"
-                >
-                  View All Startups →
-                </button>
-                <button
-                  onClick={() => navigate('/admin/investor-enrichment')}
-                  className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2"
-                >
-                  View All Investors →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Match Optimization Tab */}
-        {selectedTab === 'matches' && (
-          <div className="space-y-4">
-            <div className="bg-white/5 border border-pink-500/30 rounded-xl p-6">
-              <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                Match Score Optimization
-              </h2>
-              <p className="text-gray-400 mb-6">
-                RSS data reveals investor activity patterns, enabling [pyth] ai to dynamically adjust match scores.
-                See how real-world signals improve match quality beyond static profile matching.
-              </p>
-
-              <div className="space-y-3">
-                {matchOptimizations.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => navigate('/admin/edit-startups', { state: { search: opt.startup, investor: opt.investor } })}
-                    className="w-full bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/30 rounded-lg p-5 hover:border-pink-500/60 hover:from-pink-500/20 hover:to-purple-500/20 transition-all text-left"
-                  >
-                    <div className="grid grid-cols-[1fr,auto,1fr] gap-4 items-center mb-4">
-                      {/* Startup */}
-                      <div className="bg-cyan-600/20 border border-cyan-500/40 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xl">🚀</span>
-                          <span className="text-sm text-gray-400">Startup</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-white">{opt.startup}</h3>
-                      </div>
-
-                      {/* Arrow with scores */}
-                      <div className="text-center">
                         <div className="flex items-center gap-2">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-red-400">{opt.old_score}</div>
-                            <div className="text-xs text-gray-500">Before</div>
-                          </div>
-                          <span className="text-2xl">→</span>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-green-400">{opt.new_score}</div>
-                            <div className="text-xs text-gray-500">After</div>
-                          </div>
+                          <DollarSign className="w-4 h-4 text-purple-400" />
+                          <span className="font-medium">{d.name || 'Unknown'}</span>
+                        </div>
+                        {d.article_title && <div className="text-xs text-zinc-500 mt-1 truncate max-w-md">{d.article_title}</div>}
+                        <div className="flex items-center gap-3 mt-2">
+                          {d.rss_source && <span className="text-xs text-zinc-500">via {d.rss_source}</span>}
+                          {d.sectors && <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">{d.sectors}</span>}
+                          {d.funding_stage && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">{d.funding_stage}</span>}
                         </div>
                       </div>
-
-                      {/* Investor */}
-                      <div className="bg-cyan-500/20 border border-cyan-500/40 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xl">💼</span>
-                          <span className="text-sm text-gray-400">Investor</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-white">{opt.investor}</h3>
-                      </div>
-                    </div>
-
-                    {/* Improvement badge */}
-                    <div className="flex items-center justify-center mb-3">
-                      <div className="px-4 py-2 rounded-full bg-green-500/20 border border-green-500/50 text-green-300 font-bold">
-                        +{opt.new_score - opt.old_score} point improvement
-                      </div>
-                    </div>
-
-                    {/* Reason */}
-                    <div className="bg-white/10 rounded-lg p-3 mb-2">
-                      <div className="flex items-start gap-2">
-                        <Lightbulb className="w-5 h-5 text-yellow-400 mt-0.5" />
-                        <div>
-                          <div className="text-sm text-gray-400 mb-1">Optimization Reason:</div>
-                          <div className="text-white font-medium">{opt.optimization_reason}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Data source */}
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Database className="w-3 h-3" />
-                      <span>Data Source: {opt.data_source}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Target className="w-5 h-5 text-purple-400 mt-1" />
-                  <div>
-                    <h4 className="font-semibold text-purple-300 mb-2">Why Dynamic Matching Wins</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-300">
-                      <div>
-                        <strong className="text-white">Traditional Matching:</strong>
-                        <ul className="mt-1 space-y-1">
-                          <li>• Static profile matching only</li>
-                          <li>• No activity signals</li>
-                          <li>• Misses timing opportunities</li>
-                          <li>• Manual data updates</li>
-                        </ul>
-                      </div>
-                      <div>
-                        <strong className="text-white">[pyth] ai Matching:</strong>
-                        <ul className="mt-1 space-y-1">
-                          <li>• Real-time activity detection</li>
-                          <li>• Investment pattern analysis</li>
-                          <li>• Timing intelligence</li>
-                          <li>• Auto-optimizing scores</li>
-                        </ul>
+                      <div className="text-right flex-shrink-0 ml-4">
+                        {d.funding_amount && <div className="text-sm font-bold text-green-400">{d.funding_amount}</div>}
+                        <div className="text-xs text-zinc-500 mt-1">{formatTimeAgo(d.created_at)}</div>
                       </div>
                     </div>
                   </div>
+                ))}
+              </div>
+              {recentDiscoveries.length === 0 && (
+                <div className="text-center py-8 text-zinc-500">No discoveries yet. Start the RSS scraper to begin.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── GOD Scores Tab ─── */}
+        {selectedTab === 'scores' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { label: 'Total Scored', value: scoreStats.total.toLocaleString(), color: 'text-white' },
+                { label: 'Average', value: scoreStats.avg.toString(), color: 'text-cyan-400' },
+                { label: 'Median', value: scoreStats.median.toString(), color: 'text-zinc-300' },
+                { label: 'Max', value: scoreStats.max.toString(), color: 'text-green-400' },
+                { label: 'With Momentum', value: scoreStats.withMomentum.toLocaleString(), color: 'text-amber-400' },
+              ].map(s => (
+                <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+                  <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-xs text-zinc-500 mt-1">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <BarChart className="w-5 h-5 text-cyan-400" />
+                GOD Score Distribution
+              </h2>
+              <div className="space-y-3">
+                {scoreDist.map(tier => {
+                  const maxPct = Math.max(...scoreDist.map(t => t.pct));
+                  const width = maxPct > 0 ? (tier.pct / maxPct) * 100 : 0;
+                  const barColor = tier.tier === '90-100' ? 'bg-green-500' : tier.tier === '80-89' ? 'bg-cyan-500' : tier.tier === '70-79' ? 'bg-blue-500' : tier.tier === '60-69' ? 'bg-indigo-500' : tier.tier === '50-59' ? 'bg-purple-500' : tier.tier === '40-49' ? 'bg-amber-500' : 'bg-red-500';
+                  return (
+                    <div key={tier.tier} className="flex items-center gap-4">
+                      <div className="w-16 text-right text-sm text-zinc-400 font-mono">{tier.tier}</div>
+                      <div className="flex-1 bg-zinc-800 rounded-full h-6 overflow-hidden">
+                        <div className={`h-full ${barColor} rounded-full transition-all duration-500 flex items-center justify-end pr-2`} style={{ width: `${width}%`, minWidth: tier.count > 0 ? '24px' : '0' }}>
+                          {tier.count > 10 && <span className="text-xs font-medium text-white/80">{tier.count.toLocaleString()}</span>}
+                        </div>
+                      </div>
+                      <div className="w-20 text-right">
+                        <span className="text-sm text-white font-medium">{tier.count.toLocaleString()}</span>
+                        <span className="text-xs text-zinc-500 ml-1">({tier.pct}%)</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-400" />
+                  Recently Scored
+                </h2>
+                <button onClick={() => navigate('/admin/god-scores')} className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+                  View all scores <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {recentlyScored.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3">
+                    <span className="text-sm font-medium">{s.name}</span>
+                    <div className="flex items-center gap-4">
+                      {s.momentum_score > 0 && <span className="text-xs text-amber-400">+{s.momentum_score} momentum</span>}
+                      <span className={`text-sm font-bold ${s.total_god_score >= 80 ? 'text-green-400' : s.total_god_score >= 60 ? 'text-cyan-400' : s.total_god_score >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                        GOD {s.total_god_score}
+                      </span>
+                      <span className="text-xs text-zinc-500">{formatTimeAgo(s.updated_at)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Sector Trends Tab ─── */}
+        {selectedTab === 'trends' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-cyan-400" />
+                Sector Trends
+              </h2>
+              <p className="text-sm text-zinc-500 mb-6">Based on {totalDiscovered.toLocaleString()} discovered startups. Showing sectors with most activity.</p>
+              {sectorTrends.length > 0 ? (
+                <div className="space-y-3">
+                  {sectorTrends.map(t => {
+                    const maxCount = sectorTrends[0]?.count || 1;
+                    const width = (t.count / maxCount) * 100;
+                    const isHot = t.recentCount > 2;
+                    return (
+                      <div key={t.sector} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {isHot && <span className="text-sm">🔥</span>}
+                            <span className="font-medium text-sm">{t.sector}</span>
+                            {isHot && <span className="text-[10px] text-red-400 font-medium uppercase tracking-wider">Hot</span>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-zinc-500">{t.recentCount} this week</span>
+                            <span className="text-sm font-bold text-white">{t.count} total</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-zinc-800 rounded-full h-2">
+                          <div className={`h-full rounded-full transition-all duration-500 ${isHot ? 'bg-gradient-to-r from-red-500 to-amber-500' : 'bg-cyan-500/60'}`} style={{ width: `${width}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-zinc-500">Sector data not yet available. Sectors are populated during RSS scraping.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Match Engine Tab ─── */}
+        {selectedTab === 'matches' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+                <Sparkles className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
+                <div className="text-3xl font-bold">{matchCount.toLocaleString()}</div>
+                <div className="text-sm text-zinc-400 mt-1">Total Matches</div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+                <Layers className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                <div className="text-3xl font-bold">{investorCount.toLocaleString()}</div>
+                <div className="text-sm text-zinc-400 mt-1">Investors</div>
+              </div>
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+                <Hash className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                <div className="text-3xl font-bold">{approvedCount.toLocaleString()}</div>
+                <div className="text-sm text-zinc-400 mt-1">Scored Startups</div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-amber-400" />
+                Matching Architecture
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-medium text-cyan-400 mb-3">Match Score Components</h3>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'GOD Score Weight', value: '60%', desc: 'Core startup quality assessment' },
+                      { label: 'Semantic Similarity', value: '40%', desc: 'AI embedding cosine distance' },
+                      { label: 'Stage Fit Bonus', value: '+5-15', desc: 'Investor stage preference alignment' },
+                      { label: 'Sector Match', value: '+5-10', desc: 'Thesis-sector overlap scoring' },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center justify-between bg-zinc-950 rounded-lg px-3 py-2">
+                        <div>
+                          <div className="text-sm text-white">{item.label}</div>
+                          <div className="text-xs text-zinc-500">{item.desc}</div>
+                        </div>
+                        <span className="text-sm font-bold text-cyan-400">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-purple-400 mb-3">Pipeline Stats</h3>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Match Ratio', value: `${matchCount > 0 && approvedCount > 0 ? Math.round(matchCount / approvedCount) : 0} per startup` },
+                      { label: 'Investor Coverage', value: `${investorCount.toLocaleString()} profiles` },
+                      { label: 'Momentum Signals', value: `${scoreStats.withMomentum.toLocaleString()} startups` },
+                      { label: 'Scoring Frequency', value: 'Every 2 hours (PM2)' },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center justify-between bg-zinc-950 rounded-lg px-3 py-2">
+                        <span className="text-sm text-zinc-400">{item.label}</span>
+                        <span className="text-sm text-white">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => navigate('/admin/edit-startups')}
-                  className="px-6 py-3 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2"
-                >
-                  View All Matches →
-                </button>
+              <div className="mt-6 flex gap-3">
+                <button onClick={() => navigate('/admin/edit-startups')} className="px-4 py-2 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-lg text-sm hover:bg-cyan-500/20 transition-colors">View Startups →</button>
+                <button onClick={() => navigate('/admin/investor-enrichment')} className="px-4 py-2 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/20 transition-colors">View Investors →</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── ML Pipeline Tab ─── */}
+        {selectedTab === 'ml' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Brain className="w-5 h-5 text-cyan-400" />
+                ML Training Pipeline
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-medium text-cyan-400 mb-3">Training Data</h3>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Training Samples', value: approvedCount.toLocaleString() },
+                      { label: 'Feature Dimensions', value: '5 (T/Tr/M/P/V)' },
+                      { label: 'Momentum Signals', value: scoreStats.withMomentum.toLocaleString() },
+                      { label: 'RSS Discoveries', value: totalDiscovered.toLocaleString() },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center justify-between bg-zinc-950 rounded-lg px-3 py-2">
+                        <span className="text-sm text-zinc-400">{item.label}</span>
+                        <span className="text-sm text-white">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-purple-400 mb-3">Pipeline Health</h3>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'ML Scheduler', online: true, detail: 'Every 30min' },
+                      { label: 'RSS Scraper', online: true, detail: 'Continuous' },
+                      { label: 'Score Recalc', online: false, detail: 'Every 2h (PM2)' },
+                      { label: 'Signal Scoring', online: false, detail: 'Every 6h (PM2)' },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center justify-between bg-zinc-950 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          {item.online ? <CheckCircle className="w-4 h-4 text-green-400" /> : <AlertCircle className="w-4 h-4 text-amber-400" />}
+                          <span className="text-sm text-white">{item.label}</span>
+                        </div>
+                        <span className="text-xs text-zinc-500">{item.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-amber-400" />
+                Recent System Logs
+              </h2>
+              {recentLogs.length > 0 ? (
+                <div className="space-y-2">
+                  {recentLogs.map((log, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-zinc-950 rounded-lg px-4 py-3">
+                      {log.status === 'success' ? <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-white font-mono">{log.operation}</span>
+                        {log.error_message && <div className="text-xs text-red-400/80 mt-0.5 truncate">{log.error_message}</div>}
+                      </div>
+                      <span className="text-xs text-zinc-500 flex-shrink-0">{formatTimeAgo(log.created_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-zinc-500">No system logs available.</div>
+              )}
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-cyan-400" />
+                How the ML Pipeline Works
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { step: '1', title: 'Data Ingestion', desc: 'RSS scraper discovers startups from TechCrunch, VentureBeat, and other sources. Parsed into structured format.' },
+                  { step: '2', title: 'GOD Scoring', desc: 'Each startup is scored 0-100 across Team, Traction, Market, Product, and Vision. Momentum bonuses applied.' },
+                  { step: '3', title: 'Match Generation', desc: 'Scored startups matched to investors using GOD score (60%) + semantic similarity (40%) + stage/sector fit.' },
+                ].map(s => (
+                  <div key={s.step} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 text-xs font-bold flex items-center justify-center">{s.step}</span>
+                      <span className="text-sm font-medium">{s.title}</span>
+                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{s.desc}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

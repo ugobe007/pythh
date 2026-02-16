@@ -250,7 +250,7 @@ export default function RSSManager() {
             <Link to="/" className="text-gray-400 hover:text-white">Home</Link>
             <Link to="/admin" className="text-gray-400 hover:text-white">Control Center</Link>
             <Link to="/admin/discovered-startups" className="text-cyan-400 hover:text-cyan-300">Discoveries</Link>
-            <Link to="/matching" className="text-cyan-400 hover:text-cyan-300 font-bold">⚡ Match</Link>
+            <Link to="/matches" className="text-cyan-400 hover:text-cyan-300 font-bold">⚡ Match</Link>
             <button onClick={refresh} className="text-gray-400 hover:text-white">
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>

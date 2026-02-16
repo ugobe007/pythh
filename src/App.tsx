@@ -5,13 +5,21 @@
  * Every URL input bar in the app navigates here. The unified submitStartup()
  * service (src/services/submitStartup.ts) handles resolution + creation + matching.
  *
- * Public (pythh.ai):
- * - /                  PythhMain
- * - /signal-matches     URL submission results (THE canonical submit surface)
- * - /signals            Public Signals page (sector dashboard)
- * - /signals-significance  What signals mean
- * - /signal-trends      Trends
- * - /matches            Founder matches page
+ * Public (pythh.ai) — 5-page architecture:
+ * - /                  PythhMain (landing — hook + URL submit)
+ * - /platform          PlatformPage (merged: signals + engine + how-it-works)
+ * - /rankings          SignalTrends (VC Lens rankings — addiction feature)
+ * - /explore           ExplorePage (startup search)
+ * - /pricing           PricingPage (conversion)
+ * - /about             AboutPage
+ * - /support           SupportPage
+ * - /signal-matches    URL submission results (THE canonical submit surface)
+ *
+ * Redirects → /platform:
+ * - /signals, /matches, /how-it-works, /signals-significance, /engine
+ *
+ * Redirects → /pricing:
+ * - /value
  *
  * App (instrument mode - inside pythh):
  * - /app/signals-dashboard     SignalsDashboard
@@ -38,10 +46,8 @@ import AppLayout from "./layouts/AppLayout";
 
 // PUBLIC
 import PythhMain from "./pages/PythhMain";
+import PlatformPage from "./pages/PlatformPage";
 import SignalMatches from "./pages/SignalMatches";
-import FounderSignalsPage from "./pages/FounderSignalsPage";
-import HowItWorksPage from "./pages/HowItWorksPage";
-import SignalsSignificance from "./pages/SignalsSignificance";
 import SignalTrends from "./pages/SignalTrends";
 import AboutPage from "./pages/AboutPage";
 import SupportPage from "./pages/SupportPage";
@@ -77,12 +83,12 @@ import DemoPageDoctrine from "./pages/DemoPageDoctrine";
 import Live from "./pages/public/Live";
 import SignalResultsPage from "./pages/SignalResultsPage";
 import InvestorProfile from "./pages/InvestorProfile";
-import FounderMatchesPage from "./pages/FounderMatchesPage";
 
 // Signup pages (Pythh-branded)
 import SignupLanding from "./pages/SignupLanding";
 import SignupFounderPythh from "./pages/SignupFounderPythh";
 import InvestorSignupPythh from "./pages/InvestorSignupPythh";
+import SignupComplete from "./pages/SignupComplete";
 
 // User account pages
 import ProfilePage from "./pages/ProfilePage";
@@ -91,13 +97,14 @@ import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
+import AdminBypass from "./pages/AdminBypass";
+import AdminLogin from "./pages/AdminLogin";
 
 // Explore
 import ExplorePage from "./pages/ExplorePage";
 
 // Commercial pages
 import PricingPage from "./pages/PricingPage";
-import ValuePage from "./pages/ValuePage";
 
 // Shared dashboard views (public, read-only)
 import SharedDashboardView from "./pages/SharedDashboardView";
@@ -117,9 +124,10 @@ import BulkUpload from "./pages/BulkUpload";
 import RSSManager from "./pages/RSSManager";
 import DiagnosticPage from "./pages/DiagnosticPage";
 import DatabaseDiagnostic from "./pages/DatabaseDiagnostic";
-import ControlCenter from "./pages/ControlCenter";
 import ScraperManagementPage from "./pages/ScraperManagementPage";
 import AIIntelligenceDashboard from "./pages/AIIntelligenceDashboard";
+import AdminActions from "./pages/AdminActions";
+import ReviewQueue from "./pages/ReviewQueue";
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -144,27 +152,24 @@ const App: React.FC = () => {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/support" element={<SupportPage />} />
 
-          {/* Engine now redirects to combined matches page */}
-          <Route path="/engine" element={<Navigate to="/matches" replace />} />
+          {/* Platform — unified learn/signals/engine page */}
+          <Route path="/platform" element={<PlatformPage />} />
+
+          {/* Old pages → redirect to /platform */}
+          <Route path="/engine" element={<Navigate to="/platform" replace />} />
+          <Route path="/signals" element={<Navigate to="/platform" replace />} />
+          <Route path="/how-it-works" element={<Navigate to="/platform" replace />} />
+          <Route path="/signals-significance" element={<Navigate to="/platform" replace />} />
+          <Route path="/matches" element={<Navigate to="/platform" replace />} />
 
           {/* Canonical submission results page */}
           <Route path="/signal-matches" element={<SignalMatches />} />
 
-          {/* /signals is now the new Pythh signals page with live bars
-              - no query → render FounderSignalsPage
-              - ?url=... or ?startup=... → still redirect to /signal-matches preserving QS */}
-          <Route path="/signals" element={<FounderSignalsPage />} />
-
-          {/* Legacy alias: /signals-radar ALWAYS redirects to /signal-matches */}
-          <Route path="/signals-radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
-
           {/* Legacy aliases: all roads lead to /signal-matches */}
+          <Route path="/signals-radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
           <Route path="/discover" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
           <Route path="/get-matched" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
           <Route path="/match" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
-
-          {/* Educational explainer */}
-          <Route path="/signals-significance" element={<SignalsSignificance />} />
 
           {/* Rankings (was Trends) */}
           <Route path="/rankings" element={<SignalTrends />} />
@@ -182,16 +187,11 @@ const App: React.FC = () => {
           {/* Investor profile (public) */}
           <Route path="/investor/:id" element={<InvestorProfile />} />
 
-          {/* Founder matches page (public) */}
-          <Route path="/matches" element={<FounderMatchesPage />} />
-
-          {/* How it works */}
-          <Route path="/how-it-works" element={<HowItWorksPage />} />
-
           {/* Signup flow (Pythh-branded) */}
           <Route path="/signup" element={<SignupLanding />} />
           <Route path="/signup/founder" element={<SignupFounderPythh />} />
           <Route path="/signup/investor" element={<InvestorSignupPythh />} />
+          <Route path="/signup/complete" element={<SignupComplete />} />
 
           {/* Legacy (consider deprecating later) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />
@@ -199,6 +199,7 @@ const App: React.FC = () => {
           {/* User account pages */}
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
           <Route path="/profile" element={<FounderProfileDashboard />} />
           <Route path="/profile/account" element={<ProfilePage />} />
           <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
@@ -206,10 +207,13 @@ const App: React.FC = () => {
 
           {/* Commercial pages */}
           <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/value" element={<ValuePage />} />
+          <Route path="/value" element={<Navigate to="/pricing" replace />} />
 
           {/* Shared dashboard views (public, read-only — no auth required) */}
           <Route path="/s/:shareId" element={<SharedDashboardView />} />
+
+          {/* Admin bypass (emergency access, no Supabase auth required) */}
+          <Route path="/admin-bypass" element={<AdminBypass />} />
 
           {/* ──────────────────────────────────────────────────────────────
               APP (instrument mode - inside pythh)
@@ -276,9 +280,11 @@ const App: React.FC = () => {
             <Route path="ai-logs" element={<AILogsPage />} />
             <Route path="diagnostic" element={<DiagnosticPage />} />
             <Route path="database-check" element={<DatabaseDiagnostic />} />
-            <Route path="control" element={<ControlCenter />} />
+            <Route path="control" element={<Navigate to="/admin" replace />} />
             <Route path="scrapers" element={<ScraperManagementPage />} />
             <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
+            <Route path="actions" element={<AdminActions />} />
+            <Route path="review-queue" element={<ReviewQueue />} />
           </Route>
 
           {/* 404 → main */}

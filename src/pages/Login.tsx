@@ -74,12 +74,16 @@ export default function Login() {
       
       // Check if admin and redirect accordingly
       const isAdmin = email.includes('admin') || email.includes('ugobe');
-      if (isAdmin) {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
+      
+      if (redirect) {
+        // Always honor explicit redirect (e.g. from pricing page)
+        navigate(redirect);
+      } else if (isAdmin) {
         navigate('/admin');
       } else {
-        const params = new URLSearchParams(window.location.search);
-        const redirect = params.get('redirect');
-        navigate(redirect || '/');
+        navigate('/');
       }
     } catch (err: any) {
       console.error('[Login] Error:', err);
@@ -224,9 +228,9 @@ export default function Login() {
 
         {/* Footer links */}
         <div className="mt-6 text-center text-sm text-slate-500">
-          <Link to="/privacy" className="hover:text-slate-400 transition-colors">Privacy Policy</Link>
+          <Link to="/about" className="hover:text-slate-400 transition-colors">Privacy Policy</Link>
           <span className="mx-2">•</span>
-          <Link to="/why" className="hover:text-slate-400 transition-colors">About</Link>
+          <Link to="/about" className="hover:text-slate-400 transition-colors">About</Link>
         </div>
       </div>
     </div>

@@ -53,17 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     // Then check Supabase session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        syncUserFromSupabase(session.user);
+        await syncUserFromSupabase(session.user);
         loadProfile(session.user.id);
       }
     });
     
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        syncUserFromSupabase(session.user);
+        await syncUserFromSupabase(session.user);
         loadProfile(session.user.id);
       } else {
         // Don't clear localStorage user - keep backward compat
@@ -73,13 +73,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const syncUserFromSupabase = (supabaseUser: SupabaseUser) => {
+  const syncUserFromSupabase = async (supabaseUser: SupabaseUser) => {
     const email = supabaseUser.email || '';
+    
+    // Check database for admin flag (proper way)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', supabaseUser.id)
+      .single();
+    
+    // Fallback to email check if profile doesn't exist yet
+    const isAdminFromDb = profile?.is_admin === true;
+    const isAdminFromEmail = ADMIN_EMAILS.includes(email.toLowerCase()) || email.includes('admin');
+    
     const newUser: User = {
       id: supabaseUser.id,
       email,
       name: supabaseUser.user_metadata?.name || email.split('@')[0],
-      isAdmin: ADMIN_EMAILS.includes(email.toLowerCase()) || email.includes('admin')
+      isAdmin: isAdminFromDb || isAdminFromEmail  // Database first, fallback to email
     };
     setUser(newUser);
     localStorage.setItem('currentUser', JSON.stringify(newUser));

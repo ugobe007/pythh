@@ -35,6 +35,15 @@ try {
   extractInferenceData = null;
 }
 
+// ENV VALIDATION (fail fast)
+const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`❌ FATAL: Missing required env var: ${key}`);
+    process.exit(1);
+  }
+}
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -211,7 +220,11 @@ function extractCompanyName(title) {
       'the', 'a', 'an', 'and', 'for', 'with', 'as', 'on', 'in', 'by', 'to', 'from', 'of',
       'interview', 'focus', 'names', 'launches', 'calls', 'says', 'adds', 'scraps',
       'boost', 'plummeted', 'tumbles', 'merges', 'is', 'are', 'was', 'were',
-      'over', 'under', 'about', 'around', 'nearly', 'almost'
+      'over', 'under', 'about', 'around', 'nearly', 'almost',
+      'merge', 'challenger', 'new', 'update', 'report', 'news', 'market',
+      'global', 'major', 'big', 'top', 'why', 'how', 'what', 'when', 'nasdaq',
+      'enters', 'reveals', 'targets', 'joins', 'expanding', 'entering',
+      'european', 'asian', 'announces', 'announced', 'reports', 'reported'
     ]);
     
     if (words.length === 1 && stopFragments.has(lower)) {
@@ -285,10 +298,32 @@ function extractCompanyName(title) {
       score += 0.3;
     }
     
-    // ✅ Fundraising / Deal Context Present
-    const dealContext = /(raises?|funding|series|seed|round|acquires?|acquisition|invests?|backed|valued|IPO|closes?|secures?|lands?|bags?)/i;
-    if (dealContext.test(title)) {
-      score += 0.3;
+    // ✅ Fundraising / Deal Context Present (only for pattern-matched candidates, NOT title-case fallbacks)
+    if (context.source === 'pattern') {
+      const dealContext = /(raises?|funding|series|seed|round|acquires?|acquisition|invests?|backed|valued|IPO|closes?|secures?|lands?|bags?)/i;
+      if (dealContext.test(title)) {
+        score += 0.3;
+      }
+    }
+    
+    // ❌ Penalize candidates that look like common English phrases
+    const phraseWords = candidate.split(/\s+/);
+    const PHRASE_REJECT_WORDS = new Set([
+      'announces', 'announced', 'announcing', 'launches', 'launched', 'launching',
+      'merge', 'merges', 'merged', 'merging', 'challenger', 'challengers',
+      'reports', 'reported', 'reporting', 'reveals', 'revealed', 'revealing',
+      'enters', 'entered', 'entering', 'expands', 'expanded', 'expanding',
+      'targets', 'targeted', 'targeting', 'joins', 'joined', 'joining',
+      'new', 'big', 'top', 'best', 'first', 'next', 'last', 'major', 'global',
+      'market', 'markets', 'industry', 'sector', 'nasdaq', 'nyse', 'dow',
+      'european', 'asian', 'african', 'latin', 'north', 'south', 'east', 'west',
+      'million', 'billion', 'deal', 'deals', 'update', 'updates', 'news',
+      'startup', 'startups', 'unicorn', 'unicorns', 'why', 'how', 'what', 'when',
+      'could', 'should', 'would', 'will', 'may', 'might', 'must'
+    ]);
+    const phraseWordCount = phraseWords.filter(w => PHRASE_REJECT_WORDS.has(w.toLowerCase())).length;
+    if (phraseWordCount >= 2 || (phraseWords.length <= 2 && phraseWordCount >= 1)) {
+      score -= 0.3;
     }
     
     return score;
@@ -315,8 +350,8 @@ function extractCompanyName(title) {
     // Remove conjunctions if captured ("Acme and Zeal" → "Acme")
     normalized = normalized.replace(/\s+(?:and|or|with|&)\s+.*$/i, '');
     
-    // Remove "for", "by", "from" prefixes
-    normalized = normalized.replace(/^(?:for|by|from|with|in|at|on)\s+/i, '');
+    // Remove "for", "by", "from" and other preposition/verb prefixes
+    normalized = normalized.replace(/^(?:for|by|from|with|in|at|on|to|into|the|a|an|new|top|big|why|how|merge|report|update)\s+/i, '');
     
     // Trim and clean
     normalized = normalized.trim();

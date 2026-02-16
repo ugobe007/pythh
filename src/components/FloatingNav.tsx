@@ -17,7 +17,7 @@ const FloatingNav: React.FC = () => {
 
   const adminTools = [
     { icon: '👑', label: 'Admin Dashboard', path: '/admin/dashboard', color: 'from-cyan-500 to-blue-500' },
-    { icon: '📋', label: 'Review Queue', path: '/admin/review', color: 'from-cyan-500 to-blue-500' },
+    { icon: '📋', label: 'Review Queue', path: '/admin/edit-startups', color: 'from-cyan-500 to-blue-500' },
     { icon: '✏️', label: 'Edit Startups', path: '/admin/edit-startups', color: 'from-purple-500 to-indigo-500' },
     { icon: '🚀', label: 'Bulk Import', path: '/admin/bulk-import', color: 'from-green-500 to-teal-500' },
     { icon: '⚙️', label: 'DB Setup', path: '/admin/setup', color: 'from-blue-500 to-indigo-500' },

@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { searchStartups, stageLabel, type StartupSearchResult, type StartupSearchFilters } from '../services/startupSearchService';
 import ScoreDrilldownDrawer from '../components/ScoreDrilldownDrawer';
 import { generateDrilldownData, type DrilldownPayload } from '../utils/scoreDrilldown';
@@ -27,7 +28,7 @@ const STAGES = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C+'];
 
 const SORT_OPTIONS: { value: StartupSearchFilters['sortBy']; label: string }[] = [
   { value: 'total_god_score', label: 'GOD Score' },
-  { value: 'final_score', label: 'Final Score' },
+  { value: 'enhanced_god_score', label: 'Enhanced Score' },
   { value: 'created_at', label: 'Newest' },
   { value: 'name', label: 'A → Z' },
 ];
@@ -162,30 +163,7 @@ export default function ExplorePage() {
         fontFamily: 'Inter, system-ui, sans-serif',
       }}
     >
-      {/* ═══════════════════════════════════════════════════════════════
-          HEADER — Matches Rankings / Signals nav
-      ═══════════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="text-white font-semibold">pythh.ai</Link>
-            <span className="text-zinc-500 text-xs tracking-widest uppercase hidden sm:inline">Signal Science</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
-            <Link to="/signals" className="hover:text-white">Signals</Link>
-            <Link to="/matches" className="hover:text-white">Engine</Link>
-            <Link to="/rankings" className="hover:text-white">Rankings</Link>
-            <span className="text-white">Explore</span>
-            <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
-          </nav>
-          <nav className="flex md:hidden items-center gap-4 text-sm text-zinc-400">
-            <Link to="/rankings" className="hover:text-white">Rankings</Link>
-            <span className="text-white">Explore</span>
-            <Link to="/signup" className="text-cyan-400 hover:text-cyan-300">Sign up</Link>
-          </nav>
-        </div>
-      </header>
+      <PythhUnifiedNav />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* ═══════════════════════════════════════════════════════════════
@@ -321,7 +299,7 @@ export default function ExplorePage() {
           </div>
 
           {/* Table body */}
-          <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
+          <div className="max-h-[calc(100vh-240px)] overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="text-zinc-600 text-sm">Searching Pythh database...</div>

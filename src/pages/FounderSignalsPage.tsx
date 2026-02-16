@@ -69,20 +69,28 @@ export default function FounderSignalsPage() {
 
   async function loadSignals() {
     try {
+      // Join with startup_uploads to get sector info
       const { data } = await supabase
         .from('startup_signal_scores')
-        .select('id, sector, created_at, signals_total, metadata')
-        .not('sector', 'is', null)
-        .order('created_at', { ascending: false })
+        .select(`
+          startup_id,
+          as_of,
+          signals_total,
+          startup_uploads!inner(
+            sectors
+          )
+        `)
+        .not('startup_uploads.sectors', 'is', null)
+        .order('as_of', { ascending: false })
         .limit(50);
 
       if (data && data.length > 0) {
         const mapped: SectorSignal[] = data.slice(0, 8).map((s: any, i: number) => ({
-          id: s.id,
-          sector: s.sector || 'Unknown',
+          id: s.startup_id,
+          sector: s.startup_uploads?.sectors || 'Unknown',
           state: (s.signals_total || 0) > 6 ? 'heating' : (s.signals_total || 0) < 4 ? 'cooling' : 'stable',
-          strength: s.metadata?.strength ?? (0.9 - i * 0.07),
-          delta: s.metadata?.delta ?? (Math.random() - 0.3) * 0.2,
+          strength: s.signals_total ? s.signals_total / 10 : (0.9 - i * 0.07),
+          delta: ((s.signals_total || 5) - 5) * 0.04, // +/- from baseline 5
           age: '—',
         }));
         setSectors(mapped);

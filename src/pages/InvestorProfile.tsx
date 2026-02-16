@@ -319,7 +319,7 @@ export default function InvestorProfile() {
           <div className="flex items-center gap-4">
             <Link to="/app" className="text-white font-medium">pythh</Link>
             <span className="text-[#5f5f5f]">/</span>
-            <Link to="/app/matches" className="text-[#8f8f8f] hover:text-white transition-colors">matches</Link>
+            <Link to="/matches" className="text-[#8f8f8f] hover:text-white transition-colors">matches</Link>
             <span className="text-[#5f5f5f]">/</span>
             <span className="text-[#8f8f8f]">{id}</span>
           </div>
@@ -509,7 +509,7 @@ export default function InvestorProfile() {
         ═══════════════════════════════════════════════════════════════ */}
         <div className="pt-4">
           <Link 
-            to="/app/matches"
+            to="/matches"
             className="text-[#8f8f8f] hover:text-[#c0c0c0] text-sm transition-colors"
           >
             ← Back to matches

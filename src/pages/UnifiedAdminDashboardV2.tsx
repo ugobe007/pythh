@@ -8,25 +8,27 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Database, Activity, Cpu, RefreshCw, 
   Settings, ArrowRight, Rss, Users, BarChart3,
-  FileText, Search, Shield
+  FileText, Search, Shield, AlertCircle
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { adminRpc } from '../services/adminRpc';
 import { GODScoreMonitor, SocialSignalsMonitor, SystemHealthAlerts } from '../components/admin';
 
 interface QuickStats {
-  totalStartups: number;
-  totalInvestors: number;
-  totalMatches: number;
-  avgGodScore: number;
+  startups_approved: number;
+  startups_pending: number;
+  investors_total: number;
+  matches_total: number;
+  avg_god_score: number;
 }
 
 export default function UnifiedAdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<QuickStats>({
-    totalStartups: 0,
-    totalInvestors: 0,
-    totalMatches: 0,
-    avgGodScore: 0
+    startups_approved: 0,
+    startups_pending: 0,
+    investors_total: 0,
+    matches_total: 0,
+    avg_god_score: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,23 +38,8 @@ export default function UnifiedAdminDashboard() {
 
   const loadStats = async () => {
     try {
-      const [startups, investors, matches, scores] = await Promise.all([
-        supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-        supabase.from('investors').select('*', { count: 'exact', head: true }),
-        supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-        supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null)
-      ]);
-
-      const avgScore = scores.data && scores.data.length > 0
-        ? scores.data.reduce((sum: number, s: any) => sum + (s.total_god_score || 0), 0) / scores.data.length
-        : 0;
-
-      setStats({
-        totalStartups: startups.count || 0,
-        totalInvestors: investors.count || 0,
-        totalMatches: matches.count || 0,
-        avgGodScore: Math.round(avgScore)
-      });
+      const kpis = await adminRpc.getDashboardKpis();
+      setStats(kpis);
     } catch (error) {
       console.error('Error loading stats:', error);
     } finally {
@@ -109,27 +96,63 @@ export default function UnifiedAdminDashboard() {
           <p className="text-slate-400 mt-1">GOD Score Management & System Monitoring</p>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-white">{stats.totalStartups.toLocaleString()}</div>
-            <div className="text-xs text-slate-400 mt-1">Startups</div>
-          </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-white">{stats.totalInvestors.toLocaleString()}</div>
+        {/* Quick Stats - Clickable KPI Cards */}
+        <div className="grid grid-cols-5 gap-4 mb-8">
+          <button
+            onClick={() => navigate('/admin/edit-startups?status=approved')}
+            className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center hover:border-green-500/50 hover:bg-green-500/5 transition-all cursor-pointer group"
+          >
+            <div className="text-2xl font-bold text-white group-hover:text-green-400 transition-colors">{stats.startups_approved.toLocaleString()}</div>
+            <div className="text-xs text-slate-400 mt-1">Approved</div>
+          </button>
+          <button
+            onClick={() => navigate('/admin/review-queue')}
+            className="bg-slate-800/50 border border-yellow-500/30 rounded-xl p-4 text-center hover:border-yellow-500/60 hover:bg-yellow-500/10 transition-all cursor-pointer group animate-pulse-slow"
+          >
+            <div className="text-2xl font-bold text-yellow-400 group-hover:text-yellow-300 transition-colors">{stats.startups_pending.toLocaleString()}</div>
+            <div className="text-xs text-slate-400 mt-1">Pending Review →</div>
+          </button>
+          <button
+            onClick={() => navigate('/admin/discovered-investors')}
+            className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all cursor-pointer group"
+          >
+            <div className="text-2xl font-bold text-white group-hover:text-cyan-400 transition-colors">{stats.investors_total.toLocaleString()}</div>
             <div className="text-xs text-slate-400 mt-1">Investors</div>
-          </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-white">{stats.totalMatches.toLocaleString()}</div>
+          </button>
+          <button
+            onClick={() => navigate('/admin/health')}
+            className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer group"
+          >
+            <div className="text-2xl font-bold text-white group-hover:text-purple-400 transition-colors">{stats.matches_total.toLocaleString()}</div>
             <div className="text-xs text-slate-400 mt-1">Matches</div>
-          </div>
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
+          </button>
+          <button
+            onClick={() => navigate('/admin/god-scores')}
+            className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center hover:border-amber-500/50 hover:bg-amber-500/5 transition-all cursor-pointer group"
+          >
             <div className="text-2xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-              {stats.avgGodScore}
+              {Math.round(stats.avg_god_score)}
             </div>
             <div className="text-xs text-slate-400 mt-1">Avg GOD Score</div>
-          </div>
+          </button>
         </div>
+
+        {/* Pending Review Banner */}
+        {stats.startups_pending > 0 && (
+          <button
+            onClick={() => navigate('/admin/review-queue')}
+            className="w-full mb-6 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex items-center gap-4 hover:bg-yellow-500/15 hover:border-yellow-500/50 transition-all group"
+          >
+            <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-sm font-bold text-yellow-400">{stats.startups_pending} startups awaiting review</div>
+              <div className="text-xs text-slate-400">Click to open Review Queue — approve, reject, or adjust GOD scores</div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-yellow-400 group-hover:translate-x-1 transition-transform" />
+          </button>
+        )}
 
         {/* Main Grid: Core Tools */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -171,9 +194,9 @@ export default function UnifiedAdminDashboard() {
               <h3 className="font-bold text-white">Data Management</h3>
             </div>
             <div className="space-y-2">
-              <QuickLink icon={FileText} label="Edit Startups" route="/admin/edit-startups" color="cyan" stat={`${stats.totalStartups} total`} />
+              <QuickLink icon={FileText} label="Edit Startups" route="/admin/edit-startups" color="cyan" stat={`${stats.startups_approved} approved`} />
               <QuickLink icon={Search} label="RSS Discoveries" route="/admin/discovered-startups" color="cyan" />
-              <QuickLink icon={Users} label="Investors" route="/admin/discovered-investors" color="cyan" stat={`${stats.totalInvestors} total`} />
+              <QuickLink icon={Users} label="Investors" route="/admin/discovered-investors" color="cyan" stat={`${stats.investors_total} total`} />
               <QuickLink icon={Rss} label="RSS Manager" route="/admin/rss-manager" color="cyan" />
             </div>
           </div>
@@ -202,10 +225,10 @@ export default function UnifiedAdminDashboard() {
               <h3 className="font-bold text-white">AI/ML Tools</h3>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <QuickLink icon={Cpu} label="ML Dashboard" route="/admin/ml-dashboard" color="purple" />
-              <QuickLink icon={Sparkles} label="AI Intelligence" route="/admin/ai-intelligence" color="purple" />
+              <QuickLink icon={Cpu} label="AI Intelligence" route="/admin/ai-intelligence" color="purple" />
+              <QuickLink icon={AlertCircle} label="Bulk Actions" route="/admin/actions" color="purple" />
               <QuickLink icon={Settings} label="Scrapers" route="/admin/scrapers" color="slate" />
-              <QuickLink icon={Settings} label="Control Center" route="/admin/control" color="slate" />
+              <QuickLink icon={RefreshCw} label="Refresh Stats" route="/admin" color="slate" />
             </div>
           </div>
         </div>

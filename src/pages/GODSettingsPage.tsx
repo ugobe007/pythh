@@ -963,7 +963,7 @@ export default function GODSettingsPage() {
                   ))}
                   <div className="flex items-center justify-center gap-2 pt-2">
                     <button
-                      onClick={() => navigate('/admin/ml-dashboard')}
+                      onClick={() => navigate('/admin/ai-intelligence')}
                       className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-2 px-4 py-2 bg-purple-500/10 rounded-lg border border-purple-500/30"
                     >
                       View All ML Recommendations <ArrowRight className="w-4 h-4" />

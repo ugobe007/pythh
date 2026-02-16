@@ -30,14 +30,15 @@ import { createClient } from '@supabase/supabase-js';
 
 const BOOTSTRAP_CONFIG = {
   // Maximum bonus points from bootstrap scoring
-  maxBonus: 15,
+  // RECALIBRATED (Feb 16, 2026): 15 → 8 (ADMIN APPROVED geometric weighting)
+  maxBonus: 8,
   
   // Data completeness threshold (below this = sparse data)
   sparseDataThreshold: 0.50, // 50%
   
-  // Social signal weights (total max: 8 points)
+  // Social signal weights (total max: 4 points, was 8)
   socialSignals: {
-    maxScore: 8,
+    maxScore: 4,
     weights: {
       productHunt: {
         launch: 2.0,      // Featured on PH
@@ -98,9 +99,9 @@ const BOOTSTRAP_CONFIG = {
     },
   },
   
-  // Founder velocity weights (total max: 4 points)
+  // Founder velocity weights (total max: 2 points, was 4)
   founderVelocity: {
-    maxScore: 4,
+    maxScore: 2,
     weights: {
       ideaToMVP: {       // Months from founding to MVP
         under3: 2.0,
@@ -121,9 +122,9 @@ const BOOTSTRAP_CONFIG = {
     },
   },
   
-  // Founder reputation weights (total max: 3 points)
+  // Founder reputation weights (total max: 2 points, was 3)
   founderReputation: {
-    maxScore: 3,
+    maxScore: 2,
     weights: {
       helpfulPosts: 0.3,      // Per helpful community post (max 1.5)
       experienceSignals: 0.5, // Per experience indicator (max 1.5)

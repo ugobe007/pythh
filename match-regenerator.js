@@ -16,20 +16,57 @@
 const { supabase } = require('./server/lib/supabaseClient');
 
 // Matching configuration
+// ═══════════════════════════════════════════════════════════════════════════
+// RECALIBRATED (Feb 16, 2026) — "Pythh Smart" matching
+// Previous: 7 components summed to ~150, capped at 100 → everything hit cap
+// New: Weights sum to exactly 100. Quality gates prevent weak-fit inflation.
+// Philosophy: A match is about FIT, not just "good startup + good investor"
+// ═══════════════════════════════════════════════════════════════════════════
 const CONFIG = {
-  SECTOR_MATCH: 40,      // Increased: sector alignment is most critical
-  STAGE_MATCH: 20,
-  GEO_MATCH: 5,          // Reduced: geography less important (modern VC is global)
-  INVESTOR_QUALITY: 20,  // Reduced slightly 
-  STARTUP_QUALITY: 25,   // Increased: GOD score matters more
-  SIGNAL_BONUS: 10,      // Market signal bonus (0-10 from startup_signals)
-  FAITH_ALIGNMENT: 15,   // NEW: Investor conviction alignment (0-15 from vc_faith_signals)
-  SUPER_MATCH_THRESHOLD: 12, // Faith alignment >= 12 = SUPER MATCH
-  MIN_MATCH_SCORE: 45,   // ⚠️ UI LABEL ONLY - not used as persistence gate (see PERSISTENCE_FLOOR: 30)
-  TOP_MATCHES_PER_STARTUP: 50, // Only keep top 50 matches per startup (frontend shows max ~105)
+  // CORE FIT (60 pts) — these determine if the match makes sense at all
+  SECTOR_MATCH: 30,      // Sector alignment is the #1 signal (was 40)
+  STAGE_MATCH: 20,       // Stage fit is #2 — continuous, not binary (was 20 but binary)
+  SEMANTIC_MATCH: 10,    // Embedding similarity captures thesis nuance (was 15)
+  
+  // QUALITY SIGNALS (25 pts) — how good are the parties independently
+  STARTUP_QUALITY: 15,   // GOD score contribution (was 25)
+  INVESTOR_QUALITY: 10,  // Investor tier/score contribution (was 20)
+  
+  // CONTEXTUAL SIGNALS (15 pts) — additional signal layers
+  SIGNAL_BONUS: 5,       // Market momentum signals (was 10)
+  FAITH_ALIGNMENT: 5,    // Investor conviction alignment (was 15)
+  GEO_MATCH: 5,          // Geographic proximity (unchanged)
+  
+  // QUALITY GATES — weak core fit caps the total score
+  // If sector match < gate threshold, total score is capped regardless of other signals
+  SECTOR_GATE_THRESHOLD: 5,    // Below this = weak sector fit
+  STAGE_GATE_THRESHOLD: 5,     // Below this = weak stage fit
+  WEAK_FIT_CAP: 45,            // Max score when one core dimension is weak
+  VERY_WEAK_FIT_CAP: 30,       // Max score when BOTH core dimensions are weak
+  
+  SUPER_MATCH_THRESHOLD: 4,    // Faith alignment >= 4 = SUPER MATCH (was 12, scaled down)
+  MIN_MATCH_SCORE: 45,
+  TOP_MATCHES_PER_STARTUP: 50,
   BATCH_SIZE: 500,
-  DELTA_LOOKBACK_HOURS: 48, // Delta mode: only re-score startups updated in last 48h
+  DELTA_LOOKBACK_HOURS: 48,
 };
+
+/**
+ * Cosine similarity between two embedding vectors.
+ * Returns 0-1 (1 = identical, 0 = orthogonal).
+ * Returns 0 if either vector is missing or malformed.
+ */
+function cosineSimilarity(a, b) {
+  if (!a || !b || !Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+  if (magA === 0 || magB === 0) return 0;
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
 
 // Use centralized sector taxonomy
 const { 
@@ -60,25 +97,28 @@ function normalizeStr(s) {
 
 /**
  * Calculate sector match with reasoning (uses centralized taxonomy)
+ * Recalibrated: max 30 points, no fallback points for missing data
  * @param {string[]} startupSectors - normalized sector list
  * @param {string[]} investorSectors - normalized sector list
  * @param {object[]} reasons - array to push match reasons
- * @returns {number} score (0-40)
+ * @returns {number} score (0-30)
  */
 function calculateSectorMatch(startupSectors, investorSectors, reasons = []) {
   if (!startupSectors || !investorSectors || !startupSectors.length || !investorSectors.length) {
-    reasons.push({ key: 'sector', points: 5, note: 'Missing sector data → fallback' });
-    return 5;
+    reasons.push({ key: 'sector', points: 0, note: 'Missing sector data → no match credit' });
+    return 0; // No free points for missing data
   }
   
   // Use centralized taxonomy for matching (includes cross-matching)
   const result = calculateSectorMatchScore(startupSectors, investorSectors, true);
   
   if (result.score > 0) {
+    // Scale from taxonomy's 0-40 range down to our 0-30 range
+    const scaled = Math.min(Math.round(result.score * (30 / 40)), CONFIG.SECTOR_MATCH);
     const matchType = result.isRelated ? 'RELATED' : 'DIRECT';
     const note = `${matchType}: ${result.matches.join(', ')}`;
-    reasons.push({ key: 'sector', points: result.score, note });
-    return result.score;
+    reasons.push({ key: 'sector', points: scaled, note });
+    return scaled;
   }
   
   // No match found
@@ -151,68 +191,105 @@ function normalizeInvestor(i, flags = []) {
   };
 }
 
+// Stage ordering for proximity calculation
+const STAGE_ORDER = ['pre-seed', 'preseed', 'seed', 'seriesa', 'seriesb', 'seriesc', 'growth', 'late'];
+
 /**
- * Calculate stage match with reasoning
+ * Calculate stage match with continuous proximity scoring
+ * Recalibrated: exact match = 20, adjacent = 12, 2-away = 5, distant = 0
+ * No free points for missing data.
  * @param {string} startupStage - normalized stage token
  * @param {string[]} investorStages - normalized stage list
  * @param {object[]} reasons - array to push match reasons
- * @returns {number} score (5 or 20)
+ * @returns {number} score (0-20)
  */
 function calculateStageMatch(startupStage, investorStages, reasons = []) {
   const s = normToken(startupStage);
   const iStages = Array.isArray(investorStages) ? investorStages.map(normToken).filter(Boolean) : [];
   
   if (!s || !iStages.length) {
-    reasons.push({ key: 'stage', points: 5, note: 'Missing stage data → fallback' });
-    return 5;
+    reasons.push({ key: 'stage', points: 0, note: 'Missing stage data → no match credit' });
+    return 0; // No free points for missing data
   }
   
   // Normalize for comparison (remove hyphens/spaces)
   const sNorm = s.replace(/[-_\s]/g, '');
   const iNorms = iStages.map(x => x.replace(/[-_\s]/g, ''));
   
+  // Exact match check
   if (iNorms.some(is => is === sNorm || is.includes(sNorm) || sNorm.includes(is))) {
-    reasons.push({ key: 'stage', points: CONFIG.STAGE_MATCH, note: `${s} ↔ ${iStages.join('|')} ✓` });
+    reasons.push({ key: 'stage', points: CONFIG.STAGE_MATCH, note: `${s} ↔ ${iStages.join('|')} ✓ (exact)` });
     return CONFIG.STAGE_MATCH;
   }
   
-  reasons.push({ key: 'stage', points: 5, note: `No match: ${s} vs ${iStages.join('|')}` });
-  return 5;
+  // Proximity-based scoring: find closest stage distance
+  const sIdx = STAGE_ORDER.findIndex(x => sNorm.includes(x) || x.includes(sNorm));
+  let closestDist = Infinity;
+  for (const iNorm of iNorms) {
+    const iIdx = STAGE_ORDER.findIndex(x => iNorm.includes(x) || x.includes(iNorm));
+    if (sIdx >= 0 && iIdx >= 0) {
+      closestDist = Math.min(closestDist, Math.abs(sIdx - iIdx));
+    }
+  }
+  
+  let score = 0;
+  if (closestDist === 1) {
+    score = 12; // Adjacent stage (e.g., Seed investor, Pre-Seed startup)
+    reasons.push({ key: 'stage', points: score, note: `${s} ↔ ${iStages.join('|')} (adjacent, -1 stage)` });
+  } else if (closestDist === 2) {
+    score = 5; // Two stages away (e.g., Series A investor, Pre-Seed startup)
+    reasons.push({ key: 'stage', points: score, note: `${s} ↔ ${iStages.join('|')} (2 stages apart)` });
+  } else {
+    score = 0; // Too far apart — not a fit
+    reasons.push({ key: 'stage', points: 0, note: `Stage mismatch: ${s} vs ${iStages.join('|')} (distant)` });
+  }
+  
+  return score;
 }
 
 /**
  * Calculate investor quality with reasoning
+ * Recalibrated: max 10 points. Match is about FIT, not just investor prestige.
+ * No fallback for missing scores — unknown investors get 0.
  * @param {number} score - investor score (0-10)
  * @param {string} tier - investor tier
  * @param {object[]} reasons - array to push match reasons
- * @returns {number} score (0-20)
+ * @returns {number} score (0-10)
  */
 function calculateInvestorQuality(score, tier, reasons = []) {
-  const baseScore = (score || 5) * 2; // 0-20 from score
-  const tierBonus = { elite: 5, strong: 3, solid: 1, emerging: 0 }[tier] || 0;
-  const total = Math.min(baseScore + tierBonus, CONFIG.INVESTOR_QUALITY);
+  if (!score && !tier) {
+    reasons.push({ key: 'investor_quality', points: 0, note: 'No investor quality data' });
+    return 0;
+  }
+  const baseScore = (score || 0); // Raw 0-10 score
+  const tierBonus = { elite: 2, strong: 1, solid: 0, emerging: 0 }[tier] || 0;
+  const total = Math.min(Math.round(baseScore + tierBonus), CONFIG.INVESTOR_QUALITY);
   
-  const note = tier ? `Tier: ${tier} (${tierBonus} bonus) + score ${score}/10` : `Score: ${score}/10`;
+  const note = tier ? `Tier: ${tier} (+${tierBonus}) + score ${score}/10` : `Score: ${score}/10`;
   reasons.push({ key: 'investor_quality', points: total, note });
   return total;
 }
 
 /**
  * Calculate startup quality from GOD score with reasoning
- * @param {number} godScore - GOD score (40-100)
+ * Recalibrated: max 15 points. Non-linear curve rewards higher GOD scores more.
+ * GOD 40→2, GOD 55→5, GOD 65→8, GOD 75→11, GOD 85→15
+ * @param {number} godScore - GOD score (40-85)
  * @param {object[]} reasons - array to push match reasons
- * @returns {number} score (8-25)
+ * @returns {number} score (0-15)
  */
 function calculateStartupQuality(godScore, reasons = []) {
   if (!godScore || godScore < 40) {
-    reasons.push({ key: 'startup_quality', points: 8, note: 'GOD score missing/low → fallback' });
-    return 8;
+    reasons.push({ key: 'startup_quality', points: 0, note: 'GOD score missing/low → no quality credit' });
+    return 0;
   }
-  // Map GOD score 40-100 to quality 10-25
-  const normalized = Math.max(0, (godScore - 40) / 60); // 0-1 scale
-  const quality = Math.round(10 + normalized * 15); // 10-25 range
+  // Non-linear mapping: use power curve so higher GOD scores earn disproportionately more
+  // This creates meaningful separation between a 50 and a 75 GOD score
+  const normalized = Math.max(0, Math.min((godScore - 40) / 45, 1)); // 0-1 scale (40-85 range)
+  const curved = Math.pow(normalized, 1.3); // Slight power curve — rewards excellence
+  const quality = Math.round(curved * CONFIG.STARTUP_QUALITY); // 0-15
   
-  reasons.push({ key: 'startup_quality', points: quality, note: `GOD ${godScore} → quality ${quality}` });
+  reasons.push({ key: 'startup_quality', points: quality, note: `GOD ${godScore} → quality ${quality}/${CONFIG.STARTUP_QUALITY}` });
   return quality;
 }
 
@@ -222,53 +299,51 @@ function calculateStartupQuality(godScore, reasons = []) {
 function generateReasoning(startup, investor, fitAnalysis) {
   const reasons = [];
   
-  // Sector alignment reasoning
-  if (fitAnalysis.sector >= 30) {
+  // Sector alignment reasoning (rescaled: 0-30)
+  if (fitAnalysis.sector >= 22) {
     reasons.push(`Strong sector alignment: ${investor.name} actively invests in ${formatSectors(startup.sectors)}`);
-  } else if (fitAnalysis.sector >= 20) {
+  } else if (fitAnalysis.sector >= 12) {
     reasons.push(`Good sector fit: Investment focus overlaps with ${startup.name}'s market`);
-  } else if (fitAnalysis.sector >= 10) {
+  } else if (fitAnalysis.sector >= 5) {
     reasons.push(`Adjacent sector interest detected`);
   }
   
-  // Stage reasoning
-  if (fitAnalysis.stage >= 15) {
+  // Stage reasoning (rescaled: 0-20)
+  if (fitAnalysis.stage >= 20) {
     reasons.push(`Stage match: ${investor.name} targets ${startup.stage || 'early'}-stage companies`);
-  } else if (fitAnalysis.stage >= 10) {
-    reasons.push(`Stage overlap with investor's typical dealflow`);
+  } else if (fitAnalysis.stage >= 12) {
+    reasons.push(`Adjacent stage — investor may stretch for the right deal`);
   }
   
-  // Investor quality reasoning
-  if (fitAnalysis.investor_quality >= 18) {
+  // Investor quality reasoning (rescaled: 0-10)
+  if (fitAnalysis.investor_quality >= 9) {
     reasons.push(`Top-tier investor with strong track record`);
-  } else if (fitAnalysis.investor_quality >= 15) {
+  } else if (fitAnalysis.investor_quality >= 7) {
     reasons.push(`Established investor with relevant portfolio`);
   }
   
-  // Startup quality reasoning
-  if (fitAnalysis.startup_quality >= 22) {
+  // Startup quality reasoning (rescaled: 0-15)
+  if (fitAnalysis.startup_quality >= 13) {
     reasons.push(`Exceptional startup fundamentals (GOD Score: ${startup.total_god_score || 'N/A'})`);
-  } else if (fitAnalysis.startup_quality >= 18) {
+  } else if (fitAnalysis.startup_quality >= 9) {
     reasons.push(`Strong startup metrics and team`);
   }
   
-  // Signal reasoning
-  if (fitAnalysis.signal >= 8) {
-    reasons.push(`High market signal: strong momentum and investor interest detected`);
-  } else if (fitAnalysis.signal >= 6) {
-    reasons.push(`Emerging market signal: positive momentum building`);
-  } else if (fitAnalysis.signal >= 4) {
-    reasons.push(`Early market signal: initial traction indicators present`);
+  // Signal reasoning (rescaled: 0-5)
+  if (fitAnalysis.signal >= 4) {
+    reasons.push(`Strong market signal: momentum and interest detected`);
+  } else if (fitAnalysis.signal >= 2) {
+    reasons.push(`Emerging market signal: positive indicators`);
   }
   
-  // 🔥 Faith alignment reasoning (SUPER MATCH)
+  // 🔥 Faith alignment reasoning (rescaled: 0-5)
   if (fitAnalysis.is_super_match) {
     const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.join(', ') : 'multiple areas';
-    reasons.push(`🔥 SUPER MATCH: Investor has deep conviction in ${themes} — directly aligned with this startup`);
-  } else if (fitAnalysis.faith >= 7) {
-    const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.join(', ') : 'aligned areas';
-    reasons.push(`Strong conviction alignment: investor actively invests based on ${themes} thesis`);
+    reasons.push(`🔥 SUPER MATCH: Investor conviction deeply aligned with ${themes}`);
   } else if (fitAnalysis.faith >= 3) {
+    const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.join(', ') : 'aligned areas';
+    reasons.push(`Strong conviction alignment: investor thesis in ${themes}`);
+  } else if (fitAnalysis.faith >= 1) {
     reasons.push(`Conviction signal detected: investor thesis partially aligns`);
   }
   
@@ -300,33 +375,29 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
     matches.push(`Stage: ${startup.stage || 'Early'}`);
   }
   
-  if (fitAnalysis.investor_quality >= 15) {
+  if (fitAnalysis.investor_quality >= 7) {
     matches.push(`Investor Tier: ${investor.investor_tier || 'Active'}`);
   }
   
-  if (fitAnalysis.startup_quality >= 18) {
+  if (fitAnalysis.startup_quality >= 10) {
     matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
   }
   
-  if (fitAnalysis.signal >= 7) {
-    matches.push(`Signal: Strong (${fitAnalysis.signal}/10)`);
-  } else if (fitAnalysis.signal >= 5) {
-    matches.push(`Signal: Emerging (${fitAnalysis.signal}/10)`);
+  if (fitAnalysis.signal >= 4) {
+    matches.push(`Signal: Strong (${fitAnalysis.signal}/${CONFIG.SIGNAL_BONUS})`);
+  } else if (fitAnalysis.signal >= 2) {
+    matches.push(`Signal: Emerging (${fitAnalysis.signal}/${CONFIG.SIGNAL_BONUS})`);
   }
   
-  // Faith alignment / SUPER MATCH
+  // Faith alignment / SUPER MATCH (rescaled: 0-5)
   if (fitAnalysis.is_super_match) {
     const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.slice(0, 3).join(', ') : 'aligned thesis';
-    matches.unshift(`🔥 SUPER MATCH: ${themes}`); // Put at front — it's the strongest signal
-  } else if (fitAnalysis.faith >= 7) {
+    matches.unshift(`🔥 SUPER MATCH: ${themes}`);
+  } else if (fitAnalysis.faith >= 3) {
     const themes = fitAnalysis.faith_themes ? fitAnalysis.faith_themes.slice(0, 2).join(', ') : 'thesis match';
     matches.push(`Conviction: ${themes}`);
-  } else if (fitAnalysis.faith >= 3) {
+  } else if (fitAnalysis.faith >= 1) {
     matches.push(`Conviction signal detected`);
-  }
-  
-  if (fitAnalysis.startup_quality >= 18) {
-    matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
   }
   
   return matches.length > 0 ? matches : ['Algorithmic match'];
@@ -486,19 +557,19 @@ function calculateFaithAlignment(startupSectors, investorFaith, reasons = []) {
     return { score: 0, matchingThemes: [], isSuperMatch: false };
   }
   
-  // Score based on number of matching themes + conviction strength
+  // Recalibrated scoring: max 5 points (was 15)
   const conviction = investorFaith.avgConviction || 0.7;
   let score = 0;
   
   if (matchingThemes.length >= 3) {
-    // Deep alignment: 3+ themes match → 10-15 points
-    score = conviction >= 0.85 ? 15 : conviction >= 0.7 ? 12 : 10;
+    // Deep alignment: 3+ themes match → 4-5 points
+    score = conviction >= 0.85 ? 5 : 4;
   } else if (matchingThemes.length === 2) {
-    // Good alignment: 2 themes match → 7-10 points
-    score = conviction >= 0.85 ? 10 : conviction >= 0.7 ? 8 : 7;
+    // Good alignment: 2 themes match → 3-4 points
+    score = conviction >= 0.85 ? 4 : 3;
   } else {
-    // Single theme: 1 match → 3-7 points
-    score = conviction >= 0.85 ? 7 : conviction >= 0.7 ? 5 : 3;
+    // Single theme: 1 match → 1-2 points
+    score = conviction >= 0.85 ? 2 : 1;
   }
   
   // Cap at CONFIG max
@@ -616,7 +687,7 @@ async function regenerateMatches() {
     while (true) {
       let query = supabase
         .from('startup_uploads')
-        .select('id, name, sectors, stage, total_god_score')
+        .select('id, name, sectors, stage, total_god_score, embedding')
         .eq('status', 'approved');
       
       // In delta mode, only fetch startups updated since the lookback window
@@ -650,7 +721,7 @@ async function regenerateMatches() {
     while (true) {
       const { data, error } = await supabase
         .from('investors')
-        .select('id, name, sectors, stage, investor_score, investor_tier')
+        .select('id, name, sectors, stage, investor_score, investor_tier, embedding')
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
       if (error) throw new Error(`Investor fetch error: ${error.message}`);
@@ -666,7 +737,12 @@ async function regenerateMatches() {
     const startups = allStartups;
     const investors = allInvestors;
     
+    // Count embedding coverage
+    const startupsWithEmb = startups.filter(s => s.embedding && Array.isArray(s.embedding) && s.embedding.length > 0).length;
+    const investorsWithEmb = investors.filter(i => i.embedding && Array.isArray(i.embedding) && i.embedding.length > 0).length;
+    
     console.log(`\n📊 Found ${startups.length} startups × ${investors.length} investors`);
+    console.log(`🧠 Embedding coverage: ${startupsWithEmb}/${startups.length} startups, ${investorsWithEmb}/${investors.length} investors`);
     
     if (startups.length === 0 || investors.length === 0) {
       console.log('⚠️  No data to match');
@@ -701,27 +777,84 @@ async function regenerateMatches() {
         const reasons = [];
         const terms = {};
         
+        // ═══════════════════════════════════════════════════════════════
+        // CORE FIT (60 pts max) — determines if match makes sense at all
+        // ═══════════════════════════════════════════════════════════════
         terms.sector = calculateSectorMatch(startupNorm.sectors, investorNorm.sectors, reasons);
         terms.stage = calculateStageMatch(startupNorm.stage, investorNorm.stages, reasons);
-        terms.investor_quality = calculateInvestorQuality(investorNorm.score, investorNorm.tier, reasons);
-        terms.startup_quality = calculateStartupQuality(startupNorm.godScore, reasons);
-        terms.signal = Math.round(signalScore); // 0-10 → add directly
         
-        // Add signal to reasons
-        if (signalScore >= 7) {
-          reasons.push({ key: 'signal', points: terms.signal, note: `Strong market signal (${signalScore.toFixed(1)}/10)` });
-        } else if (signalScore >= 5) {
-          reasons.push({ key: 'signal', points: terms.signal, note: `Emerging market signal (${signalScore.toFixed(1)}/10)` });
-        } else if (signalScore > 0) {
-          reasons.push({ key: 'signal', points: terms.signal, note: `Early market signal (${signalScore.toFixed(1)}/10)` });
+        // 🧠 SEMANTIC SIMILARITY: captures thesis nuance beyond keyword matching
+        const similarity = cosineSimilarity(startup.embedding, investor.embedding);
+        terms.semantic = Math.round(Math.max(0, similarity) * CONFIG.SEMANTIC_MATCH);
+        if (terms.semantic >= 7) {
+          reasons.push({ key: 'semantic', points: terms.semantic, note: `Strong semantic alignment (${(similarity * 100).toFixed(0)}%)` });
+        } else if (terms.semantic >= 4) {
+          reasons.push({ key: 'semantic', points: terms.semantic, note: `Moderate semantic alignment (${(similarity * 100).toFixed(0)}%)` });
+        } else if (terms.semantic > 0) {
+          reasons.push({ key: 'semantic', points: terms.semantic, note: `Weak semantic alignment (${(similarity * 100).toFixed(0)}%)` });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // QUALITY SIGNALS (25 pts max)
+        // ═══════════════════════════════════════════════════════════════
+        terms.startup_quality = calculateStartupQuality(startupNorm.godScore, reasons);
+        terms.investor_quality = calculateInvestorQuality(investorNorm.score, investorNorm.tier, reasons);
+        
+        // ═══════════════════════════════════════════════════════════════
+        // CONTEXTUAL SIGNALS (15 pts max)
+        // ═══════════════════════════════════════════════════════════════
+        // Signal bonus: scale 0-10 input → 0-5 output
+        const rawSignal = signalScore || 0;
+        terms.signal = Math.min(Math.round(rawSignal / 2), CONFIG.SIGNAL_BONUS);
+        if (rawSignal >= 7) {
+          reasons.push({ key: 'signal', points: terms.signal, note: `Strong market signal (${rawSignal.toFixed(1)}/10)` });
+        } else if (rawSignal >= 4) {
+          reasons.push({ key: 'signal', points: terms.signal, note: `Emerging signal (${rawSignal.toFixed(1)}/10)` });
+        } else if (rawSignal > 0) {
+          reasons.push({ key: 'signal', points: terms.signal, note: `Early signal (${rawSignal.toFixed(1)}/10)` });
         }
         
-        // 🔮 FAITH ALIGNMENT: pair-specific investor conviction × startup sector match
+        // 🔮 FAITH ALIGNMENT: investor conviction alignment
         const investorFaith = faithThemes.get(investor.id) || null;
         const faithResult = calculateFaithAlignment(startupNorm.sectors, investorFaith, reasons);
         terms.faith = faithResult.score;
         
-        const totalScore = terms.sector + terms.stage + terms.investor_quality + terms.startup_quality + terms.signal + terms.faith;
+        // 🌍 GEO MATCH
+        terms.geo = 0;
+        if (startupNorm.geo && investorNorm.geo) {
+          if (startupNorm.geo === investorNorm.geo) {
+            terms.geo = CONFIG.GEO_MATCH;
+            reasons.push({ key: 'geo', points: CONFIG.GEO_MATCH, note: `Geographic match: ${startupNorm.geo}` });
+          }
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // RAW TOTAL + QUALITY GATES
+        // Weights sum to exactly 100. Quality gates cap score when
+        // core fit dimensions are weak — prevents "good startup + good
+        // investor" from scoring high without actual fit.
+        // ═══════════════════════════════════════════════════════════════
+        let rawTotal = terms.sector + terms.stage + terms.semantic + 
+                        terms.startup_quality + terms.investor_quality + 
+                        terms.signal + terms.faith + terms.geo;
+        
+        // Quality gate: apply caps for weak core fit
+        const weakSector = terms.sector <= CONFIG.SECTOR_GATE_THRESHOLD;
+        const weakStage = terms.stage <= CONFIG.STAGE_GATE_THRESHOLD;
+        
+        if (weakSector && weakStage) {
+          rawTotal = Math.min(rawTotal, CONFIG.VERY_WEAK_FIT_CAP);
+          reasons.push({ key: 'gate', points: 0, note: `⚠️ Both sector + stage weak → capped at ${CONFIG.VERY_WEAK_FIT_CAP}` });
+        } else if (weakSector || weakStage) {
+          rawTotal = Math.min(rawTotal, CONFIG.WEAK_FIT_CAP);
+          reasons.push({ key: 'gate', points: 0, note: `⚠️ ${weakSector ? 'Sector' : 'Stage'} weak → capped at ${CONFIG.WEAK_FIT_CAP}` });
+        }
+        
+        // No need to cap at 100 — weights naturally sum to 100 max
+        const finalScore = Math.round(rawTotal);
+        
+        // Store raw similarity for the similarity_score column
+        const rawSimilarity = similarity > 0 ? parseFloat(similarity.toFixed(4)) : null;
         
         // Generate human-readable fields
         const fitAnalysis = { ...terms, is_super_match: faithResult.isSuperMatch };
@@ -731,15 +864,14 @@ async function regenerateMatches() {
         const reasoning = generateReasoning(startup, investor, terms);
         const whyYouMatch = generateWhyYouMatch(startup, investor, terms);
         
-        // Cap at 100 to satisfy DB constraint (formula max is 115)
-        const cappedScore = Math.min(totalScore, 100);
-        
         scoredMatches.push({
           startup_id: startup.id,
           investor_id: investor.id,
-          match_score: cappedScore,
+          match_score: finalScore,
+          similarity_score: rawSimilarity,
+          algorithm_version: 'v3.0-pythh',
           status: 'suggested',
-          confidence_level: cappedScore >= 75 ? 'high' : cappedScore >= 55 ? 'medium' : 'low',
+          confidence_level: finalScore >= 70 ? 'high' : finalScore >= 45 ? 'medium' : 'low',
           fit_analysis: fitAnalysis,
           reasoning: reasoning,
           why_you_match: whyYouMatch
@@ -792,15 +924,29 @@ async function regenerateMatches() {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     
     console.log('\n\n' + '═'.repeat(60));
-    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}]`);
+    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}] — v3.0-pythh`);
     console.log('═'.repeat(60));
     console.log(`   Mode: ${mode}`);
+    console.log(`   Algorithm: v3.0-pythh (weights sum to 100, quality gates)`);
     console.log(`   Startups: ${startups.length}`);
     console.log(`   Investors: ${investors.length}`);
     console.log(`   Matches saved: ${saved} (cap: ${CONFIG.TOP_MATCHES_PER_STARTUP}/startup)`);
-    console.log(`   High confidence: ${allMatches.filter(m => m.confidence_level === 'high').length}`);
+    console.log(`   High confidence (70+): ${allMatches.filter(m => m.confidence_level === 'high').length}`);
+    console.log(`   Medium confidence (45-69): ${allMatches.filter(m => m.confidence_level === 'medium').length}`);
+    console.log(`   Low confidence (<45): ${allMatches.filter(m => m.confidence_level === 'low').length}`);
+    console.log(`   Quality-gated (capped): ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.gate).length}`);
     console.log(`   Faith-boosted: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.faith > 0).length}`);
+    console.log(`   🧠 Semantic-boosted: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.semantic > 0).length}`);
     console.log(`   🔥 SUPER MATCHES: ${allMatches.filter(m => m.fit_analysis && m.fit_analysis.is_super_match).length}`);
+    // Score distribution
+    const mScores = allMatches.map(m => m.match_score).sort((a,b) => a-b);
+    if (mScores.length > 0) {
+      const p10 = mScores[Math.floor(mScores.length*0.1)];
+      const p50 = mScores[Math.floor(mScores.length*0.5)];
+      const p90 = mScores[Math.floor(mScores.length*0.9)];
+      const avg = Math.round(mScores.reduce((a,b)=>a+b,0)/mScores.length);
+      console.log(`   📊 Score distribution: min=${mScores[0]} P10=${p10} median=${p50} P90=${p90} max=${mScores[mScores.length-1]} avg=${avg}`);
+    }
     console.log(`   Time: ${elapsed}s`);
     console.log('═'.repeat(60) + '\n');
     

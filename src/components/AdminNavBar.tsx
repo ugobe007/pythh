@@ -4,7 +4,7 @@
  */
 
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu } from 'lucide-react';
+import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AdminNavBarProps {
@@ -51,6 +51,18 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         >
           <Settings className="w-4 h-4" />
           <span>Dashboard</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
+          to="/admin/review-queue" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/review-queue')
+              ? 'bg-yellow-500/20 text-yellow-300 font-semibold' 
+              : 'bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400/80 hover:text-yellow-300'
+          }`}
+        >
+          <ClipboardCheck className="w-4 h-4" />
+          <span>Review</span>
         </Link>
         <span className="text-gray-600">|</span>
         <Link 

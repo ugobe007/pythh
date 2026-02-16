@@ -262,7 +262,7 @@ export default function InSignalMatches() {
               <div className="py-panel-inner">
                 <div className="py-kicker">submit</div>
                 <div style={{ marginTop: 10, fontSize: 13, color: "rgba(255,255,255,.72)" }}>
-                  <Link to="/app/submit" style={{ color: "rgba(199,210,254,.9)" }}>
+                  <Link to="/signal-matches" style={{ color: "rgba(199,210,254,.9)" }}>
                     Submit a company you're watching →
                   </Link>
                 </div>

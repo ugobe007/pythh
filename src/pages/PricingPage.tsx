@@ -1,12 +1,13 @@
 /**
- * PRICING PAGE - Prompt 17
+ * PRICING PAGE
  * =========================
- * 3-tier pricing with Stripe integration
+ * 4-tier pricing with Stripe integration
  * 
- * Tiers (source of truth: plan.ts):
- * - Free ($0): Preview tier
- * - Pro ($99/mo): Enhanced visibility
- * - Elite ($399/mo): Full access + exports + alerts
+ * Tiers:
+ * - Free ($0): Explore the signal layer
+ * - Pro ($29/mo): Full signal access for founders
+ * - Signal Navigator ($99/mo, tier key: 'elite'): The full intelligence layer
+ * - Fund ($249/seat/mo): Contact-us tier for VCs/angels
  */
 
 import React, { useState, useEffect } from 'react';
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { analytics } from '../analytics';
 import { UPGRADE_COPY, UpgradeMoment } from '../lib/upgradeMoments';
 
@@ -56,60 +57,60 @@ const PLANS: PricingPlan[] = [
     name: 'Free',
     tier: 'free',
     price: 0,
-    tagline: 'See your signals',
-    color: 'border-zinc-700 hover:border-zinc-600',
+    tagline: 'Explore the signal layer',
+    color: 'border-zinc-700/50 hover:border-zinc-600',
     iconColor: 'text-zinc-400',
-    ctaText: 'Get Started',
+    ctaText: 'Start Free',
     features: [
-      { text: 'Unlimited URL scans', included: true },
-      { text: '3 Investor matches (masked)', included: true },
+      { text: 'Submit 1 startup URL', included: true },
+      { text: '5 unlocked investor signals', included: true },
       { text: 'GOD Score overview', included: true },
-      { text: 'Match reasoning', included: true },
-      { text: 'Pitch Signal Scan (preview)', included: false },
-      { text: 'Signal Playbook', included: false },
-      { text: 'Timing Map', included: false },
-      { text: 'Export & Share', included: false },
+      { text: 'Browse Rankings & Explore', included: true },
+      { text: '3 investor matches (masked)', included: true },
+      { text: 'Weekly Signal Digest email', included: true },
+      { text: 'Watchlists', included: false },
+      { text: 'Signal alerts', included: false },
     ],
   },
   {
-    name: 'Signal Map',
+    name: 'Pro',
     tier: 'pro',
-    price: 49,
-    annualPrice: 39,
-    tagline: 'Understand your position',
-    color: 'border-amber-500/50 hover:border-amber-500',
-    iconColor: 'text-amber-400',
-    ctaText: 'Upgrade to Signal Map',
+    price: 29,
+    annualPrice: 23,
+    tagline: 'Full signal access for founders',
+    color: 'border-cyan-500/40 hover:border-cyan-500',
+    iconColor: 'text-cyan-400',
+    ctaText: 'Upgrade to Pro',
     features: [
-      { text: '50+ Investor matches (full identity)', included: true },
-      { text: 'Pitch Signal Scan (5 dimensions)', included: true },
-      { text: 'Daily signal updates', included: true },
-      { text: 'Saved matches + Watchlist', included: true },
-      { text: 'Signal Playbook', included: false },
-      { text: 'Timing Map', included: false },
-      { text: 'Real-time alerts', included: false },
-      { text: 'Export CSV + Share links', included: false },
+      { text: 'All matches unlocked (full identity)', included: true },
+      { text: 'Complete signal dashboard', included: true },
+      { text: 'Watchlists — track startups & investors', included: true },
+      { text: 'Signal alerts (email + in-app)', included: true },
+      { text: 'Competitive radar', included: true },
+      { text: 'Follow-on round prep', included: true },
+      { text: 'Signal Playbook per investor', included: false },
+      { text: 'Export CSV + Deal Memos', included: false },
     ],
   },
   {
-    name: 'Navigator',
+    name: 'Signal Navigator',
     tier: 'elite',
-    price: 149,
-    annualPrice: 119,
-    tagline: 'Full signal navigation',
-    color: 'border-violet-500 hover:border-violet-400',
-    iconColor: 'text-violet-400',
+    price: 99,
+    annualPrice: 79,
+    tagline: 'The full intelligence layer',
+    color: 'border-cyan-400/60 hover:border-cyan-400',
+    iconColor: 'text-cyan-400',
     ctaText: 'Go Navigator',
     popular: true,
     features: [
-      { text: '50+ Matches + explainability + confidence', included: true, highlight: true },
+      { text: 'Everything in Pro', included: true, highlight: true },
       { text: 'Signal Playbook (per-investor strategy)', included: true, highlight: true },
-      { text: 'Pitch Signal Scan (full 5 dimensions)', included: true, highlight: true },
-      { text: 'Fundraising Timing Map + weekly cadence', included: true, highlight: true },
-      { text: 'Real-time alerts + signal shift notifications', included: true, highlight: true },
-      { text: 'Export CSV + Deal Memo generation', included: true, highlight: true },
-      { text: 'Oracle coaching sessions', included: true, highlight: true },
-      { text: 'Share links for advisors', included: true, highlight: true },
+      { text: 'Fundraising Timing Map', included: true, highlight: true },
+      { text: 'Real-time signal shift alerts', included: true, highlight: true },
+      { text: 'Export CSV + AI Deal Memo generation', included: true, highlight: true },
+      { text: 'Shareable links for advisors', included: true, highlight: true },
+      { text: 'Sector signal heatmaps', included: true, highlight: true },
+      { text: 'Priority support', included: true, highlight: true },
     ],
   },
 ];
@@ -117,15 +118,19 @@ const PLANS: PricingPlan[] = [
 const FAQ_ITEMS = [
   {
     question: 'Can I try before I pay?',
-    answer: 'Yes. The free tier gives you a full system readout and your top 3 matches. No card required.',
+    answer: 'Yes. The free tier gives you GOD Scores, rankings, and 3 masked matches. No card required.',
   },
   {
     question: 'Can I cancel anytime?',
     answer: 'Yes. No lock-in. Cancel when you want, keep access through your billing period.',
   },
   {
-    question: 'How is this different from a VC database?',
-    answer: "VC databases tell you who exists. Pythh tells you who's already aligned with your specific signals. It's pattern recognition, not directory lookup.",
+    question: 'How is this different from Pitchbook or Crunchbase?',
+    answer: "Those are static encyclopedias. Pythh is a timing weapon — it tells you who\'s aligned with your signals right now, not just who exists.",
+  },
+  {
+    question: 'What keeps me coming back after I raise?',
+    answer: 'Watchlists, competitive radar, and signal alerts keep working. Most founders use Pythh to track the market and prep their next round before they need it.',
   },
   {
     question: 'What happens if I downgrade?',
@@ -133,7 +138,7 @@ const FAQ_ITEMS = [
   },
   {
     question: 'Do you offer refunds?',
-    answer: "If you're not satisfied within the first 7 days, contact us for a full refund. No questions asked.",
+    answer: "If you\'re not satisfied within the first 7 days, contact us for a full refund. No questions asked.",
   },
 ];
 
@@ -213,15 +218,43 @@ export default function PricingPage() {
       analytics.upgradeCTAClicked(tier);
     }
     
-    // Free tier - just go home
-    if (tier === 'free') {
-      navigate('/');
+    // Not logged in
+    if (!user) {
+      if (tier === 'free') {
+        // Free tier — regular signup
+        navigate('/signup/founder');
+      } else {
+        // Paid tier — go straight to Stripe checkout, account created after payment
+        setIsLoading(true);
+        setLoadingTier(tier);
+        try {
+          const res = await fetch(`${API_BASE}/api/billing/create-guest-checkout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan: tier }),
+          });
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Failed to start checkout');
+          }
+          const data = await res.json();
+          if (data.url) {
+            window.location.href = data.url;
+          }
+        } catch (err) {
+          console.error('[PricingPage] Guest checkout error:', err);
+          alert('Failed to start checkout. Please try again.');
+        } finally {
+          setIsLoading(false);
+          setLoadingTier(null);
+        }
+      }
       return;
     }
 
-    // Not logged in - redirect to login with return URL
-    if (!user) {
-      navigate(`/login?redirect=/pricing&plan=${tier}`);
+    // Free tier — already logged in, go to matches
+    if (tier === 'free') {
+      navigate('/matches');
       return;
     }
 
@@ -242,11 +275,26 @@ export default function PricingPage() {
 
     try {
       const headers = await getAuthHeaders();
+      
+      // If no auth token available, redirect to login
+      if (!headers['Authorization' as keyof HeadersInit]) {
+        navigate(`/login?redirect=${encodeURIComponent(`/pricing?plan=${tier}`)}`);
+        setIsLoading(false);
+        setLoadingTier(null);
+        return;
+      }
+      
       const res = await fetch(`${API_BASE}/api/billing/create-checkout-session`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ plan: tier }),
       });
+
+      if (res.status === 401) {
+        // Session expired — redirect to login
+        navigate(`/login?redirect=${encodeURIComponent(`/pricing?plan=${tier}`)}`);
+        return;
+      }
 
       if (!res.ok) {
         const error = await res.json();
@@ -259,7 +307,7 @@ export default function PricingPage() {
       }
     } catch (err) {
       console.error('[PricingPage] Checkout error:', err);
-      alert('Failed to start checkout. Please try again.');
+      alert('Failed to start checkout. Please log in and try again.');
     } finally {
       setIsLoading(false);
       setLoadingTier(null);
@@ -319,11 +367,11 @@ export default function PricingPage() {
     <div className="min-h-screen bg-[#0a0a0a] relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-20 left-10 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-cyan-400/5 rounded-full blur-3xl" />
       </div>
 
-      <LogoDropdownMenu />
+      <PythhUnifiedNav />
 
       <div className="relative z-10 container mx-auto px-4 sm:px-6 pt-20 pb-16">
         {/* Header */}
@@ -382,21 +430,21 @@ export default function PricingPage() {
                 key={plan.tier}
                 className={`
                   relative bg-zinc-900/80 border-2 rounded-2xl p-6 sm:p-8 transition-all
-                  ${isHighlighted ? 'border-amber-500 shadow-2xl shadow-amber-500/20 scale-[1.02] md:scale-105' : ''}
-                  ${isPopular && !isHighlighted ? 'border-violet-500 shadow-2xl shadow-violet-500/20 scale-[1.02] md:scale-105' : !isHighlighted ? plan.color : ''}
+                  ${isHighlighted ? 'border-cyan-400 shadow-2xl shadow-cyan-400/10 scale-[1.02] md:scale-105' : ''}
+                  ${isPopular && !isHighlighted ? 'border-cyan-400 shadow-2xl shadow-cyan-400/10 scale-[1.02] md:scale-105' : !isHighlighted ? plan.color : ''}
                   ${isCurrent ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-[#0a0a0a]' : ''}
                 `}
               >
                 {/* Upgrade Source Badge */}
                 {isHighlighted && upgradeSource && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-amber-600 to-orange-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 border border-cyan-400 bg-cyan-400/10 text-cyan-400 text-xs font-bold rounded-full flex items-center gap-1">
                     Unlocks {UPGRADE_COPY[upgradeSource]?.title.replace('are Elite-only', '').replace('Export ', '').trim()}
                   </div>
                 )}
 
                 {/* Popular Badge */}
                 {isPopular && !isHighlighted && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-violet-600 to-purple-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 border border-cyan-400 bg-cyan-400/10 text-cyan-400 text-xs font-bold rounded-full flex items-center gap-1">
                     <Crown className="w-3 h-3" />
                     Most Popular
                   </div>
@@ -459,20 +507,20 @@ export default function PricingPage() {
                   ))}
                 </div>
 
-                {/* CTA Button */}
+                {/* CTA Button — stroke only (Supabase style) */}
                 <button
                   onClick={() => handleSelectPlan(plan.tier)}
                   disabled={isLoading || isCurrent}
                   className={`
                     w-full py-3 px-4 rounded-xl font-semibold text-sm transition-all
-                    flex items-center justify-center gap-2
+                    flex items-center justify-center gap-2 bg-transparent
                     ${isCurrent
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-default'
+                      ? 'border border-emerald-500/40 text-emerald-400 cursor-default'
                       : plan.tier === 'elite'
-                        ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-500 hover:to-purple-500 shadow-lg shadow-violet-500/20'
+                        ? 'border border-cyan-400 text-cyan-400 hover:bg-cyan-400/10'
                         : plan.tier === 'pro'
-                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-400 hover:to-orange-400 shadow-lg shadow-amber-500/20'
-                          : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700'
+                          ? 'border border-cyan-500/60 text-cyan-400 hover:bg-cyan-500/10'
+                          : 'border border-zinc-600 text-zinc-300 hover:bg-zinc-800'
                     }
                     disabled:opacity-50 disabled:cursor-not-allowed
                   `}
@@ -505,42 +553,69 @@ export default function PricingPage() {
           })}
         </div>
 
+        {/* Fund Tier — Contact Card */}
+        <div className="max-w-5xl mx-auto mb-12">
+          <div className="bg-zinc-900/80 border-2 border-zinc-700/50 hover:border-zinc-600 rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row items-center gap-8">
+            <div className="flex-1">
+              <h3 className="text-2xl font-bold text-white mb-1">Fund</h3>
+              <p className="text-sm font-medium text-cyan-400 mb-4">For VCs, angels &amp; syndicates</p>
+              <div className="mb-4">
+                <span className="text-4xl font-black text-white">$249</span>
+                <span className="text-zinc-500 text-lg">/seat/month</span>
+              </div>
+              <ul className="space-y-2 text-sm text-zinc-300">
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-400" /> Everything in Signal Navigator</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-400" /> Multi-seat team dashboard</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-400" /> Pipeline import &amp; CRM sync</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-400" /> Custom scoring weights</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-cyan-400" /> Dedicated onboarding + support</li>
+              </ul>
+            </div>
+            <div className="flex-shrink-0">
+              <a
+                href="mailto:team@pythh.ai?subject=Fund%20Tier%20Inquiry"
+                className="inline-flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-sm border border-cyan-400 text-cyan-400 hover:bg-cyan-400/10 transition-all"
+              >
+                Contact Us
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+
         {/* What You Unlock Section */}
         <div className="max-w-4xl mx-auto mb-16">
           <h2 className="text-xl font-bold text-white text-center mb-8">
-            What you unlock with Elite
+            What you unlock with Signal Navigator
           </h2>
           <div className="grid sm:grid-cols-3 gap-4">
-            {/* Screenshot placeholder 1 */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center">
-                <Eye className="w-6 h-6 text-violet-400" />
+              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                <Eye className="w-6 h-6 text-cyan-400" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Full Explainability</h3>
+              <h3 className="font-semibold text-white mb-2">Signal Playbook</h3>
               <p className="text-sm text-zinc-500">
-                See exactly why each investor matches your startup, with confidence scores and dimension breakdowns.
+                Per-investor strategy with confidence scores, dimension breakdowns, and timing recommendations.
               </p>
             </div>
 
-            {/* Screenshot placeholder 2 */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
-                <Bell className="w-6 h-6 text-amber-400" />
+              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                <Bell className="w-6 h-6 text-cyan-400" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Real-Time Alerts</h3>
+              <h3 className="font-semibold text-white mb-2">Signal Shift Alerts</h3>
               <p className="text-sm text-zinc-500">
-                Get notified instantly when watched startups heat up or show momentum spikes with "Why" context.
+                Get notified when investors shift focus — before anyone else sees it.
               </p>
             </div>
 
-            {/* Screenshot placeholder 3 */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
-              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center">
-                <Download className="w-6 h-6 text-emerald-400" />
+              <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                <Download className="w-6 h-6 text-cyan-400" />
               </div>
-              <h3 className="font-semibold text-white mb-2">Export & Share</h3>
+              <h3 className="font-semibold text-white mb-2">Export &amp; Share</h3>
               <p className="text-sm text-zinc-500">
-                Export match lists to CSV, generate AI deal memos, and create shareable links for your team.
+                Export to CSV, generate AI deal memos, and share links with advisors and co-founders.
               </p>
             </div>
           </div>
@@ -556,52 +631,58 @@ export default function PricingPage() {
               <tr className="border-b border-zinc-800">
                 <th className="text-left py-3 px-4 text-zinc-400 font-medium">Feature</th>
                 <th className="text-center py-3 px-4 text-zinc-400 font-medium">Free</th>
-                <th className="text-center py-3 px-4 text-amber-400 font-medium">Pro</th>
-                <th className="text-center py-3 px-4 text-violet-400 font-medium">Elite</th>
+                <th className="text-center py-3 px-4 text-cyan-500 font-medium">Pro</th>
+                <th className="text-center py-3 px-4 text-cyan-400 font-medium">Navigator</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
               <tr>
-                <td className="py-3 px-4 text-zinc-300">Live Pairings</td>
-                <td className="py-3 px-4 text-center text-zinc-500">1 (masked)</td>
-                <td className="py-3 px-4 text-center text-zinc-300">3</td>
-                <td className="py-3 px-4 text-center text-white font-medium">10 + confidence</td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 text-zinc-300">Trending Startups</td>
-                <td className="py-3 px-4 text-center text-zinc-500">3</td>
-                <td className="py-3 px-4 text-center text-zinc-300">10 + score</td>
-                <td className="py-3 px-4 text-center text-white font-medium">50 + all signals</td>
-              </tr>
-              <tr>
                 <td className="py-3 px-4 text-zinc-300">Investor Matches</td>
                 <td className="py-3 px-4 text-center text-zinc-500">3 (masked)</td>
-                <td className="py-3 px-4 text-center text-zinc-300">10</td>
-                <td className="py-3 px-4 text-center text-white font-medium">50 + reasons</td>
+                <td className="py-3 px-4 text-center text-zinc-300">All (full identity)</td>
+                <td className="py-3 px-4 text-center text-white font-medium">All + strategy</td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-zinc-300">Alerts</td>
+                <td className="py-3 px-4 text-zinc-300">Watchlists</td>
                 <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-zinc-300">Export CSV</td>
+                <td className="py-3 px-4 text-zinc-300">Signal Alerts</td>
                 <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-zinc-300">Deal Memo</td>
+                <td className="py-3 px-4 text-zinc-300">Competitive Radar</td>
                 <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-zinc-300">Share Links</td>
+                <td className="py-3 px-4 text-zinc-300">Signal Playbook</td>
                 <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
                 <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+              </tr>
+              <tr>
+                <td className="py-3 px-4 text-zinc-300">Timing Map</td>
+                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+              </tr>
+              <tr>
+                <td className="py-3 px-4 text-zinc-300">Export CSV + Deal Memo</td>
+                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+              </tr>
+              <tr>
+                <td className="py-3 px-4 text-zinc-300">Shareable Links</td>
+                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
             </tbody>
           </table>
@@ -641,12 +722,12 @@ export default function PricingPage() {
 
         {/* Closing Statement */}
         <div className="max-w-3xl mx-auto text-center">
-          <div className="p-8 bg-gradient-to-r from-amber-500/5 via-zinc-900 to-violet-500/5 border border-zinc-800 rounded-2xl">
-            <p className="text-xl text-zinc-300 leading-relaxed">
-              Pythh doesn't help you pitch better.
+          <div className="p-8 bg-gradient-to-r from-cyan-500/5 via-zinc-900 to-cyan-400/5 border border-zinc-800 rounded-2xl">
+            <p className="text-xl text-zinc-400 leading-relaxed">
+              The signal is already there.
             </p>
             <p className="text-xl text-white font-semibold mt-2">
-              It helps you talk to the right people before you pitch.
+              We just show you where to aim.
             </p>
           </div>
         </div>
@@ -656,7 +737,7 @@ export default function PricingPage() {
           <p className="text-zinc-500 text-sm mb-2">Need custom limits or team features?</p>
           <a
             href="mailto:team@pythh.ai?subject=Enterprise%20Inquiry"
-            className="inline-flex items-center gap-2 text-violet-400 hover:text-violet-300 text-sm font-medium"
+            className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm font-medium"
           >
             Contact us for Enterprise
             <ExternalLink className="w-4 h-4" />

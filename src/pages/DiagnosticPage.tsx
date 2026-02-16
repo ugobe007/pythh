@@ -276,7 +276,7 @@ export default function DiagnosticPage() {
                 ⚙️ Operations
               </button>
               <button
-                onClick={() => navigate('/admin/ml-dashboard')}
+                onClick={() => navigate('/admin/ai-intelligence')}
                 className="py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-cyan-500/30"
               >
                 🤖 ML Dashboard

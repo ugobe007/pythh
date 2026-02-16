@@ -14,10 +14,12 @@ export function AdminRouteWrapper() {
     const path = location.pathname.split('/').pop() || 'control';
     const pageNames: Record<string, string> = {
       'control': 'Control Center',
+      'actions': 'Quick Actions',
       'pipeline': 'Pipeline Monitor',
       'health': 'System Health',
       'analytics': 'Analytics',
       'review': 'Review Queue',
+      'review-queue': 'Review Queue',
       'discovered-startups': 'RSS Discoveries',
       'discovered-investors': 'Investors',
       'rss-manager': 'RSS Manager',

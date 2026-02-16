@@ -294,12 +294,30 @@ function validateEntityQuality(entity: string): boolean {
   // CRITICAL: Reject lowercase-starting names (headline fragments)
   if (/^[a-z]/.test(entity)) return false;
   
-  // Tier 2: Expanded stoplist (includes possessives, pronouns, prepositions)
+  // Tier 2: Expanded stoplist (includes possessives, pronouns, prepositions, common garbage)
   const stopList = [
     'It', 'How', 'Why', 'What', 'When', 'Where', 'The', 'A', 'An',
     'Your', 'My', 'Our', 'Their', 'His', 'Her',
     'You', 'We', 'They', 'Us', 'Them',
     'For', 'To', 'With', 'At', 'In', 'On',
+    // Garbage names observed in production RSS feeds
+    'JSON', 'HTML', 'CSS', 'XML', 'YAML', 'SQL', 'API', 'REST', 'RBAC',
+    'Image', 'Fixing', 'Locate', 'Local', 'Markdown', 'Code',
+    'Launch', 'Inside', 'Using', 'Building', 'Making', 'Creating',
+    'Getting', 'Setting', 'Running', 'Testing', 'Deploying',
+    'New', 'Old', 'Best', 'Top', 'First', 'Last', 'Next', 'Every',
+    'Entire', 'Simple', 'Basic', 'Advanced', 'Quick', 'Full',
+    'After', 'Before', 'During', 'Until', 'Since', 'About',
+    // Common English words that pass TitleCase extraction but aren't companies
+    'General', 'Move', 'Transition', 'Avoid', 'Think', 'Grow',
+    'Learn', 'Start', 'Stop', 'Try', 'Keep', 'Find', 'Help',
+    'Open', 'Close', 'Save', 'Share', 'Watch', 'Meet', 'Join',
+    'Most', 'More', 'Less', 'Much', 'Many', 'Some', 'Any', 'All',
+    'Way', 'End', 'Part', 'Real', 'True', 'False', 'None',
+    'Worst', 'Newest', 'Biggest', 'Smallest', 'Latest', 'Oldest',
+    // More single-word false positives from RSS
+    'Shop', 'Work', 'Play', 'Live', 'Show', 'Talk', 'Deal', 'Plan',
+    'View', 'Pick', 'List', 'Guide', 'Review', 'Report', 'Update',
   ];
   if (stopList.some(stop => entity.toLowerCase() === stop.toLowerCase())) {
     return false;
@@ -325,7 +343,14 @@ function validateEntityQuality(entity: string): boolean {
     'MIT Researchers', 'Stanford Researchers', 'Former USDS Leaders',
     'Indian Startups', 'Big VCs', 'SMEs',
     // Real-world patterns from RSS feeds
-    'Show', 'Show HN', 'How To', 'Humans',
+    'Show', 'Show HN', 'Launch HN', 'Ask HN', 'Tell HN', 'How To', 'Humans',
+    // Established tech companies (not startups)
+    'Google Chrome', 'GitHub CEO', 'Google CEO', 'Apple CEO',
+    'Microsoft CEO', 'Amazon CEO', 'Meta CEO',
+    // Common false positives from RSS
+    'New Era', 'Secret Backdoor', 'Solar Cells', 'Cron Translator',
+    'The Power', 'React Refs', 'Codex App', 'How Can You',
+    'Kubernetes API', 'Markdown Projects',
     // Geographic adjectives (standalone)
     'Finnish', 'Japanese', 'Chinese', 'American', 'British', 'European',
     'Korean', 'Israeli', 'Canadian', 'German', 'French',
@@ -339,12 +364,32 @@ function validateEntityQuality(entity: string): boolean {
     'Africa', 'Asia', 'Europe', 'America', 'Australia',
     'USA', 'UK', 'India', 'China', 'Japan', 'Germany', 'France', 'Brazil',
     'Silicon Valley', 'Bay Area', 'New York', 'London', 'Berlin', 'Washington',
+    // Nationality/regional adjectives (standalone, not company names)
+    'African', 'Asian', 'European', 'American', 'Australian',
+    'Moroccan', 'Ethiopian', 'Nigerian', 'Kenyan', 'South African',
+    'Latin', 'Central', 'Caribbean', 'Nordic', 'Scandinavian',
+    'Middle Eastern', 'Southeast Asian',
   ];
   if (places.some(place => entity.toLowerCase() === place.toLowerCase())) {
     return false;
   }
   
+  // Block "Backed AI Startup X" or "AI Startup X" patterns (compound headline fragments)
+  if (/^(Backed|Chinese|Indian|Top|Leading|Global|Major|Biggest)\s+(AI|ML|Tech|Cloud)\s+(Startup|Company|Firm)/i.test(entity)) {
+    return false;
+  }
+  
+  // Block "X AI Startup Y" patterns where entity is the full headline fragment
+  if (/\b(AI|ML)\s+(Startup|Company|Firm)\s+/i.test(entity) && entity.split(/\s+/).length > 3) {
+    return false;
+  }
+  
   // Tier 2: Real-world RSS patterns
+  // Block country/region + generic tech term patterns ("US AI", "EU Tech", "UK Fintech")
+  if (/^(US|EU|UK|UAE|APAC|EMEA|LATAM|MENA)\s+(AI|Tech|Fintech|Startup|Cloud|Crypto|SaaS)$/i.test(entity)) {
+    return false;
+  }
+  
   // Block "Startup X" or "Company X" patterns
   if (/^(Startup|Company|Firm)\s+/i.test(entity)) {
     return false; // "Startup Amissa" → should extract "Amissa" only
@@ -374,6 +419,16 @@ function validateEntityQuality(entity: string): boolean {
   // Block "X Funding" or "X Round" patterns (compound financing terms)
   if (/\b(funding|investment|round|capital)\b$/i.test(entity) && entity.split(/\s+/).length > 1) {
     return false; // "Series A Funding" → reject, "Seed Round" → reject
+  }
+  
+  // Block "Million Series X" patterns (funding amounts as entity names)
+  if (/\b(Million|Billion|Thousand)\s+(Series|Round|Seed|Pre-Seed)/i.test(entity)) {
+    return false;
+  }
+  
+  // Block "X As Y" patterns (sentence fragments)
+  if (/\bAs\s*$/i.test(entity) && entity.split(/\s+/).length >= 2) {
+    return false; // "Office As", "Role As"
   }
   
   // Block descriptive industry patterns (adjective + industry term + business term)
@@ -432,6 +487,8 @@ function validateEntityQuality(entity: string): boolean {
     'Jensen Huang', 'Satya Nadella', 'Tim Cook', 'Mark Zuckerberg', 'Jeff Bezos',
     'Bill Gates', 'Steve Jobs', 'Sundar Pichai', 'Jack Dorsey', 'Brian Chesky',
     'Travis Kalanick', 'Adam Neumann', 'Elizabeth Holmes', 'Do Kwon', 'SBF',
+    'Adam Mosseri', 'Andy Jassy', 'Dara Khosrowshahi', 'Susan Wojcicki',
+    'Kevin Systrom', 'Evan Spiegel', 'Bobby Kotick', 'Garry Tan',
   ];
   if (famousPersons.some(p => entity.toLowerCase() === p.toLowerCase())) {
     return false;
@@ -450,11 +507,12 @@ function validateEntityQuality(entity: string): boolean {
   
   // Block common headline verb patterns
   const verbPatterns = [
-    /^.*\b(Emerges|Launches|Raises|Files|Wins|Leads|Gets|Takes|Leave|Leaves|Says|Tells|Wants|Deepens)\s*$/i,
+    /^.*\b(Emerges|Launches|Raises|Files|Wins|Leads|Gets|Takes|Leave|Leaves|Says|Tells|Wants|Deepens|Closes|Opens|Secures|Unveils|Reveals)\s*$/i,
     /^(CEOs?|CFOs?|CTOs?|Directors?)\s+/i,  // "CEO X", "Directors Leave"
     /^(Best|Top|Busy|One-time|Focus on)\s+/i,  // Listicle/adjective starts
     /^(Troubles|Agenda|Windows Mac)\b/i,  // Specific garbage
     /^(Virtual|Digital|Online|Remote|Mobile|Cloud)\s+[A-Z][a-z]+$/i, // "Virtual Psychiatry" (adj + noun fragment)
+    /\b(Unwittingly|Accidentally|Reportedly|Allegedly|Supposedly)\s*$/i, // adverb endings
   ];
   if (verbPatterns.some(p => p.test(entity))) {
     return false;
@@ -467,6 +525,10 @@ function validateEntityQuality(entity: string): boolean {
     'Solutions', 'Platform', 'Marketplace', 'Analytics', 'Intelligence', 'Systems',
     'Computing', 'Engineering', 'Development', 'Management', 'Consulting',
     'Virtual', 'Digital', 'Online', 'Remote', 'Mobile', 'Cloud', 'AI', 'Tech', // Single adjectives
+    // Programming/tech terms that appear as garbage entity names
+    'Tutorial', 'Example', 'Demo', 'Benchmark', 'Config', 'Plugin',
+    'Extension', 'Module', 'Package', 'Library', 'Framework', 'Runtime',
+    'Compiler', 'Parser', 'Debugger', 'Profiler', 'Linter', 'Formatter',
   ];
   // Note: "Compression" removed - can be part of legit names like "The Compression Company"
   if (businessDescriptors.some(desc => entity.toLowerCase() === desc.toLowerCase())) {
@@ -490,8 +552,27 @@ function validateEntityQuality(entity: string): boolean {
   }
   
   // Tier 2: Long statements (likely descriptions, not names)
-  if (entity.split(' ').length > 6) {
-    return false; // "Business Means Protecting Your Data"
+  if (entity.split(' ').length > 4) {
+    return false; // Real startups rarely have 5+ word names
+  }
+  
+  // Block "The X Y Z" patterns (4 words starting with "The" = headline fragments)
+  if (/^The\s+/i.test(entity) && entity.split(' ').length >= 3) {
+    // Allow "The Browser Company" but block "The Worst Michelin Meal"
+    if (!/\b(company|labs?|studio|works|group|inc|co)\b/i.test(entity)) {
+      return false;
+    }
+  }
+  
+  // Block "Avoid When", "Newest General" and similar two-word combos that are clearly not companies
+  if (entity.split(' ').length === 2) {
+    const [w1, w2] = entity.split(' ');
+    const junkFirstWords = ['Avoid', 'Newest', 'Biggest', 'Latest', 'Current', 'Possible', 'Real', 'Better', 'Worse', 'Same'];
+    const junkSecondWords = ['When', 'Where', 'Ever', 'Enough', 'Possible', 'Wrong', 'Right'];
+    if (junkFirstWords.some(w => w.toLowerCase() === w1.toLowerCase()) ||
+        junkSecondWords.some(w => w.toLowerCase() === w2.toLowerCase())) {
+      return false;
+    }
   }
   
   // Ontology whitelist (AFTER generic/place filtering): only accept STARTUP/INVESTOR types
@@ -1559,14 +1640,21 @@ export function toCapitalEvent(
       decision: isTopicHeadline(title) && entities.length === 0 ? "REJECT" : "ACCEPT",
       
       // graph_safe = true ONLY when safe to create entity edges
-      // validateEntityQuality moved HERE (from entity extraction)
+      // TIERED confidence: funding/acquisition/launch events get lower threshold
+      // because they're inherently startup-relevant even at moderate confidence
       graph_safe: (
         finalEventType !== "FILTERED" &&
-        finalConfidence >= 0.7 &&
         entities.length > 0 &&
         (
-          entities.some(e => isOntologyKnown(e.name)) ||
-          entities.some(e => validateEntityQuality(e.name))
+          // Tier 1: Ontology-known entities always pass (with any confidence > 0)
+          (entities.some(e => isOntologyKnown(e.name)) && finalConfidence > 0) ||
+          // Tier 2: High-signal event types (FUNDING, ACQUISITION, LAUNCH, PARTNERSHIP) need conf >= 0.4
+          (["FUNDING", "ACQUISITION", "LAUNCH", "PARTNERSHIP", "IPO_FILING", "PRODUCT_LAUNCH"].includes(finalEventType) &&
+            finalConfidence >= 0.4 &&
+            entities.some(e => validateEntityQuality(e.name))) ||
+          // Tier 3: OTHER events need conf >= 0.6 and entity quality (was 0.7)
+          (finalConfidence >= 0.6 &&
+            entities.some(e => validateEntityQuality(e.name)))
         )
       ),
       reject_reason: isTopicHeadline(title) && entities.length === 0 ? filteredReason || "topic_headline" : undefined,

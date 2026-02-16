@@ -92,24 +92,47 @@ export default function SystemHealthDashboard() {
         .select('*', { count: 'exact', head: true })
         .not('embedding', 'is', null);
       
-      // Get match stats
-      const { count: totalMatches } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true });
+      // Get match stats (with error handling for large table)
+      let totalMatches = 0;
+      let highQualityMatches = 0;
+      let avgMatchScore = 0;
       
-      const { count: highQualityMatches } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true })
-        .gte('match_score', 70);
-      
-      const { data: matchAvgData } = await supabase
-        .from('startup_investor_matches')
-        .select('match_score')
-        .limit(1000);
-      
-      const avgMatchScore = matchAvgData && matchAvgData.length > 0
-        ? matchAvgData.reduce((acc, m) => acc + (m.match_score || 0), 0) / matchAvgData.length
-        : 0;
+      try {
+        const { count: matchCount, error: matchError } = await supabase
+          .from('startup_investor_matches')
+          .select('*', { count: 'exact', head: true });
+        
+        if (!matchError) {
+          totalMatches = matchCount || 0;
+          
+          const { count: hqCount } = await supabase
+            .from('startup_investor_matches')
+            .select('*', { count: 'exact', head: true })
+            .gte('match_score', 70);
+          
+          highQualityMatches = hqCount || 0;
+          
+          const { data: matchAvgData } = await supabase
+            .from('startup_investor_matches')
+            .select('match_score')
+            .limit(500); // Reduced from 1000
+          
+          avgMatchScore = matchAvgData && matchAvgData.length > 0
+            ? matchAvgData.reduce((acc, m) => acc + (m.match_score || 0), 0) / matchAvgData.length
+            : 0;
+        } else {
+          console.warn('Match query error:', matchError);
+          // Use fallback values
+          totalMatches = 0;
+          highQualityMatches = 0;
+          avgMatchScore = 0;
+        }
+      } catch (matchQueryError) {
+        console.error('Match stats failed, using fallback values:', matchQueryError);
+        totalMatches = 0;
+        highQualityMatches = 0;
+        avgMatchScore = 0;
+      }
       
       // Get recent discoveries
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -131,10 +154,17 @@ export default function SystemHealthDashboard() {
         .select('*', { count: 'exact', head: true })
         .gte('created_at', oneDayAgo);
 
-      const { count: matches24h } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
+      let matches24h = 0;
+      try {
+        const { count: matchCount } = await supabase
+          .from('startup_investor_matches')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', oneDayAgo);
+        matches24h = matchCount || 0;
+      } catch (e) {
+        console.warn('24h match count failed:', e);
+        matches24h = 0;
+      }
 
       // 7-day GOD score data for delta calculation
       const { data: god7dData } = await supabase
@@ -148,27 +178,45 @@ export default function SystemHealthDashboard() {
         ? god7dData.reduce((acc, s) => acc + (s.total_god_score || 0), 0) / god7dData.length
         : avgGodScore;
 
-      // 7-day match data for delta calculation
-      const { data: match7dData } = await supabase
-        .from('startup_investor_matches')
-        .select('match_score')
-        .lte('created_at', sevenDaysAgo)
-        .limit(1000);
+      // 7-day match data for delta calculation (with error handling)
+      let avgMatch7dAgo = avgMatchScore;
+      try {
+        const { data: match7dData } = await supabase
+          .from('startup_investor_matches')
+          .select('match_score')
+          .lte('created_at', sevenDaysAgo)
+          .limit(500); // Reduced from 1000
+        
+        avgMatch7dAgo = match7dData && match7dData.length > 0
+          ? match7dData.reduce((acc, m) => acc + (m.match_score || 0), 0) / match7dData.length
+          : avgMatchScore;
+      } catch (e) {
+        console.warn('7-day match data failed:', e);
+        avgMatch7dAgo = avgMatchScore;
+      }
 
-      const avgMatch7dAgo = match7dData && match7dData.length > 0
-        ? match7dData.reduce((acc, m) => acc + (m.match_score || 0), 0) / match7dData.length
-        : avgMatchScore;
+      // 7-day historical match counts with error handling
+      let totalMatches7d = totalMatches;
+      let highQualityMatches7d = highQualityMatches;
+      
+      try {
+        const { count: tm7d } = await supabase
+          .from('startup_investor_matches')
+          .select('*', { count: 'exact', head: true })
+          .lte('created_at', sevenDaysAgo);
+        totalMatches7d = tm7d || totalMatches;
 
-      const { count: totalMatches7d } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true })
-        .lte('created_at', sevenDaysAgo);
-
-      const { count: highQualityMatches7d } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true })
-        .gte('match_score', 70)
-        .lte('created_at', sevenDaysAgo);
+        const { count: hq7d } = await supabase
+          .from('startup_investor_matches')
+          .select('*', { count: 'exact', head: true })
+          .gte('match_score', 70)
+          .lte('created_at', sevenDaysAgo);
+        highQualityMatches7d = hq7d || highQualityMatches;
+      } catch (e) {
+        console.warn('7-day historical match counts failed:', e);
+        totalMatches7d = totalMatches;
+        highQualityMatches7d = highQualityMatches;
+      }
 
       const hqRate7dAgo = (totalMatches7d || 1) > 0 
         ? ((highQualityMatches7d || 0) / (totalMatches7d || 1)) * 100 
@@ -536,7 +584,7 @@ export default function SystemHealthDashboard() {
           </div>
         </Link>
         
-        <Link to="/admin/pipeline" className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 hover:from-slate-700/50 hover:to-slate-800/50 border border-cyan-500/30 rounded-xl p-4 transition-all group">
+        <Link to="/admin" className="bg-gradient-to-br from-slate-800/40 to-slate-900/40 hover:from-slate-700/50 hover:to-slate-800/50 border border-cyan-500/30 rounded-xl p-4 transition-all group">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-blue-400">
               <Zap size={18} />
@@ -586,11 +634,11 @@ export default function SystemHealthDashboard() {
         {checks.map((check, i) => {
           // Map check names to their relevant admin pages
           const checkLinks: Record<string, string> = {
-            'Startup Pipeline': '/admin/review',
-            'Match Quality': '/admin/pipeline',
+            'Startup Pipeline': '/admin/edit-startups',
+            'Match Quality': '/admin',
             'GOD Score Health': '/admin/god-scores',
             'Data Freshness': '/admin/discovered-startups',
-            'ML Pipeline': '/admin/ml-dashboard',
+            'ML Pipeline': '/admin/ai-intelligence',
           };
           const linkPath = checkLinks[check.name] || '/admin/control';
           
@@ -727,7 +775,7 @@ export default function SystemHealthDashboard() {
         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
         <div className="flex flex-wrap gap-3">
           <Link 
-            to="/admin/review"
+            to="/admin/edit-startups"
             className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg shadow-cyan-900/30"
           >
             📋 Review Queue ({stats?.startups.pending})
@@ -745,10 +793,10 @@ export default function SystemHealthDashboard() {
             📡 RSS Sources
           </Link>
           <Link 
-            to="/admin/pipeline"
+            to="/admin/control"
             className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg shadow-cyan-900/30"
           >
-            ⚡ Pipeline Monitor
+            ⚙️  Control Center
           </Link>
           <Link 
             to="/admin/ai-logs"

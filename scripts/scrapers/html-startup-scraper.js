@@ -647,8 +647,93 @@ async function fetchHtml(url) {
 
 async function saveStartup(startup) {
   try {
+    // BASIC HEADLINE/PERSON GUARD: avoid saving obvious article subjects as startups
+    if (!startup.name || typeof startup.name !== 'string') {
+      return { status: 'skipped', reason: 'missing_name' };
+    }
+
+    const lowerName = startup.name.toLowerCase();
+    const headlinePatterns = [
+      /\bceo\b/,
+      /\bchief\b/,
+      /\bfounder\b/,
+      /\bco-founder\b/,
+      /\bcofounder\b/,
+      /\bchairman\b/,
+      /\bpresident\b/,
+      /\bvp\b/,
+      /\bminister\b/,
+      /\bgov\.?\b/,
+      /\bsecretary\b/,
+      /\bboard\b/,
+      /\bexecutive\b/,
+      /\bpartner at\b/,
+      /\breport\b/,
+      /\bnews\b/,
+      /\bheadline\b/,
+      /\binterview\b/,
+      /\bq&a\b/,
+      /\bprofile\b/,
+      /\broundup\b/,
+      /\bpanel\b/,
+      /\bround table\b/,
+      /\bwill discuss\b/,
+      /\bwe spoke with\b/,
+      /\bconversation with\b/,
+      /\bjoins us\b/,
+      /\bcomments on\b/,
+      /\bexplains\b/,
+      /\bwarns\b/,
+      /\bsays\b/,
+      /\bsaid\b/,
+      /\bhow to\b/,
+      /\b5 things\b/,
+      /\bwhat we learned\b/,
+    ];
+
+    const looksLikePersonOrHeadline =
+      /\b\w+'s\b/.test(startup.name) ||
+      /\bmr\.?\b|\bms\.?\b|\bmrs\.?\b|\bdr\.?\b/.test(lowerName) ||
+      headlinePatterns.some((re) => re.test(lowerName));
+
+    if (looksLikePersonOrHeadline) {
+      try {
+        await supabase
+          .from('ai_logs')
+          .insert({
+            log_type: 'scraper_skip',
+            message: 'Skipped startup due to headline/person-like name',
+            metadata: {
+              reason: 'headline_or_person_name',
+              name: startup.name,
+              website: startup.website || null,
+              source_url: startup.sourceUrl || null,
+            },
+          });
+      } catch {
+        // best-effort only
+      }
+      return { status: 'skipped', reason: 'headline_or_person_name' };
+    }
+
     // ONTOLOGY VALIDATION: Skip generic/junk names
     if (isGenericTerm(startup.name)) {
+      try {
+        await supabase
+          .from('ai_logs')
+          .insert({
+            log_type: 'scraper_skip',
+            message: 'Skipped startup due to generic/junk name',
+            metadata: {
+              reason: 'generic_name',
+              name: startup.name,
+              website: startup.website || null,
+              source_url: startup.sourceUrl || null,
+            },
+          });
+      } catch {
+        // best-effort only
+      }
       return { status: 'skipped', reason: 'generic_name' };
     }
     

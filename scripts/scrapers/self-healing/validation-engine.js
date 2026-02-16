@@ -47,6 +47,54 @@ function validateParsedData(data, expectedFields = {}) {
     if (data.name.length > 200) {
       warnings.push('Name is too long');
     }
+
+    const lowerName = data.name.toLowerCase();
+    const headlineLikePatterns = [
+      /\bceo\b/,
+      /\bchief\b/,
+      /\bfounder\b/,
+      /\bco-founder\b/,
+      /\bcofounder\b/,
+      /\bchairman\b/,
+      /\bpresident\b/,
+      /\bvp\b/,
+      /\bminister\b/,
+      /\bgov\.?\b/,
+      /\bsecretary\b/,
+      /\bboard\b/,
+      /\bexecutive\b/,
+      /\bpartner at\b/,
+      /\bfrom\b .*\bventures\b/,
+      /\bwarns\b/,
+      /\bsays\b/,
+      /\bsaid\b/,
+      /\bour take\b/,
+      /\binterview\b/,
+      /\bprofile\b/,
+      /\bq&a\b/,
+      /\bwhat we learned\b/,
+      /\b5 things\b/,
+      /\bhow to\b/,
+      /\bwhy we\b/,
+      /\bexplains\b/,
+      /\bcomments on\b/,
+      /\bwe spoke with\b/,
+      /\bin conversation with\b/,
+      /\binterview with\b/,
+      /\bjoins us\b/,
+      /\ba conversation with\b/,
+      /\broundtable\b/,
+      /\bpanel\b/, 
+    ];
+
+    const looksLikeHeadlineSubject =
+      /\b\w+'s\b/.test(data.name) || // possessive: "Nvidia's Huang"
+      /\bmr\.?\b|\bms\.?\b|\bmrs\.?\b|\bdr\.?\b/.test(lowerName) ||
+      headlineLikePatterns.some((re) => re.test(lowerName));
+
+    if (looksLikeHeadlineSubject) {
+      warnings.push('Name looks like a person or article headline, not a startup');
+    }
   }
 
   if (data.description) {

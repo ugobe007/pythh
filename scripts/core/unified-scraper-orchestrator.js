@@ -27,10 +27,18 @@ const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+// Optional Supabase client for logging orchestrator runs
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  } catch (error) {
+    supabase = null;
+  }
+}
 
 // ============================================================================
 // CONFIGURATION
@@ -209,6 +217,25 @@ const state = {
     errors: [],
   },
 };
+
+function logOrchestratorEvent(status, message, metadata = {}) {
+  if (!supabase) return;
+  try {
+    supabase
+      .from('ai_logs')
+      .insert({
+        log_type: 'scraper_run',
+        message,
+        metadata: {
+          status,
+          ...metadata,
+        },
+      })
+      .catch(() => {});
+  } catch {
+    // best-effort only
+  }
+}
 
 // ============================================================================
 // LOGGING
@@ -574,27 +601,50 @@ async function runFullPipeline(skipDiscovery = false) {
       state.lastRun.validation = new Date();
     }
     
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const durationSeconds = ((Date.now() - startTime) / 1000);
+    const duration = durationSeconds.toFixed(1);
     log('success', `Pipeline complete in ${duration}s`);
     
-    // Get stats
-    const [startups, investors, matches, discovered] = await Promise.all([
-      supabase.from('startup_uploads').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-      supabase.from('investors').select('id', { count: 'exact', head: true }),
-      supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }),
-      supabase.from('discovered_startups').select('id', { count: 'exact', head: true }),
-    ]);
+    let statsSummary = null;
+    if (supabase) {
+      try {
+        const [startups, investors, matches, discovered] = await Promise.all([
+          supabase.from('startup_uploads').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+          supabase.from('investors').select('id', { count: 'exact', head: true }),
+          supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }),
+          supabase.from('discovered_startups').select('id', { count: 'exact', head: true }),
+        ]);
+
+        statsSummary = {
+          startups: startups.count || 0,
+          investors: investors.count || 0,
+          matches: matches.count || 0,
+          discovered: discovered.count || 0,
+          jobsCompleted: state.stats.jobsCompleted,
+          jobsFailed: state.stats.jobsFailed,
+          duration_seconds: durationSeconds,
+        };
+        
+        log('info', 'System Stats', statsSummary);
+      } catch (e) {
+        log('warn', 'Could not fetch system stats for orchestrator logging', { error: e.message });
+      }
+    }
     
-    log('info', 'System Stats', {
-      startups: startups.count || 0,
-      investors: investors.count || 0,
-      matches: matches.count || 0,
-      discovered: discovered.count || 0,
+    logOrchestratorEvent('success', 'Unified scraper orchestrator pipeline completed', statsSummary || {
+      jobsCompleted: state.stats.jobsCompleted,
+      jobsFailed: state.stats.jobsFailed,
+      duration_seconds: durationSeconds,
     });
     
     return true;
   } catch (error) {
     log('error', `Pipeline error: ${error.message}`);
+    logOrchestratorEvent('error', 'Unified scraper orchestrator pipeline failed', {
+      error: error.message,
+      jobsCompleted: state.stats.jobsCompleted,
+      jobsFailed: state.stats.jobsFailed,
+    });
     return false;
   }
 }

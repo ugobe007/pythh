@@ -12,6 +12,7 @@
 
 require('dotenv').config();
 const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
 const { MultiStrategyParser } = require('./parsers/multi-strategy-parser');
 const { FailureDetector } = require('./self-healing/failure-detector');
 const { AutoRecovery } = require('./self-healing/auto-recovery');
@@ -19,6 +20,35 @@ const { AntiBotBypass } = require('./anti-bot/bypass-engine');
 const { RateLimiter } = require('./utils/rate-limiter');
 const { RetryHandler } = require('./utils/retry-handler');
 const { validateParsedData, isDataQualityAcceptable } = require('./self-healing/validation-engine');
+
+// Optional Supabase client for logging self-healing metrics
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  try {
+    supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  } catch (error) {
+    supabase = null;
+  }
+}
+
+function logSelfHealingEvent(log_type, message, metadata = {}) {
+  if (!supabase) return;
+  try {
+    supabase
+      .from('ai_logs')
+      .insert({
+        log_type,
+        message,
+        metadata,
+      })
+      .catch(() => {});
+  } catch (error) {
+    // Best-effort logging only
+  }
+}
 
 /**
  * World-Class Scraper
@@ -66,6 +96,14 @@ class WorldClassScraper {
           console.log(`✅ Success! Parsed with ${parseResult.strategy} strategy`);
           console.log(`📊 Quality Score: ${validation.score}/100`);
           
+          logSelfHealingEvent('scraper_success', `Scrape successful via ${parseResult.strategy || 'unknown'} strategy`, {
+            url,
+            domain,
+            dataType,
+            strategy: parseResult.strategy,
+            quality_score: validation.score,
+          });
+          
           return {
             success: true,
             data: parseResult.data,
@@ -75,6 +113,15 @@ class WorldClassScraper {
         } else {
           console.log(`⚠️  Data quality too low: ${validation.score}/100`);
           console.log(`Errors: ${validation.errors.join(', ')}`);
+          
+          logSelfHealingEvent('scraper_low_quality', 'Parsed data below quality threshold', {
+            url,
+            domain,
+            dataType,
+            strategy: parseResult.strategy,
+            quality_score: validation.score,
+            errors: validation.errors,
+          });
           
           // Try self-healing
           return await this.attemptSelfHealing(url, html, domain, dataType, expectedFields, validation);
@@ -91,6 +138,17 @@ class WorldClassScraper {
           parseResult.strategiesAttempted?.[0],
           null
         );
+        
+        logSelfHealingEvent('scraper_failure', `Parsing failed for ${dataType}`, {
+          url,
+          domain,
+          dataType,
+          error: parseResult.error,
+          errorType: analysis.errorType,
+          recoverable: this.failureDetector.isRecoverable(analysis),
+          recommendations: analysis.recommendations,
+          strategy: parseResult.strategy || (parseResult.strategiesAttempted && parseResult.strategiesAttempted[0]) || null,
+        });
         
         // Check if error is recoverable
         const isRecoverable = this.failureDetector.isRecoverable(analysis);
@@ -110,6 +168,16 @@ class WorldClassScraper {
           if (recovery.recovered) {
             console.log(`✅ Auto-recovery successful with: ${recovery.strategy}`);
             
+            logSelfHealingEvent('scraper_recovery', `Auto-recovery successful via ${recovery.strategy}`, {
+              url,
+              domain,
+              dataType,
+              errorType: analysis.errorType,
+              recoveryStrategy: recovery.strategy,
+              newSelectors: recovery.newSelectors ? Object.keys(recovery.newSelectors).length : 0,
+              recovered: true,
+            });
+            
             // Validate recovered data
             const validation = validateParsedData(recovery.data, expectedFields);
             
@@ -126,6 +194,15 @@ class WorldClassScraper {
           if (!isRecoverable) {
             console.log(`\n⚠️  Error is not recoverable: ${analysis.errorType}`);
             console.log(`   Reason: ${analysis.recommendations[0]?.reason || 'Unknown'}`);
+            
+            logSelfHealingEvent('scraper_non_recoverable', 'Non-recoverable scraping error encountered', {
+              url,
+              domain,
+              dataType,
+              error: parseResult.error,
+              errorType: analysis.errorType,
+              recommendations: analysis.recommendations,
+            });
           }
         }
         
@@ -148,6 +225,16 @@ class WorldClassScraper {
         null,
         null
       );
+      
+      logSelfHealingEvent('scraper_failure', `Scraping error for ${dataType}`, {
+        url,
+        domain: new URL(url).hostname,
+        dataType,
+        error: error.message,
+        errorType: analysis.errorType,
+        recoverable: this.failureDetector.isRecoverable(analysis),
+        recommendations: analysis.recommendations,
+      });
       
       return {
         success: false,

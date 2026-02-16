@@ -125,11 +125,11 @@ export default function DiscoveredInvestors() {
             <span className="text-gray-600">|</span>
             <Link to="/admin/control" className="text-gray-400 hover:text-white transition-all">⚙️ Control Center</Link>
             <span className="text-gray-600">|</span>
-            <Link to="/bulkupload" className="text-gray-400 hover:text-white transition-all">📤 Bulk Upload</Link>
+            <Link to="/admin/bulk-upload" className="text-gray-400 hover:text-white transition-all">📤 Bulk Upload</Link>
             <span className="text-gray-600">|</span>
             <Link to="/admin/discovered-startups" className="text-gray-400 hover:text-white transition-all">🚀 Startups</Link>
             <span className="text-gray-600">|</span>
-            <Link to="/vote" className="text-cyan-400 hover:text-cyan-300 transition-all font-bold">⚡ Match</Link>
+            <Link to="/matches" className="text-cyan-400 hover:text-cyan-300 transition-all font-bold">⚡ Match</Link>
           </div>
         </div>
 
@@ -324,7 +324,7 @@ export default function DiscoveredInvestors() {
               <div className="text-white font-medium">RSS Manager</div>
               <div className="text-gray-400 text-sm">Configure Feeds</div>
             </Link>
-            <Link to="/vote" className="p-4 bg-green-500/20 hover:bg-green-500/30 rounded-xl text-center transition-all">
+            <Link to="/matches" className="p-4 bg-green-500/20 hover:bg-green-500/30 rounded-xl text-center transition-all">
               <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
               <div className="text-white font-medium">Matching</div>
               <div className="text-gray-400 text-sm">Vote on Matches</div>

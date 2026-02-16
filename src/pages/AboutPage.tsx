@@ -7,25 +7,16 @@
  */
 
 import { Link } from "react-router-dom";
+import PythhUnifiedNav from "../components/PythhUnifiedNav";
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* ── Nav ── */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-        <Link to="/" className="text-lg font-semibold tracking-tight text-white hover:text-cyan-400 transition-colors">
-          pythh.ai
-        </Link>
-        <div className="flex items-center gap-6 text-sm text-zinc-400">
-          <Link to="/how-it-works" className="hover:text-white transition-colors">How It Works</Link>
-          <Link to="/signals" className="hover:text-white transition-colors">Signals</Link>
-          <Link to="/explore" className="hover:text-white transition-colors">Explore</Link>
-        </div>
-      </nav>
+      <PythhUnifiedNav />
 
       {/* ── Hero: Pythia + Headline ── */}
-      <section className="max-w-5xl mx-auto px-6 pt-20 pb-16">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-12">
+      <section className="max-w-5xl mx-auto px-6 pt-16 pb-10">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
           {/* Pythia — outline only, no background, no circle, no button */}
           <div className="flex-shrink-0">
             <img
@@ -54,9 +45,9 @@ export default function AboutPage() {
 
       {/* ── The Connection ── */}
       <section className="border-t border-white/5">
-        <div className="max-w-3xl mx-auto px-6 py-20">
-          <h2 className="text-2xl font-semibold tracking-tight mb-8">Why Pythia?</h2>
-          <div className="space-y-6 text-zinc-400 leading-relaxed">
+        <div className="max-w-3xl mx-auto px-6 py-10">
+          <h2 className="text-2xl font-semibold tracking-tight mb-4">Why Pythia?</h2>
+          <div className="space-y-4 text-zinc-400 leading-relaxed">
             <p>
               Fundraising is the most consequential decision a founder makes. 
               Who you take money from shapes your company forever — the board you build, 
@@ -78,9 +69,9 @@ export default function AboutPage() {
 
       {/* ── What We Do ── */}
       <section className="border-t border-white/5 bg-zinc-950/50">
-        <div className="max-w-3xl mx-auto px-6 py-20">
-          <h2 className="text-2xl font-semibold tracking-tight mb-10">What pythh does</h2>
-          <div className="grid gap-8">
+        <div className="max-w-3xl mx-auto px-6 py-10">
+          <h2 className="text-2xl font-semibold tracking-tight mb-6">What pythh does</h2>
+          <div className="grid gap-5">
             {[
               {
                 title: "Signal Intelligence",
@@ -110,9 +101,9 @@ export default function AboutPage() {
 
       {/* ── The Name ── */}
       <section className="border-t border-white/5">
-        <div className="max-w-3xl mx-auto px-6 py-20">
-          <h2 className="text-2xl font-semibold tracking-tight mb-8">The name</h2>
-          <div className="space-y-6 text-zinc-400 leading-relaxed">
+        <div className="max-w-3xl mx-auto px-6 py-10">
+          <h2 className="text-2xl font-semibold tracking-tight mb-4">The name</h2>
+          <div className="space-y-4 text-zinc-400 leading-relaxed">
             <p>
               <span className="text-white font-medium">pythh</span> — deliberately spelled 
               with the double-h — is our nod to Pythia while being something entirely new. 
@@ -132,7 +123,7 @@ export default function AboutPage() {
 
       {/* ── CTA ── */}
       <section className="border-t border-white/5 bg-zinc-950/50">
-        <div className="max-w-3xl mx-auto px-6 py-16 text-center">
+        <div className="max-w-3xl mx-auto px-6 py-10 text-center">
           <h2 className="text-2xl font-semibold tracking-tight mb-4">Ready to read the signals?</h2>
           <p className="text-zinc-400 mb-8">Submit your startup URL and see what the oracle sees.</p>
           <Link
@@ -146,7 +137,12 @@ export default function AboutPage() {
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/5 px-6 py-8 text-center text-xs text-zinc-600">
-        © {new Date().getFullYear()} pythh.ai — Signal science for founders.
+        <p>© {new Date().getFullYear()} pythh.ai — Signal science for founders.</p>
+        <div className="mt-2">
+          <Link to="/admin-login" className="text-zinc-700 hover:text-zinc-500 transition-colors">
+            admin
+          </Link>
+        </div>
       </footer>
     </div>
   );

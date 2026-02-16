@@ -301,7 +301,7 @@ export default function SignalMatches() {
               </div>
               <nav className="flex items-center gap-6 text-sm text-zinc-400">
                 <Link to="/signals" className="hover:text-white">Signals</Link>
-                <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
+                <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
                 <Link to="/how-it-works" className="hover:text-white">How it works</Link>
               </nav>
             </div>
@@ -343,7 +343,7 @@ export default function SignalMatches() {
               </div>
               <nav className="flex items-center gap-6 text-sm text-zinc-400">
                 <Link to="/signals" className="hover:text-white">Signals</Link>
-                <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
+                <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
                 <Link to="/how-it-works" className="hover:text-white">How it works</Link>
               </nav>
             </div>
@@ -426,7 +426,7 @@ export default function SignalMatches() {
             </div>
             <nav className="flex items-center gap-6 text-sm text-zinc-400">
               <Link to="/signals" className="hover:text-white">Signals</Link>
-              <Link to="/app/dashboard" className="hover:text-white">Dashboard</Link>
+              <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
               <Link to="/how-it-works" className="hover:text-white">How it works</Link>
               <span
                 onClick={handleRefresh}

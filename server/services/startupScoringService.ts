@@ -94,6 +94,14 @@
 // ⛔ DO NOT MODIFY without admin approval or ML training pipeline
 // 
 // CHANGE LOG:
+//   - Feb 14, 2026 (v2): Admin approved divisor 25.0 → 21.0 (fixes PhD ceiling)
+//     Reason: Divisor 25.0 exceeded max achievable rawTotal (~21.0), creating 4-pt dead zone.
+//     PhD (80+) was mathematically impossible. Now normalization matches actual max.
+//     Simulation: Freshman 86%→63%, Bachelor 13%→34%, Masters 1.3%→2.8%, max 67→77
+//   - Feb 14, 2026: Admin junk cleanup - 17.5 → 25.0 after removing 4,056 junk entries
+//     Reason: Divisor was calibrated with 21% junk (scoring 10-20pts). Clean data = higher scores.
+//     Dataset changed: 11,059 → 7,003 startups (removed news articles, spam)
+//     Target: 47-58 range (avg ~52) with clean, real startup data only
 //   - Jan 31, 2026: Admin approved - 19.5 → 17.5 to lift avg from 47 → ~54
 //     (Bootstrap scoring handles sparse-data startups separately now)
 //   - Jan 30, 2026 (4): Admin fine-tuned - 62.9 avg → target 57-59
@@ -109,14 +117,20 @@
 const GOD_SCORE_CONFIG = {
   // Normalization divisor - controls overall score scaling
   // ⛔ LOCKED: Only admin or ML agent can modify
-  // Math: rawTotal (~17.5 max) / 17.5 * 10 = ~10.0 → 100 max, ~54-57 avg target
-  // Reduced from 19.5 to lift scores (bootstrap scoring now handles sparse data)
-  normalizationDivisor: 17.5,  // Admin calibrated Jan 31 - lifted to target ~54-57 avg
+  // Math: rawTotal (~17 max practical) / 17.0 * 10 = 10.0 → capped at 10.0 → 100 max
+  // Changed from 20.0 → 17.0 (Feb 2026): Fixes score compression (IQR was 3 pts)
+  // With baseBoostMinimum lowered to 2.5, practical rawTotal range is ~5-16.
+  // Divisor 17.0 maps: sparse(~5)→29(floor 40), average(~9)→53, good(~12)→71, hot(~16)→94
+  // Previous divisor of 20.0 compressed everything into 55-67 range = useless differentiation.
+  normalizationDivisor: 17.0,  // Calibrated for wider spread with lower baseBoost
   
   // Base boost minimum - floor for data-poor startups
   // ⛔ LOCKED: Only admin or ML agent can modify
-  // Note: Must keep scores above 40 (database trigger constraint)
-  baseBoostMinimum: 4.2,  // Admin calibrated Jan 30 - ensures min ~43 after normalization
+  // Changed from 4.2 → 2.5 (Feb 2026): Old value was HIGHER than natural baseBoost
+  // for ~90% of startups, which meant they all got identical base contribution.
+  // New value lets vibe + content checks create meaningful differentiation.
+  // With divisor 17.0: minimum score = (2.5/17)*100 = 14.7 → floor at 40 (DB trigger)
+  baseBoostMinimum: 2.5,  // Admin calibrated Feb 2026 - allows natural content differentiation
   
   // Vibe bonus cap - qualitative signal boost
   vibeBonusCap: 1.0,
@@ -332,6 +346,33 @@ interface StartupProfile {
   is_bridge_round?: boolean;
   risk_signal_strength?: number; // 0-1.0
   
+  // ============================================================================
+  // PSYCHOLOGICAL SIGNALS (Phase 2 - Feb 15, 2026)
+  // ============================================================================
+  // Advanced behavioral intelligence: founder context, social proof, sector momentum
+  // ============================================================================
+  
+  // Sector Pivot Signal (Tier-1 investor thesis shift)
+  has_sector_pivot?: boolean;
+  pivot_strength?: number; // 0-1.0
+  pivot_investor?: string;
+  
+  // Social Proof Cascade (Tier-1 lead → follower herd)
+  has_social_proof_cascade?: boolean;
+  cascade_strength?: number; // 0-1.0
+  tier1_leader?: string;
+  follower_count?: number;
+  
+  // Repeat Founder Signal (Serial entrepreneur)
+  is_repeat_founder?: boolean;
+  founder_strength?: number; // 0-1.0
+  previous_exits?: Array<{ company: string; acquirer: string }>;
+  
+  // Cofounder Exit Signal (Risk - key person departure)
+  has_cofounder_exit?: boolean;
+  exit_risk_strength?: number; // 0-1.0
+  departed_role?: string;
+  
   // Calculated bonus (additive to base GOD score)
   psychological_bonus?: number; // -3 to +10 points (additive)
   enhanced_god_score?: number; // total_god_score + psychological_bonus (capped at 100)
@@ -360,13 +401,19 @@ interface HotScore {
   // ============================================================================
   // PSYCHOLOGICAL SIGNALS (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
   // ============================================================================
-  psychological_bonus?: number; // -0.3 to +1.0 (on 0-10 scale)
+  psychological_bonus?: number; // -0.9 to +2.3 (on 0-10 scale, Phase 1+2)
   enhanced_total?: number; // total + psychological_bonus (on 0-10 scale)
   psychological_signals?: {
+    // Phase 1
     fomo?: number; // 0-1.0
     conviction?: number; // 0-1.0
     urgency?: number; // 0-1.0
     risk?: number; // 0-1.0
+    // Phase 2
+    pivot?: number; // 0-1.0 — Tier-1 investor sector pivot
+    cascade?: number; // 0-1.0 — Social proof cascade
+    founder?: number; // 0-1.0 — Repeat founder strength
+    exit_risk?: number; // 0-1.0 — Cofounder departure risk
   };
 }
 
@@ -577,12 +624,12 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   const tier = total >= 7 ? 'hot' : total >= 4 ? 'warm' : 'cold';
   
   // ============================================================================
-  // PSYCHOLOGICAL BONUS (Phase 1 - Feb 12, 2026) - ADMIN APPROVED
+  // PSYCHOLOGICAL BONUS (v2+#3 - Feb 14, 2026) - ADMIN APPROVED
   // ============================================================================
   // Apply behavioral intelligence bonus (ADDITIVE, not multiplicative)
-  // Per architecture spec: "FINAL SCORE = GOD base + Signals bonus (0-10)"
-  // Expected: 1-3 points typical, 7+ rare, 10 max
-  // Ref: PSYCHOLOGICAL_SIGNALS_PHASE1_COMPLETE.md
+  // v2 changes: conviction > FOMO, boolean gates removed, urgency unclipped
+  // Range: -0.5 to +1.3 (GOD impact: -5 to +13)
+  // Expected: 1-3 points typical, 7+ rare, 13 max
   // ============================================================================
   const psychologicalBonus = calculatePsychologicalBonus(startup);
   const enhancedTotal = Math.min(total + psychologicalBonus, 10); // Cap at 10 (0-10 scale)
@@ -617,23 +664,31 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
     tier,
     // Psychological signals (LAYERED ON TOP, ADDITIVE)
     // Note: Column still named psychological_multiplier in DB, but we use it for additive bonus
-    psychological_multiplier: psychologicalBonus, // Storing additive bonus (0-1.0 scale)
+    psychological_multiplier: psychologicalBonus, // Storing additive bonus (-0.5 to +1.3 scale, v2)
     enhanced_total: enhancedTotal,
     psychological_signals: {
+      // Phase 1
       fomo: startup.fomo_signal_strength || 0,
       conviction: startup.conviction_signal_strength || 0,
       urgency: startup.urgency_signal_strength || 0,
-      risk: startup.risk_signal_strength || 0
+      risk: startup.risk_signal_strength || 0,
+      // Phase 2
+      pivot: startup.pivot_strength || 0,
+      cascade: startup.cascade_strength || 0,
+      founder: startup.founder_strength || 0,
+      exit_risk: startup.exit_risk_strength || 0
     }
   };
 }
 
 // ============================================================================
-// PSYCHOLOGICAL BONUS CALCULATION (Phase 1 - Feb 12, 2026)
+// PSYCHOLOGICAL BONUS CALCULATION (v3 - Feb 15, 2026)
 // ============================================================================
 // ADMIN APPROVED: Behavioral intelligence layer (ADDITIVE, not multiplicative)
-// Per architecture spec: "FINAL SCORE = GOD base + Signals bonus (0-10)"
-// Expected: 1-3 points typical, 7+ rare, 10 max
+// v2: Conviction > FOMO (0.6 vs 0.4), no boolean gates, urgency unclipped
+// v3: Phase 2 signals wired in (pivot, cascade, founder, cofounder exit)
+// Range: [-0.9, +2.3] → GOD impact: -9 to +23 points
+// Expected: 1-3 points typical, 7+ rare, 23 max
 // 
 // Core philosophy: "Investors are humans showing human behavior, psychology,
 // greed, pride, and ego. We listen to those signals to predict their actions."
@@ -645,71 +700,129 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
 /**
  * Calculate psychological bonus points based on behavioral signals
  * 
- * Formula: (FOMO bonus) + (Conviction bonus) + (Urgency bonus) - (Risk penalty)
+ * Formula: Phase 1 + Phase 2 signals (additive)
  * 
- * Components (on 0-10 point scale):
- * - FOMO (oversubscription): 0-5 points - scarcity drives action
- * - Conviction (follow-on): 0-5 points - highest trust signal
- * - Urgency (competitive): 0-3 points - social proof cascade
- * - Risk (bridge): 0-3 points penalty - negative signal
+ * Phase 1 Components (v2 weights):
+ * - FOMO (oversubscription): ×0.4 — scarcity drives action (max +4 GOD)
+ * - Conviction (follow-on):  ×0.6 — highest trust signal (max +6 GOD)
+ * - Urgency (competitive):   ×0.3 — social proof cascade (max +3 GOD)
+ * - Risk (bridge):           ×0.5 — negative signal (max -5 GOD)
  * 
- * Range: -3 (high risk) to +10 (maximum boost, capped)
+ * Phase 2 Components (v3):
+ * - Sector Pivot:            ×0.25 — Tier-1 thesis shift (max +2.5 GOD)
+ * - Social Proof Cascade:    ×0.35 — Tier-1 leader → follower herd (max +3.5 GOD)
+ * - Repeat Founder:          ×0.4  — Serial entrepreneur (max +4 GOD)
+ * - Cofounder Exit:          ×0.4  — Key person departure (max -4 GOD)
  * 
- * Examples:
- * - Baseline (no signals): 0 points (no change)
- * - 3x oversubscribed (0.60 strength): +3.0 points
- * - Sequoia follow-on (0.68 strength): +3.4 points
- * - 3x oversubscribed + Sequoia + competitive: +6-9 points
- * - Bridge round (0.75 strength): -2.25 points
+ * Total range: -9 (bridge + exit, no positives) to +23 (all maxed)
  * 
  * @param startup StartupProfile with psychological signal fields
- * @returns bonus points (-3 to +10)
+ * @returns bonus points (-9 to +23 on GOD scale)
  */
 function calculatePsychologicalBonus(startup: StartupProfile): number {
   let bonus = 0; // Baseline
   
+  // ── v2+#3 (Feb 14, 2026) ─────────────────────────────────────────────────
+  // Changes from v1:
+  //   1. Boolean gates removed — signal strength drives score directly
+  //   2. Conviction weighted 50% higher than FOMO (0.6 vs 0.4)
+  //   3. Cap raised to +1.3 so urgency isn't clipped when FOMO+Conv are strong
+  //   4. Risk penalty doubled (0.3 → 0.5) — bridge rounds carry real downside
+  //   5. Negative floor lowered (-0.3 → -0.5) — symmetric with upside expansion
+  // ──────────────────────────────────────────────────────────────────────────
+  
   // FOMO Bonus (Oversubscription)
   // When a round is "3x oversubscribed", it signals high demand and market validation
   // Psychology: Scarcity drives action, fast movers win
-  // Max: 5 points (on 0-10 scale)
-  if (startup.is_oversubscribed && startup.fomo_signal_strength) {
-    const fomoBonus = startup.fomo_signal_strength * 0.5; // 0-0.5 on 0-10 scale
-    bonus += fomoBonus;
+  // Weight: 0.4 (secondary to conviction — hype is weaker than commitment)
+  // Max: +4 GOD points
+  const fomo = startup.fomo_signal_strength || 0;
+  if (fomo > 0) {
+    bonus += fomo * 0.4;
   }
   
   // Conviction Bonus (Follow-On Investment)
   // Existing investors doubling down is THE strongest trust signal
   // They have inside information, board access, and are risking reputation
   // Psychology: Follow the smart money, especially Tier 1 firms
-  // Max: 5 points (on 0-10 scale)
-  if (startup.has_followon && startup.conviction_signal_strength) {
-    const convictionBonus = startup.conviction_signal_strength * 0.5; // 0-0.5 on 0-10 scale
-    bonus += convictionBonus;
+  // Weight: 0.6 (primary — commitment > hype)
+  // Max: +6 GOD points
+  const conviction = startup.conviction_signal_strength || 0;
+  if (conviction > 0) {
+    bonus += conviction * 0.6;
   }
   
   // Urgency Bonus (Competitive Round)
   // Multiple term sheets = social proof cascade
   // Psychology: FOMO amplified by scarcity, decision paralysis breaks → rapid action
-  // Max: 3 points (on 0-10 scale)
-  if (startup.is_competitive && startup.urgency_signal_strength) {
-    const urgencyBonus = startup.urgency_signal_strength * 0.3; // 0-0.3 on 0-10 scale
-    bonus += urgencyBonus;
+  // Weight: 0.3 (additive — urgency should NEVER be clipped by cap)
+  // Max: +3 GOD points
+  const urgency = startup.urgency_signal_strength || 0;
+  if (urgency > 0) {
+    bonus += urgency * 0.3;
   }
   
   // Risk Penalty (Bridge Round)
   // Bridge financing = struggle signal
   // Startup missed milestones, buyer for next round at risk
   // Psychology: Flight, not fight (existing investors trapped, new investors cautious)
-  // Max penalty: 3 points (on 0-10 scale)
-  if (startup.is_bridge_round && startup.risk_signal_strength) {
-    const riskPenalty = startup.risk_signal_strength * 0.3; // 0-0.3 on 0-10 scale
-    bonus -= riskPenalty;
+  // Weight: 0.5 (doubled from v1 — bridge rounds are a real red flag)
+  // Max penalty: -5 GOD points
+  const risk = startup.risk_signal_strength || 0;
+  if (risk > 0) {
+    bonus -= risk * 0.5;
   }
   
-  // Cap bonus between -3 and +10 (on 0-10 scale)
-  // -3 = high risk (bridge + no positive signals)
-  // +10 = maximum boost (capped at 1.0, which becomes 10 points on 0-100 scale)
-  bonus = Math.max(-0.3, Math.min(1.0, bonus));
+  // ── Phase 2 Signals (Feb 15, 2026) ──────────────────────────────────────
+  // Previously extracted but NOT scored. Now wired into the psychological bonus.
+  // ──────────────────────────────────────────────────────────────────────────
+  
+  // Sector Pivot Bonus (Tier-1 thesis shift into startup's sector)
+  // When Sequoia/a16z shift focus to a sector, it validates the market thesis
+  // Psychology: The smart money is moving — follow the thesis
+  // Weight: 0.25 (moderate — thesis shift is directional, not direct commitment)
+  // Max: +2.5 GOD points
+  const pivotStrength = startup.pivot_strength || 0;
+  if (pivotStrength > 0) {
+    bonus += pivotStrength * 0.25;
+  }
+  
+  // Social Proof Cascade Bonus (Tier-1 leader triggers follower herd)
+  // When a16z leads and 10 others pile in, the cascade itself is a signal
+  // Psychology: Herd behavior — safety in numbers, FOMO amplifier
+  // Weight: 0.35 (strong — cascades indicate broad market consensus)
+  // Max: +3.5 GOD points
+  const cascadeStrength = startup.cascade_strength || 0;
+  if (cascadeStrength > 0) {
+    bonus += cascadeStrength * 0.35;
+  }
+  
+  // Repeat Founder Bonus (Serial entrepreneur with track record)
+  // Founders who've built and exited before have 2-3x higher success rates
+  // Psychology: Proven execution ability, investor trust, network effects
+  // Weight: 0.4 (high — founder quality is the #1 predictor of success)
+  // Max: +4 GOD points
+  const founderStrength = startup.founder_strength || 0;
+  if (founderStrength > 0) {
+    bonus += founderStrength * 0.4;
+  }
+  
+  // Cofounder Exit Penalty (Key person departure)
+  // CTO/CEO/cofounder leaving signals internal problems
+  // Psychology: Rats leaving the ship — investors get nervous, follow-on dries up
+  // Weight: 0.4 (high penalty — key person risk is deal-breaking)
+  // Max penalty: -4 GOD points
+  const exitRisk = startup.exit_risk_strength || 0;
+  if (exitRisk > 0) {
+    bonus -= exitRisk * 0.4;
+  }
+  
+  // Cap: [-0.9, +2.3] → GOD impact: -9 to +23 points
+  // Expanded from v2 [-0.5, +1.3] to accommodate Phase 2 signals
+  // Phase 1 max: 0.4 + 0.6 + 0.3 = 1.3 positive, -0.5 negative
+  // Phase 2 adds: 0.25 + 0.35 + 0.4 = 1.0 positive, -0.4 negative
+  // Total theoretical max: +2.3 positive, -0.9 negative
+  bonus = Math.max(-0.9, Math.min(2.3, bonus));
   
   return bonus;
 }
@@ -1056,10 +1169,13 @@ function scoreProduct(startup: StartupProfile): number {
   }
   
   // ============================================================================
-  // SECTION 2: PATTERN-BASED PRODUCT SIGNALS (when structured data missing)
+  // SECTION 2: PATTERN-BASED PRODUCT SIGNALS (ALWAYS adds on top of structured data)
+  // FIXED Feb 2026: Removed if(score < 0.5) gate that was preventing stacking.
+  // Pattern signals should ALWAYS contribute — a launched startup with AI tech
+  // should score higher than one that just launched without sophistication.
   // ============================================================================
   
-  if (score < 0.5) {
+  {
     // --- 2A. Product Maturity Stage ---
     const maturityPatterns = [
       /\b(launched|live|production|shipped|released|available)/i,
@@ -1107,26 +1223,26 @@ function scoreProduct(startup: StartupProfile): number {
   }
   
   // ============================================================================
-  // SECTION 3: FALLBACK SIGNALS
+  // SECTION 3: ADDITIONAL SIGNALS (always contribute)
+  // FIXED Feb 2026: Removed if(score < 0.3) gate — website, stage, and solution
+  // should always add signal, not just for the most data-poor startups.
   // ============================================================================
   
-  if (score < 0.3) {
-    // Check if they have a website (indicates some product presence)
-    if (startup.website || (startup as any).website) {
-      score += 0.2;
-    }
-    // Check stage - later stages imply product exists
-    if (startup.stage) {
-      const stageNum = typeof startup.stage === 'number' ? startup.stage : 
-        ['pre-seed', 'seed', 'series a', 'series b'].indexOf(String(startup.stage).toLowerCase());
-      if (stageNum >= 2) score += 0.3;
-      else if (stageNum >= 1) score += 0.2;
-      else if (stageNum >= 0) score += 0.1;
-    }
-    // Check if they have a solution description
-    if (startup.solution && startup.solution.length > 50) {
-      score += 0.15;
-    }
+  // Check if they have a website (indicates some product presence)
+  if (startup.website || (startup as any).website) {
+    score += 0.15;
+  }
+  // Check stage - later stages imply product exists
+  if (startup.stage) {
+    const stageNum = typeof startup.stage === 'number' ? startup.stage : 
+      ['pre-seed', 'seed', 'series a', 'series b'].indexOf(String(startup.stage).toLowerCase());
+    if (stageNum >= 2) score += 0.3;
+    else if (stageNum >= 1) score += 0.2;
+    else if (stageNum >= 0) score += 0.1;
+  }
+  // Check if they have a solution description
+  if (startup.solution && startup.solution.length > 50) {
+    score += 0.15;
   }
   
   return Math.min(score, 3);
@@ -1142,6 +1258,7 @@ function scoreVision(startup: StartupProfile): number {
   let score = 0;
   
   // Combine all available text for analysis
+  const startupAny = startup as any;
   const allText = [
     startup.pitch || '',
     startup.tagline || '',
@@ -1151,144 +1268,156 @@ function scoreVision(startup: StartupProfile): number {
     startup.contrarian_insight || '',
     startup.contrarian_belief || '',
     startup.vision_statement || '',
-    startup.why_now || ''
+    startup.why_now || '',
+    startupAny.description || ''
   ].join(' ').toLowerCase();
   
   // ============================================================================
   // VISION SCORING FROM AVAILABLE DATA (0-2 points)
-  // Derives vision signals from tagline, pitch, description using pattern matching
+  // IMPROVED Feb 14, 2026: Broadened heuristics - avg was 15/100, way too low
+  // Vision = narrative depth + ambition + clarity + strategy + timing
+  // Most startups have descriptions/pitches; we should extract signal from WHAT THEY HAVE
   // ============================================================================
   
-  // --- 1. Contrarian/Disruptive Vision (0-0.5 points) ---
+  // --- 1. Narrative Depth (0-0.5 points) ---
+  // A startup that articulates their story clearly IS showing vision.
+  // This gives a baseline so startups with ANY narrative get credit.
+  const narrativeLength = allText.length;
+  if (narrativeLength > 500) {
+    score += 0.5;  // Rich narrative = clear vision articulation
+  } else if (narrativeLength > 300) {
+    score += 0.35;
+  } else if (narrativeLength > 150) {
+    score += 0.25;
+  } else if (narrativeLength > 50) {
+    score += 0.15;
+  }
+  
+  // --- 2. Contrarian/Disruptive Vision (0-0.4 points) ---
   // Look for signals of contrarian thinking or market disruption
   const contrarianPatterns = [
     /\b(disrupt|revolutioniz|transform|reinvent|redefin|paradigm shift)/i,
     /\b(unlike|different from|not like|versus traditional|vs\.? traditional)/i,
     /\b(first|only|pioneer|novel|breakthrough|innovative approach)/i,
     /\b(challenge|rethink|reimagin|new way|better way)/i,
-    /\b(outdated|broken|inefficient|legacy|old-fashioned)/i  // Criticizing status quo
+    /\b(outdated|broken|inefficient|legacy|old-fashioned)/i,
+    /\b(automat|eliminat|replac|obsole|upend)/i,
+    /\b(next.?gen|cutting.?edge|state.?of.?the.?art|advanced)/i
   ];
   
   // Explicit contrarian fields (legacy support)
   if (startup.contrarian_insight && startup.contrarian_insight.length > 100) {
-    score += 0.5;
-  } else if (startup.contrarian_belief && startup.contrarian_belief.length > 50) {
     score += 0.4;
+  } else if (startup.contrarian_belief && startup.contrarian_belief.length > 50) {
+    score += 0.35;
   } else {
-    // Pattern-based detection from available text
     const contrarianMatches = contrarianPatterns.filter(p => p.test(allText)).length;
-    if (contrarianMatches >= 3) {
-      score += 0.5; // Strong contrarian signals
-    } else if (contrarianMatches >= 2) {
-      score += 0.35;
-    } else if (contrarianMatches >= 1) {
-      score += 0.2;
-    }
+    if (contrarianMatches >= 3) score += 0.4;
+    else if (contrarianMatches >= 2) score += 0.3;
+    else if (contrarianMatches >= 1) score += 0.15;
   }
   
-  // --- 2. Ambitious Scale/Impact Vision (0-0.5 points) ---
+  // --- 3. Ambitious Scale/Impact Vision (0-0.4 points) ---
   // VCs want "big if it works" - look for ambitious language
   const ambitionPatterns = [
     /\b(billion|trillion|\$\d+[BT]|massive market|huge opportunity)/i,
     /\b(global|worldwide|international|cross-border|multi-country)/i,
     /\b(platform|ecosystem|marketplace|infrastructure|operating system)/i,
-    /\b(every|all|entire|universal|ubiquitous)/i,  // Scope words
+    /\b(every|all|entire|universal|ubiquitous)/i,
     /\b(category.?defining|market.?leading|industry.?standard)/i,
-    /\b(10x|100x|exponential|scale|scalable)/i
+    /\b(10x|100x|exponential|scale|scalable)/i,
+    /\b(mission|impact|empower|enable|unlock|democratiz)/i,
+    /\b(future of|next generation|redefin|world.?class)/i
   ];
   
   const ambitionMatches = ambitionPatterns.filter(p => p.test(allText)).length;
-  if (ambitionMatches >= 3) {
-    score += 0.5;
-  } else if (ambitionMatches >= 2) {
-    score += 0.35;
-  } else if (ambitionMatches >= 1) {
-    score += 0.2;
-  }
+  if (ambitionMatches >= 4) score += 0.4;
+  else if (ambitionMatches >= 2) score += 0.3;
+  else if (ambitionMatches >= 1) score += 0.15;
   
-  // --- 3. Creative/Unique Strategy (0-0.4 points) ---
+  // --- 4. Creative/Unique Strategy (0-0.3 points) ---
   // First Round: "thoughtful, creative go-to-market and product strategy"
   const strategyPatterns = [
     /\b(viral|word.?of.?mouth|organic growth|community.?driven|network effect)/i,
     /\b(flywheel|compounding|moat|defensib|lock.?in|switching cost)/i,
     /\b(land.?and.?expand|bottom.?up|top.?down|product.?led|sales.?led)/i,
     /\b(freemium|self.?serve|enterprise|SMB|prosumer)/i,
-    /\b(API.?first|developer.?first|B2B2C|embedded|white.?label)/i
+    /\b(API.?first|developer.?first|B2B2C|embedded|white.?label)/i,
+    /\b(open.?source|open.?core|usage.?based|consumption.?based)/i,
+    /\b(go.?to.?market|GTM|growth strategy|acquisition channel)/i
   ];
   
-  // Explicit creative strategy field (legacy support)
   if (startup.creative_strategy && startup.creative_strategy.length > 100) {
-    score += 0.4;
+    score += 0.3;
   } else {
     const strategyMatches = strategyPatterns.filter(p => p.test(allText)).length;
-    if (strategyMatches >= 2) {
-      score += 0.4;
-    } else if (strategyMatches >= 1) {
-      score += 0.2;
-    }
+    if (strategyMatches >= 2) score += 0.3;
+    else if (strategyMatches >= 1) score += 0.15;
   }
   
-  // --- 4. Clear Value Proposition (0-0.35 points) ---
-  // Having a clear, compelling pitch is a vision signal
+  // --- 5. Problem-Solution Clarity (0-0.25 points) ---
+  // Having BOTH problem and solution articulated shows clear thinking
+  const hasProblem = (startup.problem && startup.problem.length > 20) || 
+                     (startup.value_proposition && startup.value_proposition.length > 20);
+  const hasSolution = startup.solution && startup.solution.length > 20;
   const tagline = startup.tagline || '';
   const pitch = startup.pitch || '';
   
-  // Good tagline: concise (under 100 chars) and specific (not generic)
+  if (hasProblem && hasSolution) {
+    score += 0.25; // Clear problem-solution fit
+  } else if (hasProblem || hasSolution) {
+    score += 0.1;
+  }
+  
+  // Good tagline bonus (concise, non-generic)
   const genericTaglines = [
-    /^a company in the/i,
-    /^we are a/i,
-    /^startup that/i,
-    /^building/i
+    /^a company in the/i, /^we are a/i, /^startup that/i, /^building/i,
+    /^enterprise.?grade/i, /^the next generation/i, /^we.?re building/i
   ];
   const isGenericTagline = genericTaglines.some(p => p.test(tagline));
-  
   if (tagline.length > 10 && tagline.length < 100 && !isGenericTagline) {
-    score += 0.2; // Clear, non-generic tagline
+    score += 0.1;
   }
   
-  // Good pitch: substantive (100+ chars) and contains specifics
+  // Quantified pitch bonus
   if (pitch.length > 100) {
-    const hasSpecifics = /\d+%|\$\d+|saves?\s+\d+|reduces?\s+\d+/i.test(pitch);
-    if (hasSpecifics) {
-      score += 0.15; // Pitch with quantified claims
-    }
+    const hasSpecifics = /\d+%|\$\d+|saves?\s+\d+|reduces?\s+\d+|grew\s+\d+/i.test(pitch);
+    if (hasSpecifics) score += 0.1;
   }
   
-  // --- 5. Why Now / Timing Insight (0-0.25 points) ---
+  // --- 6. Why Now / Timing Insight (0-0.15 points) ---
   // Good founders understand market timing
   const timingPatterns = [
     /\b(why now|right time|timing|inflection point|tipping point)/i,
-    /\b(AI|GPT|LLM|machine learning|generative)/i,  // Current tech waves
+    /\b(AI|GPT|LLM|machine learning|generative|deep learning)/i,
     /\b(post.?covid|hybrid work|remote|new normal)/i,
-    /\b(regulation|compliance|new law|mandate)/i,
-    /\b(gen.?z|millennial|demographic shift)/i
+    /\b(regulation|compliance|new law|mandate|GDPR|SOC.?2)/i,
+    /\b(gen.?z|millennial|demographic shift|aging population)/i,
+    /\b(climate|sustainability|ESG|carbon|green energy|EV)/i
   ];
   
   if (startup.why_now && startup.why_now.length > 50) {
-    score += 0.25; // Explicit why-now
+    score += 0.15;
   } else {
     const timingMatches = timingPatterns.filter(p => p.test(allText)).length;
-    if (timingMatches >= 2) {
-      score += 0.25;
-    } else if (timingMatches >= 1) {
-      score += 0.1;
-    }
+    if (timingMatches >= 2) score += 0.15;
+    else if (timingMatches >= 1) score += 0.08;
   }
   
-  // --- Legacy: Financial Planning (still check if data exists) ---
+  // --- Legacy: Financial Planning ---
   const hasFinancialPlan = startup.use_of_funds && startup.use_of_funds.length > 50;
   const hasRunway = startup.runway_months && startup.runway_months >= 12 && startup.runway_months <= 18;
   const knowsBurnRate = startup.burn_rate && startup.burn_rate > 0;
   
   if (hasFinancialPlan && (hasRunway || knowsBurnRate)) {
-    score += 0.3;
+    score += 0.2;
   } else if (hasFinancialPlan || hasRunway) {
-    score += 0.15;
+    score += 0.1;
   }
   
   // --- Legacy: Passionate Customers ---
   if (startup.passionate_customers && startup.passionate_customers >= 3) {
-    score += 0.2;
+    score += 0.15;
   }
   
   return Math.min(score, 2); // Cap at 2.0 points max

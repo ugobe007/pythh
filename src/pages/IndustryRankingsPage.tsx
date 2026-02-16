@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
@@ -154,8 +154,10 @@ export default function IndustryRankingsPage() {
     return { label: 'Needs Work', color: 'bg-gradient-to-r from-red-500 to-orange-500' };
   };
 
-  const filteredRankings = rankings.filter(r => 
-    r.industry.toLowerCase().includes(searchQuery.toLowerCase())
+  // Memoize filtered rankings to avoid re-filtering on every render
+  const filteredRankings = useMemo(() => 
+    rankings.filter(r => r.industry.toLowerCase().includes(searchQuery.toLowerCase())),
+    [rankings, searchQuery]
   );
 
   return (
@@ -341,7 +343,9 @@ export default function IndustryRankingsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="font-medium text-white">{ranking.industry}</div>
+                          <div className="font-medium text-white hover:text-cyan-400 transition-colors cursor-default">
+                            {ranking.industry}
+                          </div>
                           <div className={`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${badge.color} text-white`}>
                             {badge.label}
                           </div>
@@ -407,10 +411,10 @@ export default function IndustryRankingsPage() {
             <Link to="/admin/god-settings" className="px-3 py-1.5 bg-cyan-500/20 border border-cyan-500/30 rounded text-cyan-400 hover:bg-cyan-500/30">
               ⚙️ GOD Settings
             </Link>
-            <Link to="/admin/ml-dashboard" className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 hover:bg-blue-500/30">
+            <Link to="/admin/ai-intelligence" className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 hover:bg-blue-500/30">
               🧠 ML Dashboard
             </Link>
-            <Link to="/trending" className="px-3 py-1.5 bg-green-500/20 border border-green-500/30 rounded text-green-400 hover:bg-green-500/30">
+            <Link to="/rankings" className="px-3 py-1.5 bg-green-500/20 border border-green-500/30 rounded text-green-400 hover:bg-green-500/30">
               🔥 Trending
             </Link>
           </div>

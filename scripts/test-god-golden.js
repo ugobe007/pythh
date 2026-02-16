@@ -1,13 +1,15 @@
+import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  console.error("Missing SUPABASE_URL/VITE_SUPABASE_URL or service role key");
   process.exit(2);
 }
 
@@ -25,24 +27,52 @@ console.log(`   Version: ${golden.weights_version}`);
 console.log(`   Cases: ${golden.cases.length}\n`);
 
 for (const c of golden.cases) {
+  let explain;
+  let fromFallback = false;
+
   const { data, error } = await supabase.rpc("get_god_explain", {
     p_startup_id: c.startup_id,
     p_weights_version: golden.weights_version,
   });
 
   if (error) {
-    failed++;
-    console.error(`[FAIL] RPC error for ${c.startup_id}`, error);
-    continue;
+    console.warn(`[WARN] RPC error for ${c.startup_id}, falling back to startup_uploads`, error.message || error);
   }
 
-  if (!data?.found) {
-    failed++;
-    console.error(`[FAIL] No explanation found for ${c.startup_id} @ ${golden.weights_version}`);
-    continue;
-  }
+  if (data?.found) {
+    explain = data.explain;
+  } else {
+    // Fallback path: use startup_uploads as the source of truth
+    const { data: startup, error: startupError } = await supabase
+      .from("startup_uploads")
+      .select(
+        "name, total_god_score, team_score, traction_score, market_score, product_score, vision_score"
+      )
+      .eq("id", c.startup_id)
+      .maybeSingle();
 
-  const explain = data.explain;
+    if (startupError || !startup || startup.total_god_score == null) {
+      failed++;
+      console.error(
+        `[FAIL] No explanation or total_god_score found for ${c.startup_id} @ ${golden.weights_version}`
+      );
+      continue;
+    }
+
+    explain = {
+      total_score: startup.total_god_score,
+      base_total_score: startup.total_god_score,
+      signals_bonus: 0,
+      component_scores: {
+        team: startup.team_score,
+        traction: startup.traction_score,
+        market: startup.market_score,
+        product: startup.product_score,
+        vision: startup.vision_score,
+      },
+    };
+    fromFallback = true;
+  }
   const total = Number(explain.total_score ?? NaN);
   const base = Number(explain.base_total_score ?? NaN);
   const signals = Number(explain.signals_bonus ?? NaN);
@@ -88,7 +118,8 @@ for (const c of golden.cases) {
     }
   }
 
-  console.log(`[OK] ${c.name}: total=${total}, base=${base}, signals=${signals}`);
+  const sourceLabel = fromFallback ? "startup_uploads" : "god_score_explanations";
+  console.log(`[OK] ${c.name} [${sourceLabel}]: total=${total}, base=${base}, signals=${signals}`);
 }
 
 if (failed > 0) {

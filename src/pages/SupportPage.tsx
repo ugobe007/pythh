@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import PythhUnifiedNav from "../components/PythhUnifiedNav";
 
 export default function SupportPage() {
   const [name, setName] = useState("");
@@ -24,17 +25,7 @@ export default function SupportPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-        <Link to="/" className="text-lg font-semibold tracking-tight text-white hover:text-cyan-400 transition-colors">
-          pythh.ai
-        </Link>
-        <div className="flex items-center gap-6 text-sm text-zinc-400">
-          <Link to="/about" className="hover:text-white transition-colors">About</Link>
-          <Link to="/how-it-works" className="hover:text-white transition-colors">How It Works</Link>
-          <Link to="/login" className="hover:text-white transition-colors">Sign in</Link>
-        </div>
-      </nav>
+      <PythhUnifiedNav />
 
       {/* Hero */}
       <section className="max-w-3xl mx-auto px-6 pt-20 pb-12">
@@ -141,7 +132,12 @@ export default function SupportPage() {
 
       {/* Footer */}
       <footer className="border-t border-white/5 px-6 py-8 text-center text-xs text-zinc-600">
-        © {new Date().getFullYear()} pythh.ai — Signal science for founders.
+        <p>© {new Date().getFullYear()} pythh.ai — Signal science for founders.</p>
+        <div className="mt-2">
+          <Link to="/admin-login" className="text-zinc-700 hover:text-zinc-500 transition-colors">
+            admin
+          </Link>
+        </div>
       </footer>
     </div>
   );

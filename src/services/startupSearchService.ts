@@ -11,7 +11,7 @@ export interface StartupSearchFilters {
   query?: string;
   sectors?: string[];
   stage?: string;
-  sortBy?: 'total_god_score' | 'final_score' | 'created_at' | 'name';
+  sortBy?: 'total_god_score' | 'enhanced_god_score' | 'created_at' | 'name';
   limit?: number;
 }
 
@@ -29,7 +29,6 @@ export interface StartupSearchResult {
   market_score: number | null;
   product_score: number | null;
   vision_score: number | null;
-  final_score: number | null;
   website: string | null;
   raise_type: string | null;
   created_at: string | null;
@@ -70,7 +69,7 @@ export async function searchStartups(filters: StartupSearchFilters): Promise<{
   let qb = supabase
     .from('startup_uploads')
     .select(
-      'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, final_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit',
+      'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit',
       { count: 'exact' }
     )
     .eq('status', 'approved')

@@ -32,12 +32,12 @@ import {
   Clock,
   MessageSquare,
 } from 'lucide-react';
-import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import PythhUnifiedNav from '../components/PythhUnifiedNav';
 
 export default function ValuePage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <LogoDropdownMenu />
+      <PythhUnifiedNav />
       
       {/* Hero */}
       <div className="border-b border-white/10 pt-14">

@@ -75,7 +75,9 @@ class MultiStrategyParser {
             break;
         }
 
-        if (result && validateParsedData(result, fields)) {
+        const validation = result ? validateParsedData(result, fields) : null;
+
+        if (result && validation && validation.valid) {
           // Success! Save selector for future use
           if (strategy === 'css' && result.selector) {
             await this.selectorDB.saveSelector(
@@ -96,7 +98,8 @@ class MultiStrategyParser {
               strategy,
               domain,
               dataType,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              validation,
             }
           };
         }

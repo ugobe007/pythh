@@ -57,66 +57,23 @@ export default function BulkUpload() {
     return [...new Set(validUrls)]; // Remove duplicates
   };
 
-  // Enrich startup using OpenAI
+  // Enrich startup using OpenAI (SERVER-SIDE ONLY for security)
+  // Note: For bulk URL uploads, use fallback data. Admin can enrich later via AdminActions
   const enrichStartup = async (name: string, url: string): Promise<any> => {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    
-    if (!apiKey) {
-      console.warn('⚠️ OpenAI API key not found, using fallback data');
-      return {
-        pitch: `${name} - Visit ${url} for more information.`,
-        fivePoints: [],
-        stage: 'Seed',
-        sectors: ['Technology']
-      };
-    }
-    
-    try {
-      const systemPrompt = `You are a startup research analyst. Given a startup name and website, create a compelling 5-point summary. Return JSON with: pitch (one sentence value prop), fivePoints (array of 5 strings describing: 1) Value Proposition, 2) Target Market, 3) Product/Service, 4) Team/Traction, 5) Funding Status), stage (Pre-Seed, Seed, Series A, Series B, Series C+), and sectors (array of industry tags).`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: `Research and summarize:\n\nStartup: ${name}\nWebsite: ${url}\n\nCreate a compelling 5-point card.` }
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.7,
-          max_tokens: 800
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ OpenAI API error:', response.status, errorText);
-        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      
-      // Check if response has expected structure
-      if (!data || !data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
-        console.error('❌ Invalid OpenAI response structure:', data);
-        throw new Error(`Invalid API response format. Response: ${JSON.stringify(data).substring(0, 200)}`);
-      }
-      
-      return JSON.parse(data.choices[0].message.content);
-    } catch (error: any) {
-      console.error(`❌ Error enriching ${name}:`, error);
-      // Return fallback data instead of throwing
-      return {
-        pitch: `${name} - Visit ${url} for more information.`,
-        fivePoints: [],
-        stage: 'Seed',
-        sectors: ['Technology']
-      };
-    }
+    // SECURITY: No browser-side OpenAI calls - use fallback data
+    console.log(`⚡ Creating entry for ${name} with fallback data (enrich via AdminActions later)`);
+    return {
+      pitch: `${name} - Visit ${url} for more information.`,
+      fivePoints: [
+        'Value Proposition: To be enriched',
+        'Target Market: To be enriched',
+        'Product/Service: To be enriched',
+        'Team/Traction: To be enriched',
+        'Funding Status: To be enriched'
+      ],
+      stage: 'Seed',
+      sectors: ['Technology']
+    };
   };
 
   const importUrls = async () => {

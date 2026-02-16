@@ -1,0 +1,41 @@
+[
+  {
+    "_comment": "TEMPLATE — Replace with your research. Only include fields you found.",
+    "lookup": "Sequoia Capital",
+    "active_fund_size": "2.25B",
+    "total_investments": 1500,
+    "successful_exits": 300,
+    "investment_thesis": "We help the daring build legendary companies from idea to IPO and beyond.",
+    "sectors": [
+      "AI/ML",
+      "Enterprise",
+      "Fintech",
+      "Healthcare",
+      "Consumer"
+    ],
+    "stage": [
+      "Seed",
+      "Series A",
+      "Series B",
+      "Growth"
+    ],
+    "check_size_min": "500K",
+    "check_size_max": "100M",
+    "geography_focus": [
+      "US",
+      "India",
+      "Southeast Asia",
+      "Europe"
+    ],
+    "notable_investments": [
+      "Apple",
+      "Google",
+      "Stripe",
+      "Airbnb",
+      "WhatsApp"
+    ],
+    "leads_rounds": true,
+    "url": "https://www.sequoiacap.com",
+    "bio": "Founded in 1972 by Don Valentine..."
+  }
+]

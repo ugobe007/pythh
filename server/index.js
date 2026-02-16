@@ -88,7 +88,14 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key', 'X-Session-Id', 'x-admin-key']
 }));
-app.use(express.json());
+// Skip JSON parsing for Stripe webhook (needs raw body for signature verification)
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/billing/webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 // Request ID middleware (for tracing)
 const { requestIdMiddleware } = require('./middleware/requestId');
@@ -1684,6 +1691,256 @@ app.get('/api/billing/status', async (req, res) => {
     
   } catch (error) {
     console.error('[billing/status] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/billing/create-guest-checkout
+// Creates a Stripe Checkout session for NEW users (no auth required)
+// Flow: collect email → Stripe checkout → account creation on success page
+app.post('/api/billing/create-guest-checkout', async (req, res) => {
+  try {
+    const { plan } = req.body;
+    
+    if (!['pro', 'elite'].includes(plan)) {
+      return res.status(400).json({ error: 'Invalid plan. Must be "pro" or "elite"' });
+    }
+    
+    const priceId = STRIPE_PRICES[plan];
+    if (!priceId) {
+      return res.status(500).json({ error: `Price ID not configured for ${plan} plan` });
+    }
+    
+    const stripe = getStripe();
+    
+    const successUrl = `${req.headers.origin || 'http://localhost:5173'}/signup/complete?session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${req.headers.origin || 'http://localhost:5173'}/pricing`;
+    
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{
+        price: priceId,
+        quantity: 1
+      }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        plan: plan,
+        flow: 'guest_checkout'
+      },
+      subscription_data: {
+        metadata: {
+          plan: plan
+        }
+      }
+    });
+    
+    console.log(`[billing] Created guest checkout session for plan ${plan}: ${session.id}`);
+    res.json({ url: session.url, sessionId: session.id });
+    
+  } catch (error) {
+    console.error('[billing/create-guest-checkout] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/billing/verify-session
+// Verifies a Stripe checkout session and returns email + plan (no auth required)
+// Used by the signup completion page after payment
+app.get('/api/billing/verify-session', async (req, res) => {
+  try {
+    const { session_id } = req.query;
+    
+    if (!session_id) {
+      return res.status(400).json({ error: 'session_id is required' });
+    }
+    
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.retrieve(session_id, {
+      expand: ['subscription', 'customer']
+    });
+    
+    if (session.payment_status !== 'paid') {
+      return res.status(400).json({ error: 'Payment not completed', status: session.payment_status });
+    }
+    
+    res.json({
+      email: session.customer_details?.email || session.customer?.email,
+      plan: session.metadata?.plan || 'pro',
+      customerId: session.customer?.id || session.customer,
+      subscriptionId: session.subscription?.id || session.subscription,
+      status: 'paid'
+    });
+    
+  } catch (error) {
+    console.error('[billing/verify-session] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/billing/complete-signup
+// Creates a Supabase auth user after successful Stripe payment
+// Links the Stripe customer/subscription to the new user profile
+app.post('/api/billing/complete-signup', async (req, res) => {
+  try {
+    const { session_id, password } = req.body;
+    
+    if (!session_id || !password) {
+      return res.status(400).json({ error: 'session_id and password are required' });
+    }
+    
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    
+    // Verify the Stripe session
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.retrieve(session_id, {
+      expand: ['subscription', 'customer']
+    });
+    
+    if (session.payment_status !== 'paid') {
+      return res.status(400).json({ error: 'Payment not completed' });
+    }
+    
+    const email = session.customer_details?.email || session.customer?.email;
+    const plan = session.metadata?.plan || 'pro';
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
+    const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'No email found in checkout session' });
+    }
+    
+    // Create Supabase auth user via admin API
+    const supabase = getSupabaseClient();
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: true, // Auto-confirm since they paid
+      user_metadata: {
+        name: email.split('@')[0],
+        role: 'founder'
+      }
+    });
+    
+    if (authError) {
+      // If user already exists, try to sign them in instead
+      if (authError.message.includes('already been registered') || authError.message.includes('already exists')) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+        
+        if (signInError) {
+          return res.status(400).json({ 
+            error: 'An account with this email already exists. Please log in instead.',
+            code: 'existing_user'
+          });
+        }
+        
+        // Update existing user's profile with subscription info
+        await supabase.from('profiles').upsert({
+          id: signInData.user.id,
+          email: email,
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          plan: plan,
+          plan_status: 'active'
+        }, { onConflict: 'id' });
+        
+        // Update Stripe customer metadata
+        await stripe.customers.update(customerId, {
+          metadata: { supabase_user_id: signInData.user.id }
+        });
+        
+        // Update subscription metadata
+        if (subscriptionId) {
+          await stripe.subscriptions.update(subscriptionId, {
+            metadata: { supabase_user_id: signInData.user.id, plan: plan }
+          });
+        }
+        
+        console.log(`[billing/complete-signup] Existing user ${signInData.user.id} linked to subscription, plan: ${plan}`);
+        
+        return res.json({
+          userId: signInData.user.id,
+          accessToken: signInData.session?.access_token,
+          refreshToken: signInData.session?.refresh_token,
+          plan: plan,
+          isExistingUser: true
+        });
+      }
+      
+      throw authError;
+    }
+    
+    const userId = authData.user.id;
+    
+    // Update profile with Stripe subscription info
+    // (handle_new_user trigger creates the base profile, we add billing data)
+    await supabase.from('profiles').upsert({
+      id: userId,
+      email: email,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId,
+      plan: plan,
+      plan_status: 'active'
+    }, { onConflict: 'id' });
+    
+    // Update Stripe customer metadata with Supabase user ID
+    await stripe.customers.update(customerId, {
+      metadata: { supabase_user_id: userId }
+    });
+    
+    // Update subscription metadata
+    if (subscriptionId) {
+      await stripe.subscriptions.update(subscriptionId, {
+        metadata: { supabase_user_id: userId, plan: plan }
+      });
+    }
+    
+    // Sign in the new user to get session tokens
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+    
+    if (signInError) {
+      // User was created but sign-in failed - they can log in manually
+      console.error(`[billing/complete-signup] Sign-in failed for new user ${userId}:`, signInError.message);
+      return res.json({
+        userId: userId,
+        plan: plan,
+        needsLogin: true
+      });
+    }
+    
+    console.log(`[billing/complete-signup] New user ${userId} created with plan ${plan}`);
+    
+    // Track signup + upgrade
+    trackEvent({
+      user_id: userId,
+      event_name: 'signup_with_paid_plan',
+      source: 'server',
+      plan: plan,
+      properties: {
+        checkout_session_id: session_id,
+        subscription_id: subscriptionId
+      }
+    }).catch(e => console.error('[signup_with_paid_plan] trackEvent error:', e.message));
+    
+    res.json({
+      userId: userId,
+      accessToken: signInData.session?.access_token,
+      refreshToken: signInData.session?.refresh_token,
+      plan: plan,
+      isExistingUser: false
+    });
+    
+  } catch (error) {
+    console.error('[billing/complete-signup] Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -4973,6 +5230,10 @@ app.post('/api/syndicates', (req, res) => {
 app.post('/api/documents', upload.single('file'), (req, res) => {
   res.json({ filename: req.file.filename, originalname: req.file.originalname });
 });
+
+// Admin API routes (secure AI enrichment + audit logging)
+const adminImportDiscovered = require('./routes/adminImportDiscovered');
+app.use('/api/admin', adminImportDiscovered.default || adminImportDiscovered);
 
 // Match API routes
 const matchesRouter = require('./routes/matches');

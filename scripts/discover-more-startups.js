@@ -68,11 +68,25 @@ function extractCompanyName(text) {
     return name.replace(/^(the|a|an)\s+/i, '').replace(/\s*\(.*?\)\s*$/, '').trim();
   }
   
-  // Pattern 2: "Company Name: Raises $X"
+  // Pattern 2: "Company Name: Raises $X" (with validation)
   match = text.match(/^([^:]+?):/i);
   if (match) {
-    const name = match[1].trim();
-    if (name.length > 3 && name.length < 60) return name;
+    let name = match[1].trim();
+    // Clean common prefixes
+    name = name.replace(/^(the|a|an)\s+/i, '').trim();
+    // Reject if name looks like a phrase (too many common English words)
+    const REJECT_WORDS = new Set([
+      'merge', 'merges', 'merged', 'in', 'announces', 'announced', 'launches',
+      'new', 'big', 'top', 'why', 'how', 'what', 'when', 'market', 'markets',
+      'nasdaq', 'report', 'update', 'news', 'challenger', 'global', 'major',
+      'european', 'asian', 'enters', 'reveals', 'targets', 'joins', 'startup',
+      'first', 'next', 'last', 'this', 'these', 'those', 'could', 'should',
+      'would', 'will', 'may', 'might', 'must', 'breaking', 'exclusive'
+    ]);
+    const words = name.split(/\s+/);
+    const rejectCount = words.filter(w => REJECT_WORDS.has(w.toLowerCase())).length;
+    // Only use colon-split if it doesn't look like a phrase
+    if (name.length > 3 && name.length < 60 && words.length <= 5 && rejectCount < 2) return name;
   }
   
   // Pattern 3: "Company Name Closes Series A"
