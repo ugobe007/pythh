@@ -306,8 +306,8 @@ async function recalculateScores(): Promise<void> {
           });
         } catch {} // Ignore if table doesn't exist
 
-        const boostNote = (bootstrapBonus > 0 || signalsBonus > 0 || psychBonus !== 0)
-          ? ` (+${bootstrapBonus > 0 ? bootstrapBonus + ' bootstrap' : ''}${bootstrapBonus > 0 && (signalsBonus > 0 || psychBonus !== 0) ? ', ' : ''}${signalsBonus > 0 ? signalsBonus.toFixed(1) + ' signals' : ''}${(bootstrapBonus > 0 || signalsBonus > 0) && psychBonus !== 0 ? ', ' : ''}${psychBonus !== 0 ? psychBonus.toFixed(2) + ' psych' : ''})` 
+        const boostNote = (bootstrapBonus > 0 || signalsBonus > 0 || psychMultiplier !== 1.0)
+          ? ` (+${bootstrapBonus > 0 ? bootstrapBonus + ' bootstrap' : ''}${bootstrapBonus > 0 && (signalsBonus > 0 || psychMultiplier !== 1.0) ? ', ' : ''}${signalsBonus > 0 ? signalsBonus.toFixed(1) + ' signals' : ''}${(bootstrapBonus > 0 || signalsBonus > 0) && psychMultiplier !== 1.0 ? ', ' : ''}${psychMultiplier !== 1.0 ? psychMultiplier.toFixed(2) + 'x psych' : ''})` 
           : '';
         const enhancedNote = enhancedScore !== finalScore ? ` → enhanced: ${enhancedScore}` : '';
         console.log(`  ✅ ${startup.name}: ${oldScore} → ${finalScore}${boostNote}${enhancedNote}`);

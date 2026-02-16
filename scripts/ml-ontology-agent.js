@@ -10,8 +10,21 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const OpenAI = require('openai');
-const envPath = process.env.ENV_FILE || '.env.bak';
-require('dotenv').config({ path: envPath });
+const envPath = process.env.ENV_FILE || '.env';
+require('dotenv').config({ path: envPath, override: true });
+
+// ENV VALIDATION (fail fast)
+const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`❌ FATAL: Missing required env var: ${key}`);
+    process.exit(1);
+  }
+}
+if (!process.env.OPENAI_API_KEY && !process.env.VITE_OPENAI_API_KEY) {
+  console.error('❌ FATAL: Missing OPENAI_API_KEY or VITE_OPENAI_API_KEY');
+  process.exit(1);
+}
 
 // Use service role key for automated background operations (bypasses RLS)
 const supabase = createClient(

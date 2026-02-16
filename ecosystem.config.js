@@ -8,6 +8,9 @@
  * If preflight fails, DO NOT start processes until fixed.
  */
 
+// Load .env so process.env vars are available for env blocks below
+require('dotenv').config();
+
 module.exports = {
   apps: [
     {
@@ -74,18 +77,73 @@ module.exports = {
         NODE_ENV: 'production'
       }
     },
+    
+    // ========================================
+    // SCORE RECALCULATION (GOD Score Momentum)
+    // Recalculates all GOD scores + writes score_history for momentum tracking
+    // ========================================
+    {
+      name: 'score-recalc',
+      script: 'npx',
+      args: 'tsx scripts/recalculate-scores.ts',
+      cwd: './',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '500M',
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 60000,
+      cron_restart: '0 */2 * * *',  // Every 2 hours
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Uses startupScoringService.ts SSOT for scoring
+      // Includes: bootstrap scoring, momentum, AP/Promising, elite boost, spiky/hot
+      // Writes to score_history table for momentum trend tracking
+    },
+    
+    // ========================================
+    // SIGNAL SCORING (Product velocity, funding, adoption, market, competitive)
+    // Calculates 5 signal dimensions → signals_bonus (0-10 pts)
+    // ========================================
+    {
+      name: 'signal-scoring',
+      script: 'npx',
+      args: 'tsx scripts/apply-signals-batch.ts',
+      cwd: './',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 60000,
+      cron_restart: '0 */6 * * *',  // Every 6 hours
+      env: {
+        NODE_ENV: 'production'
+      }
+      // 5 signal dimensions: product_velocity, funding_acceleration,
+      // customer_adoption, market_momentum, competitive_dynamics
+      // Max bonus: 10 points added to GOD score
+    },
+    
     {
       name: 'rss-scraper',
       script: 'npx',
       args: 'tsx scripts/core/ssot-rss-scraper.js',
       cwd: './',
       instances: 1,
-      autorestart: true,
-      max_restarts: 3,
+      exec_mode: 'fork',
+      autorestart: false,  // FIXED: was true — conflicts with cron_restart causing double-execution
+      max_restarts: 5,
       min_uptime: '30s',
       restart_delay: 10000,
       watch: false,
       max_memory_restart: '500M',
+      kill_timeout: 35000,  // Allow 35s for graceful shutdown (SIGINT handler needs 30s)
       cron_restart: '*/15 * * * *',  // Every 15 minutes
       env: {
         NODE_ENV: 'production'
@@ -153,7 +211,10 @@ module.exports = {
       restart_delay: 300000, // Wait 5 minutes between restarts
       cron_restart: '0 */6 * * *',  // Every 6 hours
       env: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || '',
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY || ''
       }
       // SELF-HEALING: Runs on cron schedule, has internal circuit breaker
       // Auto-applies high-confidence (≥85%) entity classifications
@@ -173,7 +234,7 @@ module.exports = {
       autorestart: false,  // Run once per cron cycle
       watch: false,
       max_memory_restart: '300M',
-      cron_restart: '0 */2 * * *',  // Every 2 hours
+      cron_restart: '15 */2 * * *',  // Every 2 hours at :15 (staggered from score-recalc at :00)
       env: {
         NODE_ENV: 'production',
         DOTENV_CONFIG_PATH: '.env.pyth'
@@ -211,6 +272,7 @@ module.exports = {
       script: 'scripts/archive/utilities/system-guardian.js',
       cwd: './',
       instances: 1,
+      exec_mode: 'fork',
       autorestart: false,
       watch: false,
       max_memory_restart: '200M',
@@ -228,7 +290,7 @@ module.exports = {
       args: 'scripts/event-rescue-agent.js',
       cwd: './',
       instances: 1,
-      autorestart: true,   // CHANGED: was false — keep it alive
+      autorestart: false,  // FIXED: was true — conflicts with cron_restart
       watch: false,
       max_memory_restart: '500M',
       max_restarts: 3,
@@ -321,7 +383,7 @@ module.exports = {
       exp_backoff_restart_delay: 10000,  // Exponential backoff up to 10s
       max_restarts: 10,  // Max 10 restarts per hour
       min_uptime: '5s',  // Must run 5s to count as successful
-      cron_restart: '*/10 * * * * *',  // Every 10 seconds (near-real-time)
+      cron_restart: '*/2 * * * *',  // Every 2 minutes (was 6-field seconds cron — too aggressive)
       env: {
         NODE_ENV: 'production',
         MAX_RUNS_PER_BATCH: '2',  // Process max 2 runs per tick
@@ -433,6 +495,52 @@ module.exports = {
       // Discovers individual partners, principals, associates
     },
     
+    // ========================================
+    // EMBEDDING WATCHER - Auto-generates vector embeddings
+    // Polls for startups/investors missing embeddings, generates via OpenAI
+    // ========================================
+    {
+      name: 'embedding-watcher',
+      script: 'node',
+      args: 'scripts/embedding-watcher-standalone.js',
+      cwd: './',
+      instances: 1,
+      autorestart: true,
+      max_restarts: 5,
+      min_uptime: '30s',
+      restart_delay: 30000,
+      watch: false,
+      max_memory_restart: '300M',
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Generates text-embedding-3-small (1536-dim) vectors
+      // Polls every 30s for missing embeddings on startups AND investors
+      // Uses OpenAI API — rate-limited to avoid quota issues
+    },
+    
+    // ========================================
+    // SOCIAL SIGNALS SCRAPER - Psych signal enrichment
+    // Scrapes Reddit, HN, Twitter for startup mentions & sentiment
+    // ========================================
+    {
+      name: 'social-signals-scraper',
+      script: 'node',
+      args: 'scripts/enrichment/social-signals-scraper.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '500M',
+      max_restarts: 3,
+      cron_restart: '0 */4 * * *',  // Every 4 hours
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Extracts FOMO, conviction, urgency, risk signals
+      // Feeds into psychological bonus in GOD score calculation
+    },
+
     // ========================================
     // PYTHH URL MONITOR - AI Health Agent
     // ========================================

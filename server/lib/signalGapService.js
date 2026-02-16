@@ -10,6 +10,7 @@
  */
 
 const { getSupabaseClient } = require('./supabaseClient');
+const crypto = require('crypto');
 
 // ============================================================================
 // FACTOR MAPPING: How component scores map to blocking factors
@@ -194,7 +195,7 @@ async function persistGaps(startupId, computedGaps) {
   // 1. Get existing active gaps for this startup
   const { data: existingGaps } = await supabase
     .from('signal_gaps')
-    .select('id, lens, blocking_factor, expected_score, observed_score')
+    .select('id, lens, blocking_factor, expected_score, observed_score, first_detected_at')
     .eq('startup_id', startupId)
     .is('resolved_at', null);
   
@@ -211,7 +212,7 @@ async function persistGaps(startupId, computedGaps) {
     const existing = existingMap.get(key);
     
     if (existing) {
-      // Update existing gap
+      // Update existing gap — must include first_detected_at to satisfy NOT NULL constraint on upsert
       toUpsert.push({
         id: existing.id,
         startup_id: startupId,
@@ -221,12 +222,14 @@ async function persistGaps(startupId, computedGaps) {
         observed_score: gap.observed_score,
         confidence: gap.confidence,
         severity: gap.severity,
+        first_detected_at: existing.first_detected_at || new Date().toISOString(),
         last_updated_at: new Date().toISOString()
       });
       existingMap.delete(key);
     } else {
-      // New gap
+      // New gap — must generate id explicitly; PostgREST batch upsert nullifies missing fields when other rows include them
       toUpsert.push({
+        id: crypto.randomUUID(),
         startup_id: startupId,
         lens: gap.lens,
         blocking_factor: gap.blocking_factor,
