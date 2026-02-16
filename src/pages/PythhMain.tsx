@@ -291,8 +291,8 @@ export default function PythhHome() {
             </div>
           </div>
 
-          {/* Inline stats — to the right of submit on desktop, below on mobile */}
-          <div className="flex md:flex-col items-center md:items-end gap-3 md:gap-2 text-zinc-500 md:pt-1 flex-wrap">
+          {/* Inline stats — pushed to far right on desktop, below on mobile */}
+          <div className="flex md:flex-col items-center md:items-end gap-3 md:gap-2 text-zinc-500 md:pt-1 flex-wrap md:ml-auto">
             <span className="text-base md:text-lg"><span className="text-zinc-200 tabular-nums font-medium">{stats.startups.toLocaleString()}</span> <span className="text-sm text-zinc-500">startups</span></span>
             <span className="text-zinc-700 md:hidden">·</span>
             <span className="text-base md:text-lg"><span className="text-zinc-200 tabular-nums font-medium">{stats.investors.toLocaleString()}</span> <span className="text-sm text-zinc-500">investors</span></span>
