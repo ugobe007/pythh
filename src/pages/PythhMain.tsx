@@ -66,8 +66,62 @@ export default function PythhHome() {
     return () => clearInterval(interval);
   }, []);
 
-  // Investor signals table uses curated top-tier VCs (signal scores are illustrative)
-  // Live data query removed — DB investor names were low-quality scraper artifacts
+  // Live investor signals — quality-filtered (elite + strong tier only, scored)
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchQualityInvestors() {
+      try {
+        // Only pull investors that passed quality scoring: elite or strong tier
+        const { data, error } = await supabase
+          .from('investors')
+          .select('name, firm, investor_score, investor_tier, sectors, score_breakdown')
+          .or('investor_tier.eq.elite,investor_tier.eq.strong')
+          .not('investor_score', 'is', null)
+          .gte('investor_score', 6.5)
+          .order('investor_score', { ascending: false })
+          .limit(50);
+
+        if (error || !data || data.length < 8 || cancelled) return;
+
+        // Pick 8 random from top 50 quality investors (to rotate on refresh)
+        const shuffled = [...data].sort(() => Math.random() - 0.5).slice(0, 8);
+
+        // Map real investor data to signal display format
+        const signals = shuffled.map((inv) => {
+          const score = inv.investor_score || 6.5;
+          const displayName = inv.firm && inv.firm !== inv.name && inv.firm !== '-'
+            ? `${inv.name} — ${inv.firm}`
+            : inv.name;
+          // Derive signal metrics from real score data
+          const god = Math.round(score * 9.2); // investor_score 6-9 → GOD 55-83
+          const vcp = Math.min(99, Math.round(score * 10.5)); // → VCP 63-94
+          const delta = ((Math.random() - 0.35) * 0.8).toFixed(1); // slight positive bias
+          const bars = score >= 8.0 ? 5 : score >= 7.5 ? 4 : score >= 7.0 ? 3 : score >= 6.7 ? 2 : 1;
+          return {
+            investor: displayName.length > 40 ? displayName.slice(0, 38) + '…' : displayName,
+            signal: +score.toFixed(1),
+            delta: +delta >= 0 ? `+${delta}` : delta,
+            god,
+            vcp,
+            bars,
+          };
+        });
+
+        // Sort by signal score descending for clean table display
+        signals.sort((a, b) => b.signal - a.signal);
+        if (!cancelled) setInvestorSignals(signals);
+      } catch (err) {
+        console.error('Failed to fetch quality investors:', err);
+        // Falls back to STATIC_INVESTOR_SIGNALS (initial state)
+      }
+    }
+
+    fetchQualityInvestors();
+    // Rotate investors every 45 seconds for a live feel
+    const interval = setInterval(fetchQualityInvestors, 45000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PYTHH ENGINE ENTRY POINT - DO NOT MODIFY
