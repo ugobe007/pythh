@@ -292,14 +292,14 @@ export default function PythhHome() {
           </div>
 
           {/* Inline stats — to the right of submit on desktop, below on mobile */}
-          <div className="flex md:flex-col items-center md:items-end gap-3 md:gap-1 text-sm text-zinc-500 md:pt-2.5 flex-wrap">
-            <span><span className="text-zinc-300 tabular-nums">{stats.startups.toLocaleString()}</span> startups</span>
+          <div className="flex md:flex-col items-center md:items-end gap-3 md:gap-2 text-zinc-500 md:pt-1 flex-wrap">
+            <span className="text-base md:text-lg"><span className="text-zinc-200 tabular-nums font-medium">{stats.startups.toLocaleString()}</span> <span className="text-sm text-zinc-500">startups</span></span>
             <span className="text-zinc-700 md:hidden">·</span>
-            <span><span className="text-zinc-300 tabular-nums">{stats.investors.toLocaleString()}</span> investors</span>
+            <span className="text-base md:text-lg"><span className="text-zinc-200 tabular-nums font-medium">{stats.investors.toLocaleString()}</span> <span className="text-sm text-zinc-500">investors</span></span>
             <span className="text-zinc-700 md:hidden">·</span>
-            <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
+            <span className="text-base md:text-lg"><span className="text-cyan-400 tabular-nums font-medium">{stats.matches.toLocaleString()}</span> <span className="text-sm text-zinc-500">matches</span></span>
             <span className="text-zinc-700 md:hidden">·</span>
-            <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/70 text-xs">Live</span></span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/70 text-sm">Live</span></span>
           </div>
         </div>
 
