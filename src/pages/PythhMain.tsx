@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
+import HotMatchesFeed from '../components/HotMatchesFeed';
 import { supabase } from '../lib/supabase';
 import { submitStartup } from '../services/submitStartup';
 
@@ -235,120 +236,133 @@ export default function PythhHome() {
       <PythhUnifiedNav />
 
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO - Bold headline + URL submit + Rankings CTA
+          HERO - Bold headline + URL submit + Rankings CTA + Hot Matches
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 pb-4">
-        <div className="space-y-6">
-          {/* Pre-headline */}
-          <p 
-            className="text-base sm:text-lg tracking-wide text-cyan-100"
-            style={{ 
-              textShadow: '0 0 6px rgba(0, 210, 255, 0.4), 0 0 16px rgba(0, 210, 255, 0.15)'
-            }}
-          >
-            Investor signals. Live.
-          </p>
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 pb-0">
+        {/* Flexible grid: Left column = content flow, Right column = Hot Matches */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start">
           
-          {/* Main headline */}
-          <h1 
-            className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-white leading-[1.08]"
-            style={{ 
-              textShadow: [
-                '0 0 3px rgba(0, 220, 255, 0.5)',
-                '0 0 12px rgba(0, 200, 255, 0.3)',
-                '0 0 24px rgba(0, 200, 255, 0.15)',
-                '0 0 48px rgba(0, 200, 255, 0.07)',
-              ].join(', ')
-            }}
-          >
-            Find your investors. Now.
-          </h1>
-          <p className="text-zinc-400 text-lg sm:text-xl max-w-3xl">
-            We align your startup with investor signals. No guessing. Just math.
-          </p>
-        </div>
-
-        {/* Submit bar — narrower for visual funnel effect */}
-        <div className="mt-8 max-w-2xl">
-          <div 
-            className="flex flex-col sm:flex-row"
-            style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
-          >
-            <input
-              data-testid="home-url-input"
-              type="text"
-              value={url}
-              onChange={e => {
-                setUrl(e.target.value);
-                setUrlError('');
-                setSuggestion('');
+          {/* LEFT COLUMN: All hero content flows naturally */}
+          <div className="space-y-8">
+            {/* Pre-headline */}
+            <p 
+              className="text-base sm:text-lg tracking-wide text-cyan-100"
+              style={{ 
+                textShadow: '0 0 6px rgba(0, 210, 255, 0.4), 0 0 16px rgba(0, 210, 255, 0.15)'
               }}
-              onKeyDown={e => e.key === 'Enter' && submit()}
-              placeholder="https://yourstartup.com"
-              className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-5 py-4 text-white text-base placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
-            />
-            <button
-              data-testid="home-analyze-button"
-              onClick={submit}
-              disabled={submitting}
-              className="px-8 sm:px-10 py-4 bg-transparent border border-cyan-500 text-cyan-400 text-base font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
             >
-              {submitting ? 'Finding...' : 'Find Signals →'}
-            </button>
-          </div>
-          
-          {/* Sub-bar: error/suggestion OR inline stats */}
-          <div className="mt-2.5 min-h-[20px]">
-            {urlError ? (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-amber-400">{urlError}</span>
-                {suggestion && (
-                  <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
-                    Use "{suggestion}"
-                  </button>
+              Investor signals. Live.
+            </p>
+            
+            {/* Main headline */}
+            <h1 
+              className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-white leading-[1.08]"
+              style={{ 
+                textShadow: [
+                  '0 0 3px rgba(0, 220, 255, 0.5)',
+                  '0 0 12px rgba(0, 200, 255, 0.3)',
+                  '0 0 24px rgba(0, 200, 255, 0.15)',
+                  '0 0 48px rgba(0, 200, 255, 0.07)',
+                ].join(', ')
+              }}
+            >
+              Find your investors. Now.
+            </h1>
+            
+            <p className="text-zinc-400 text-lg sm:text-xl max-w-3xl">
+              We align your startup with investor signals. No guessing. Just math.
+            </p>
+
+            {/* URL input section */}
+            <div className="max-w-3xl">
+              {/* Submit bar */}
+              <div 
+                className="flex flex-col sm:flex-row"
+                style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
+              >
+                <input
+                  data-testid="home-url-input"
+                  type="text"
+                  value={url}
+                  onChange={e => {
+                    setUrl(e.target.value);
+                    setUrlError('');
+                    setSuggestion('');
+                  }}
+                  onKeyDown={e => e.key === 'Enter' && submit()}
+                  placeholder="https://yourstartup.com"
+                  className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-5 py-4 text-white text-base placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+                />
+                <button
+                  data-testid="home-analyze-button"
+                  onClick={submit}
+                  disabled={submitting}
+                  className="px-8 sm:px-10 py-4 bg-transparent border border-cyan-500 text-cyan-400 text-base font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {submitting ? 'Finding...' : 'Find Signals →'}
+                </button>
+              </div>
+            
+              {/* Sub-bar: error/suggestion OR inline stats */}
+              <div className="mt-2.5 min-h-[20px]">
+                {urlError ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-amber-400">{urlError}</span>
+                    {suggestion && (
+                      <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
+                        Use "{suggestion}"
+                      </button>
+                    )}
+                  </div>
+                ) : url.trim() ? (
+                  <div className="text-xs text-zinc-500">
+                    Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 text-[13px] text-zinc-500">
+                    <span><span className="text-zinc-300 tabular-nums">{stats.startups.toLocaleString()}</span> startups</span>
+                    <span className="text-zinc-700">·</span>
+                    <span><span className="text-zinc-300 tabular-nums">{stats.investors.toLocaleString()}</span> investors</span>
+                    <span className="text-zinc-700">·</span>
+                    <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
+                    <span className="text-zinc-700">·</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/60">live</span></span>
+                  </div>
                 )}
               </div>
-            ) : url.trim() ? (
-              <div className="text-xs text-zinc-500">
-                Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-4 text-[13px] text-zinc-500">
-                <span><span className="text-zinc-300 tabular-nums">{stats.startups.toLocaleString()}</span> startups</span>
-                <span className="text-zinc-700">·</span>
-                <span><span className="text-zinc-300 tabular-nums">{stats.investors.toLocaleString()}</span> investors</span>
-                <span className="text-zinc-700">·</span>
-                <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
-                <span className="text-zinc-700">·</span>
-                <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/60">live</span></span>
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Secondary CTA */}
-        <div className="mt-5 flex flex-wrap items-center gap-6">
-          <Link
-            to="/rankings"
-            className="group inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-cyan-400 transition-colors"
-          >
-            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full group-hover:animate-pulse" />
-            See how Sequoia, a16z &amp; YC rank your sector
-            <span className="text-cyan-500 group-hover:translate-x-0.5 transition-transform">→</span>
-          </Link>
-          <Link
-            to="/explore"
-            className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            Browse {stats.startups.toLocaleString()} startups
-          </Link>
+            {/* Secondary CTAs */}
+            <div className="flex flex-wrap items-center gap-6">
+              <Link
+                to="/rankings"
+                className="group inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-cyan-400 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full group-hover:animate-pulse" />
+                See how Sequoia, a16z &amp; YC rank your sector
+                <span className="text-cyan-500 group-hover:translate-x-0.5 transition-transform">→</span>
+              </Link>
+              <Link
+                to="/explore"
+                className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Browse {stats.startups.toLocaleString()} startups
+              </Link>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Hot Matches - positioned below headline area */}
+          <div className="hidden lg:block mt-28">
+            <HotMatchesFeed limit={5} hoursAgo={720} showHeader={true} autoRefresh={true} />
+          </div>
+          
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-0 pb-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-8 pb-8">
         <div className="mb-5">
           <p className="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-3xl">
             Every investor leaves a trail — portfolio moves, thesis shifts, check-size changes. 
