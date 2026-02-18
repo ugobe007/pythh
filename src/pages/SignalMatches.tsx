@@ -506,7 +506,7 @@ export default function SignalMatches() {
 
         {/* Tools */}
         <div className="mt-8 flex items-center gap-6 text-sm">
-          <Link to="/app/oracle" className="text-amber-400 hover:text-amber-300 transition">
+          <Link to="/app/oracle/coaching" className="text-amber-400 hover:text-amber-300 transition">
             Oracle coaching →
           </Link>
           <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 transition">

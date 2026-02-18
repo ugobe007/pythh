@@ -105,6 +105,8 @@ export interface StartupContext {
     tagline: string | null;
     description: string | null;
     stage: number | null;
+    sectors: string[];
+    extracted_data: any | null;
   };
   god: {
     total: number;

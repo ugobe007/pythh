@@ -364,7 +364,8 @@ async function recalculateScores(): Promise<void> {
     }
     
     // Get signals_bonus from startup (already populated from startup_signal_scores)
-    const signalsBonus = Math.min(startup.signals_bonus || 0, 8); // Capped at 8 (ADMIN APPROVED)
+    // RECALIBRATED (Feb 18, 2026 v5): Cap reduced from 8 → 6 (stricter standards)
+    const signalsBonus = Math.min(startup.signals_bonus || 0, 6); // Capped at 6
     
     // T2: Momentum scoring — forward movement recognition (+0 to +8 pts)
     let momentumBonus = 0;
@@ -437,30 +438,54 @@ async function recalculateScores(): Promise<void> {
       // Spiky/Hot scoring is optional, continue if it fails
     }
 
-    // Final score = GOD score + capped additive bonuses (floor at 40, cap at 85)
+    // Final score = GOD score + additive bonuses (floor at 35)
     // ═══════════════════════════════════════════════════════════════════════
-    // RECALIBRATION v2 (Feb 16, 2026): ADMIN APPROVED geometric weighting
-    // Bonus hierarchy: Psych(10) > Bootstrap/Signals(8) > Momentum(8) > AP(3) > Spiky(2) > Hot(1)
-    // Total bonus hard-capped at +8 (one tier max on 85-point scale)
-    // GOD score cap: 85 (original design intent)
+    // RECALIBRATION v6 (Feb 18, 2026): DIVISOR 30.0 + GRADUATED CAP + WATCH LIST
+    // Signal hierarchy: Momentum(8) > AP(6) > Elite(5) > Bootstrap(6) > Spiky/Hot(2.5)
+    // Base GOD (divisor 30.0): avg ~40, weak ~35, good ~47, exceptional ~53
+    // 
+    // GRADUATED BONUS CAPS (prevents weak startups from grade inflation):
+    //   - Fair tier (base 35-50): +8 max  → final range 35-58
+    //   - Good tier (base 51-60): +15 max → final range 51-75
+    //   - Strong+ tier (base 61+): +20 max → final range 61-90+
+    // 
+    // WATCH LIST: Startups scoring <35 flagged for re-scraping/data enrichment
+    // Target: 20-25% Fair, 35-40% Good, 22-25% Strong, 10% Excellent, 2% Elite
     // ═══════════════════════════════════════════════════════════════════════
-    const totalBonuses = bootstrapBonus + signalsBonus + momentumBonus + apPromisingBonus + eliteBoost + spikyHotBonus;
-    const cappedBonuses = Math.min(totalBonuses, 8); // Hard cap: +8 max (ADMIN APPROVED)
-    const rawFinal = Math.round(scores.total_god_score + cappedBonuses);
-    const finalScore = Math.min(Math.max(rawFinal, 40), 85); // Floor=40, Cap=85 (original design)
+    const uncappedBonuses = bootstrapBonus + signalsBonus + momentumBonus + apPromisingBonus + eliteBoost + spikyHotBonus;
+    
+    // GRADUATED CAP: Different limits based on base GOD score
+    const baseScore = scores.total_god_score;
+    let bonusCap: number;
+    if (baseScore <= 50) {
+      bonusCap = 8;  // Fair tier: strict cap to prevent weak startups inflating to Strong
+    } else if (baseScore <= 60) {
+      bonusCap = 15; // Good tier: moderate cap, can reach Strong/Excellent with signals
+    } else {
+      bonusCap = 20; // Strong+ tier: generous cap, allow elite startups to reach 80-90+
+    }
+    
+    const totalBonuses = Math.min(uncappedBonuses, bonusCap);
+    const rawFinal = Math.round(baseScore + totalBonuses);
+    const finalScore = Math.max(rawFinal, 35); // Floor=35 (approved startups only, enforced in DB trigger)
+    
+    // 🔍 WATCH LIST: Flag startups <35 for data enrichment
+    const needsDataEnrichment = rawFinal < 35;
     
     // Phase 1 Psychological Signals (Feb 12, 2026) - Apply additive bonus to create enhanced score
     // enhanced_god_score = finalScore + psychological_multiplier (capped at 100)
     // Note: psychological_multiplier column stores additive bonus values (0-1.0 scale)
     // FIX (Feb 14): Field name now matches between calculateGODScore return and consumer
+    // FIX (Feb 17): Enhanced cap raised to 100 (elite unicorn-track can reach 90-100)
+    // FIX (Feb 18 v6): Floor updated to 35 (allow Fair category 35-49)
     const psychBonus = scores.psychological_multiplier || 0;
     const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 10); // Psych cap: -5 to +10 GOD pts (ADMIN APPROVED)
-    const enhancedScore = Math.max(Math.min(Math.round(finalScore + psychBonusGOD), 85), 40); // Floor=40, Cap=85
+    const enhancedScore = Math.max(Math.min(Math.round(finalScore + psychBonusGOD), 100), 35); // Floor=35, Cap=100 (elite unicorns)
 
     // Only update if score changed OR momentum_score needs backfill
     const oldMomentum = startup.momentum_score || 0;
     const momentumChanged = momentumColumnExists && Math.abs(momentumBonus - oldMomentum) > 0.01;
-    if (finalScore !== oldScore || momentumChanged) {
+    if (finalScore !== oldScore || momentumChanged || needsDataEnrichment) {
       // Build update payload — momentum_score column may not exist yet
       const updatePayload: any = {
           total_god_score: finalScore,
@@ -478,6 +503,24 @@ async function recalculateScores(): Promise<void> {
       // T2: Only include momentum_score if column exists (added lazily)
       if (momentumColumnExists) {
         updatePayload.momentum_score = momentumBonus;
+      }
+      
+      // 🔍 WATCH LIST: Mark startups <35 for priority re-scraping
+      // These startups need data enrichment to reach minimum viable score
+      if (needsDataEnrichment && startup.status === 'approved') {
+        // Add to scraping priority queue (will be picked up by continuous-scraper.js)
+        try {
+          await supabase.from('startup_jobs').insert({
+            startup_id: startup.id,
+            job_type: 'data_enrichment',
+            priority: 'high',
+            reason: `GOD score below 35 (${rawFinal}) - needs data enrichment`,
+            scheduled_for: new Date().toISOString()
+          });
+        } catch (e) {
+          // Table may not exist yet, log and continue
+          console.log(`  🔍 Watch list: ${startup.name} (score: ${rawFinal}) - needs data enrichment`);
+        }
       }
 
       const { error: updateError } = await supabase

@@ -138,8 +138,8 @@ export default function StartupProfileCard({
   unlockedCount,
   totalMatches,
 }: StartupProfileCardProps) {
-  if (loading || !context) {
-    // Skeleton loader
+  // Show skeleton while loading
+  if (loading) {
     return (
       <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-xl p-6 mb-8 animate-pulse">
         <div className="flex items-start gap-6">
@@ -148,6 +148,37 @@ export default function StartupProfileCard({
             <div className="h-6 bg-zinc-800 rounded w-48" />
             <div className="h-4 bg-zinc-800/60 rounded w-72" />
             <div className="h-3 bg-zinc-800/40 rounded w-96" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no context after loading, show error/fallback with basic info
+  if (!context) {
+    return (
+      <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-xl p-6 mb-8">
+        <div className="flex flex-col sm:flex-row gap-6">
+          {/* Placeholder GOD Score Ring */}
+          <div className="flex-shrink-0 flex flex-col items-center gap-1">
+            <ScoreRing score={50} />
+            <span className="text-[10px] text-zinc-500">Loading...</span>
+          </div>
+
+          {/* Basic Identity */}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-white">{displayName}</h2>
+            <p className="text-sm text-zinc-500 mt-2">Profile data loading...</p>
+            <p className="text-xs text-zinc-600 mt-1">If this persists, the startup may not be in our database yet.</p>
+          </div>
+
+          {/* Basic Stats */}
+          <div className="flex-shrink-0 w-full sm:w-56">
+            <div className="bg-zinc-800/40 rounded-lg px-4 py-3">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Matches</p>
+              <p className="text-lg font-semibold text-zinc-300">{totalMatches}</p>
+              <p className="text-[10px] text-emerald-400 mt-0.5">{unlockedCount} unlocked</p>
+            </div>
           </div>
         </div>
       </div>
@@ -164,8 +195,62 @@ export default function StartupProfileCard({
   const description = startup?.description;
   const website = startup?.website;
   const stage = startup?.stage;
-  const sectors = comparison?.sectors || [];
+  const sectors = startup?.sectors || comparison?.sectors || [];
   const percentile = comparison?.percentile;
+  const extractedData = startup?.extracted_data;
+
+  // Build comprehensive business summary from available sources
+  const businessSummary = description || 
+    extractedData?.description ||
+    extractedData?.value_proposition || 
+    extractedData?.product_description ||
+    (extractedData?.problem && extractedData?.solution 
+      ? `${extractedData.problem} ${extractedData.solution}` 
+      : null) ||
+    (tagline && tagline !== `Startup at ${website?.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')}` 
+      ? tagline 
+      : null);
+
+  // Get execution signals for fallback display
+  const executionSignals = extractedData?.execution_signals || [];
+  const customerCount = extractedData?.customer_count;
+  
+  // Debug log
+  console.log('[StartupProfileCard] Debug:', {
+    name,
+    businessSummary,
+    executionSignals,
+    customerCount,
+    tagline,
+    website
+  });
+  
+  // Build fallback description from traction/execution if no narrative available
+  const fallbackSummary = !businessSummary && (executionSignals.length > 0 || customerCount)
+    ? (() => {
+        const parts: string[] = [];
+        if (customerCount) parts.push(`${customerCount}+ customers`);
+        if (executionSignals.some((s: string) => s.toLowerCase().includes('revenue'))) {
+          parts.push('generating revenue');
+        }
+        if (executionSignals.some((s: string) => s.toLowerCase().includes('demo'))) {
+          parts.push('live product demo');
+        }
+        const sectorName = sectors[0] || 'Startup';
+        return parts.length > 0 
+          ? `${sectorName} company with ${parts.join(', ')}.`
+          : null;
+      })()
+    : null;
+
+  // Extract traction metrics if available
+  const traction = extractedData
+    ? {
+        revenue: extractedData.revenue || extractedData.arr || extractedData.mrr,
+        users: extractedData.active_users || extractedData.customers,
+        growth: extractedData.growth_rate,
+      }
+    : null;
 
   // Clean website for display
   const websiteDisplay = website
@@ -173,8 +258,8 @@ export default function StartupProfileCard({
     : null;
 
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-xl p-6 mb-8">
-      <div className="flex flex-col sm:flex-row gap-6">
+    <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-xl p-5 mb-6">
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* LEFT: GOD Score Ring */}
         <div className="flex-shrink-0 flex flex-col items-center gap-1">
           <ScoreRing score={god.total} />
@@ -183,74 +268,127 @@ export default function StartupProfileCard({
           )}
         </div>
 
-        {/* MIDDLE: Identity */}
-        <div className="flex-1 min-w-0">
+        {/* MIDDLE: Identity + Description */}
+        <div className="flex-1 min-w-0 space-y-2">
           {/* Name + Website */}
-          <div className="flex items-baseline gap-3 flex-wrap">
-            <h2 className="text-xl font-bold text-white truncate">{name}</h2>
-            {websiteDisplay && (
-              <a
-                href={website!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-cyan-400 transition-colors"
-              >
-                {websiteDisplay}
-                <ExternalLinkIcon />
-              </a>
-            )}
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <h2 className="text-lg font-bold text-white truncate">{name}</h2>
+                {websiteDisplay && (
+                  <a
+                    href={website!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-cyan-400 transition-colors"
+                  >
+                    {websiteDisplay}
+                    <ExternalLinkIcon />
+                  </a>
+                )}
+              </div>
+
+              {/* Tagline - only if distinct from description */}
+              {tagline && tagline !== businessSummary && tagline !== `Startup at ${websiteDisplay}` && (
+                <p className="text-xs text-cyan-400/80 mt-0.5 font-medium line-clamp-1">{tagline}</p>
+              )}
+            </div>
           </div>
 
-          {/* Tagline */}
-          {tagline && tagline !== `Startup at ${websiteDisplay}` && (
-            <p className="text-sm text-zinc-400 mt-1">{tagline}</p>
+          {/* Business Summary - show whichever is available */}
+          {(businessSummary || fallbackSummary) && (
+            <div className="bg-zinc-800/30 rounded-lg p-2.5">
+              <p className="text-sm text-zinc-300 leading-relaxed line-clamp-2">
+                {businessSummary || fallbackSummary}
+              </p>
+              {!businessSummary && fallbackSummary && (
+                <p className="text-[10px] text-zinc-500 mt-1 italic">
+                  Limited description available
+                </p>
+              )}
+            </div>
           )}
 
-          {/* Description */}
-          {description && (
-            <p className="text-xs text-zinc-500 mt-2 line-clamp-2 max-w-2xl leading-relaxed">
-              {description}
-            </p>
-          )}
-
-          {/* Tags row: sectors + stage */}
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            {sectors.map((s) => (
+          {/* Metadata row: Stage + Sectors */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {stage && STAGE_LABELS[stage] && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-cyan-500/10 text-[10px] text-cyan-400 font-medium border border-cyan-500/20">
+                {STAGE_LABELS[stage]}
+              </span>
+            )}
+            {sectors.slice(0, 3).map((s) => (
               <span
                 key={s}
-                className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-800/80 text-[11px] text-zinc-300 font-medium"
+                className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-800/80 text-[10px] text-zinc-300 font-medium"
               >
                 {s}
               </span>
             ))}
-            {stage && STAGE_LABELS[stage] && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-cyan-500/10 text-[11px] text-cyan-400 font-medium border border-cyan-500/20">
-                {STAGE_LABELS[stage]}
-              </span>
+            {sectors.length > 3 && (
+              <span className="text-[10px] text-zinc-500">+{sectors.length - 3}</span>
             )}
           </div>
+
+          {/* Traction metrics if available */}
+          {traction && (traction.revenue || traction.users || traction.growth) && (
+            <div className="flex items-center gap-3 text-[10px]">
+              {traction.revenue && (
+                <div className="flex items-center gap-1">
+                  <span className="text-zinc-500">Revenue:</span>
+                  <span className="text-zinc-300 font-semibold">
+                    {typeof traction.revenue === 'number' && traction.revenue >= 1000000
+                      ? `$${(traction.revenue / 1000000).toFixed(1)}M`
+                      : typeof traction.revenue === 'number'
+                      ? `$${(traction.revenue / 1000).toFixed(0)}K`
+                      : traction.revenue}
+                  </span>
+                </div>
+              )}
+              {traction.users && (
+                <div className="flex items-center gap-1">
+                  <span className="text-zinc-500">Users:</span>
+                  <span className="text-zinc-300 font-semibold">
+                    {typeof traction.users === 'number' && traction.users >= 1000000
+                      ? `${(traction.users / 1000000).toFixed(1)}M`
+                      : typeof traction.users === 'number' && traction.users >= 1000
+                      ? `${(traction.users / 1000).toFixed(0)}K`
+                      : traction.users}
+                  </span>
+                </div>
+              )}
+              {traction.growth && (
+                <div className="flex items-center gap-1">
+                  <span className="text-zinc-500">Growth:</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {typeof traction.growth === 'number' 
+                      ? `${(traction.growth * 100).toFixed(0)}%`
+                      : traction.growth}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* RIGHT: Scores + Stats */}
-        <div className="flex-shrink-0 w-full sm:w-56 space-y-4">
-          {/* Signal Score */}
-          <div className="flex items-center justify-between bg-zinc-800/40 rounded-lg px-4 py-3">
-            <div>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Signal Score</p>
-              <p className="text-2xl font-bold text-white">
-                {signals.total.toFixed(1)}
-                <span className="text-xs text-zinc-500 font-normal ml-0.5">/10</span>
-              </p>
+        {/* RIGHT: Stats + GOD Breakdown */}
+        <div className="flex-shrink-0 w-full lg:w-64 space-y-3">
+          {/* Signal Score + Matches */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Signal Score</p>
+              <p className="text-2xl font-bold text-white">{signals.total.toFixed(1)}</p>
+              <p className="text-[9px] text-zinc-500">/10</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Matches</p>
-              <p className="text-lg font-semibold text-zinc-300">{totalMatches}</p>
-              <p className="text-[10px] text-emerald-400">{unlockedCount} unlocked</p>
+            <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Matches</p>
+              <p className="text-2xl font-bold text-white">{totalMatches}</p>
+              <p className="text-[9px] text-emerald-400">{unlockedCount} unlocked</p>
             </div>
           </div>
 
-          {/* GOD Breakdown mini bars */}
-          <div className="space-y-1.5">
+          {/* GOD Breakdown - Compact */}
+          <div className="bg-zinc-800/20 rounded-lg px-3 py-2 space-y-1.5">
+            <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1">GOD Breakdown</p>
             <GODBar label="Team" value={god.team} max={25} color="bg-blue-500" />
             <GODBar label="Traction" value={god.traction} max={25} color="bg-emerald-500" />
             <GODBar label="Market" value={god.market} max={20} color="bg-purple-500" />
@@ -258,11 +396,13 @@ export default function StartupProfileCard({
             <GODBar label="Vision" value={god.vision} max={15} color="bg-cyan-500" />
           </div>
 
-          {/* Industry comparison */}
+          {/* Industry Comparison - Compact */}
           {comparison && (
-            <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 border-t border-zinc-800/30">
-              <span>vs industry avg <strong className="text-zinc-400">{comparison.industry_avg}</strong></span>
-              <span>top quartile <strong className="text-zinc-400">{comparison.top_quartile}</strong></span>
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-zinc-500">vs industry avg</span>
+              <span className="text-zinc-300 font-semibold">{comparison.industry_avg}</span>
+              <span className="text-zinc-500">top quartile</span>
+              <span className="text-zinc-300 font-semibold">{comparison.top_quartile}</span>
             </div>
           )}
         </div>

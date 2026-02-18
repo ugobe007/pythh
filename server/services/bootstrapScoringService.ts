@@ -30,11 +30,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const BOOTSTRAP_CONFIG = {
   // Maximum bonus points from bootstrap scoring
-  // RECALIBRATED (Feb 16, 2026): 15 → 8 (ADMIN APPROVED geometric weighting)
-  maxBonus: 8,
+  // RECALIBRATED (Feb 18, 2026 v5): 8 → 6 (tighter standards, reward only exceptional signals)
+  maxBonus: 6,
   
   // Data completeness threshold (below this = sparse data)
-  sparseDataThreshold: 0.50, // 50%
+  // RECALIBRATED (Feb 18, 2026 v5): 0.50 → 0.65 (stricter - only truly sparse data gets boost)
+  sparseDataThreshold: 0.65, // 65%
   
   // Social signal weights (total max: 4 points, was 8)
   socialSignals: {

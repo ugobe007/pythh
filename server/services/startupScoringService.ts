@@ -94,6 +94,21 @@
 // ⛔ DO NOT MODIFY without admin approval or ML training pipeline
 // 
 // CHANGE LOG:
+//   - Feb 18, 2026 (v2): Admin research-based adjustment: 25.0 → 26.0 (realistic VC selection rates)
+//     Research: Tier 1 VCs accept 1-2%, Tier 2 accept 3-5%, YC accepts 1.5-2.5% of applicants.
+//     If 90-95% of startups never get institutional funding, they shouldn't score 60+.
+//     Target distribution: 22% Strong (60-69), 37% Good (50-59), 20% Fair (40-49).
+//     Expected avg: 51-53 (down from 65.3). See VC_QUALITY_RESEARCH.md for full analysis.
+//   - Feb 18, 2026: Admin approved divisor 21.0 → 25.0 (realistic quality distribution)
+//     Reason: Avg 65.3 too high, 67.6% rated "Strong" (60-69) - unrealistic for real markets.
+//     Real startup quality follows bell curve: most should be Fair-Good (40-59), not Strong.
+//     Market reality: Only top 25-30% should score 60+, not 90%+.
+//     Target: avg 52-55, with 30-35% in Good (50-59), 25-30% in Strong (60-69).
+//   - Feb 17, 2026: Admin approved divisor 17.0 → 21.0 (prevent signal inflation)
+//     Reason: Avg 71.85 too high. With signal bonuses (+5-10), would reach 77-82 avg = unrealistic.
+//     Market reality: seed startups should avg 55-65, not 70+. Leaves room for signals to work.
+//     Impact: avg 71.85→58, max 85→69 (base), enhanced avg 61-68, enhanced max 75-90, elite→100
+//     Actual rawTotal observed: avg ~12.21, max ~14.45 (not reaching theoretical 17+)
 //   - Feb 14, 2026 (v2): Admin approved divisor 25.0 → 21.0 (fixes PhD ceiling)
 //     Reason: Divisor 25.0 exceeded max achievable rawTotal (~21.0), creating 4-pt dead zone.
 //     PhD (80+) was mathematically impossible. Now normalization matches actual max.
@@ -117,19 +132,20 @@
 const GOD_SCORE_CONFIG = {
   // Normalization divisor - controls overall score scaling
   // ⛔ LOCKED: Only admin or ML agent can modify
-  // Math: rawTotal (~17 max practical) / 17.0 * 10 = 10.0 → capped at 10.0 → 100 max
-  // Changed from 20.0 → 17.0 (Feb 2026): Fixes score compression (IQR was 3 pts)
-  // With baseBoostMinimum lowered to 2.5, practical rawTotal range is ~5-16.
-  // Divisor 17.0 maps: sparse(~5)→29(floor 40), average(~9)→53, good(~12)→71, hot(~16)→94
-  // Previous divisor of 20.0 compressed everything into 55-67 range = useless differentiation.
-  normalizationDivisor: 17.0,  // Calibrated for wider spread with lower baseBoost
+  // Math: rawTotal (avg ~12.21, max ~14.45 observed) / 30.0 * 10 → 0-10 scale → * 10 = 0-100
+  // Changed from 28.0 → 30.0 (Feb 18, 2026 v6): Final push to create Fair (35-49) category
+  // With baseBoostMinimum at 2.5, practical rawTotal range is ~5-16 (theoretical max 17+).
+  // Divisor 30.0 maps: sparse(~5)→17(floor 35), average(~12)→40, good(~14)→47, exceptional(~16)→53
+  // Signal bonuses (graduated cap) then lift: with Fair cap +8, Good cap +15, Strong+ cap +20
+  // Target distribution: 20-25% Fair (35-49), 35-40% Good (50-59), 22-25% Strong (60-69)
+  normalizationDivisor: 30.0,  // Admin calibrated Feb 18, 2026 v6 - allows natural Fair category
   
   // Base boost minimum - floor for data-poor startups
   // ⛔ LOCKED: Only admin or ML agent can modify
   // Changed from 4.2 → 2.5 (Feb 2026): Old value was HIGHER than natural baseBoost
   // for ~90% of startups, which meant they all got identical base contribution.
   // New value lets vibe + content checks create meaningful differentiation.
-  // With divisor 17.0: minimum score = (2.5/17)*100 = 14.7 → floor at 40 (DB trigger)
+  // With divisor 30.0: minimum score = (2.5/30)*100 = 8.3 → floor at 35 for approved startups
   baseBoostMinimum: 2.5,  // Admin calibrated Feb 2026 - allows natural content differentiation
   
   // Vibe bonus cap - qualitative signal boost

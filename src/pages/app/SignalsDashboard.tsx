@@ -473,7 +473,7 @@ export default function Dashboard() {
                 <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                   <Link to="/signals" style={{ color: "rgba(219,234,254,.9)", fontSize: 13 }}>Signals ledger →</Link>
                   <Link to="/app/signal-matches" style={{ color: "rgba(219,234,254,.9)", fontSize: 13 }}>Matchbook →</Link>
-                  <Link to="/app/oracle" style={{ color: "#FFB402", fontSize: 13, fontWeight: 600 }}>Oracle — Signal Coaching →</Link>
+                  <Link to="/app/oracle/coaching" style={{ color: "#FFB402", fontSize: 13, fontWeight: 600 }}>Oracle — Signal Coaching →</Link>
                 </div>
               </div>
             </div>
