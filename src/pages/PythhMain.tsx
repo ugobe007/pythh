@@ -8,6 +8,7 @@ import SEO from '../components/SEO';
 import { supabase } from '../lib/supabase';
 import { submitStartup } from '../services/submitStartup';
 import { useUsageTracking } from '../hooks/useUsageTracking';
+import { useAuth } from '../contexts/AuthContext';
 
 /*
  * PYTHH HOME - Signal Science
@@ -50,6 +51,10 @@ export default function PythhHome() {
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
   const [showPaywall, setShowPaywall] = useState(false);
   const navigate = useNavigate();
+  
+  // Auth state for Pro user bypass
+  const { profile } = useAuth();
+  const isPro = profile?.plan !== 'free';
   
   // Usage tracking for freemium limits
   const { 
@@ -164,8 +169,8 @@ export default function PythhHome() {
       return;
     }
     
-    // Check freemium limit FIRST
-    if (hasHitLimit) {
+    // Check freemium limit FIRST (Pro users bypass)
+    if (!isPro && hasHitLimit) {
       console.log('[PythhMain] User hit free analysis limit (5) - showing paywall');
       setShowPaywall(true);
       return;
@@ -367,13 +372,19 @@ export default function PythhHome() {
               </div>
               
               {/* Free analyses remaining indicator */}
-              {!hasHitLimit && (
+              {isPro ? (
+                <div className="mt-2 text-center">
+                  <span className="text-xs text-cyan-400">
+                    ✨ Pro: Unlimited analyses
+                  </span>
+                </div>
+              ) : !hasHitLimit ? (
                 <div className="mt-2 text-center">
                   <span className="text-xs text-slate-400">
                     🎯 {remainingAnalyses} {remainingAnalyses === 1 ? 'free analysis' : 'free analyses'} remaining
                   </span>
                 </div>
-              )}
+              ) : null}
             
               {/* Sub-bar: error/suggestion OR inline stats */}
               <div className="mt-2.5 min-h-[20px]">

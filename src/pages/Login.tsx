@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff, Github } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,6 +14,26 @@ export default function Login() {
   const [error, setError] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState(false);
+
+  const handleSocialLogin = async (provider: 'google' | 'github') => {
+    setSocialLoading(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
+      if (error) throw error;
+      // OAuth redirects away, so loading state persists
+    } catch (err: any) {
+      console.error(`[Login] ${provider} OAuth error:`, err);
+      setError(err.message || `Failed to sign in with ${provider}`);
+      setSocialLoading(false);
+    }
+  };
 
   const handleForgotPassword = useCallback(async () => {
     if (!email) {
@@ -213,6 +233,34 @@ export default function Login() {
             <div className="flex-1 h-px bg-slate-700" />
             <span className="text-slate-500 text-sm">or</span>
             <div className="flex-1 h-px bg-slate-700" />
+          </div>
+
+          {/* Social login buttons */}
+          <div className="space-y-3 mb-6">
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('google')}
+              disabled={socialLoading}
+              className="w-full py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-slate-300 font-medium hover:bg-slate-900 hover:border-slate-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#EA4335" d="M5.27 9.75A6.46 6.46 0 0 1 12 5.5c1.7 0 3.14.63 4.28 1.65l3.18-3.18C17.4 2.09 14.89 1 12 1 7.7 1 4.05 3.5 2.25 7.1l3.02 2.65z" />
+                <path fill="#34A853" d="M16.04 18.01A7.4 7.4 0 0 1 12 19.5a6.46 6.46 0 0 1-6.73-4.75L2.25 17.4C4.05 21 7.7 23.5 12 23.5c2.7 0 5.2-.89 7.17-2.53l-3.13-2.96z" />
+                <path fill="#4A90E2" d="M19.17 20.97C21.45 18.93 23 15.7 23 12.23c0-.79-.07-1.53-.2-2.23H12v4.5h6.18c-.3 1.45-1.1 2.64-2.27 3.41l3.26 2.06z" />
+                <path fill="#FBBC05" d="M5.27 14.75A6.53 6.53 0 0 1 5.27 9.75L2.25 7.1a10.5 10.5 0 0 0 0 10.3l3.02-2.65z" />
+              </svg>
+              Continue with Google
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('github')}
+              disabled={socialLoading}
+              className="w-full py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-slate-300 font-medium hover:bg-slate-900 hover:border-slate-500 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Github className="w-5 h-5" />
+              Continue with GitHub
+            </button>
           </div>
 
           {/* Sign up link */}

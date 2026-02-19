@@ -94,6 +94,7 @@ import SignupComplete from "./pages/SignupComplete";
 import ProfilePage from "./pages/ProfilePage";
 import FounderProfileDashboard from "./pages/FounderProfileDashboard";
 import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
+import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -214,6 +215,7 @@ const App: React.FC = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/admin-login" element={<AdminLogin />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<FounderProfileDashboard />} />
           <Route path="/profile/account" element={<ProfilePage />} />
           <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
