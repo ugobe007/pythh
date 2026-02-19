@@ -34,8 +34,8 @@ export default function SignupFounderPythh() {
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Get redirect URL
-  const redirectUrl = searchParams.get('redirect') || '/matches';
+  // Get redirect URL - default to dashboard for new signups
+  const redirectUrl = searchParams.get('redirect') || '/dashboard';
   const matchCount = searchParams.get('matches') || '';
   const startupUrl = searchParams.get('url') || '';
 
