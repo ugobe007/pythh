@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import HotMatchesFeed from '../components/HotMatchesFeed';
+import PaywallModal from '../components/PaywallModal';
 import SEO from '../components/SEO';
 import { supabase } from '../lib/supabase';
 import { submitStartup } from '../services/submitStartup';
+import { useUsageTracking } from '../hooks/useUsageTracking';
 
 /*
  * PYTHH HOME - Signal Science
@@ -46,7 +48,17 @@ export default function PythhHome() {
   const [submitting, setSubmitting] = useState(false);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
+  const [showPaywall, setShowPaywall] = useState(false);
   const navigate = useNavigate();
+  
+  // Usage tracking for freemium limits
+  const { 
+    analysisCount, 
+    hasHitLimit, 
+    remainingAnalyses, 
+    trackAnalysis,
+    FREE_ANALYSIS_LIMIT 
+  } = useUsageTracking();
 
   // Fetch live platform stats
   useEffect(() => {
@@ -152,6 +164,13 @@ export default function PythhHome() {
       return;
     }
     
+    // Check freemium limit FIRST
+    if (hasHitLimit) {
+      console.log('[PythhMain] User hit free analysis limit (5) - showing paywall');
+      setShowPaywall(true);
+      return;
+    }
+    
     // Clear previous errors
     setUrlError('');
     setSuggestion('');
@@ -179,6 +198,11 @@ export default function PythhHome() {
     // PREFETCH: Fire submitStartup immediately (don't wait for SignalMatches page)
     // Race: if we get a startup_id within 2s, navigate with it directly (skips re-resolution)
     setSubmitting(true);
+    
+    // Track analysis before navigation
+    trackAnalysis();
+    console.log('[PythhMain] Tracked analysis - new count:', analysisCount + 1);
+    
     const navigateFallback = () => {
       console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(trimmed)}`);
       navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
@@ -341,6 +365,15 @@ export default function PythhHome() {
                   {submitting ? 'Finding...' : 'Find Signals →'}
                 </button>
               </div>
+              
+              {/* Free analyses remaining indicator */}
+              {!hasHitLimit && (
+                <div className="mt-2 text-center">
+                  <span className="text-xs text-slate-400">
+                    🎯 {remainingAnalyses} {remainingAnalyses === 1 ? 'free analysis' : 'free analyses'} remaining
+                  </span>
+                </div>
+              )}
             
               {/* Sub-bar: error/suggestion OR inline stats */}
               <div className="mt-2.5 min-h-[20px]">
@@ -513,6 +546,14 @@ export default function PythhHome() {
           </Link>
         </div>
       </footer>
+      
+      {/* Paywall Modal */}
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        analysisCount={analysisCount}
+        analysisLimit={FREE_ANALYSIS_LIMIT}
+      />
     </div>
   );
 }

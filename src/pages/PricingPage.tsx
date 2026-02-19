@@ -75,8 +75,8 @@ const PLANS: PricingPlan[] = [
   {
     name: 'Pro',
     tier: 'pro',
-    price: 29,
-    annualPrice: 23,
+    price: 49,
+    annualPrice: 39,
     tagline: 'Full signal access for founders',
     color: 'border-cyan-500/40 hover:border-cyan-500',
     iconColor: 'text-cyan-400',
