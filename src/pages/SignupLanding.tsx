@@ -4,11 +4,23 @@
  * Supabase-style split layout: selection left, instructive content right
  */
 
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Activity, Eye, Zap, Shield, BarChart3, Users } from 'lucide-react';
 import PythhTopNav from '../components/PythhTopNav';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function SignupLanding() {
+  const navigate = useNavigate();
+  const { user, isLoggedIn } = useAuth();
+
+  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    if (isLoggedIn && user) {
+      navigate('/dashboard');
+    }
+  }, [isLoggedIn, user, navigate]);
+
   return (
     <div className="min-h-screen bg-[#090909]">
       <PythhTopNav showSignup={false} />

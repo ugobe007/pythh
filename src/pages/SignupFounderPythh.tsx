@@ -7,7 +7,7 @@
  * - Step 3: Your startup (stage, sector, fundraising)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -19,7 +19,14 @@ import { trackEvent } from '../lib/analytics';
 export default function SignupFounderPythh() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, user, isLoggedIn } = useAuth();
+
+  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    if (isLoggedIn && user) {
+      navigate('/dashboard');
+    }
+  }, [isLoggedIn, user, navigate]);
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [showPassword, setShowPassword] = useState(false);
