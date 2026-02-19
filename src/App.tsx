@@ -103,6 +103,13 @@ import AdminLogin from "./pages/AdminLogin";
 // Explore
 import ExplorePage from "./pages/ExplorePage";
 
+// Sector landing pages
+import AIMLInvestorsPage from "./pages/sectors/AIMLInvestorsPage";
+import FintechInvestorsPage from "./pages/sectors/FintechInvestorsPage";
+import HealthTechInvestorsPage from "./pages/sectors/HealthTechInvestorsPage";
+import DevToolsInvestorsPage from "./pages/sectors/DevToolsInvestorsPage";
+import B2BSaaSInvestorsPage from "./pages/sectors/B2BSaaSInvestorsPage";
+
 // Commercial pages
 import PricingPage from "./pages/PricingPage";
 
@@ -177,6 +184,13 @@ const App: React.FC = () => {
 
           {/* Explore — startup search by name/sector/stage */}
           <Route path="/explore" element={<ExplorePage />} />
+
+          {/* Sector landing pages */}
+          <Route path="/ai-ml-investors" element={<AIMLInvestorsPage />} />
+          <Route path="/fintech-investors" element={<FintechInvestorsPage />} />
+          <Route path="/healthtech-investors" element={<HealthTechInvestorsPage />} />
+          <Route path="/devtools-investors" element={<DevToolsInvestorsPage />} />
+          <Route path="/b2b-saas-investors" element={<B2BSaaSInvestorsPage />} />
 
           {/* Optional preserved pages */}
           <Route element={<PublicLayout />}>
