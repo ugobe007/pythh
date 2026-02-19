@@ -46,3 +46,4 @@ temp/
 .env.bak*
 .env.backup
 .env
+.env
