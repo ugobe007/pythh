@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Target, Code, Users } from 'lucide-react';
 import PythhUnifiedNav from '../../components/PythhUnifiedNav';
+import SEO from '../../components/SEO';
 import { supabase } from '../../lib/supabase';
 
 interface Investor {
@@ -84,6 +85,12 @@ const DevToolsInvestorsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <SEO
+        title="Top DevTools Investors - Find Your Perfect Developer Tools Investor | Hot Honey"
+        description="Connect with top devtools investors. Discover VCs and angels investing in developer tools, infrastructure, and platforms. 180+ devtools-focused investors."
+        keywords="devtools investors, developer tools VC, infrastructure funding, platform investors, devtools startup investors, developer tools venture capital"
+        canonical="/devtools-investors"
+      />
       <PythhUnifiedNav />
       
       <div className="container mx-auto px-4 pt-24 pb-16">

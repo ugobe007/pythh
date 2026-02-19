@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import HotMatchesFeed from '../components/HotMatchesFeed';
+import SEO from '../components/SEO';
 import { supabase } from '../lib/supabase';
 import { submitStartup } from '../services/submitStartup';
 
@@ -229,6 +230,14 @@ export default function PythhHome() {
       {/* Background gradient glow */}
       <div className="absolute top-0 left-1/4 w-[800px] h-[600px] bg-cyan-500/5 rounded-full blur-[150px] pointer-events-none" />
       <div className="absolute top-1/3 right-0 w-[600px] h-[500px] bg-emerald-500/3 rounded-full blur-[120px] pointer-events-none" />
+      
+      {/* SEO Meta Tags */}
+      <SEO
+        title="Hot Honey - AI-Powered Startup-Investor Matching | 12.6K+ Startups Analyzed"
+        description="Get matched with the right investors using our proprietary GOD Algorithm. 12,600+ startups analyzed, 841,915+ live matches, trusted by 500+ YC founders. Find your perfect investor match."
+        keywords="startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score, venture capital matching"
+        canonical="/"
+      />
       
       {/* ═══════════════════════════════════════════════════════════════════
           UNIFIED NAV

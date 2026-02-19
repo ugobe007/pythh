@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://hot-honey.fly.dev/sitemap.xml
+
+# Disallow admin and API routes
+User-agent: *
+Disallow: /admin/
+Disallow: /api/
+Disallow: /app/
+
+# Crawl delay (be nice to the server)
+Crawl-delay: 1

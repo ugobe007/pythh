@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Target, Heart, Users } from 'lucide-react';
 import PythhUnifiedNav from '../../components/PythhUnifiedNav';
+import SEO from '../../components/SEO';
 import { supabase } from '../../lib/supabase';
 
 interface Investor {
@@ -84,6 +85,12 @@ const HealthTechInvestorsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <SEO
+        title="Top HealthTech Investors - Find Your Perfect Digital Health Investor | Hot Honey"
+        description="Discover leading healthtech investors. Connect with VCs and angels investing in digital health, medical technology, and healthcare innovation. 200+ healthtech investors."
+        keywords="healthtech investors, digital health VC, medical technology funding, healthcare startup investors, healthtech venture capital, medtech investors"
+        canonical="/healthtech-investors"
+      />
       <PythhUnifiedNav />
       
       <div className="container mx-auto px-4 pt-24 pb-16">

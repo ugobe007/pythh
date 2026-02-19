@@ -40,6 +40,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
+import SEO from '../components/SEO';
 import { supabase } from '../lib/supabase';
 import ScoreDrilldownDrawer from '../components/ScoreDrilldownDrawer';
 import { generateDrilldownData, type DrilldownPayload } from '../utils/scoreDrilldown';
@@ -315,12 +316,13 @@ const SignalTrends: React.FC = () => {
         
         setTotalStartupCount(count || 0);
         
-        // Now get top 50 for display
+        // Now get top 50 for display - use real startup names
         const { data, error } = await supabase
           .from('startup_uploads')
           .select('id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
           .eq('status', 'approved')
           .not('total_god_score', 'is', null)
+          .not('name', 'is', null)
           .order('total_god_score', { ascending: false })
           .limit(50);
         

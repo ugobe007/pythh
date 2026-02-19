@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Target, Briefcase, Users } from 'lucide-react';
 import PythhUnifiedNav from '../../components/PythhUnifiedNav';
+import SEO from '../../components/SEO';
 import { supabase } from '../../lib/supabase';
 
 interface Investor {
@@ -84,6 +85,12 @@ const B2BSaaSInvestorsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <SEO
+        title="Top B2B SaaS Investors - Find Your Perfect Enterprise Software Investor | Hot Honey"
+        description="Discover leading B2B SaaS investors. Connect with VCs and angels investing in enterprise software and business solutions. 400+ B2B SaaS-focused investors."
+        keywords="B2B SaaS investors, enterprise software VC, SaaS funding, business software investors, B2B startup investors, enterprise SaaS venture capital"
+        canonical="/b2b-saas-investors"
+      />
       <PythhUnifiedNav />
       
       <div className="container mx-auto px-4 pt-24 pb-16">
