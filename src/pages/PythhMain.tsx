@@ -349,6 +349,11 @@ export default function PythhHome() {
                 Browse {stats.startups.toLocaleString()} startups
               </Link>
             </div>
+
+            {/* Mobile Hot Matches - compact version below CTAs */}
+            <div className="lg:hidden mt-6">
+              <HotMatchesFeed limit={3} hoursAgo={720} showHeader={true} autoRefresh={true} />
+            </div>
           </div>
 
           {/* RIGHT COLUMN: Hot Matches - positioned below headline area */}
