@@ -1,0 +1,60 @@
+================================================
+GITHUB SECRETS - COPY EACH LINE INDIVIDUALLY
+================================================
+
+SECRET #1
+---------
+In GitHub, click "New repository secret"
+Name field - paste this line ONLY:
+SUPABASE_URL
+
+Value field - paste this line ONLY:
+https://unkpogyhhjbvxxjvmxlt.supabase.co
+
+Click "Add secret"
+
+
+SECRET #2
+---------
+In GitHub, click "New repository secret"
+Name field - paste this line ONLY:
+SUPABASE_SERVICE_KEY
+
+Value field - paste this line ONLY:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua3BvZ3loaGpidnh4anZteGx0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTE1OTAzNSwiZXhwIjoyMDc2NzM1MDM1fQ.MYfYe8wDL1MYac1NHq2WkjFH27-eFUDi3Xn1hD5rLFA
+
+Click "Add secret"
+
+
+SECRET #3
+---------
+In GitHub, click "New repository secret"
+Name field - paste this line ONLY:
+SUPABASE_ANON_KEY
+
+Value field - paste this line ONLY:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVua3BvZ3loaGpidnh4anZteGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNTkwMzUsImV4cCI6MjA3NjczNTAzNX0.DdtBUf-liELSfKs2akrrHMcmlX4vHEkTuytWnvAYpJ8
+
+Click "Add secret"
+
+
+SECRET #4
+---------
+In GitHub, click "New repository secret"
+Name field - paste this line ONLY:
+OPENAI_API_KEY
+
+Value field - paste this line ONLY:
+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
+
+Click "Add secret"
+
+
+DO NOT COPY:
+- "SECRET #1"
+- "--------"  
+- "Name field - paste this line ONLY:"
+- "Value field - paste this line ONLY:"
+- "Click Add secret"
+
+ONLY COPY THE ACTUAL VALUES!

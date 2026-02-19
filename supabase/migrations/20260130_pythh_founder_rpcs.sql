@@ -413,7 +413,15 @@ BEGIN
       'website', v_startup.website,
       'tagline', v_startup.tagline,
       'description', COALESCE(v_startup.description, v_startup.pitch),
-      'stage', v_startup.stage
+      'stage', v_startup.stage,
+      'logo', v_startup.logo,
+      'sectors', v_startup.sectors,
+      'raise_amount', v_startup.raise_amount,
+      'raise_type', v_startup.raise_type,
+      'problem', v_startup.problem,
+      'solution', v_startup.solution,
+      'value_proposition', v_startup.value_proposition,
+      'extracted_data', v_startup.extracted_data
     ),
     'god', jsonb_build_object(
       'total', v_startup.total_god_score,

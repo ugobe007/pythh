@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ActionIntakeModalV2 from "@/components/ActionIntakeModalV2";
 import useStartupScorecardV2 from "@/hooks/useStartupScorecardV2";
+import HotMatchesFeed from "@/components/HotMatchesFeed";
 
 // Ensure the dashboard styles are loaded (safe even if also loaded globally)
 import "@/styles/pythh-dashboard.css";
@@ -476,6 +477,16 @@ export default function Dashboard() {
                   <Link to="/app/oracle/coaching" style={{ color: "#FFB402", fontSize: 13, fontWeight: 600 }}>Oracle — Signal Coaching →</Link>
                 </div>
               </div>
+            </div>
+
+            {/* Hot Matches Feed - FOMO Marketing */}
+            <div style={{ marginTop: 8 }}>
+              <HotMatchesFeed 
+                limit={5} 
+                hoursAgo={24} 
+                showHeader={true}
+                autoRefresh={true}
+              />
             </div>
           </aside>
         </div>

@@ -171,7 +171,11 @@ module.exports = {
       kill_timeout: 35000,  // Allow 35s for graceful shutdown (SIGINT handler needs 30s)
       cron_restart: '*/15 * * * *',  // Every 15 minutes
       env: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_URL: process.env.VITE_SUPABASE_URL,  // Pass as both for compatibility
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY
       },
       // SSOT scraper - parser is single source of truth for all decisions
       // Phase A: Always store events (100% coverage)

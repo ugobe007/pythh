@@ -338,10 +338,11 @@ function validateEntityQuality(entity: string): boolean {
   
   // Tier 1: Generic categories (NOT concrete entities)
   const genericTerms = [
-    'Researchers', 'Founders', 'Startups', 'VCs', 'Investors', 'Executives',
+    'Researchers', 'Founders', 'Startups', 'VCs', 'VC', 'Investors', 'Executives',
     'Leaders', 'People', 'Companies', 'Firms', 'Teams', 'Scientists',
     'MIT Researchers', 'Stanford Researchers', 'Former USDS Leaders',
-    'Indian Startups', 'Big VCs', 'SMEs',
+    'Indian Startups', 'Big VCs', 'SMEs', 'Angel', 'Angels',
+    'Unconventional', 'Conventional', 'Traditional', 'Modern', 'Special',
     // Real-world patterns from RSS feeds
     'Show', 'Show HN', 'Launch HN', 'Ask HN', 'Tell HN', 'How To', 'Humans',
     // Established tech companies (not startups)
@@ -363,7 +364,14 @@ function validateEntityQuality(entity: string): boolean {
   const places = [
     'Africa', 'Asia', 'Europe', 'America', 'Australia',
     'USA', 'UK', 'India', 'China', 'Japan', 'Germany', 'France', 'Brazil',
+    // Major global cities
     'Silicon Valley', 'Bay Area', 'New York', 'London', 'Berlin', 'Washington',
+    'Mumbai', 'Bangalore', 'Delhi', 'Hyderabad', 'Chennai', 'Pune',
+    'Shanghai', 'Beijing', 'Shenzhen', 'Hong Kong', 'Singapore',
+    'Tokyo', 'Seoul', 'Paris', 'Amsterdam', 'Stockholm', 'Tel Aviv',
+    'Dubai', 'Lagos', 'Nairobi', 'Cape Town', 'Cairo',
+    'Toronto', 'Vancouver', 'Sydney', 'Melbourne', 'São Paulo',
+    'San Francisco', 'Los Angeles', 'Seattle', 'Boston', 'Austin',
     // Nationality/regional adjectives (standalone, not company names)
     'African', 'Asian', 'European', 'American', 'Australian',
     'Moroccan', 'Ethiopian', 'Nigerian', 'Kenyan', 'South African',
@@ -489,9 +497,109 @@ function validateEntityQuality(entity: string): boolean {
     'Travis Kalanick', 'Adam Neumann', 'Elizabeth Holmes', 'Do Kwon', 'SBF',
     'Adam Mosseri', 'Andy Jassy', 'Dara Khosrowshahi', 'Susan Wojcicki',
     'Kevin Systrom', 'Evan Spiegel', 'Bobby Kotick', 'Garry Tan',
+    // Content creators / influencers
+    'Logan Paul', 'Jake Paul', 'MrBeast', 'PewDiePie', 'Marques Brownlee',
+    // Last names that shouldn't be companies
+    'Bezos', 'Musk', 'Zuckerberg', 'Altman', 'Gates', 'Jobs', 'Cook',
   ];
   if (famousPersons.some(p => entity.toLowerCase() === p.toLowerCase())) {
     return false;
+  }
+  
+  // === WELL-KNOWN COMPANY BLACKLIST ===
+  // Block established tech companies, unicorns, public companies (not startups)
+  // These companies appear in RSS feeds but should never be considered "discovered startups"
+  const wellKnownCompanies = [
+    // FAANG+ / Big Tech
+    'Google', 'Apple', 'Microsoft', 'Amazon', 'Meta', 'Facebook',
+    'Netflix', 'Tesla', 'Nvidia', 'Intel', 'AMD', 'IBM', 'Oracle',
+    'Salesforce', 'SAP', 'Adobe', 'Cisco', 'Dell', 'HP', 'Qualcomm',
+    
+    // Major tech platforms
+    'Twitter', 'X', 'LinkedIn', 'TikTok', 'Snapchat', 'Pinterest',
+    'Reddit', 'Discord', 'Slack', 'Zoom', 'Dropbox', 'Box',
+    'GitHub', 'GitLab', 'Atlassian', 'Jira', 'Confluence',
+    
+    // Unicorns & established startups (>$5B valuation or public)
+    'Stripe', 'SpaceX', 'ByteDance', 'Databricks', 'Canva', 'Figma',
+    'Notion', 'Airtable', 'Miro', 'Webflow', 'Vercel', 'Supabase',
+    'OpenAI', 'Anthropic', 'Stability AI', 'Hugging Face', 'Cohere',
+    'Weights And Biases', 'Scale AI', 'Databricks', 'Snowflake',
+    'Datadog', 'MongoDB', 'Elastic', 'Confluent', 'HashiCorp',
+    
+    // Payment/Fintech giants
+    'PayPal', 'Square', 'Block', 'Coinbase', 'Robinhood', 'Plaid',
+    'Visa', 'Mastercard', 'American Express', 'Amex', 'Chase', 'JPMorgan',
+    'Goldman Sachs', 'Morgan Stanley', 'Wells Fargo', 'Bank Of America',
+    
+    // E-commerce & marketplaces
+    'Shopify', 'Etsy', 'eBay', 'Alibaba', 'JD', 'Temu', 'Shein',
+    'Uber', 'Lyft', 'DoorDash', 'Instacart', 'Airbnb', 'Booking',
+    
+    // Cloud/Infrastructure
+    'AWS', 'Azure', 'GCP', 'Cloudflare', 'Akamai', 'Linode', 'DigitalOcean',
+    'Heroku', 'Netlify', 'Vercel', 'Railway', 'Render',
+    
+    // Enterprise software
+    'SAP', 'Workday', 'ServiceNow', 'Zendesk', 'HubSpot', 'Mailchimp',
+    'Twilio', 'SendGrid', 'Segment', 'Amplitude', 'Mixpanel',
+    
+    // Gaming
+    'Roblox', 'Epic Games', 'Riot Games', 'Valve', 'Steam', 'Unity',
+    'Unreal', 'Activision', 'Blizzard', 'EA', 'Electronic Arts',
+    
+    // Security/DevTools
+    'Okta', 'Auth0', 'CrowdStrike', 'Palo Alto', 'Fortinet', 'SentinelOne',
+    'Snyk', 'JFrog', 'Docker', 'Kubernetes', 'Jenkins', 'CircleCI',
+    
+    // Productivity
+    'Asana', 'Monday', 'ClickUp', 'Trello', 'Basecamp', 'Linear',
+    'Notion', 'Obsidian', 'Roam', 'Evernote', 'OneNote',
+    
+    // Media/Content
+    'YouTube', 'Spotify', 'SoundCloud', 'Twitch', 'Substack', 'Medium',
+    'WordPress', 'Wix', 'Squarespace', 'Ghost', 'Contentful',
+    
+    // Healthcare/Biotech (major players)
+    'Moderna', 'Pfizer', 'Johnson', 'AstraZeneca', 'Novartis', 'Roche',
+    '23andMe', 'Oscar Health', 'Ro', 'Hims', 'Teladoc',
+    
+    // Mobility/EV
+    'Waymo', 'Cruise', 'Rivian', 'Lucid', 'NIO', 'BYD', 'Ford', 'GM',
+    
+    // Crypto/Web3 (established)
+    'Binance', 'FTX', 'Kraken', 'Gemini', 'Celsius', 'BlockFi',
+    'Alchemy', 'Infura', 'Metamask', 'Opensea', 'Uniswap',
+    
+    // Well-known apps/tools
+    'Camscanner', 'CamScanner', 'Ko-fi', 'Kofi', 'Patreon',
+    'ClickFunnels', 'Teachable', 'Podia', 'Gumroad', 'Lemon Squeezy',
+    'Checkr', 'Greenhouse', 'Lever', 'Ashby', 'BambooHR',
+    'Nextdoor', 'Ring', 'Nest', 'Arlo', 'SimpliSafe',
+    'OneSignal', 'Pusher', 'Ably', 'PubNub', 'Stream',
+    'ClickHouse', 'TimescaleDB', 'QuestDB', 'InfluxDB', 'Prometheus',
+    'Preply', 'Duolingo', 'Babbel', 'Rosetta Stone',
+    'CurseForge', 'Modrinth', 'Thunderstore',
+    
+    // Traditional enterprises that appear in tech news
+    'IBM', 'Accenture', 'Deloitte', 'Walmart', 'Target', 'Costco',
+    'CVS', 'Walgreens', 'FedEx', 'UPS', 'DHL', 'USPS',
+    
+    // Categories/descriptors that shouldn't be entity names
+    'Fundamental', 'Basic', 'Essential', 'Primary', 'Secondary',
+    'Linq', 'Query', 'Database', 'SQL', 'NoSQL', 'Redis', 'PostgreSQL',
+    'Stablecoins', 'Stablecoin', 'Non-venture', 'Venture',
+  ];
+  
+  // Case-insensitive exact match only (not substring)
+  if (wellKnownCompanies.some(company => entity.toLowerCase() === company.toLowerCase())) {
+    return false;
+  }
+  
+  // Block "X AI" variants of blacklisted companies (e.g., "Anthropic AI", "OpenAI AI")
+  const entityWithoutAI = entity.replace(/\s+AI$/i, '').trim();
+  if (entityWithoutAI !== entity && wellKnownCompanies.some(company => entityWithoutAI.toLowerCase() === company.toLowerCase())) {
+    return false; // "Anthropic AI" → check if "Anthropic" is blacklisted
   }
   
   // Block nationality groups (not companies)
@@ -500,8 +608,28 @@ function validateEntityQuality(entity: string): boolean {
     return false;
   }
   
-  // Block political references
+  // Block political/government references
   if (/\bTrump\b/i.test(entity) || /\bBiden\b/i.test(entity) || /\bObama\b/i.test(entity)) {
+    return false;
+  }
+  if (/^White House$/i.test(entity) || /^Capitol$/i.test(entity) || /^Senate$/i.test(entity) || /^Congress$/i.test(entity)) {
+    return false;
+  }
+  
+  // Block dollar amounts
+  if (/^\$\d+(\.\d+)?(k|m|b|bn|million|billion|thousand)?$/i.test(entity)) {
+    return false;
+  }
+  
+  // Block chemistry/science terms
+  const scienceTerms = ['Transition Metal', 'Carbon', 'Hydrogen', 'Oxygen', 'Nitrogen', 'Silicon', 'Lithium', 'Sodium', 'Potassium', 'Calcium'];
+  if (scienceTerms.some(term => entity.toLowerCase() === term.toLowerCase())) {
+    return false;
+  }
+  
+  // Block single-word generic descriptors that aren't company names
+  const moreGenericWords = ['Reclamation', 'Move', 'Star', 'Gold', 'Silver', 'Bronze', 'Game', 'Play', 'Sport', 'Music', 'Art', 'Book', 'Film', 'Movie', 'Show', 'Series', 'Episode', 'Season', 'Chapter', 'Volume', 'Issue', 'Edition', 'Version', 'Release', 'Update', 'Patch', 'Fix', 'Bug', 'Feature', 'Enhancement', 'Improvement', 'Change', 'Modification', 'Adjustment', 'Tweak', 'Tune', 'Optimize', 'Refactor', 'Rewrite', 'Redesign', 'Rebuild', 'Reconstruct', 'Restore', 'Recover', 'Retrieve', 'Return', 'Reverse', 'Revert', 'Rollback', 'Undo', 'Redo', 'Repeat', 'Retry', 'Resume', 'Continue', 'Proceed', 'Advance', 'Progress', 'Improve', 'Enhance', 'Upgrade', 'Downgrade', 'Migrate', 'Transfer', 'Import', 'Export', 'Backup', 'Archive', 'Compress', 'Extract', 'Expand', 'Collapse', 'Fold', 'Unfold', 'Wrap', 'Unwrap', 'Pack', 'Unpack'];
+  if (moreGenericWords.some(w => entity.toLowerCase() === w.toLowerCase())) {
     return false;
   }
   
