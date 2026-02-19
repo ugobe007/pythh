@@ -14,10 +14,10 @@ export default function SignupLanding() {
   const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
 
-  // Redirect logged-in users to dashboard
+  // Redirect logged-in users to profile
   useEffect(() => {
     if (isLoggedIn && user) {
-      navigate('/dashboard');
+      navigate('/profile');
     }
   }, [isLoggedIn, user, navigate]);
 

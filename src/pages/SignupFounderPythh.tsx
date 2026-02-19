@@ -21,10 +21,10 @@ export default function SignupFounderPythh() {
   const [searchParams] = useSearchParams();
   const { login, user, isLoggedIn } = useAuth();
 
-  // Redirect logged-in users to dashboard
+  // Redirect logged-in users to profile
   useEffect(() => {
     if (isLoggedIn && user) {
-      navigate('/dashboard');
+      navigate('/profile');
     }
   }, [isLoggedIn, user, navigate]);
 
@@ -34,8 +34,8 @@ export default function SignupFounderPythh() {
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Get redirect URL - default to dashboard for new signups
-  const redirectUrl = searchParams.get('redirect') || '/dashboard';
+  // Get redirect URL - default to profile page for new signups
+  const redirectUrl = searchParams.get('redirect') || '/profile';
   const matchCount = searchParams.get('matches') || '';
   const startupUrl = searchParams.get('url') || '';
 
