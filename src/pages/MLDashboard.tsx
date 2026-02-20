@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { RefreshCw, Check, Play, Clock } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 interface MLMetric {
   total_matches: number;
-  successful_matches: number;
+  high_quality_matches: number;
   avg_match_score: number;
   avg_god_score: number;
-  conversion_rate: number;
+  pending_recs: number;
+  applied_recs: number;
   score_distribution: Record<string, number>;
 }
 
@@ -17,7 +20,11 @@ interface MLRecommendation {
   title: string;
   description: string;
   expected_impact: string;
+  confidence: number;
   status: string;
+  recommended_weights: any;
+  current_weights: any;
+  created_at: string;
 }
 
 export default function MLDashboard() {
@@ -35,51 +42,68 @@ export default function MLDashboard() {
   const loadMLData = async () => {
     setLoading(true);
     try {
-      const appliedRecs = JSON.parse(localStorage.getItem('appliedMLRecommendations') || '[]');
-      
-      setMetrics({
-        total_matches: 156,
-        successful_matches: 42,
-        avg_match_score: 82.3,
-        avg_god_score: 78.5,
-        conversion_rate: 0.269,
-        score_distribution: { '0-50': 12, '51-70': 38, '71-85': 78, '86-100': 28 }
-      });
+      // Load real ML recommendations from database
+      const { data: recs, error: recsError } = await supabase
+        .from('ml_recommendations')
+        .select('id, recommendation_type, recommended_weights, current_weights, confidence, reasoning, expected_improvement, status, created_at')
+        .in('status', ['pending', 'approved'])
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-      setRecommendations([
-        {
-          id: '1',
-          priority: 'high',
-          title: 'Increase Traction Weight',
-          description: 'Startups with strong traction have 35% higher investment rate. Consider traction 3.0 → 3.5',
-          expected_impact: '+12% match success',
-          status: appliedRecs.includes('1') ? 'applied' : 'pending'
-        },
-        {
-          id: '2',
-          priority: 'medium',
-          title: 'Adjust Min GOD Score',
-          description: 'Matches below 70 have <15% success. Filter low-quality matches.',
-          expected_impact: '+8% conversion',
-          status: appliedRecs.includes('2') ? 'applied' : 'pending'
-        },
-        {
-          id: '3',
-          priority: 'medium',
-          title: 'Boost Team Weight',
-          description: 'Team experience correlates strongly with funding success.',
-          expected_impact: '+6% accuracy',
-          status: appliedRecs.includes('3') ? 'applied' : 'pending'
-        },
-        {
-          id: '4',
-          priority: 'low',
-          title: 'Reduce Stage Mismatch Penalty',
-          description: 'Current penalty may be too aggressive for early-stage matches.',
-          expected_impact: '+15% early matches',
-          status: appliedRecs.includes('4') ? 'applied' : 'pending'
-        }
-      ]);
+      if (recsError) throw recsError;
+
+      const mappedRecs: MLRecommendation[] = (recs || []).map((rec: any) => ({
+        id: rec.id,
+        priority: rec.confidence >= 0.9 ? 'high' : rec.confidence >= 0.7 ? 'medium' : 'low',
+        title: rec.recommendation_type === 'component_weight_adjustment'
+          ? 'Component Weight Adjustment'
+          : rec.recommendation_type?.replace(/_/g, ' ')?.replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Algorithm Optimization',
+        description: Array.isArray(rec.reasoning) ? rec.reasoning.slice(0, 2).join(' ') : '',
+        expected_impact: rec.expected_improvement != null
+          ? `+${Number(rec.expected_improvement).toFixed(1)}% expected improvement`
+          : 'Estimated improvement',
+        confidence: rec.confidence,
+        status: rec.status,
+        recommended_weights: rec.recommended_weights,
+        current_weights: rec.current_weights,
+        created_at: rec.created_at,
+      }));
+      setRecommendations(mappedRecs);
+
+      // Load match metrics
+      const { count: totalMatches } = await supabase
+        .from('startup_investor_matches')
+        .select('*', { count: 'exact', head: true });
+      const { count: highQuality } = await supabase
+        .from('startup_investor_matches')
+        .select('*', { count: 'exact', head: true })
+        .gte('match_score', 80);
+      const { count: pendingRecs } = await supabase
+        .from('ml_recommendations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      const { count: appliedRecs } = await supabase
+        .from('ml_recommendations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'applied');
+
+      const total = totalMatches || 0;
+      const hq = highQuality || 0;
+      // Build a simple 2-bucket distribution from what we have
+      const scoreDistribution: Record<string, number> = total > 0 ? {
+        '80-100 (High Quality)': hq,
+        '0-79 (Standard)': total - hq,
+      } : {};
+
+      setMetrics({
+        total_matches: total,
+        high_quality_matches: hq,
+        avg_match_score: total > 0 ? 0 : 0,
+        avg_god_score: 0,
+        pending_recs: pendingRecs || 0,
+        applied_recs: appliedRecs || 0,
+        score_distribution: scoreDistribution,
+      });
     } catch (error) {
       console.error('Error loading ML data:', error);
     } finally {
@@ -95,19 +119,46 @@ export default function MLDashboard() {
 
   const runTraining = async () => {
     setTrainingStatus('running');
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${API_BASE}/api/ml/training/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      console.log('ML training started:', result);
       setTrainingStatus('complete');
-      setTimeout(() => setTrainingStatus('idle'), 2000);
-    }, 2000);
+      setTimeout(async () => {
+        setTrainingStatus('idle');
+        await loadMLData(); // Refresh recommendations after training
+      }, 3000);
+    } catch (error: any) {
+      console.error('Training error:', error);
+      setTrainingStatus('idle');
+      alert(`Failed to start training: ${error.message}`);
+    }
   };
 
   const applyRecommendation = async (id: string) => {
-    const appliedRecs = JSON.parse(localStorage.getItem('appliedMLRecommendations') || '[]');
-    if (!appliedRecs.includes(id)) {
-      appliedRecs.push(id);
-      localStorage.setItem('appliedMLRecommendations', JSON.stringify(appliedRecs));
+    try {
+      const response = await fetch(`${API_BASE}/api/ml/recommendations/${id}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'admin' }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || err.error || `HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      console.log('Applied recommendation:', result);
+      // Refresh data
+      await loadMLData();
+      alert(`✅ Recommendation applied! Score recalculation queued.\n\nNew weights: ${JSON.stringify(result.new_weights, null, 2)}`);
+    } catch (error: any) {
+      console.error('Error applying recommendation:', error);
+      alert(`❌ Failed to apply: ${error.message}`);
     }
-    setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'applied' } : r));
   };
 
   return (
@@ -134,11 +185,11 @@ export default function MLDashboard() {
         {metrics && (
           <div className="grid grid-cols-6 gap-3 text-xs">
             {[
-              { label: 'Total Matches', value: metrics.total_matches, color: 'text-orange-400' },
-              { label: 'Successful', value: metrics.successful_matches, color: 'text-green-400' },
-              { label: 'Success Rate', value: `${(metrics.conversion_rate * 100).toFixed(1)}%`, color: 'text-cyan-400' },
-              { label: 'Avg Match Score', value: metrics.avg_match_score.toFixed(1), color: 'text-purple-400' },
-              { label: 'Avg GOD Score', value: metrics.avg_god_score.toFixed(1), color: 'text-amber-400' },
+              { label: 'Total Matches', value: metrics.total_matches.toLocaleString(), color: 'text-orange-400' },
+              { label: 'High Quality (80+)', value: metrics.high_quality_matches.toLocaleString(), color: 'text-green-400' },
+              { label: 'Quality Rate', value: metrics.total_matches > 0 ? `${((metrics.high_quality_matches / metrics.total_matches) * 100).toFixed(1)}%` : '0%', color: 'text-cyan-400' },
+              { label: 'Pending Recs', value: metrics.pending_recs, color: 'text-purple-400' },
+              { label: 'Applied Recs', value: metrics.applied_recs, color: 'text-amber-400' },
               { label: 'Training Status', value: trainingStatus === 'running' ? '🔄 Running' : trainingStatus === 'complete' ? '✅ Done' : '⏸️ Idle', color: 'text-blue-400' }
             ].map((s, i) => (
               <div key={i} className="bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-700">

@@ -45,7 +45,7 @@ interface MLRecommendation {
   title: string;
   description: string;
   current_value: any;
-  proposed_value: any;
+  proposed_value: any;      // mapped from recommended_weights
   expected_impact: string;
   confidence_score?: number;
   recommendation_type?: string;
@@ -168,14 +168,20 @@ export default function GODSettingsPage() {
       if (data && data.length > 0) {
         const mappedRecs = data.map((rec: any) => ({
           id: rec.id,
-          title: rec.title || 'Weight Adjustment',
-          description: rec.description || '',
-          current_value: rec.current_value,
-          proposed_value: rec.proposed_value,
-          expected_impact: rec.expected_impact || 'TBD',
-          confidence_score: rec.confidence_score,
+          // Generate title from recommendation_type since no title column exists
+          title: rec.recommendation_type === 'component_weight_adjustment'
+            ? 'Component Weight Adjustment'
+            : rec.recommendation_type?.replace(/_/g, ' ')?.replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Algorithm Optimization',
+          // Generate description from reasoning array
+          description: Array.isArray(rec.reasoning) ? rec.reasoning.slice(0, 2).join(' ') : (rec.description || ''),
+          current_value: rec.current_weights,          // correct column: current_weights
+          proposed_value: rec.recommended_weights,     // correct column: recommended_weights
+          expected_impact: rec.expected_improvement != null
+            ? `+${Number(rec.expected_improvement).toFixed(1)}% expected improvement`
+            : 'Estimated improvement to match quality',
+          confidence_score: rec.confidence,            // correct column: confidence
           recommendation_type: rec.recommendation_type,
-          priority: rec.priority || 'medium',
+          priority: rec.confidence >= 0.9 ? 'high' : rec.confidence >= 0.7 ? 'medium' : 'low',
           created_at: rec.created_at
         }));
         setMlRecommendations(mappedRecs);

@@ -57,22 +57,27 @@ export class RecommendationService {
         throw new Error('Recommendation already applied');
       }
 
-      // 2. Parse the weight changes
-      const proposedWeights = recommendation.proposed_value;
+      // 2. Parse the weight changes (column is recommended_weights, not proposed_value)
+      const proposedWeights = recommendation.recommended_weights || recommendation.proposed_value;
+      if (!proposedWeights) {
+        throw new Error('Recommendation has no weights to apply (recommended_weights is empty)');
+      }
       const weightUpdates: WeightUpdate[] = [];
 
       // 3. Get current performance metrics
       const performanceBefore = await this.getCurrentPerformance();
 
-      // 4. Apply weight updates
+      // 4. Build weight update diff for history
+      const currentWeights = recommendation.current_weights || this.DEFAULT_WEIGHTS;
       for (const [component, newWeight] of Object.entries(proposedWeights)) {
-        const oldWeight = this.DEFAULT_WEIGHTS[component as keyof typeof this.DEFAULT_WEIGHTS];
+        const oldWeight = (currentWeights as any)[component] ??
+          this.DEFAULT_WEIGHTS[component as keyof typeof this.DEFAULT_WEIGHTS];
         if (oldWeight !== undefined) {
           weightUpdates.push({
             component,
-            old_weight: oldWeight,
+            old_weight: oldWeight as number,
             new_weight: newWeight as number,
-            reason: recommendation.description
+            reason: recommendation.reasoning?.[0] || recommendation.description || 'ML recommendation'
           });
         }
       }
@@ -114,15 +119,37 @@ export class RecommendationService {
         console.warn('Failed to store weight history:', historyError);
       }
 
-      // 8. TODO: Update the actual algorithm configuration
-      // This would involve updating environment variables or a config table
-      // For now, we'll just log it
-      console.log('Applied weight updates:', weightUpdates);
+      // 8. Persist new weights to god_algorithm_config (if table exists)
+      // Falls back to ml_recommendations status=applied as source of truth
+      const { error: configTableCheck } = await supabase
+        .from('god_algorithm_config')
+        .select('id')
+        .limit(1);
+
+      if (!configTableCheck) {
+        await supabase.from('god_algorithm_config').update({ is_active: false }).eq('is_active', true);
+        const { error: configError } = await supabase
+          .from('god_algorithm_config')
+          .insert({
+            component_weights: proposedWeights,
+            is_active: true,
+            applied_from_rec_id: recommendationId,
+            applied_by: userId,
+            description: `ML rec applied — ${(recommendation.confidence * 100).toFixed(0)}% confidence`
+          });
+        if (configError) {
+          console.warn('[RecommendationService] god_algorithm_config write failed:', configError.message);
+        }
+      }
+
+      console.log('[RecommendationService] ✅ Applied weights:', weightUpdates);
 
       return {
         success: true,
         application,
-        message: 'Recommendation applied successfully. Algorithm weights updated.'
+        new_weights: proposedWeights,
+        weight_updates: weightUpdates,
+        message: 'Recommendation applied — GOD algorithm weights updated in god_algorithm_config.'
       };
 
     } catch (error: any) {
@@ -254,26 +281,43 @@ export class RecommendationService {
   }
 
   /**
-   * Get current active weights
+   * Get current active weights — reads from god_algorithm_config (source of truth)
+   * Falls back to most recently applied ml_recommendation, then hardcoded defaults.
    */
   static async getCurrentWeights() {
-    // In a production system, this would fetch from a config table or environment
-    // For now, return the default weights plus any recent updates
-    
-    const recentUpdates = await this.getWeightHistory(1);
-    
-    if (recentUpdates.length === 0) {
-      return this.DEFAULT_WEIGHTS;
+    // Primary: god_algorithm_config active row (if table exists)
+    try {
+      const { data: configs, error: tableErr } = await supabase
+        .from('god_algorithm_config')
+        .select('component_weights, normalization_divisor, base_boost_minimum, vibe_bonus_cap, created_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!tableErr && configs && configs.length > 0 && configs[0].component_weights) {
+        return {
+          ...this.DEFAULT_WEIGHTS,
+          ...(configs[0].component_weights as object),
+          normalization_divisor: configs[0].normalization_divisor,
+          base_boost_minimum: configs[0].base_boost_minimum,
+          vibe_bonus_cap: configs[0].vibe_bonus_cap,
+        };
+      }
+    } catch (_) { /* table doesn't exist yet */ }
+
+    // Fallback: most recent applied recommendation's recommended_weights
+    const { data: recentRec } = await supabase
+      .from('ml_recommendations')
+      .select('recommended_weights')
+      .eq('status', 'applied')
+      .order('applied_at', { ascending: false })
+      .limit(1);
+
+    if (recentRec && recentRec.length > 0 && recentRec[0].recommended_weights) {
+      return { ...this.DEFAULT_WEIGHTS, ...(recentRec[0].recommended_weights as object) };
     }
 
-    const latestUpdate = recentUpdates[0];
-    const updatedWeights = { ...this.DEFAULT_WEIGHTS };
-
-    for (const update of latestUpdate.weight_updates) {
-      updatedWeights[update.component as keyof typeof this.DEFAULT_WEIGHTS] = update.new_weight;
-    }
-
-    return updatedWeights;
+    return this.DEFAULT_WEIGHTS;
   }
 }
 

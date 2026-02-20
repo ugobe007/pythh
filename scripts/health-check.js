@@ -8,6 +8,7 @@
  * Usage: node scripts/health-check.js
  */
 
+// HEALTH CHECK SCRIPT - overwritten
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
