@@ -5,10 +5,15 @@ on:
     - cron: '0 */2 * * *'  # Every 2 hours at :00
   workflow_dispatch:  # Allow manual trigger
 
+# Prevent concurrent recalculation runs - cancel in-progress if new run starts
+concurrency:
+  group: god-score-recalculation
+  cancel-in-progress: true
+
 jobs:
   recalculate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45  # Increased from 30 to handle larger datasets
     
     steps:
       - name: Checkout code

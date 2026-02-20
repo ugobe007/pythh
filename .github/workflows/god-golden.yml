@@ -5,9 +5,15 @@ on:
     branches: [ main ]
   pull_request:
 
+# Prevent concurrent golden set tests - wait for in-progress to complete
+concurrency:
+  group: god-golden-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   golden:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
