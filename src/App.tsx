@@ -138,6 +138,7 @@ import ScraperManagementPage from "./pages/ScraperManagementPage";
 import AIIntelligenceDashboard from "./pages/AIIntelligenceDashboard";
 import AdminActions from "./pages/AdminActions";
 import ReviewQueue from "./pages/ReviewQueue";
+import MLDashboard from "./pages/MLDashboard";
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -314,6 +315,7 @@ const App: React.FC = () => {
             <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
             <Route path="actions" element={<AdminActions />} />
             <Route path="review-queue" element={<ReviewQueue />} />
+            <Route path="ml-dashboard" element={<MLDashboard />} />
           </Route>
 
           {/* 404 → main */}

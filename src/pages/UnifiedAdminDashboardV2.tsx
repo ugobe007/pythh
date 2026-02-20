@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Database, Activity, Cpu, RefreshCw, 
   Settings, ArrowRight, Rss, Users, BarChart3,
-  FileText, Search, Shield, AlertCircle
+  FileText, Search, Shield, AlertCircle, Brain
 } from 'lucide-react';
 import { adminRpc } from '../services/adminRpc';
 import { GODScoreMonitor, SocialSignalsMonitor, SystemHealthAlerts } from '../components/admin';
@@ -226,6 +226,7 @@ export default function UnifiedAdminDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <QuickLink icon={Cpu} label="AI Intelligence" route="/admin/ai-intelligence" color="purple" />
+              <QuickLink icon={Brain} label="ML Dashboard" route="/admin/ml-dashboard" color="purple" />
               <QuickLink icon={AlertCircle} label="Bulk Actions" route="/admin/actions" color="purple" />
               <QuickLink icon={Settings} label="Scrapers" route="/admin/scrapers" color="slate" />
               <QuickLink icon={RefreshCw} label="Refresh Stats" route="/admin" color="slate" />
