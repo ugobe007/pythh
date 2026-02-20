@@ -314,7 +314,7 @@ export default function PythhHome() {
             {/* Social Proof & Stats */}
             <div className="flex flex-wrap items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-10 h-10 rounded-md border border-cyan-500/50 bg-transparent">
+                <div className="flex items-center justify-center min-w-[4rem] h-10 px-3 rounded-md border border-cyan-500/50 bg-transparent">
                   <span className="text-cyan-400 font-bold text-lg">
                     {(stats.startups / 1000).toFixed(1)}K+
                   </span>
