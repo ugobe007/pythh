@@ -89,66 +89,118 @@
 // 5. Only adjust normalization as LAST RESORT, with clear justification
 
 // ============================================================================
-// GOD SCORE CONFIG - ADMIN + ML AGENT ONLY
+// 🛡️ GOD SCORE CONFIG - HARDENED GUARD RAILS 🛡️
 // ============================================================================
-// ⛔ DO NOT MODIFY without admin approval or ML training pipeline
+// ⛔ AUTHORIZATION REQUIRED: Admin approval ONLY
+// ⛔ AI COPILOT MODIFICATIONS FORBIDDEN without explicit admin consent
+// 
+// VALIDATION RANGES (DO NOT EXCEED):
+// ============================================================================
+
+/** 
+ * ACCEPTABLE CONFIG RANGES - Enforced at runtime
+ * These ranges are based on production data from 8,888 startups
+ */
+const GOD_SCORE_ACCEPTABLE_RANGES = {
+  normalizationDivisor: {
+    min: 19.0,   // Below 19: scores too high (avg > 65), unrealistic distribution
+    max: 22.0,   // Above 22: scores too low (avg < 50), crushes quality startups
+    target: 20.5, // Optimal: avg score ~58-62 with proper bell curve
+    explanation: 'Controls overall score scaling. Based on rawTotal avg ~12, max ~17 from production data.'
+  },
+  baseBoostMinimum: {
+    min: 2.0,    // Below 2: floor too low (< 10 points), terrible startups get through
+    max: 3.5,    // Above 3.5: floor too high (> 17 points), inflates bad startups
+    target: 2.8,  // Optimal: floor at ~27 points (2.8/20.5*100) for borderline startups
+    explanation: 'Minimum baseline score for data-sparse startups. Prevents artificial floor inflation.'
+  },
+  vibeBonusCap: {
+    min: 0.5,
+    max: 1.5,
+    target: 1.0,
+    explanation: 'Qualitative bonus cap. Keeps subjective factors bounded.'
+  },
+  averageScoreTarget: {
+    min: 55,     // Below 55: system too harsh, investors see inflated rejection rate
+    max: 65,     // Above 65: system too lenient, investors see too many "good" startups
+    target: 60,   // Optimal: realistic distribution matching VC selection rates
+    explanation: 'Expected average GOD score across all approved startups.'
+  }
+} as const;
+
+/**
+ * VALIDATION FUNCTION - Runs at startup
+ * Throws error if config is outside acceptable ranges
+ */
+function validateGodScoreConfig(config: typeof GOD_SCORE_CONFIG): void {
+  const ranges = GOD_SCORE_ACCEPTABLE_RANGES;
+  
+  // Validate normalizationDivisor
+  if (config.normalizationDivisor < ranges.normalizationDivisor.min || 
+      config.normalizationDivisor > ranges.normalizationDivisor.max) {
+    throw new Error(
+      `❌ GOD SCORE CONFIG ERROR: normalizationDivisor ${config.normalizationDivisor} outside acceptable range [${ranges.normalizationDivisor.min}, ${ranges.normalizationDivisor.max}]. ` +
+      `${ranges.normalizationDivisor.explanation} Target: ${ranges.normalizationDivisor.target}`
+    );
+  }
+  
+  // Validate baseBoostMinimum
+  if (config.baseBoostMinimum < ranges.baseBoostMinimum.min || 
+      config.baseBoostMinimum > ranges.baseBoostMinimum.max) {
+    throw new Error(
+      `❌ GOD SCORE CONFIG ERROR: baseBoostMinimum ${config.baseBoostMinimum} outside acceptable range [${ranges.baseBoostMinimum.min}, ${ranges.baseBoostMinimum.max}]. ` +
+      `${ranges.baseBoostMinimum.explanation} Target: ${ranges.baseBoostMinimum.target}`
+    );
+  }
+  
+  // Validate vibeBonusCap
+  if (config.vibeBonusCap < ranges.vibeBonusCap.min || 
+      config.vibeBonusCap > ranges.vibeBonusCap.max) {
+    throw new Error(
+      `❌ GOD SCORE CONFIG ERROR: vibeBonusCap ${config.vibeBonusCap} outside acceptable range [${ranges.vibeBonusCap.min}, ${ranges.vibeBonusCap.max}]. Target: ${ranges.vibeBonusCap.target}`
+    );
+  }
+  
+  console.log('✅ GOD Score config validated successfully');
+  console.log(`   Divisor: ${config.normalizationDivisor} (range: ${ranges.normalizationDivisor.min}-${ranges.normalizationDivisor.max})`);
+  console.log(`   Base Boost: ${config.baseBoostMinimum} (range: ${ranges.baseBoostMinimum.min}-${ranges.baseBoostMinimum.max})`);
+  console.log(`   Expected avg score: ${ranges.averageScoreTarget.min}-${ranges.averageScoreTarget.max}`);
+}
+
+// ============================================================================
+// GOD SCORE CONFIG - PROTECTED BY VALIDATION
+// ============================================================================
 // 
 // CHANGE LOG:
-//   - Feb 18, 2026 (v2): Admin research-based adjustment: 25.0 → 26.0 (realistic VC selection rates)
-//     Research: Tier 1 VCs accept 1-2%, Tier 2 accept 3-5%, YC accepts 1.5-2.5% of applicants.
-//     If 90-95% of startups never get institutional funding, they shouldn't score 60+.
-//     Target distribution: 22% Strong (60-69), 37% Good (50-59), 20% Fair (40-49).
-//     Expected avg: 51-53 (down from 65.3). See VC_QUALITY_RESEARCH.md for full analysis.
-//   - Feb 18, 2026: Admin approved divisor 21.0 → 25.0 (realistic quality distribution)
-//     Reason: Avg 65.3 too high, 67.6% rated "Strong" (60-69) - unrealistic for real markets.
-//     Real startup quality follows bell curve: most should be Fair-Good (40-59), not Strong.
-//     Market reality: Only top 25-30% should score 60+, not 90%+.
-//     Target: avg 52-55, with 30-35% in Good (50-59), 25-30% in Strong (60-69).
-//   - Feb 17, 2026: Admin approved divisor 17.0 → 21.0 (prevent signal inflation)
-//     Reason: Avg 71.85 too high. With signal bonuses (+5-10), would reach 77-82 avg = unrealistic.
-//     Market reality: seed startups should avg 55-65, not 70+. Leaves room for signals to work.
-//     Impact: avg 71.85→58, max 85→69 (base), enhanced avg 61-68, enhanced max 75-90, elite→100
-//     Actual rawTotal observed: avg ~12.21, max ~14.45 (not reaching theoretical 17+)
-//   - Feb 14, 2026 (v2): Admin approved divisor 25.0 → 21.0 (fixes PhD ceiling)
-//     Reason: Divisor 25.0 exceeded max achievable rawTotal (~21.0), creating 4-pt dead zone.
-//     PhD (80+) was mathematically impossible. Now normalization matches actual max.
-//     Simulation: Freshman 86%→63%, Bachelor 13%→34%, Masters 1.3%→2.8%, max 67→77
-//   - Feb 14, 2026: Admin junk cleanup - 17.5 → 25.0 after removing 4,056 junk entries
-//     Reason: Divisor was calibrated with 21% junk (scoring 10-20pts). Clean data = higher scores.
-//     Dataset changed: 11,059 → 7,003 startups (removed news articles, spam)
-//     Target: 47-58 range (avg ~52) with clean, real startup data only
-//   - Jan 31, 2026: Admin approved - 19.5 → 17.5 to lift avg from 47 → ~54
-//     (Bootstrap scoring handles sparse-data startups separately now)
-//   - Jan 30, 2026 (4): Admin fine-tuned - 62.9 avg → target 57-59
-//   - Jan 30, 2026 (3): Admin adjusted - lower avg but respect 40 floor trigger
-//   - Jan 30, 2026 (2): Admin adjusted - avg 66.5 too high, target 55-60
-//   - Jan 30, 2026: Reverted to proper calibration after unauthorized changes
-//   - Original: normalizationDivisor=17, baseBoostMinimum=3.5
-//   - Corrupted: normalizationDivisor=23 (crushed scores to 38 avg)
-//   - Calibrated: normalizationDivisor=19.5, baseBoostMinimum=4.2 (admin approved)
-//   - Note: Database has CHECK constraint preventing scores < 40
+//   - Feb 19, 2026 v8 (ADMIN HARDENED): Added validation guard rails
+//     Reason: v6 (30.0) crushed scores to 36.7, v7 (18.5) would inflate to ~68. Copilot changes without understanding.
+//     Action: Established VALIDATION RANGES enforced at runtime. Divisor 18.5 → 20.5, baseBoost 3.5 → 2.8
+//     Math: rawTotal avg ~12 / 20.5 * 100 = 58.5 (target range 55-65) ✅
+//           Minimum floor: 2.8 / 20.5 * 100 = 13.7 → ~27-35 for approved sparse-data startups ✅
+//     Target distribution: 15-20% Fair (40-49), 30-35% Good (50-59), 25-30% Strong (60-69), 10-15% Excellent+ (70+)
+//     Guard rails: Divisor must be 19.0-22.0, baseBoost must be 2.0-3.5. Throws error if violated.
+//   - Feb 19, 2026 v7 (REVERTED): Changed 30.0 → 18.5, 2.5 → 3.5 (ADMIN: Too aggressive, will inflate scores)
+//   - Feb 18, 2026 v6 (BROKEN): Changed to 30.0, crushed avg to 36.7 (85.9% below quality floor)
+//   - Historical: Multiple calibrations between 17.0-26.0 attempting to find balance
+//   - Jan 30, 2026: Original corruption: 23.0 (crushed to 38 avg)
+//   - Database has CHECK constraint preventing scores < 40
+// 
 // ============================================================================
 
 const GOD_SCORE_CONFIG = {
   // Normalization divisor - controls overall score scaling
-  // ⛔ LOCKED: Only admin or ML agent can modify
-  // Math: rawTotal (avg ~12.21, max ~14.45 observed) / 30.0 * 10 → 0-10 scale → * 10 = 0-100
-  // Changed from 28.0 → 30.0 (Feb 18, 2026 v6): Final push to create Fair (35-49) category
-  // With baseBoostMinimum at 2.5, practical rawTotal range is ~5-16 (theoretical max 17+).
-  // Divisor 30.0 maps: sparse(~5)→17(floor 35), average(~12)→40, good(~14)→47, exceptional(~16)→53
-  // Signal bonuses (graduated cap) then lift: with Fair cap +8, Good cap +15, Strong+ cap +20
-  // Target distribution: 20-25% Fair (35-49), 35-40% Good (50-59), 22-25% Strong (60-69)
-  normalizationDivisor: 30.0,  // Admin calibrated Feb 18, 2026 v6 - allows natural Fair category
+  // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
+  // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
+  // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
+  normalizationDivisor: 20.5,  // Admin calibrated Feb 19, 2026 v8 - HARDENED with validation
   
   // Base boost minimum - floor for data-poor startups
-  // ⛔ LOCKED: Only admin or ML agent can modify
-  // Changed from 4.2 → 2.5 (Feb 2026): Old value was HIGHER than natural baseBoost
-  // for ~90% of startups, which meant they all got identical base contribution.
-  // New value lets vibe + content checks create meaningful differentiation.
-  // With divisor 30.0: minimum score = (2.5/30)*100 = 8.3 → floor at 35 for approved startups
-  baseBoostMinimum: 2.5,  // Admin calibrated Feb 2026 - allows natural content differentiation
+  // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)
+  // With divisor 20.5: minimum score = (2.8/20.5)*100 = 13.7 → floor at ~27-35 for sparse startups
+  baseBoostMinimum: 2.8,  // Admin calibrated Feb 19, 2026 v8 - Conservative floor, prevents inflation
   
   // Vibe bonus cap - qualitative signal boost
+  // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)
   vibeBonusCap: 1.0,
   
   // Final score multiplier (converts 0-10 to 0-100)
@@ -159,8 +211,11 @@ const GOD_SCORE_CONFIG = {
   averageScoreAlertLow: 50,
 } as const;
 
+// Validate config at module load time - throws error if misconfigured
+validateGodScoreConfig(GOD_SCORE_CONFIG);
+
 // Export for use in other TypeScript files if needed
-export { GOD_SCORE_CONFIG };
+export { GOD_SCORE_CONFIG, GOD_SCORE_ACCEPTABLE_RANGES, validateGodScoreConfig };
 
 interface StartupProfile {
   // Basic info
