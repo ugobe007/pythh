@@ -917,7 +917,7 @@ export default function GODSettingsPage() {
                                     {Object.entries(rec.current_value).map(([key, val]: [string, any]) => (
                                       <div key={key} className="flex justify-between">
                                         <span className="text-slate-400">{key}:</span>
-                                        <span className="text-white">{val}</span>
+                                        <span className="text-white">{typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '')}</span>
                                       </div>
                                     ))}
                                   </div>
@@ -928,7 +928,7 @@ export default function GODSettingsPage() {
                                     {Object.entries(rec.proposed_value).map(([key, val]: [string, any]) => (
                                       <div key={key} className="flex justify-between">
                                         <span className="text-slate-400">{key}:</span>
-                                        <span className="text-green-400 font-semibold">{val}</span>
+                                        <span className="text-green-400 font-semibold">{typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '')}</span>
                                       </div>
                                     ))}
                                   </div>
