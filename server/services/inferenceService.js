@@ -34,34 +34,34 @@ const FAST_SOURCES = {
  * @param {number} maxArticles - Max articles to fetch (default: 5)
  * @returns {Promise<Array>} Array of {title, content, link, pubDate, source}
  */
-async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 5) {
+async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 6) {
   const articles = [];
-  
-  // Build search queries (name + context)
+
+  // Build contextual queries — broadened to catch non-funding coverage too
   const queries = [
     `"${startupName}" startup funding`,
+    `"${startupName}" raises series`,
+    `"${startupName}" launches product`,
   ];
-  
+
   // Add domain-based query if website provided
   if (startupWebsite) {
     try {
       const domain = new URL(startupWebsite).hostname.replace('www.', '');
-      queries.push(`${domain} startup`);
+      queries.push(`"${domain}" startup`);
     } catch (e) {
       // Invalid URL, skip
     }
   }
-  
-  // Try first query only (fast approach)
+
+  // Primary query
   const query = queries[0];
   const feedUrl = FAST_SOURCES.googleNews(query);
-  
+
   try {
     const feed = await parser.parseURL(feedUrl);
-    
-    // Limit to maxArticles most recent
     const recent = feed.items.slice(0, maxArticles);
-    
+
     for (const item of recent) {
       articles.push({
         title: item.title || '',
@@ -71,10 +71,30 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
         source: 'Google News'
       });
     }
+
+    // Fallback: try broader queries if primary returned few results
+    if (articles.length < 3) {
+      for (let i = 1; i < queries.length && articles.length < 3; i++) {
+        try {
+          const fallbackFeed = await parser.parseURL(FAST_SOURCES.googleNews(queries[i]));
+          for (const item of fallbackFeed.items.slice(0, 4)) {
+            articles.push({
+              title: item.title || '',
+              content: item.contentSnippet || item.content || '',
+              link: item.link || '',
+              pubDate: item.pubDate || new Date().toISOString(),
+              source: `Google News (${i === 1 ? 'series' : i === 2 ? 'product' : 'domain'})`
+            });
+          }
+        } catch (e) {
+          // Skip failed fallback
+        }
+      }
+    }
   } catch (error) {
     console.log(`[inference] Search failed for "${query}": ${error.message}`);
   }
-  
+
   return articles;
 }
 
