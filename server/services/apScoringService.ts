@@ -82,16 +82,16 @@ const HOT_SECTORS = [
 
 // ── Config ──
 export const AP_SCORING_CONFIG = {
-  // Bachelor AP — RECALIBRATED (Feb 16, 2026): 6 → 3 (ADMIN APPROVED)
+  // Bachelor AP — RECALIBRATED (Feb 20, 2026): 3 → 2 (ADMIN APPROVED — reduces overlap)
   bachelorMinGod: 45,
   bachelorMaxGod: 59,
-  bachelorMaxBonus: 3,
+  bachelorMaxBonus: 2,
   bachelorMinDimensions: 2,
   
-  // Freshman Promising — RECALIBRATED (Feb 16, 2026): 4 → 2 (ADMIN APPROVED)
+  // Freshman Promising — RECALIBRATED (Feb 20, 2026): 2 → 1.5 (ADMIN APPROVED — reduces overlap)
   freshmanMinGod: 40,
   freshmanMaxGod: 44,
-  freshmanMaxBonus: 2,
+  freshmanMaxBonus: 1.5,
   freshmanMinDimensions: 2,
 } as const;
 

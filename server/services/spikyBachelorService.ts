@@ -153,8 +153,8 @@ export function calculateSpikyAndHotBonus(startup: any, currentScore: number): S
       heatSignals.push(`traction:${tractionPoints}signals`);
     }
     
-    // Cap hot bonus at 1 — RECALIBRATED (Feb 16, 2026) (ADMIN APPROVED)
-    hotBonus = Math.min(hotBonus, 1);
+    // Cap hot bonus at 2 — RECALIBRATED (Feb 20, 2026) (ADMIN APPROVED — signals are genuine momentum)
+    hotBonus = Math.min(hotBonus, 2);
   }
   
   const totalBonus = spikyBonus + hotBonus;

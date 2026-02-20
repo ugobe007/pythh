@@ -486,7 +486,7 @@ async function recalculateScores(): Promise<void> {
     // FINAL ADJUSTMENT: Psychological signals (applied AFTER all scoring)
     // ============================================================================
     const psychBonus = scores.psychological_multiplier || 0;
-    const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 10); // Psych: -5 to +10 GOD pts
+    const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 7); // Psych: -5 to +7 GOD pts (Admin recalibrated Feb 20, 2026 — esoteric, overlaps with other signals)
     const finalScore = Math.max(Math.min(Math.round(rawFinal + psychBonusGOD), 100), 35); // Floor=35, Cap=100
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 

@@ -48,7 +48,7 @@
 
 const MOMENTUM_CONFIG = {
   // Maximum total momentum bonus
-  maxBonus: 8,
+  maxBonus: 5, // Admin recalibrated Feb 20, 2026 (was 8 — reduces overlap with traction signals)
 
   // Per-dimension caps
   revenueTrajectory: {

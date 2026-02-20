@@ -223,13 +223,13 @@ async function enrichSparseStartups() {
     return;
   }
   
-  // Filter to Phase 3-4 (Medium to Sparse data)
+  // Filter to Phase 2-4 (Medium to Sparse data) - include any startup scoring below 70
   const sparseStartups = startups.filter(s => {
     const { phase } = classifyDataRichness(s);
-    return phase >= 3 && s.total_god_score < 55; // Phase 3-4, scores below 55
+    return phase >= 2 && s.total_god_score < 70; // Phase 2-4, scores below 70
   }).slice(0, limit);
   
-  console.log(`✅ Found ${sparseStartups.length} Phase 3-4 startups (0-4 signals)\n`);
+  console.log(`Found ${sparseStartups.length} Phase 2-4 startups (scores < 70)\n`);
   
   if (sparseStartups.length === 0) {
     console.log('🎉 No sparse startups found! All startups have sufficient data.');

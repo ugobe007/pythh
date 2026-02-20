@@ -328,7 +328,7 @@ export function calculateEliteBoost(startup: any, intermediateScore: number): El
     const baseMultiplier = getTierMultiplier(intermediateScore);
     const excellenceRatio = Math.min((excellenceScore - EXCELLENCE_THRESHOLD) / EXCELLENCE_RANGE, 1.0);
     effectiveMultiplier = 1.0 + (baseMultiplier - 1.0) * excellenceRatio;
-    boost = Math.round(intermediateScore * (effectiveMultiplier - 1.0));
+    boost = Math.min(Math.round(intermediateScore * (effectiveMultiplier - 1.0)), 15); // Cap: +15 max (Admin recalibrated Feb 20, 2026)
     
     // Assign tier label
     if (intermediateScore >= 90) tier = 'PhD';
