@@ -314,7 +314,7 @@ export default function PythhHome() {
             {/* Social Proof & Stats */}
             <div className="flex flex-wrap items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30">
+                <div className="flex items-center justify-center w-10 h-10 rounded-md border border-cyan-500/50 bg-transparent">
                   <span className="text-cyan-400 font-bold text-lg">
                     {(stats.startups / 1000).toFixed(1)}K+
                   </span>
@@ -325,7 +325,7 @@ export default function PythhHome() {
               </div>
               <span className="text-zinc-700">•</span>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                <div className="w-2 h-2 border border-emerald-400 rounded-sm animate-pulse" />
                 <span className="text-zinc-400">
                   <span className="text-white font-medium">{stats.matches.toLocaleString()}</span> live matches
                 </span>
@@ -409,7 +409,7 @@ export default function PythhHome() {
                     <span className="text-zinc-700">·</span>
                     <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
                     <span className="text-zinc-700">·</span>
-                    <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" /><span className="text-emerald-400/60">live</span></span>
+                    <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 border border-emerald-400 rounded-sm animate-pulse" /><span className="text-emerald-400/60">live</span></span>
                   </div>
                 )}
               </div>
@@ -421,7 +421,7 @@ export default function PythhHome() {
                 to="/rankings"
                 className="group inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-cyan-400 transition-colors"
               >
-                <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full group-hover:animate-pulse" />
+                <span className="w-1.5 h-1.5 border border-cyan-400 rounded-sm group-hover:animate-pulse" />
                 See how Sequoia, a16z &amp; YC rank your sector
                 <span className="text-cyan-500 group-hover:translate-x-0.5 transition-transform">→</span>
               </Link>
@@ -463,7 +463,7 @@ export default function PythhHome() {
           <div className="px-4 py-3 border-b border-zinc-800/50 flex items-center justify-between">
             <span className="text-xs text-zinc-500 uppercase tracking-wider">Investor Signals</span>
             <span className="flex items-center gap-2 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+              <span className="w-1.5 h-1.5 border border-emerald-400 rounded-sm animate-pulse" />
               Live
             </span>
           </div>
