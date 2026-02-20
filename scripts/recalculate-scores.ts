@@ -253,8 +253,42 @@ function calculateGODScore(startup: any): ScoreBreakdown {
   };
 }
 
+/**
+ * Classify startups by data richness for phased processing
+ * Phase 1 (Data Rich): Has multiple numeric metrics (revenue, customers, funding)
+ * Phase 2 (Good Data): Has some numeric metrics or strong signals
+ * Phase 3 (Medium Data): Has basic data but mostly inference
+ * Phase 4 (Sparse Data): Limited data, relies on bootstrap
+ */
+function classifyDataRichness(startup: any): number {
+  let dataScore = 0;
+  
+  // Numeric traction metrics (+2 each)
+  if (startup.arr || startup.revenue || startup.arr_usd || startup.revenue_usd) dataScore += 2;
+  if (startup.mrr) dataScore += 2;
+  if (startup.customer_count || startup.parsed_customers) dataScore += 2;
+  if (startup.parsed_users) dataScore += 1;
+  
+  // Funding metrics (+1 each)
+  if (startup.last_round_amount_usd || startup.total_funding_usd) dataScore += 1;
+  if (startup.backed_by) dataScore += 1;
+  
+  // Team data (+1 each)
+  if (startup.team_companies?.length > 0) dataScore += 1;
+  if (startup.team_size) dataScore += 1;
+  
+  // Product launch (+1)
+  if (startup.is_launched) dataScore += 1;
+  
+  // Classify into phases
+  if (dataScore >= 8) return 1;  // Data Rich: 8+ signals
+  if (dataScore >= 5) return 2;  // Good Data: 5-7 signals
+  if (dataScore >= 2) return 3;  // Medium Data: 2-4 signals
+  return 4;                       // Sparse Data: 0-1 signals
+}
+
 async function recalculateScores(): Promise<void> {
-  console.log('🔢 Starting GOD Score recalculation (using SINGLE SOURCE OF TRUTH)...');
+  console.log('🔢 Starting GOD Score recalculation (PHASED BY DATA RICHNESS)...');
   console.log('🚀 Including Bootstrap Scoring for sparse-data startups...\n');
   
   // Load faith-alignment aggregates once (optional; safe if table empty)
@@ -289,7 +323,19 @@ async function recalculateScores(): Promise<void> {
     return;
   }
 
-  console.log(`📊 Processing ${startups.length} startups...`);
+  // Classify startups into phases
+  const phases = {
+    1: startups.filter(s => classifyDataRichness(s) === 1),
+    2: startups.filter(s => classifyDataRichness(s) === 2),
+    3: startups.filter(s => classifyDataRichness(s) === 3),
+    4: startups.filter(s => classifyDataRichness(s) === 4)
+  };
+
+  console.log(`📊 Processing ${startups.length} startups in 4 phases:`);
+  console.log(`   Phase 1 (Data Rich):  ${phases[1].length} startups`);
+  console.log(`   Phase 2 (Good Data):  ${phases[2].length} startups`);
+  console.log(`   Phase 3 (Medium):     ${phases[3].length} startups`);
+  console.log(`   Phase 4 (Sparse):     ${phases[4].length} startups\n`);
 
   // T2: Pre-load score history for momentum trajectory dimension
   const startupIds = startups.map((s: any) => s.id);
@@ -326,167 +372,131 @@ async function recalculateScores(): Promise<void> {
   let spikyApplied = 0;
   let hotApplied = 0;
 
-  for (const startup of startups) {
+  // Process each phase sequentially
+  for (const phaseNum of [1, 2, 3, 4]) {
+    const phaseStartups = phases[phaseNum as keyof typeof phases];
+    if (phaseStartups.length === 0) continue;
+    
+    const phaseLabel = phaseNum === 1 ? 'Data Rich' : phaseNum === 2 ? 'Good Data' : phaseNum === 3 ? 'Medium' : 'Sparse';
+    console.log(`\n🔄 Phase ${phaseNum} (${phaseLabel}): Processing ${phaseStartups.length} startups...`);
+    
+    let phaseUpdated = 0;
+    let phaseUnchanged = 0;
+    const startTime = Date.now();
+
+  for (const startup of phaseStartups) {
     const oldScore = startup.total_god_score || 0;
     
-    // Inject faithSignals so scoring service can include feature-flagged boost in market timing
+    // ============================================================================
+    // PRIORITY 1: PURE GOD SCORE (23 algorithms, NO bootstrap contamination)
+    // ============================================================================
     const faith = faithAgg.get(startup.id) || undefined;
     const scores = calculateGODScore({ ...startup, faithSignals: faith });
     
-    // Calculate bootstrap score for sparse-data startups
-    let bootstrapBonus = 0;
-    try {
-      const bootstrapResult = await calculateBootstrapScore(supabase, {
-        id: startup.id,
-        name: startup.name,
-        description: startup.description,
-        pitch: startup.pitch,
-        website: startup.website,
-        founded_date: startup.founded_date,
-        is_launched: startup.is_launched,
-        mrr: startup.mrr,
-        customer_count: startup.customer_count,
-        team_size: startup.team_size,
-        has_technical_cofounder: startup.has_technical_cofounder,
-        founder_voice_score: startup.founder_voice_score,
-        social_score: startup.social_score,
-        total_god_score: scores.total_god_score,
-        sectors: startup.sectors,
-      });
-      
-      if (bootstrapResult.applied && bootstrapResult.total > 0) {
-        bootstrapBonus = bootstrapResult.total;
-        bootstrapApplied++;
-        console.log(`  🚀 Bootstrap applied to ${startup.name}: +${bootstrapBonus} (${bootstrapResult.dataTier})`);
-      }
-    } catch (e) {
-      // Bootstrap scoring is optional, continue if it fails
-    }
+    // ============================================================================
+    // PRIORITY 2: SIGNALS BONUS (Market intelligence layer)
+    // ============================================================================
+    // Get signals_bonus from startup (already populated from startup_signal_scores table)
+    const signalsBonus = Math.min(startup.signals_bonus || 0, 10); // Capped at 10
     
-    // Get signals_bonus from startup (already populated from startup_signal_scores)
-    // RECALIBRATED (Feb 18, 2026 v5): Cap reduced from 8 → 6 (stricter standards)
-    const signalsBonus = Math.min(startup.signals_bonus || 0, 6); // Capped at 6
-    
-    // T2: Momentum scoring — forward movement recognition (+0 to +8 pts)
+    // ============================================================================
+    // CONDITIONAL BONUSES: Only apply if data-rich (Phase 1-2)
+    // ============================================================================
     let momentumBonus = 0;
-    let momentumBreakdown: any = null;
-    try {
-      const momentumResult = calculateMomentumScore(startup, {
-        scoreHistory: scoreHistoryMap.get(startup.id) || [],
-      });
-      if (momentumResult.applied && momentumResult.total > 0) {
-        momentumBonus = momentumResult.total;
-        momentumBreakdown = momentumResult.breakdown;
-        momentumApplied++;
-      }
-    } catch (e) {
-      // Momentum scoring is optional, continue if it fails
-    }
-    
-    // T4: AP + Promising bonus — detects premium startups stuck below their tier
     let apPromisingBonus = 0;
+    let eliteSpikyBonus = 0; // Combined Elite + Spiky
     let apType: 'ap' | 'promising' | 'none' = 'none';
-    try {
-      // Pass the intermediate score so AP/Promising can determine which tier the startup is in
-      const intermediateScore = Math.round(scores.total_god_score + bootstrapBonus + signalsBonus + momentumBonus);
-      const apResult = calculateAPOrPromisingBonus({ ...startup, total_god_score: intermediateScore });
-      if (apResult.bonus > 0) {
-        apPromisingBonus = apResult.bonus;
-        apType = apResult.type;
-        if (apResult.type === 'ap') apApplied++;
-        else if (apResult.type === 'promising') promisingApplied++;
-      }
-    } catch (e) {
-      // AP/Promising scoring is optional, continue if it fails
-    }
-
-    // T5: Elite tiered scoring boost — multiplicative quality reward for 60+ startups
-    let eliteBoost = 0;
     let eliteTier = 'none';
-    try {
-      const preEliteScore = Math.round(scores.total_god_score + bootstrapBonus + signalsBonus + momentumBonus + apPromisingBonus);
-      const eliteResult = calculateEliteBoost(startup, preEliteScore);
-      if (eliteResult.applied && eliteResult.boost > 0) {
-        eliteBoost = eliteResult.boost;
-        eliteTier = eliteResult.tier;
-        eliteApplied++;
-        if (eliteResult.boost >= 5) {
-          console.log(`  🏆 Elite boost: ${startup.name} (${eliteTier}): +${eliteBoost} pts (excellence: ${eliteResult.excellenceScore.toFixed(1)}, multiplier: ${eliteResult.multiplier.toFixed(3)}x)`);
+    
+    const isDataRich = phaseNum <= 2; // Only Phase 1 (Data Rich) and Phase 2 (Good Data)
+    
+    if (isDataRich) {
+      // Momentum scoring — forward movement recognition (+0 to +8 pts)
+      try {
+        const momentumResult = calculateMomentumScore(startup, {
+          scoreHistory: scoreHistoryMap.get(startup.id) || [],
+        });
+        if (momentumResult.applied && momentumResult.total > 0) {
+          momentumBonus = momentumResult.total;
+          momentumApplied++;
         }
+      } catch (e) {
+        // Momentum scoring is optional, continue if it fails
       }
-    } catch (e) {
-      // Elite scoring is optional, continue if it fails
-    }
-
-    // T6: Spiky Bachelor + Hot Startup recognition — rewards organic quality spikes and momentum
-    let spikyHotBonus = 0;
-    try {
-      const preSpikyScore = Math.round(scores.total_god_score + bootstrapBonus + signalsBonus + momentumBonus + apPromisingBonus + eliteBoost);
-      const spikyResult = calculateSpikyAndHotBonus(
-        { ...startup, team_score: scores.team_score, traction_score: scores.traction_score, market_score: scores.market_score, product_score: scores.product_score, vision_score: scores.vision_score },
-        preSpikyScore
-      );
-      if (spikyResult.applied && spikyResult.totalBonus > 0) {
-        spikyHotBonus = spikyResult.totalBonus;
-        if (spikyResult.spikyBonus > 0) spikyApplied++;
-        if (spikyResult.hotBonus > 0) hotApplied++;
-        if (spikyResult.totalBonus >= 3) {
-          console.log(`  🔥 Spiky/Hot: ${startup.name}: +${spikyResult.totalBonus} (spikes: ${spikyResult.spikes.join(', ')} | heat: ${spikyResult.heatSignals.join(', ')})`);
+      
+      // AP + Promising bonus — detects premium startups stuck below their tier
+      try {
+        const apPromResult = calculateAPOrPromisingBonus(
+          { ...startup, team_score: scores.team_score, traction_score: scores.traction_score, market_score: scores.market_score, product_score: scores.product_score, vision_score: scores.vision_score },
+          scores.total_god_score + signalsBonus + momentumBonus
+        );
+        if (apPromResult.applied && apPromResult.bonus > 0) {
+          apPromisingBonus = apPromResult.bonus;
+          apType = apPromResult.type;
+          if (apPromResult.type === 'ap') apApplied++;
+          if (apPromResult.type === 'promising') promisingApplied++;
         }
+      } catch (e) {
+        // AP/Promising scoring is optional, continue if it fails
       }
-    } catch (e) {
-      // Spiky/Hot scoring is optional, continue if it fails
+      
+      // Elite + Spiky COMBINED — Rewards excellence and organic quality spikes
+      try {
+        const preEliteScore = Math.round(scores.total_god_score + signalsBonus + momentumBonus + apPromisingBonus);
+        
+        // Elite boost (multiplicative quality reward for 60+ startups)
+        let eliteBoost = 0;
+        const eliteResult = calculateEliteBoost(startup, preEliteScore);
+        if (eliteResult.applied && eliteResult.boost > 0) {
+          eliteBoost = eliteResult.boost;
+          eliteTier = eliteResult.tier;
+          eliteApplied++;
+        }
+        
+        // Spiky/Hot bonus (organic quality spikes and momentum)
+        let spikyHotBonus = 0;
+        const spikyResult = calculateSpikyAndHotBonus(
+          { ...startup, team_score: scores.team_score, traction_score: scores.traction_score, market_score: scores.market_score, product_score: scores.product_score, vision_score: scores.vision_score },
+          preEliteScore + eliteBoost
+        );
+        if (spikyResult.applied && spikyResult.totalBonus > 0) {
+          spikyHotBonus = spikyResult.totalBonus;
+          if (spikyResult.spikyBonus > 0) spikyApplied++;
+          if (spikyResult.hotBonus > 0) hotApplied++;
+        }
+        
+        // Combine Elite + Spiky into single bonus weight
+        eliteSpikyBonus = eliteBoost + spikyHotBonus;
+        
+        if (phaseNum === 1 && eliteSpikyBonus >= 5) {
+          console.log(`  🏆 ${startup.name}: +${eliteSpikyBonus} elite/spiky (${eliteTier})`);
+        }
+      } catch (e) {
+        // Elite/Spiky scoring is optional, continue if it fails
+      }
     }
-
-    // Final score = GOD score + additive bonuses (floor at 35)
-    // ═══════════════════════════════════════════════════════════════════════
-    // RECALIBRATION v6 (Feb 18, 2026): DIVISOR 30.0 + GRADUATED CAP + WATCH LIST
-    // Signal hierarchy: Momentum(8) > AP(6) > Elite(5) > Bootstrap(6) > Spiky/Hot(2.5)
-    // Base GOD (divisor 30.0): avg ~40, weak ~35, good ~47, exceptional ~53
-    // 
-    // GRADUATED BONUS CAPS (prevents weak startups from grade inflation):
-    //   - Fair tier (base 35-50): +8 max  → final range 35-58
-    //   - Good tier (base 51-60): +15 max → final range 51-75
-    //   - Strong+ tier (base 61+): +20 max → final range 61-90+
-    // 
-    // WATCH LIST: Startups scoring <35 flagged for re-scraping/data enrichment
-    // Target: 20-25% Fair, 35-40% Good, 22-25% Strong, 10% Excellent, 2% Elite
-    // ═══════════════════════════════════════════════════════════════════════
-    const uncappedBonuses = bootstrapBonus + signalsBonus + momentumBonus + apPromisingBonus + eliteBoost + spikyHotBonus;
     
-    // GRADUATED CAP: Different limits based on base GOD score
-    const baseScore = scores.total_god_score;
-    let bonusCap: number;
-    if (baseScore <= 50) {
-      bonusCap = 8;  // Fair tier: strict cap to prevent weak startups inflating to Strong
-    } else if (baseScore <= 60) {
-      bonusCap = 15; // Good tier: moderate cap, can reach Strong/Excellent with signals
-    } else {
-      bonusCap = 20; // Strong+ tier: generous cap, allow elite startups to reach 80-90+
-    }
+    // ============================================================================
+    // BASE SCORE = GOD + Signals + Conditional bonuses
+    // ============================================================================
+    const baseScore = scores.total_god_score + signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus;
+    const rawFinal = Math.max(Math.round(baseScore), 35); // Floor=35
     
-    const totalBonuses = Math.min(uncappedBonuses, bonusCap);
-    const rawFinal = Math.round(baseScore + totalBonuses);
-    const finalScore = Math.max(rawFinal, 35); // Floor=35 (approved startups only, enforced in DB trigger)
-    
-    // 🔍 WATCH LIST: Flag startups <35 for data enrichment
-    const needsDataEnrichment = rawFinal < 35;
-    
-    // Phase 1 Psychological Signals (Feb 12, 2026) - Apply additive bonus to create enhanced score
-    // enhanced_god_score = finalScore + psychological_multiplier (capped at 100)
-    // Note: psychological_multiplier column stores additive bonus values (0-1.0 scale)
-    // FIX (Feb 14): Field name now matches between calculateGODScore return and consumer
-    // FIX (Feb 17): Enhanced cap raised to 100 (elite unicorn-track can reach 90-100)
-    // FIX (Feb 18 v6): Floor updated to 35 (allow Fair category 35-49)
+    // ============================================================================
+    // FINAL ADJUSTMENT: Psychological signals (applied AFTER all scoring)
+    // ============================================================================
     const psychBonus = scores.psychological_multiplier || 0;
-    const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 10); // Psych cap: -5 to +10 GOD pts (ADMIN APPROVED)
-    const enhancedScore = Math.max(Math.min(Math.round(finalScore + psychBonusGOD), 100), 35); // Floor=35, Cap=100 (elite unicorns)
+    const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 10); // Psych: -5 to +10 GOD pts
+    const finalScore = Math.max(Math.min(Math.round(rawFinal + psychBonusGOD), 100), 35); // Floor=35, Cap=100
+    const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 
-    // Only update if score changed OR momentum_score needs backfill
+    // ============================================================================
+    // UPDATE DATABASE
+    // ============================================================================
     const oldMomentum = startup.momentum_score || 0;
     const momentumChanged = momentumColumnExists && Math.abs(momentumBonus - oldMomentum) > 0.01;
-    if (finalScore !== oldScore || momentumChanged || needsDataEnrichment) {
-      // Build update payload — momentum_score column may not exist yet
+    
+    if (finalScore !== oldScore || momentumChanged) {
       const updatePayload: any = {
           total_god_score: finalScore,
           market_score: scores.market_score,
@@ -494,33 +504,13 @@ async function recalculateScores(): Promise<void> {
           traction_score: scores.traction_score,
           product_score: scores.product_score,
           vision_score: scores.vision_score,
-          // Phase 1 Psychological Signals (Feb 12, 2026) - ADDITIVE
-          // Note: Column named psychological_multiplier but stores additive bonus
           psychological_multiplier: psychBonus,
           enhanced_god_score: enhancedScore,
           updated_at: new Date().toISOString()
       };
-      // T2: Only include momentum_score if column exists (added lazily)
+      
       if (momentumColumnExists) {
         updatePayload.momentum_score = momentumBonus;
-      }
-      
-      // 🔍 WATCH LIST: Mark startups <35 for priority re-scraping
-      // These startups need data enrichment to reach minimum viable score
-      if (needsDataEnrichment && startup.status === 'approved') {
-        // Add to scraping priority queue (will be picked up by continuous-scraper.js)
-        try {
-          await supabase.from('startup_jobs').insert({
-            startup_id: startup.id,
-            job_type: 'data_enrichment',
-            priority: 'high',
-            reason: `GOD score below 35 (${rawFinal}) - needs data enrichment`,
-            scheduled_for: new Date().toISOString()
-          });
-        } catch (e) {
-          // Table may not exist yet, log and continue
-          console.log(`  🔍 Watch list: ${startup.name} (score: ${rawFinal}) - needs data enrichment`);
-        }
       }
 
       const { error: updateError } = await supabase
@@ -531,37 +521,53 @@ async function recalculateScores(): Promise<void> {
       if (updateError) {
         console.error(`Error updating ${startup.name}:`, updateError);
       } else {
-        // Log score change
+        // Log score change to history
         try {
+          // Determine reason based on what bonuses were applied
+          let reason = 'recalc_clean_architecture';
+          if (isDataRich) {
+            if (apPromisingBonus > 0) reason = `recalc_with_${apType}`;
+            else if (momentumBonus > 0) reason = 'recalc_with_momentum';
+            else if (eliteSpikyBonus > 0) reason = 'recalc_with_elite_spiky';
+          }
+          
           await supabase.from('score_history').insert({
             startup_id: startup.id,
             old_score: oldScore,
             new_score: finalScore,
-            reason: apPromisingBonus > 0 ? `recalc_with_${apType}` : momentumBonus > 0 ? 'recalc_with_momentum' : bootstrapBonus > 0 ? 'recalc_with_bootstrap' : 'hourly_recalc'
+            reason
           });
         } catch {} // Ignore if table doesn't exist
 
-        const boostParts: string[] = [];
-        if (bootstrapBonus > 0) boostParts.push(`${bootstrapBonus} bootstrap`);
-        if (signalsBonus > 0) boostParts.push(`${signalsBonus.toFixed(1)} signals`);
-        if (momentumBonus > 0) boostParts.push(`${momentumBonus.toFixed(1)} momentum`);
-        if (apPromisingBonus > 0) boostParts.push(`${apPromisingBonus.toFixed(1)} ${apType}`);
-        if (eliteBoost > 0) boostParts.push(`${eliteBoost} elite(${eliteTier})`);
-        if (spikyHotBonus > 0) boostParts.push(`${spikyHotBonus} spiky/hot`);
-        if (psychBonus !== 0) boostParts.push(`${psychBonus.toFixed(2)} psych`);
-        const cappedNote = totalBonuses > 10 ? ` [capped ${totalBonuses.toFixed(1)}→10]` : '';
-        const boostNote = boostParts.length > 0 ? ` (+${boostParts.join(', ')}${cappedNote})` : '';
-        const enhancedNote = enhancedScore !== finalScore ? ` → enhanced: ${enhancedScore}` : '';
-        console.log(`  ✅ ${startup.name}: ${oldScore} → ${finalScore}${boostNote}${enhancedNote}`);
+        // Verbose logging only for Phase 1-2 (Data Rich) significant changes
+        if (phaseNum <= 2 && Math.abs(finalScore - oldScore) >= 5) {
+          const boostParts: string[] = [];
+          if (signalsBonus > 0) boostParts.push(`${signalsBonus.toFixed(1)} signals`);
+          if (isDataRich) {
+            if (momentumBonus > 0) boostParts.push(`${momentumBonus.toFixed(1)} momentum`);
+            if (apPromisingBonus > 0) boostParts.push(`${apPromisingBonus.toFixed(1)} ${apType}`);
+            if (eliteSpikyBonus > 0) boostParts.push(`${eliteSpikyBonus.toFixed(1)} elite+spiky`);
+          }
+          if (psychBonusGOD !== 0) boostParts.push(`${psychBonusGOD > 0 ? '+' : ''}${psychBonusGOD.toFixed(1)} psych`);
+          const boostNote = boostParts.length > 0 ? ` (+${boostParts.join(', ')})` : '';
+          console.log(`  ✅ ${startup.name}: ${oldScore} → ${finalScore}${boostNote}`);
+        }
         updated++;
+        phaseUpdated++;
         
         // Track for gap refresh
         updatedStartupIds.push(startup.id);
       }
     } else {
       unchanged++;
+      phaseUnchanged++;
     }
   }
+  
+  // Phase completion summary
+  const phaseTime = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`✅ Phase ${phaseNum} complete: ${phaseUpdated} updated, ${phaseUnchanged} unchanged (${phaseTime}s)`);
+  }  // End phase loop
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SIGNAL GAP AUTO-RESOLUTION

@@ -190,9 +190,9 @@ function validateGodScoreConfig(config: typeof GOD_SCORE_CONFIG): void {
 const GOD_SCORE_CONFIG = {
   // Normalization divisor - controls overall score scaling
   // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
-  // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
-  // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 20.5,  // Admin calibrated Feb 19, 2026 v8 - HARDENED with validation
+  // Math: rawTotal (avg ~12, max ~17) / 19.0 * 10 → 0-10 scale → * 10 = 0-100
+  // Maps: sparse(~6)→32, average(~12)→63, good(~14)→74, exceptional(~17)→89
+  normalizationDivisor: 19.0,  // Admin calibrated Feb 20, 2026 - Set to 19 per directive
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)
