@@ -89,6 +89,7 @@ import SignupLanding from "./pages/SignupLanding";
 import SignupFounderPythh from "./pages/SignupFounderPythh";
 import InvestorSignupPythh from "./pages/InvestorSignupPythh";
 import SignupComplete from "./pages/SignupComplete";
+import EnrichStartupPage from "./pages/EnrichStartupPage";
 
 // User account pages
 import ProfilePage from "./pages/ProfilePage";
@@ -207,6 +208,9 @@ const App: React.FC = () => {
           <Route path="/signup/founder" element={<SignupFounderPythh />} />
           <Route path="/signup/investor" element={<InvestorSignupPythh />} />
           <Route path="/signup/complete" element={<SignupComplete />} />
+
+          {/* Founder enrichment — self-service data quality improvement */}
+          <Route path="/enrich/:token" element={<EnrichStartupPage />} />
 
           {/* Legacy (consider deprecating later) */}
           <Route path="/signal-results" element={<SignalResultsPage />} />

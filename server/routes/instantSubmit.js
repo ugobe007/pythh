@@ -19,6 +19,7 @@
 
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
@@ -29,6 +30,7 @@ const {
   calculateSectorMatchScore,
   SECTOR_SYNONYMS,
 } = require('../lib/sectorTaxonomy');
+const { calculateCompleteness } = require('../services/dataCompletenessService');
 
 // =============================================================================
 // REAL SCORING PIPELINE - The GOD Score SSOT
@@ -37,6 +39,7 @@ const {
 const { calculateHotScore } = require('../services/startupScoringService.ts');
 const { scrapeAndScoreStartup } = require('../services/urlScrapingService.ts');
 const { extractInferenceData } = require('../../lib/inference-extractor');
+const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 
 /**
@@ -653,6 +656,26 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     }
 
+    // ── NEWS-BASED ENRICHMENT (if still sparse, search news - 2-3s) ──
+    console.log(`  🔄 [BG] Enrichment check: dataTier=${dataTier}, hasInferenceData=${!!inferenceData}, isSparse=${inferenceData ? isDataSparse({ extracted_data: inferenceData }) : 'N/A'}`);
+    
+    if (dataTier === 'C' || !inferenceData || isDataSparse({ extracted_data: inferenceData })) {
+      try {
+        console.log(`  🔄 [BG] Attempting news enrichment for "${displayName}"...`);
+        const newsEnrichment = await quickEnrich(displayName, inferenceData || {}, fullUrl, 3000);
+        
+        if (newsEnrichment.enrichmentCount > 0) {
+          inferenceData = { ...(inferenceData || {}), ...newsEnrichment.enrichedData };
+          dataTier = 'B'; // Upgrade to Tier B if we found data
+          console.log(`  🔄 [BG] News enrichment: +${newsEnrichment.enrichmentCount} fields (${newsEnrichment.fieldsEnriched.join(', ')}) from ${newsEnrichment.articlesFound} articles`);
+        } else {
+          console.log(`  🔄 [BG] News enrichment: No data found (${newsEnrichment.articlesFound} articles)`);
+        }
+      } catch (newsErr) {
+        console.warn(`  🔄 [BG] News enrichment failed: ${newsErr.message}`);
+      }
+    }
+
     // ── AI scraper fallback (ONLY for Tier C, hard 5s race timeout) ──
     let aiData = null;
     if (dataTier === 'C') {
@@ -731,6 +754,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     const scores = calculateGODScore(enrichedRow);
     console.log(`  🔄 [BG] GOD Score: ${scores.total_god_score} (T${scores.team_score} Tr${scores.traction_score} M${scores.market_score} P${scores.product_score} V${scores.vision_score})`);
 
+    // Calculate data completeness after enrichment
+    const completenessResult = calculateCompleteness(enrichedRow);
+    console.log(`  🔄 [BG] Data completeness: ${completenessResult.percentage}%`);
+
     // ── Update startup row with enriched data ──
     await supabase
       .from('startup_uploads')
@@ -750,6 +777,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         customer_count: enrichedRow.customer_count,
         growth_rate_monthly: enrichedRow.growth_rate_monthly,
         extracted_data: enrichedRow.extracted_data,
+        data_completeness: completenessResult.percentage,
         total_god_score: scores.total_god_score,
         team_score: scores.team_score,
         traction_score: scores.traction_score,
@@ -886,6 +914,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 // POST /api/instant/submit — PHASE A: fast resolve + create + early return
 // ============================================================================
 router.post('/submit', async (req, res) => {
+  console.error(`🔥 [DEBUG] POST /submit HIT at ${new Date().toISOString()}`); // FORCE DEBUG OUTPUT
   const startTime = Date.now();
   
   try {
@@ -900,6 +929,7 @@ router.post('/submit', async (req, res) => {
     const domain = extractDomain(inputRaw);
     const urlNormalized = normalizeUrl(inputRaw);
     
+    console.error(`🔥 [DEBUG] Parsed: "${companyName}" / "${domain}"`); // FORCE DEBUG OUTPUT
     console.log(`⚡ [INSTANT] Processing: "${inputRaw}" → company="${companyName}" domain="${domain}"`);
     
     if (!companyName || companyName.length < 2) {
@@ -922,7 +952,7 @@ router.post('/submit', async (req, res) => {
     
     const { data: candidates, error: searchErr } = await supabase
       .from('startup_uploads')
-      .select('id, name, website, sectors, stage, total_god_score, status')
+      .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
       .or(searchPatterns.join(','))
       .eq('status', 'approved')
       .limit(100);
@@ -1048,6 +1078,7 @@ router.post('/submit', async (req, res) => {
     
     // Insert minimal startup row immediately (no scraping, no AI)
     let insertName = displayName;
+    const enrichmentToken = crypto.randomUUID(); // Generate unique token for founder enrichment
     let { data: newStartup, error: insertErr } = await supabase
       .from('startup_uploads')
       .insert({
@@ -1058,6 +1089,8 @@ router.post('/submit', async (req, res) => {
         stage: 1,
         status: 'approved',
         source_type: 'url',
+        enrichment_token: enrichmentToken,
+        data_completeness: 15, // Minimal data initially
         // Placeholder GOD score (will be updated by background pipeline)
         total_god_score: 50,
         team_score: 50,
@@ -1067,7 +1100,7 @@ router.post('/submit', async (req, res) => {
         vision_score: 50,
         created_at: new Date().toISOString()
       })
-      .select('id, name, website, sectors, stage, total_god_score')
+      .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
       .single();
     
     // Handle name conflict
@@ -1083,6 +1116,8 @@ router.post('/submit', async (req, res) => {
           stage: 1,
           status: 'approved',
           source_type: 'url',
+          enrichment_token: enrichmentToken,
+          data_completeness: 15,
           total_god_score: 50,
           team_score: 50,
           traction_score: 50,
@@ -1091,7 +1126,7 @@ router.post('/submit', async (req, res) => {
           vision_score: 50,
           created_at: new Date().toISOString()
         })
-        .select('id, name, website, sectors, stage, total_god_score')
+        .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
         .single();
       newStartup = retry.data;
       insertErr = retry.error;
@@ -1102,7 +1137,7 @@ router.post('/submit', async (req, res) => {
       console.error(`  ✗ Insert error: ${insertErr.message}`);
       const { data: found } = await supabase
         .from('startup_uploads')
-        .select('id, name, website, sectors, stage, total_god_score')
+        .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
         .or(`website.ilike.%${domain}%`)
         .limit(1)
         .single();

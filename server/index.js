@@ -5253,6 +5253,10 @@ app.use('/api', resolveRouter);
 const instantSubmit = require('./routes/instantSubmit');
 app.use('/api/instant', instantSubmit);
 
+// Enrichment API - Founder self-service data completion
+const enrichRouter = require('./routes/enrich');
+app.use('/api/enrich', enrichRouter);
+
 // Discovery API routes (Phase 3: Job-based submit/poll pattern)
 const discoverySubmit = require('./routes/discoverySubmit');
 const discoveryResults = require('./routes/discoveryResults');
