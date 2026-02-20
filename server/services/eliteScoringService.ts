@@ -18,10 +18,10 @@
  * |-----------|------------|------------|-------------------------------------|
  * | Freshman  | 40-49      | 1.00x      | No boost — prove yourself first     |
  * | Sophomore | 50-59      | 1.00x      | No boost — still building credibility|
- * | Junior    | 60-69      | 1.02-1.08x | Small boost if fundamentals shine   |
- * | Senior    | 70-79      | 1.05-1.15x | Meaningful boost for strong players |
- * | Dean's    | 80-89      | 1.08-1.18x | Significant recognition of quality  |
- * | PhD       | 90+        | Already there — light polish only   |
+ * | Junior    | 60-69      | 1.05x      | Small boost if fundamentals shine   |
+ * | Senior    | 70-79      | 1.10x      | Strong boost for high performers    |
+ * | Dean's    | 80-89      | 1.15x      | Significant boost for elite players |
+ * | PhD       | 90-100     | 1.18x      | Maximum recognition, approach 100   |
  * 
  * The multiplier is NOT automatic — it requires evidence across multiple
  * "excellence dimensions". A high-scoring startup with weak fundamentals
@@ -86,14 +86,16 @@
  *   boost = intermediateScore * (effectiveMultiplier - 1.0)
  * 
  * This means:
- *   - A 65-score startup with 5.0 excellence → 65 * 1.023 = ~66.5 (+1.5)
- *   - A 72-score startup with 7.0 excellence → 72 * 1.086 = ~78.2 (+6.2)
- *   - A 80-score startup with 8.0 excellence → 80 * 1.129 = ~90.3 (+10.3)
- *   - A 75-score startup with 9.0 excellence → 75 * 1.129 = ~84.7 (+9.7)
- *   - A 83-score startup with 10.0 excellence → 83 * 1.18 = ~97.9 (+14.9)
+ *   - A 65-score startup with 5.0 excellence → 65 * 1.029 = ~66.9 (+1.9)
+ *   - A 72-score startup with 7.0 excellence → 72 * 1.071 = ~77.1 (+5.1)
+ *   - A 75-score startup with 9.0 excellence → 75 * 1.100 = ~82.5 (+7.5)
+ *   - A 78-score startup with 10.0 excellence → 78 * 1.100 = ~85.8 (+7.8)
+ *   - A 82-score startup with 8.0 excellence → 82 * 1.107 = ~90.8 (+8.8)
+ *   - A 85-score startup with 10.0 excellence → 85 * 1.150 = ~97.8 (+12.8)
+ *   - A 92-score startup with 10.0 excellence → 92 * 1.180 = ~108.6 → capped at 100
  * 
- * Maximum possible boost: ~18 points (for a score-89 startup with perfect excellence)
- * This enables the top 0.1% to break into the 90s and even approach 100.
+ * Maximum possible boost: ~18 points (for a 92+ startup with perfect excellence)
+ * This enables the top 3-5% to break into 80-95 range and the very best to reach 100.
  * 
  * ============================================================================
  */
@@ -131,14 +133,16 @@ const ELITE_SCHOOLS = [
 ];
 
 // ── Tier multiplier table ──
-// RECALIBRATED (Feb 16, 2026): All tiers → 1.05x max (ADMIN APPROVED)
-// Geometric principle: elite boost is a polish, not a promotion.
-// At 1.05x: a 60 gets +3, a 75 gets +3.75, an 85 gets +4.25. Never >5 pts.
+// RECALIBRATED (Feb 19, 2026 v2): Increased multipliers for proper Elite separation (ADMIN APPROVED)
+// Reason: 1.05x was too conservative - only 1% reached Elite tier, compressed at 80-86 range.
+// New multipliers create natural 80-95+ distribution for exceptional startups with evidence.
+// At 1.10-1.15x: a 72 with perfect excellence → 79, a 78 → 86, an 82 → 94.
 const TIER_MULTIPLIERS: { min: number; max: number; multiplier: number }[] = [
   { min: 0,  max: 59, multiplier: 1.00 },  // No boost for Freshman/Sophomore
-  { min: 60, max: 69, multiplier: 1.03 },  // Junior: light polish
-  { min: 70, max: 79, multiplier: 1.05 },  // Senior: full 1.05x
-  { min: 80, max: 85, multiplier: 1.05 },  // Dean's List / PhD: same 1.05x cap
+  { min: 60, max: 69, multiplier: 1.05 },  // Junior: +3 to +3.5 pts
+  { min: 70, max: 79, multiplier: 1.10 },  // Senior: +7 to +7.9 pts (lifts strong → excellent)
+  { min: 80, max: 89, multiplier: 1.15 },  // Dean's List: +12 to +13.3 pts (elite range)
+  { min: 90, max: 100, multiplier: 1.18 }, // PhD: +16.2 to +18 pts (approach 100)
 ];
 
 function getTierMultiplier(score: number): number {
