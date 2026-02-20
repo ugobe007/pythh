@@ -54,6 +54,7 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/ecosystem.prod.config.js ./ecosystem.prod.config.js
+COPY --from=builder /app/run-ml-training.js ./run-ml-training.js
 
 # Set production environment
 ENV NODE_ENV=production
