@@ -45,20 +45,22 @@ async function enrichSparseInvestors() {
   if (DRY_RUN) console.log('DRY RUN MODE — no database writes\n');
   console.log(`Processing up to ${LIMIT} investors\n`);
 
-  // ── Load sparse investors ──
+  // ── Load sparse investors — filter in SQL to avoid scanning well-populated records ──
   console.log('Loading sparse investors...');
   const { data: allInvestors, error } = await supabase
     .from('investors')
     .select('id, name, firm, sectors, stage, check_size_min, check_size_max, portfolio_companies, investment_thesis, bio, geography_focus, linkedin_url, last_enrichment_date')
-    .order('updated_at', { ascending: true })
-    .limit(LIMIT * 3);
+    // Target investors missing at least one of: check_size, bio/thesis, sectors
+    .or('check_size_min.is.null,investment_thesis.is.null,bio.is.null')
+    .order('created_at', { ascending: false })  // Newest first — these tend to be less complete
+    .limit(LIMIT * 5);  // Cast wider net since we filter client-side
 
   if (error) {
     console.error('Failed to load investors:', error.message);
     process.exit(1);
   }
 
-  const sparse = allInvestors.filter(isInvestorSparse).slice(0, LIMIT);
+  const sparse = (allInvestors || []).filter(isInvestorSparse).slice(0, LIMIT);
   console.log(`Found ${sparse.length} sparse investors (missing 2+ key fields)\n`);
 
   if (sparse.length === 0) {
