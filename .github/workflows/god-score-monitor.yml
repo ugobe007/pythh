@@ -5,9 +5,15 @@ on:
     - cron: '5 */2 * * *'  # Every 2 hours at :05 (5 min after recalc)
   workflow_dispatch:
 
+# Run sequentially - never cancel in-progress monitoring
+concurrency:
+  group: god-score-monitor
+  cancel-in-progress: false
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
       - uses: actions/checkout@v4
