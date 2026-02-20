@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminNavBar from './AdminNavBar';
+import DbHealthBanner from './DbHealthBanner';
 
 /**
  * AdminRouteWrapper - Clean wrapper for admin routes
@@ -39,6 +40,7 @@ export function AdminRouteWrapper() {
 
   return (
     <div className="min-h-screen bg-[#121212]">
+      <DbHealthBanner />
       <AdminNavBar currentPage={getPageName()} />
       <main className="w-full pt-14">
         <Outlet />

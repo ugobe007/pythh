@@ -82,18 +82,38 @@ export default function PlatformPage() {
   const [url, setUrl] = useState("");
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
 
-  // Fetch platform stats
+  // Fetch platform stats — with retry and sensible fallback
   useEffect(() => {
     async function fetchStats() {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await supabase.rpc("get_platform_stats");
+          if (res.error) throw res.error;
+          const p = res.data || {};
+          if ((p.startups || 0) > 0 || (p.matches || 0) > 0) {
+            setStats({
+              startups: p.startups || 0,
+              investors: p.investors || 0,
+              matches: p.matches || 0,
+            });
+            return; // success
+          }
+        } catch (err) {
+          console.warn(`PlatformPage stats attempt ${attempt + 1} failed`, err);
+        }
+        if (attempt < 2) await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      }
+      // Final fallback: query counts directly
       try {
-        const res = await supabase.rpc("get_platform_stats");
-        const p = res.data || { startups: 0, investors: 0, matches: 0 };
-        setStats({
-          startups: p.startups || 0,
-          investors: p.investors || 0,
-          matches: p.matches || 0,
-        });
-      } catch {}
+        const [s, i, m] = await Promise.all([
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+          supabase.from('investors').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+        ]);
+        setStats({ startups: s.count || 0, investors: i.count || 0, matches: m.count || 0 });
+      } catch (err) {
+        console.error('PlatformPage stats fallback failed', err);
+      }
     }
     fetchStats();
   }, []);

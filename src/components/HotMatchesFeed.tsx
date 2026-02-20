@@ -55,24 +55,33 @@ export default function HotMatchesFeed({
 
   const fetchData = async () => {
     try {
-      // Fetch hot matches
-      const { data: matchData, error: matchError } = await supabase
-        .rpc('get_hot_matches', { 
-          limit_count: limit, 
-          hours_ago: hoursAgo 
-        });
+      // Fetch hot matches — try 24h window first, then fall back to 7 days
+      let matchData: HotMatch[] | null = null;
+      let effectiveHours = hoursAgo;
 
-      if (matchError) throw matchError;
+      for (const tryHours of [hoursAgo, hoursAgo * 7, 168]) {
+        const { data, error: matchError } = await supabase
+          .rpc('get_hot_matches', { 
+            limit_count: limit, 
+            hours_ago: tryHours
+          });
+        if (matchError) throw matchError;
+        if (data && data.length > 0) {
+          matchData = data;
+          effectiveHours = tryHours;
+          break;
+        }
+      }
 
       // Fetch platform velocity
       const { data: velocityData, error: velocityError } = await supabase
         .rpc('get_platform_velocity');
 
-      if (velocityError) throw velocityError;
+      if (velocityError) console.warn('HotMatchesFeed: velocity RPC error', velocityError.message);
 
       setMatches(matchData || []);
       setVelocity(velocityData?.[0] || null);
-      setError(null);
+      setError(matchData && matchData.length === 0 ? 'no-matches' : null);
     } catch (err) {
       console.error('Error fetching hot matches:', err);
       setError(err instanceof Error ? err.message : 'Failed to load matches');
@@ -131,8 +140,20 @@ export default function HotMatchesFeed({
     );
   }
 
-  // Silent degradation - don't block other UI elements
-  if (error || matches.length === 0) return null;
+  // Show a minimal placeholder instead of disappearing entirely
+  if (error === 'no-matches' || (error && matches.length === 0)) {
+    return (
+      <div className="space-y-1 opacity-50">
+        {showHeader && (
+          <div className="flex items-center gap-2 text-white/30 text-xs mb-2">
+            <span>🔥</span>
+            <span className="uppercase tracking-wider">Recent Matches</span>
+          </div>
+        )}
+        <div className="text-xs text-white/25 italic">Match engine warming up…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

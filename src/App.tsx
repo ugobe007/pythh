@@ -39,6 +39,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { L5Guard } from "./lib/routeGuards";
 import { trackEvent } from "./lib/analytics";
+import { useStore } from "./store";
 
 // Layouts
 import PublicLayout from "./layouts/PublicLayout";
@@ -141,6 +142,14 @@ import ReviewQueue from "./pages/ReviewQueue";
 const App: React.FC = () => {
   const location = useLocation();
   const qs = location.search || "";
+  const loadStartupsFromDatabase = useStore((s) => s.loadStartupsFromDatabase);
+
+  // ── SSOT: Always hydrate store from Supabase on app boot ──────────────────
+  // This runs once on mount. The Zustand persist layer may serve stale data
+  // between sessions; this ensures the store is always fresh from the DB.
+  useEffect(() => {
+    loadStartupsFromDatabase();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     trackEvent("page_viewed", { path: location.pathname, search: location.search });

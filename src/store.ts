@@ -199,13 +199,13 @@ export const useStore = create<StoreState>()(
         }));
       },
       loadStartupsFromDatabase: async () => {
+        // SSOT: Only load from Supabase — no local data mixing
         const approvedStartups = await loadApprovedStartups();
-        const localStartups = startupData.map((s, idx) => ({ ...s, id: idx, yesVotes: 0 })) as unknown as StartupComponent[];
-        const allStartups = [
-          ...localStartups,
-          ...approvedStartups
-        ];
-        set({ startups: allStartups });
+        if (approvedStartups.length > 0) {
+          set({ startups: approvedStartups });
+        } else {
+          console.warn('loadStartupsFromDatabase: DB returned 0 startups — keeping existing state');
+        }
       },
     }),
     {
