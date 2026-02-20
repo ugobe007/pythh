@@ -1,56 +1,34 @@
 #!/usr/bin/env node
 /**
- * TARGETED STARTUP ENRICHMENT - Inference Engine
- * 
- * Strategy: Instead of broad RSS scraping, search for specific startups that need data
- * 
+ * TARGETED STARTUP ENRICHMENT - Full Inference Pipeline
+ *
+ * Uses the SAME two-step inference engine as the URL submission bar:
+ *   Step 1: Re-scrape website HTML → extractInferenceData (fast, local)
+ *   Step 2: If still sparse → quickEnrich (Google News RSS fallback queries)
+ *
  * Process:
- * 1. Identify Phase 4 startups (0-1 signals, scores 35-50)
- * 2. For each startup, search Google News RSS with startup name
- * 3. Extract missing data: traction, team, market, funding
- * 4. Update extracted_data JSONB field
+ * 1. Identify Phase 2-4 startups (scores < 70, missing key data)
+ * 2. For each: fetch website HTML → extractInferenceData
+ * 3. If still sparse after HTML: quickEnrich via news (3-query cascade)
+ * 4. Merge enriched data + promote to top-level columns
  * 5. Mark for GOD score recalculation
- * 
- * Run: node scripts/enrich-sparse-startups.js [--limit=50]
- * Run all: node scripts/enrich-sparse-startups.js --limit=5000
+ *
+ * Run: node scripts/enrich-sparse-startups.js [--limit=50] [--dry-run]
  */
 
 require('dotenv').config();
-const Parser = require('rss-parser');
+const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
-// Import inference extractors
-const { 
-  extractFunding, 
-  extractSectors, 
-  extractTeamSignals, 
-  extractExecutionSignals 
-} = require('../lib/inference-extractor');
+// Shared inference engine — same functions used by instantSubmit.js
+const { extractInferenceData } = require('../lib/inference-extractor');
+const { quickEnrich, isDataSparse } = require('../server/services/inferenceService');
 
 // Supabase client
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 );
-
-const parser = new Parser({
-  timeout: 20000,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    'Accept': 'application/rss+xml, application/xml, text/xml, */*'
-  }
-});
-
-// ============================================================================
-// FAST NEWS SOURCES - Prioritize speed over depth
-// ============================================================================
-const FAST_SOURCES = {
-  // Google News RSS - fastest, most reliable
-  googleNews: (query) => `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`,
-  
-  // TechCrunch search (if available)
-  // Note: Some sources may not have search RSS, fallback to Google News
-};
 
 // ============================================================================
 // CLASSIFY DATA RICHNESS (same as recalculate-scores.ts)
@@ -76,275 +54,203 @@ function classifyDataRichness(startup) {
 }
 
 // ============================================================================
-// SEARCH FOR STARTUP NEWS
+// FETCH WEBSITE HTML (Step 1 of pipeline)
 // ============================================================================
-async function searchStartupNews(startupName, startupWebsite) {
-  const articles = [];
-  
-  // Build search query - try multiple variants for better results
-  const queries = [
-    `"${startupName}" startup funding`,
-    `${startupName} raises`,
-    `${startupName} series`,
-  ];
-  
-  // If we have website, extract domain name for search
-  if (startupWebsite) {
-    try {
-      const domain = new URL(startupWebsite).hostname.replace('www.', '');
-      queries.push(`${domain} startup`);
-    } catch (e) {
-      // Invalid URL, skip
-    }
-  }
-  
-  // Try first query only (fast approach - avoid over-fetching)
-  const query = queries[0];
-  const feedUrl = FAST_SOURCES.googleNews(query);
-  
+async function fetchWebsiteHtml(url) {
   try {
-    console.log(`  🔍 Searching: "${query}"`);
-    const feed = await parser.parseURL(feedUrl);
-    
-    // Limit to 5 most recent articles (fast parsing)
-    const recent = feed.items.slice(0, 5);
-    
-    for (const item of recent) {
-      articles.push({
-        title: item.title || '',
-        content: item.contentSnippet || item.content || '',
-        link: item.link || '',
-        pubDate: item.pubDate || new Date().toISOString(),
-        source: 'Google News'
-      });
-    }
-    
-    console.log(`  ✅ Found ${articles.length} articles`);
-  } catch (error) {
-    console.log(`  ⚠️  Search failed: ${error.message}`);
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+    const response = await axios.get(fullUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      timeout: 10000,
+      maxRedirects: 5,
+    });
+    return response.data?.toString() || null;
+  } catch (e) {
+    return null;
   }
-  
-  return articles;
 }
 
 // ============================================================================
-// EXTRACT DATA FROM ARTICLES
+// ENRICH ONE STARTUP — Same two-step pipeline as instantSubmit.js
+//   Step 1: Re-scrape website HTML → extractInferenceData
+//   Step 2: If still sparse → quickEnrich via news (3-query cascade)
 // ============================================================================
-function extractDataFromArticles(articles, currentData) {
-  const enrichedData = { ...currentData };
-  let enrichmentCount = 0;
-  
-  // Combine all article text for analysis
-  const allText = articles.map(a => `${a.title} ${a.content}`).join('\n\n');
-  
-  // Extract funding information (maps to raise_amount)
-  if (!enrichedData.raise_amount || enrichedData.raise_amount === '') {
-    const funding = extractFunding(allText);
-    if (funding.amount > 0) {
-      enrichedData.raise_amount = `$${funding.amount}`;
-      enrichedData.raise_type = funding.round;
-      enrichmentCount++;
-      console.log(`    💰 Found funding: $${funding.amount} ${funding.round}`);
+async function enrichOneStartup(startup, dryRun = false) {
+  const currentExtracted = startup.extracted_data || {};
+  let inferenceData = { ...currentExtracted };
+  const stepLog = [];
+  let htmlEnriched = false;
+
+  // ── Step 1: Re-scrape website HTML + extractInferenceData ──
+  if (startup.website) {
+    const html = await fetchWebsiteHtml(startup.website);
+    if (html && html.length >= 50) {
+      const htmlData = extractInferenceData(html, startup.website);
+      if (htmlData) {
+        for (const [key, val] of Object.entries(htmlData)) {
+          if (val !== null && val !== undefined && val !== '' &&
+              !(Array.isArray(val) && val.length === 0)) {
+            if (!inferenceData[key]) {
+              inferenceData[key] = val;
+              htmlEnriched = true;
+            }
+          }
+        }
+        stepLog.push(`HTML: Tier ${htmlData.confidence?.tier || '?'}${htmlEnriched ? ' (new data)' : ' (no new fields)'}`);
+      }
+    } else {
+      stepLog.push('HTML: failed/empty');
     }
   }
-  
-  // Extract sectors if missing
-  if (!enrichedData.sectors || enrichedData.sectors.length === 0) {
-    const sectors = extractSectors(allText);
-    if (sectors.length > 0) {
-      enrichedData.sectors = sectors;
-      enrichmentCount++;
-      console.log(`    🏷️  Found sectors: ${sectors.join(', ')}`);
+
+  // ── Step 2: News enrichment if still sparse ──
+  const stillSparse = isDataSparse({ extracted_data: inferenceData });
+  if (stillSparse) {
+    const newsResult = await quickEnrich(startup.name, inferenceData, startup.website || null, 5000);
+    if (newsResult.enrichmentCount > 0) {
+      inferenceData = { ...inferenceData, ...newsResult.enrichedData };
+      stepLog.push(`News: +${newsResult.enrichmentCount} fields (${newsResult.fieldsEnriched.join(', ')}) from ${newsResult.articlesFound} articles`);
+    } else {
+      stepLog.push(`News: 0 fields (${newsResult.articlesFound} articles)`);
     }
+  } else {
+    stepLog.push('News: skipped (sufficient data after HTML)');
   }
-  
-  // Extract execution signals (traction, customers, revenue)
-  const execution = extractExecutionSignals(allText);
-  
-  if (execution.customer_count > 0 && !enrichedData.customer_count) {
-    enrichedData.customer_count = execution.customer_count;
-    enrichmentCount++;
-    console.log(`    📈 Found customers: ${execution.customer_count}`);
+
+  // Count net-new fields
+  const newFieldCount = Object.keys(inferenceData).filter(k =>
+    !currentExtracted[k] && inferenceData[k] !== null && inferenceData[k] !== undefined
+  ).length;
+
+  if (newFieldCount === 0 && !htmlEnriched) {
+    return { enriched: false, stepLog, newFieldCount: 0 };
   }
-  
-  if (execution.revenue > 0 && !enrichedData.arr) {
-    enrichedData.arr = execution.revenue;
-    enrichmentCount++;
-    console.log(`    💵 Found revenue: $${execution.revenue}`);
+
+  if (dryRun) {
+    return { enriched: true, stepLog, newFieldCount, dryRun: true };
   }
-  
-  if (execution.mrr > 0 && !enrichedData.mrr) {
-    enrichedData.mrr = execution.mrr;
-    enrichmentCount++;
-  }
-  
-  // Store article references for transparency
-  if (articles.length > 0) {
-    enrichedData.enrichment_sources = articles.map(a => ({
-      title: a.title,
-      url: a.link,
-      date: a.pubDate,
-      source: a.source
-    }));
-    enrichedData.last_enrichment_date = new Date().toISOString();
-  }
-  
-  return { enrichedData, enrichmentCount };
+
+  // ── Build DB update payload ──
+  const updatePayload = {
+    extracted_data: inferenceData,
+    updated_at: new Date().toISOString()
+  };
+
+  // Promote critical fields to top-level columns
+  if (inferenceData.raise_amount && !startup.raise_amount)
+    updatePayload.raise_amount = inferenceData.raise_amount;
+  if (inferenceData.raise_type && !startup.raise_type)
+    updatePayload.raise_type = inferenceData.raise_type;
+  if (inferenceData.sectors?.length && (!startup.sectors || startup.sectors.length === 0))
+    updatePayload.sectors = inferenceData.sectors;
+  if (inferenceData.customer_count && !startup.customer_count)
+    updatePayload.customer_count = inferenceData.customer_count;
+  if (inferenceData.arr && !startup.arr)
+    updatePayload.arr = inferenceData.arr;
+  if (inferenceData.mrr && !startup.mrr)
+    updatePayload.mrr = inferenceData.mrr;
+  if (inferenceData.description && !startup.pitch)
+    updatePayload.pitch = inferenceData.description;
+
+  const { error: updateError } = await supabase
+    .from('startup_uploads')
+    .update(updatePayload)
+    .eq('id', startup.id);
+
+  if (updateError) throw new Error(updateError.message);
+
+  return { enriched: true, stepLog, newFieldCount };
 }
 
 // ============================================================================
 // MAIN ENRICHMENT PROCESS
 // ============================================================================
 async function enrichSparseStartups() {
-  console.log('🔬 TARGETED STARTUP ENRICHMENT - Inference Engine\n');
-  console.log('Strategy: Search news for specific data-sparse startups\n');
-  
+  console.log('=== STARTUP ENRICHMENT — Full Inference Pipeline ===\n');
+  console.log('Pipeline: URL scrape (extractInferenceData) → news fallback (quickEnrich)\n');
+
   // Parse command line args
   const args = process.argv.slice(2);
   const limitArg = args.find(arg => arg.startsWith('--limit='));
   const limit = limitArg ? parseInt(limitArg.split('=')[1]) : 50;
-  
-  console.log(`📊 Processing up to ${limit} startups\n`);
-  
-  // ========================================================================
-  // STEP 1: Fetch Phase 4 (Sparse) startups
-  // ========================================================================
-  console.log('⏳ Loading data-sparse startups...');
-  
+  const dryRun = args.includes('--dry-run');
+
+  if (dryRun) console.log('🧪 DRY RUN — no database writes\n');
+  console.log(`Processing up to ${limit} startups\n`);
+
+  // ── Load sparse startups ──
+  console.log('Loading data-sparse startups...');
   const { data: startups, error } = await supabase
     .from('startup_uploads')
-    .select('id, name, website, pitch, sectors, stage, raise_amount, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data')
+    .select('id, name, website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data')
     .eq('status', 'approved')
-    .order('updated_at', { ascending: true }) // Oldest first - prioritize stale data
-    .limit(limit * 3); // Fetch extra, filter to Phase 4
-  
+    .order('updated_at', { ascending: true })
+    .limit(limit * 3);
+
   if (error) {
-    console.error('❌ Error loading startups:', error);
+    console.error('Error loading startups:', error);
     return;
   }
-  
-  // Filter to Phase 2-4 (Medium to Sparse data) - include any startup scoring below 70
+
   const sparseStartups = startups.filter(s => {
     const { phase } = classifyDataRichness(s);
-    return phase >= 2 && s.total_god_score < 70; // Phase 2-4, scores below 70
+    return phase >= 2 && s.total_god_score < 70;
   }).slice(0, limit);
-  
+
   console.log(`Found ${sparseStartups.length} Phase 2-4 startups (scores < 70)\n`);
-  
+
   if (sparseStartups.length === 0) {
-    console.log('🎉 No sparse startups found! All startups have sufficient data.');
-    // Debug: Show distribution
-    const phases = startups.map(s => classifyDataRichness(s).phase);
-    console.log('Phase distribution:', {
-      phase1: phases.filter(p => p === 1).length,
-      phase2: phases.filter(p => p === 2).length,
-      phase3: phases.filter(p => p === 3).length,
-      phase4: phases.filter(p => p === 4).length,
-    });
+    console.log('No sparse startups found.');
     return;
   }
-  
-  // ========================================================================
-  // STEP 2: Enrich each startup
-  // ========================================================================
+
+  // ── Process each ──
   let enriched = 0;
-  let noDataFound = 0;
+  let noData = 0;
   let errors = 0;
-  
+
   for (let i = 0; i < sparseStartups.length; i++) {
     const startup = sparseStartups[i];
-    console.log(`\n[${i + 1}/${sparseStartups.length}] ${startup.name}`);
-    console.log(`  Current score: ${startup.total_god_score}`);
-    
+    console.log(`\n[${i + 1}/${sparseStartups.length}] ${startup.name} (score: ${startup.total_god_score})`);
+    if (startup.website) console.log(`  URL: ${startup.website}`);
+
     try {
-      // Search for news articles
-      const articles = await searchStartupNews(startup.name, startup.website);
-      
-      if (articles.length === 0) {
-        console.log('  ⚠️  No articles found - startup may be very early or private');
-        noDataFound++;
-        continue;
-      }
-      
-      // Extract data from articles
-      const currentData = startup.extracted_data || {};
-      const { enrichedData, enrichmentCount } = extractDataFromArticles(articles, currentData);
-      
-      if (enrichmentCount === 0) {
-        console.log('  ⚠️  Articles found but no new data extracted');
-        noDataFound++;
-        continue;
-      }
-      
-      // Update database
-      const updatePayload = {
-        extracted_data: enrichedData,
-        updated_at: new Date().toISOString()
-      };
-      
-      // If we found critical fields, promote them to top-level columns
-      if (enrichedData.raise_amount && !startup.raise_amount) {
-        updatePayload.raise_amount = enrichedData.raise_amount;
-        updatePayload.raise_type = enrichedData.raise_type;
-      }
-      if (enrichedData.sectors && (!startup.sectors || startup.sectors.length === 0)) {
-        updatePayload.sectors = enrichedData.sectors;
-      }
-      if (enrichedData.customer_count && !startup.customer_count) {
-        updatePayload.customer_count = enrichedData.customer_count;
-      }
-      if (enrichedData.arr && !startup.arr) {
-        updatePayload.arr = enrichedData.arr;
-      }
-      if (enrichedData.mrr && !startup.mrr) {
-        updatePayload.mrr = enrichedData.mrr;
-      }
-      
-      const { error: updateError } = await supabase
-        .from('startup_uploads')
-        .update(updatePayload)
-        .eq('id', startup.id);
-      
-      if (updateError) {
-        console.log(`  ❌ Update failed: ${updateError.message}`);
-        errors++;
-      } else {
-        console.log(`  ✅ Enriched ${enrichmentCount} fields`);
+      const result = await enrichOneStartup(startup, dryRun);
+      for (const step of result.stepLog) console.log(`  ${step}`);
+
+      if (result.enriched) {
+        console.log(`  ✅ ${result.dryRun ? '[DRY RUN] Would add' : 'Added'} ${result.newFieldCount} new fields`);
         enriched++;
+      } else {
+        console.log('  ⚠️  No new data found');
+        noData++;
       }
-      
-      // Rate limiting - be gentle with Google News
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-      
-    } catch (error) {
-      console.log(`  ❌ Error: ${error.message}`);
+    } catch (err) {
+      console.log(`  ❌ Error: ${err.message}`);
       errors++;
     }
+
+    // Gentle rate limit for news API
+    await new Promise(resolve => setTimeout(resolve, 1500));
   }
-  
-  // ========================================================================
-  // FINAL SUMMARY
-  // ========================================================================
+
+  // ── Summary ──
   console.log('\n');
   console.log('═══════════════════════════════════════════════════════════════');
-  console.log('📊 ENRICHMENT SUMMARY');
+  console.log('STARTUP ENRICHMENT SUMMARY');
   console.log('═══════════════════════════════════════════════════════════════');
-  console.log(`  Processed:     ${sparseStartups.length} startups`);
-  console.log(`  ✅ Enriched:   ${enriched} (${((enriched / sparseStartups.length) * 100).toFixed(1)}%)`);
-  console.log(`  ⚠️  No Data:    ${noDataFound}`);
-  console.log(`  ❌ Errors:     ${errors}`);
-  console.log('');
-  
-  if (enriched > 0) {
-    console.log('🔄 Next Steps:');
-    console.log('   1. Run: npx tsx scripts/recalculate-scores.ts');
-    console.log('   2. Check scores: node scripts/check-god-scores.js');
-    console.log('');
-    console.log('   Expected: Enriched startups should score 5-10 points higher');
+  console.log(`  Processed: ${sparseStartups.length}`);
+  console.log(`  Enriched:  ${enriched} (${((enriched / sparseStartups.length) * 100).toFixed(1)}%)`);
+  console.log(`  No Data:   ${noData}`);
+  console.log(`  Errors:    ${errors}`);
+  if (!dryRun && enriched > 0) {
+    console.log('\n  Next: npx tsx scripts/recalculate-scores.ts');
   }
-  
   console.log('═══════════════════════════════════════════════════════════════\n');
 }
 
-// Run
 enrichSparseStartups().catch(console.error);
