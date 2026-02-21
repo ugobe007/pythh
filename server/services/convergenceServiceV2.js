@@ -308,50 +308,85 @@ class ConvergenceServiceV2 {
   }
   
   /**
-   * Generate evidence-based "why" bullets from REAL DISCOVERY DATA
+   * Generate evidence-based "why" bullets from REAL DISCOVERY DATA + Oracle signals
    */
   generateEvidenceBasedBullets(candidate, startup) {
     const bullets = [];
-    
-    // REAL BEHAVIOR EVIDENCE
-    if (candidate.recent_views >= 3) {
+    const signals = Array.isArray(candidate.signals) ? candidate.signals : [];
+    const focusAreas = candidate.focus_areas || {};
+
+    // ── Oracle signals (highest priority — "where are they investing now/next") ──
+
+    // Active thesis themes
+    const themeSignals = signals
+      .filter(s => s.type === 'thesis_theme')
+      .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+      .slice(0, 2);
+    if (themeSignals.length > 0) {
+      bullets.push(`Thesis: ${themeSignals.map(s => s.label).join(', ')}`);
+    }
+
+    // Trending / next-bet themes (Oracle prediction)
+    const trendingThemes = focusAreas.trending_themes || [];
+    if (trendingThemes.length > 0) {
+      const newThemes = trendingThemes.filter(t => !themeSignals.some(s => s.label === t));
+      if (newThemes.length > 0) {
+        bullets.push(`Tracking: ${newThemes.slice(0, 2).join(', ')}`);
+      }
+    }
+
+    // Recent deal activity
+    const recentDeal = signals.find(s => s.type === 'recent_deal');
+    if (recentDeal) {
+      bullets.push(`Recent deal: ${recentDeal.company}`);
+    }
+
+    // Deployment signal
+    const depSignal = signals.find(s => s.type === 'deployment_signal');
+    if (depSignal?.label === 'actively_deploying') {
+      bullets.push('Actively deploying capital');
+    } else if (candidate.deployment_velocity_index > 0.6) {
+      bullets.push('High deployment velocity');
+    }
+
+    // ── Behavioral evidence (from real discovery data) ──
+
+    if (bullets.length < 3 && candidate.recent_views >= 3) {
       bullets.push(`Viewed ${candidate.recent_views} similar startups in last 72h`);
     }
-    
-    // REAL PORTFOLIO ADJACENCY
-    if (candidate.overlap_score > 0.7) {
+
+    if (bullets.length < 3 && candidate.overlap_score > 0.7) {
       bullets.push(`Portfolio adjacency detected (${Math.round(candidate.overlap_score * 100)}% overlap)`);
-    } else if (candidate.adjacent_companies > 0) {
+    } else if (bullets.length < 3 && candidate.adjacent_companies > 0) {
       bullets.push(`${candidate.adjacent_companies} adjacent portfolio companies`);
     }
-    
-    // REAL FOMO ACCELERATION
-    if (candidate.signal_24h > 0) {
+
+    if (bullets.length < 3 && candidate.signal_24h > 0) {
       bullets.push(`Acceleration in discovery behavior (+${candidate.signal_24h} signals 24h)`);
     }
-    
-    // FOMO STATE
-    if (candidate.fomo_state === 'surge' || candidate.fomo_state === 'breakout') {
+
+    if (bullets.length < 3 && (candidate.fomo_state === 'surge' || candidate.fomo_state === 'breakout')) {
       bullets.push('Investor entering active sourcing phase');
     }
-    
-    // SECTOR ACTIVITY
-    if (candidate.sector_focus?.length > 0) {
-      bullets.push(`Active in ${candidate.sector_focus.slice(0, 2).join(', ')}`);
+
+    // ── Structural fallbacks ──
+
+    const sectorSrc = focusAreas.primary_sectors?.length > 0 ? focusAreas.primary_sectors : (candidate.sector_focus || []);
+    if (bullets.length < 2 && sectorSrc.length > 0) {
+      bullets.push(`Active in ${sectorSrc.slice(0, 2).join(', ')}`);
     }
-    
-    // STAGE FOCUS
-    if (candidate.stage_focus) {
-      bullets.push(`Invests in ${candidate.stage_focus} stage companies`);
+
+    if (bullets.length < 3 && candidate.stage_focus) {
+      const stageSrc = Array.isArray(candidate.stage_focus) ? candidate.stage_focus.slice(0, 2).join(', ') : candidate.stage_focus;
+      bullets.push(`Stage focus: ${stageSrc}`);
     }
-    
-    // CHECK SIZE
-    if (candidate.check_size_min && candidate.check_size_max) {
+
+    if (bullets.length < 3 && candidate.check_size_min && candidate.check_size_max) {
       const min = Math.round(candidate.check_size_min / 1000);
       const max = Math.round(candidate.check_size_max / 1000000);
-      bullets.push(`Check size: $${min}k-${max}M`);
+      bullets.push(`Check: $${min}k–$${max}M`);
     }
-    
+
     return bullets.slice(0, 3);
   }
   

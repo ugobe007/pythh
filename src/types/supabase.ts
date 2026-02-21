@@ -12667,11 +12667,14 @@ export type Database = {
           adjacent_companies: number | null
           check_size_max: number | null
           check_size_min: number | null
+          deployment_velocity_index: number | null
           execution_score: number | null
           firm: string | null
           firm_name: string | null
+          focus_areas: Json | null
           fomo_state: string | null
           investor_id: string | null
+          last_investment_date: string | null
           last_signal_at: string | null
           last_viewed_at: string | null
           market_score: number | null
@@ -12683,6 +12686,7 @@ export type Database = {
           signal_24h: number | null
           signal_7d: number | null
           signal_age_hours: number | null
+          signals: Json | null
           similar_startups_viewed: number | null
           stage_focus: string[] | null
           startup_id: string | null
