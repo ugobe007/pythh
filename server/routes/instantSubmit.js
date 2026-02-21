@@ -807,6 +807,70 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       .then(() => console.log(`  🔄 [BG] Signal score: ${signalTotal}`))
       .catch(e => console.warn(`  🔄 [BG] Signal seed failed: ${e.message}`));
 
+    // ── Write signal_events (Layer 1 raw evidence) ──
+    // Create signal events from enrichment evidence: execution_velocity (always),
+    // news_momentum (if extraction found articles), capital_convergence (if funding found)
+    const signalEvents = [];
+    const extracted = enrichedRow.extracted_data || {};
+    const hasFunding = !!(extracted.funding?.amount || extracted.funding?.stage_name);
+    const hasTraction = !!(extracted.metrics?.revenue || extracted.metrics?.mrr || 
+                           extracted.metrics?.users || extracted.metrics?.customers);
+    const hasCoverage = !!(enrichedRow.last_news_check);
+
+    // Always: execution_velocity — we just enriched this startup
+    signalEvents.push({
+      startup_id: startupId,
+      event_type: 'execution_velocity',
+      source_type: 'enrichment',
+      source_url: enrichedRow.website || null,
+      confidence: Math.min(0.5 + normalized * 0.4, 0.95).toFixed(2),
+      magnitude: parseFloat((1.1 * factor).toFixed(2)),
+      payload: { 
+        trigger: 'url_submit_enrichment', 
+        god_score: godScore,
+        has_traction: hasTraction,
+        data_completeness: completenessResult?.percentage || 0
+      }
+    });
+
+    // If funding info found: capital_convergence
+    if (hasFunding) {
+      signalEvents.push({
+        startup_id: startupId,
+        event_type: 'capital_convergence',
+        source_type: 'enrichment',
+        source_url: enrichedRow.website || null,
+        confidence: Math.min(0.6 + normalized * 0.3, 0.95).toFixed(2),
+        magnitude: parseFloat((1.1 * factor).toFixed(2)),
+        payload: { 
+          trigger: 'funding_data_found',
+          funding_stage: extracted.funding?.stage_name || null,
+          funding_amount: extracted.funding?.amount || null
+        }
+      });
+    }
+
+    // If recent news discovered: news_momentum
+    if (hasCoverage) {
+      signalEvents.push({
+        startup_id: startupId,
+        event_type: 'news_momentum',
+        source_type: 'web',
+        source_url: enrichedRow.website || null,
+        confidence: Math.min(0.55 + normalized * 0.35, 0.90).toFixed(2),
+        magnitude: parseFloat((1.1 * factor).toFixed(2)),
+        payload: { trigger: 'inference_news_search', coverage_found: true }
+      });
+    }
+
+    if (signalEvents.length > 0) {
+      void supabase
+        .from('signal_events')
+        .insert(signalEvents)
+        .then(() => console.log(`  🔄 [BG] Signal events: ${signalEvents.length} created`))
+        .catch(e => console.warn(`  🔄 [BG] Signal events failed: ${e.message}`));
+    }
+
     // =========================================================================
     // PHASE 3: RE-GENERATE MATCHES with enriched data (only if sectors changed)
     // =========================================================================

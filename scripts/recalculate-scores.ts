@@ -480,14 +480,14 @@ async function recalculateScores(): Promise<void> {
     // BASE SCORE = GOD + Signals + Conditional bonuses
     // ============================================================================
     const baseScore = scores.total_god_score + signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus;
-    const rawFinal = Math.max(Math.round(baseScore), 35); // Floor=35
+    const rawFinal = Math.max(Math.round(baseScore), 40); // Floor=40 (approved startups minimum — aligns with DB trigger intent)
     
     // ============================================================================
     // FINAL ADJUSTMENT: Psychological signals (applied AFTER all scoring)
     // ============================================================================
     const psychBonus = scores.psychological_multiplier || 0;
     const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 7); // Psych: -5 to +7 GOD pts (Admin recalibrated Feb 20, 2026 — esoteric, overlaps with other signals)
-    const finalScore = Math.max(Math.min(Math.round(rawFinal + psychBonusGOD), 100), 35); // Floor=35, Cap=100
+    const finalScore = Math.max(Math.min(Math.round(rawFinal + psychBonusGOD), 100), 40); // Floor=40 (approved startups), Cap=100
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 
     // ============================================================================
