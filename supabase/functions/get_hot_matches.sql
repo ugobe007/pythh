@@ -124,7 +124,14 @@ BEGIN
       UNNEST(s.sectors) AS sector,
       COUNT(*) AS matches,
       AVG(m.match_score) AS avg_score,
-      ARRAY_AGG(s.name) FILTER (WHERE s.total_god_score >= 60) AS top_names
+      -- Deduplicated: one row per startup → distinct names only
+      ARRAY(
+        SELECT DISTINCT n
+        FROM UNNEST(
+          ARRAY_AGG(s.name) FILTER (WHERE s.total_god_score >= 60)
+        ) n
+        LIMIT 3
+      ) AS top_names
     FROM 
       startup_investor_matches m
       INNER JOIN startup_uploads s ON m.startup_id = s.id
