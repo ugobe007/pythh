@@ -2346,4 +2346,104 @@ router.get('/scribe/stats', async (req, res) => {
   }
 });
 
+
+// ============================================================================
+// GET /api/oracle/investor-predictions
+// ============================================================================
+// Returns: ranked list of investors with Oracle "where investing now/next"
+// predictions derived from signals[] and focus_areas.trending_themes.
+//
+// Query params:
+//   ?sector=AI/ML       — filter to investors active in this sector
+//   ?theme=Climate+Tech — filter to investors tracking this thesis theme
+//   ?limit=20           — number of results (default 20, max 100)
+// ============================================================================
+router.get('/investor-predictions', async (req, res) => {
+  try {
+    const { sector, theme, limit: limitParam } = req.query;
+    const limit = Math.min(parseInt(limitParam) || 20, 100);
+
+    let query = supabase
+      .from('investors')
+      .select('id, name, firm, sectors, stage, focus_areas, signals, deployment_velocity_index, capital_power_score')
+      .not('focus_areas', 'is', null)
+      .neq('signals', '[]')
+      .order('capital_power_score', { ascending: false, nullsFirst: false })
+      .limit(limit * 3); // over-fetch to allow filtering
+
+    const { data: investors, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    if (!investors?.length) {
+      return res.json({ predictions: [], total: 0, note: 'No investor signal data yet — backfill is running.' });
+    }
+
+    // Build prediction output per investor
+    let predictions = investors.map(inv => {
+      const fa = inv.focus_areas || {};
+      const sigs = Array.isArray(inv.signals) ? inv.signals : [];
+
+      const themeSignals = sigs
+        .filter(s => s.type === 'thesis_theme')
+        .sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+
+      const recentDeals = sigs
+        .filter(s => s.type === 'recent_deal')
+        .map(s => s.company);
+
+      const deploymentStatus = sigs.find(s => s.type === 'deployment_signal');
+
+      return {
+        investor_id: inv.id,
+        name: inv.name,
+        firm: inv.firm,
+        // Where they're investing NOW (stated thesis + confirmed by news)
+        investing_now: {
+          sectors: fa.primary_sectors || inv.sectors || [],
+          stages: fa.preferred_stages || (Array.isArray(inv.stage) ? inv.stage : (inv.stage ? [inv.stage] : [])),
+          themes: themeSignals.slice(0, 3).map(s => ({ label: s.label, confidence: s.confidence })),
+        },
+        // Where they're investing NEXT (emerging signals not yet in stated thesis)
+        investing_next: {
+          trending_themes: fa.trending_themes || [],
+          recent_deals: recentDeals.slice(0, 3),
+          deployment_signal: deploymentStatus?.label || null,
+        },
+        // Oracle confidence score
+        signal_confidence: Math.min(1.0, (sigs.length / 15)),
+        capital_power: inv.capital_power_score,
+        velocity: inv.deployment_velocity_index,
+        geography: fa.geographic_focus || [],
+        avg_check_usd: fa.avg_check_size_usd || null,
+      };
+    });
+
+    // Apply filters
+    if (sector) {
+      predictions = predictions.filter(p =>
+        p.investing_now.sectors.some(s => s.toLowerCase().includes(sector.toLowerCase()))
+      );
+    }
+    if (theme) {
+      predictions = predictions.filter(p =>
+        p.investing_next.trending_themes.some(t => t.toLowerCase().includes(theme.toLowerCase())) ||
+        p.investing_now.themes.some(t => t.label.toLowerCase().includes(theme.toLowerCase()))
+      );
+    }
+
+    // Sort by signal confidence desc, then capital power
+    predictions.sort((a, b) => (b.signal_confidence - a.signal_confidence) || ((b.capital_power || 0) - (a.capital_power || 0)));
+
+    return res.json({
+      predictions: predictions.slice(0, limit),
+      total: predictions.length,
+      filters: { sector: sector || null, theme: theme || null },
+      last_updated: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[Oracle] investor-predictions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

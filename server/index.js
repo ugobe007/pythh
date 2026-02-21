@@ -5271,6 +5271,10 @@ app.use('/api/discovery', discoveryDiagnostic);
 const oracleRouter = require('./routes/oracle');
 app.use('/api/oracle', oracleRouter);
 
+// Deep health check (tests all critical pipelines end-to-end)
+const healthCheckRouter = require('./routes/healthCheck');
+app.use('/api/health', healthCheckRouter);
+
 // Startup API routes (including signal history)
 const startupsRouter = require('./routes/startups');
 app.use('/api/startups', startupsRouter);
