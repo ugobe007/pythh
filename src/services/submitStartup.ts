@@ -39,6 +39,10 @@ export interface SubmitResult {
   searched: string;
   /** Error message when status='error' */
   error?: string;
+  /** Diagnostic: which DB branch resolved this (company_domain | website_equality | name_equality | not_found) */
+  _resolver_branch?: string;
+  /** Diagnostic: server-side DB resolution time in ms */
+  _elapsed_ms?: number;
 }
 
 export interface SubmitOptions {
@@ -113,6 +117,8 @@ export async function submitStartup(
       if (row?.found || row?.startup_id) {
         // match_count is returned by the RPC directly — no separate query needed
         const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
+        const resolverBranch: string = row.resolver_branch ?? 'unknown';
+        const elapsedMs: number | undefined = typeof row.elapsed_ms === 'number' ? row.elapsed_ms : undefined;
 
         // If enough matches and not forced → done
         if (matchCount >= minMatches && !forceGenerate) {
@@ -123,6 +129,8 @@ export async function submitStartup(
             website: row.canonical_url,
             match_count: matchCount,
             searched,
+            _resolver_branch: resolverBranch,
+            _elapsed_ms: elapsedMs,
           };
         }
 
@@ -137,6 +145,8 @@ export async function submitStartup(
           website: row.canonical_url,
           match_count: matchCount,
           searched,
+          _resolver_branch: resolverBranch,
+          _elapsed_ms: elapsedMs,
         };
       }
     }

@@ -104,7 +104,7 @@ export default function SignalsRadarPage() {
   // RPC flow: scrape → extract → build → score → match
   // Returns: startup_id + name + 5 unlocked + 50 locked signals
   // DO NOT MODIFY - this is the pythh engine entry point
-  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(urlToResolve);
+  const { result: resolverResult, loading: resolverLoading, isSlowLoading } = useResolveStartup(urlToResolve);
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {
@@ -250,7 +250,14 @@ export default function SignalsRadarPage() {
   // -----------------------------------------------------------------------------
   
   if (uiState.mode === 'loading') {
-    return <FullPageSkeleton message="Resolving startup..." />;
+    return (
+      <FullPageSkeleton
+        message={isSlowLoading
+          ? 'Still working\u2026 scraping signals and building your match profile'
+          : 'Resolving startup\u2026'
+        }
+      />
+    );
   }
   
   if (uiState.mode === 'not_found') {

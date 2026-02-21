@@ -120,7 +120,7 @@ export default function SignalMatches() {
   // Returns: startup_id + name + 5 unlocked + 50 locked signals
   // SKIP if we already have startup_id from query param (prefetch from PythhMain)
   const skipUrlResolve = !!(startupIdFromQuery && urlToResolve);
-  const { result: resolverResult, loading: resolverLoading } = useResolveStartup(
+  const { result: resolverResult, loading: resolverLoading, isSlowLoading } = useResolveStartup(
     skipUrlResolve ? null : urlToResolve,
     forceGenerate
   );
@@ -286,7 +286,14 @@ export default function SignalMatches() {
   // -----------------------------------------------------------------------------
   
   if (uiState.mode === 'loading') {
-    return <FullPageSkeleton message="Resolving startup..." />;
+    return (
+      <FullPageSkeleton
+        message={isSlowLoading
+          ? 'Still working… scraping signals and building your match profile'
+          : 'Resolving startup…'
+        }
+      />
+    );
   }
   
   if (uiState.mode === 'not_found') {

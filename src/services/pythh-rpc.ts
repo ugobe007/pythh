@@ -64,18 +64,29 @@ export const pythhRpc = {
 
   // Resolve startup by URL or name
   // DELEGATES to unified submitStartup() service — single source of truth
-  // Hard 10s safety timeout prevents UI from ever blocking indefinitely
+  // HARD_TIMEOUT: 20s safety net only — the RPC fast path is < 50ms.
+  // New startups going through Express backend (scrape+score+match) take 5-15s.
   async resolveStartup(url: string, forceGenerate = false): Promise<ResolverResponse> {
-    const HARD_TIMEOUT = 10_000;
+    const HARD_TIMEOUT = 20_000;
+    const t0 = Date.now();
     const resultPromise = unifiedSubmit(url, { forceGenerate });
     const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), HARD_TIMEOUT));
 
     const result = await Promise.race([resultPromise, timeoutPromise]);
+    const elapsed = Date.now() - t0;
 
     if (!result) {
-      console.error('[pythhRpc] resolveStartup HARD TIMEOUT after 10s for:', url);
+      console.error(`[pythhRpc] resolveStartup HARD TIMEOUT after ${HARD_TIMEOUT / 1000}s for:`, url);
       return { found: false, searched: url };
     }
+
+    // Log resolver diagnostics from the RPC response (branch used + server-side timing)
+    const rpcBranch = (result as any)._resolver_branch ?? 'unknown';
+    const rpcElapsedMs = (result as any)._elapsed_ms ?? null;
+    console.info(
+      `[pythhRpc] resolved in ${elapsed}ms | status=${result.status} | branch=${rpcBranch}` +
+      (rpcElapsedMs != null ? ` | db=${rpcElapsedMs}ms` : '')
+    );
 
     return {
       found: result.status !== 'not_found' && result.status !== 'error',
@@ -223,17 +234,26 @@ function setCache<T>(
 export function useResolveStartup(url: string | null, forceGenerate = false) {
   const [result, setResult] = useState<ResolverResponse | null>(null);
   const [loading, setLoading] = useState(!!url);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!url) {
       setResult(null);
       setLoading(false);
+      setIsSlowLoading(false);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
+    setIsSlowLoading(false);
+
+    // After 5s still loading → tell the UI to show "Still working..."
+    // The request is NOT cancelled — results will still arrive.
+    const slowTimer = setTimeout(() => {
+      if (!cancelled) setIsSlowLoading(true);
+    }, 5_000);
 
     pythhRpc.resolveStartup(url, forceGenerate)
       .then(data => {
@@ -246,13 +266,19 @@ export function useResolveStartup(url: string | null, forceGenerate = false) {
         if (!cancelled) setError(err);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setIsSlowLoading(false);
+        }
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(slowTimer);
+    };
   }, [url, forceGenerate]);
 
-  return { result, loading, error };
+  return { result, loading, isSlowLoading, error };
 }
 
 // -----------------------------------------------------------------------------
