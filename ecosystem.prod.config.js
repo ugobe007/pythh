@@ -51,6 +51,25 @@ module.exports = {
     },
 
     // ========================================
+    // HOLDING REVIEW WORKER (daily at 3am — lightweight)
+    // Retries enrichment, deletes after 30 days with no data
+    // ========================================
+    {
+      name: 'holding-review-worker',
+      interpreter: TSX,
+      exec_mode: 'fork',
+      script: 'scripts/holding-review-worker.js',
+      args: '--limit=100',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      cron_restart: '0 3 * * *',
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // ALL OTHER PROCESSES DISABLED FOR PERFORMANCE
     // Uncomment to re-enable when resources allow
     // ========================================
