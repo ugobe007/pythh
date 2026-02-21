@@ -102,30 +102,17 @@ export async function submitStartup(
   const sessionId = getOrCreateSessionId();
 
   // ── STEP 1: Fast path — Supabase RPC ─────────────────────────────────────
-  // Wrapped in a 1.5s timeout: if the Supabase client is stuck in an auth
-  // refresh loop (e.g., stale session causing 500s), we must not block here.
-  // The backend in Step 2 is the authoritative resolver — this is just a cache.
+  // resolve_startup_by_url uses indexed company_domain + website equality lookups.
+  // Expected latency: < 50ms. match_count is embedded in the RPC response.
   try {
-    const rpcTimeout = new Promise<null>(r => setTimeout(() => r(null), 1500));
-    const rpcResult = await Promise.race([
-      supabase.rpc('resolve_startup_by_url', { p_url: searched }),
-      rpcTimeout,
-    ]);
+    const rpcResult = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
 
-    if (rpcResult && !rpcResult.error) {
+    if (!rpcResult.error && rpcResult.data) {
       const data = rpcResult.data;
       const row = Array.isArray(data) ? data[0] : data;
       if (row?.found || row?.startup_id) {
-        // Get accurate match count (also with timeout)
-        let matchCount = row.match_count ?? 0;
-        try {
-          const countTimeout = new Promise<null>(r => setTimeout(() => r(null), 800));
-          const countResult = await Promise.race([
-            supabase.rpc('get_match_count', { p_startup_id: row.startup_id }),
-            countTimeout,
-          ]);
-          if (countResult && typeof countResult.data === 'number') matchCount = countResult.data;
-        } catch { /* fall back to row.match_count */ }
+        // match_count is returned by the RPC directly — no separate query needed
+        const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
 
         // If enough matches and not forced → done
         if (matchCount >= minMatches && !forceGenerate) {
@@ -152,7 +139,7 @@ export async function submitStartup(
           searched,
         };
       }
-    } // end if rpcResult
+    }
   } catch (e) {
     console.warn('[submitStartup] RPC fast path failed (non-fatal):', e);
   }
