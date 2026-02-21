@@ -127,6 +127,22 @@ async function enrichOneStartup(startup, dryRun = false) {
   ).length;
 
   if (newFieldCount === 0 && !htmlEnriched) {
+    if (!dryRun) {
+      // Track failed attempt and set holding/waiting status
+      const now = new Date().toISOString();
+      const newAttemptCount = (startup.enrichment_attempts || 0) + 1;
+      const goToHolding = newAttemptCount >= 3;
+
+      await supabase
+        .from('startup_uploads')
+        .update({
+          last_enrichment_attempt: now,
+          enrichment_attempts: newAttemptCount,
+          enrichment_status: goToHolding ? 'holding' : 'waiting',
+          ...(goToHolding && !startup.holding_since ? { holding_since: now } : {}),
+        })
+        .eq('id', startup.id);
+    }
     return { enriched: false, stepLog, newFieldCount: 0 };
   }
 
@@ -135,9 +151,15 @@ async function enrichOneStartup(startup, dryRun = false) {
   }
 
   // ── Build DB update payload ──
+  const now = new Date().toISOString();
+  const newAttemptCount = (startup.enrichment_attempts || 0) + 1;
+
   const updatePayload = {
     extracted_data: inferenceData,
-    updated_at: new Date().toISOString()
+    updated_at: now,
+    last_enrichment_attempt: now,
+    enrichment_attempts: newAttemptCount,
+    enrichment_status: 'enriched',
   };
 
   // Promote critical fields to top-level columns
@@ -186,8 +208,10 @@ async function enrichSparseStartups() {
   console.log('Loading data-sparse startups...');
   const { data: startups, error } = await supabase
     .from('startup_uploads')
-    .select('id, name, website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data')
+    .select('id, name, website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since')
     .eq('status', 'approved')
+    .or('enrichment_status.eq.waiting,enrichment_status.is.null')
+    .order('enrichment_attempts', { ascending: true })
     .order('updated_at', { ascending: true })
     .limit(limit * 3);
 
@@ -198,10 +222,11 @@ async function enrichSparseStartups() {
 
   const sparseStartups = startups.filter(s => {
     const { phase } = classifyDataRichness(s);
+    // Include 'waiting' status OR newly added startups with null status that are sparse
     return phase >= 2 && s.total_god_score < 70;
   }).slice(0, limit);
 
-  console.log(`Found ${sparseStartups.length} Phase 2-4 startups (scores < 70)\n`);
+  console.log(`Found ${sparseStartups.length} startups pending enrichment (status: waiting/null, score < 70)\n`);
 
   if (sparseStartups.length === 0) {
     console.log('No sparse startups found.');

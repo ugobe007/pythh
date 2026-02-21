@@ -105,6 +105,26 @@ module.exports = {
     },
     
     // ========================================
+    // HOLDING REVIEW WORKER
+    // Daily: retry enrichment on 'holding' startups, delete after 30 days
+    // ========================================
+    {
+      name: 'holding-review-worker',
+      script: 'node',
+      args: 'scripts/holding-review-worker.js --limit=200',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 3,
+      cron_restart: '0 3 * * *',  // Daily at 3am
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+    
+    // ========================================
     // GOD SCORE MONITOR (Distribution health check)
     // Runs 5 min after score-recalc to verify distribution, logs to ai_logs
     // ========================================
