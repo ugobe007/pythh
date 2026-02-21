@@ -52,12 +52,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(JSON.parse(savedUser));
     }
     
-    // Then check Supabase session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // Then check Supabase session — with a safety net so a stale/corrupted
+    // session never hangs the Supabase client for the entire page visit.
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        // Session is broken; sign out silently so the client isn't stuck
+        // in a token-refresh loop that blocks all subsequent Supabase calls.
+        console.warn('[AuthContext] getSession error — clearing session:', error.message);
+        await supabase.auth.signOut().catch(() => {});
+        return;
+      }
       if (session?.user) {
         await syncUserFromSupabase(session.user);
         loadProfile(session.user.id);
       }
+    }).catch(async (err) => {
+      console.warn('[AuthContext] getSession threw — clearing session:', err);
+      await supabase.auth.signOut().catch(() => {});
     });
     
     // Listen for auth changes
