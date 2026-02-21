@@ -94,7 +94,11 @@ class ConvergenceService {
           check_size_min,
           check_size_max,
           geography,
-          website
+          website,
+          signals,
+          focus_areas,
+          deployment_velocity_index,
+          last_investment_date
         )
       `)
       .eq('startup_id', startupId)
@@ -239,34 +243,77 @@ class ConvergenceService {
    */
   generateWhyBullets(investor, candidate, score) {
     const bullets = [];
-    
+    const signals = Array.isArray(investor.signals) ? investor.signals : [];
+    const focusAreas = investor.focus_areas || {};
+
+    // ── Oracle signal bullets (highest priority) ──────────────────────────
+
+    // Active thesis themes ("where they're investing now")
+    const themeSignals = signals
+      .filter(s => s.type === 'thesis_theme')
+      .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+      .slice(0, 2);
+    if (themeSignals.length > 0) {
+      bullets.push(`Thesis: ${themeSignals.map(s => s.label).join(', ')}`);
+    }
+
+    // Trending themes ("where they'll invest next")
+    const trendingThemes = focusAreas.trending_themes || [];
+    if (trendingThemes.length > 0 && trendingThemes[0] !== themeSignals[0]?.label) {
+      bullets.push(`Tracking: ${trendingThemes.slice(0, 2).join(', ')}`);
+    }
+
+    // Recent deal activity
+    const recentDeal = signals.find(s => s.type === 'recent_deal');
+    if (recentDeal) {
+      bullets.push(`Recent deal: ${recentDeal.company}`);
+    }
+
+    // Deployment signal
+    const depSignal = signals.find(s => s.type === 'deployment_signal');
+    if (depSignal && depSignal.label === 'actively_deploying') {
+      bullets.push('Actively deploying capital');
+    } else if (investor.deployment_velocity_index > 0.6) {
+      bullets.push('High deployment velocity');
+    }
+
+    // ── Fallback structural bullets ───────────────────────────────────────
+
     // Sector activity
-    if (investor.sectors?.length > 0) {
-      bullets.push(`Active in ${investor.sectors.slice(0, 2).join(', ')}`);
+    const sectorSrc = (focusAreas.primary_sectors?.length > 0)
+      ? focusAreas.primary_sectors
+      : (investor.sectors || []);
+    if (bullets.length < 2 && sectorSrc.length > 0) {
+      bullets.push(`Active in ${sectorSrc.slice(0, 2).join(', ')}`);
     }
-    
+
     // Stage focus
-    if (investor.stage) {
-      bullets.push(`Invests in ${investor.stage} stage companies`);
+    const stageSrc = (focusAreas.preferred_stages?.length > 0)
+      ? focusAreas.preferred_stages
+      : (Array.isArray(investor.stage) ? investor.stage : (investor.stage ? [investor.stage] : []));
+    if (bullets.length < 3 && stageSrc.length > 0) {
+      bullets.push(`Stage focus: ${stageSrc.slice(0, 2).join(', ')}`);
     }
-    
+
     // Check size
-    if (investor.check_size_min && investor.check_size_max) {
-      const min = Math.round(investor.check_size_min / 1000);
-      const max = Math.round(investor.check_size_max / 1000000);
-      bullets.push(`Check size: $${min}k-${max}M`);
+    const checkMin = focusAreas.avg_check_size_usd || investor.check_size_min;
+    const checkMax = investor.check_size_max;
+    if (bullets.length < 3 && checkMin) {
+      if (checkMax && checkMax !== checkMin) {
+        bullets.push(`Check: $${Math.round(checkMin / 1e6)}M–$${Math.round(checkMax / 1e6)}M`);
+      } else {
+        bullets.push(`Avg check: ~$${Math.round(checkMin / 1e6)}M`);
+      }
     }
-    
-    // High match score
-    if (score >= 70) {
+
+    // Match strength fallback
+    if (bullets.length < 2 && score >= 70) {
       bullets.push('Strong portfolio alignment detected');
     }
-    
-    // Phase change signal
-    if (score >= 65) {
+    if (bullets.length < 3 && score >= 65) {
       bullets.push('Phase-change correlation detected');
     }
-    
+
     return bullets.slice(0, 3);
   }
   

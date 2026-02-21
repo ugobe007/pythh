@@ -123,6 +123,28 @@ module.exports = {
         NODE_ENV: 'production'
       }
     },
+
+    // ========================================
+    // ORACLE SIGNAL BACKFILL
+    // Populates signals[] and focus_areas for all investors
+    // Powers the Oracle "where are they investing now/next" prediction
+    // Runs daily at 4am — after holding-review-worker (3am)
+    // ========================================
+    {
+      name: 'oracle-signal-backfill',
+      script: 'node',
+      args: 'scripts/oracle-signal-backfill.js --limit=200',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '400M',
+      max_restarts: 2,
+      cron_restart: '0 4 * * *',  // Daily at 4am (after holding-review-worker)
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
     
     // ========================================
     // GOD SCORE MONITOR (Distribution health check)

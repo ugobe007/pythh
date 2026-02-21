@@ -229,20 +229,205 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
     }
   }
 
-  // Metadata
-  if (enrichmentCount > 0) {
-    enrichedData.last_enrichment_date = new Date().toISOString();
-    enrichedData.enrichment_sources = articles.slice(0, 3).map(a => ({
-      title: a.title,
-      url: a.link,
-      date: a.pubDate
-    }));
+  return { enrichedData, enrichmentCount };
+}
+
+// ── Tech/investment theme keywords for Oracle "next bet" prediction ──
+const THESIS_THEME_PATTERNS = [
+  { pattern: /\bgenerative\s*ai\b|\bgen[- ]?ai\b|\bllm\b|\bgpt\b|\bchatbot\b/i, label: 'Generative AI' },
+  { pattern: /\bfoundation\s*model\b|\bagent(?:ic)?\b|\bai\s*agent\b/i, label: 'AI Agents' },
+  { pattern: /\bclimate\b|\bnet[- ]?zero\b|\bcarbon\s*capture\b|\bcleantech\b/i, label: 'Climate Tech' },
+  { pattern: /\bdefense\s*tech\b|\bdual[- ]?use\b|\bmilitary\b|\bnational\s*security\b/i, label: 'Defense Tech' },
+  { pattern: /\bbioinformatics\b|\bdrug\s*discovery\b|\bprecision\s*medicine\b/i, label: 'Bio/Pharma AI' },
+  { pattern: /\binfrastructure\b|\bdev(?:eloper)?\s*tools?\b|\bplatform\s*play\b/i, label: 'Dev Infrastructure' },
+  { pattern: /\bfinancial\s*ai\b|\bwealthtech\b|\binsurtech\b|\bregtech\b/i, label: 'FinTech AI' },
+  { pattern: /\bspatial\s*computing\b|\baugmented\s*reality\b|\bvirtual\s*reality\b|\bxr\b/i, label: 'Spatial Computing' },
+  { pattern: /\bquantum\s*computing\b/i, label: 'Quantum' },
+  { pattern: /\bautonomous\s*vehicle\b|\bself[- ]driving\b|\bev\b|\belectric\s*vehicle\b/i, label: 'Autonomous/EV' },
+  { pattern: /\bspace\s*tech\b|\bsatellite\b|\borbital\b/i, label: 'Space Tech' },
+  { pattern: /\bweb3\b|\bblockchain\b|\bcrypto\b|\bdefi\b|\bnft\b/i, label: 'Web3/Crypto' },
+  { pattern: /\bhuman\s*longevity\b|\banti[- ]aging\b|\blifespan\b|\bbiohacking\b/i, label: 'Longevity/Health' },
+  { pattern: /\bmanufacturing\b|\bindustrialtech\b|\bindustry\s*4\b|\brobotic\s*process\b/i, label: 'Industrial AI' },
+];
+
+// ── Recent deal extraction patterns ──
+const RECENT_DEAL_PATTERN = /(?:lead(?:s|ing)?|invests?(?:ing)?|backs?|funded?|announce(?:s|d)?)\s+(?:\$[\d.]+[MKBmkb]?\s+(?:in|round))?\s*([A-Z][A-Za-z0-9\s]{2,35}?)(?:\s*,|\s+(?:a|an|the|in|at|series|seed|round))/g;
+
+/**
+ * Build Oracle prediction signals for an investor.
+ * 
+ * Returns { signals, focus_areas, last_investment_date }
+ * - signals[]: array of typed signal objects for Oracle matching/prediction
+ * - focus_areas: JSONB summary of investment thesis + current themes
+ * - last_investment_date: most recent investment date parsed from news
+ */
+function buildOracleSignals(investor, articles) {
+  const allText = articles.map(a => `${a.title} ${a.content}`).join(' ');
+  const allTextLower = allText.toLowerCase();
+  const signals = [];
+  const now = new Date().toISOString();
+
+  // ── 1. Active sector signals (from news + existing investor data) ──
+  const activeSectors = new Set(investor.sectors || []);
+  for (const sp of SECTOR_PATTERNS) {
+    if (sp.keywords.some(kw => allTextLower.includes(kw))) {
+      activeSectors.add(sp.label);
+    }
+  }
+  for (const sector of activeSectors) {
+    // Measure intensity: how often mentioned in news
+    const mentions = (allTextLower.match(new RegExp(sector.toLowerCase().replace(/[/]/g, '.'), 'gi')) || []).length;
+    signals.push({
+      type: 'active_sector',
+      label: sector,
+      confidence: Math.min(0.95, 0.5 + mentions * 0.05),
+      source: investor.sectors?.includes(sector) ? 'profile' : 'news',
+      detected_at: now,
+    });
   }
 
-  return { enrichedData, enrichmentCount };
+  // ── 2. Investment stage signals ──
+  const activeStages = new Set(investor.stage || []);
+  for (const sp of STAGE_PATTERNS) {
+    if (sp.pattern.test(allText)) activeStages.add(sp.label);
+  }
+  for (const stage of activeStages) {
+    signals.push({
+      type: 'investment_stage',
+      label: stage,
+      confidence: investor.stage?.includes(stage) ? 0.90 : 0.65,
+      source: investor.stage?.includes(stage) ? 'profile' : 'news',
+      detected_at: now,
+    });
+  }
+
+  // ── 3. Thesis theme signals (Oracle "next bet" predictors) ──
+  const detectedThemes = [];
+  for (const tp of THESIS_THEME_PATTERNS) {
+    if (tp.pattern.test(allText)) {
+      const mentions = (allText.match(tp.pattern) || []).length;
+      detectedThemes.push({ label: tp.label, mentions });
+      signals.push({
+        type: 'thesis_theme',
+        label: tp.label,
+        confidence: Math.min(0.95, 0.55 + mentions * 0.08),
+        source: 'news',
+        detected_at: now,
+      });
+    }
+  }
+
+  // ── 4. Recent deal signals ──
+  const recentDeals = [];
+  const dealMatches = allText.matchAll(RECENT_DEAL_PATTERN);
+  for (const match of dealMatches) {
+    const company = match[1]?.trim();
+    if (company && company.length > 2 && company.length < 40 &&
+        !/^(the|a|an|in|at|for|with|by|and|or|its|this|that|their)$/i.test(company)) {
+      recentDeals.push(company);
+    }
+  }
+  const uniqueDeals = [...new Set(recentDeals)].slice(0, 5);
+  for (const deal of uniqueDeals) {
+    signals.push({
+      type: 'recent_deal',
+      company: deal,
+      confidence: 0.6,
+      source: 'news',
+      detected_at: now,
+    });
+  }
+
+  // ── 5. Deployment/activity signal ──
+  const deployVelocity = investor.deployment_velocity_index;
+  const capitalPower = investor.capital_power_score;
+  if (deployVelocity || capitalPower) {
+    signals.push({
+      type: 'deployment_signal',
+      label: deployVelocity > 0.7 ? 'actively_deploying' : deployVelocity > 0.4 ? 'moderate_pace' : 'selective',
+      velocity_index: deployVelocity || null,
+      capital_power: capitalPower || null,
+      source: 'computed',
+      detected_at: now,
+    });
+  } else if (articles.length > 2) {
+    // News implies activity
+    signals.push({
+      type: 'deployment_signal',
+      label: 'news_active',
+      confidence: 0.5,
+      source: 'news',
+      detected_at: now,
+    });
+  }
+
+  // ── 6. Geographic focus signal ──
+  const geoMap = {
+    'US': ['united states','silicon valley','san francisco','new york','us-based','american','boston','austin','los angeles'],
+    'Europe': ['europe','london','berlin','paris','european','uk-based','amsterdam','stockholm'],
+    'Global': ['global','worldwide','international','cross-border'],
+    'Asia': ['asia','singapore','india','china','southeast asia','tokyo','seoul'],
+    'LatAm': ['latin america','latam','brazil','mexico','colombia'],
+  };
+  for (const [region, keywords] of Object.entries(geoMap)) {
+    if (keywords.some(kw => allTextLower.includes(kw))) {
+      signals.push({ type: 'geographic_focus', label: region, source: 'news', detected_at: now });
+    }
+  }
+
+  // ── Build focus_areas summary ──
+  const sectorSignals = signals.filter(s => s.type === 'active_sector');
+  const stageSignals = signals.filter(s => s.type === 'investment_stage');
+  const geoSignals = signals.filter(s => s.type === 'geographic_focus');
+  const themeSignals = signals.filter(s => s.type === 'thesis_theme').sort((a,b) => b.confidence - a.confidence);
+
+  const focus_areas = {
+    primary_sectors: sectorSignals.sort((a,b) => b.confidence - a.confidence).slice(0,5).map(s=>s.label),
+    preferred_stages: stageSignals.slice(0,4).map(s=>s.label),
+    geographic_focus: geoSignals.map(s=>s.label),
+    trending_themes: themeSignals.slice(0,5).map(s=>s.label),
+    recent_portfolio: uniqueDeals,
+    avg_check_size_usd: (investor.check_size_min && investor.check_size_max)
+      ? Math.round((investor.check_size_min + investor.check_size_max) / 2)
+      : null,
+    thesis_keywords: detectedThemes.sort((a,b)=>b.mentions-a.mentions).slice(0,8).map(t=>t.label),
+    last_computed: now,
+  };
+
+  // ── Last investment date — look for date patterns in articles ──
+  let last_investment_date = null;
+  const datePatterns = [
+    /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}/gi,
+    /\d{4}[-/]\d{2}[-/]\d{2}/g,
+  ];
+  const articleDates = [];
+  for (const a of articles) {
+    // Prefer pubDate from RSS
+    if (a.pubDate) {
+      try {
+        const d = new Date(a.pubDate);
+        if (!isNaN(d.getTime())) articleDates.push(d);
+      } catch{}
+    }
+    for (const pattern of datePatterns) {
+      for (const match of (`${a.title} ${a.content}`).matchAll(pattern)) {
+        try {
+          const d = new Date(match[0]);
+          if (!isNaN(d.getTime()) && d.getFullYear() >= 2020) articleDates.push(d);
+        } catch{}
+      }
+    }
+  }
+  if (articleDates.length > 0) {
+    articleDates.sort((a,b) => b.getTime() - a.getTime());
+    last_investment_date = articleDates[0].toISOString().split('T')[0];
+  }
+
+  return { signals, focus_areas, last_investment_date };
 }
 
 module.exports = {
   searchInvestorNews,
   extractInvestorDataFromArticles,
+  buildOracleSignals,
 };

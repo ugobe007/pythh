@@ -70,6 +70,25 @@ module.exports = {
     },
 
     // ========================================
+    // ORACLE SIGNAL BACKFILL (daily at 4am)
+    // Populates signals[] + focus_areas for Oracle "where investing now/next"
+    // ========================================
+    {
+      name: 'oracle-signal-backfill',
+      interpreter: TSX,
+      exec_mode: 'fork',
+      script: 'scripts/oracle-signal-backfill.js',
+      args: '--limit=200',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '384M',
+      cron_restart: '0 4 * * *',
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // ALL OTHER PROCESSES DISABLED FOR PERFORMANCE
     // Uncomment to re-enable when resources allow
     // ========================================
