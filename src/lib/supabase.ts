@@ -1,25 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Support both browser (Vite) and Node/CLI environments.
-// In the browser, Vite injects import.meta.env.*.
-// In Node (scripts, GitHub Actions), we fall back to process.env.
-const rawEnv: Record<string, any> =
-  (typeof import.meta !== "undefined" && (import.meta as any).env) ||
-  (typeof process !== "undefined" ? (process.env as any) : {});
+// IMPORTANT: Vite's static env injection ONLY works with direct property access:
+//   import.meta.env.VITE_*
+// Assigning import.meta.env to a variable and using dynamic keys bypasses
+// Vite's replacement, leaving undefined values in the browser bundle.
 
 const isServer = typeof window === "undefined";
 
-const supabaseUrl: string =
-  rawEnv.VITE_SUPABASE_URL || rawEnv.SUPABASE_URL || "";
+// Browser: Vite statically replaces import.meta.env.VITE_* at build time.
+// Server/Node: process.env is used directly (scripts, GitHub Actions).
+const supabaseUrl: string = isServer
+  ? (typeof process !== "undefined" ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "" : "")
+  : (import.meta.env.VITE_SUPABASE_URL || "");
 
-// On the server, prefer the service key when available; in the browser, only use anon keys.
 const supabaseKey: string = isServer
-  ? rawEnv.SUPABASE_SERVICE_KEY ||
-    rawEnv.SUPABASE_SERVICE_ROLE_KEY ||
-    rawEnv.VITE_SUPABASE_ANON_KEY ||
-    rawEnv.SUPABASE_ANON_KEY ||
-    ""
-  : rawEnv.VITE_SUPABASE_ANON_KEY || rawEnv.SUPABASE_ANON_KEY || "";
+  ? (typeof process !== "undefined"
+      ? process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_ANON_KEY ||
+        ""
+      : "")
+  : (import.meta.env.VITE_SUPABASE_ANON_KEY || "");
 
 // Track if credentials are missing (for error display)
 export const hasValidSupabaseCredentials = !!(supabaseUrl && supabaseKey);

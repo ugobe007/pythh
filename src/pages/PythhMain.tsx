@@ -48,14 +48,12 @@ export default function PythhHome() {
   const [suggestion, setSuggestion] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
-  // Static fallback → overwritten by localStorage cache → overwritten by live RPC data
-  const STATS_FALLBACK = { startups: 7300, investors: 4400, matches: 876000 };
   const [stats, setStats] = useState<{ startups: number; investors: number; matches: number }>(() => {
     try {
       const cached = localStorage.getItem('platform_stats');
       if (cached) return JSON.parse(cached);
     } catch {}
-    return STATS_FALLBACK;
+    return { startups: 0, investors: 0, matches: 0 };
   });
   const [showPaywall, setShowPaywall] = useState(false);
   const navigate = useNavigate();
@@ -326,7 +324,7 @@ export default function PythhHome() {
               <div className="flex items-center gap-2">
                 <div className="flex items-center justify-center min-w-[4rem] h-10 px-3 rounded-md border border-cyan-500/50 bg-transparent">
                   <span className="text-cyan-400 font-bold text-lg">
-                    {(stats.startups / 1000).toFixed(1)}K+
+                    {stats.startups > 0 ? `${(stats.startups / 1000).toFixed(1)}K+` : <span className="text-cyan-400/40 text-sm">…</span>}
                   </span>
                 </div>
                 <span className="text-zinc-400">
@@ -337,7 +335,7 @@ export default function PythhHome() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 border border-emerald-400 rounded-sm animate-pulse" />
                 <span className="text-zinc-400">
-                  <span className="text-white font-medium">{stats.matches.toLocaleString()}</span> live matches
+                  <span className="text-white font-medium">{stats.matches > 0 ? stats.matches.toLocaleString() : <span className="text-white/40 text-sm">…</span>}</span> live matches
                 </span>
               </div>
               <span className="text-zinc-700">•</span>
@@ -413,11 +411,11 @@ export default function PythhHome() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-4 text-[13px] text-zinc-500">
-                    <span><span className="text-zinc-300 tabular-nums">{stats.startups.toLocaleString()}</span> startups</span>
+                    <span><span className="text-zinc-300 tabular-nums">{stats.startups > 0 ? stats.startups.toLocaleString() : '…'}</span> startups</span>
                     <span className="text-zinc-700">·</span>
-                    <span><span className="text-zinc-300 tabular-nums">{stats.investors.toLocaleString()}</span> investors</span>
+                    <span><span className="text-zinc-300 tabular-nums">{stats.investors > 0 ? stats.investors.toLocaleString() : '…'}</span> investors</span>
                     <span className="text-zinc-700">·</span>
-                    <span><span className="text-cyan-400/80 tabular-nums">{stats.matches.toLocaleString()}</span> matches</span>
+                    <span><span className="text-cyan-400/80 tabular-nums">{stats.matches > 0 ? stats.matches.toLocaleString() : '…'}</span> matches</span>
                     <span className="text-zinc-700">·</span>
                     <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 border border-emerald-400 rounded-sm animate-pulse" /><span className="text-emerald-400/60">live</span></span>
                   </div>
@@ -439,7 +437,7 @@ export default function PythhHome() {
                 to="/explore"
                 className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                Browse {stats.startups.toLocaleString()} startups
+                Browse {stats.startups > 0 ? `${stats.startups.toLocaleString()} ` : ''}startups
               </Link>
             </div>
 
