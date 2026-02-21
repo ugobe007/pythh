@@ -49,24 +49,32 @@ export default function MatchQualityChart() {
 
   const loadMatchQualityData = async () => {
     try {
-      const { data: matches, error } = await supabase
+      // Step 1: fetch match scores + startup_ids (no FK embed - avoids schema cache issues)
+      const { data: rawMatches, error } = await supabase
         .from('startup_investor_matches')
-        .select(`
-          match_score,
-          confidence_level,
-          startup_uploads!startup_investor_matches_startup_id_fkey(
-            total_god_score,
-            team_score,
-            traction_score,
-            market_score,
-            product_score,
-            vision_score
-          )
-        `)
+        .select('match_score, confidence_level, startup_id')
         .not('match_score', 'is', null)
-        .limit(10000);
+        .limit(2000);
 
       if (error) throw error;
+
+      // Step 2: fetch GOD scores for the unique startup_ids
+      const startupIds = [...new Set((rawMatches || []).map((m: any) => m.startup_id))].slice(0, 500) as string[];
+      let godScoreMap: Record<string, any> = {};
+      if (startupIds.length > 0) {
+        const { data: startupData } = await supabase
+          .from('startup_uploads')
+          .select('id, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+          .in('id', startupIds);
+        (startupData || []).forEach((s: any) => { godScoreMap[s.id] = s; });
+      }
+
+      // Combine into the shape the rest of the function expects
+      const matches = (rawMatches || []).map((m: any) => ({
+        match_score: m.match_score,
+        confidence_level: m.confidence_level,
+        startup_uploads: godScoreMap[m.startup_id] || null,
+      }));
 
       const scatterPoints: MatchQualityPoint[] = [];
       const godScoreRanges: Record<string, { scores: number[]; high: number; medium: number; low: number; count: number }> = {};
