@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('profiles')
       .select('is_admin')
       .eq('id', supabaseUser.id)
-      .single();
+      .maybeSingle();
     
     // Fallback to email check if profile doesn't exist yet
     const isAdminFromDb = profile?.is_admin === true;
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       if (data && !error) {
         setProfile(data as Profile);
