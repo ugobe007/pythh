@@ -145,6 +145,11 @@ export default function PythhMatchingEngine() {
   );
   const [intelligenceStep, setIntelligenceStep] = useState(0);
 
+  // Trailer: platform activity shown while waiting for match generation
+  const [trailerMatches, setTrailerMatches] = useState<any[]>([]);
+  const [trailerVelocity, setTrailerVelocity] = useState<any>(null);
+  const [trailerIndex, setTrailerIndex] = useState(0);
+
   // Rotate phase text
   useEffect(() => {
     if (!isAnalyzing) return;
@@ -153,6 +158,28 @@ export default function PythhMatchingEngine() {
     }, 1200);
     return () => window.clearInterval(t);
   }, [isAnalyzing, intelligencePhases.length]);
+
+  // Fetch platform hot-match data for the trailer
+  useEffect(() => {
+    if (!isAnalyzing) return;
+    (async () => {
+      const [{ data: m }, { data: v }] = await Promise.all([
+        supabase.rpc('get_hot_matches', { limit_count: 12, hours_ago: 168 }),
+        supabase.rpc('get_platform_velocity'),
+      ]);
+      if (m?.length) setTrailerMatches(m);
+      if (v?.[0]) setTrailerVelocity(v[0]);
+    })();
+  }, [isAnalyzing]);
+
+  // Cycle through trailer rows
+  useEffect(() => {
+    if (!isAnalyzing || trailerMatches.length < 2) return;
+    const t = window.setInterval(() => {
+      setTrailerIndex((i) => (i + 1) % trailerMatches.length);
+    }, 1800);
+    return () => window.clearInterval(t);
+  }, [isAnalyzing, trailerMatches.length]);
 
   // Initialize Lottie once
   useEffect(() => {
@@ -545,11 +572,12 @@ export default function PythhMatchingEngine() {
             <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-4">
               {isAnalyzing ? (
                 <div className="flex items-center justify-between gap-4">
-                  <div className="text-sm font-semibold">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     {intelligencePhases[intelligenceStep]}
                   </div>
-                  <div className="text-xs text-white/60">
-                    Ranking matches by alignment…
+                  <div className="text-xs text-white/40 tabular-nums">
+                    {urlParam ? extractDomain(urlParam) : ''}
                   </div>
                 </div>
               ) : loadError ? (
@@ -565,6 +593,99 @@ export default function PythhMatchingEngine() {
                 </div>
               )}
             </div>
+
+            {/* TRAILER — platform live feed while analysis runs */}
+            {isAnalyzing && (
+              <div className="mt-5 space-y-4">
+                <div className="text-[10px] uppercase tracking-widest text-white/30 font-medium">
+                  Live platform activity · your results are next
+                </div>
+
+                {/* Match ticker */}
+                <div className="rounded-xl border border-white/[0.06] bg-black/25 overflow-hidden">
+                  {trailerMatches.length > 0 ? (
+                    <div className="divide-y divide-white/[0.04]">
+                      {([
+                        (trailerIndex - 1 + trailerMatches.length) % trailerMatches.length,
+                        trailerIndex,
+                        (trailerIndex + 1) % trailerMatches.length,
+                      ] as number[]).map((idx, pos) => {
+                        const m = trailerMatches[idx];
+                        const isCenter = pos === 1;
+                        return (
+                          <div
+                            key={pos}
+                            className={`flex items-center gap-3 px-4 py-2.5 transition-all duration-700 ${
+                              isCenter ? 'opacity-100 bg-white/[0.025]' : 'opacity-25'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+                              <span className="text-sm text-white/80 font-medium truncate">{m.startup_name}</span>
+                              <span className="text-white/20 flex-shrink-0">→</span>
+                              <span className="text-sm text-white/55 truncate">
+                                {m.investor_firm
+                                  ? `${m.investor_name} · ${m.investor_firm}`
+                                  : m.investor_name}
+                              </span>
+                            </div>
+                            <div className={`text-sm font-bold tabular-nums flex-shrink-0 ${
+                              m.match_score >= 90
+                                ? 'text-emerald-400'
+                                : m.match_score >= 80
+                                ? 'text-cyan-400'
+                                : 'text-amber-400'
+                            }`}>
+                              {m.match_score}
+                            </div>
+                            <div className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                              m.startup_tier === 'Elite'
+                                ? 'bg-purple-500/20 text-purple-300'
+                                : m.startup_tier === 'Excellent'
+                                ? 'bg-blue-500/20 text-blue-300'
+                                : 'bg-emerald-500/20 text-emerald-300'
+                            }`}>
+                              {m.startup_tier}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-4 flex items-center gap-2 text-xs text-white/25">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />
+                      Loading platform activity…
+                    </div>
+                  )}
+                </div>
+
+                {/* Velocity stats */}
+                {trailerVelocity && (
+                  <div className="flex gap-6 flex-wrap">
+                    {[
+                      {
+                        label: 'Matches this week',
+                        value: Number(trailerVelocity.total_matches_week ?? 0).toLocaleString(),
+                      },
+                      {
+                        label: 'High-quality today',
+                        value: Number(trailerVelocity.high_quality_matches_today ?? 0).toLocaleString(),
+                      },
+                      {
+                        label: 'Avg match score',
+                        value: trailerVelocity.avg_match_score_today
+                          ? Number(trailerVelocity.avg_match_score_today).toFixed(1)
+                          : '—',
+                      },
+                    ].map((stat) => (
+                      <div key={stat.label} className="flex flex-col gap-0.5">
+                        <span className="text-[10px] text-white/25 uppercase tracking-wider">{stat.label}</span>
+                        <span className="text-sm font-semibold text-white/60">{stat.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tiny debug (optional, safe) */}
             {debugInfo && (
