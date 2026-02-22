@@ -406,63 +406,61 @@ export default function MatchPreviewPage() {
           )}
         </div>
 
-        {/* ── Share section ── */}
-        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-6 text-center">
-          <h2 className="font-semibold text-white mb-1">Share your matches</h2>
-          <p className="text-zinc-400 text-sm mb-5">
-            Let your network know you've been matched with {total_matches.toLocaleString()} investors
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href={xShareUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm font-medium text-white hover:bg-zinc-700 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.259 5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
-              Share on X
-            </a>
-            <a
-              href={liShareUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600/20 border border-blue-600/30 text-sm font-medium text-blue-400 hover:bg-blue-600/30 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-              </svg>
-              Share on LinkedIn
-            </a>
-            <button
-              onClick={() => { navigator.clipboard.writeText(previewUrl); }}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-sm font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-              </svg>
-              Copy link
-            </button>
+        {/* ── Share + CTA panel ── */}
+        <div className="border border-zinc-800 rounded-xl overflow-hidden mb-10">
+          {/* Share row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4">
+            <div>
+              <p className="text-sm font-medium text-white">Share {startup.name}'s matches</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {total_matches.toLocaleString()} investors matched · GOD Score {startup.god_score}/100
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href={xShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-xs font-medium text-white hover:bg-zinc-800 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.259 5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                Post on X
+              </a>
+              <a
+                href={liShareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-xs font-medium text-white hover:bg-zinc-800 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                </svg>
+                LinkedIn
+              </a>
+              <button
+                onClick={() => { navigator.clipboard.writeText(previewUrl); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-zinc-900 border border-zinc-700 text-xs font-medium text-zinc-400 hover:bg-zinc-800 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                Copy link
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* ── Bottom CTA ── */}
-        <div className="text-center pb-8">
-          <div className="inline-block bg-gradient-to-br from-zinc-900 to-zinc-800 border border-zinc-700 rounded-2xl p-8 max-w-md w-full">
-            <div className="text-3xl mb-3">🍯</div>
-            <h2 className="text-xl font-bold mb-2">Raise from the right investors</h2>
-            <p className="text-zinc-400 text-sm mb-6">
-              Pythh matched {startup.name} with {total_matches.toLocaleString()} investors using the GOD Algorithm.
-              Claim your profile to unlock intro templates, investor contacts, and fundraising intelligence.
+          {/* CTA row */}
+          <div className="border-t border-zinc-800 bg-zinc-900/40 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs text-zinc-400 max-w-sm">
+              Unlock all {total_matches.toLocaleString()} investor matches, contact info, and intro templates — free to start.
             </p>
             <Link
               to={signupUrl}
-              className="block w-full py-3 rounded-xl bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 transition-colors"
+              className="flex-shrink-0 inline-flex items-center px-4 py-2 rounded-lg bg-emerald-500 text-black font-semibold text-sm hover:bg-emerald-400 transition-colors"
             >
-              Claim your free profile →
+              Claim your profile →
             </Link>
-            <p className="text-xs text-zinc-600 mt-3">Free to start · No credit card required</p>
           </div>
         </div>
 
