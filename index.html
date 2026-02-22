@@ -23,7 +23,35 @@
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
+    <!-- Raw HTML loading indicator — no CSS/Tailwind dependency.
+         Replaced by React content the instant #root is populated.
+         If this stays visible, React failed to mount. -->
+    <div id="boot-indicator" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0a0e13;display:flex;align-items:center;justify-content:center;z-index:99998;">
+      <div style="color:#22d3ee;font-family:system-ui,sans-serif;font-size:14px;opacity:0.7;">
+        <span id="boot-text">Loading…</span>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <noscript><div style="background:#0a0e13;color:#f87171;font-family:monospace;padding:24px;min-height:100vh;">JavaScript is required to run this app.</div></noscript>
+    <!-- Remove boot indicator once React has populated #root -->
+    <script>
+      (function () {
+        var MAX_WAIT_MS = 10000;
+        var start = Date.now();
+        var iv = setInterval(function () {
+          var root = document.getElementById('root');
+          var boot = document.getElementById('boot-indicator');
+          if (!boot) { clearInterval(iv); return; }
+          if (root && root.children.length > 0) {
+            boot.style.display = 'none';
+            clearInterval(iv);
+          } else if (Date.now() - start > MAX_WAIT_MS) {
+            document.getElementById('boot-text').textContent = 'App failed to start — check console for errors. Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R).';
+            clearInterval(iv);
+          }
+        }, 100);
+      })();
+    </script>
   </body>
 </html>
