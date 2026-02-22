@@ -55,31 +55,31 @@ export default function HotMatchesFeed({
 
   const fetchData = async () => {
     try {
-      // Fetch hot matches — try 24h window first, then fall back to 7 days
-      let matchData: HotMatch[] | null = null;
+      // Fire match fetch + velocity fetch in parallel — no sequential blocking
+      const [matchResult, velocityResult] = await Promise.all([
+        supabase.rpc('get_hot_matches', { limit_count: limit, hours_ago: hoursAgo }),
+        supabase.rpc('get_platform_velocity'),
+      ]);
 
-      for (const tryHours of [hoursAgo, hoursAgo * 7, 168]) {
-        const { data, error: matchError } = await supabase
-          .rpc('get_hot_matches', { 
-            limit_count: limit, 
-            hours_ago: tryHours
-          });
-        if (matchError) throw matchError;
-        if (data && data.length > 0) {
-          matchData = data;
-          break;
+      if (velocityResult.error) console.warn('HotMatchesFeed: velocity RPC error', velocityResult.error.message);
+      setVelocity(velocityResult.data?.[0] || null);
+
+      let matchData: HotMatch[] | null =
+        matchResult.data && matchResult.data.length > 0 ? matchResult.data : null;
+
+      // Only cascade if first window returned nothing
+      if (!matchData) {
+        if (matchResult.error) throw matchResult.error;
+        for (const tryHours of [hoursAgo * 7, 168]) {
+          const { data, error: matchError } = await supabase
+            .rpc('get_hot_matches', { limit_count: limit, hours_ago: tryHours });
+          if (matchError) throw matchError;
+          if (data && data.length > 0) { matchData = data; break; }
         }
       }
 
-      // Fetch platform velocity
-      const { data: velocityData, error: velocityError } = await supabase
-        .rpc('get_platform_velocity');
-
-      if (velocityError) console.warn('HotMatchesFeed: velocity RPC error', velocityError.message);
-
       setMatches(matchData || []);
-      setVelocity(velocityData?.[0] || null);
-      setError(matchData && matchData.length === 0 ? 'no-matches' : null);
+      setError(!matchData || matchData.length === 0 ? 'no-matches' : null);
     } catch (err) {
       console.error('Error fetching hot matches:', err);
       setError(err instanceof Error ? err.message : 'Failed to load matches');
@@ -89,8 +89,8 @@ export default function HotMatchesFeed({
   };
 
   useEffect(() => {
-    // Safety net: never stay grey longer than 12s if network stalls
-    const safetyTimer = setTimeout(() => setLoading(false), 12000);
+    // Safety net: never stay grey longer than 8s if network stalls
+    const safetyTimer = setTimeout(() => setLoading(false), 8000);
     fetchData().finally(() => clearTimeout(safetyTimer));
 
     if (autoRefresh) {
