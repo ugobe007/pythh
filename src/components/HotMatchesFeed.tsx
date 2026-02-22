@@ -53,42 +53,33 @@ export default function HotMatchesFeed({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  /** Wraps a promise with a hard deadline — resolves to null on timeout */
-  const withDeadline = <T,>(promise: PromiseLike<T>, ms: number): Promise<T | null> =>
-    Promise.race([
-      Promise.resolve(promise),
-      new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
-    ]);
-
   const fetchData = async () => {
     try {
-      // Run match cascade + velocity in parallel, both guarded by 8s timeout
-      const matchCascade = (async (): Promise<HotMatch[]> => {
-        for (const tryHours of [hoursAgo, hoursAgo * 7, 168]) {
-          const { data, error: matchError } = await supabase
-            .rpc('get_hot_matches', { limit_count: limit, hours_ago: tryHours });
-          if (matchError) throw matchError;
-          if (data && data.length > 0) return data as HotMatch[];
+      // Fetch hot matches — try 24h window first, then fall back to 7 days
+      let matchData: HotMatch[] | null = null;
+
+      for (const tryHours of [hoursAgo, hoursAgo * 7, 168]) {
+        const { data, error: matchError } = await supabase
+          .rpc('get_hot_matches', { 
+            limit_count: limit, 
+            hours_ago: tryHours
+          });
+        if (matchError) throw matchError;
+        if (data && data.length > 0) {
+          matchData = data;
+          break;
         }
-        return [];
-      })();
+      }
 
-      const velocityCascade = supabase
-        .rpc('get_platform_velocity')
-        .then(({ data, error: ve }) => {
-          if (ve) console.warn('HotMatchesFeed: velocity RPC error', ve.message);
-          return (data?.[0] as PlatformVelocity) || null;
-        });
+      // Fetch platform velocity
+      const { data: velocityData, error: velocityError } = await supabase
+        .rpc('get_platform_velocity');
 
-      const [matchData, velocityData] = await Promise.all([
-        withDeadline(matchCascade, 8000),
-        withDeadline(velocityCascade, 8000),
-      ]);
+      if (velocityError) console.warn('HotMatchesFeed: velocity RPC error', velocityError.message);
 
-      const resolved = matchData ?? [];
-      setMatches(resolved);
-      setVelocity(velocityData);
-      setError(resolved.length === 0 ? 'no-matches' : null);
+      setMatches(matchData || []);
+      setVelocity(velocityData?.[0] || null);
+      setError(matchData && matchData.length === 0 ? 'no-matches' : null);
     } catch (err) {
       console.error('Error fetching hot matches:', err);
       setError(err instanceof Error ? err.message : 'Failed to load matches');
@@ -98,10 +89,10 @@ export default function HotMatchesFeed({
   };
 
   useEffect(() => {
-    // Safety net: never stay in loading state longer than 10s
-    const safetyTimer = setTimeout(() => setLoading(false), 10000);
+    // Safety net: never stay grey longer than 12s if network stalls
+    const safetyTimer = setTimeout(() => setLoading(false), 12000);
     fetchData().finally(() => clearTimeout(safetyTimer));
-    
+
     if (autoRefresh) {
       const interval = setInterval(fetchData, 120000); // Refresh every 2 minutes
       return () => { clearInterval(interval); clearTimeout(safetyTimer); };
