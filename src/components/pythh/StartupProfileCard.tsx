@@ -309,9 +309,13 @@ export default function StartupProfileCard({
                   href={sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 mt-0.5 transition-colors"
+                  title="We don't have the company homepage yet — this links to the source article."
+                  className="inline-flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 mt-0.5 transition-colors group"
                 >
-                  <span>Source article</span>
+                  <span className="text-amber-500/50 group-hover:text-amber-400">Source</span>
+                  <span className="text-zinc-500 group-hover:text-zinc-400">
+                    {(() => { try { return new URL(sourceUrl).hostname.replace(/^www\./, ''); } catch { return sourceUrl; } })()}
+                  </span>
                   <ExternalLinkIcon />
                 </a>
               )}

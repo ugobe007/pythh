@@ -94,16 +94,17 @@ export const pythhRpc = {
       (rpcElapsedMs != null ? ` | db=${rpcElapsedMs}ms` : '')
     );
 
-    // Fire-and-forget: write telemetry row (no await, best-effort)
+    // Fire-and-forget: write telemetry row — void + .catch() guarantees it
+    // cannot throw into the caller regardless of RLS or network failure.
     const domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
     const found = result.status !== 'not_found' && result.status !== 'error';
-    supabase.from('resolver_telemetry').insert({
+    void supabase.from('resolver_telemetry').insert({
       domain,
       found,
       branch: rpcBranch,
       elapsed_ms: elapsed,
       startup_id: found ? (result.startup_id ?? null) : null,
-    }).then(() => {/* intentional no-op */});
+    }).catch(() => { /* intentional: best-effort only */ });
 
     return {
       found,

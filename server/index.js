@@ -6743,6 +6743,22 @@ try {
     }, DIGEST_INTERVAL_MS);
     
     console.log(`📊 Daily digest check scheduled every ${DIGEST_INTERVAL_MS / 1000 / 60} minutes`);
+
+    // Telemetry retention — prune resolver_telemetry rows older than 60 days.
+    // Runs once at startup (delayed 5 min) then every 24h.
+    const PRUNE_TELEMETRY = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: pruned } = await supabase.rpc('prune_resolver_telemetry', { keep_days: 60 });
+        if (pruned > 0) {
+          console.log(`[telemetry-prune] Deleted ${pruned} stale resolver_telemetry rows (>60d)`);
+        }
+      } catch (err) {
+        console.warn('[telemetry-prune] Skipped:', err.message);
+      }
+    };
+    setTimeout(PRUNE_TELEMETRY, 5 * 60 * 1000); // 5 min after boot
+    setInterval(PRUNE_TELEMETRY, 24 * 60 * 60 * 1000); // every 24h
   });
 } catch (error) {
   logger.fatal({ component: 'startup', err: error }, 'Failed to start server');
