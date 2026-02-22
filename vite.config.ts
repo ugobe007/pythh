@@ -34,21 +34,6 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react-vendor';
-            }
-            if (id.includes('@supabase')) {
-              return 'supabase';
-            }
-            return 'vendor';
-          }
-        },
-      },
-    },
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist']
