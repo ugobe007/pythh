@@ -7,13 +7,11 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <HelmetProvider>
-      <ErrorBoundary>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </ErrorBoundary>
-    </HelmetProvider>
-  </React.StrictMode>
+  <HelmetProvider>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </ErrorBoundary>
+  </HelmetProvider>
 );

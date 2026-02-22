@@ -145,13 +145,16 @@ const App: React.FC = () => {
   const location = useLocation();
   const qs = location.search || "";
   const loadStartupsFromDatabase = useStore((s) => s.loadStartupsFromDatabase);
+  const didInit = React.useRef(false);
 
-  // ── SSOT: Always hydrate store from Supabase on app boot ──────────────────
-  // This runs once on mount. The Zustand persist layer may serve stale data
-  // between sessions; this ensures the store is always fresh from the DB.
+  // ── SSOT: Hydrate store from Supabase exactly once per app session ────────
+  // useRef guard prevents StrictMode double-invoke and any remount churn.
+  // The store-level single-flight + TTL cache is a second line of defence.
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     loadStartupsFromDatabase();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadStartupsFromDatabase]);
 
   useEffect(() => {
     trackEvent("page_viewed", { path: location.pathname, search: location.search });
