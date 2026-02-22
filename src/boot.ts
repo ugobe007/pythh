@@ -27,6 +27,9 @@ function fatal(stage: string, err: any) {
 // Install global handlers BEFORE first await — these catch anything that
 // bubbles out of lazy-loaded chunks after React mounts too.
 window.addEventListener('error', (e) => {
+  // Only handle errors from our JS bundles (/assets/). Errors from index.html
+  // inline scripts (e.filename = page URL) would otherwise trigger false FATALs.
+  if (!e.filename || !e.filename.includes('/assets/')) return;
   const root = document.getElementById('root');
   if (!root || root.children.length === 0) {
     fatal('window.error', (e as any).error || e);

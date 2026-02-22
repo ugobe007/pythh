@@ -47,7 +47,8 @@
             boot.style.display = 'none';
             clearInterval(iv);
           } else if (Date.now() - start > MAX_WAIT_MS) {
-            document.getElementById('boot-text').textContent = 'App failed to start — check console for errors. Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R).';
+            var bt = document.getElementById('boot-text');
+            if (bt) bt.textContent = 'App failed to start — check console for errors. Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R).';
             clearInterval(iv);
           }
         }, 100);
