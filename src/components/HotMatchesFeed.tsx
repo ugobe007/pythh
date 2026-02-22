@@ -80,10 +80,13 @@ export default function HotMatchesFeed({
       setError(!finalMatchData || finalMatchData.length === 0 ? 'no-matches' : null);
       setLoading(false); // ← unblock UI as soon as matches are ready
 
-      // Velocity resolves in background — update if/when it arrives
-      Promise.resolve(velocityPromise).then(({ data, error }) => {
-        if (!error && data?.[0]) setVelocity(data[0]);
-      }).catch(() => {/* silent */});
+      // Velocity resolves in background — async IIFE avoids PromiseLike .catch() trap
+      void (async () => {
+        try {
+          const { data, error } = await velocityPromise;
+          if (!error && data?.[0]) setVelocity(data[0]);
+        } catch { /* silent */ }
+      })();
 
     } catch (err: unknown) {
       // Snapshot before logging — prevents DevTools "object no longer exists" after HMR
