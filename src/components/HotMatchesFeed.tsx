@@ -45,20 +45,20 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
   };
 
   const godColor =
-    match.startup_god_score >= 80 ? 'text-purple-400' :
-    match.startup_god_score >= 70 ? 'text-blue-400' :
-    match.startup_god_score >= 60 ? 'text-green-400' : 'text-yellow-400';
+    match.startup_god_score >= 80 ? 'text-emerald-400' :
+    match.startup_god_score >= 70 ? 'text-cyan-400' :
+    match.startup_god_score >= 60 ? 'text-emerald-300' : 'text-yellow-400';
 
   const matchColor =
-    match.match_score >= 90 ? 'text-pink-400' :
-    match.match_score >= 85 ? 'text-purple-400' :
-    match.match_score >= 80 ? 'text-blue-400' : 'text-emerald-400';
+    match.match_score >= 90 ? 'text-orange-400' :
+    match.match_score >= 85 ? 'text-orange-300' :
+    match.match_score >= 80 ? 'text-cyan-400' : 'text-emerald-400';
 
   const tierBadge = (tier: string) => {
     switch (tier) {
-      case 'Elite':     return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      case 'Excellent': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'Strong':    return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'Elite':     return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+      case 'Excellent': return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
+      case 'Strong':    return 'bg-emerald-500/15 text-emerald-400/80 border-emerald-500/20';
       default:          return 'bg-white/10 text-white/60 border-white/10';
     }
   };
@@ -69,7 +69,7 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
       onClick={handleBackdrop}
     >
       <div className="relative w-full max-w-sm bg-gray-900/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-slideInFromTop">
-        <div className="h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500" />
+        <div className="h-1 bg-gradient-to-r from-orange-500 via-emerald-500 to-cyan-500" />
 
         <button
           onClick={onClose}
@@ -147,7 +147,7 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
             )}
             <button
               onClick={() => { navigate('/signal-matches'); onClose(); }}
-              className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white transition-all shadow-lg shadow-purple-900/30"
+              className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-orange-600 to-emerald-600 hover:from-orange-500 hover:to-emerald-500 text-white transition-all shadow-lg shadow-emerald-900/30"
             >
               Find My Matches →
             </button>
@@ -265,19 +265,19 @@ export default function HotMatchesFeed({
   };
 
   const matchRingColor = (score: number) =>
-    score >= 90 ? 'border-pink-500/60'   :
-    score >= 85 ? 'border-purple-500/60' :
-    score >= 80 ? 'border-blue-500/50'   : 'border-emerald-500/40';
+    score >= 90 ? 'border-orange-500/70'   :
+    score >= 85 ? 'border-orange-400/50' :
+    score >= 80 ? 'border-cyan-500/50'   : 'border-emerald-500/40';
 
   const godColor = (score: number) =>
-    score >= 80 ? 'text-purple-400' :
-    score >= 70 ? 'text-blue-400'   :
-    score >= 60 ? 'text-green-400'  : 'text-yellow-400';
+    score >= 80 ? 'text-emerald-400' :
+    score >= 70 ? 'text-cyan-400'    :
+    score >= 60 ? 'text-emerald-300' : 'text-yellow-400';
 
   const matchColor = (score: number) =>
-    score >= 90 ? 'text-pink-400'   :
-    score >= 85 ? 'text-purple-400' :
-    score >= 80 ? 'text-blue-400'   : 'text-emerald-400';
+    score >= 90 ? 'text-orange-400'  :
+    score >= 85 ? 'text-orange-300'  :
+    score >= 80 ? 'text-cyan-400'    : 'text-emerald-400';
 
   // ── Skeleton ─────────────────────────────────────────────────────────────────
   if (loading) {
