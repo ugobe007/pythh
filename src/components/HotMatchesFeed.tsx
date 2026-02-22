@@ -322,7 +322,7 @@ export default function HotMatchesFeed({
           </div>
         )}
 
-        <div className="space-y-1 overflow-hidden">
+        <div className="space-y-0 overflow-hidden">
           {displayed.map((match) => {
             const isNewest = match.match_id === newestId;
             return (
@@ -331,43 +331,31 @@ export default function HotMatchesFeed({
                 onClick={() => setSelectedMatch(match)}
                 className={[
                   'w-full text-left group',
-                  'flex items-center gap-2.5 px-2.5 py-2',
-                  'rounded-xl border transition-all duration-200',
-                  'hover:bg-white/[0.06] hover:border-white/[0.12] active:scale-[0.98]',
+                  'flex items-center gap-0 px-0 py-1.5',
+                  'border-l-2 pl-2.5 transition-all duration-200',
+                  'hover:bg-white/[0.04] active:scale-[0.99] rounded-r-lg',
                   isNewest
-                    ? `bg-white/[0.04] animate-slideInFromTop ${matchRingColor(match.match_score)}`
-                    : 'border-transparent bg-transparent',
+                    ? 'animate-slideInFromTop border-orange-500/60 bg-white/[0.03]'
+                    : 'border-transparent',
                 ].join(' ')}
               >
-                {/* Score ring */}
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center bg-black/30 ${matchRingColor(match.match_score)}`}>
-                  <span className={`text-[10px] font-black font-mono leading-none ${matchColor(match.match_score)}`}>
-                    {Math.round(match.match_score)}
+                {/* Single inline line */}
+                <div className="flex-1 min-w-0 flex items-baseline gap-1.5 flex-wrap">
+                  <span className="text-white/85 font-semibold text-xs group-hover:text-white transition-colors truncate max-w-[120px]">
+                    {match.startup_name}
                   </span>
+                  <span className="text-white/20 text-[10px] flex-shrink-0">→</span>
+                  <span className="text-white/50 text-xs group-hover:text-white/70 transition-colors truncate max-w-[120px]">
+                    {match.investor_name}
+                  </span>
+                  <span className="text-white/10 text-[10px] flex-shrink-0 ml-0.5">·</span>
+                  <span className={`text-[10px] font-mono font-bold flex-shrink-0 ${godColor(match.startup_god_score)}`}>
+                    {match.startup_god_score}
+                  </span>
+                  <span className="text-white/20 text-[10px] flex-shrink-0">·</span>
+                  <span className="text-white/25 text-[10px] flex-shrink-0 tabular-nums">{formatTimeAgo(match.created_at)}</span>
                 </div>
-
-                {/* Names + meta */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 truncate">
-                    <span className="text-white/90 font-semibold text-xs truncate group-hover:text-white transition-colors">
-                      {match.startup_name}
-                    </span>
-                    <span className="text-white/25 text-[10px] flex-shrink-0">→</span>
-                    <span className="text-white/55 text-xs truncate group-hover:text-white/80 transition-colors">
-                      {match.investor_name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={`text-[10px] font-mono font-bold ${godColor(match.startup_god_score)}`}>
-                      GOD {match.startup_god_score}
-                    </span>
-                    <span className="text-white/15">·</span>
-                    <span className="text-white/25 text-[10px]">{formatTimeAgo(match.created_at)}</span>
-                  </div>
-                </div>
-
-                {/* Chevron */}
-                <span className="flex-shrink-0 text-white/15 group-hover:text-white/40 transition-colors text-sm">›</span>
+                <span className="flex-shrink-0 text-white/10 group-hover:text-white/30 transition-colors text-xs ml-1">›</span>
               </button>
             );
           })}
