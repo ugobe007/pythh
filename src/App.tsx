@@ -118,6 +118,7 @@ import PricingPage from "./pages/PricingPage";
 
 // Shared dashboard views (public, read-only)
 import SharedDashboardView from "./pages/SharedDashboardView";
+import MatchPreviewPage from "./pages/MatchPreviewPage";
 
 // Admin (preserved)
 import AdminRouteWrapper from "./components/AdminRouteWrapper";
@@ -241,6 +242,7 @@ const App: React.FC = () => {
 
           {/* Shared dashboard views (public, read-only — no auth required) */}
           <Route path="/s/:shareId" element={<SharedDashboardView />} />
+          <Route path="/matches/preview/:startupId" element={<MatchPreviewPage />} />
 
           {/* Admin bypass (emergency access, no Supabase auth required) */}
           <Route path="/admin-bypass" element={<AdminBypass />} />

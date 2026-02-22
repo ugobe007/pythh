@@ -5257,6 +5257,10 @@ app.use('/api/instant', instantSubmit);
 const enrichRouter = require('./routes/enrich');
 app.use('/api/enrich', enrichRouter);
 
+// Public shareable match preview (no auth required)
+const previewRoute = require('./routes/previewRoute');
+app.use('/api/preview', previewRoute);
+
 // Discovery API routes (Phase 3: Job-based submit/poll pattern)
 const discoverySubmit = require('./routes/discoverySubmit');
 const discoveryResults = require('./routes/discoveryResults');
