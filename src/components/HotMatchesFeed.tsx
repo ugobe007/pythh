@@ -282,10 +282,10 @@ export default function HotMatchesFeed({
   // ── Skeleton ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="space-y-2">
-        {showHeader && <div className="h-3 bg-white/5 rounded w-1/2 animate-pulse mb-2" />}
+      <div className="space-y-0.5">
+        {showHeader && <div className="h-2.5 bg-white/5 rounded w-1/2 animate-pulse mb-1.5" />}
         {[...Array(visibleCount)].map((_, i) => (
-          <div key={i} className="h-12 bg-white/[0.04] rounded-xl animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+          <div key={i} className="h-9 bg-white/[0.04] rounded-lg animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
         ))}
       </div>
     );
@@ -309,11 +309,11 @@ export default function HotMatchesFeed({
   // ── Feed ─────────────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="space-y-1.5">
+      <div className="space-y-0.5">
         {showHeader && (
-          <div className="flex items-center gap-2 text-xs mb-2">
+          <div className="flex items-center gap-1.5 text-xs mb-1.5">
             <span className="text-orange-400">🔥</span>
-            <span className="uppercase tracking-widest font-semibold text-white/50">Live Matches</span>
+            <span className="uppercase tracking-widest font-semibold text-white/40 tracking-[0.12em]">Live Matches</span>
             {totalThisWeek != null && (
               <span className="text-white/25 ml-auto tabular-nums">
                 {totalThisWeek.toLocaleString()} this week
@@ -322,7 +322,7 @@ export default function HotMatchesFeed({
           </div>
         )}
 
-        <div className="space-y-0 overflow-hidden">
+        <div className="space-y-px overflow-hidden">
           {displayed.map((match) => {
             const isNewest = match.match_id === newestId;
             return (
@@ -331,31 +331,42 @@ export default function HotMatchesFeed({
                 onClick={() => setSelectedMatch(match)}
                 className={[
                   'w-full text-left group',
-                  'flex items-center gap-0 px-0 py-1.5',
-                  'border-l-2 pl-2.5 transition-all duration-200',
-                  'hover:bg-white/[0.04] active:scale-[0.99] rounded-r-lg',
+                  'flex items-center gap-2 px-2 py-1.5',
+                  'rounded-lg border transition-all duration-200',
+                  'hover:bg-white/[0.05] hover:border-white/[0.10] active:scale-[0.99]',
                   isNewest
-                    ? 'animate-slideInFromTop border-orange-500/60 bg-white/[0.03]'
+                    ? 'animate-slideInFromTop bg-white/[0.04] border-orange-500/50'
                     : 'border-transparent',
                 ].join(' ')}
               >
-                {/* Single inline line */}
-                <div className="flex-1 min-w-0 flex items-baseline gap-1.5 flex-wrap">
-                  <span className="text-white/85 font-semibold text-xs group-hover:text-white transition-colors truncate max-w-[120px]">
-                    {match.startup_name}
+                {/* Score badge */}
+                <div className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center bg-black/40 ${matchRingColor(match.match_score)}`}>
+                  <span className={`text-[9px] font-black font-mono leading-none ${matchColor(match.match_score)}`}>
+                    {Math.round(match.match_score)}
                   </span>
-                  <span className="text-white/20 text-[10px] flex-shrink-0">→</span>
-                  <span className="text-white/50 text-xs group-hover:text-white/70 transition-colors truncate max-w-[120px]">
-                    {match.investor_name}
-                  </span>
-                  <span className="text-white/10 text-[10px] flex-shrink-0 ml-0.5">·</span>
-                  <span className={`text-[10px] font-mono font-bold flex-shrink-0 ${godColor(match.startup_god_score)}`}>
-                    {match.startup_god_score}
-                  </span>
-                  <span className="text-white/20 text-[10px] flex-shrink-0">·</span>
-                  <span className="text-white/25 text-[10px] flex-shrink-0 tabular-nums">{formatTimeAgo(match.created_at)}</span>
                 </div>
-                <span className="flex-shrink-0 text-white/10 group-hover:text-white/30 transition-colors text-xs ml-1">›</span>
+
+                {/* Names + meta */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 truncate leading-tight">
+                    <span className="text-white/90 font-semibold text-[11px] truncate group-hover:text-white transition-colors">
+                      {match.startup_name}
+                    </span>
+                    <span className="text-white/20 text-[9px] flex-shrink-0">→</span>
+                    <span className="text-white/50 text-[11px] truncate group-hover:text-white/75 transition-colors">
+                      {match.investor_name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-px">
+                    <span className={`text-[9px] font-mono font-bold tracking-tight ${godColor(match.startup_god_score)}`}>
+                      GOD {match.startup_god_score}
+                    </span>
+                    <span className="text-white/15 text-[9px]">·</span>
+                    <span className="text-white/25 text-[9px] tabular-nums">{formatTimeAgo(match.created_at)}</span>
+                  </div>
+                </div>
+
+                <span className="flex-shrink-0 text-white/15 group-hover:text-white/40 transition-colors text-xs">›</span>
               </button>
             );
           })}
