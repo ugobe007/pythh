@@ -55,6 +55,10 @@
   animation: slideDown 0.5s ease-out;
 }
 
+.animate-slideInFromTop {
+  animation: slideInFromTop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Scrollbar hide utility */
 .scrollbar-hide {
   -ms-overflow-style: none;
