@@ -161,7 +161,7 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
       .insert({
         name: formattedName,
         website: websiteUrl,
-        tagline: `Startup at ${n.domain}`,
+        // tagline intentionally omitted — stays null until enrichment populates it
         sectors: sectors,
         stage: 1,
         status: 'approved',
@@ -201,7 +201,7 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
     .insert({
       name: formattedName,
       website: websiteUrl,
-      tagline: `Startup at ${n.domain}`,
+      // tagline intentionally omitted — stays null until enrichment populates it
       sectors: ['Technology'],
       stage: 1,
       status: 'approved',

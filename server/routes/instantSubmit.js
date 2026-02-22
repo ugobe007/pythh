@@ -763,7 +763,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       .from('startup_uploads')
       .update({
         name: enrichedRow.name,
-        tagline: enrichedRow.tagline || `Startup at ${domain}`,
+        website: `https://${domain}`,
+        tagline: enrichedRow.tagline || null,
         description: enrichedRow.description,
         pitch: enrichedRow.pitch,
         sectors: enrichedRow.sectors,
@@ -1026,20 +1027,27 @@ router.post('/submit', async (req, res) => {
     if (candidates && candidates.length > 0) {
       const scored = candidates.map(c => {
         let score = 0;
+        const hasUrl = !!(c.website);
         const candidateCompanyName = extractCompanyName(c.website || '');
         const candidateNameLower = (c.name || '').toLowerCase();
+        // URL-bearing candidates: full score range
         if (c.website && normalizeUrl(c.website) === urlNormalized) score = 100;
-        else if (candidateCompanyName === companyName) score = 90;
-        else if (candidateNameLower.includes(companyName)) score = 70;
-        else if (companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) score = 60;
+        else if (candidateCompanyName === companyName) score = 90; // domain-derived name exact
         else if (c.website && c.website.toLowerCase().includes(companyName)) score = 50;
+        // Name-only candidates (no website set): use lower scores to avoid false positives
+        // from scraper-sourced entries that share a common word (e.g. "Foundry", "Grows")
+        else if (hasUrl && candidateNameLower.includes(companyName)) score = 70;
+        else if (hasUrl && companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) score = 60;
+        else if (!hasUrl && candidateNameLower === companyName) score = 65; // exact name match even without URL
+        // No URL + fuzzy name = below match threshold (prevents scraper noise false positives)
+        else if (!hasUrl) score = 20;
         return { ...c, matchScore: score };
       });
       scored.sort((a, b) => b.matchScore - a.matchScore);
       if (scored[0].matchScore >= 50) {
         startup = scored[0];
         startupId = startup.id;
-        console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore})`);
+        console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
       }
     }
     
@@ -1148,7 +1156,7 @@ router.post('/submit', async (req, res) => {
       .insert({
         name: insertName,
         website: `https://${domain}`,
-        tagline: `Startup at ${domain}`,
+        tagline: null,
         sectors: ['Technology'],
         stage: 1,
         status: 'approved',
@@ -1175,7 +1183,7 @@ router.post('/submit', async (req, res) => {
         .insert({
           name: insertName,
           website: `https://${domain}`,
-          tagline: `Startup at ${domain}`,
+          tagline: null,
           sectors: ['Technology'],
           stage: 1,
           status: 'approved',

@@ -236,7 +236,7 @@ export default function PythhMatchingEngine() {
       .insert({
         name: uniqueName,
         website: normalizedUrl,
-        tagline: `Startup at ${domain}`,
+        // tagline intentionally omitted — stays null until enrichment populates it
         sectors: ['Technology'],
         stage: 1,
         status: 'approved',

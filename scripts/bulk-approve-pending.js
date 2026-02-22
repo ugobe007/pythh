@@ -1,4 +1,7 @@
-// Bulk-approve all pending startups + seed god_algorithm_config baseline
+// Bulk-approve pending startups — with URL quality gate
+// Only approves entries that have a website or company_website.
+// No-URL entries (scraper noise, article fragments) are left pending
+// so they don't pollute the SSOT startup_uploads table.
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const sb = createClient(
@@ -7,20 +10,43 @@ const sb = createClient(
 );
 
 async function run() {
-  // 1. Bulk-approve all pending startups
-  const { data: approved, error: approveError } = await sb
+  // 1. Count what's pending
+  const { data: pending } = await sb
     .from('startup_uploads')
-    .update({ status: 'approved' })
-    .eq('status', 'pending')
-    .select('id, name');
+    .select('id, name, website, company_website, source_type')
+    .eq('status', 'pending');
 
-  if (approveError) {
-    console.error('Bulk-approve failed:', approveError.message);
+  if (!pending || pending.length === 0) {
+    console.log('No pending startups');
   } else {
-    console.log(`Bulk-approved ${approved?.length || 0} startups`);
-    if (approved?.length > 0) {
-      approved.slice(0, 5).forEach(s => console.log(' -', s.name));
-      if (approved.length > 5) console.log(`  ... and ${approved.length - 5} more`);
+    const withUrl = pending.filter(s => s.website || s.company_website);
+    const noUrl = pending.filter(s => !s.website && !s.company_website);
+
+    console.log(`Pending: ${pending.length} total | ${withUrl.length} have URL | ${noUrl.length} no URL (will skip)`);
+
+    // Approve only those with a URL
+    if (withUrl.length > 0) {
+      const ids = withUrl.map(s => s.id);
+      const { data: approved, error: approveError } = await sb
+        .from('startup_uploads')
+        .update({ status: 'approved' })
+        .in('id', ids)
+        .select('id, name');
+
+      if (approveError) {
+        console.error('Bulk-approve failed:', approveError.message);
+      } else {
+        console.log(`Approved ${approved?.length || 0} startups with URLs:`);
+        approved?.slice(0, 5).forEach(s => console.log(' +', s.name));
+        if ((approved?.length || 0) > 5) console.log(`  ... and ${(approved?.length || 0) - 5} more`);
+      }
+    }
+
+    // Log skipped no-URL entries (don't approve — leave as pending for admin review)
+    if (noUrl.length > 0) {
+      console.log(`Skipped ${noUrl.length} entries with no URL (scraper noise / article fragments):`);
+      noUrl.slice(0, 8).forEach(s => console.log(` - [${s.source_type}] ${s.name}`));
+      if (noUrl.length > 8) console.log(`  ... and ${noUrl.length - 8} more`);
     }
   }
 
@@ -45,13 +71,17 @@ async function run() {
     console.log('god_algorithm_config already has', configCount, 'active row(s)');
   }
 
-  // 3. Verify final state
+  // 3. Final state
   const { count: stillPending } = await sb
     .from('startup_uploads')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pending');
+  const { count: nowApproved } = await sb
+    .from('startup_uploads')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'approved');
 
-  console.log('Remaining pending startups:', stillPending || 0);
+  console.log(`Final state: approved=${nowApproved} | still pending=${stillPending}`);
   process.exit(0);
 }
 

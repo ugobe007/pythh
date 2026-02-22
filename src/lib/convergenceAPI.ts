@@ -94,17 +94,16 @@ export async function fetchConvergenceData(
 }
 
 async function buildConvergenceFromDB(startupUrl: string): Promise<ConvergenceResponse | EmptyConvergenceResponse> {
-  // Import resolver to avoid circular dependency
-  const { resolveStartupFromUrl } = await import('./startupResolver');
-  
-  const result = await resolveStartupFromUrl(startupUrl);
-  
-  if (!result || !result.startup) {
-    return getEmptyPayload(startupUrl, { step: 'resolve_startup', error: 'resolveStartupFromUrl returned null' });
+  // Use the canonical RPC for startup lookup — single source of truth
+  // (same path as submitStartup.ts step 1: resolve_startup_by_url)
+  const { data: rpcResult, error: rpcErr } = await supabase
+    .rpc('resolve_startup_by_url', { p_url: startupUrl });
+
+  if (rpcErr || !rpcResult?.found || !rpcResult?.startup_id) {
+    return getEmptyPayload(startupUrl, { step: 'resolve_startup', error: rpcErr?.message ?? 'not found in DB' });
   }
 
-  const startup = result.startup;
-  const startupId = startup.id;
+  const startupId: string = rpcResult.startup_id;
 
   // Fetch full startup data
   const { data: fullStartup } = await supabase
