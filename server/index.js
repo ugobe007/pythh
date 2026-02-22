@@ -6628,8 +6628,9 @@ if (fs.existsSync(distPath)) {
     },
   }));
 
-  // SPA fallback - serve index.html for all non-API routes
-  app.get(/^(?!\/api\/)(?!\/uploads\/).*/, (req, res) => {
+  // SPA fallback - serve index.html for all non-API, non-asset routes
+  // Exclude /assets/ so missing chunks return 404 (not index.html which breaks module loading)
+  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/).*/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
