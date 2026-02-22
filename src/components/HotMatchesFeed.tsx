@@ -81,13 +81,20 @@ export default function HotMatchesFeed({
       setLoading(false); // ← unblock UI as soon as matches are ready
 
       // Velocity resolves in background — update if/when it arrives
-      velocityPromise.then(({ data, error }) => {
+      Promise.resolve(velocityPromise).then(({ data, error }) => {
         if (!error && data?.[0]) setVelocity(data[0]);
       }).catch(() => {/* silent */});
 
-    } catch (err) {
-      console.error('Error fetching hot matches:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load matches');
+    } catch (err: unknown) {
+      // Snapshot before logging — prevents DevTools "object no longer exists" after HMR
+      const snapshot = {
+        message: (err as any)?.message ?? String(err),
+        details: (err as any)?.details,
+        hint: (err as any)?.hint,
+        code: (err as any)?.code,
+      };
+      console.error('[HotMatchesFeed] fetch error:', snapshot);
+      setError(snapshot.message || 'Failed to load matches');
       setLoading(false);
     }
   };
