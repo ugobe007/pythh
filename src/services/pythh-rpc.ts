@@ -28,6 +28,12 @@ export interface ResolverResponse {
   startup_id?: string;
   name?: string;
   website?: string;
+  /** Verified company homepage (null when sourced from publisher URL) */
+  company_website?: string;
+  /** Original publisher/news URL when website wasn't the company homepage */
+  source_url?: string;
+  /** False when we only have a publisher URL, not the real company site */
+  has_company_site?: boolean;
   searched?: string;
 }
 
@@ -88,11 +94,25 @@ export const pythhRpc = {
       (rpcElapsedMs != null ? ` | db=${rpcElapsedMs}ms` : '')
     );
 
+    // Fire-and-forget: write telemetry row (no await, best-effort)
+    const domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    const found = result.status !== 'not_found' && result.status !== 'error';
+    supabase.from('resolver_telemetry').insert({
+      domain,
+      found,
+      branch: rpcBranch,
+      elapsed_ms: elapsed,
+      startup_id: found ? (result.startup_id ?? null) : null,
+    }).then(() => {/* intentional no-op */});
+
     return {
-      found: result.status !== 'not_found' && result.status !== 'error',
+      found,
       startup_id: result.startup_id ?? undefined,
       name: result.name ?? undefined,
       website: result.website ?? undefined,
+      company_website: result.company_website ?? undefined,
+      source_url: result.source_url ?? undefined,
+      has_company_site: result.has_company_site ?? true,
       searched: result.searched,
     };
   },
@@ -204,6 +224,22 @@ const cache = {
 const CONTEXT_TTL = 5 * 60 * 1000; // 5 min
 const REVEAL_TTL = 30 * 60 * 1000; // 30 min (unlocked = stable)
 
+// Detect placeholder/stub contexts created before enrichment completes.
+// Pattern: "Startup at domain.tld" written by startupResolver / PythhMatchingEngine.
+function isPlaceholderContext(ctx: StartupContext | null): boolean {
+  if (!ctx) return false;
+  const tagline = ctx.startup?.tagline ?? '';
+  // Matches "Startup at clique.tech", "Startup at foo.io", etc.
+  if (/^Startup at \S+\.\S+$/.test(tagline)) return true;
+  // Also treat as placeholder if neither description nor extracted description exists
+  const hasDescription =
+    ctx.startup?.description ||
+    ctx.startup?.extracted_data?.description ||
+    ctx.startup?.extracted_data?.value_proposition;
+  if (!hasDescription && (!ctx.signals || ctx.signals.total === 0)) return true;
+  return false;
+}
+
 function getCached<T>(
   map: Map<string, { data: T; ts: number }>,
   key: string,
@@ -294,10 +330,10 @@ export function useStartupContext(startupId: string | null) {
   const fetchContext = useCallback(async (force = false) => {
     if (!startupId) return;
     
-    // Check cache first
+    // Check cache first — skip if it contains placeholder/stub data
     if (!force) {
       const cached = getCached(cache.startupContext, startupId, CONTEXT_TTL);
-      if (cached) {
+      if (cached && !isPlaceholderContext(cached)) {
         setContext(cached);
         setLoading(false);
         return;
@@ -308,7 +344,13 @@ export function useStartupContext(startupId: string | null) {
     try {
       const data = await pythhRpc.getStartupContext(startupId);
       if (data) {
-        setCache(cache.startupContext, startupId, data);
+        // Only cache fully-enriched contexts; placeholders always re-fetch
+        if (!isPlaceholderContext(data)) {
+          setCache(cache.startupContext, startupId, data);
+        } else {
+          // Remove any stale placeholder that may have been cached previously
+          cache.startupContext.delete(startupId);
+        }
         setContext(data);
       }
       setError(null);

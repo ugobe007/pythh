@@ -43,6 +43,12 @@ export interface SubmitResult {
   _resolver_branch?: string;
   /** Diagnostic: server-side DB resolution time in ms */
   _elapsed_ms?: number;
+  /** Verified company homepage (null when sourced from publisher URL) */
+  company_website?: string | null;
+  /** Original publisher/news source URL when website wasn't the company homepage */
+  source_url?: string | null;
+  /** False when we only have a publisher URL — no real company site on file */
+  has_company_site?: boolean;
 }
 
 export interface SubmitOptions {
@@ -131,6 +137,9 @@ export async function submitStartup(
             searched,
             _resolver_branch: resolverBranch,
             _elapsed_ms: elapsedMs,
+            company_website: row.company_website ?? null,
+            source_url: row.source_url ?? null,
+            has_company_site: row.has_company_site ?? true,
           };
         }
 
@@ -147,6 +156,9 @@ export async function submitStartup(
           searched,
           _resolver_branch: resolverBranch,
           _elapsed_ms: elapsedMs,
+          company_website: row.company_website ?? null,
+          source_url: row.source_url ?? null,
+          has_company_site: row.has_company_site ?? true,
         };
       }
     }

@@ -8,6 +8,7 @@
 // All data sourced from StartupContext (get_startup_context RPC).
 // ============================================================================
 
+import { useEffect, useRef } from 'react';
 import type { StartupContext } from '@/lib/pythh-types';
 
 // Stage label mapping
@@ -193,7 +194,9 @@ export default function StartupProfileCard({
   const name = startup?.name || displayName;
   const tagline = startup?.tagline;
   const description = startup?.description;
-  const website = startup?.website;
+  const website = startup?.company_website || startup?.website;
+  const sourceUrl = startup?.source_url;
+  const hasCompanySite = !!startup?.company_website;
   const stage = startup?.stage;
   const sectors = startup?.sectors || comparison?.sectors || [];
   const percentile = comparison?.percentile;
@@ -215,15 +218,21 @@ export default function StartupProfileCard({
   const executionSignals = extractedData?.execution_signals || [];
   const customerCount = extractedData?.customer_count;
   
-  // Debug log
-  console.log('[StartupProfileCard] Debug:', {
-    name,
-    businessSummary,
-    executionSignals,
-    customerCount,
-    tagline,
-    website
-  });
+  // Debug log — DEV only, fires once per unique website to avoid render spam
+  const _debuggedWebsite = useRef<string | null>(null);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!website || website === _debuggedWebsite.current) return;
+    _debuggedWebsite.current = website;
+    console.log('[StartupProfileCard] Debug:', {
+      name,
+      businessSummary: businessSummary ?? null,
+      executionSignals: executionSignals?.length ?? 0,
+      signals: signals?.total,
+      tagline,
+      website,
+    });
+  }, [website]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Build fallback description from traction/execution if no narrative available
   const fallbackSummary = !businessSummary && (executionSignals.length > 0 || customerCount)
@@ -275,13 +284,14 @@ export default function StartupProfileCard({
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-2 flex-wrap">
                 <h2 className="text-lg font-bold text-white truncate">{name}</h2>
-                {websiteDisplay && (
+                {websiteDisplay && !(!hasCompanySite && sourceUrl) && (
                   <a
                     href={website!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-cyan-400 transition-colors"
                   >
+                    {hasCompanySite && <span className="text-[9px] text-emerald-500/70 uppercase tracking-wide mr-0.5">site</span>}
                     {websiteDisplay}
                     <ExternalLinkIcon />
                   </a>
@@ -291,6 +301,19 @@ export default function StartupProfileCard({
               {/* Tagline - only if distinct from description */}
               {tagline && tagline !== businessSummary && tagline !== `Startup at ${websiteDisplay}` && (
                 <p className="text-xs text-cyan-400/80 mt-0.5 font-medium line-clamp-1">{tagline}</p>
+              )}
+
+              {/* Source link — shown when we only have a publisher/news URL, not the company homepage */}
+              {!hasCompanySite && sourceUrl && (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 mt-0.5 transition-colors"
+                >
+                  <span>Source article</span>
+                  <ExternalLinkIcon />
+                </a>
               )}
             </div>
           </div>

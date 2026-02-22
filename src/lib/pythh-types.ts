@@ -100,8 +100,13 @@ export interface UnlockResponse {
 
 export interface StartupContext {
   startup: {
+    id: string | null;
     name: string;
     website: string;
+    /** Verified company homepage (not a publisher/scraped URL) */
+    company_website: string | null;
+    /** Original scraped/publisher URL when website was not the company homepage */
+    source_url: string | null;
     tagline: string | null;
     description: string | null;
     stage: number | null;
