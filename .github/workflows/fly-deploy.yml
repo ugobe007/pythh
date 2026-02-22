@@ -25,6 +25,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      # Guard: abort immediately if Supabase secrets are not set.
+      # Without them, Vite bakes "placeholder.supabase.co" into the bundle
+      # and the site silently breaks. Never deploy a broken build.
+      - name: Check required secrets
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ "$VITE_SUPABASE_URL" = "" ]; then
+            echo "❌ ERROR: VITE_SUPABASE_URL secret is not set in this repository."
+            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before deployments will work."
+            echo "See: https://github.com/ugobe007/pythh/settings/secrets/actions"
+            exit 1
+          fi
+          if [ -z "$VITE_SUPABASE_ANON_KEY" ] || [ "$VITE_SUPABASE_ANON_KEY" = "" ]; then
+            echo "❌ ERROR: VITE_SUPABASE_ANON_KEY secret is not set in this repository."
+            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          echo "✅ Secrets verified — proceeding with build."
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      
       # Build the app with real Supabase credentials baked in
       - name: Build
         run: npm run build
