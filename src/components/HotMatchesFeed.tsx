@@ -181,7 +181,6 @@ export default function HotMatchesFeed({
             className="text-sm text-white/70 hover:text-white/90 transition-all leading-relaxed animate-slideDown"
             style={{ 
               animationDelay: `${index * 150}ms`,
-              animationFillMode: 'backwards'
             }}
           >
             <span className="text-white/90 font-medium">{match.startup_name}</span>
