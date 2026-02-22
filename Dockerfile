@@ -23,8 +23,8 @@ ARG VITE_SUPABASE_ANON_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 
-# Build the frontend
-RUN npm run build
+# Build the frontend — but skip if CI already pre-built dist/ (with real secrets)
+RUN if [ ! -f "dist/index.html" ]; then npm run build; fi
 
 # Prune devDependencies — only production deps for the final image
 RUN npm prune --production --legacy-peer-deps

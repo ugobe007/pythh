@@ -25,19 +25,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      # Build the app
+      # Build the app with real Supabase credentials baked in
       - name: Build
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       
-      # Deploy to Fly.io
+      # Deploy to Fly.io using local Docker build so the pre-built dist/ is used
+      # --local-only builds Docker on this runner (where dist/ already exists)
+      # This avoids a second npm run build on the remote builder with no secrets
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy to Fly.io
-        run: |
-          flyctl deploy --remote-only \
-            --build-arg VITE_SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}" \
-            --build-arg VITE_SUPABASE_ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}"
+        run: flyctl deploy --local-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
