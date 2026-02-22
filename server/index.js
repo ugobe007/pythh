@@ -47,6 +47,7 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const logger = require('./logger');
 const { pool } = require('./db');
 const { getSupabaseClient } = require('./lib/supabaseClient');
@@ -55,6 +56,9 @@ const { getSupabaseClient } = require('./lib/supabaseClient');
 const app = express();
 const PORT = process.env.PORT || 3002;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
+
+// Gzip compression for all responses
+app.use(compression());
 
 // Security headers (helmet)
 app.use(helmet({
@@ -6606,10 +6610,25 @@ app.use('/api', (req, res) => {
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
   console.log('[Server] Serving static files from:', distPath);
-  app.use(express.static(distPath));
-  
+  // Hashed assets (/assets/*) — cache forever (content-hashed filenames)
+  app.use('/assets', express.static(path.join(distPath, 'assets'), {
+    immutable: true,
+    maxAge: '1y',
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
+  }));
+  // Everything else — no-cache so index.html is always fresh
+  app.use(express.static(distPath, {
+    maxAge: '0',
+    setHeaders(res, fp) {
+      if (fp.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
+
   // SPA fallback - serve index.html for all non-API routes
-  // Use regex pattern instead of '*' for Express 5 / path-to-regexp compatibility
   app.get(/^(?!\/api\/)(?!\/uploads\/).*/, (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });

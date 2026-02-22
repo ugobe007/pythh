@@ -13,7 +13,10 @@
  * 4. Merge enriched data + promote to top-level columns
  * 5. Mark for GOD score recalculation
  *
- * Run: node scripts/enrich-sparse-startups.js [--limit=50] [--dry-run]
+ * Run: node scripts/enrich-sparse-startups.js [--limit=50] [--dry-run] [--no-url-only]
+ *
+ * --no-url-only  Only target startups with no website OR company_website field.
+ *               These 1,592 entries need news-based enrichment to recover data.
  */
 
 require('dotenv').config();
@@ -200,33 +203,52 @@ async function enrichSparseStartups() {
   const limitArg = args.find(arg => arg.startsWith('--limit='));
   const limit = limitArg ? parseInt(limitArg.split('=')[1]) : 50;
   const dryRun = args.includes('--dry-run');
+  const noUrlOnly = args.includes('--no-url-only');
 
   if (dryRun) console.log('🧪 DRY RUN — no database writes\n');
+  if (noUrlOnly) console.log('🔍 NO-URL-ONLY mode — targeting startups with no website field\n');
   console.log(`Processing up to ${limit} startups\n`);
 
   // ── Load sparse startups ──
   console.log('Loading data-sparse startups...');
-  const { data: startups, error } = await supabase
+  let query = supabase
     .from('startup_uploads')
-    .select('id, name, website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since')
-    .eq('status', 'approved')
-    .or('enrichment_status.eq.waiting,enrichment_status.is.null')
-    .order('enrichment_attempts', { ascending: true })
-    .order('updated_at', { ascending: true })
-    .limit(limit * 3);
+    .select('id, name, website, company_website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since')
+    .eq('status', 'approved');
+
+  if (noUrlOnly) {
+    // Target only startups with no URL — skip enrichment_status filter so we catch
+    // holding entries too (their website was never recovered)
+    query = query
+      .is('website', null)
+      .is('company_website', null)
+      .order('enrichment_attempts', { ascending: true })
+      .order('updated_at', { ascending: true })
+      .limit(limit * 2);
+  } else {
+    query = query
+      .or('enrichment_status.eq.waiting,enrichment_status.is.null')
+      .order('enrichment_attempts', { ascending: true })
+      .order('updated_at', { ascending: true })
+      .limit(limit * 3);
+  }
+
+  const { data: startups, error } = await query;
 
   if (error) {
     console.error('Error loading startups:', error);
     return;
   }
 
-  const sparseStartups = startups.filter(s => {
-    const { phase } = classifyDataRichness(s);
-    // Include 'waiting' status OR newly added startups with null status that are sparse
-    return phase >= 2 && s.total_god_score < 70;
-  }).slice(0, limit);
+  const sparseStartups = noUrlOnly
+    ? startups.filter(s => s.total_god_score < 70).slice(0, limit)
+    : startups.filter(s => {
+        const { phase } = classifyDataRichness(s);
+        return phase >= 2 && s.total_god_score < 70;
+      }).slice(0, limit);
 
-  console.log(`Found ${sparseStartups.length} startups pending enrichment (status: waiting/null, score < 70)\n`);
+  const modeLabel = noUrlOnly ? 'no URL, score < 70' : 'status: waiting/null, score < 70';
+  console.log(`Found ${sparseStartups.length} startups pending enrichment (${modeLabel})\n`);
 
   if (sparseStartups.length === 0) {
     console.log('No sparse startups found.');

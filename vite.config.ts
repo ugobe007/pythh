@@ -20,12 +20,20 @@ export default defineConfig({
     },
   },
   build: {
-    // Ensure no HMR in production
-    sourcemap: false, // Disable sourcemaps for production
+    sourcemap: false,
     rollupOptions: {
       output: {
-        // Disable manual chunking - let Vite handle it automatically
-        // This prevents circular dependency issues with React internals
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase';
+            }
+            return 'vendor';
+          }
+        },
       },
     },
   },

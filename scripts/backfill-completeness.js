@@ -5,7 +5,7 @@
  * Calculates and stores data_completeness for all approved startups.
  * Previously 0 for all 1,000 records - this fixes that.
  * 
- * Run: node scripts/backfill-completeness.js
+ * Run: node scripts/backfill-completeness.js [--limit=N]
  */
 
 require('dotenv').config();
@@ -22,18 +22,26 @@ const BATCH_SIZE = 50;
 async function backfillCompleteness() {
   console.log('=== DATA COMPLETENESS BACKFILL ===\n');
 
-  // Fetch all approved startups with fields needed for completeness calculation
-  const { data: startups, error } = await supabase
+  const args = process.argv.slice(2);
+  const limitArg = args.find(a => a.startsWith('--limit='));
+  const limit = limitArg ? parseInt(limitArg.split('=')[1]) : null;
+
+  // Fetch approved startups with fields needed for completeness calculation
+  let query = supabase
     .from('startup_uploads')
     .select('id, name, description, pitch, customer_count, mrr, arr, team_size, growth_rate_monthly, extracted_data')
     .eq('status', 'approved');
+
+  if (limit) query = query.limit(limit);
+
+  const { data: startups, error } = await query;
 
   if (error) {
     console.error('Failed to load startups:', error.message);
     process.exit(1);
   }
 
-  console.log(`Loaded ${startups.length} approved startups\n`);
+  console.log(`Loaded ${startups.length} approved startups${limit ? ` (capped at ${limit})` : ''}\n`);
 
   const tiers = { excellent: 0, good: 0, fair: 0, sparse: 0 };
   const updates = startups.map(s => {

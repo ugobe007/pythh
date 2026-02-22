@@ -31,7 +31,7 @@
  * - /app/signals, /app/radar
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import "./App.css";
 
@@ -41,105 +41,106 @@ import { L5Guard } from "./lib/routeGuards";
 import { trackEvent } from "./lib/analytics";
 import { useStore } from "./store";
 
-// Layouts
+// Layouts (kept eager — used as wrappers across many routes)
 import PublicLayout from "./layouts/PublicLayout";
 import AppLayout from "./layouts/AppLayout";
+import AdminRouteWrapper from "./components/AdminRouteWrapper";
 
-// PUBLIC
+// Homepage — critical path, must stay eager
 import PythhMain from "./pages/PythhMain";
-import PlatformPage from "./pages/PlatformPage";
-import SignalMatches from "./pages/SignalMatches";
-import SignalTrends from "./pages/SignalTrends";
-import AboutPage from "./pages/AboutPage";
-import SupportPage from "./pages/SupportPage";
 
-// APP (instrument mode)
-import SignalsDashboard from "./pages/app/SignalsDashboard";
-import InSignalMatches from "./pages/inSignalMatches";
-import InvestorRevealPage from "./pages/app/InvestorRevealPage";
+// Fallback shown while lazy chunks load
+const RouteFallback = () => (
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#0a0a0a" }}>
+    <div style={{ width: 32, height: 32, border: "3px solid #ff6600", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+  </div>
+);
 
-// Oracle (signal wizard & coaching)
-import OracleDashboard from "./pages/app/OracleDashboard";
-import OracleWizard from "./pages/app/OracleWizard";
-import OracleCohorts from "./pages/app/OracleCohorts";
-import OracleActions from "./pages/app/OracleActions";
-import OracleVCStrategy from "./pages/app/OracleVCStrategy";
-import OraclePredictions from "./pages/app/OraclePredictions";
-import OracleCoaching from "./pages/app/OracleCoaching";
-import OracleScribe from "./pages/app/OracleScribe";
-
-// Signal navigation tools (premium features)
-import SignalPlaybook from "./pages/app/SignalPlaybook";
-import PitchSignalScan from "./pages/app/PitchSignalScan";
-import FundraisingTimingMap from "./pages/app/FundraisingTimingMap";
-
-// Core matching UI
-import MatchingEngine from "./components/MatchingEngine";
-
-// Pipeline View (how Pythh works — trust page)
-import EnginePipelineView from "./pages/app/Engine";
-
-// Legacy / preserved
-import DemoPageDoctrine from "./pages/DemoPageDoctrine";
-import Live from "./pages/public/Live";
-import SignalResultsPage from "./pages/SignalResultsPage";
-import InvestorProfile from "./pages/InvestorProfile";
-
-// Signup pages (Pythh-branded)
-import SignupLanding from "./pages/SignupLanding";
-import SignupFounderPythh from "./pages/SignupFounderPythh";
-import InvestorSignupPythh from "./pages/InvestorSignupPythh";
-import SignupComplete from "./pages/SignupComplete";
-import EnrichStartupPage from "./pages/EnrichStartupPage";
-
-// User account pages
-import ProfilePage from "./pages/ProfilePage";
-import FounderProfileDashboard from "./pages/FounderProfileDashboard";
-import InvestorProfileDashboard from "./pages/InvestorProfileDashboard";
-import Dashboard from "./pages/Dashboard";
-import Settings from "./pages/Settings";
-import Login from "./pages/Login";
-import ResetPassword from "./pages/ResetPassword";
-import AdminBypass from "./pages/AdminBypass";
-import AdminLogin from "./pages/AdminLogin";
-
-// Explore
-import ExplorePage from "./pages/ExplorePage";
+// PUBLIC pages
+const PlatformPage = lazy(() => import("./pages/PlatformPage"));
+const SignalMatches = lazy(() => import("./pages/SignalMatches"));
+const SignalTrends = lazy(() => import("./pages/SignalTrends"));
+const AboutPage = lazy(() => import("./pages/AboutPage"));
+const SupportPage = lazy(() => import("./pages/SupportPage"));
+const ExplorePage = lazy(() => import("./pages/ExplorePage"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
 
 // Sector landing pages
-import AIMLInvestorsPage from "./pages/sectors/AIMLInvestorsPage";
-import FintechInvestorsPage from "./pages/sectors/FintechInvestorsPage";
-import HealthTechInvestorsPage from "./pages/sectors/HealthTechInvestorsPage";
-import DevToolsInvestorsPage from "./pages/sectors/DevToolsInvestorsPage";
-import B2BSaaSInvestorsPage from "./pages/sectors/B2BSaaSInvestorsPage";
+const AIMLInvestorsPage = lazy(() => import("./pages/sectors/AIMLInvestorsPage"));
+const FintechInvestorsPage = lazy(() => import("./pages/sectors/FintechInvestorsPage"));
+const HealthTechInvestorsPage = lazy(() => import("./pages/sectors/HealthTechInvestorsPage"));
+const DevToolsInvestorsPage = lazy(() => import("./pages/sectors/DevToolsInvestorsPage"));
+const B2BSaaSInvestorsPage = lazy(() => import("./pages/sectors/B2BSaaSInvestorsPage"));
 
-// Commercial pages
-import PricingPage from "./pages/PricingPage";
+// Legacy / preserved
+const DemoPageDoctrine = lazy(() => import("./pages/DemoPageDoctrine"));
+const Live = lazy(() => import("./pages/public/Live"));
+const SignalResultsPage = lazy(() => import("./pages/SignalResultsPage"));
+const InvestorProfile = lazy(() => import("./pages/InvestorProfile"));
 
-// Shared dashboard views (public, read-only)
-import SharedDashboardView from "./pages/SharedDashboardView";
-import MatchPreviewPage from "./pages/MatchPreviewPage";
+// Signup flow
+const SignupLanding = lazy(() => import("./pages/SignupLanding"));
+const SignupFounderPythh = lazy(() => import("./pages/SignupFounderPythh"));
+const InvestorSignupPythh = lazy(() => import("./pages/InvestorSignupPythh"));
+const SignupComplete = lazy(() => import("./pages/SignupComplete"));
+const EnrichStartupPage = lazy(() => import("./pages/EnrichStartupPage"));
 
-// Admin (preserved)
-import AdminRouteWrapper from "./components/AdminRouteWrapper";
-import UnifiedAdminDashboard from "./pages/UnifiedAdminDashboardV2";
-import SystemHealthDashboard from "./pages/SystemHealthDashboard";
-import AILogsPage from "./pages/AILogsPage";
-import GODScoresPage from "./pages/GODScoresPage";
-import GODSettingsPage from "./pages/GODSettingsPage";
-import IndustryRankingsPage from "./pages/IndustryRankingsPage";
-import EditStartups from "./pages/EditStartups";
-import DiscoveredStartups from "./pages/DiscoveredStartups";
-import DiscoveredInvestors from "./pages/DiscoveredInvestors";
-import BulkUpload from "./pages/BulkUpload";
-import RSSManager from "./pages/RSSManager";
-import DiagnosticPage from "./pages/DiagnosticPage";
-import DatabaseDiagnostic from "./pages/DatabaseDiagnostic";
-import ScraperManagementPage from "./pages/ScraperManagementPage";
-import AIIntelligenceDashboard from "./pages/AIIntelligenceDashboard";
-import AdminActions from "./pages/AdminActions";
-import ReviewQueue from "./pages/ReviewQueue";
-import MLDashboard from "./pages/MLDashboard";
+// User account pages
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const FounderProfileDashboard = lazy(() => import("./pages/FounderProfileDashboard"));
+const InvestorProfileDashboard = lazy(() => import("./pages/InvestorProfileDashboard"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Login = lazy(() => import("./pages/Login"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const AdminBypass = lazy(() => import("./pages/AdminBypass"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+
+// Shared / preview
+const SharedDashboardView = lazy(() => import("./pages/SharedDashboardView"));
+const MatchPreviewPage = lazy(() => import("./pages/MatchPreviewPage"));
+
+// APP (instrument mode)
+const SignalsDashboard = lazy(() => import("./pages/app/SignalsDashboard"));
+const InSignalMatches = lazy(() => import("./pages/inSignalMatches"));
+const InvestorRevealPage = lazy(() => import("./pages/app/InvestorRevealPage"));
+const EnginePipelineView = lazy(() => import("./pages/app/Engine"));
+
+// Oracle
+const OracleDashboard = lazy(() => import("./pages/app/OracleDashboard"));
+const OracleWizard = lazy(() => import("./pages/app/OracleWizard"));
+const OracleCohorts = lazy(() => import("./pages/app/OracleCohorts"));
+const OracleActions = lazy(() => import("./pages/app/OracleActions"));
+const OracleVCStrategy = lazy(() => import("./pages/app/OracleVCStrategy"));
+const OraclePredictions = lazy(() => import("./pages/app/OraclePredictions"));
+const OracleCoaching = lazy(() => import("./pages/app/OracleCoaching"));
+const OracleScribe = lazy(() => import("./pages/app/OracleScribe"));
+
+// Signal navigation tools (premium)
+const SignalPlaybook = lazy(() => import("./pages/app/SignalPlaybook"));
+const PitchSignalScan = lazy(() => import("./pages/app/PitchSignalScan"));
+const FundraisingTimingMap = lazy(() => import("./pages/app/FundraisingTimingMap"));
+
+// Admin
+const UnifiedAdminDashboard = lazy(() => import("./pages/UnifiedAdminDashboardV2"));
+const SystemHealthDashboard = lazy(() => import("./pages/SystemHealthDashboard"));
+const AILogsPage = lazy(() => import("./pages/AILogsPage"));
+const GODScoresPage = lazy(() => import("./pages/GODScoresPage"));
+const GODSettingsPage = lazy(() => import("./pages/GODSettingsPage"));
+const IndustryRankingsPage = lazy(() => import("./pages/IndustryRankingsPage"));
+const EditStartups = lazy(() => import("./pages/EditStartups"));
+const DiscoveredStartups = lazy(() => import("./pages/DiscoveredStartups"));
+const DiscoveredInvestors = lazy(() => import("./pages/DiscoveredInvestors"));
+const BulkUpload = lazy(() => import("./pages/BulkUpload"));
+const RSSManager = lazy(() => import("./pages/RSSManager"));
+const DiagnosticPage = lazy(() => import("./pages/DiagnosticPage"));
+const DatabaseDiagnostic = lazy(() => import("./pages/DatabaseDiagnostic"));
+const ScraperManagementPage = lazy(() => import("./pages/ScraperManagementPage"));
+const AIIntelligenceDashboard = lazy(() => import("./pages/AIIntelligenceDashboard"));
+const AdminActions = lazy(() => import("./pages/AdminActions"));
+const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
+const MLDashboard = lazy(() => import("./pages/MLDashboard"));
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -165,6 +166,7 @@ const App: React.FC = () => {
   return (
     <AppErrorBoundary>
       <AuthProvider>
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* ──────────────────────────────────────────────────────────────
               PUBLIC (pythh.ai)
@@ -326,6 +328,7 @@ const App: React.FC = () => {
           {/* 404 → main */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </AppErrorBoundary>
   );
