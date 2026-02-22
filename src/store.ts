@@ -9,61 +9,70 @@ import { getStartupUploads } from './lib/investorService';
 import { supabase } from './lib/supabase';
 import startupData from './data/startupData';
 
+// ── Single-flight guard: prevents duplicate concurrent fetches ───────────────
+let startupsInFlight: Promise<StartupComponent[]> | null = null;
+let startupsLoadedAt: number | null = null;
+const STARTUP_CACHE_MS = 60_000; // 1 minute
+
+// Session-stable random offset — picked once per tab, reused for the cache window
+function getSessionOffset(total: number, limit: number): number {
+  const key = 'startup_offset_seed';
+  const cached = sessionStorage.getItem(key);
+  if (cached !== null) return Number(cached);
+  const offset = Math.floor(Math.random() * Math.max(0, total - limit));
+  sessionStorage.setItem(key, String(offset));
+  return offset;
+}
+
 // Function to load approved startups from Supabase with pagination
 export async function loadApprovedStartups(limit: number = 50, offset: number = 0): Promise<StartupComponent[]> {
+  // Single-flight: if a fetch is already running, wait for it
+  if (startupsInFlight) {
+    return startupsInFlight;
+  }
+
+  // Cache: if loaded recently, skip the network entirely
+  if (startupsLoadedAt && Date.now() - startupsLoadedAt < STARTUP_CACHE_MS) {
+    return []; // caller checks store state directly; returning [] skips the set()
+  }
+
+  startupsInFlight = (async (): Promise<StartupComponent[]> => {
   try {
-    // Get total count first to calculate random offset
+    // Get total count first to calculate stable session offset
     const { count } = await supabase
       .from('startup_uploads')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'approved');
     
-    // Use random offset if not specified (offset=0 means "random")
     const totalStartups = count || 500;
-    const randomOffset = offset === 0 ? Math.floor(Math.random() * Math.max(0, totalStartups - limit)) : offset;
+    // Use session-stable offset so repeated calls don't re-scramble results
+    const resolvedOffset = offset === 0 ? getSessionOffset(totalStartups, limit) : offset;
     
-    console.log('\n' + '='.repeat(80));
-    console.log(`📊 FETCHING STARTUPS FROM SUPABASE`);
-    console.log(`   Query: startup_uploads WHERE status='approved'`);
-    console.log(`   Total available: ${totalStartups}, Random offset: ${randomOffset}, Limit: ${limit}`);
-    console.log('='.repeat(80));
+    if (import.meta.env.DEV) {
+      console.log(`[store] loadApprovedStartups: total=${totalStartups} offset=${resolvedOffset} limit=${limit}`);
+    }
     
-    // Load approved ones with randomized pagination
+    // Load approved startups with stable pagination
     const { data, error } = await supabase
       .from('startup_uploads')
       .select('*')
       .eq('status', 'approved')
       .order('created_at', { ascending: false })
-      .range(randomOffset, randomOffset + limit - 1);
+      .range(resolvedOffset, resolvedOffset + limit - 1);
     
-    // SSOT: Supabase is the single source of truth - no fallback to static data
     if (error) {
-      console.error('❌ SUPABASE ERROR:', error.message);
-      console.error('💡 SSOT: All data must come from Supabase. Please check database connection.');
-      return []; // Return empty array - let UI handle empty state
+      console.error('[store] Supabase error:', error.message);
+      return [];
     }
     
     if (!data || data.length === 0) {
-      console.warn('⚠️ SUPABASE RETURNED EMPTY - startup_uploads table has 0 approved startups');
-      console.warn('💡 SSOT: No fallback data. Please populate startup_uploads table in Supabase.');
-      return []; // Return empty array - let UI handle empty state
+      console.warn('[store] startup_uploads returned 0 approved rows');
+      return [];
     }
 
-    console.log('✅ SUCCESS: Loaded ' + data.length + ' startups FROM SUPABASE');
-    console.log('📊 Startup IDs are UUIDs:', data.length > 0);
-    
-    // 🔥 DEBUG: Check raw data from database
-    if (data && data.length > 0) {
-      console.log('🔥 FIRST STARTUP FROM DB:', data[0].name, 'GOD SCORE:', data[0].total_god_score);
-      console.log('🔥 RAW UPLOAD OBJECT:', {
-        id: data[0].id,
-        name: data[0].name,
-        status: data[0].status,
-        total_god_score: data[0].total_god_score,
-        typeof_score: typeof data[0].total_god_score
-      });
+    if (import.meta.env.DEV) {
+      console.log(`[store] loaded ${data.length} startups, first: ${data[0].name}`);
     }
-    console.log('='.repeat(80) + '\n');
 
     // Convert database Startup to component format using adapter
     const converted = data.map((upload: Startup, index: number) => {
@@ -88,33 +97,20 @@ export async function loadApprovedStartups(limit: number = 50, offset: number = 
         hotness: calculatedHotness || componentStartup.hotness,
       };
       
-      // DEBUG: Log first 3 startups with detailed info INCLUDING GOD SCORES
-      if (index < 3) {
-        console.log(`\n📦 Startup #${index + 1}: ${startupWithVotes.name}`);
-        console.log(`   🎯 GOD SCORES FROM DATABASE:`);
-        console.log(`      total_god_score: ${upload.total_god_score} → ${startupWithVotes.total_god_score}`);
-        console.log(`      team_score: ${upload.team_score}`);
-        console.log(`      traction_score: ${upload.traction_score}`);
-        console.log(`      market_score: ${upload.market_score}`);
-        console.log(`      product_score: ${upload.product_score}`);
-        console.log(`      vision_score: ${upload.vision_score}`);
-        const extractedData = (upload.extracted_data as any) || {};
-        console.log(`   extracted_data keys:`, Object.keys(extractedData));
-        console.log(`   fivePoints (${startupWithVotes.fivePoints?.length || 0} items):`, startupWithVotes.fivePoints);
-        console.log(`   industries:`, startupWithVotes.industries);
-      }
-      
       return startupWithVotes;
     });
     
+    startupsLoadedAt = Date.now();
     return converted;
   } catch (err) {
-    console.error('💥 Failed to load approved startups, using local data:', err);
-    // Fall back to local data on exception - cast to StartupComponent[]
-    const start = offset;
-    const end = offset + limit;
-    return startupData.slice(start, end) as unknown as StartupComponent[];
+    console.error('[store] Failed to load approved startups:', err);
+    return [];
+  } finally {
+    startupsInFlight = null;
   }
+  })();
+
+  return startupsInFlight;
 }
 
 export const useStore = create<StoreState>()(
@@ -199,12 +195,9 @@ export const useStore = create<StoreState>()(
         }));
       },
       loadStartupsFromDatabase: async () => {
-        // SSOT: Only load from Supabase — no local data mixing
         const approvedStartups = await loadApprovedStartups();
         if (approvedStartups.length > 0) {
           set({ startups: approvedStartups });
-        } else {
-          console.warn('loadStartupsFromDatabase: DB returned 0 startups — keeping existing state');
         }
       },
     }),
