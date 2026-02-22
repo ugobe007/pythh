@@ -55,42 +55,46 @@ export default function HotMatchesFeed({
 
   const fetchData = async () => {
     try {
-      // Fire match fetch + velocity fetch in parallel — no sequential blocking
-      const [matchResult, velocityResult] = await Promise.all([
-        supabase.rpc('get_hot_matches', { limit_count: limit, hours_ago: hoursAgo }),
-        supabase.rpc('get_platform_velocity'),
-      ]);
+      // Fire both RPCs simultaneously — never block matches on velocity
+      const matchPromise = supabase.rpc('get_hot_matches', { limit_count: limit, hours_ago: hoursAgo });
+      const velocityPromise = supabase.rpc('get_platform_velocity');
 
-      if (velocityResult.error) console.warn('HotMatchesFeed: velocity RPC error', velocityResult.error.message);
-      setVelocity(velocityResult.data?.[0] || null);
+      // Resolve matches first — show cards immediately without waiting for velocity
+      const { data: matchData, error: matchError } = await matchPromise;
 
-      let matchData: HotMatch[] | null =
-        matchResult.data && matchResult.data.length > 0 ? matchResult.data : null;
+      if (matchError) throw matchError;
+
+      let finalMatchData: HotMatch[] | null = matchData && matchData.length > 0 ? matchData : null;
 
       // Only cascade if first window returned nothing
-      if (!matchData) {
-        if (matchResult.error) throw matchResult.error;
+      if (!finalMatchData) {
         for (const tryHours of [hoursAgo * 7, 168]) {
-          const { data, error: matchError } = await supabase
+          const { data, error: cascadeError } = await supabase
             .rpc('get_hot_matches', { limit_count: limit, hours_ago: tryHours });
-          if (matchError) throw matchError;
-          if (data && data.length > 0) { matchData = data; break; }
+          if (cascadeError) throw cascadeError;
+          if (data && data.length > 0) { finalMatchData = data; break; }
         }
       }
 
-      setMatches(matchData || []);
-      setError(!matchData || matchData.length === 0 ? 'no-matches' : null);
+      setMatches(finalMatchData || []);
+      setError(!finalMatchData || finalMatchData.length === 0 ? 'no-matches' : null);
+      setLoading(false); // ← unblock UI as soon as matches are ready
+
+      // Velocity resolves in background — update if/when it arrives
+      velocityPromise.then(({ data, error }) => {
+        if (!error && data?.[0]) setVelocity(data[0]);
+      }).catch(() => {/* silent */});
+
     } catch (err) {
       console.error('Error fetching hot matches:', err);
       setError(err instanceof Error ? err.message : 'Failed to load matches');
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Safety net: never stay grey longer than 8s if network stalls
-    const safetyTimer = setTimeout(() => setLoading(false), 8000);
+    // Safety net: never stay grey longer than 5s regardless of network
+    const safetyTimer = setTimeout(() => setLoading(false), 5000);
     fetchData().finally(() => clearTimeout(safetyTimer));
 
     if (autoRefresh) {
