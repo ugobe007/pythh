@@ -34,6 +34,16 @@ const POOL_SIZE     = 20;
 const VISIBLE       = 5;
 const TICK_MS       = 15000;
 const REFETCH_TICKS = 12;
+const ROW_H         = 46;  // px — height of one row slot (includes gap)
+const ANIM_MS       = 380; // transition duration ms
+
+// ─── Waterfall row item ──────────────────────────────────────────────────────
+
+interface RowItem {
+  match: HotMatch;
+  id: string;    // stable key = match_id
+  pos: number;   // -1 = above viewport, 0..(N-1) = visible, N = exiting below
+}
 
 // ─── Match Detail Modal ───────────────────────────────────────────────────────
 
@@ -167,7 +177,7 @@ export default function HotMatchesFeed({
   autoRefresh = true,
 }: HotMatchesFeedProps) {
   const [pool, setPool]                   = useState<HotMatch[]>([]);
-  const [displayed, setDisplayed]         = useState<HotMatch[]>([]);
+  const [rows, setRows]                   = useState<RowItem[]>([]);
   const [newestId, setNewestId]           = useState<string | null>(null);
   const [loading, setLoading]             = useState(true);
   const [selectedMatch, setSelectedMatch] = useState<HotMatch | null>(null);
@@ -190,7 +200,7 @@ export default function HotMatchesFeed({
         const shuffled = [...fetched].sort(() => Math.random() - 0.5);
         setPool(shuffled);
         const initial = shuffled.slice(0, visibleCount);
-        setDisplayed(initial);
+        setRows(initial.map((m, i) => ({ match: m, id: m.match_id, pos: i })));
         setNewestId(initial[0]?.match_id ?? null);
         poolIdxRef.current  = visibleCount;
         tickCountRef.current = 0;
@@ -211,11 +221,35 @@ export default function HotMatchesFeed({
       if (currentPool.length === 0) return currentPool;
       const incoming = currentPool[poolIdxRef.current % currentPool.length];
       poolIdxRef.current++;
-      setDisplayed(prev => {
-        const next = [incoming, ...prev.slice(0, visibleCount - 1)];
-        setNewestId(incoming.match_id);
-        return next;
+      setNewestId(incoming.match_id);
+
+      // Step 1: place incoming above the viewport (pos = -1)
+      setRows(prev => [
+        { match: incoming, id: incoming.match_id, pos: -1 },
+        ...prev,
+      ]);
+
+      // Step 2: two rAF ticks later, trigger CSS transition:
+      //   incoming slides -1 → 0, everyone else shifts down +1
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setRows(prev =>
+            prev.map(r =>
+              r.id === incoming.match_id && r.pos === -1
+                ? { ...r, pos: 0 }
+                : r.id === incoming.match_id
+                ? r
+                : { ...r, pos: r.pos + 1 }
+            )
+          );
+        });
       });
+
+      // Step 3: after the transition, prune rows that have slid out
+      setTimeout(() => {
+        setRows(prev => prev.filter(r => r.pos < visibleCount));
+      }, ANIM_MS + 80);
+
       return currentPool;
     });
   }, [visibleCount]);
@@ -277,7 +311,7 @@ export default function HotMatchesFeed({
   }
 
   // ── Empty ────────────────────────────────────────────────────────────────────
-  if (displayed.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="opacity-40 space-y-1">
         {showHeader && (
@@ -307,52 +341,70 @@ export default function HotMatchesFeed({
           </div>
         )}
 
-        <div className="space-y-px overflow-hidden">
-          {displayed.map((match) => {
-            const isNewest = match.match_id === newestId;
+        {/* Waterfall container — fixed height, rows absolutely positioned */}
+        <div
+          className="relative overflow-hidden"
+          style={{ height: `${visibleCount * ROW_H}px` }}
+        >
+          {rows.map(({ match, id, pos }) => {
+            const isNewest = id === newestId;
+            const visible  = pos >= 0 && pos < visibleCount;
             return (
-              <button
-                key={match.match_id}
-                onClick={() => setSelectedMatch(match)}
-                className={[
-                  'w-full text-left group',
-                  'flex items-center gap-2 px-2 py-1.5',
-                  'rounded-lg border transition-all duration-200',
-                  'hover:bg-white/[0.05] hover:border-white/[0.10] active:scale-[0.99]',
-                  isNewest
-                    ? 'animate-slideInFromTop bg-white/[0.04] border-orange-500/50'
-                    : 'border-transparent',
-                ].join(' ')}
+              <div
+                key={id}
+                style={{
+                  position: 'absolute',
+                  top: `${pos * ROW_H}px`,
+                  left: 0,
+                  right: 0,
+                  height: `${ROW_H - 2}px`,
+                  transition: `top ${ANIM_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${ANIM_MS}ms ease`,
+                  opacity: visible ? 1 : 0,
+                  pointerEvents: visible ? 'auto' : 'none',
+                }}
               >
-                {/* Score badge */}
-                <div className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center bg-black/40 ${matchRingColor(match.match_score)}`}>
-                  <span className={`text-[9px] font-black font-mono leading-none ${matchColor(match.match_score)}`}>
-                    {Math.round(match.match_score)}
-                  </span>
-                </div>
-
-                {/* Names + meta */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 truncate leading-tight">
-                    <span className="text-white/90 font-semibold text-[11px] truncate group-hover:text-white transition-colors">
-                      {match.startup_name}
-                    </span>
-                    <span className="text-white/20 text-[9px] flex-shrink-0">→</span>
-                    <span className="text-white/50 text-[11px] truncate group-hover:text-white/75 transition-colors">
-                      {match.investor_name}
+                <button
+                  onClick={() => setSelectedMatch(match)}
+                  className={[
+                    'w-full h-full text-left group',
+                    'flex items-center gap-2 px-2',
+                    'rounded-lg border transition-colors duration-200',
+                    'hover:bg-white/[0.05] hover:border-white/[0.10] active:scale-[0.99]',
+                    isNewest
+                      ? 'bg-white/[0.04] border-orange-500/50'
+                      : 'border-transparent',
+                  ].join(' ')}
+                >
+                  {/* Score badge */}
+                  <div className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center bg-black/40 ${matchRingColor(match.match_score)}`}>
+                    <span className={`text-[9px] font-black font-mono leading-none ${matchColor(match.match_score)}`}>
+                      {Math.round(match.match_score)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 mt-px">
-                    <span className={`text-[9px] font-mono font-bold tracking-tight ${godColor(match.startup_god_score)}`}>
-                      GOD {match.startup_god_score}
-                    </span>
-                    <span className="text-white/15 text-[9px]">·</span>
-                    <span className="text-white/25 text-[9px] tabular-nums">{formatTimeAgo(match.created_at)}</span>
-                  </div>
-                </div>
 
-                <span className="flex-shrink-0 text-white/15 group-hover:text-white/40 transition-colors text-xs">›</span>
-              </button>
+                  {/* Names + meta */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 truncate leading-tight">
+                      <span className="text-white/90 font-semibold text-[11px] truncate group-hover:text-white transition-colors">
+                        {match.startup_name}
+                      </span>
+                      <span className="text-white/20 text-[9px] flex-shrink-0">→</span>
+                      <span className="text-white/50 text-[11px] truncate group-hover:text-white/75 transition-colors">
+                        {match.investor_name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 mt-px">
+                      <span className={`text-[9px] font-mono font-bold tracking-tight ${godColor(match.startup_god_score)}`}>
+                        GOD {match.startup_god_score}
+                      </span>
+                      <span className="text-white/15 text-[9px]">·</span>
+                      <span className="text-white/25 text-[9px] tabular-nums">{formatTimeAgo(match.created_at)}</span>
+                    </div>
+                  </div>
+
+                  <span className="flex-shrink-0 text-white/15 group-hover:text-white/40 transition-colors text-xs">›</span>
+                </button>
+              </div>
             );
           })}
         </div>
