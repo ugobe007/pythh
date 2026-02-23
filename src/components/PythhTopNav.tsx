@@ -28,7 +28,7 @@ export default function PythhTopNav({ showSignup = true }: TopNavProps) {
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         {/* Brand */}
         <Link to="/" className="flex items-center gap-2 group">
-          <img src="/images/pythh-logo-square.png" alt="pythh.ai" className="h-7 w-auto" style={{ filter: 'invert(1)' }} />
+          <span className="text-white font-semibold group-hover:text-cyan-400 transition-colors">pythh.ai</span>
         </Link>
         
         {/* Nav Links */}
