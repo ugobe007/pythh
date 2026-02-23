@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -180,21 +180,11 @@ export default function HotMatchesFeed({
   // ── Fetch pool ──────────────────────────────────────────────────────────────
   const fetchPool = useCallback(async () => {
     try {
-      const matchPromise    = supabase.rpc('get_hot_matches', { limit_count: POOL_SIZE, hours_ago: hoursAgo });
-      const velocityPromise = supabase.rpc('get_platform_velocity');
+      const res = await fetch(`${API_BASE}/api/hot-matches?limit_count=${POOL_SIZE}&hours_ago=${hoursAgo}`);
+      if (!res.ok) throw new Error(`hot-matches ${res.status}`);
+      const json = await res.json();
 
-      const { data, error } = await matchPromise;
-      if (error) throw error;
-
-      let fetched: HotMatch[] | null = data && data.length > 0 ? data : null;
-
-      if (!fetched) {
-        for (const tryHours of [hoursAgo * 7, 720]) {
-          const { data: d, error: e } = await supabase.rpc('get_hot_matches', { limit_count: POOL_SIZE, hours_ago: tryHours });
-          if (e) throw e;
-          if (d && d.length > 0) { fetched = d; break; }
-        }
-      }
+      const fetched: HotMatch[] | null = json.matches && json.matches.length > 0 ? json.matches : null;
 
       if (fetched && fetched.length > 0) {
         const shuffled = [...fetched].sort(() => Math.random() - 0.5);
@@ -208,12 +198,7 @@ export default function HotMatchesFeed({
 
       setLoading(false);
 
-      void (async () => {
-        try {
-          const { data: v } = await velocityPromise;
-          if (v?.[0]) setTotalThisWeek(v[0].total_matches_week ?? null);
-        } catch { /* silent */ }
-      })();
+      if (json.totalThisWeek != null) setTotalThisWeek(json.totalThisWeek);
     } catch (err: unknown) {
       console.error('[HotMatchesFeed] fetch error:', { message: (err as any)?.message });
       setLoading(false);

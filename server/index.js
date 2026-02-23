@@ -741,6 +741,40 @@ app.get('/e/click', async (req, res) => {
   }
 });
 
+// ============================================================
+// GET /api/hot-matches - Hot Matches feed for public ticker
+// Uses service-role Supabase client — immune to browser auth state
+// ============================================================
+app.get('/api/hot-matches', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const limitCount = Math.min(parseInt(req.query.limit_count) || 20, 50);
+    const hoursAgo   = Math.min(parseInt(req.query.hours_ago)   || 720, 8760);
+
+    // Try requested window, then expand if empty
+    let matches = null;
+    for (const hrs of [hoursAgo, hoursAgo * 7, 720]) {
+      const { data, error } = await supabase.rpc('get_hot_matches', {
+        limit_count: limitCount,
+        hours_ago: hrs
+      });
+      if (error) throw error;
+      if (data && data.length > 0) { matches = data; break; }
+    }
+
+    // Get platform velocity (total matches this week)
+    const { data: velocity } = await supabase.rpc('get_platform_velocity').catch(() => ({ data: null }));
+
+    res.json({
+      matches: matches || [],
+      totalThisWeek: velocity?.[0]?.total_matches_week ?? null,
+    });
+  } catch (err) {
+    console.error('[/api/hot-matches] Error:', err);
+    res.status(500).json({ matches: [], totalThisWeek: null, error: err.message });
+  }
+});
+
 // Plan limits for live-pairings
 const PLAN_LIMITS = { free: 1, pro: 3, elite: 10 };
 
