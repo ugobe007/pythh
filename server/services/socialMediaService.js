@@ -21,8 +21,16 @@ async function postToTwitter(text) {
     accessSecret:     process.env.TWITTER_ACCESS_TOKEN_SECRET,
   });
   const rwClient = client.readWrite;
-  const result = await rwClient.v2.tweet(text);
-  return { platform: 'twitter', post_id: result.data.id };
+  try {
+    const result = await rwClient.v2.tweet(text);
+    return { platform: 'twitter', post_id: result.data.id };
+  } catch (e) {
+    // Log the full API error response for debugging
+    if (e.data) console.error('[twitter] API error data:', JSON.stringify(e.data));
+    if (e.code) console.error('[twitter] HTTP code:', e.code);
+    if (e.errors) console.error('[twitter] errors:', JSON.stringify(e.errors));
+    throw e;
+  }
 }
 
 // ============================================================
