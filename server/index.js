@@ -5723,6 +5723,163 @@ app.get('/api/admin/inference-status', requireAdminToken, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ADMIN: DASHBOARD DATA APIs
+// These use the service-role Supabase client (bypasses all RLS).
+// Called by admin frontend components — no direct Supabase client needed.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/kpis
+// Returns the same KPIs as admin_get_dashboard_kpis() RPC but via service role
+app.get('/api/admin/kpis', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const [approved, pending, investors, matches, avgScore] = await Promise.all([
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('investors').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
+    ]);
+    const scores = avgScore.data || [];
+    const avg = scores.length > 0
+      ? scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / scores.length
+      : 0;
+    res.json({
+      startups_approved: approved.count || 0,
+      startups_pending: pending.count || 0,
+      investors_total: investors.count || 0,
+      matches_total: matches.count || 0,
+      avg_god_score: Math.round(avg * 10) / 10,
+    });
+  } catch (err) {
+    console.error('[/api/admin/kpis] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/score-health
+// Returns GOD score distribution + health status for GODScoreMonitor component
+app.get('/api/admin/score-health', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: scores, error } = await supabase
+      .from('startup_uploads')
+      .select('total_god_score')
+      .eq('status', 'approved');
+    if (error) throw error;
+    if (!scores || scores.length === 0) {
+      return res.json({ status: 'warning', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['No approved startups found'] });
+    }
+    const total = scores.length;
+    const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
+    const ranges = [
+      { range: '40-49', min: 40, max: 50, color: 'bg-red-500' },
+      { range: '50-59', min: 50, max: 60, color: 'bg-orange-500' },
+      { range: '60-69', min: 60, max: 70, color: 'bg-yellow-500' },
+      { range: '70-79', min: 70, max: 80, color: 'bg-green-500' },
+      { range: '80+',   min: 80, max: 101, color: 'bg-emerald-500' },
+    ];
+    const distribution = ranges.map(r => {
+      const count = scores.filter(s => s.total_god_score >= r.min && s.total_god_score < r.max).length;
+      return { range: r.range, count, percent: Math.round((count / total) * 1000) / 10, color: r.color };
+    });
+    const alerts = [];
+    let status = 'healthy';
+    const lowBandPercent = distribution[0].percent;
+    if (lowBandPercent > 30) { alerts.push(`⚠️ ${lowBandPercent}% of startups in 40-49 band`); status = 'error'; }
+    else if (lowBandPercent > 10) { alerts.push(`Note: ${lowBandPercent}% in 40-49 band`); status = 'warning'; }
+    if (avg < 50) { alerts.push(`⚠️ Average score ${avg.toFixed(1)} is below 50`); status = 'error'; }
+    else if (avg < 55 && status === 'healthy') { alerts.push(`Average score ${avg.toFixed(1)} is slightly low`); status = 'warning'; }
+    const elitePercent = distribution[4].percent;
+    if (elitePercent < 0.5 && status === 'healthy') { alerts.push(`Elite drought: Only ${elitePercent}% scoring 80+`); status = 'warning'; }
+    res.json({ status, avgScore: Math.round(avg * 10) / 10, totalStartups: total, distribution, alerts });
+  } catch (err) {
+    console.error('[/api/admin/score-health] Error:', err);
+    res.status(500).json({ error: err.message, status: 'error', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['Server error: ' + err.message] });
+  }
+});
+
+// GET /api/admin/system-health
+// Returns health checks for SystemHealthAlerts component
+app.get('/api/admin/system-health', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const checks = [];
+    // GOD Score distribution check
+    const { data: scores } = await supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved');
+    if (scores && scores.length > 0) {
+      const total = scores.length;
+      const lowBandCount = scores.filter(s => s.total_god_score >= 40 && s.total_god_score < 50).length;
+      const lowBandPercent = (lowBandCount / total) * 100;
+      const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
+      if (lowBandPercent > 30) checks.push({ name: 'GOD Score Distribution', status: 'error', message: `${lowBandPercent.toFixed(1)}% stuck in 40-49 band`, action: { label: 'Fix Scores', route: '/admin/god-settings' } });
+      else if (lowBandPercent > 10) checks.push({ name: 'GOD Score Distribution', status: 'warning', message: `${lowBandPercent.toFixed(1)}% in 40-49 band`, action: { label: 'View Scores', route: '/admin/god-scores' } });
+      else checks.push({ name: 'GOD Score Distribution', status: 'ok', message: `Healthy distribution (avg: ${avg.toFixed(1)})` });
+    } else {
+      checks.push({ name: 'GOD Score Distribution', status: 'error', message: 'No approved startups found', action: { label: 'Add Startups', route: '/admin/edit-startups' } });
+    }
+    // Match count check
+    const { count: matchCount } = await supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true });
+    if ((matchCount || 0) < 1000) checks.push({ name: 'Match Count', status: 'error', message: `Only ${matchCount || 0} matches — regeneration needed`, action: { label: 'Regenerate', route: '/admin/actions' } });
+    else if ((matchCount || 0) < 10000) checks.push({ name: 'Match Count', status: 'warning', message: `${(matchCount || 0).toLocaleString()} matches (low)` });
+    else checks.push({ name: 'Match Count', status: 'ok', message: `${(matchCount || 0).toLocaleString()} matches` });
+    // Pending review check
+    const { count: pendingCount } = await supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+    if ((pendingCount || 0) > 50) checks.push({ name: 'Review Queue', status: 'warning', message: `${pendingCount} startups awaiting review`, action: { label: 'Review', route: '/admin/review-queue' } });
+    else if ((pendingCount || 0) > 0) checks.push({ name: 'Review Queue', status: 'ok', message: `${pendingCount} pending startups` });
+    else checks.push({ name: 'Review Queue', status: 'ok', message: 'Queue is clear' });
+    // Investor count check
+    const { count: investorCount } = await supabase.from('investors').select('*', { count: 'exact', head: true });
+    if ((investorCount || 0) < 100) checks.push({ name: 'Investor Database', status: 'warning', message: `Only ${investorCount || 0} investors`, action: { label: 'Add Investors', route: '/admin/discovered-investors' } });
+    else checks.push({ name: 'Investor Database', status: 'ok', message: `${(investorCount || 0).toLocaleString()} investors` });
+    const overallStatus = checks.some(c => c.status === 'error') ? 'error' : checks.some(c => c.status === 'warning') ? 'warning' : 'ok';
+    res.json({ checks, overallStatus, lastChecked: new Date().toISOString() });
+  } catch (err) {
+    console.error('[/api/admin/system-health] Error:', err);
+    res.status(500).json({ error: err.message, checks: [{ name: 'Server Error', status: 'error', message: err.message }], overallStatus: 'error', lastChecked: new Date().toISOString() });
+  }
+});
+
+// GET /api/admin/social-signals
+// Returns social signal stats for SocialSignalsMonitor component
+app.get('/api/admin/social-signals', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: platformData } = await supabase.from('social_signals').select('platform, startup_id').limit(10000);
+    const { data: topData } = await supabase.from('social_signals').select('startup_name, engagement_score').not('startup_name', 'is', null).limit(5000);
+    const { data: lastSignal } = await supabase.from('social_signals').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+    const platformMap = new Map();
+    (platformData || []).forEach(s => {
+      const existing = platformMap.get(s.platform) || { count: 0, startups: new Set() };
+      existing.count++;
+      if (s.startup_id) existing.startups.add(s.startup_id);
+      platformMap.set(s.platform, existing);
+    });
+    const platforms = Array.from(platformMap.entries()).map(([platform, data]) => ({ platform, count: data.count, uniqueStartups: data.startups.size })).sort((a, b) => b.count - a.count);
+    const uniqueStartups = new Set((platformData || []).map(s => s.startup_id)).size;
+    const startupMap = new Map();
+    (topData || []).forEach(s => {
+      const name = s.startup_name || 'Unknown';
+      const existing = startupMap.get(name) || { count: 0, totalEngagement: 0 };
+      existing.count++;
+      existing.totalEngagement += s.engagement_score || 0;
+      startupMap.set(name, existing);
+    });
+    const topStartups = Array.from(startupMap.entries()).map(([name, data]) => ({ name, signalCount: data.count, buzzScore: Math.round(data.totalEngagement) })).sort((a, b) => b.signalCount - a.signalCount).slice(0, 5);
+    res.json({
+      totalSignals: (platformData || []).length,
+      uniqueStartups,
+      platforms,
+      topStartups,
+      lastUpdated: lastSignal?.created_at || null,
+    });
+  } catch (err) {
+    console.error('[/api/admin/social-signals] Error:', err);
+    res.status(500).json({ error: err.message, totalSignals: 0, uniqueStartups: 0, platforms: [], topStartups: [], lastUpdated: null });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ADMIN: ANALYTICS METRICS (Prompt 18)
 // ═══════════════════════════════════════════════════════════════════════════
 

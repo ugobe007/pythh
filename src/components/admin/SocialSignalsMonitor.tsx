@@ -8,7 +8,6 @@ import {
   MessageCircle, RefreshCw, TrendingUp, Play, 
   Radio, ExternalLink, Globe
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/apiConfig';
 
 interface PlatformStats {
@@ -49,80 +48,10 @@ export default function SocialSignalsMonitor() {
 
   const loadStats = async () => {
     try {
-      // Get platform breakdown
-      const { data: platformData } = await supabase
-        .from('social_signals')
-        .select('platform, startup_id')
-        .limit(10000);
-
-      if (platformData) {
-        // Aggregate by platform
-        const platformMap = new Map<string, { count: number; startups: Set<string> }>();
-        platformData.forEach(s => {
-          const existing = platformMap.get(s.platform) || { count: 0, startups: new Set() };
-          existing.count++;
-          if (s.startup_id) existing.startups.add(s.startup_id);
-          platformMap.set(s.platform, existing);
-        });
-
-        const platforms: PlatformStats[] = Array.from(platformMap.entries())
-          .map(([platform, data]) => ({
-            platform,
-            count: data.count,
-            uniqueStartups: data.startups.size
-          }))
-          .sort((a, b) => b.count - a.count);
-
-        const uniqueStartups = new Set(platformData.map(s => s.startup_id)).size;
-
-        setStats(prev => ({
-          ...prev,
-          totalSignals: platformData.length,
-          uniqueStartups,
-          platforms
-        }));
-      }
-
-      // Get top startups by signal count
-      const { data: topData } = await supabase
-        .from('social_signals')
-        .select('startup_name, engagement_score')
-        .not('startup_name', 'is', null)
-        .limit(5000);
-
-      if (topData) {
-        const startupMap = new Map<string, { count: number; totalEngagement: number }>();
-        topData.forEach(s => {
-          const name = s.startup_name || 'Unknown';
-          const existing = startupMap.get(name) || { count: 0, totalEngagement: 0 };
-          existing.count++;
-          existing.totalEngagement += s.engagement_score || 0;
-          startupMap.set(name, existing);
-        });
-
-        const topStartups: TopStartup[] = Array.from(startupMap.entries())
-          .map(([name, data]) => ({
-            name,
-            signalCount: data.count,
-            buzzScore: Math.round(data.totalEngagement)
-          }))
-          .sort((a, b) => b.signalCount - a.signalCount)
-          .slice(0, 5);
-
-        setStats(prev => ({ ...prev, topStartups }));
-      }
-
-      // Get last update time
-      const { data: lastSignal } = await supabase
-        .from('social_signals')
-        .select('created_at')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (lastSignal) {
-        setStats(prev => ({ ...prev, lastUpdated: lastSignal.created_at }));
-      }
+      const res = await fetch(`${API_BASE}/api/admin/social-signals`);
+      if (!res.ok) throw new Error(`social-signals ${res.status}`);
+      const data = await res.json();
+      setStats(data);
     } catch (error) {
       console.error('Error loading social signals stats:', error);
     } finally {

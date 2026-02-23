@@ -1,5 +1,6 @@
 // src/services/adminRpc.ts
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 export type ImportDiscoveredResult = {
   ok: boolean;
@@ -10,17 +11,15 @@ export type ImportDiscoveredResult = {
 
 export const adminRpc = {
   async getDashboardKpis() {
-    const { data, error } = await supabase.rpc('admin_get_dashboard_kpis');
-    if (error) throw error;
-    // RPC returns array, extract first element
-    const kpis = Array.isArray(data) ? data[0] : data;
-    return kpis as {
+    const res = await fetch(`${API_BASE}/api/admin/kpis`);
+    if (!res.ok) throw new Error(`admin/kpis failed: ${res.status}`);
+    return res.json() as Promise<{
       startups_approved: number;
       startups_pending: number;
       investors_total: number;
       matches_total: number;
       avg_god_score: number;
-    };
+    }>;
   },
 
   async listDiscoveredStartups(opts: {

@@ -8,7 +8,7 @@ import {
   Shield, AlertTriangle, CheckCircle, XCircle, 
   RefreshCw, ExternalLink, Clock
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { API_BASE } from '../../lib/apiConfig';
 
 interface HealthCheck {
   name: string;
@@ -31,157 +31,20 @@ export default function SystemHealthAlerts() {
   }, []);
 
   const runHealthChecks = async () => {
-    const newChecks: HealthCheck[] = [];
-
     try {
-      // 1. GOD Score Distribution Check
-      const { data: scores } = await supabase
-        .from('startup_uploads')
-        .select('total_god_score')
-        .eq('status', 'approved');
-
-      if (scores && scores.length > 0) {
-        const total = scores.length;
-        const lowBandCount = scores.filter(s => s.total_god_score >= 40 && s.total_god_score < 50).length;
-        const lowBandPercent = (lowBandCount / total) * 100;
-        const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
-
-        if (lowBandPercent > 30) {
-          newChecks.push({
-            name: 'GOD Score Distribution',
-            status: 'error',
-            message: `${lowBandPercent.toFixed(1)}% stuck in 40-49 band - scoring issue detected`,
-            action: { label: 'Fix Scores', route: '/admin/god-settings' }
-          });
-        } else if (lowBandPercent > 10) {
-          newChecks.push({
-            name: 'GOD Score Distribution',
-            status: 'warning',
-            message: `${lowBandPercent.toFixed(1)}% in 40-49 band - monitor closely`,
-            action: { label: 'View Scores', route: '/admin/god-scores' }
-          });
-        } else {
-          newChecks.push({
-            name: 'GOD Score Distribution',
-            status: 'ok',
-            message: `Healthy distribution (avg: ${avg.toFixed(1)})`
-          });
-        }
-      } else {
-        newChecks.push({
-          name: 'GOD Score Distribution',
-          status: 'error',
-          message: 'No approved startups found',
-          action: { label: 'Add Startups', route: '/admin/edit-startups' }
-        });
-      }
-
-      // 2. Match Count Check
-      const { count: matchCount } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true });
-
-      if ((matchCount || 0) < 1000) {
-        newChecks.push({
-          name: 'Match Pool',
-          status: 'error',
-          message: `Only ${matchCount?.toLocaleString()} matches - regeneration needed`,
-          action: { label: 'View Health', route: '/admin/health' }
-        });
-      } else if ((matchCount || 0) < 5000) {
-        newChecks.push({
-          name: 'Match Pool',
-          status: 'warning',
-          message: `${matchCount?.toLocaleString()} matches - below optimal`,
-          action: { label: 'View Health', route: '/admin/health' }
-        });
-      } else {
-        newChecks.push({
-          name: 'Match Pool',
-          status: 'ok',
-          message: `${matchCount?.toLocaleString()} matches active`
-        });
-      }
-
-      // 3. Data Freshness Check
-      const yesterday = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-      const { count: recentStartups } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', yesterday);
-
-      if ((recentStartups || 0) === 0) {
-        newChecks.push({
-          name: 'Data Freshness',
-          status: 'warning',
-          message: 'No new startups in 48 hours',
-          action: { label: 'Check RSS', route: '/admin/discovered-startups' }
-        });
-      } else {
-        newChecks.push({
-          name: 'Data Freshness',
-          status: 'ok',
-          message: `${recentStartups} new startups in last 48h`
-        });
-      }
-
-      // 4. Social Signals Check
-      const { count: signalCount } = await supabase
-        .from('social_signals')
-        .select('*', { count: 'exact', head: true });
-
-      if ((signalCount || 0) === 0) {
-        newChecks.push({
-          name: 'Social Signals',
-          status: 'warning',
-          message: 'No social signals collected',
-          action: { label: 'Run Scraper', route: '/admin/ai-intelligence' }
-        });
-      } else {
-        newChecks.push({
-          name: 'Social Signals',
-          status: 'ok',
-          message: `${signalCount?.toLocaleString()} signals collected`
-        });
-      }
-
-      // 5. Investor Data Check
-      const { count: investorCount } = await supabase
-        .from('investors')
-        .select('*', { count: 'exact', head: true });
-
-      if ((investorCount || 0) < 100) {
-        newChecks.push({
-          name: 'Investor Data',
-          status: 'warning',
-          message: `Only ${investorCount} investors - add more for better matching`,
-          action: { label: 'Add Investors', route: '/admin/discovered-investors' }
-        });
-      } else {
-        newChecks.push({
-          name: 'Investor Data',
-          status: 'ok',
-          message: `${investorCount?.toLocaleString()} investors active`
-        });
-      }
-
+      const res = await fetch(`${API_BASE}/api/admin/system-health`);
+      if (!res.ok) throw new Error(`system-health ${res.status}`);
+      const data = await res.json();
+      setChecks(data.checks || []);
+      setOverallStatus(data.overallStatus || 'ok');
+      setLastChecked(new Date(data.lastChecked || Date.now()));
     } catch (error) {
       console.error('Error running health checks:', error);
-      newChecks.push({
-        name: 'System',
-        status: 'error',
-        message: 'Failed to run health checks - database connection issue?'
-      });
+      setChecks([{ name: 'System', status: 'error', message: 'Failed to run health checks - server connection issue?' }]);
+      setOverallStatus('error');
+    } finally {
+      setLoading(false);
     }
-
-    // Calculate overall status
-    const hasError = newChecks.some(c => c.status === 'error');
-    const hasWarning = newChecks.some(c => c.status === 'warning');
-    
-    setChecks(newChecks);
-    setOverallStatus(hasError ? 'error' : hasWarning ? 'warning' : 'ok');
-    setLastChecked(new Date());
-    setLoading(false);
   };
 
   const getStatusIcon = (status: string) => {

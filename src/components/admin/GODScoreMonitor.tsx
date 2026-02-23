@@ -9,7 +9,6 @@ import {
   Sparkles, RefreshCw, AlertTriangle, CheckCircle, 
   TrendingUp, BarChart3, Play, Activity, Zap
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/apiConfig';
 
 interface ScoreDistribution {
@@ -48,69 +47,10 @@ export default function GODScoreMonitor() {
 
   const loadScoreHealth = async () => {
     try {
-      const { data: scores } = await supabase
-        .from('startup_uploads')
-        .select('total_god_score')
-        .eq('status', 'approved');
-
-      if (!scores || scores.length === 0) {
-        setHealth({ status: 'warning', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['No approved startups found'] });
-        return;
-      }
-
-      const total = scores.length;
-      const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
-
-      // Calculate distribution
-      const ranges = [
-        { range: '40-49', min: 40, max: 50, color: 'bg-red-500' },
-        { range: '50-59', min: 50, max: 60, color: 'bg-orange-500' },
-        { range: '60-69', min: 60, max: 70, color: 'bg-yellow-500' },
-        { range: '70-79', min: 70, max: 80, color: 'bg-green-500' },
-        { range: '80+', min: 80, max: 101, color: 'bg-emerald-500' },
-      ];
-
-      const distribution: ScoreDistribution[] = ranges.map(r => {
-        const count = scores.filter(s => s.total_god_score >= r.min && s.total_god_score < r.max).length;
-        return {
-          range: r.range,
-          count,
-          percent: Math.round((count / total) * 100 * 10) / 10,
-          color: r.color
-        };
-      });
-
-      // Check for health issues
-      const alerts: string[] = [];
-      let status: 'healthy' | 'warning' | 'error' = 'healthy';
-
-      // Alert if too many in 40-49 range (legacy bug indicator)
-      const lowBandPercent = distribution[0].percent;
-      if (lowBandPercent > 30) {
-        alerts.push(`⚠️ ${lowBandPercent}% of startups in 40-49 band - possible scoring issue`);
-        status = 'error';
-      } else if (lowBandPercent > 10) {
-        alerts.push(`Note: ${lowBandPercent}% in 40-49 band`);
-        status = 'warning';
-      }
-
-      // Alert if average is off
-      if (avg < 50) {
-        alerts.push(`⚠️ Average score ${avg.toFixed(1)} is below 50`);
-        status = 'error';
-      } else if (avg < 55) {
-        alerts.push(`Average score ${avg.toFixed(1)} is slightly low`);
-        if (status === 'healthy') status = 'warning';
-      }
-
-      // Check for elite drought
-      const elitePercent = distribution[4].percent;
-      if (elitePercent < 0.5) {
-        alerts.push(`Elite drought: Only ${elitePercent}% scoring 80+`);
-        if (status === 'healthy') status = 'warning';
-      }
-
-      setHealth({ status, avgScore: avg, totalStartups: total, distribution, alerts });
+      const res = await fetch(`${API_BASE}/api/admin/score-health`);
+      if (!res.ok) throw new Error(`score-health ${res.status}`);
+      const data = await res.json();
+      setHealth(data);
     } catch (error) {
       console.error('Error loading score health:', error);
       setHealth({ status: 'error', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['Failed to load scores'] });
