@@ -652,5 +652,30 @@ module.exports = {
     //   cron_restart: '*/2 * * * *',
     //   env: { NODE_ENV: 'production' }
     // }
+
+    // ========================================
+    // SOCIAL MEDIA POSTER - Daily AI-written posts
+    // Posts to Twitter/X, LinkedIn, Threads at 9am daily
+    // Skip platforms with missing credentials — they're optional
+    // See SOCIAL_MEDIA_SETUP.md for credential setup
+    // ========================================
+    {
+      name: 'social-poster',
+      script: 'node',
+      args: 'server/social-poster.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle, then exit
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 3,
+      cron_restart: '0 9 * * *',  // Every day at 9:00 AM
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Rotates: weekly_stats / hot_match / startup_spotlight / sector_insight / vc_signal
+      // --preview flag: generate copy but do not post
+      // --type=hot_match flag: force a specific content type
+    },
   ]
 };

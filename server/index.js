@@ -7533,6 +7533,69 @@ if (fs.existsSync(distPath)) {
 }
 
 // ------------------------------------------------------------
+// SOCIAL MEDIA ADMIN ENDPOINTS
+// ------------------------------------------------------------
+
+// GET /api/admin/social-posts — recent post history
+app.get('/api/admin/social-posts', async (req, res) => {
+  try {
+    const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
+    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    const supabase = getSupabaseServiceClient();
+    const { data, error } = await supabase
+      .from('social_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({ posts: data });
+  } catch (err) {
+    console.error('[api] /admin/social-posts error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/social-posts/preview — generate copy without posting
+app.get('/api/admin/social-posts/preview', async (req, res) => {
+  try {
+    const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
+    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    const { execFile } = require('child_process');
+    const args = ['server/social-poster.js', '--preview'];
+    if (req.query.type) args.push(`--type=${req.query.type}`);
+    execFile('node', args, { timeout: 60000, env: process.env }, (err, stdout, stderr) => {
+      if (err && !stdout) return res.status(500).json({ error: err.message, stderr });
+      res.json({ output: stdout, stderr });
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/social-posts/trigger — manually trigger a post
+app.post('/api/admin/social-posts/trigger', async (req, res) => {
+  try {
+    const adminKey = req.headers['x-admin-key'] || req.body?.adminKey;
+    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    const { execFile } = require('child_process');
+    const args = ['server/social-poster.js'];
+    if (req.body?.type) args.push(`--type=${req.body.type}`);
+    execFile('node', args, { timeout: 120000, env: process.env }, (err, stdout, stderr) => {
+      if (err && !stdout) return res.status(500).json({ error: err.message, stderr });
+      res.json({ success: true, output: stdout, stderr });
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ------------------------------------------------------------
 // 404 HANDLER (for all unmatched routes - AFTER static/SPA)
 // ------------------------------------------------------------
 app.use((req, res, next) => {
