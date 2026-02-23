@@ -6202,6 +6202,220 @@ app.get('/api/admin/ml-data', async (req, res) => {
   }
 });
 
+// ============================================================
+// GET /api/admin/ai-intelligence
+// Powers AIIntelligenceDashboard
+// ============================================================
+app.get('/api/admin/ai-intelligence', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      { data: discoveries },
+      { count: discCount },
+      { count: todayNum },
+      { data: sources },
+      { count: apprCount },
+      { data: scoreData },
+      { count: mCount },
+      { count: iCount },
+      { data: logs },
+      { data: recent },
+      { data: sectorRaw }
+    ] = await Promise.all([
+      supabase.from('discovered_startups').select('id,name,source,created_at,funding_amount,funding_stage,sectors,article_title,rss_source').order('created_at', { ascending: false }).limit(20),
+      supabase.from('discovered_startups').select('*', { count: 'exact', head: true }),
+      supabase.from('discovered_startups').select('*', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString()),
+      supabase.from('rss_sources').select('id,name,url,category,active,last_scraped,total_discoveries,avg_yield_per_scrape,consecutive_failures,priority').order('total_discoveries', { ascending: false }),
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('startup_uploads').select('total_god_score,momentum_score').eq('status', 'approved').not('total_god_score', 'is', null).order('total_god_score', { ascending: true }),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+      supabase.from('investors').select('*', { count: 'exact', head: true }),
+      supabase.from('ai_logs').select('operation,status,created_at,error_message').order('created_at', { ascending: false }).limit(10),
+      supabase.from('startup_uploads').select('name,total_god_score,momentum_score,updated_at').eq('status', 'approved').order('updated_at', { ascending: false }).limit(10),
+      supabase.from('discovered_startups').select('sectors,created_at').not('sectors', 'is', null)
+    ]);
+
+    // Score distribution
+    let scoreStats = { avg: 0, median: 0, max: 0, total: 0, withMomentum: 0 };
+    let scoreDist = [];
+    if (scoreData && scoreData.length > 0) {
+      const scores = scoreData.map(s => s.total_god_score);
+      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+      scoreStats = {
+        avg: Math.round(avg * 10) / 10,
+        median: scores[Math.floor(scores.length / 2)],
+        max: scores[scores.length - 1],
+        total: scores.length,
+        withMomentum: scoreData.filter(s => s.momentum_score && s.momentum_score > 0).length
+      };
+      const tiers = { '90-100': 0, '80-89': 0, '70-79': 0, '60-69': 0, '50-59': 0, '40-49': 0, '<40': 0 };
+      scores.forEach(s => {
+        if (s >= 90) tiers['90-100']++;
+        else if (s >= 80) tiers['80-89']++;
+        else if (s >= 70) tiers['70-79']++;
+        else if (s >= 60) tiers['60-69']++;
+        else if (s >= 50) tiers['50-59']++;
+        else if (s >= 40) tiers['40-49']++;
+        else tiers['<40']++;
+      });
+      scoreDist = Object.entries(tiers).map(([tier, count]) => ({ tier, count, pct: Math.round((count / scores.length) * 1000) / 10 }));
+    }
+
+    // Sector trends
+    const sMap = {};
+    const weekAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    (sectorRaw || []).forEach(r => {
+      const s = r.sectors;
+      if (!s) return;
+      if (!sMap[s]) sMap[s] = { count: 0, recent: 0 };
+      sMap[s].count++;
+      if (new Date(r.created_at).getTime() > weekAgoMs) sMap[s].recent++;
+    });
+    const sectorTrends = Object.entries(sMap)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 12)
+      .map(([sector, data]) => ({ sector, count: data.count, avgScore: 0, recentCount: data.recent }));
+
+    res.json({
+      recentDiscoveries: discoveries || [],
+      totalDiscovered: discCount || 0,
+      discoveredToday: todayNum || 0,
+      rssSources: sources || [],
+      approvedCount: apprCount || 0,
+      scoreStats,
+      scoreDist,
+      matchCount: mCount || 0,
+      investorCount: iCount || 0,
+      recentLogs: logs || [],
+      recentlyScored: recent || [],
+      sectorTrends
+    });
+  } catch (err) {
+    console.error('[/api/admin/ai-intelligence] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ADMIN STARTUPS CRUD API
+// All startup management routes — immune to browser auth state
+// ============================================================
+
+// GET /api/admin/startups - paginated list with optional filters
+app.get('/api/admin/startups', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { status, q, page = 0, pageSize = 50 } = req.query;
+    const from = parseInt(page) * parseInt(pageSize);
+    const to = from + parseInt(pageSize) - 1;
+
+    let query = supabase
+      .from('startup_uploads')
+      .select('id,name,tagline,description,status,total_god_score,team_score,traction_score,market_score,product_score,vision_score,source_type,website,sectors,created_at', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (status && status !== 'all') query = query.eq('status', status);
+    if (q && q.trim()) query = query.ilike('name', `%${q.trim()}%`);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    res.json({ rows: data || [], count: count || 0 });
+  } catch (err) {
+    console.error('[GET /api/admin/startups] Error:', err);
+    res.status(500).json({ error: err.message, rows: [], count: 0 });
+  }
+});
+
+// GET /api/admin/startups/:id - full detail
+app.get('/api/admin/startups/:id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('startup_uploads').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('[GET /api/admin/startups/:id] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/startups/:id - update fields (name, tagline, scores, etc.)
+app.patch('/api/admin/startups/:id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .update(req.body)
+      .eq('id', req.params.id)
+      .select('id,name,total_god_score')
+      .single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error('[PATCH /api/admin/startups/:id] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/startups/:id
+app.delete('/api/admin/startups/:id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('startup_uploads').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[DELETE /api/admin/startups/:id] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/startups/status - bulk status update
+app.post('/api/admin/startups/status', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { startup_ids, status } = req.body;
+    if (!startup_ids?.length || !status) return res.status(400).json({ error: 'startup_ids and status required' });
+    const { error } = await supabase.from('startup_uploads').update({ status }).in('id', startup_ids);
+    if (error) throw error;
+    res.json({ updated: startup_ids.length });
+  } catch (err) {
+    console.error('[POST /api/admin/startups/status] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/discovered - list discovered startups
+app.get('/api/admin/discovered', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { filter = 'all', page = 0, pageSize = 50 } = req.query;
+    const from = parseInt(page) * parseInt(pageSize);
+    const to = from + parseInt(pageSize) - 1;
+
+    let q = supabase
+      .from('discovered_startups')
+      .select('id,name,website,description,funding_amount,funding_stage,article_url,rss_source,imported_to_startups,discovered_at', { count: 'exact' })
+      .order('discovered_at', { ascending: false })
+      .range(from, to);
+
+    if (filter === 'unimported') q = q.eq('imported_to_startups', false);
+    if (filter === 'imported') q = q.eq('imported_to_startups', true);
+
+    const { data, error, count } = await q;
+    if (error) throw error;
+    res.json({ rows: data || [], count: count || 0 });
+  } catch (err) {
+    console.error('[GET /api/admin/discovered] Error:', err);
+    res.status(500).json({ error: err.message, rows: [], count: 0 });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN: ANALYTICS METRICS (Prompt 18)
 // ═══════════════════════════════════════════════════════════════════════════

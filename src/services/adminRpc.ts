@@ -1,5 +1,4 @@
 // src/services/adminRpc.ts
-import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiConfig';
 
 export type ImportDiscoveredResult = {
@@ -27,25 +26,14 @@ export const adminRpc = {
     page: number;
     pageSize: number;
   }) {
-    const from = opts.page * opts.pageSize;
-    const to = from + opts.pageSize - 1;
-
-    let q = supabase
-      .from('discovered_startups')
-      .select(
-        'id,name,website,description,funding_amount,funding_stage,article_url,rss_source,imported_to_startups,discovered_at',
-        { count: 'exact' }
-      )
-      .order('discovered_at', { ascending: false })
-      .range(from, to);
-
-    if (opts.filter === 'unimported') q = q.eq('imported_to_startups', false);
-    if (opts.filter === 'imported') q = q.eq('imported_to_startups', true);
-
-    const { data, error, count } = await q;
-    if (error) throw error;
-
-    return { rows: (data ?? []) as any[], count: count ?? 0 };
+    const params = new URLSearchParams({
+      filter: opts.filter,
+      page: String(opts.page),
+      pageSize: String(opts.pageSize),
+    });
+    const res = await fetch(`${API_BASE}/api/admin/discovered?${params}`);
+    if (!res.ok) throw new Error(`admin/discovered failed: ${res.status}`);
+    return res.json() as Promise<{ rows: any[]; count: number }>;
   },
 
   async importDiscoveredStartups(discoveredIds: string[]) {
@@ -69,41 +57,32 @@ export const adminRpc = {
     page: number;
     pageSize: number;
   }) {
-    const from = opts.page * opts.pageSize;
-    const to = from + opts.pageSize - 1;
-
-    let query = supabase
-      .from('startup_uploads')
-      .select('id,name,tagline,description,status,total_god_score,team_score,traction_score,market_score,product_score,vision_score,source_type,website,sectors,created_at', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
-
-    if (opts.status && opts.status !== 'all') query = query.eq('status', opts.status);
-    if (opts.q.trim()) query = query.ilike('name', `%${opts.q.trim()}%`);
-
-    const { data, error, count } = await query;
-    if (error) throw error;
-    return { rows: (data ?? []) as any[], count: count ?? 0 };
+    const params = new URLSearchParams({
+      page: String(opts.page),
+      pageSize: String(opts.pageSize),
+      q: opts.q || '',
+    });
+    if (opts.status && opts.status !== 'all') params.set('status', opts.status);
+    const res = await fetch(`${API_BASE}/api/admin/startups?${params}`);
+    if (!res.ok) throw new Error(`admin/startups failed: ${res.status}`);
+    return res.json() as Promise<{ rows: any[]; count: number }>;
   },
 
   async setStartupStatus(startupIds: string[], status: 'approved' | 'rejected' | 'pending') {
-    const { data, error } = await supabase.rpc('admin_set_startup_status', {
-      p_startup_ids: startupIds,
-      p_status: status,
+    const res = await fetch(`${API_BASE}/api/admin/startups/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startup_ids: startupIds, status }),
     });
-    if (error) throw error;
-    return data as { updated: number };
+    if (!res.ok) throw new Error(`admin/startups/status failed: ${res.status}`);
+    return res.json() as Promise<{ updated: number }>;
   },
 
   /** Fetch full startup details for review */
   async getStartupDetail(startupId: string) {
-    const { data, error } = await supabase
-      .from('startup_uploads')
-      .select('*')
-      .eq('id', startupId)
-      .single();
-    if (error) throw error;
-    return data;
+    const res = await fetch(`${API_BASE}/api/admin/startups/${startupId}`);
+    if (!res.ok) throw new Error(`admin/startups/${startupId} failed: ${res.status}`);
+    return res.json();
   },
 
   /** Update individual GOD score override */
@@ -118,34 +97,29 @@ export const adminRpc = {
     grit_score?: number;
     problem_validation_score?: number;
   }) {
-    const { data, error } = await supabase
-      .from('startup_uploads')
-      .update(scores)
-      .eq('id', startupId)
-      .select('id, name, total_god_score')
-      .single();
-    if (error) throw error;
-    return data;
+    const res = await fetch(`${API_BASE}/api/admin/startups/${startupId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(scores),
+    });
+    if (!res.ok) throw new Error(`admin/startups PATCH failed: ${res.status}`);
+    return res.json();
   },
 
   /** Update startup fields (name, tagline, sectors, etc.) */
   async updateStartup(startupId: string, fields: Record<string, any>) {
-    const { data, error } = await supabase
-      .from('startup_uploads')
-      .update(fields)
-      .eq('id', startupId)
-      .select('id, name')
-      .single();
-    if (error) throw error;
-    return data;
+    const res = await fetch(`${API_BASE}/api/admin/startups/${startupId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) throw new Error(`admin/startups PATCH failed: ${res.status}`);
+    return res.json();
   },
 
   /** Delete a startup */
   async deleteStartup(startupId: string) {
-    const { error } = await supabase
-      .from('startup_uploads')
-      .delete()
-      .eq('id', startupId);
-    if (error) throw error;
+    const res = await fetch(`${API_BASE}/api/admin/startups/${startupId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`admin/startups DELETE failed: ${res.status}`);
   },
 };

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { RefreshCw, Edit2, Trash2, Search, ChevronLeft, ChevronRight, Save, X } from 'lucide-react';
 import { adminRpc } from '../services/adminRpc';
-import { supabase } from '../lib/supabase';
 
 interface StartupUpload {
   id: string;
@@ -72,7 +71,7 @@ export default function EditStartups() {
     if (!editingId || !editData) return;
     setSaving(true);
     try {
-      await supabase.from('startup_uploads').update(editData).eq('id', editingId);
+      await adminRpc.updateStartup(editingId, editData);
       await loadStartups();
       setEditingId(null);
       setEditData(null);
@@ -90,7 +89,7 @@ export default function EditStartups() {
     e.stopPropagation();
     if (!confirm(`Delete "${name}"?`)) return;
     try {
-      await supabase.from('startup_uploads').delete().eq('id', id);
+      await adminRpc.deleteStartup(id);
       await loadStartups();
     } catch (error) {
       alert('Delete failed');

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 import {
   Brain,
   TrendingUp,
@@ -100,125 +100,21 @@ export default function AIIntelligenceDashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Recent RSS discoveries
-      const { data: discoveries } = await supabase
-        .from('discovered_startups')
-        .select('id, name, source, created_at, funding_amount, funding_stage, sectors, article_title, rss_source')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      setRecentDiscoveries(discoveries || []);
-
-      // 2. Total discovered count
-      const { count: discCount } = await supabase
-        .from('discovered_startups')
-        .select('*', { count: 'exact', head: true });
-      setTotalDiscovered(discCount || 0);
-
-      // 3. Discovered today
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const { count: todayNum } = await supabase
-        .from('discovered_startups')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', todayStart.toISOString());
-      setDiscoveredToday(todayNum || 0);
-
-      // 4. RSS Sources
-      const { data: sources } = await supabase
-        .from('rss_sources')
-        .select('id, name, url, category, active, last_scraped, total_discoveries, avg_yield_per_scrape, consecutive_failures, priority')
-        .order('total_discoveries', { ascending: false });
-      setRssSources(sources || []);
-
-      // 5. Approved startup count
-      const { count: apprCount } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'approved');
-      setApprovedCount(apprCount || 0);
-
-      // 6. GOD score distribution
-      const { data: scoreData } = await supabase
-        .from('startup_uploads')
-        .select('total_god_score, momentum_score')
-        .eq('status', 'approved')
-        .not('total_god_score', 'is', null)
-        .order('total_god_score', { ascending: true });
-
-      if (scoreData && scoreData.length > 0) {
-        const scores = scoreData.map((s: any) => s.total_god_score as number);
-        const avg = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
-        const median = scores[Math.floor(scores.length / 2)];
-        const max = scores[scores.length - 1];
-        const withMom = scoreData.filter((s: any) => s.momentum_score && s.momentum_score > 0).length;
-        setScoreStats({ avg: Math.round(avg * 10) / 10, median, max, total: scores.length, withMomentum: withMom });
-
-        const tiers: Record<string, number> = { '90-100': 0, '80-89': 0, '70-79': 0, '60-69': 0, '50-59': 0, '40-49': 0, '<40': 0 };
-        scores.forEach((s: number) => {
-          if (s >= 90) tiers['90-100']++;
-          else if (s >= 80) tiers['80-89']++;
-          else if (s >= 70) tiers['70-79']++;
-          else if (s >= 60) tiers['60-69']++;
-          else if (s >= 50) tiers['50-59']++;
-          else if (s >= 40) tiers['40-49']++;
-          else tiers['<40']++;
-        });
-        setScoreDist(Object.entries(tiers).map(([tier, count]) => ({
-          tier, count, pct: Math.round((count / scores.length) * 1000) / 10,
-        })));
-      }
-
-      // 7. Match count
-      const { count: mCount } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true });
-      setMatchCount(mCount || 0);
-
-      // 8. Investor count
-      const { count: iCount } = await supabase
-        .from('investors')
-        .select('*', { count: 'exact', head: true });
-      setInvestorCount(iCount || 0);
-
-      // 9. AI logs
-      const { data: logs } = await supabase
-        .from('ai_logs')
-        .select('operation, status, created_at, error_message')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setRecentLogs(logs || []);
-
-      // 10. Recently scored
-      const { data: recent } = await supabase
-        .from('startup_uploads')
-        .select('name, total_god_score, momentum_score, updated_at')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      setRecentlyScored(recent || []);
-
-      // 11. Sector trends
-      const { data: sectorRaw } = await supabase
-        .from('discovered_startups')
-        .select('sectors, created_at')
-        .not('sectors', 'is', null);
-      if (sectorRaw) {
-        const sMap: Record<string, { count: number; recent: number }> = {};
-        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        sectorRaw.forEach((r: any) => {
-          const s = r.sectors as string;
-          if (!s) return;
-          if (!sMap[s]) sMap[s] = { count: 0, recent: 0 };
-          sMap[s].count++;
-          if (new Date(r.created_at).getTime() > weekAgo) sMap[s].recent++;
-        });
-        setSectorTrends(
-          Object.entries(sMap)
-            .sort((a, b) => b[1].count - a[1].count)
-            .slice(0, 12)
-            .map(([sector, data]) => ({ sector, count: data.count, avgScore: 0, recentCount: data.recent }))
-        );
-      }
+      const res = await fetch(`${API_BASE}/api/admin/ai-intelligence`);
+      if (!res.ok) throw new Error(`ai-intelligence failed: ${res.status}`);
+      const d = await res.json();
+      setRecentDiscoveries(d.recentDiscoveries || []);
+      setTotalDiscovered(d.totalDiscovered || 0);
+      setDiscoveredToday(d.discoveredToday || 0);
+      setRssSources(d.rssSources || []);
+      setApprovedCount(d.approvedCount || 0);
+      setScoreStats(d.scoreStats || { avg: 0, median: 0, max: 0, total: 0, withMomentum: 0 });
+      setScoreDist(d.scoreDist || []);
+      setMatchCount(d.matchCount || 0);
+      setInvestorCount(d.investorCount || 0);
+      setRecentLogs(d.recentLogs || []);
+      setRecentlyScored(d.recentlyScored || []);
+      setSectorTrends(d.sectorTrends || []);
     } catch (err) {
       console.error('Error loading AI intelligence:', err);
     } finally {
