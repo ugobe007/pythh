@@ -22,16 +22,12 @@ const FORCE_TYPE   = process.argv.find(a => a.startsWith('--type='))?.split('=')
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Rotate content types by day of week so we never repeat two days in a row
-const DAILY_ROTATION = [
-  'weekly_stats',      // Sunday
-  'hot_match',         // Monday
-  'startup_spotlight', // Tuesday
-  'hot_match',         // Wednesday
-  'sector_insight',    // Thursday
-  'startup_spotlight', // Friday
-  'vc_signal',         // Saturday
-];
+// Rotate content types — only fires Mon (1), Wed (3), Fri (5)
+const DAILY_ROTATION = {
+  1: 'hot_match',         // Monday   — start the week with a signal
+  3: 'startup_spotlight', // Wednesday — midweek, who's moving
+  5: 'sector_insight',    // Friday   — end of week pattern
+};
 
 // ─── Data Fetchers ────────────────────────────────────────────────────────────
 async function fetchHotMatch(supabase) {
@@ -111,13 +107,16 @@ async function fetchVCSignal(supabase) {
 
 // ─── AI Copy Generator ────────────────────────────────────────────────────────
 async function generateCopy(post_type, rawData) {
-  const baseContext = `You write social media posts for pythh.ai — an AI-powered startup-investor matchmaking platform. 
-Posts should feel authentic, data-driven, and exciting to the startup ecosystem community (founders, VCs, angels).
-Never use generic filler phrases. Be specific. Be punchy. Use the real data provided.`;
+  const baseContext = `You write social media posts for pythh.ai — an AI system that scores startups and matches them to investors.
+Your tone: quiet confidence. You're sitting on signal most people don't have access to.
+Never explain what pythh.ai does. Never use generic startup-speak. Never write ads.
+Write like you're sharing something interesting you noticed — not selling something.
+Be specific. Be brief. Leave them wanting more.`;
 
   const platforms = {
-    twitter: `Write a tweet of MAX 260 characters (leave room for a URL). 
-Use 2-3 relevant hashtags like #startups #VC #founders. End with a CTA to visit pythh.ai.`,
+    twitter: `Write a single tweet, MAX 240 characters. No hashtags. No exclamation points.
+No direct CTA — just an observation or a question that makes a founder or VC stop scrolling.
+End with a quiet signal, not a pitch. pythh.ai can appear naturally but doesn't need to.`,
     linkedin: `Write a LinkedIn post of 150-250 words with a professional but engaging tone. 
 Include 3-5 hashtags. Reference pythh.ai as the source. Paragraph breaks for readability.`,
     threads: `Write a Threads post (conversational, max 500 chars). No formal hashtags needed — just casual and interesting.`,
@@ -185,10 +184,10 @@ async function main() {
 
   console.log(`[social-poster] Enabled platforms: ${enabledPlatforms.join(', ') || 'none'}`);
 
-  // Determine today's content type
+  // Determine today's content type (runs Mon/Wed/Fri — fallback for manual runs)
   const dayOfWeek = new Date().getDay(); // 0 = Sunday
-  const post_type = FORCE_TYPE || DAILY_ROTATION[dayOfWeek];
-  console.log(`[social-poster] Post type: ${post_type}`);
+  const post_type = FORCE_TYPE || DAILY_ROTATION[dayOfWeek] || 'startup_spotlight';
+  console.log(`[social-poster] Post type: ${post_type} (day ${dayOfWeek})`);
 
   // Fetch relevant data
   let rawData = null;

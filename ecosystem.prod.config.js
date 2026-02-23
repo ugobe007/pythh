@@ -103,7 +103,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '300M',
       max_restarts: 3,
-      cron_restart: '0 9 * * *',
+      cron_restart: '0 9 * * 1,3,5',
       env: { NODE_ENV: 'production' }
     },
 
