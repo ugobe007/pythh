@@ -32,8 +32,8 @@ interface HotMatchesFeedProps {
 
 const POOL_SIZE     = 20;
 const VISIBLE       = 5;
-const TICK_MS       = 15000;
-const REFETCH_TICKS = 12;
+const TICK_MS       = 5000;
+const REFETCH_TICKS = 36;  // 36 × 5s = ~3 min data refresh
 const ROW_H         = 46;  // px — height of one row slot (includes gap)
 const ANIM_MS       = 380; // transition duration ms
 
@@ -221,6 +221,10 @@ export default function HotMatchesFeed({
       if (currentPool.length === 0) return currentPool;
       const incoming = currentPool[poolIdxRef.current % currentPool.length];
       poolIdxRef.current++;
+      // Re-shuffle pool when we complete a full cycle so order never repeats
+      if (poolIdxRef.current % currentPool.length === 0) {
+        return [...currentPool].sort(() => Math.random() - 0.5);
+      }
       setNewestId(incoming.match_id);
 
       // Step 1: place incoming above the viewport (pos = -1)
@@ -412,7 +416,7 @@ export default function HotMatchesFeed({
         {/* Live pulse indicator */}
         <div className="flex items-center gap-1.5 pt-0.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] text-white/20 uppercase tracking-wider">Live · refreshes every 15s</span>
+          <span className="text-[10px] text-white/20 uppercase tracking-wider">Live · refreshes every 5s</span>
         </div>
       </div>
 
