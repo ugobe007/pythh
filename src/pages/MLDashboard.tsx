@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { RefreshCw, Check, Play, Clock } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiConfig';
 
 interface MLMetric {
@@ -42,68 +41,23 @@ export default function MLDashboard() {
   const loadMLData = async () => {
     setLoading(true);
     try {
-      // Load real ML recommendations from database
-      const { data: recs, error: recsError } = await supabase
-        .from('ml_recommendations')
-        .select('id, recommendation_type, recommended_weights, current_weights, confidence, reasoning, expected_improvement, status, created_at')
-        .in('status', ['pending', 'approved'])
-        .order('created_at', { ascending: false })
-        .limit(20);
+      const res = await fetch(`${API_BASE}/api/admin/ml-data`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
 
-      if (recsError) throw recsError;
+      setRecommendations(json.recommendations || []);
 
-      const mappedRecs: MLRecommendation[] = (recs || []).map((rec: any) => ({
-        id: rec.id,
-        priority: rec.confidence >= 0.9 ? 'high' : rec.confidence >= 0.7 ? 'medium' : 'low',
-        title: rec.recommendation_type === 'component_weight_adjustment'
-          ? 'Component Weight Adjustment'
-          : rec.recommendation_type?.replace(/_/g, ' ')?.replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Algorithm Optimization',
-        description: Array.isArray(rec.reasoning) ? rec.reasoning.slice(0, 2).join(' ') : '',
-        expected_impact: rec.expected_improvement != null
-          ? `+${Number(rec.expected_improvement).toFixed(1)}% expected improvement`
-          : 'Estimated improvement',
-        confidence: rec.confidence,
-        status: rec.status,
-        recommended_weights: rec.recommended_weights,
-        current_weights: rec.current_weights,
-        created_at: rec.created_at,
-      }));
-      setRecommendations(mappedRecs);
-
-      // Load match metrics
-      const { count: totalMatches } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true });
-      const { count: highQuality } = await supabase
-        .from('startup_investor_matches')
-        .select('*', { count: 'exact', head: true })
-        .gte('match_score', 80);
-      const { count: pendingRecs } = await supabase
-        .from('ml_recommendations')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      const { count: appliedRecs } = await supabase
-        .from('ml_recommendations')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'applied');
-
-      const total = totalMatches || 0;
-      const hq = highQuality || 0;
-      // Build a simple 2-bucket distribution from what we have
-      const scoreDistribution: Record<string, number> = total > 0 ? {
-        '80-100 (High Quality)': hq,
-        '0-79 (Standard)': total - hq,
-      } : {};
-
-      setMetrics({
-        total_matches: total,
-        high_quality_matches: hq,
-        avg_match_score: total > 0 ? 0 : 0,
-        avg_god_score: 0,
-        pending_recs: pendingRecs || 0,
-        applied_recs: appliedRecs || 0,
-        score_distribution: scoreDistribution,
-      });
+      if (json.metrics) {
+        setMetrics({
+          total_matches: json.metrics.total_matches,
+          high_quality_matches: json.metrics.high_quality_matches,
+          avg_match_score: json.metrics.avg_match_score || 0,
+          avg_god_score: json.metrics.avg_god_score || 0,
+          pending_recs: json.metrics.pending_recs || 0,
+          applied_recs: json.metrics.applied_recs || 0,
+          score_distribution: json.metrics.score_distribution || {},
+        });
+      }
     } catch (error) {
       console.error('Error loading ML data:', error);
     } finally {

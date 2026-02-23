@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, AlertCircle, TrendingUp, TrendingDown, CheckCircle, Clock, Settings, ArrowRight, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 interface Startup {
   id: string;
@@ -68,16 +68,11 @@ export default function GODScoresPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      let query = supabase.from('startup_uploads')
-        .select('id, name, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score, status, created_at, updated_at')
-        .not('total_god_score', 'is', null);
-      
-      // Filter by status - default to approved only
-      if (statusFilter === 'approved') {
-        query = query.eq('status', 'approved');
-      }
-      
-      const { data, error } = await query.order('total_god_score', { ascending: false });
+      const res = await fetch(`${API_BASE}/api/admin/god-scores?status=${statusFilter}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const data = json.startups;
+      const error = json.error ? { message: json.error } : null;
 
       if (error) {
         console.error('Error loading GOD scores:', error);
@@ -85,12 +80,9 @@ export default function GODScoresPage() {
         setStats({ avgScore: 0, topScore: 0, totalScored: 0 });
       } else if (data) {
         setStartups(data);
-        const scores = data.map(s => s.total_god_score || 0);
-        setStats({
-          avgScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
-          topScore: scores.length ? Math.max(...scores) : 0,
-          totalScored: data.length
-        });
+        setStats(json.stats);
+        setScoreChanges(json.scoreChanges || []);
+        setAlgorithmBias(json.algorithmBias || []);
       } else {
         setStartups([]);
         setStats({ avgScore: 0, topScore: 0, totalScored: 0 });
@@ -104,102 +96,8 @@ export default function GODScoresPage() {
     }
   };
 
-  const loadScoreChanges = async () => {
-    try {
-      // Get startups with recent score updates (last 7 days)
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: recentStartups } = await supabase
-        .from('startup_uploads')
-        .select('id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, updated_at')
-        .not('total_god_score', 'is', null)
-        .gte('updated_at', sevenDaysAgo)
-        .order('updated_at', { ascending: false })
-        .limit(50);
-      
-      // For now, simulate changes (in real implementation, track score history in a separate table)
-      const changes: ScoreChange[] = (recentStartups || []).slice(0, 20).map((s, idx) => {
-        // Simulate score changes based on component changes
-        const components = [
-          { name: 'Team', score: s.team_score },
-          { name: 'Traction', score: s.traction_score },
-          { name: 'Market', score: s.market_score },
-          { name: 'Product', score: s.product_score },
-          { name: 'Vision', score: s.vision_score }
-        ];
-        
-        const changedComponent = components.find(c => c.score && c.score > 0);
-        const change = idx % 5 === 0 ? 5 : idx % 5 === 1 ? -3 : idx % 5 === 2 ? 2 : idx % 5 === 3 ? -1 : 0;
-        
-        return {
-          startupId: s.id,
-          startupName: s.name,
-          oldScore: (s.total_god_score || 0) - change,
-          newScore: s.total_god_score || 0,
-          change,
-          timestamp: s.updated_at || new Date().toISOString(),
-          component: changedComponent?.name
-        };
-      });
-      
-      setScoreChanges(changes);
-    } catch (error) {
-      console.error('Error loading score changes:', error);
-    }
-  };
-
-  const loadAlgorithmBias = async () => {
-    try {
-      // Analyze GOD score component distribution to detect bias
-      const { data: startups } = await supabase
-        .from('startup_uploads')
-        .select('team_score, traction_score, market_score, product_score, vision_score')
-        .not('total_god_score', 'is', null)
-        .limit(1000);
-      
-      if (!startups || startups.length === 0) {
-        setAlgorithmBias([]);
-        return;
-      }
-      
-      // Calculate averages for each component
-      const components = [
-        { key: 'team_score', name: 'Team' },
-        { key: 'traction_score', name: 'Traction' },
-        { key: 'market_score', name: 'Market' },
-        { key: 'product_score', name: 'Product' },
-        { key: 'vision_score', name: 'Vision' }
-      ] as const;
-      
-      const biasAnalysis = components.map(comp => {
-        const scores = startups
-          .map(s => s[comp.key as keyof typeof startups[0]] as number | null)
-          .filter((s): s is number => s !== null && s !== undefined);
-        
-        if (scores.length === 0) {
-          return { component: comp.name, bias: 'normal' as const, avgScore: 0, count: 0 };
-        }
-        
-        const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-        
-        // Detect bias: if average is >75 (high) or <45 (low)
-        let bias: 'high' | 'low' | 'normal' = 'normal';
-        if (avgScore > 75) bias = 'high';
-        else if (avgScore < 45) bias = 'low';
-        
-        return {
-          component: comp.name,
-          bias,
-          avgScore: Math.round(avgScore * 10) / 10,
-          count: scores.length
-        };
-      });
-      
-      setAlgorithmBias(biasAnalysis);
-    } catch (error) {
-      console.error('Error loading algorithm bias:', error);
-      setAlgorithmBias([]);
-    }
-  };
+  const loadScoreChanges = async () => { /* data loaded in loadData */ };
+  const loadAlgorithmBias = async () => { /* data loaded in loadData */ };
 
   const refresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 

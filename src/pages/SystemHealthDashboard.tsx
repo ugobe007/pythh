@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Activity, Database, Brain, Zap, Users, Building2, ExternalLink, ArrowRight } from 'lucide-react';
 import GODScoreTrendChart from '../components/charts/GODScoreTrendChart';
 import InferenceDataCoverageChart from '../components/charts/InferenceDataCoverageChart';
@@ -55,352 +55,59 @@ export default function SystemHealthDashboard() {
     console.log('[SystemHealthDashboard] Starting loadSystemHealth');
     setRefreshing(true);
     setError(null);
-    
+
     try {
-      // Get startup stats
-      const { count: totalStartups } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: approvedStartups } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'approved');
-      
-      const { count: pendingStartups } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-      
-      const { data: avgScoreData } = await supabase
-        .from('startup_uploads')
-        .select('total_god_score')
-        .eq('status', 'approved')
-        .not('total_god_score', 'is', null);
-      
-      const avgGodScore = avgScoreData && avgScoreData.length > 0
-        ? avgScoreData.reduce((acc, s) => acc + (s.total_god_score || 0), 0) / avgScoreData.length
-        : 0;
-      
-      // Get investor stats
-      const { count: totalInvestors } = await supabase
-        .from('investors')
-        .select('*', { count: 'exact', head: true });
-      
-      const { count: investorsWithEmbedding } = await supabase
-        .from('investors')
-        .select('*', { count: 'exact', head: true })
-        .not('embedding', 'is', null);
-      
-      // Get match stats (with error handling for large table)
-      let totalMatches = 0;
-      let highQualityMatches = 0;
-      let avgMatchScore = 0;
-      
-      try {
-        const { count: matchCount, error: matchError } = await supabase
-          .from('startup_investor_matches')
-          .select('*', { count: 'exact', head: true });
-        
-        if (!matchError) {
-          totalMatches = matchCount || 0;
-          
-          const { count: hqCount } = await supabase
-            .from('startup_investor_matches')
-            .select('*', { count: 'exact', head: true })
-            .gte('match_score', 70);
-          
-          highQualityMatches = hqCount || 0;
-          
-          const { data: matchAvgData } = await supabase
-            .from('startup_investor_matches')
-            .select('match_score')
-            .limit(500); // Reduced from 1000
-          
-          avgMatchScore = matchAvgData && matchAvgData.length > 0
-            ? matchAvgData.reduce((acc, m) => acc + (m.match_score || 0), 0) / matchAvgData.length
-            : 0;
-        } else {
-          console.warn('Match query error:', matchError);
-          // Use fallback values
-          totalMatches = 0;
-          highQualityMatches = 0;
-          avgMatchScore = 0;
-        }
-      } catch (matchQueryError) {
-        console.error('Match stats failed, using fallback values:', matchQueryError);
-        totalMatches = 0;
-        highQualityMatches = 0;
-        avgMatchScore = 0;
-      }
-      
-      // Get recent discoveries
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      
-      const { count: discovered24h } = await supabase
-        .from('discovered_startups')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
+      const res = await fetch(`${API_BASE}/api/admin/system-stats`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
 
-      // 24h delta queries
-      const { count: startups24h } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
+      const approvedStartups = d.startups?.approved || 0;
+      const pendingStartups = d.startups?.pending || 0;
+      const totalStartups = d.startups?.total || 0;
+      const avgGodScore = d.startups?.avgScore || 0;
+      const totalInvestors = d.investors?.total || 0;
+      const investorsWithEmbedding = d.investors?.withEmbedding || 0;
+      const totalMatches = d.matches?.total || 0;
+      const highQualityMatches = d.matches?.highQuality || 0;
+      const avgMatchScore = d.matches?.avgScore || 0;
+      const discovered24h = d.scrapers?.discovered24h || 0;
+      const distribution = d.godScores?.distribution || { low: 0, medium: 0, high: 0, elite: 0 };
 
-      const { count: investors24h } = await supabase
-        .from('investors')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', oneDayAgo);
-
-      let matches24h = 0;
-      try {
-        const { count: matchCount } = await supabase
-          .from('startup_investor_matches')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', oneDayAgo);
-        matches24h = matchCount || 0;
-      } catch (e) {
-        console.warn('24h match count failed:', e);
-        matches24h = 0;
-      }
-
-      // 7-day GOD score data for delta calculation
-      const { data: god7dData } = await supabase
-        .from('startup_uploads')
-        .select('total_god_score, created_at')
-        .eq('status', 'approved')
-        .not('total_god_score', 'is', null)
-        .lte('created_at', sevenDaysAgo);
-
-      const avgGod7dAgo = god7dData && god7dData.length > 0
-        ? god7dData.reduce((acc, s) => acc + (s.total_god_score || 0), 0) / god7dData.length
-        : avgGodScore;
-
-      // 7-day match data for delta calculation (with error handling)
-      let avgMatch7dAgo = avgMatchScore;
-      try {
-        const { data: match7dData } = await supabase
-          .from('startup_investor_matches')
-          .select('match_score')
-          .lte('created_at', sevenDaysAgo)
-          .limit(500); // Reduced from 1000
-        
-        avgMatch7dAgo = match7dData && match7dData.length > 0
-          ? match7dData.reduce((acc, m) => acc + (m.match_score || 0), 0) / match7dData.length
-          : avgMatchScore;
-      } catch (e) {
-        console.warn('7-day match data failed:', e);
-        avgMatch7dAgo = avgMatchScore;
-      }
-
-      // 7-day historical match counts with error handling
-      let totalMatches7d = totalMatches;
-      let highQualityMatches7d = highQualityMatches;
-      
-      try {
-        const { count: tm7d } = await supabase
-          .from('startup_investor_matches')
-          .select('*', { count: 'exact', head: true })
-          .lte('created_at', sevenDaysAgo);
-        totalMatches7d = tm7d || totalMatches;
-
-        const { count: hq7d } = await supabase
-          .from('startup_investor_matches')
-          .select('*', { count: 'exact', head: true })
-          .gte('match_score', 70)
-          .lte('created_at', sevenDaysAgo);
-        highQualityMatches7d = hq7d || highQualityMatches;
-      } catch (e) {
-        console.warn('7-day historical match counts failed:', e);
-        totalMatches7d = totalMatches;
-        highQualityMatches7d = highQualityMatches;
-      }
-
-      const hqRate7dAgo = (totalMatches7d || 1) > 0 
-        ? ((highQualityMatches7d || 0) / (totalMatches7d || 1)) * 100 
-        : 0;
-      const hqRateNow = (totalMatches || 1) > 0 
-        ? ((highQualityMatches || 0) / (totalMatches || 1)) * 100 
-        : 0;
-      
-      // Get last activity
-      const { data: lastActivity } = await supabase
-        .from('startup_uploads')
-        .select('created_at')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      // Get GOD score distribution
-      const { data: scoreDistribution } = await supabase
-        .from('startup_uploads')
-        .select('total_god_score')
-        .eq('status', 'approved')
-        .not('total_god_score', 'is', null);
-      
-      const distribution = { low: 0, medium: 0, high: 0, elite: 0 };
-      if (scoreDistribution) {
-        scoreDistribution.forEach(s => {
-          const score = s.total_god_score || 0;
-          if (score < 50) distribution.low++;
-          else if (score < 70) distribution.medium++;
-          else if (score < 85) distribution.high++;
-          else distribution.elite++;
-        });
-      }
-      
-      // Get recent guardian logs - note: ai_logs uses 'operation' column, not 'type'
-      // Using type assertion since ai_logs isn't in generated types yet
-      const { data: guardianLogs, error: logsError } = await (supabase as any)
-        .from('ai_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      
-      if (logsError) {
-        console.log('[SystemHealthDashboard] ai_logs query error (non-fatal):', logsError.message);
-      }
-      
-      setRecentLogs(guardianLogs || []);
-      
-      // Set stats
       setStats({
-        startups: {
-          total: totalStartups || 0,
-          approved: approvedStartups || 0,
-          pending: pendingStartups || 0,
-          avgScore: avgGodScore
-        },
-        investors: {
-          total: totalInvestors || 0,
-          withEmbedding: investorsWithEmbedding || 0
-        },
-        matches: {
-          total: totalMatches || 0,
-          highQuality: highQualityMatches || 0,
-          avgScore: avgMatchScore
-        },
-        scrapers: {
-          discovered24h: discovered24h || 0,
-          lastActivity: lastActivity?.created_at || 'Never'
-        },
-        godScores: {
-          avgScore: avgGodScore,
-          distribution
-        }
+        startups: { total: totalStartups, approved: approvedStartups, pending: pendingStartups, avgScore: avgGodScore },
+        investors: { total: totalInvestors, withEmbedding: investorsWithEmbedding },
+        matches: { total: totalMatches, highQuality: highQualityMatches, avgScore: avgMatchScore },
+        scrapers: { discovered24h, lastActivity: d.scrapers?.lastActivity || 'Never' },
+        godScores: { avgScore: avgGodScore, distribution }
       });
 
-      // Compute and set deltas
-      const computedDeltas: Deltas = {
-        startups24h: startups24h || 0,
-        investors24h: investors24h || 0,
-        matches24h: matches24h || 0,
-        avgGod7dDelta: avgGodScore - avgGod7dAgo,
-        avgMatch7dDelta: avgMatchScore - avgMatch7dAgo,
-        hqRate7dDeltaPct: hqRateNow - hqRate7dAgo
-      };
-      setDeltas(computedDeltas);
+      setDeltas(d.deltas || null);
 
-      // Build change strip items
       const stripItems: ChangeStripItem[] = [];
-      if (computedDeltas.startups24h > 0) {
-        stripItems.push({ 
-          label: 'Startups', 
-          value: `+${computedDeltas.startups24h}`, 
-          trend: 'up' 
-        });
-      }
-      if (computedDeltas.investors24h > 0) {
-        stripItems.push({ 
-          label: 'Investors', 
-          value: `+${computedDeltas.investors24h}`, 
-          trend: 'up' 
-        });
-      }
-      if (computedDeltas.matches24h > 0) {
-        stripItems.push({ 
-          label: 'Matches', 
-          value: `+${computedDeltas.matches24h}`, 
-          trend: 'up' 
-        });
-      }
-      if (Math.abs(computedDeltas.avgGod7dDelta) > 0.5) {
-        stripItems.push({
-          label: 'GOD Avg',
-          value: `${computedDeltas.avgGod7dDelta > 0 ? '+' : ''}${computedDeltas.avgGod7dDelta.toFixed(1)}`,
-          trend: computedDeltas.avgGod7dDelta > 0 ? 'up' : 'down'
-        });
-      }
-      if (Math.abs(computedDeltas.hqRate7dDeltaPct) > 0.1) {
-        stripItems.push({
-          label: 'HQ Rate',
-          value: `${computedDeltas.hqRate7dDeltaPct > 0 ? '+' : ''}${computedDeltas.hqRate7dDeltaPct.toFixed(1)}%`,
-          trend: computedDeltas.hqRate7dDeltaPct > 0 ? 'up' : 'down'
-        });
-      }
+      if (d.deltas?.startups24h > 0) stripItems.push({ label: 'Startups', value: `+${d.deltas.startups24h}`, trend: 'up' });
+      if (d.deltas?.investors24h > 0) stripItems.push({ label: 'Investors', value: `+${d.deltas.investors24h}`, trend: 'up' });
+      if (d.deltas?.matches24h > 0) stripItems.push({ label: 'Matches', value: `+${d.deltas.matches24h}`, trend: 'up' });
+      if (Math.abs(d.deltas?.avgGod7dDelta || 0) > 0.5) stripItems.push({ label: 'GOD Avg', value: `${d.deltas.avgGod7dDelta > 0 ? '+' : ''}${d.deltas.avgGod7dDelta.toFixed(1)}`, trend: d.deltas.avgGod7dDelta > 0 ? 'up' : 'down' });
       setChangeStrip(stripItems);
-      
-      // Generate health checks
-      const newChecks: HealthCheck[] = [];
-      
-      // Check 1: Startup Pipeline
-      const startupHealth = (approvedStartups || 0) > 100 ? 'OK' : (approvedStartups || 0) > 50 ? 'WARN' : 'ERROR';
-      newChecks.push({
-        name: 'Startup Pipeline',
-        status: startupHealth,
-        value: `${approvedStartups} approved, ${pendingStartups} pending`,
-        issues: startupHealth === 'ERROR' ? ['Low startup count'] : []
-      });
-      
-      // Check 2: Match Quality
-      const matchQuality = (totalMatches || 0) > 5000 ? 'OK' : (totalMatches || 0) > 1000 ? 'WARN' : 'ERROR';
-      newChecks.push({
-        name: 'Match Quality',
-        status: matchQuality,
-        value: `${totalMatches?.toLocaleString()} matches, avg ${avgMatchScore.toFixed(0)}`,
-        issues: matchQuality === 'ERROR' ? ['Match count too low'] : []
-      });
-      
-      // Check 3: GOD Score Health
-      const scoreHealth = avgGodScore >= 35 && avgGodScore <= 75 ? 'OK' : 'WARN';
-      newChecks.push({
-        name: 'GOD Score Health',
-        status: scoreHealth,
-        value: `Avg: ${avgGodScore.toFixed(1)}, Elite: ${distribution.elite}`,
-        issues: scoreHealth === 'WARN' ? ['Score distribution may be skewed'] : []
-      });
-      
-      // Check 4: Data Freshness
-      const hoursSinceActivity = lastActivity?.created_at 
-        ? (Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60)
-        : 999;
-      const freshnessHealth = hoursSinceActivity < 24 ? 'OK' : hoursSinceActivity < 48 ? 'WARN' : 'ERROR';
-      newChecks.push({
-        name: 'Data Freshness',
-        status: freshnessHealth,
-        value: `Last: ${hoursSinceActivity.toFixed(0)}h ago · Discovered (24h): ${discovered24h}`,
-        issues: freshnessHealth !== 'OK' ? ['Data may be stale'] : []
-      });
-      
-      // Check 5: ML Pipeline
-      const mlHealth = (investorsWithEmbedding || 0) / (totalInvestors || 1) > 0.3 ? 'OK' : 'WARN';
-      newChecks.push({
-        name: 'ML Pipeline',
-        status: mlHealth,
-        value: `${((investorsWithEmbedding || 0) / (totalInvestors || 1) * 100).toFixed(0)}% embedded`,
-        issues: mlHealth === 'WARN' ? ['Low embedding coverage'] : []
-      });
-      
+
+      const c = d.checks || {};
+      const hoursSinceActivity = c.hoursSinceActivity ?? 999;
+      const newChecks: HealthCheck[] = [
+        { name: 'Startup Pipeline', status: c.startupHealth as any || 'ERROR', value: `${approvedStartups} approved, ${pendingStartups} pending`, issues: c.startupHealth === 'ERROR' ? ['Low startup count'] : [] },
+        { name: 'Match Quality', status: c.matchQuality as any || 'ERROR', value: `${totalMatches.toLocaleString()} matches, avg ${avgMatchScore.toFixed(0)}`, issues: c.matchQuality === 'ERROR' ? ['Match count too low'] : [] },
+        { name: 'GOD Score Health', status: c.scoreHealth as any || 'WARN', value: `Avg: ${avgGodScore.toFixed(1)}, Elite: ${distribution.elite}`, issues: c.scoreHealth === 'WARN' ? ['Score distribution may be skewed'] : [] },
+        { name: 'Data Freshness', status: c.freshnessHealth as any || 'WARN', value: `Last: ${hoursSinceActivity.toFixed(0)}h ago · Discovered (24h): ${discovered24h}`, issues: c.freshnessHealth !== 'OK' ? ['Data may be stale'] : [] },
+        { name: 'ML Pipeline', status: c.mlHealth as any || 'WARN', value: `${((investorsWithEmbedding / (totalInvestors || 1)) * 100).toFixed(0)}% embedded`, issues: c.mlHealth === 'WARN' ? ['Low embedding coverage'] : [] }
+      ];
       setChecks(newChecks);
+      setRecentLogs(d.recentLogs || []);
       setLastUpdated(new Date());
-      
+
     } catch (err) {
       console.error('Failed to load health data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load health data');
     }
-    
+
     setLoading(false);
     setRefreshing(false);
   };

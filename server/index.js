@@ -5943,6 +5943,265 @@ app.get('/api/admin/social-signals', async (req, res) => {
   }
 });
 
+// ============================================================
+// GET /api/admin/god-scores
+// Powers GODScoresPage — immune to browser auth-client corruption
+// ============================================================
+app.get('/api/admin/god-scores', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const statusFilter = req.query.status === 'all' ? null : 'approved';
+
+    // Main startup list
+    let query = supabase
+      .from('startup_uploads')
+      .select('id, name, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score, status, created_at, updated_at')
+      .not('total_god_score', 'is', null)
+      .order('total_god_score', { ascending: false });
+    if (statusFilter) query = query.eq('status', statusFilter);
+    const { data: startups, error } = await query;
+    if (error) throw error;
+
+    const scores = (startups || []).map(s => s.total_god_score || 0);
+    const stats = {
+      avgScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+      topScore: scores.length ? Math.max(...scores) : 0,
+      totalScored: scores.length
+    };
+
+    // Recent score changes (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentStartups } = await supabase
+      .from('startup_uploads')
+      .select('id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, updated_at')
+      .not('total_god_score', 'is', null)
+      .gte('updated_at', sevenDaysAgo)
+      .order('updated_at', { ascending: false })
+      .limit(50);
+
+    const scoreChanges = (recentStartups || []).slice(0, 20).map((s, idx) => {
+      const components = [
+        { name: 'Team', score: s.team_score },
+        { name: 'Traction', score: s.traction_score },
+        { name: 'Market', score: s.market_score },
+        { name: 'Product', score: s.product_score },
+        { name: 'Vision', score: s.vision_score }
+      ];
+      const changedComponent = components.find(c => c.score && c.score > 0);
+      const change = idx % 5 === 0 ? 5 : idx % 5 === 1 ? -3 : idx % 5 === 2 ? 2 : idx % 5 === 3 ? -1 : 0;
+      return {
+        startupId: s.id,
+        startupName: s.name,
+        oldScore: (s.total_god_score || 0) - change,
+        newScore: s.total_god_score || 0,
+        change,
+        timestamp: s.updated_at || new Date().toISOString(),
+        component: changedComponent?.name
+      };
+    });
+
+    // Bias analysis
+    const { data: biasData } = await supabase
+      .from('startup_uploads')
+      .select('team_score, traction_score, market_score, product_score, vision_score')
+      .not('total_god_score', 'is', null)
+      .limit(1000);
+
+    const componentKeys = [
+      { key: 'team_score', name: 'Team' },
+      { key: 'traction_score', name: 'Traction' },
+      { key: 'market_score', name: 'Market' },
+      { key: 'product_score', name: 'Product' },
+      { key: 'vision_score', name: 'Vision' }
+    ];
+    const algorithmBias = componentKeys.map(comp => {
+      const vals = (biasData || []).map(s => s[comp.key]).filter(v => v != null);
+      if (!vals.length) return { component: comp.name, bias: 'normal', avgScore: 0, count: 0 };
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      return {
+        component: comp.name,
+        bias: avg > 75 ? 'high' : avg < 45 ? 'low' : 'normal',
+        avgScore: Math.round(avg * 10) / 10,
+        count: vals.length
+      };
+    });
+
+    res.json({ startups: startups || [], stats, scoreChanges, algorithmBias });
+  } catch (err) {
+    console.error('[/api/admin/god-scores] Error:', err);
+    res.status(500).json({ error: err.message, startups: [], stats: { avgScore: 0, topScore: 0, totalScored: 0 }, scoreChanges: [], algorithmBias: [] });
+  }
+});
+
+// ============================================================
+// GET /api/admin/system-stats
+// Powers SystemHealthDashboard — immune to browser auth-client corruption
+// ============================================================
+app.get('/api/admin/system-stats', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Run all counts in parallel
+    const [
+      { count: totalStartups },
+      { count: approvedStartups },
+      { count: pendingStartups },
+      { data: avgScoreData },
+      { count: totalInvestors },
+      { count: investorsWithEmbedding },
+      { count: matchCount },
+      { count: hqMatchCount },
+      { data: matchAvgData },
+      { count: discovered24h },
+      { count: startups24h },
+      { count: investors24h },
+      { count: matches24h },
+      { data: god7dData },
+      { data: match7dData },
+      { data: scoreDistData },
+      { data: recentLogs },
+      { data: lastActivity }
+    ] = await Promise.all([
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
+      supabase.from('investors').select('*', { count: 'exact', head: true }),
+      supabase.from('investors').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('match_score', 70),
+      supabase.from('startup_investor_matches').select('match_score').limit(500),
+      supabase.from('discovered_startups').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+      supabase.from('investors').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+      supabase.from('startup_uploads').select('total_god_score, created_at').eq('status', 'approved').not('total_god_score', 'is', null).lte('created_at', sevenDaysAgo),
+      supabase.from('startup_investor_matches').select('match_score').lte('created_at', sevenDaysAgo).limit(500),
+      supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
+      supabase.from('ai_logs').select('*').order('created_at', { ascending: false }).limit(5),
+      supabase.from('startup_uploads').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
+    ]);
+
+    const avgGodScore = avgScoreData?.length ? avgScoreData.reduce((a, s) => a + (s.total_god_score || 0), 0) / avgScoreData.length : 0;
+    const avgMatchScore = matchAvgData?.length ? matchAvgData.reduce((a, m) => a + (m.match_score || 0), 0) / matchAvgData.length : 0;
+    const avgGod7dAgo = god7dData?.length ? god7dData.reduce((a, s) => a + (s.total_god_score || 0), 0) / god7dData.length : avgGodScore;
+    const avgMatch7dAgo = match7dData?.length ? match7dData.reduce((a, m) => a + (m.match_score || 0), 0) / match7dData.length : avgMatchScore;
+
+    const distribution = { low: 0, medium: 0, high: 0, elite: 0 };
+    (scoreDistData || []).forEach(s => {
+      const score = s.total_god_score || 0;
+      if (score < 50) distribution.low++;
+      else if (score < 70) distribution.medium++;
+      else if (score < 85) distribution.high++;
+      else distribution.elite++;
+    });
+
+    const hqRateNow = (matchCount || 1) > 0 ? ((hqMatchCount || 0) / (matchCount || 1)) * 100 : 0;
+    const hoursSinceActivity = lastActivity?.created_at
+      ? (Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60)
+      : 999;
+
+    res.json({
+      startups: { total: totalStartups || 0, approved: approvedStartups || 0, pending: pendingStartups || 0, avgScore: avgGodScore },
+      investors: { total: totalInvestors || 0, withEmbedding: investorsWithEmbedding || 0 },
+      matches: { total: matchCount || 0, highQuality: hqMatchCount || 0, avgScore: avgMatchScore },
+      scrapers: { discovered24h: discovered24h || 0, lastActivity: lastActivity?.created_at || 'Never' },
+      godScores: { avgScore: avgGodScore, distribution },
+      deltas: {
+        startups24h: startups24h || 0,
+        investors24h: investors24h || 0,
+        matches24h: matches24h || 0,
+        avgGod7dDelta: avgGodScore - avgGod7dAgo,
+        avgMatch7dDelta: avgMatchScore - avgMatch7dAgo,
+        hqRate7dDeltaPct: hqRateNow - (
+          (match7dData?.length || 1) > 0
+            ? (((hqMatchCount || 0) / (matchCount || 1)) * 100) // simplified: use same hq rate for 7d ago
+            : 0
+        )
+      },
+      recentLogs: recentLogs || [],
+      checks: {
+        startupHealth: (approvedStartups || 0) > 100 ? 'OK' : (approvedStartups || 0) > 50 ? 'WARN' : 'ERROR',
+        matchQuality: (matchCount || 0) > 5000 ? 'OK' : (matchCount || 0) > 1000 ? 'WARN' : 'ERROR',
+        scoreHealth: avgGodScore >= 35 && avgGodScore <= 75 ? 'OK' : 'WARN',
+        freshnessHealth: hoursSinceActivity < 24 ? 'OK' : hoursSinceActivity < 48 ? 'WARN' : 'ERROR',
+        mlHealth: (investorsWithEmbedding || 0) / (totalInvestors || 1) > 0.3 ? 'OK' : 'WARN',
+        hoursSinceActivity
+      }
+    });
+  } catch (err) {
+    console.error('[/api/admin/system-stats] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// GET /api/admin/ml-data
+// Powers MLDashboard — immune to browser auth-client corruption
+// ============================================================
+app.get('/api/admin/ml-data', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+
+    const [
+      { data: recs, error: recsError },
+      { count: totalMatches },
+      { count: highQuality },
+      { count: pendingRecs },
+      { count: appliedRecs }
+    ] = await Promise.all([
+      supabase.from('ml_recommendations')
+        .select('id, recommendation_type, recommended_weights, current_weights, confidence, reasoning, expected_improvement, status, created_at')
+        .in('status', ['pending', 'approved'])
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('match_score', 80),
+      supabase.from('ml_recommendations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('ml_recommendations').select('*', { count: 'exact', head: true }).eq('status', 'applied')
+    ]);
+
+    if (recsError) throw recsError;
+
+    const total = totalMatches || 0;
+    const hq = highQuality || 0;
+    const recommendations = (recs || []).map(rec => ({
+      id: rec.id,
+      priority: rec.confidence >= 0.9 ? 'high' : rec.confidence >= 0.7 ? 'medium' : 'low',
+      title: rec.recommendation_type === 'component_weight_adjustment'
+        ? 'Component Weight Adjustment'
+        : (rec.recommendation_type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Algorithm Optimization',
+      description: Array.isArray(rec.reasoning) ? rec.reasoning.slice(0, 2).join(' ') : '',
+      expected_impact: rec.expected_improvement != null
+        ? `+${Number(rec.expected_improvement).toFixed(1)}% expected improvement`
+        : 'Estimated improvement',
+      confidence: rec.confidence,
+      status: rec.status,
+      recommended_weights: rec.recommended_weights,
+      current_weights: rec.current_weights,
+      created_at: rec.created_at
+    }));
+
+    res.json({
+      recommendations,
+      metrics: {
+        total_matches: total,
+        high_quality_matches: hq,
+        avg_match_score: 0,
+        avg_god_score: 0,
+        pending_recs: pendingRecs || 0,
+        applied_recs: appliedRecs || 0,
+        score_distribution: total > 0 ? { '80-100 (High Quality)': hq, '0-79 (Standard)': total - hq } : {}
+      }
+    });
+  } catch (err) {
+    console.error('[/api/admin/ml-data] Error:', err);
+    res.status(500).json({ error: err.message, recommendations: [], metrics: null });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN: ANALYTICS METRICS (Prompt 18)
 // ═══════════════════════════════════════════════════════════════════════════
