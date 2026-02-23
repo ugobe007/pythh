@@ -30,7 +30,9 @@ export default function AppLayout({
     <div className="pythh-app">
       {/* Topbar: sticky, quiet border, no glow */}
       <header className="pythh-topbar">
-        <Link to="/" className="pythh-topbar-brand">{brand}</Link>
+        <Link to="/" className="pythh-topbar-brand">
+          <img src="/images/pythh-logo-square.png" alt="pythh.ai" style={{ height: '28px', width: 'auto', filter: 'invert(1)' }} />
+        </Link>
         <nav className="pythh-topbar-nav">
           {nav.map((n) => {
             const isActive = n.active !== undefined ? n.active : location.pathname === n.href;

@@ -86,12 +86,7 @@ export default function TopBar({
 export function TopBarBrand() {
   return (
     <Link to="/" className="flex items-center gap-2 group">
-      <div className="text-base font-bold tracking-tight group-hover:text-orange-400 transition">
-        pythh.ai
-      </div>
-      <div className="text-[11px] text-white/50 uppercase tracking-wider font-light">
-        SIGNAL SCIENCE
-      </div>
+      <img src="/images/pythh-logo-square.png" alt="pythh.ai" className="h-7 w-auto" style={{ filter: 'invert(1)' }} />
     </Link>
   );
 }
