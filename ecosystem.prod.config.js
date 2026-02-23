@@ -89,6 +89,25 @@ module.exports = {
     },
 
     // ========================================
+    // SOCIAL MEDIA POSTER - Daily AI-written posts at 9am
+    // Posts to Twitter/X, LinkedIn, Threads (Instagram pending image gen)
+    // See SOCIAL_MEDIA_SETUP.md for credential setup
+    // ========================================
+    {
+      name: 'social-poster',
+      script: 'node',
+      args: 'server/social-poster.js',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 3,
+      cron_restart: '0 9 * * *',
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // ALL OTHER PROCESSES DISABLED FOR PERFORMANCE
     // Uncomment to re-enable when resources allow
     // ========================================
