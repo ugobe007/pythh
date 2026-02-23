@@ -6416,6 +6416,209 @@ app.get('/api/admin/discovered', async (req, res) => {
   }
 });
 
+// ============================================================
+// ADMIN: RSS SOURCES CRUD + ACTIVITY/HEALTH
+// ============================================================
+app.get('/api/admin/rss-sources', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: sources, error } = await supabase.from('rss_sources').select('*').order('name');
+    if (error) throw error;
+    const withCounts = await Promise.all((sources || []).map(async (s) => {
+      try {
+        const { count } = await supabase.from('rss_articles').select('*', { count: 'exact', head: true }).eq('source', s.name);
+        return { ...s, articles_count: count || 0 };
+      } catch { return { ...s, articles_count: 0 }; }
+    }));
+    res.json(withCounts);
+  } catch (err) {
+    console.error('[GET /api/admin/rss-sources] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/rss-sources', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('rss_sources').insert([req.body]);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /api/admin/rss-sources] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/admin/rss-sources/:id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('rss_sources').update(req.body).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[PATCH /api/admin/rss-sources/:id] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/rss-sources/:id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('rss_sources').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[DELETE /api/admin/rss-sources/:id] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/rss-activity', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const [logsResult, articlesResult] = await Promise.allSettled([
+      supabase.from('ai_logs').select('id,type,status,created_at,output').eq('type', 'rss_scraper').gte('created_at', oneDayAgo).order('created_at', { ascending: false }).limit(50),
+      supabase.from('rss_articles').select('id,title,source,created_at').gte('created_at', oneDayAgo).order('created_at', { ascending: false }).limit(30)
+    ]);
+    const scraperLogs = logsResult.status === 'fulfilled' ? (logsResult.value.data || []) : [];
+    const recentArticles = articlesResult.status === 'fulfilled' ? (articlesResult.value.data || []) : [];
+    const activity = [
+      ...scraperLogs.map(log => ({ id: log.id, type: 'scraper_run', source: log.output?.source || 'Unknown', status: log.status, timestamp: log.created_at, details: log.status === 'success' ? 'Scraped successfully' : (log.output?.error || 'Failed') })),
+      ...recentArticles.map(article => ({ id: article.id, type: 'article_scraped', source: article.source, status: 'success', timestamp: article.created_at, details: article.title || 'Article scraped' }))
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 20);
+    res.json(activity);
+  } catch (err) {
+    console.error('[GET /api/admin/rss-activity] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/rss-health', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const tryCount = async (table) => {
+      try {
+        const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
+        return { ok: !error, count: count || 0, error: error?.message };
+      } catch (e) { return { ok: false, count: 0, error: e.message }; }
+    };
+    const [arts, disc, ups] = await Promise.all([tryCount('rss_articles'), tryCount('discovered_startups'), tryCount('startup_uploads')]);
+    const issues = [];
+    const tableMatches = [];
+    for (const [table, r] of [['rss_articles', arts], ['discovered_startups', disc], ['startup_uploads', ups]]) {
+      if (!r.ok) issues.push(`${table}: ${r.error}`);
+      tableMatches.push({ table, matched: r.ok, count: r.count });
+    }
+    res.json({ status: issues.length === 0 ? 'healthy' : 'issues', issues, tableMatches });
+  } catch (err) {
+    console.error('[GET /api/admin/rss-health] Error:', err);
+    res.status(500).json({ error: err.message, status: 'unknown', issues: [], tableMatches: [] });
+  }
+});
+
+// ============================================================
+// GET /api/admin/ai-logs
+// ============================================================
+app.get('/api/admin/ai-logs', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('ai_logs').select('*').order('created_at', { ascending: false }).limit(100);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/admin/ai-logs] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// GET /api/admin/investors
+// ============================================================
+app.get('/api/admin/investors', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { filter } = req.query;
+    let q = supabase.from('investors').select('*').order('created_at', { ascending: false }).limit(1000);
+    if (filter && filter !== 'all') q = q.ilike('type', `%${filter}%`);
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/admin/investors] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// GOD SETTINGS — weight history + ML recommendations
+// ============================================================
+app.get('/api/admin/god-weight-history', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('algorithm_weight_history').select('*').order('applied_at', { ascending: false }).limit(20);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/admin/god-weight-history] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/god-weight-history', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('algorithm_weight_history').insert(req.body);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[POST /api/admin/god-weight-history] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/ml-recommendations', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('ml_recommendations').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(20);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error('[GET /api/admin/ml-recommendations] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// DIAGNOSTIC endpoints
+// ============================================================
+app.get('/api/admin/db-diagnostic', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: startups, error } = await supabase.from('startup_uploads').select('*').order('created_at', { ascending: false }).limit(20);
+    if (error) throw error;
+    res.json({ startups: startups || [], error: null });
+  } catch (err) {
+    console.error('[GET /api/admin/db-diagnostic] Error:', err);
+    res.status(500).json({ error: err.message, startups: [] });
+  }
+});
+
+app.get('/api/admin/diagnostic', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const [{ data: all, error }, { data: approved }, { data: pending }] = await Promise.all([
+      supabase.from('startup_uploads').select('*').order('created_at', { ascending: false }),
+      supabase.from('startup_uploads').select('*').eq('status', 'approved').order('created_at', { ascending: false }),
+      supabase.from('startup_uploads').select('*').eq('status', 'pending').order('created_at', { ascending: false })
+    ]);
+    res.json({ all: all || [], approved: approved || [], pending: pending || [], error: error?.message || null });
+  } catch (err) {
+    console.error('[GET /api/admin/diagnostic] Error:', err);
+    res.status(500).json({ error: err.message, all: [], approved: [], pending: [] });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN: ANALYTICS METRICS (Prompt 18)
 // ═══════════════════════════════════════════════════════════════════════════

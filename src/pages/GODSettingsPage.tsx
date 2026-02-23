@@ -5,7 +5,6 @@ import {
   TrendingUp, TrendingDown, ArrowRight, RefreshCw, Settings,
   Brain, Info, BarChart3, Eye, CheckCircle2
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiConfig';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
 
@@ -121,14 +120,9 @@ export default function GODSettingsPage() {
 
   const loadHistory = async () => {
     try {
-      // Load from algorithm_weight_history table if it exists
-      const { data, error } = await supabase
-        .from('algorithm_weight_history')
-        .select('*')
-        .order('applied_at', { ascending: false })
-        .limit(20);
-
-      if (!error && data) {
+      const res = await fetch(`${API_BASE}/api/admin/god-weight-history`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
         setHistory(data.map((h: any) => ({
           id: h.id,
           changed_at: h.applied_at,
@@ -148,53 +142,33 @@ export default function GODSettingsPage() {
   const loadMLRecommendations = async () => {
     setRefreshingRecommendations(true);
     try {
-      console.log('🔍 Loading ML recommendations...');
-      // Load ALL pending recommendations (not filtering by type since run-ml-training.js creates 'weight_change')
-      const { data, error } = await supabase
-        .from('ml_recommendations')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('❌ Error loading ML recommendations:', error);
-        alert(`⚠️ Error loading recommendations: ${error.message}`);
-        return;
-      }
-
-      console.log(`✅ Loaded ${data?.length || 0} ML recommendations:`, data);
-      
-      if (data && data.length > 0) {
+      const res = await fetch(`${API_BASE}/api/admin/ml-recommendations`);
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
         const mappedRecs = data.map((rec: any) => ({
           id: rec.id,
-          // Generate title from recommendation_type since no title column exists
           title: rec.recommendation_type === 'component_weight_adjustment'
             ? 'Component Weight Adjustment'
             : rec.recommendation_type?.replace(/_/g, ' ')?.replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Algorithm Optimization',
-          // Generate description from reasoning array
           description: Array.isArray(rec.reasoning) ? rec.reasoning.slice(0, 2).join(' ') : (rec.description || ''),
-          current_value: rec.current_weights,          // correct column: current_weights
-          proposed_value: rec.recommended_weights,     // correct column: recommended_weights
+          current_value: rec.current_weights,
+          proposed_value: rec.recommended_weights,
           expected_impact: rec.expected_improvement != null
             ? `+${Number(rec.expected_improvement).toFixed(1)}% expected improvement`
             : 'Estimated improvement to match quality',
-          confidence_score: rec.confidence,            // correct column: confidence
+          confidence_score: rec.confidence,
           recommendation_type: rec.recommendation_type,
           priority: rec.confidence >= 0.9 ? 'high' : rec.confidence >= 0.7 ? 'medium' : 'low',
           created_at: rec.created_at
         }));
         setMlRecommendations(mappedRecs);
-        setShowMLRecommendations(true); // Auto-show when recommendations are found
-        console.log(`✅ Found ${mappedRecs.length} ML recommendation(s)`);
+        setShowMLRecommendations(true);
       } else {
-        console.log('ℹ️ No ML recommendations found in database');
         setMlRecommendations([]);
         setShowMLRecommendations(false);
       }
     } catch (error: any) {
       console.error('❌ Error loading ML recommendations:', error);
-      alert(`❌ Error: ${error.message}`);
     } finally {
       setRefreshingRecommendations(false);
     }
@@ -392,12 +366,8 @@ export default function GODSettingsPage() {
   const calculateImpactPrediction = async () => {
     try {
       // Get sample startups to predict impact
-      const { data: startups } = await supabase
-        .from('startup_uploads')
-        .select('team_score, traction_score, market_score, product_score, vision_score, total_god_score')
-        .eq('status', 'approved')
-        .not('total_god_score', 'is', null)
-        .limit(100);
+      const sampRes = await fetch(`${API_BASE}/api/admin/startups?status=approved&pageSize=100`);
+      const { rows: startups } = await sampRes.json();
 
       if (!startups || startups.length === 0) {
         setImpactPrediction({
@@ -478,19 +448,25 @@ export default function GODSettingsPage() {
     
     try {
       // Save to Supabase first (algorithm_weight_history table)
-      const { error: dbError } = await supabase
-        .from('algorithm_weight_history')
-        .insert({
-          applied_at: new Date().toISOString(),
-          applied_by: 'admin',
-          weight_updates: [{
-            component: 'all',
-            old_weight: originalWeights,
-            new_weight: weights,
-            reason: `Manual adjustment via GOD Settings page. Expected impact: ${impactPrediction?.trend === 'up' ? 'Scores trending UP' : impactPrediction?.trend === 'down' ? 'Scores trending DOWN' : 'Minimal change'}`
-          }],
-          reason: `Manual weight adjustment - ${impactPrediction?.affectedComponents.join(', ')} modified`
+      let dbError: string | null = null;
+      try {
+        const dbRes = await fetch(`${API_BASE}/api/admin/god-weight-history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            applied_at: new Date().toISOString(),
+            applied_by: 'admin',
+            weight_updates: [{
+              component: 'all',
+              old_weight: originalWeights,
+              new_weight: weights,
+              reason: `Manual adjustment via GOD Settings page. Expected impact: ${impactPrediction?.trend === 'up' ? 'Scores trending UP' : impactPrediction?.trend === 'down' ? 'Scores trending DOWN' : 'Minimal change'}`
+            }],
+            reason: `Manual weight adjustment - ${impactPrediction?.affectedComponents.join(', ')} modified`
+          })
         });
+        if (!dbRes.ok) dbError = `HTTP ${dbRes.status}`;
+      } catch (e: any) { dbError = e.message; }
 
       // Always save to localStorage as primary storage
       localStorage.setItem('god_algorithm_weights', JSON.stringify(weights));

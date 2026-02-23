@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Building2, ExternalLink, Download, CheckCircle2, RefreshCw, Plus, Upload, Home, Settings, BarChart3 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 interface DiscoveredInvestor {
   id: string;
@@ -32,26 +32,10 @@ export default function DiscoveredInvestors() {
   const loadInvestors = async () => {
     try {
       setLoading(true);
-      
-      // Load all investors (up to 1000 to handle 800+)
-      let query = supabase
-        .from('investors')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000); // Increased from 100 to show all 800+ investors
-
-      if (filter !== 'all') {
-        query = query.ilike('type', `%${filter}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error loading investors:', error);
-        return;
-      }
-
-      setInvestors((data || []) as DiscoveredInvestor[]);
+      const params = filter !== 'all' ? `?filter=${filter}` : '';
+      const res = await fetch(`${API_BASE}/api/admin/investors${params}`);
+      const data = await res.json();
+      setInvestors((Array.isArray(data) ? data : []) as DiscoveredInvestor[]);
     } catch (error) {
       console.error('Error:', error);
     } finally {

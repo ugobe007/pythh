@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, Plus, Edit2, Trash2, Check, X, ExternalLink, Rss, Activity, Database, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 interface RSSSource {
   id: string;
@@ -53,14 +53,11 @@ export default function RSSManager() {
 
   const loadSources = async () => {
     setLoading(true);
-    const { data } = await supabase.from('rss_sources').select('*').order('name');
-    if (data) {
-      const withCounts = await Promise.all(data.map(async (s) => {
-        const { count } = await (supabase.from as any)('rss_articles').select('*', { count: 'exact', head: true }).eq('source', s.name);
-        return { ...s, articles_count: count || 0 };
-      }));
-      setSources(withCounts as RSSSource[]);
-    }
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/rss-sources`);
+      const data = await res.json();
+      setSources((Array.isArray(data) ? data : []) as RSSSource[]);
+    } catch { setSources([]); }
     setLoading(false);
   };
 
@@ -68,20 +65,20 @@ export default function RSSManager() {
 
   const addSource = async () => {
     if (!newSource.name || !newSource.url) return;
-    await supabase.from('rss_sources').insert([newSource]);
+    await fetch(`${API_BASE}/api/admin/rss-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newSource) });
     setShowAddForm(false);
     setNewSource({ name: '', url: '', category: 'Tech News', active: true });
     await loadSources();
   };
 
   const toggleActive = async (id: string, active: boolean | null) => {
-    await supabase.from('rss_sources').update({ active: !active }).eq('id', id);
+    await fetch(`${API_BASE}/api/admin/rss-sources/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !active }) });
     await loadSources();
   };
 
   const deleteSource = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"?`)) return;
-    await supabase.from('rss_sources').delete().eq('id', id);
+    await fetch(`${API_BASE}/api/admin/rss-sources/${id}`, { method: 'DELETE' });
     await loadSources();
   };
 
@@ -92,7 +89,7 @@ export default function RSSManager() {
 
   const saveEdit = async () => {
     if (!editingId) return;
-    await supabase.from('rss_sources').update(editData).eq('id', editingId);
+    await fetch(`${API_BASE}/api/admin/rss-sources/${editingId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editData) });
     setEditingId(null);
     await loadSources();
   };
@@ -119,43 +116,9 @@ export default function RSSManager() {
 
   const loadScraperActivity = async () => {
     try {
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      
-      // Get scraper runs from ai_logs
-      const { data: scraperLogs } = await (supabase.from as any)('ai_logs')
-        .select('id, type, status, created_at, input, output')
-        .eq('type', 'rss_scraper')
-        .gte('created_at', oneDayAgo)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      
-      // Get recent articles
-      const { data: recentArticles } = await (supabase.from as any)('rss_articles')
-        .select('id, title, source, created_at')
-        .gte('created_at', oneDayAgo)
-        .order('created_at', { ascending: false })
-        .limit(30);
-      
-      const activity: ScraperActivity[] = [
-        ...(scraperLogs || []).map((log: any) => ({
-          id: log.id,
-          type: 'scraper_run',
-          source: log.input?.source || 'Unknown',
-          status: log.status,
-          timestamp: log.created_at,
-          details: log.status === 'success' ? 'Scraped successfully' : log.output?.error || 'Failed'
-        })),
-        ...(recentArticles || []).map((article: any) => ({
-          id: article.id,
-          type: 'article_scraped',
-          source: article.source,
-          status: 'success',
-          timestamp: article.created_at,
-          details: article.title || 'Article scraped'
-        }))
-      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 20);
-      
-      setScraperActivity(activity);
+      const res = await fetch(`${API_BASE}/api/admin/rss-activity`);
+      const data = await res.json();
+      setScraperActivity(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading scraper activity:', error);
       setScraperActivity([]);
@@ -164,69 +127,12 @@ export default function RSSManager() {
 
   const loadParserHealth = async () => {
     try {
-      const issues: string[] = [];
-      const tableMatches: { table: string; matched: boolean; count: number }[] = [];
-      
-      // Check RSS articles table
-      const { count: articlesCount, error: articlesError } = await (supabase.from as any)('rss_articles')
-        .select('*', { count: 'exact', head: true });
-      
-      if (articlesError) {
-        issues.push(`RSS articles table: ${articlesError.message}`);
-        tableMatches.push({ table: 'rss_articles', matched: false, count: 0 });
-      } else {
-        tableMatches.push({ table: 'rss_articles', matched: true, count: articlesCount || 0 });
-      }
-      
-      // Check discovered_startups table
-      const { count: discoveredCount, error: discoveredError } = await (supabase.from as any)('discovered_startups')
-        .select('*', { count: 'exact', head: true });
-      
-      if (discoveredError) {
-        issues.push(`Discovered startups table: ${discoveredError.message}`);
-        tableMatches.push({ table: 'discovered_startups', matched: false, count: 0 });
-      } else {
-        tableMatches.push({ table: 'discovered_startups', matched: true, count: discoveredCount || 0 });
-      }
-      
-      // Check startup_uploads table
-      const { count: startupsCount, error: startupsError } = await supabase
-        .from('startup_uploads')
-        .select('*', { count: 'exact', head: true });
-      
-      if (startupsError) {
-        issues.push(`Startup uploads table: ${startupsError.message}`);
-        tableMatches.push({ table: 'startup_uploads', matched: false, count: 0 });
-      } else {
-        tableMatches.push({ table: 'startup_uploads', matched: true, count: startupsCount || 0 });
-      }
-      
-      // Check if articles are being matched to discovered_startups
-      const { data: recentArticles } = await (supabase.from as any)('rss_articles')
-        .select('id, source, created_at')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .limit(100);
-      
-      const { data: recentDiscoveries } = await (supabase.from as any)('discovered_startups')
-        .select('id, rss_source, created_at')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .limit(100);
-      
-      if (recentArticles && recentDiscoveries) {
-        const articlesWithMatches = recentArticles.filter((a: any) => 
-          recentDiscoveries.some((d: any) => d.rss_source === a.source)
-        );
-        const matchRate = recentArticles.length > 0 ? (articlesWithMatches.length / recentArticles.length) * 100 : 0;
-        
-        if (matchRate < 10 && recentArticles.length > 10) {
-          issues.push(`Low parser match rate: ${matchRate.toFixed(1)}% of articles matched to discoveries`);
-        }
-      }
-      
+      const res = await fetch(`${API_BASE}/api/admin/rss-health`);
+      const data = await res.json();
       setParserHealth({
-        status: issues.length === 0 ? 'healthy' : 'issues',
-        issues,
-        tableMatches
+        status: data.status || 'unknown',
+        issues: data.issues || [],
+        tableMatches: data.tableMatches || []
       });
     } catch (error) {
       console.error('Error loading parser health:', error);

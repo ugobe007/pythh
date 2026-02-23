@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 export default function DiagnosticPage() {
   const navigate = useNavigate();
@@ -14,43 +14,23 @@ export default function DiagnosticPage() {
 
   const loadData = async () => {
     setLoading(true);
-
-    // Check Supabase
-    const { data: allStartups, error } = await supabase
-      .from('startup_uploads')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    const { data: approvedStartups } = await supabase
-      .from('startup_uploads')
-      .select('*')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
-
-    const { data: pendingStartups } = await supabase
-      .from('startup_uploads')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-
-    setSupabaseData({
-      all: allStartups || [],
-      approved: approvedStartups || [],
-      pending: pendingStartups || [],
-      error: error?.message || null,
-    });
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/diagnostic`);
+      const { all, approved, pending, error } = await res.json();
+      setSupabaseData({ all: all || [], approved: approved || [], pending: pending || [], error: error || null });
+    } catch (err: any) {
+      setSupabaseData({ all: [], approved: [], pending: [], error: err.message });
+    }
 
     // Check localStorage
     const uploaded = localStorage.getItem('uploadedStartups');
     const myVotes = localStorage.getItem('myYesVotes');
     const votedStartups = localStorage.getItem('votedStartups');
-
     setLocalStorageData({
       uploadedStartups: uploaded ? JSON.parse(uploaded) : [],
       myYesVotes: myVotes ? JSON.parse(myVotes) : [],
       votedStartups: votedStartups ? JSON.parse(votedStartups) : [],
     });
-
     setLoading(false);
   };
 

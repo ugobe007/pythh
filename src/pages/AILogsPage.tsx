@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, CheckCircle, XCircle, Clock, RefreshCw, TrendingUp } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 
 interface AILog {
   id: string;
@@ -32,28 +32,19 @@ export default function AILogsPage() {
 
   const loadLogs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('ai_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (data) {
-        setLogs(data);
-
-        // Calculate stats
-        const successLogs = data.filter(l => l.status === 'success');
-        const failedLogs = data.filter(l => l.status === 'failed');
-        const totalTokens = data.reduce((sum, l) => sum + l.input_tokens + l.output_tokens, 0);
-
-        setStats({
-          total: data.length,
-          success: successLogs.length,
-          failed: failedLogs.length,
-          totalTokens,
-          avgTokens: data.length > 0 ? Math.round(totalTokens / data.length) : 0
-        });
-      }
+      const res = await fetch(`${API_BASE}/api/admin/ai-logs`);
+      const data: AILog[] = await res.json();
+      setLogs(Array.isArray(data) ? data : []);
+      const successLogs = data.filter(l => l.status === 'success');
+      const failedLogs = data.filter(l => l.status === 'failed');
+      const totalTokens = data.reduce((sum, l) => sum + (l.input_tokens || 0) + (l.output_tokens || 0), 0);
+      setStats({
+        total: data.length,
+        success: successLogs.length,
+        failed: failedLogs.length,
+        totalTokens,
+        avgTokens: data.length > 0 ? Math.round(totalTokens / data.length) : 0
+      });
     } catch (error) {
       console.error('Error loading logs:', error);
     } finally {

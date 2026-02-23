@@ -4,7 +4,6 @@ import {
   Webhook, RefreshCw, Play, Pause, Settings, AlertTriangle, 
   CheckCircle, Clock, Edit2, Save, X, ArrowRight, Activity
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiConfig';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
 

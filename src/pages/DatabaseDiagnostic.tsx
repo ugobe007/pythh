@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiConfig';
 import { useNavigate } from 'react-router-dom';
 
 interface DiagnosticResult {
@@ -26,38 +26,26 @@ export default function DatabaseDiagnostic() {
   const checkDatabase = async () => {
     setLoading(true);
     const errors: string[] = [];
-    
     try {
       console.log('🔍 Starting database diagnostic...');
+      const res = await fetch(`${API_BASE}/api/admin/db-diagnostic`);
+      const { startups, error: startupErr } = await res.json();
+      if (startupErr) errors.push(`Startups fetch error: ${startupErr}`);
 
-      // 1. Fetch recent startups
-      const { data: startups, error: startupsError } = await supabase
-        .from('startup_uploads')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (startupsError) {
-        errors.push(`Startups fetch error: ${startupsError.message}`);
-        console.error('❌ Startups error:', startupsError);
-      }
-
-      // 2. Count votes (from localStorage, Supabase votes table not available)
       const localVotes = localStorage.getItem('user_votes');
       const votesCount = localVotes ? JSON.parse(localVotes).length : 0;
 
-      // 3. Analyze data quality
-      const missingPitch = startups?.filter(s => !s.pitch || s.pitch.trim() === '').length || 0;
-      const missingRaise = startups?.filter(s => !s.raise_amount).length || 0;
-      const missingStage = startups?.filter(s => !s.stage).length || 0;
-      const missingExtracted = startups?.filter(s => !s.extracted_data).length || 0;
-      const invalidFivePoints = startups?.filter(s => {
+      const missingPitch = (startups || []).filter((s: any) => !s.pitch || s.pitch.trim() === '').length;
+      const missingRaise = (startups || []).filter((s: any) => !s.raise_amount).length;
+      const missingStage = (startups || []).filter((s: any) => !s.stage).length;
+      const missingExtracted = (startups || []).filter((s: any) => !s.extracted_data).length;
+      const invalidFivePoints = (startups || []).filter((s: any) => {
         const data = s.extracted_data as any;
         return !data?.fivePoints || !Array.isArray(data.fivePoints) || data.fivePoints.length !== 5;
-      }).length || 0;
+      }).length;
 
       setResults({
-        totalStartups: startups?.length || 0,
+        totalStartups: (startups || []).length,
         recentStartups: startups || [],
         missingPitch,
         missingRaise,
@@ -67,18 +55,7 @@ export default function DatabaseDiagnostic() {
         totalVotes: votesCount || 0,
         errors
       });
-
       console.log('✅ Database diagnostic complete');
-      console.log('Results:', {
-        totalStartups: startups?.length,
-        missingPitch,
-        missingRaise,
-        missingStage,
-        missingExtracted,
-        invalidFivePoints,
-        totalVotes: votesCount
-      });
-      
     } catch (error: any) {
       errors.push(`Unexpected error: ${error.message}`);
       console.error('❌ Error:', error);
