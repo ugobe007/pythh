@@ -35,19 +35,28 @@ const DAILY_ROTATION = [
 
 // ─── Data Fetchers ────────────────────────────────────────────────────────────
 async function fetchHotMatch(supabase) {
-  const { data } = await supabase
+  // No FK relationships in DB — do manual join
+  const { data: matches } = await supabase
     .from('startup_investor_matches')
-    .select(`
-      match_score,
-      startup_uploads ( name, one_liner, total_god_score, sector ),
-      investors ( name, firm_name, sectors )
-    `)
+    .select('startup_id, investor_id, match_score')
+    .not('startup_id', 'is', null)
+    .not('investor_id', 'is', null)
     .order('match_score', { ascending: false })
     .limit(10);
 
-  if (!data?.length) return null;
-  // Pick a random top-10 match for variety
-  return data[Math.floor(Math.random() * data.length)];
+  if (!matches?.length) return null;
+  const match = matches[Math.floor(Math.random() * matches.length)];
+
+  const [{ data: startups }, { data: investors }] = await Promise.all([
+    supabase.from('startup_uploads').select('name, one_liner, total_god_score, sector').eq('id', match.startup_id).limit(1),
+    supabase.from('investors').select('name, firm_name, sectors').eq('id', match.investor_id).limit(1),
+  ]);
+
+  return {
+    match_score: match.match_score,
+    startup: startups?.[0] || null,
+    investor: investors?.[0] || null,
+  };
 }
 
 async function fetchStartupSpotlight(supabase) {
