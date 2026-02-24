@@ -4,6 +4,14 @@
 .env.*.local
 *.env
 
+# Backup env files — includes timestamped variants like .env.backup.20260108_172333
+.env.bak*
+.env.backup
+.env.backup.*
+.env.save
+*.env.backup.*
+.env.*.backup.*
+
 # Reports directory (if it doesn't already exist)
 reports/
 *.log
@@ -43,7 +51,3 @@ yarn-error.log*
 tmp/
 temp/
 *.tmp
-.env.bak*
-.env.backup
-.env
-.env
