@@ -44,7 +44,7 @@ async function fetchHotMatch(supabase) {
   const match = matches[Math.floor(Math.random() * matches.length)];
 
   const [{ data: startups }, { data: investors }] = await Promise.all([
-    supabase.from('startup_uploads').select('name, one_liner, total_god_score, sector').eq('id', match.startup_id).limit(1),
+    supabase.from('startup_uploads').select('name, tagline, total_god_score, sector').eq('id', match.startup_id).limit(1),
     supabase.from('investors').select('name, firm_name, sectors').eq('id', match.investor_id).limit(1),
   ]);
 
@@ -58,7 +58,7 @@ async function fetchHotMatch(supabase) {
 async function fetchStartupSpotlight(supabase) {
   const { data } = await supabase
     .from('startup_uploads')
-    .select('name, one_liner, total_god_score, sector, team, solution, traction_score')
+    .select('name, tagline, total_god_score, sector, team, solution, traction_score')
     .eq('status', 'approved')
     .order('total_god_score', { ascending: false })
     .limit(20);
