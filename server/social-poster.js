@@ -15,6 +15,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const OpenAI = require('openai');
 const { getSupabaseClient } = require('./lib/supabaseClient');
 const { postToAllPlatforms, getEnabledPlatforms } = require('./services/socialMediaService');
+const { generateNewsletter } = require('./newsletter-generator');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const PREVIEW_MODE = process.argv.includes('--preview');
@@ -24,9 +25,9 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Rotate content types — only fires Mon (1), Wed (3), Fri (5)
 const DAILY_ROTATION = {
-  1: 'hot_match',         // Monday   — start the week with a signal
-  3: 'startup_spotlight', // Wednesday — midweek, who's moving
-  5: 'sector_insight',    // Friday   — end of week pattern
+  1: 'hot_match',     // Monday   — start the week with a signal
+  3: 'daily_digest',  // Wednesday — full digest with link to pythh.ai/newsletter
+  5: 'sector_insight', // Friday  — end of week pattern
 };
 
 // ─── Data Fetchers ────────────────────────────────────────────────────────────
@@ -105,6 +106,23 @@ async function fetchVCSignal(supabase) {
   return data[Math.floor(Math.random() * data.length)];
 }
 
+// ─── Daily Digest Fetcher ─────────────────────────────────────────────────────
+async function fetchDailyDigest() {
+  const data = await generateNewsletter({ bust: true });
+  if (!data) return null;
+  // Summarise for copy: top match, #1 ranked startup, hottest sector
+  return {
+    topMatch:     data.hotMatches?.[0] || null,
+    topStartup:   data.leaderboard?.[0] || null,
+    hotSector:    data.sectorTrends?.[0] || null,
+    darkHorse:    data.darkHorse || null,
+    newArrivals:  data.newArrivals?.length || 0,
+    newsCount:    data.news?.length || 0,
+    date:         data.date,
+    link:         'https://pythh.ai/newsletter',
+  };
+}
+
 // ─── AI Copy Generator ────────────────────────────────────────────────────────
 async function generateCopy(post_type, rawData) {
   const baseContext = `You write social media posts for pythh.ai — an AI system that scores startups and matches them to investors.
@@ -114,10 +132,15 @@ Write like you're sharing something interesting you noticed — not selling some
 Be specific. Be brief. Leave them wanting more.`;
 
   const platforms = {
-    twitter: `Write a single tweet, MAX 240 characters. No hashtags. No exclamation points.
+    twitter: post_type === 'daily_digest'
+      ? `Write a single tweet, MAX 240 characters. No hashtags. No exclamation points.
+Tease the week's most interesting signal find — one specific data point or match. End with: pythh.ai/newsletter`
+      : `Write a single tweet, MAX 240 characters. No hashtags. No exclamation points.
 No direct CTA — just an observation or a question that makes a founder or VC stop scrolling.
 End with a quiet signal, not a pitch. pythh.ai can appear naturally but doesn't need to.`,
-    linkedin: `Write a LinkedIn post of 150-250 words with a professional but engaging tone. 
+    linkedin: post_type === 'daily_digest'
+      ? `Write a LinkedIn digest post of 150-250 words. Lead with the most interesting match or startup signal from the data. Include 3-5 hashtags. End with "Full digest: pythh.ai/newsletter"`
+      : `Write a LinkedIn post of 150-250 words with a professional but engaging tone. 
 Include 3-5 hashtags. Reference pythh.ai as the source. Paragraph breaks for readability.`,
     threads: `Write a Threads post (conversational, max 500 chars). No formal hashtags needed — just casual and interesting.`,
   };
@@ -197,6 +220,7 @@ async function main() {
     if (post_type === 'weekly_stats')      rawData = await fetchWeeklyStats(supabase);
     if (post_type === 'sector_insight')    rawData = await fetchSectorInsight(supabase);
     if (post_type === 'vc_signal')         rawData = await fetchVCSignal(supabase);
+    if (post_type === 'daily_digest')      rawData = await fetchDailyDigest();
   } catch (e) {
     console.error('[social-poster] Data fetch failed:', e.message);
     process.exit(1);

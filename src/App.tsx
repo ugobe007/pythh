@@ -65,6 +65,7 @@ const AboutPage = lazy(() => import("./pages/AboutPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
+const NewsletterPage = lazy(() => import("./pages/NewsletterPage"));
 
 // Sector landing pages
 const AIMLInvestorsPage = lazy(() => import("./pages/sectors/AIMLInvestorsPage"));
@@ -244,6 +245,9 @@ const App: React.FC = () => {
           {/* Commercial pages */}
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/value" element={<Navigate to="/pricing" replace />} />
+
+          {/* Weekly signal digest */}
+          <Route path="/newsletter" element={<NewsletterPage />} />
 
           {/* Shared dashboard views (public, read-only — no auth required) */}
           <Route path="/s/:shareId" element={<SharedDashboardView />} />

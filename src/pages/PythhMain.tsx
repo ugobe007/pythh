@@ -5,6 +5,7 @@ import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import HotMatchesFeed from '../components/HotMatchesFeed';
 import PaywallModal from '../components/PaywallModal';
 import SEO from '../components/SEO';
+import NewsletterWidget from '../components/NewsletterWidget';
 import { supabase } from '../lib/supabase';
 import { submitStartup } from '../services/submitStartup';
 import { useUsageTracking } from '../hooks/useUsageTracking';
@@ -545,6 +546,11 @@ export default function PythhHome() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
+          DAILY SIGNAL DIGEST TEASER
+          ═══════════════════════════════════════════════════════════════════ */}
+      <NewsletterWidget />
+
+      {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
@@ -552,6 +558,7 @@ export default function PythhHome() {
           <Link to="/platform" className="hover:text-zinc-300 transition">Platform</Link>
           <Link to="/rankings" className="hover:text-zinc-300 transition">Rankings</Link>
           <Link to="/explore" className="hover:text-zinc-300 transition">Explore</Link>
+          <Link to="/newsletter" className="hover:text-zinc-300 transition">Signal Digest</Link>
           <Link to="/pricing" className="hover:text-zinc-300 transition">Pricing</Link>
           <Link to="/about" className="hover:text-zinc-300 transition">About</Link>
           <Link to="/support" className="hover:text-zinc-300 transition">Support</Link>

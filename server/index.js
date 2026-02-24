@@ -1048,6 +1048,24 @@ const { withTimeout, TimeoutError, TIMEOUTS } = require('./utils/withTimeout');
 const { matchesCache } = require('./utils/cache');
 
 // ============================================================
+// GET /api/newsletter/today — Daily Signal Digest
+// Public endpoint — no auth required
+// ============================================================
+const { generateNewsletter } = require('./newsletter-generator');
+
+app.get('/api/newsletter/today', async (req, res) => {
+  try {
+    const bust = req.query.bust === '1';
+    const data = await generateNewsletter({ bust });
+    res.set('Cache-Control', 'public, max-age=1800'); // 30 min browser cache
+    return res.json(data);
+  } catch (err) {
+    console.error('[newsletter] Error generating digest:', err.message);
+    return res.status(500).json({ error: 'Failed to generate newsletter' });
+  }
+});
+
+// ============================================================
 // GET /api/matches - Startup → Investor matches with tier gating
 // Core conversion endpoint - the page people pay for
 // HARDENED: rate limit + cache + timeout + degradation
