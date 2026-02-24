@@ -750,7 +750,9 @@ app.get('/api/hot-matches', async (req, res) => {
     const supabase = getSupabaseClient();
     const limitCount = Math.min(parseInt(req.query.limit_count) || 20, 50);
 
-    // Direct join query — matches + startup info + investor info
+    // Fetch a large pool then deduplicate by startup so the ticker shows variety
+    // (without this, one high-scoring startup dominates all top slots)
+    const FETCH_POOL = Math.max(limitCount * 15, 300);
     const { data: matches, error } = await supabase
       .from('startup_investor_matches')
       .select(`
@@ -763,12 +765,27 @@ app.get('/api/hot-matches', async (req, res) => {
         investors!investor_id ( name, firm )
       `)
       .order('match_score', { ascending: false })
-      .limit(limitCount);
+      .limit(FETCH_POOL);
 
     if (error) throw error;
 
+    // Deduplicate: keep only the best match per startup, then shuffle, then cap
+    const seenStartups = new Set();
+    const deduped = [];
+    for (const m of (matches || [])) {
+      if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
+      seenStartups.add(m.startup_id);
+      deduped.push(m);
+    }
+    // Fisher-Yates shuffle so every page load shows a different mix
+    for (let i = deduped.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deduped[i], deduped[j]] = [deduped[j], deduped[i]];
+    }
+    const pool = deduped.slice(0, limitCount);
+
     // Shape data to match the HotMatch interface the component expects
-    const shaped = (matches || []).map((m, i) => ({
+    const shaped = pool.map((m, i) => ({
       match_id: m.id,
       startup_id: m.startup_id,
       investor_id: m.investor_id,
