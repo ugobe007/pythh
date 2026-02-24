@@ -203,6 +203,14 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'hot-money-honey-store',
+      // Only persist user-generated data (portfolio + position).
+      // The startups array is re-fetched from Supabase on every session —
+      // persisting it wastes 200-500 KB of localStorage and causes jank on
+      // every store update.
+      partialize: (state) => ({
+        portfolio: state.portfolio,
+        currentIndex: state.currentIndex,
+      }) as StoreState,
     }
   )
 );

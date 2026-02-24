@@ -34,6 +34,11 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
+    // Target modern browsers — avoids transpiling async/await, arrow functions,
+    // optional chaining etc. which Fly.io's audience supports. Smaller output.
+    target: 'es2020',
+    // Warn when any chunk exceeds 1 MB (helps spot accidental large imports)
+    chunkSizeWarningLimit: 1000,
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist']
