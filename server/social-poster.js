@@ -58,7 +58,7 @@ async function fetchHotMatch(supabase) {
 async function fetchStartupSpotlight(supabase) {
   const { data } = await supabase
     .from('startup_uploads')
-    .select('name, tagline, total_god_score, sectors, team, solution, traction_score')
+    .select('name, tagline, total_god_score, sectors, team_score, pitch, traction_score')
     .eq('status', 'approved')
     .order('total_god_score', { ascending: false })
     .limit(20);
@@ -74,7 +74,7 @@ async function fetchWeeklyStats(supabase) {
       .eq('status', 'approved').gte('created_at', oneWeekAgo),
     supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true })
       .gte('created_at', oneWeekAgo),
-    supabase.from('startup_uploads').select('name, total_god_score, sector')
+    supabase.from('startup_uploads').select('name, total_god_score, sectors')
       .eq('status', 'approved').order('total_god_score', { ascending: false }).limit(1),
   ]);
   return { newStartups: newStartups || 0, newMatches: newMatches || 0, topStartup: topStartup?.[0] };
@@ -83,13 +83,13 @@ async function fetchWeeklyStats(supabase) {
 async function fetchSectorInsight(supabase) {
   const { data } = await supabase
     .from('startup_uploads')
-    .select('sector')
+    .select('sectors')
     .eq('status', 'approved')
-    .not('sector', 'is', null);
+    .not('sectors', 'is', null);
 
   if (!data?.length) return null;
   const counts = {};
-  for (const { sector } of data) { counts[sector] = (counts[sector] || 0) + 1; }
+  for (const { sectors } of data) { const key = Array.isArray(sectors) ? sectors[0] : sectors; if(key) counts[key] = (counts[key] || 0) + 1; }
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   return sorted.slice(0, 5).map(([sector, count]) => ({ sector, count }));
 }
