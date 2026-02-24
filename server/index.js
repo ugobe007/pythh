@@ -490,7 +490,7 @@ const planCache = new Map();
 const PLAN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function getPlanFromRequest(req) {
-  const validPlans = ['free', 'pro', 'elite'];
+  const validPlans = ['free', 'pro', 'proplus', 'elite'];
   
   // Try JWT first (Authorization: Bearer <token>)
   const authHeader = req.headers.authorization;
@@ -1473,8 +1473,9 @@ function getStripe() {
 
 // Price IDs from environment
 const STRIPE_PRICES = {
-  pro: process.env.STRIPE_PRICE_PRO_MONTHLY,
-  elite: process.env.STRIPE_PRICE_ELITE_MONTHLY
+  pro:     process.env.STRIPE_PRICE_PRO_MONTHLY,
+  proplus: process.env.STRIPE_PRICE_PROPLUS_MONTHLY,
+  elite:   process.env.STRIPE_PRICE_ELITE_MONTHLY
 };
 
 // POST /api/billing/create-checkout-session
@@ -1714,8 +1715,10 @@ app.post('/api/billing/webhook',
             .single();
           
           if (profile) {
-            const plan = subscription.metadata?.plan || 
-                         (subscription.items.data[0]?.price.id === STRIPE_PRICES.elite ? 'elite' : 'pro');
+            const priceId = subscription.items.data[0]?.price.id;
+            const plan = subscription.metadata?.plan ||
+                         (priceId === STRIPE_PRICES.elite   ? 'elite'   :
+                          priceId === STRIPE_PRICES.proplus ? 'proplus' : 'pro');
             
             await supabase.from('profiles').update({
               stripe_subscription_id: subscription.id,
@@ -1852,8 +1855,8 @@ app.post('/api/billing/create-guest-checkout', async (req, res) => {
   try {
     const { plan } = req.body;
     
-    if (!['pro', 'elite'].includes(plan)) {
-      return res.status(400).json({ error: 'Invalid plan. Must be "pro" or "elite"' });
+    if (!['pro', 'proplus', 'elite'].includes(plan)) {
+      return res.status(400).json({ error: 'Invalid plan. Must be "pro", "proplus", or "elite"' });
     }
     
     const priceId = STRIPE_PRICES[plan];
