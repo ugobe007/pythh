@@ -344,6 +344,17 @@ function extractCompanyName(title) {
     normalized = normalized.replace(/^(?:fintech|healthtech|edtech|ai|ml|saas|biotech|cleantech)\s+(?:startup|firm|company)\s+/i, '');
     normalized = normalized.replace(/^(?:startup|firm|company|platform)\s+/i, '');
     
+    // Remove "Location-based CompanyName" patterns ("NYC-based Acme" → "Acme")
+    normalized = normalized.replace(/^[A-Za-z][A-Za-z.\s]{0,30}?[- ]based\s+/i, '');
+    
+    // Remove broader category/descriptor prefix before startup type
+    // ("Proptech startup Acme" → "Acme", "Nutrition Startup Acme" → "Acme",
+    //  "Analog chipmaker Acme" → "Acme", "Payment infrastructure provider Acme" → "Acme")
+    normalized = normalized.replace(/^(?:[A-Za-z][A-Za-z0-9\-/]+\s+){0,3}(?:startup|company|firm|platform|chipmaker|provider|maker|developer|builder|unicorn|venture)\s+/i, '');
+    
+    // Remove nationality/regional adjective prefix ("Norwegian Acme" → "Acme")
+    normalized = normalized.replace(/^(?:norwegian|swedish|finnish|danish|dutch|belgian|swiss|austrian|polish|czech|hungarian|romanian|bulgarian|greek|portuguese|spanish|italian|french|german|british|irish|slovak|slovenian|american|canadian|australian|singaporean|indian|chinese|japanese|korean|taiwanese|thai|vietnamese|indonesian|malaysian|philippine|israeli|turkish|nigerian|kenyan|ghanaian|egyptian|moroccan|emirati|saudi|brazilian|argentinian|chilean|colombian|peruvian|mexican|latvian|lithuanian|estonian|ukrainian|russian|georgian)\s+/i, '');
+    
     // Remove location adjectives ("Finnish Rundit" → "Rundit")
     normalized = normalized.replace(/^(?:finnish|swedish|estonian|danish|indian|german|french|british|american|chinese)\s+/i, '');
     
@@ -546,6 +557,14 @@ async function scrapeRssFeeds() {
         }
         
         if (!companyName || companyName.length < 2) {
+          skipped++;
+          continue;
+        }
+        
+        // Reject obvious article-title fragments that slipped through extraction
+        const isArticleFragment = /\b(based\s+startup|chipmaker|infrastructure\s+provider|funding\s+round|joins?\s+ai|ipo\s+plans?|agrees?\b)/i.test(companyName)
+          || /\s{2,}/.test(companyName); // double spaces = concatenation artifact
+        if (isArticleFragment) {
           skipped++;
           continue;
         }

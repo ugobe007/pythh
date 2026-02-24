@@ -19,6 +19,27 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
 
+/**
+ * Strip common article-headline prefixes to recover a clean company name.
+ * Second line of defence — primary cleaning happens in the scrapers.
+ * Examples:
+ *   "NYC-based Garner Health"       → "Garner Health"
+ *   "Proptech startup Huspy"        → "Huspy"
+ *   "Norwegian AI startup Watchdog" → "Watchdog"
+ */
+function sanitizeDiscoveredName(name) {
+  if (!name || typeof name !== 'string') return name;
+  let n = name.trim();
+  // Strip "Location-based CompanyName"
+  n = n.replace(/^[A-Za-z][A-Za-z.\s]{0,30}?[- ]based\s+/i, '');
+  // Strip nationality prefix
+  n = n.replace(/^(?:norwegian|swedish|finnish|danish|dutch|belgian|swiss|austrian|polish|czech|hungarian|romanian|bulgarian|greek|portuguese|spanish|italian|french|german|british|irish|american|canadian|australian|singaporean|indian|chinese|japanese|korean|taiwanese|thai|vietnamese|indonesian|malaysian|philippine|israeli|turkish|nigerian|brazilian|argentinian|chilean|colombian|peruvian|mexican|latvian|lithuanian|estonian|ukrainian|russian)\s+/i, '');
+  // Strip "[Category] startup/company/chipmaker/provider CompanyName"
+  n = n.replace(/^(?:[A-Za-z][A-Za-z0-9\-/]+\s+){0,3}(?:startup|company|firm|platform|chipmaker|provider|maker|developer|builder|unicorn|venture)\s+/i, '');
+  n = n.trim();
+  return n.length >= 2 ? n : name.trim();
+}
+
 function withTimeout(ms) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms);
@@ -93,14 +114,19 @@ router.post('/import-discovered', async (req, res) => {
       }
 
       try {
-        console.log(`  [import] ${row.name}`);
-        const enriched = await enrichStartup(row);
+        const cleanedName = sanitizeDiscoveredName(row.name);
+        if (cleanedName !== row.name) {
+          console.log(`  [import] Name sanitized: "${row.name}" → "${cleanedName}"`);
+        } else {
+          console.log(`  [import] ${row.name}`);
+        }
+        const enriched = await enrichStartup({ ...row, name: cleanedName });
 
         // Insert startup_uploads
         const { data: inserted, error: iErr } = await supabaseAdmin
           .from('startup_uploads')
           .insert({
-            name: row.name,
+            name: cleanedName,
             tagline: (enriched.pitch || row.name || '').slice(0, 200),
             pitch: row.description || '',
             status: 'pending',

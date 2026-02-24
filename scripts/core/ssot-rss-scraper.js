@@ -423,6 +423,13 @@ async function scrapeRssFeeds() {
           // Extract primary company name (SUBJECT role preferred)
           const primaryEntity = event.entities.find(e => e.role === "SUBJECT") || event.entities[0];
           
+          // SANITIZE: strip location/category prefixes before any lookup or validation
+          const rawName = primaryEntity.name;
+          primaryEntity.name = sanitizeStartupName(primaryEntity.name);
+          if (primaryEntity.name !== rawName) {
+            console.log(`   🧹 Name sanitized: "${rawName}" → "${primaryEntity.name}"`);
+          }
+          
           // Try to create graph join into startup_uploads
           try {
             // Try extracting website from article link first
@@ -512,12 +519,24 @@ async function scrapeRssFeeds() {
                 console.log(`   🔥 GOD Score: ${primaryEntity.name} → ${godScores.total_god_score}/100`);
               } catch (scoreErr) {
                 console.log(`   ⚠️  GOD Score failed for ${primaryEntity.name}: ${scoreErr.message}`);
-                godScores = { total_god_score: 50 }; // Fallback only on error
+                godScores = { total_god_score: 50 }; // Fallback only on error — treated as pending
               }
 
-              // Auto-approve startups with GOD score >= 50, leave others as pending for admin review
-              const autoApproveThreshold = 50;
-              const startupStatus = (godScores.total_god_score || 0) >= autoApproveThreshold ? 'approved' : 'pending';
+              // ── GOD Score Status Tiers ────────────────────────────────────────────
+              // ≥ 70  → approved   : high confidence, enters matching immediately
+              // 40–69 → pending    : admin review queue, will be scored further over time
+              // < 40  → holding    : floor tier; reserved 30 days to collect more signal
+              //                      (events, follow-on funding, new articles) before a
+              //                      final approve/reject decision is made. NOT shown to
+              //                      investors until it clears the 40-point floor.
+              // DB trigger enforces the 40-point floor as a hard minimum on total_god_score.
+              // ─────────────────────────────────────────────────────────────────────
+              const AUTO_APPROVE_THRESHOLD = 70;
+              const FLOOR = 40;
+              const score = godScores.total_god_score || 0;
+              const startupStatus = score >= AUTO_APPROVE_THRESHOLD ? 'approved'
+                                  : score >= FLOOR               ? 'pending'
+                                  :                                 'holding';
               
               // Create new startup with v2 inference data + real GOD score
               const { data: newRow, error: err } = await supabase
@@ -539,9 +558,11 @@ async function scrapeRssFeeds() {
                 .single();
               
               if (startupStatus === 'approved') {
-                console.log(`   ✅ Auto-approved: ${primaryEntity.name} (GOD: ${godScores.total_god_score})`);
+                console.log(`   ✅ Auto-approved: ${primaryEntity.name} (GOD: ${score})`);
+              } else if (startupStatus === 'pending') {
+                console.log(`   ⏳ Pending review: ${primaryEntity.name} (GOD: ${score} — ${FLOOR}–${AUTO_APPROVE_THRESHOLD - 1} range)`);
               } else {
-                console.log(`   ⏳ Pending review: ${primaryEntity.name} (GOD: ${godScores.total_god_score} < ${autoApproveThreshold})`);
+                console.log(`   🔒 Holding (30-day data collection): ${primaryEntity.name} (GOD: ${score} < ${FLOOR})`);
               }
               startupRow = newRow;
               startupError = err;
@@ -674,6 +695,48 @@ async function scrapeRssFeeds() {
 }
 
 // ============================================================================
+// NAME SANITIZATION
+// Strips article-title prefixes to extract clean company names
+// ============================================================================
+
+/**
+ * Strip common article-headline prefixes to recover a clean company name.
+ * Examples:
+ *   "NYC-based Garner Health"          → "Garner Health"
+ *   "London-based Mondra"              → "Mondra"
+ *   "Proptech startup Huspy"           → "Huspy"
+ *   "Norwegian AI startup Watchdog"    → "Watchdog"
+ *   "Deep-tech startup Xbattery"       → "Xbattery"
+ *   "Analog chipmaker SiTime"          → "SiTime"
+ *   "Payment infrastructure provider Rezolve Ai" → "Rezolve Ai"
+ */
+function sanitizeStartupName(name) {
+  if (!name || typeof name !== 'string') return name;
+  let n = name.trim();
+
+  // Strip "Location-based CompanyName" patterns
+  // Handles: "NYC-based", "London-based", "St. Pete-based", "US-based", "Berlin-based"
+  n = n.replace(/^[A-Za-z][A-Za-z.\s]{0,30}?[- ]based\s+/i, '');
+
+  // Strip nationality/regional adjective prefix (only if more words follow)
+  // Handles: "Norwegian", "Swedish", "Finnish", "Indian", "German", …
+  const NATIONALITY_RE = /^(?:norwegian|swedish|finnish|danish|dutch|belgian|swiss|austrian|polish|czech|hungarian|romanian|bulgarian|greek|portuguese|spanish|italian|french|german|british|irish|slovak|slovenian|american|canadian|australian|singaporean|indian|chinese|japanese|korean|taiwanese|thai|vietnamese|indonesian|malaysian|philippine|israeli|turkish|nigerian|kenyan|ghanaian|egyptian|moroccan|emirati|saudi|brazilian|argentinian|chilean|colombian|peruvian|mexican|latvian|lithuanian|estonian|ukrainian|russian|georgian)\s+/i;
+  if (NATIONALITY_RE.test(n) && n.replace(NATIONALITY_RE, '').trim().length >= 2) {
+    n = n.replace(NATIONALITY_RE, '');
+  }
+
+  // Strip "[Category word(s)] [startup|company|firm|platform|chipmaker|provider|maker] CompanyName"
+  // Handles: "Proptech startup", "Nutrition Startup", "Deep-tech startup", "AI ML startup",
+  //          "Analog chipmaker", "Payment infrastructure provider", "Wearable tech company"
+  n = n.replace(/^(?:[A-Za-z][A-Za-z0-9\-/]+\s+){0,3}(?:startup|company|firm|platform|chipmaker|provider|maker|developer|builder|unicorn|venture)\s+/i, '');
+
+  n = n.trim();
+
+  // Safety: if sanitization wiped the whole string, return the original trimmed name
+  return n.length >= 2 ? n : name.trim();
+}
+
+// ============================================================================
 // NAME QUALITY VALIDATION
 // Catches concatenated/garbage names before they enter the database
 // ============================================================================
@@ -717,6 +780,16 @@ function isValidStartupName(name) {
   // Contains common description fragments
   if (/\b(platform for|helps? |enables?|automates?|provides?|delivers?)\b/i.test(trimmed) && trimmed.length > 30) {
     return { valid: false, reason: 'contains_description' };
+  }
+  
+  // Looks like an article title fragment (contains action verbs in the middle/end)
+  if (/\b(agrees?|joins?\s+ai|chipmaker|infrastructure\s+provider|funding\s+round|ipo\s+plans?)\b/i.test(trimmed)) {
+    return { valid: false, reason: 'article_title_fragment' };
+  }
+
+  // Still has "based" in it (location prefix not fully stripped)
+  if (/\bbased\b/i.test(trimmed) && trimmed.length > 10) {
+    return { valid: false, reason: 'contains_based_prefix' };
   }
   
   return { valid: true };
