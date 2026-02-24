@@ -1,13 +1,15 @@
 /**
  * PRICING PAGE
  * =========================
- * 4-tier pricing with Stripe integration
- * 
+ * Subscription tiers (low friction, upsell on services + success fees)
+ *
  * Tiers:
  * - Free ($0): Explore the signal layer
- * - Pro ($29/mo): Full signal access for founders
- * - Signal Navigator ($99/mo, tier key: 'elite'): The full intelligence layer
- * - Fund ($249/seat/mo): Contact-us tier for VCs/angels
+ * - Pro ($7.99/mo): Full signal access
+ * - Pro+ ($13.99/mo): Signal + playbook + exports
+ * - Signal Navigator ($29.99/mo, tier key: 'elite'): Full intelligence layer
+ *
+ * Revenue upside: premium services + success fees (see upsell section below)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -31,7 +33,7 @@ import { analytics } from '../analytics';
 import { UPGRADE_COPY, UpgradeMoment } from '../lib/upgradeMoments';
 
 type BillingCycle = 'monthly' | 'annual';
-type PlanTier = 'free' | 'pro' | 'elite';
+type PlanTier = 'free' | 'pro' | 'proplus' | 'elite';
 
 interface PlanFeature {
   text: string;
@@ -63,11 +65,10 @@ const PLANS: PricingPlan[] = [
     ctaText: 'Start Free',
     features: [
       { text: 'Submit 1 startup URL', included: true },
-      { text: '5 unlocked investor signals', included: true },
       { text: 'GOD Score overview', included: true },
       { text: 'Browse Rankings & Explore', included: true },
       { text: '3 investor matches (masked)', included: true },
-      { text: 'Weekly Signal Digest email', included: true },
+      { text: 'Weekly Signal Digest', included: true },
       { text: 'Watchlists', included: false },
       { text: 'Signal alerts', included: false },
     ],
@@ -75,8 +76,8 @@ const PLANS: PricingPlan[] = [
   {
     name: 'Pro',
     tier: 'pro',
-    price: 49,
-    annualPrice: 39,
+    price: 7.99,
+    annualPrice: 6.39,
     tagline: 'Full signal access for founders',
     color: 'border-cyan-500/40 hover:border-cyan-500',
     iconColor: 'text-cyan-400',
@@ -87,30 +88,45 @@ const PLANS: PricingPlan[] = [
       { text: 'Watchlists — track startups & investors', included: true },
       { text: 'Signal alerts (email + in-app)', included: true },
       { text: 'Competitive radar', included: true },
-      { text: 'Follow-on round prep', included: true },
       { text: 'Signal Playbook per investor', included: false },
       { text: 'Export CSV + Deal Memos', included: false },
     ],
   },
   {
+    name: 'Pro+',
+    tier: 'proplus',
+    price: 13.99,
+    annualPrice: 11.19,
+    tagline: 'Signals + strategy + exports',
+    color: 'border-violet-500/40 hover:border-violet-500',
+    iconColor: 'text-violet-400',
+    ctaText: 'Upgrade to Pro+',
+    features: [
+      { text: 'Everything in Pro', included: true, highlight: true },
+      { text: 'Signal Playbook (per-investor strategy)', included: true, highlight: true },
+      { text: 'Fundraising Timing Map', included: true, highlight: true },
+      { text: 'Export CSV + AI Deal Memo', included: true, highlight: true },
+      { text: 'Shareable links for advisors', included: true, highlight: true },
+      { text: 'Sector signal heatmaps', included: true, highlight: true },
+      { text: 'Real-time signal shift alerts', included: false },
+    ],
+  },
+  {
     name: 'Signal Navigator',
     tier: 'elite',
-    price: 99,
-    annualPrice: 79,
+    price: 29.99,
+    annualPrice: 23.99,
     tagline: 'The full intelligence layer',
     color: 'border-cyan-400/60 hover:border-cyan-400',
     iconColor: 'text-cyan-400',
     ctaText: 'Go Navigator',
     popular: true,
     features: [
-      { text: 'Everything in Pro', included: true, highlight: true },
-      { text: 'Signal Playbook (per-investor strategy)', included: true, highlight: true },
-      { text: 'Fundraising Timing Map', included: true, highlight: true },
+      { text: 'Everything in Pro+', included: true, highlight: true },
       { text: 'Real-time signal shift alerts', included: true, highlight: true },
-      { text: 'Export CSV + AI Deal Memo generation', included: true, highlight: true },
-      { text: 'Shareable links for advisors', included: true, highlight: true },
-      { text: 'Sector signal heatmaps', included: true, highlight: true },
       { text: 'Priority support', included: true, highlight: true },
+      { text: 'Early access to new features', included: true, highlight: true },
+      { text: 'Concierge onboarding session', included: true, highlight: true },
     ],
   },
 ];
@@ -418,7 +434,7 @@ export default function PricingPage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto mb-12">
           {PLANS.map((plan) => {
             const price = getPrice(plan);
             const isCurrent = isCurrentPlan(plan.tier);
@@ -453,7 +469,7 @@ export default function PricingPage() {
                 {/* Early Access Badge for paid tiers */}
                 {plan.tier !== 'free' && !isCurrent && (
                   <div className="absolute top-3 left-3 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] font-medium rounded-full border border-emerald-500/30">
-                    Early Access Pricing
+                    Early Access
                   </div>
                 )}
 
@@ -518,9 +534,11 @@ export default function PricingPage() {
                       ? 'border border-emerald-500/40 text-emerald-400 cursor-default'
                       : plan.tier === 'elite'
                         ? 'border border-cyan-400 text-cyan-400 hover:bg-cyan-400/10'
-                        : plan.tier === 'pro'
-                          ? 'border border-cyan-500/60 text-cyan-400 hover:bg-cyan-500/10'
-                          : 'border border-zinc-600 text-zinc-300 hover:bg-zinc-800'
+                        : plan.tier === 'proplus'
+                          ? 'border border-violet-500/60 text-violet-400 hover:bg-violet-500/10'
+                          : plan.tier === 'pro'
+                            ? 'border border-cyan-500/60 text-cyan-400 hover:bg-cyan-500/10'
+                            : 'border border-zinc-600 text-zinc-300 hover:bg-zinc-800'
                     }
                     disabled:opacity-50 disabled:cursor-not-allowed
                   `}
@@ -630,62 +648,138 @@ export default function PricingPage() {
             <thead>
               <tr className="border-b border-zinc-800">
                 <th className="text-left py-3 px-4 text-zinc-400 font-medium">Feature</th>
-                <th className="text-center py-3 px-4 text-zinc-400 font-medium">Free</th>
-                <th className="text-center py-3 px-4 text-cyan-500 font-medium">Pro</th>
-                <th className="text-center py-3 px-4 text-cyan-400 font-medium">Navigator</th>
+                <th className="text-center py-3 px-3 text-zinc-400 font-medium">Free</th>
+                <th className="text-center py-3 px-3 text-cyan-500 font-medium">Pro</th>
+                <th className="text-center py-3 px-3 text-violet-400 font-medium">Pro+</th>
+                <th className="text-center py-3 px-3 text-cyan-400 font-medium">Navigator</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
               <tr>
                 <td className="py-3 px-4 text-zinc-300">Investor Matches</td>
-                <td className="py-3 px-4 text-center text-zinc-500">3 (masked)</td>
-                <td className="py-3 px-4 text-center text-zinc-300">All (full identity)</td>
-                <td className="py-3 px-4 text-center text-white font-medium">All + strategy</td>
+                <td className="py-3 px-3 text-center text-zinc-500 text-xs">3 masked</td>
+                <td className="py-3 px-3 text-center text-zinc-300 text-xs">All (full)</td>
+                <td className="py-3 px-3 text-center text-zinc-300 text-xs">All (full)</td>
+                <td className="py-3 px-3 text-center text-white font-medium text-xs">All + strategy</td>
               </tr>
               <tr>
                 <td className="py-3 px-4 text-zinc-300">Watchlists</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
                 <td className="py-3 px-4 text-zinc-300">Signal Alerts</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
                 <td className="py-3 px-4 text-zinc-300">Competitive Radar</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
                 <td className="py-3 px-4 text-zinc-300">Signal Playbook</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
-              </tr>
-              <tr>
-                <td className="py-3 px-4 text-zinc-300">Timing Map</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
                 <td className="py-3 px-4 text-zinc-300">Export CSV + Deal Memo</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-violet-400 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
               <tr>
-                <td className="py-3 px-4 text-zinc-300">Shareable Links</td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
-                <td className="py-3 px-4 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+                <td className="py-3 px-4 text-zinc-300">Real-time Shift Alerts</td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
+              </tr>
+              <tr>
+                <td className="py-3 px-4 text-zinc-300">Concierge Onboarding</td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
+                <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-400 mx-auto" /></td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        {/* ── Premium Services (Upsell) ─────────────────────────────────── */}
+        <div className="max-w-5xl mx-auto mb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-xl font-bold text-white mb-2">Premium Services</h2>
+            <p className="text-zinc-500 text-sm max-w-xl mx-auto">
+              Beyond the platform. When you're ready to move fast, we can do the heavy lifting.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
+              <div className="text-2xl">📋</div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Professional Pitch Deck</h3>
+                <p className="text-zinc-500 text-sm">AI-structured, human-refined pitch deck built from your GOD Score profile and investor signal data. Designed to land the meeting.</p>
+              </div>
+              <a href="mailto:team@pythh.ai?subject=Pitch%20Deck%20Service" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
+              <div className="text-2xl">🔬</div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Pythh Research Report</h3>
+                <p className="text-zinc-500 text-sm">Deep competitive and investor landscape analysis for your startup. Know exactly who's moving in your space and why.</p>
+              </div>
+              <a href="mailto:team@pythh.ai?subject=Research%20Report" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
+              <div className="text-2xl">🤝</div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Advisor & Board Recruitment</h3>
+                <p className="text-zinc-500 text-sm">We match you with vetted advisors and board candidates aligned to your sector, stage, and signal gaps. No cold outreach.</p>
+              </div>
+              <a href="mailto:team@pythh.ai?subject=Advisor%20Recruitment" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
+              <div className="text-2xl">📡</div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Investor Outreach Campaign</h3>
+                <p className="text-zinc-500 text-sm">We run a signal-targeted outreach campaign to the investors the algorithm identifies as your highest-probability matches.</p>
+              </div>
+              <a href="mailto:team@pythh.ai?subject=Investor%20Outreach" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
+              <div className="text-2xl">📄</div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Term Sheet Support</h3>
+                <p className="text-zinc-500 text-sm">Expert review and negotiation guidance when a term sheet lands. We help you read the signals and protect your equity.</p>
+              </div>
+              <a href="mailto:team@pythh.ai?subject=Term%20Sheet%20Support" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+            </div>
+
+            <div className="bg-gradient-to-br from-cyan-500/10 to-emerald-500/5 border border-cyan-500/20 rounded-xl p-6 flex flex-col gap-3">
+              <div className="text-2xl">🏆</div>
+              <div>
+                <h3 className="text-white font-semibold mb-1">Success Fee</h3>
+                <p className="text-zinc-500 text-sm">We take a small success fee only when a funding round closes that Pythh helped facilitate. Zero risk — we win when you win.</p>
+              </div>
+              <p className="text-xs text-emerald-400 font-medium mt-auto">No upfront cost · Aligned incentives</p>
+            </div>
+
+          </div>
         </div>
 
         {/* FAQ Section */}
