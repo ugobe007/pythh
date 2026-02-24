@@ -1048,10 +1048,10 @@ const { withTimeout, TimeoutError, TIMEOUTS } = require('./utils/withTimeout');
 const { matchesCache } = require('./utils/cache');
 
 // ============================================================
-// GET /api/newsletter/today — Daily Signal Digest
-// Public endpoint — no auth required
+// Newsletter endpoints — Daily Signal Digest
+// Public endpoints — no auth required
 // ============================================================
-const { generateNewsletter } = require('./newsletter-generator');
+const { generateNewsletter, loadEdition } = require('./newsletter-generator');
 
 app.get('/api/newsletter/today', async (req, res) => {
   try {
@@ -1062,6 +1062,53 @@ app.get('/api/newsletter/today', async (req, res) => {
   } catch (err) {
     console.error('[newsletter] Error generating digest:', err.message);
     return res.status(500).json({ error: 'Failed to generate newsletter' });
+  }
+});
+
+// GET /api/newsletter/:date — load a specific edition (YYYY-MM-DD)
+app.get('/api/newsletter/:date', async (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+  }
+  const today = new Date().toISOString().split('T')[0];
+  if (date === today) {
+    try {
+      const data = await generateNewsletter();
+      return res.set('Cache-Control', 'public, max-age=1800').json(data);
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to generate newsletter' });
+    }
+  }
+  const edition = await loadEdition(date);
+  if (!edition) return res.status(404).json({ error: 'Edition not found' });
+  return res.set('Cache-Control', 'public, max-age=86400').json(edition);
+});
+
+// POST /api/newsletter/subscribe — save email to newsletter_subscribers
+app.post('/api/newsletter/subscribe', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid email required' });
+  }
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('newsletter_subscribers')
+      .upsert(
+        { email: email.toLowerCase().trim(), source: 'website' },
+        { onConflict: 'email', ignoreDuplicates: false }
+      );
+    if (error) {
+      if (error.message?.includes('does not exist')) {
+        return res.status(503).json({ error: 'Subscriber table not yet set up — contact admin.' });
+      }
+      throw error;
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[newsletter] subscribe error:', err.message);
+    return res.status(500).json({ error: 'Failed to subscribe. Please try again.' });
   }
 });
 

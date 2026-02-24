@@ -248,6 +248,7 @@ const App: React.FC = () => {
 
           {/* Weekly signal digest */}
           <Route path="/newsletter" element={<NewsletterPage />} />
+          <Route path="/newsletter/:date" element={<NewsletterPage />} />
 
           {/* Shared dashboard views (public, read-only — no auth required) */}
           <Route path="/s/:shareId" element={<SharedDashboardView />} />

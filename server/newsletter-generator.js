@@ -1,6 +1,6 @@
 // --- FILE: server/newsletter-generator.js ---
 // Daily Signal Digest — assembles newsletter data from Supabase
-// Used by: GET /api/newsletter/today, social-poster.js (daily_digest type)
+// Used by: GET /api/newsletter/today, GET /api/newsletter/:date, social-poster.js
 
 'use strict';
 
@@ -14,6 +14,143 @@ let _cache = null;
 let _cacheTs = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+async function safeQuery(fn) {
+  try { return await fn(); } catch { return null; }
+}
+
+// ── New section fetchers ──────────────────────────────────────────────────────
+async function fetchInvestorOfWeek(supabase, weekAgo) {
+  const { data: recent } = await supabase
+    .from('startup_investor_matches')
+    .select('investor_id, match_score')
+    .gte('created_at', weekAgo)
+    .not('investor_id', 'is', null)
+    .order('match_score', { ascending: false })
+    .limit(200);
+
+  if (!recent?.length) return null;
+
+  const counts = {};
+  const scoreSum = {};
+  for (const r of recent) {
+    counts[r.investor_id]   = (counts[r.investor_id]   || 0) + 1;
+    scoreSum[r.investor_id] = (scoreSum[r.investor_id] || 0) + (r.match_score || 0);
+  }
+  const topId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!topId) return null;
+
+  const { data: inv } = await supabase
+    .from('investors')
+    .select('id, name, firm_name, sectors, stage, investment_thesis')
+    .eq('id', topId)
+    .limit(1);
+
+  const investor = inv?.[0];
+  if (!investor) return null;
+
+  return {
+    ...investor,
+    match_count: counts[topId],
+    avg_match_score: Math.round(scoreSum[topId] / counts[topId]),
+  };
+}
+
+async function fetchFundingRounds(supabase, weekAgo) {
+  const { data } = await supabase
+    .from('discovered_startups')
+    .select('name, funding_amount, funding_stage, investors_mentioned, article_url, article_date, rss_source')
+    .gte('created_at', weekAgo)
+    .not('funding_amount', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  if (!data?.length) return [];
+
+  return data
+    .filter(r => r.funding_amount && r.name)
+    .map(r => ({
+      company:   r.name,
+      amount:    r.funding_amount,
+      stage:     r.funding_stage || null,
+      investors: r.investors_mentioned || [],
+      url:       r.article_url || null,
+      source:    r.rss_source || 'RSS',
+      date:      r.article_date || null,
+    }));
+}
+
+async function fetchGODScoreMovers(supabase, weekAgo) {
+  const { data: history } = await supabase
+    .from('score_history')
+    .select('startup_id, old_score, new_score, created_at')
+    .gte('created_at', weekAgo)
+    .not('old_score', 'is', null)
+    .not('new_score', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (!history?.length) return [];
+
+  // Keep largest move per startup
+  const bestMove = {};
+  for (const h of history) {
+    const delta = (h.new_score || 0) - (h.old_score || 0);
+    const abs   = Math.abs(delta);
+    if (!bestMove[h.startup_id] || abs > Math.abs(bestMove[h.startup_id].delta)) {
+      bestMove[h.startup_id] = { startup_id: h.startup_id, old_score: h.old_score, new_score: h.new_score, delta };
+    }
+  }
+
+  const movers = Object.values(bestMove)
+    .filter(m => Math.abs(m.delta) >= 10)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, 5);
+
+  if (!movers.length) return [];
+
+  const ids = movers.map(m => m.startup_id);
+  const { data: startups } = await supabase
+    .from('startup_uploads')
+    .select('id, name, tagline, sectors, total_god_score')
+    .in('id', ids);
+
+  const startupMap = Object.fromEntries((startups || []).map(s => [s.id, s]));
+
+  return movers
+    .map(m => ({ ...startupMap[m.startup_id], old_score: m.old_score, new_score: m.new_score, delta: m.delta }))
+    .filter(m => m.name);
+}
+
+// ── Edition persistence ───────────────────────────────────────────────────────
+async function saveEdition(supabase, editionDate, data) {
+  try {
+    const { error } = await supabase
+      .from('newsletter_editions')
+      .upsert({ edition_date: editionDate, data, generated_at: data.generated_at, updated_at: new Date().toISOString() }, { onConflict: 'edition_date' });
+    if (error && !error.message.includes('does not exist')) {
+      console.error('[newsletter] saveEdition error:', error.message);
+    }
+  } catch (e) {
+    console.error('[newsletter] saveEdition exception:', e.message);
+  }
+}
+
+async function loadEdition(editionDate) {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('newsletter_editions')
+      .select('data')
+      .eq('edition_date', editionDate)
+      .single();
+    if (error || !data) return null;
+    return data.data;
+  } catch {
+    return null;
+  }
+}
+
 async function generateNewsletter({ bust = false } = {}) {
   const now = Date.now();
   if (!bust && _cache && now - _cacheTs < CACHE_TTL_MS) {
@@ -25,12 +162,15 @@ async function generateNewsletter({ bust = false } = {}) {
   const dayAgo  = new Date(now - 24 * 60 * 60 * 1000).toISOString();
 
   const [
-    { data: rawMatches },
-    { data: leaderboard },
-    { data: sectorRows },
-    { data: darkHorseRows },
-    { data: newArrivals },
-    { data: newsItems },
+    rawMatchesResult,
+    leaderboardResult,
+    sectorRowsResult,
+    darkHorseResult,
+    newArrivalsResult,
+    newsResult,
+    investorOfWeek,
+    fundingRounds,
+    scoreMovers,
   ] = await Promise.all([
     // Top matches by score
     supabase
@@ -83,7 +223,22 @@ async function generateNewsletter({ bust = false } = {}) {
       .not('article_title', 'is', null)
       .order('created_at', { ascending: false })
       .limit(8),
+
+    // Investor of the week
+    safeQuery(() => fetchInvestorOfWeek(supabase, weekAgo)),
+    // Funding rounds from RSS
+    safeQuery(() => fetchFundingRounds(supabase, weekAgo)),
+    // GOD score movers ≥10pt
+    safeQuery(() => fetchGODScoreMovers(supabase, weekAgo)),
   ]);
+
+  // Destructure standard query results
+  const rawMatches   = rawMatchesResult?.data;
+  const leaderboard  = leaderboardResult?.data;
+  const sectorRows   = sectorRowsResult?.data;
+  const darkHorseRows = darkHorseResult?.data;
+  const newArrivals  = newArrivalsResult?.data;
+  const newsItems    = newsResult?.data;
 
   // ── Sector trends ──────────────────────────────────────────────────────────
   const sectorCounts = {};
@@ -157,11 +312,19 @@ async function generateNewsletter({ bust = false } = {}) {
     darkHorse:        darkHorseRows?.[0] || null,
     newArrivals:      newArrivals || [],
     news,
+    investorOfWeek:   investorOfWeek || null,
+    fundingRounds:    fundingRounds  || [],
+    scoreMovers:      scoreMovers    || [],
   };
 
-  _cache  = result;
+  _cache   = result;
   _cacheTs = now;
+
+  // Persist as a named edition (silent fail if table doesn't exist yet)
+  const editionDate = result.date;
+  await saveEdition(supabase, editionDate, result);
+
   return result;
 }
 
-module.exports = { generateNewsletter };
+module.exports = { generateNewsletter, loadEdition };

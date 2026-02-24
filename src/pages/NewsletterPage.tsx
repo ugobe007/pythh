@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import SEO from '../components/SEO';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 
@@ -46,6 +46,38 @@ interface NewsItem {
   investors: string[];
 }
 
+interface InvestorOfWeek {
+  id: string;
+  name: string;
+  firm_name: string;
+  sectors: string[];
+  stage: string;
+  investment_thesis: string | null;
+  match_count: number;
+  avg_match_score: number;
+}
+
+interface FundingRound {
+  company: string;
+  amount: string;
+  stage: string | null;
+  investors: string[];
+  url: string | null;
+  source: string;
+  date: string | null;
+}
+
+interface ScoreMover {
+  id: string;
+  name: string;
+  tagline: string;
+  sectors: string[];
+  total_god_score: number;
+  old_score: number;
+  new_score: number;
+  delta: number;
+}
+
 interface NewsletterData {
   date: string;
   generated_at: string;
@@ -55,6 +87,9 @@ interface NewsletterData {
   darkHorse: DarkHorse | null;
   newArrivals: { name: string; tagline: string; sectors: string[]; total_god_score: number }[];
   news: NewsItem[];
+  investorOfWeek: InvestorOfWeek | null;
+  fundingRounds: FundingRound[];
+  scoreMovers: ScoreMover[];
 }
 
 const ScorePill = ({ score, dim }: { score: number; dim?: boolean }) => {
@@ -76,16 +111,38 @@ const SectorTag = ({ sector }: { sector: string }) => (
 );
 
 export default function NewsletterPage() {
-  const [data, setData]     = useState<NewsletterData | null>(null);
+  const { date: dateParam } = useParams<{ date?: string }>();
+  const [data, setData]       = useState<NewsletterData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [subEmail, setSubEmail] = useState('');
+  const [subState, setSubState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/newsletter/today`)
+    const url = dateParam
+      ? `${API_BASE}/api/newsletter/${dateParam}`
+      : `${API_BASE}/api/newsletter/today`;
+    fetch(url)
       .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setError(String(e)); setLoading(false); });
-  }, []);
+  }, [dateParam]);
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subEmail.includes('@')) return;
+    setSubState('loading');
+    try {
+      const res = await fetch(`${API_BASE}/api/newsletter/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: subEmail }),
+      });
+      setSubState(res.ok ? 'done' : 'error');
+    } catch {
+      setSubState('error');
+    }
+  };
 
   const shareOnTwitter = () => {
     if (!data) return;
@@ -138,6 +195,39 @@ export default function NewsletterPage() {
             Share on X
           </button>
         </div>
+
+        {/* ── Subscribe strip ──────────────────────────────────────────────── */}
+        <form
+          onSubmit={handleSubscribe}
+          className="mb-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4"
+        >
+          <div className="flex-1">
+            <p className="text-white text-sm font-medium">Get the digest in your inbox</p>
+            <p className="text-zinc-500 text-xs mt-0.5">Weekly. No spam. Unsubscribe any time.</p>
+          </div>
+          {subState === 'done' ? (
+            <p className="text-emerald-400 text-sm font-medium">You're subscribed ✓</p>
+          ) : (
+            <>
+              <input
+                type="email"
+                value={subEmail}
+                onChange={e => setSubEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="flex-1 max-w-xs bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500"
+              />
+              <button
+                type="submit"
+                disabled={subState === 'loading'}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded-lg text-sm font-medium text-white transition"
+              >
+                {subState === 'loading' ? 'Subscribing…' : 'Subscribe'}
+              </button>
+              {subState === 'error' && <p className="text-red-400 text-xs">Something went wrong.</p>}
+            </>
+          )}
+        </form>
 
         {/* ── Loading / Error ──────────────────────────────────────────────── */}
         {loading && (
@@ -328,6 +418,96 @@ export default function NewsletterPage() {
                         </svg>
                       </div>
                     </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Section 7: Investor of the Week ───────────────────────── */}
+            {data.investorOfWeek && (
+              <section>
+                <SectionHeading icon="🏆" label="Investor of the Week" sub="Most active by match volume this week" />
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-white font-semibold text-lg">{data.investorOfWeek.firm_name || data.investorOfWeek.name}</p>
+                      {data.investorOfWeek.name && data.investorOfWeek.firm_name && (
+                        <p className="text-zinc-400 text-sm">{data.investorOfWeek.name}</p>
+                      )}
+                      {data.investorOfWeek.investment_thesis && (
+                        <p className="text-zinc-500 text-xs mt-2 line-clamp-2">{data.investorOfWeek.investment_thesis}</p>
+                      )}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(data.investorOfWeek.sectors || []).slice(0, 3).map(s => <SectorTag key={s} sector={s} />)}
+                        {data.investorOfWeek.stage && <SectorTag sector={data.investorOfWeek.stage} />}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right space-y-1.5">
+                      <div>
+                        <span className="block text-amber-400 font-bold text-2xl font-mono">{data.investorOfWeek.match_count}</span>
+                        <p className="text-zinc-600 text-[10px]">matches</p>
+                      </div>
+                      <div>
+                        <span className="block text-amber-300 font-mono text-sm">{data.investorOfWeek.avg_match_score}%</span>
+                        <p className="text-zinc-600 text-[10px]">avg score</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* ── Section 8: Funding Rounds ──────────────────────────────── */}
+            {data.fundingRounds?.length > 0 && (
+              <section>
+                <SectionHeading icon="💰" label="Funding Rounds" sub="Capital raised by startups in the ecosystem this week" />
+                <div className="space-y-2">
+                  {data.fundingRounds.map((r, i) => (
+                    <div key={i} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-white font-medium">{r.company}</span>
+                          {r.stage && <span className="text-zinc-500 text-xs border border-zinc-700 rounded px-1.5 py-0.5">{r.stage}</span>}
+                        </div>
+                        {r.investors?.length > 0 && (
+                          <p className="text-zinc-500 text-xs mt-1">Led by {r.investors.slice(0, 3).join(', ')}</p>
+                        )}
+                        {r.url && (
+                          <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-zinc-600 text-xs hover:text-zinc-400 transition mt-0.5 inline-block">{r.source} ↗</a>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-emerald-400 font-mono font-semibold text-sm">{r.amount}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Section 9: GOD Score Movers ────────────────────────────── */}
+            {data.scoreMovers?.length > 0 && (
+              <section>
+                <SectionHeading icon="📊" label="GOD Score Movers" sub="Startups with the biggest score swings this week" />
+                <div className="space-y-2">
+                  {data.scoreMovers.map((m, i) => (
+                    <div key={i} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium truncate">{m.name}</p>
+                        {m.tagline && <p className="text-zinc-500 text-xs mt-0.5 truncate">{m.tagline}</p>}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(m.sectors || []).slice(0, 2).map(s => <SectorTag key={s} sector={s} />)}
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-3 text-center">
+                        <div>
+                          <span className="text-zinc-500 font-mono text-sm line-through">{m.old_score}</span>
+                          <span className="text-zinc-600 mx-1">→</span>
+                          <ScorePill score={m.new_score} />
+                        </div>
+                        <span className={`font-bold font-mono text-sm ${m.delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {m.delta > 0 ? '+' : ''}{m.delta}
+                        </span>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>
