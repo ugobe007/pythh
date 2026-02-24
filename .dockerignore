@@ -1,60 +1,19 @@
-# Dependencies
-node_modules
-
-# Git
-.git
-
-# Environment
-.env
-.env.*
-
-# Logs / pids
-*.log
-*.pid
-logs/
-
-# Build artifacts
-*.tar.gz
-server_backup_*.tar.gz
-
-# Config files not needed inside image
 fly.toml
 Dockerfile
 .dockerignore
-
-# Docs (keep README)
-*.md
-!README.md
-
-# Large data/analysis files
-airtable-vc-data*.json
-analysis-output.txt
-all-vc-urls*.txt
+node_modules
+.git
+.env
+.env.*
+*.log
+*.pid
+logs/
+*.tar.gz
+*.txt
+*.json.bak
 ml-data/
 data/
 FS_TREE_L4.txt
-*.json.bak
-
-# Root-level one-off scripts only (/ prefix = root dir only, leaves server/ scripts/ src/ intact)
-/apply-*.js
-/add-*.js
-/analyze-*.js
-/check-*.js
-/cleanup-*.js
-/fix-*.js
-/god-score-*.js
-/health-check.js
-/list-*.js
-/match-*.js
-/process-*.js
-/recover-*.js
-/run-*.js
-/system-guardian.js
-/test-*.js
-/update-*.js
-/verify-*.js
-/holding-review-worker.js
-/migrate-*.js
-/recalculate-*.js
-/*.sql
-/*.sh
+server_backup_*.tar.gz
+*.md
+!README.md
