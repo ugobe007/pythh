@@ -127,7 +127,27 @@ export async function submitStartup(
         const elapsedMs: number | undefined = typeof row.elapsed_ms === 'number' ? row.elapsed_ms : undefined;
 
         // If enough matches and not forced → done
+        // BUT: also check data quality; if data is clearly bad (enrichment never ran
+        // or team_score is near-floor) fire a silent background re-enrich pass.
         if (matchCount >= minMatches && !forceGenerate) {
+          // Background data-quality check (non-blocking — fire-and-forget)
+          void (async () => {
+            try {
+              const { data: qd } = await supabase
+                .from('startup_uploads')
+                .select('team_score, enrichment_status')
+                .eq('id', row.startup_id)
+                .single();
+              const needsRefresh =
+                qd?.enrichment_status === 'waiting' ||
+                (typeof qd?.team_score === 'number' && qd.team_score < 28);
+              if (needsRefresh) {
+                console.log(`[submitStartup] Stale/sparse data for "${row.startup_name}" (team=${qd?.team_score}, status=${qd?.enrichment_status}) — background re-enrich`);
+                triggerMatchGeneration(searched, sessionId, true, signal);
+              }
+            } catch { /* non-fatal */ }
+          })();
+
           return {
             status: 'resolved',
             startup_id: row.startup_id,

@@ -86,23 +86,33 @@ const FAST_SOURCES = {
 async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 6) {
   const articles = [];
 
-  // Build contextual queries — broadened to catch non-funding coverage too
-  const queries = [
-    `"${startupName}" startup funding`,
-    `"${startupName}" raises series`,
-    `"${startupName}" customers revenue growth`,
-    `"${startupName}" launches product`,
-  ];
+  // Detect "ambiguous" names: single word, ≤7 chars (Branch, Arc, Bolt, Vibe, etc.)
+  // These produce noisy results against unrelated companies — prefer domain queries.
+  const nameWords = startupName.trim().split(/\s+/);
+  const isAmbiguousName = nameWords.length === 1 && startupName.trim().length <= 7;
 
-  // Add domain-based query if website provided
+  let domain = null;
   if (startupWebsite) {
-    try {
-      const domain = new URL(startupWebsite).hostname.replace('www.', '');
-      queries.push(`"${domain}" startup`);
-    } catch (e) {
-      // Invalid URL, skip
-    }
+    try { domain = new URL(startupWebsite).hostname.replace('www.', ''); } catch (e) {}
   }
+
+  // Build contextual queries — domain-first for ambiguous names
+  const queries = isAmbiguousName && domain
+    ? [
+        // Lead with the domain so results are unambiguous
+        `"${domain}" funding`,
+        `"${domain}" startup`,
+        `"${startupName}" raises series funding`,
+        `"${startupName}" customers revenue`,
+      ]
+    : [
+        `"${startupName}" startup funding`,
+        `"${startupName}" raises series`,
+        `"${startupName}" customers revenue growth`,
+        `"${startupName}" launches product`,
+        // Domain fallback for non-ambiguous names too
+        ...(domain ? [`"${domain}" startup`] : []),
+      ];
 
   // Primary query
   const query = queries[0];
