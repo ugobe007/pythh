@@ -23,7 +23,7 @@ const SEO: React.FC<SEOProps> = ({
   keywords = 'startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score',
   ogImage = 'https://pythh.ai/images/delphi-pythia-icon-in-glyph-style-vector_glowing.jpg',
   ogType = 'website',
-  twitterCard = 'summary',
+  twitterCard = 'summary_large_image',
   canonical,
   noindex = false,
 }) => {
