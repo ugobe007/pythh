@@ -18,16 +18,16 @@ interface SEOProps {
 }
 
 const SEO: React.FC<SEOProps> = ({
-  title = 'Hot Honey - AI-Powered Startup-Investor Matching',
-  description = 'Get matched with the right investors using our proprietary GOD Algorithm. 12,600+ startups analyzed, 841,915+ live matches, trusted by 500+ YC founders.',
+  title = 'pythh.ai — Signal Science for Venture',
+  description = 'Match with the right investors using the GOD Algorithm™. 12,600+ startups analyzed, 841,915+ live matches, trusted by 500+ YC founders.',
   keywords = 'startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score',
-  ogImage = 'https://hot-honey.fly.dev/og-image.png',
+  ogImage = 'https://pythh.ai/og-image.png',
   ogType = 'website',
   twitterCard = 'summary_large_image',
   canonical,
   noindex = false,
 }) => {
-  const siteUrl = 'https://hot-honey.fly.dev';
+  const siteUrl = 'https://pythh.ai';
   const fullUrl = canonical ? `${siteUrl}${canonical}` : siteUrl;
 
   return (
@@ -46,7 +46,7 @@ const SEO: React.FC<SEOProps> = ({
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={ogImage} />
-      <meta property="og:site_name" content="Hot Honey" />
+      <meta property="og:site_name" content="pythh.ai" />
 
       {/* Twitter */}
       <meta property="twitter:card" content={twitterCard} />
