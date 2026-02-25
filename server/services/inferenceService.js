@@ -31,6 +31,46 @@ function parseWithDeadline(feedUrl, ms = 2500) {
   ]);
 }
 
+/**
+ * Normalize a startup name for matching:
+ * - Strip legal suffixes (Inc., LLC, Corp., Ltd., etc.)
+ * - Lowercase, trim
+ * Returns { full, short } where `short` is first 1-2 significant tokens
+ */
+function normalizeNameForMatch(name) {
+  const legalSuffixes = /\b(inc\.?|llc\.?|corp\.?|ltd\.?|co\.?|limited|incorporated|technologies|technology|solutions|labs?|group|ventures?|capital|systems?|networks?|platform|platforms?|software|services?)\b\.?$/gi;
+  const full = name.trim().replace(legalSuffixes, '').trim().toLowerCase();
+  // "short" = first two words (handles "Acme Technologies" → "Acme")
+  const tokens = full.split(/\s+/).filter(Boolean);
+  const short = tokens.slice(0, 2).join(' ');
+  return { full, short };
+}
+
+/**
+ * Filter articles to only those that actually mention the startup by name.
+ * Keeps an article if its title or content contains the full normalized name
+ * OR (if the full name is 2+ words) the first-word short name.
+ * Returns the filtered array. If ALL articles get filtered out, returns the
+ * original array unchanged (fallback — better some data than none).
+ */
+function filterArticlesByName(articles, startupName) {
+  if (!articles || articles.length === 0) return articles;
+  const { full, short } = normalizeNameForMatch(startupName);
+  // We need at least 3 chars to avoid false-positive single-char names
+  if (full.length < 3) return articles;
+
+  const matches = articles.filter(a => {
+    const text = `${a.title} ${a.content}`.toLowerCase();
+    if (text.includes(full)) return true;
+    // Only use short name match if it's at least 4 chars (avoids "go", "ai", etc.)
+    if (short.length >= 4 && text.includes(short)) return true;
+    return false;
+  });
+
+  // Only apply filter if it kept at least 1 article
+  return matches.length > 0 ? matches : articles;
+}
+
 // Fast news sources (prioritize speed over depth)
 const FAST_SOURCES = {
   googleNews: (query) => `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`
@@ -50,6 +90,7 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   const queries = [
     `"${startupName}" startup funding`,
     `"${startupName}" raises series`,
+    `"${startupName}" customers revenue growth`,
     `"${startupName}" launches product`,
   ];
 
@@ -69,32 +110,34 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
 
   try {
     const feed = await parseWithDeadline(feedUrl);
-    const recent = feed.items.slice(0, maxArticles);
+    const rawItems = feed.items.slice(0, maxArticles);
 
-    for (const item of recent) {
-      articles.push({
-        title: item.title || '',
-        content: item.contentSnippet || item.content || '',
-        link: item.link || '',
-        pubDate: item.pubDate || new Date().toISOString(),
-        source: 'Google News'
-      });
-    }
+    const rawArticles = rawItems.map(item => ({
+      title: item.title || '',
+      content: item.contentSnippet || item.content || '',
+      link: item.link || '',
+      pubDate: item.pubDate || new Date().toISOString(),
+      source: 'Google News'
+    }));
 
-    // Fallback: try broader queries if primary returned few results
+    // Name-correlation filter: only keep articles that actually mention this startup
+    const filtered = filterArticlesByName(rawArticles, startupName);
+    articles.push(...filtered);
+
+    // Fallback: try broader queries if primary returned few relevant results
     if (articles.length < 3) {
       for (let i = 1; i < queries.length && articles.length < 3; i++) {
         try {
           const fallbackFeed = await parseWithDeadline(FAST_SOURCES.googleNews(queries[i]));
-          for (const item of fallbackFeed.items.slice(0, 4)) {
-            articles.push({
-              title: item.title || '',
-              content: item.contentSnippet || item.content || '',
-              link: item.link || '',
-              pubDate: item.pubDate || new Date().toISOString(),
-              source: `Google News (${i === 1 ? 'series' : i === 2 ? 'product' : 'domain'})`
-            });
-          }
+          const fallbackRaw = fallbackFeed.items.slice(0, 4).map(item => ({
+            title: item.title || '',
+            content: item.contentSnippet || item.content || '',
+            link: item.link || '',
+            pubDate: item.pubDate || new Date().toISOString(),
+            source: `Google News (${i === 1 ? 'series' : i === 2 ? 'product' : 'domain'})`
+          }));
+          const fallbackFiltered = filterArticlesByName(fallbackRaw, startupName);
+          articles.push(...fallbackFiltered);
         } catch (e) {
           // Skip failed fallback
         }

@@ -479,15 +479,15 @@ async function recalculateScores(): Promise<void> {
     // ============================================================================
     // BASE SCORE = GOD + Signals + Conditional bonuses
     // ============================================================================
-    const baseScore = scores.total_god_score + signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus;
-    const rawFinal = Math.max(Math.round(baseScore), 40); // Floor=40 (approved startups minimum — aligns with DB trigger intent)
-    
-    // ============================================================================
-    // FINAL ADJUSTMENT: Psychological signals (applied AFTER all scoring)
-    // ============================================================================
+    // IMPORTANT: GOD score is the source of truth. Bonuses are supplementary signal
+    // layers. We cap the TOTAL of all bonuses at +10 so they can never dominate or
+    // corrupt the GOD base score. (Feb 25, 2026 — avg uncapped bonus was 13.4 pts,
+    // max 25.2 pts, which was inflating 60–70 range artificially.)
     const psychBonus = scores.psychological_multiplier || 0;
-    const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 7); // Psych: -5 to +7 GOD pts (Admin recalibrated Feb 20, 2026 — esoteric, overlaps with other signals)
-    const finalScore = Math.max(Math.min(Math.round(rawFinal + psychBonusGOD), 100), 40); // Floor=40 (approved startups), Cap=100
+    const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 7); // Psych: -5 to +7 GOD pts
+    const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD;
+    const cappedBonuses = Math.min(rawBonuses, 10); // Hard cap: bonuses ≤ +10 total — preserves GOD as source of truth
+    const finalScore = Math.max(Math.min(Math.round(scores.total_god_score + cappedBonuses), 100), 40); // Floor=40, Cap=100
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 
     // ============================================================================
