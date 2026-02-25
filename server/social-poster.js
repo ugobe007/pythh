@@ -123,26 +123,84 @@ async function fetchDailyDigest() {
   };
 }
 
+// ─── Hashtag Helpers ──────────────────────────────────────────────────────────
+function toHashtag(name) {
+  if (!name) return null;
+  const clean = name
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')  // dots, dashes, punctuation → spaces
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join('');
+  return clean ? `#${clean}` : null;
+}
+
+function buildHashtagsForData(post_type, rawData) {
+  const tags = [];
+  if (post_type === 'hot_match' && rawData) {
+    if (rawData.startup?.name)  tags.push(toHashtag(rawData.startup.name));
+    const investorName = rawData.investor?.firm_name || rawData.investor?.name;
+    if (investorName) tags.push(toHashtag(investorName));
+  } else if (post_type === 'startup_spotlight' && rawData?.name) {
+    tags.push(toHashtag(rawData.name));
+  } else if (post_type === 'daily_digest' && rawData) {
+    const s = rawData.topStartup?.name || rawData.topMatch?.startup?.name;
+    if (s) tags.push(toHashtag(s));
+    const inv = rawData.topMatch?.investor?.firm_name || rawData.topMatch?.investor?.name;
+    if (inv) tags.push(toHashtag(inv));
+  } else if (post_type === 'vc_signal' && rawData) {
+    const investorName = rawData.firm_name || rawData.name;
+    if (investorName) tags.push(toHashtag(investorName));
+  }
+  return [...new Set(tags.filter(Boolean))];
+}
+
+function appendHashtags(text, hashtags, platform) {
+  if (!hashtags.length) return text;
+  const missing = hashtags.filter(h => !text.includes(h));
+  if (!missing.length) return text;
+  const tagStr = ' ' + missing.join(' ');
+  if (platform === 'twitter') {
+    if ((text + tagStr).length <= 280) return text + tagStr;
+    const maxText = 280 - tagStr.length;
+    return text.slice(0, maxText).trimEnd() + tagStr;
+  }
+  return text + '\n' + missing.join(' ');
+}
+
 // ─── AI Copy Generator ────────────────────────────────────────────────────────
-async function generateCopy(post_type, rawData) {
+async function generateCopy(post_type, rawData, hashtags = []) {
   const baseContext = `You write social media posts for pythh.ai — an AI system that scores startups and matches them to investors.
 Your tone: quiet confidence. You're sitting on signal most people don't have access to.
 Never explain what pythh.ai does. Never use generic startup-speak. Never write ads.
 Write like you're sharing something interesting you noticed — not selling something.
 Be specific. Be brief. Leave them wanting more.`;
 
+  const hashtagNote = hashtags.length
+    ? `REQUIRED: include these hashtags in your post (for the startup/investor names): ${hashtags.join(' ')}`
+    : '';
+
   const platforms = {
     twitter: post_type === 'daily_digest'
-      ? `Write a single tweet, MAX 240 characters. No hashtags. No exclamation points.
+      ? `Write a single tweet, MAX 260 characters. No exclamation points.
+${hashtagNote}
 Tease the week's most interesting signal find — one specific data point or match. End with: pythh.ai/newsletter`
-      : `Write a single tweet, MAX 240 characters. No hashtags. No exclamation points.
+      : `Write a single tweet, MAX 260 characters. No exclamation points.
+${hashtagNote}
 No direct CTA — just an observation or a question that makes a founder or VC stop scrolling.
 End with a quiet signal, not a pitch. pythh.ai can appear naturally but doesn't need to.`,
     linkedin: post_type === 'daily_digest'
-      ? `Write a LinkedIn digest post of 150-250 words. Lead with the most interesting match or startup signal from the data. Include 3-5 hashtags. End with "Full digest: pythh.ai/newsletter"`
-      : `Write a LinkedIn post of 150-250 words with a professional but engaging tone. 
-Include 3-5 hashtags. Reference pythh.ai as the source. Paragraph breaks for readability.`,
-    threads: `Write a Threads post (conversational, max 500 chars). No formal hashtags needed — just casual and interesting.`,
+      ? `Write a LinkedIn digest post of 150-250 words. Lead with the most interesting match or startup signal from the data.
+${hashtagNote}
+Include 3-5 hashtags total. End with "Full digest: pythh.ai/newsletter"`
+      : `Write a LinkedIn post of 150-250 words with a professional but engaging tone.
+${hashtagNote}
+Include 3-5 hashtags total. Reference pythh.ai as the source. Paragraph breaks for readability.`,
+    threads: `Write a Threads post (conversational, max 500 chars).
+${hashtagNote}
+Keep it casual and interesting.`,
   };
 
   const dataSummary = JSON.stringify(rawData, null, 2).slice(0, 800);
@@ -173,7 +231,13 @@ Write the ${platform} post now. Return ONLY the post text, nothing else.`
     generateForPlatform('threads',  platforms.threads),
   ]);
 
-  return { twitter, linkedin, threads, default: twitter };
+  // Safety net: append any hashtags the AI missed
+  return {
+    twitter:  appendHashtags(twitter,  hashtags, 'twitter'),
+    linkedin: appendHashtags(linkedin, hashtags, 'linkedin'),
+    threads:  appendHashtags(threads,  hashtags, 'threads'),
+    default:  appendHashtags(twitter,  hashtags, 'twitter'),
+  };
 }
 
 // ─── Log to ai_logs ───────────────────────────────────────────────────────────
@@ -232,10 +296,13 @@ async function main() {
   }
 
   // Generate AI copy
+  const hashtags = buildHashtagsForData(post_type, rawData);
+  console.log(`[social-poster] Hashtags for this post: ${hashtags.join(' ') || '(none)'}`);
+
   let content;
   try {
     console.log('[social-poster] Generating AI copy...');
-    content = await generateCopy(post_type, rawData);
+    content = await generateCopy(post_type, rawData, hashtags);
   } catch (e) {
     console.error('[social-poster] AI copy generation failed:', e.message);
     process.exit(1);
