@@ -27,6 +27,52 @@ const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData } = require('../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../server/services/inferenceService');
 
+// ============================================================================
+// JUNK URL DETECTION
+// Scraper stores article URLs in 'website' field. Skip HTML for these.
+// ============================================================================
+const JUNK_URL_DOMAINS = [
+  // Major tech/business news
+  'techcrunch.com', 'venturebeat.com', 'forbes.com', 'bloomberg.com', 'reuters.com',
+  'cnbc.com', 'wsj.com', 'nytimes.com', 'theverge.com', 'wired.com', 'businessinsider.com',
+  'inc.com', 'axios.com', 'businesswire.com', 'prnewswire.com', 'globenewswire.com',
+  // Crypto / tech
+  'decrypt.co', 'cision.com', 'yahoo.com', 'google.com',
+  // Regional & funding news
+  'contxto.com', 'euronews.com', 'sifted.eu', 'startupnews.fyi', 'techeu.eu',
+  'silicon.co.uk', 'theregister.com', 'analyticsindiamag.com', 'pymnts.com',
+  'arcticstartup.com', 'techfundingnews.com', 'finsmes.com', 'geekwire.com',
+  'eu-startups.com', 'tech.eu', 'startupbeat.com', 'venturebeat.com',
+  // Aggregators & directories (not startup own sites)
+  'news.ycombinator.com', 'ycombinator.com', 'producthunt.com', 'crunchbase.com',
+  'angellist.com', 'f6s.com', 'startupblink.com', 'pitchbook.com',
+  // Social & content platforms
+  'medium.com', 'substack.com', 'linkedin.com', 'twitter.com', 'x.com',
+  'instagram.com', 'facebook.com', 'reddit.com', 'youtube.com',
+  // Job boards
+  'venturefizz.com', 'lever.co', 'greenhouse.io', 'workable.com', 'jobs.ashbyhq.com',
+];
+
+function isJunkUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url.startsWith('http') ? url : 'https://' + url);
+    const hostname = u.hostname.replace('www.', '');
+    const isNewsHost = JUNK_URL_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
+    // Also flag deep article paths like /2026/01/26/some-article (3+ path segments)
+    const deepPath = u.pathname.split('/').filter(Boolean).length >= 3;
+    return isNewsHost || deepPath;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================================
+// CONCURRENCY LIMIT — process N startups in parallel
+// Google News RSS rate-limits at ~4-5 concurrent connections reliably
+// ============================================================================
+const CONCURRENCY_LIMIT = 4;
+
 // Supabase client
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -68,8 +114,8 @@ async function fetchWebsiteHtml(url) {
         'Accept': 'text/html,application/xhtml+xml,*/*',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      timeout: 10000,
-      maxRedirects: 5,
+      timeout: 5000,   // 5s — faster fail for slow/blocking sites
+      maxRedirects: 3, // limit redirect chains
     });
     return response.data?.toString() || null;
   } catch (e) {
@@ -78,9 +124,10 @@ async function fetchWebsiteHtml(url) {
 }
 
 // ============================================================================
-// ENRICH ONE STARTUP — Same two-step pipeline as instantSubmit.js
-//   Step 1: Re-scrape website HTML → extractInferenceData
-//   Step 2: If still sparse → quickEnrich via news (3-query cascade)
+// ENRICH ONE STARTUP — Two-step pipeline
+//   Step 1: Re-scrape website HTML → extractInferenceData (skip junk URLs)
+//   Step 2: ALWAYS search news for traction signals (funding, ARR, customers)
+//           — HTML gives website copy; news gives press coverage with numbers
 // ============================================================================
 async function enrichOneStartup(startup, dryRun = false) {
   const currentExtracted = startup.extracted_data || {};
@@ -88,11 +135,17 @@ async function enrichOneStartup(startup, dryRun = false) {
   const stepLog = [];
   let htmlEnriched = false;
 
-  // ── Step 1: Re-scrape website HTML + extractInferenceData ──
-  if (startup.website) {
-    const html = await fetchWebsiteHtml(startup.website);
+  const urlToUse = startup.website || startup.company_website;
+
+  // ── Step 1: Re-scrape website HTML (skip junk/article URLs) ──
+  if (!urlToUse) {
+    stepLog.push('HTML: no URL');
+  } else if (isJunkUrl(urlToUse)) {
+    stepLog.push('HTML: skipped (news article URL — not a startup site)');
+  } else {
+    const html = await fetchWebsiteHtml(urlToUse);
     if (html && html.length >= 50) {
-      const htmlData = extractInferenceData(html, startup.website);
+      const htmlData = extractInferenceData(html, urlToUse);
       if (htmlData) {
         for (const [key, val] of Object.entries(htmlData)) {
           if (val !== null && val !== undefined && val !== '' &&
@@ -110,10 +163,19 @@ async function enrichOneStartup(startup, dryRun = false) {
     }
   }
 
-  // ── Step 2: News enrichment if still sparse ──
-  const stillSparse = isDataSparse({ extracted_data: inferenceData });
-  if (stillSparse) {
-    const newsResult = await quickEnrich(startup.name, inferenceData, startup.website || null, 5000);
+  // ── Step 2: News — ALWAYS run if traction/funding fields are missing ──
+  // HTML extracts website copy; news extracts press coverage (ARR, customers,
+  // funding rounds). These are the GOD score-critical signals we need.
+  const hasTraction = !!(inferenceData.raise_amount || inferenceData.funding_amount
+    || inferenceData.arr || inferenceData.mrr || inferenceData.revenue
+    || inferenceData.customer_count || inferenceData.customers);
+  const hasSectors = !!(inferenceData.sectors && inferenceData.sectors.length > 0);
+  const runNews = !hasTraction || !hasSectors || isDataSparse({ extracted_data: inferenceData });
+
+  if (runNews) {
+    // Pass null for junk URLs — don't let news use an article URL as domain query
+    const newsUrl = urlToUse && !isJunkUrl(urlToUse) ? urlToUse : null;
+    const newsResult = await quickEnrich(startup.name, inferenceData, newsUrl, 4000);
     if (newsResult.enrichmentCount > 0) {
       inferenceData = { ...inferenceData, ...newsResult.enrichedData };
       stepLog.push(`News: +${newsResult.enrichmentCount} fields (${newsResult.fieldsEnriched.join(', ')}) from ${newsResult.articlesFound} articles`);
@@ -121,7 +183,7 @@ async function enrichOneStartup(startup, dryRun = false) {
       stepLog.push(`News: 0 fields (${newsResult.articlesFound} articles)`);
     }
   } else {
-    stepLog.push('News: skipped (sufficient data after HTML)');
+    stepLog.push('News: skipped (traction + sectors present from HTML)');
   }
 
   // Count net-new fields
@@ -255,34 +317,46 @@ async function enrichSparseStartups() {
     return;
   }
 
-  // ── Process each ──
+  // ── Process in concurrent batches ──
   let enriched = 0;
   let noData = 0;
   let errors = 0;
 
-  for (let i = 0; i < sparseStartups.length; i++) {
-    const startup = sparseStartups[i];
-    console.log(`\n[${i + 1}/${sparseStartups.length}] ${startup.name} (score: ${startup.total_god_score})`);
-    if (startup.website) console.log(`  URL: ${startup.website}`);
+  for (let batchStart = 0; batchStart < sparseStartups.length; batchStart += CONCURRENCY_LIMIT) {
+    const batch = sparseStartups.slice(batchStart, batchStart + CONCURRENCY_LIMIT);
 
-    try {
+    const results = await Promise.allSettled(batch.map(async (startup, batchIdx) => {
+      const i = batchStart + batchIdx;
+      const urlDisplay = startup.website || startup.company_website || '(no url)';
+      console.log(`\n[${i + 1}/${sparseStartups.length}] ${startup.name} (score: ${startup.total_god_score})`);
+      if (startup.website || startup.company_website) console.log(`  URL: ${urlDisplay}`);
+
       const result = await enrichOneStartup(startup, dryRun);
       for (const step of result.stepLog) console.log(`  ${step}`);
 
       if (result.enriched) {
         console.log(`  ✅ ${result.dryRun ? '[DRY RUN] Would add' : 'Added'} ${result.newFieldCount} new fields`);
-        enriched++;
+        return { status: 'enriched' };
       } else {
         console.log('  ⚠️  No new data found');
-        noData++;
+        return { status: 'noData' };
       }
-    } catch (err) {
-      console.log(`  ❌ Error: ${err.message}`);
-      errors++;
+    }));
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        if (r.value.status === 'enriched') enriched++;
+        else noData++;
+      } else {
+        console.log(`  ❌ Error: ${r.reason?.message || r.reason}`);
+        errors++;
+      }
     }
 
-    // Gentle rate limit for news API
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Brief pause between batches (200ms) — respect news API rate limits
+    if (batchStart + CONCURRENCY_LIMIT < sparseStartups.length) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
   }
 
   // ── Summary ──

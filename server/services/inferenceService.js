@@ -16,11 +16,20 @@ const {
 } = require('../../lib/inference-extractor');
 
 const parser = new Parser({
-  timeout: 5000,
+  timeout: 4000,
   headers: {
     'User-Agent': 'Mozilla/5.0 (compatible; PythhBot/1.0; +https://pythh.ai)'
   }
 });
+
+// Hard-deadline wrapper — parser.timeout is unreliable on TCP stalls;
+// this enforces a real cutoff via Promise.race so fallback loops don't hang
+function parseWithDeadline(feedUrl, ms = 2500) {
+  return Promise.race([
+    parser.parseURL(feedUrl),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`RSS timeout after ${ms}ms`)), ms))
+  ]);
+}
 
 // Fast news sources (prioritize speed over depth)
 const FAST_SOURCES = {
@@ -59,7 +68,7 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   const feedUrl = FAST_SOURCES.googleNews(query);
 
   try {
-    const feed = await parser.parseURL(feedUrl);
+    const feed = await parseWithDeadline(feedUrl);
     const recent = feed.items.slice(0, maxArticles);
 
     for (const item of recent) {
@@ -76,7 +85,7 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
     if (articles.length < 3) {
       for (let i = 1; i < queries.length && articles.length < 3; i++) {
         try {
-          const fallbackFeed = await parser.parseURL(FAST_SOURCES.googleNews(queries[i]));
+          const fallbackFeed = await parseWithDeadline(FAST_SOURCES.googleNews(queries[i]));
           for (const item of fallbackFeed.items.slice(0, 4)) {
             articles.push({
               title: item.title || '',
