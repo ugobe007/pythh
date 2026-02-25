@@ -172,7 +172,16 @@ function toScoringProfile(startup: any): any {
       name: 'Team Member',
       previousCompanies: [c]
     })) : (extracted.team || []),
-    founders_count: startup.team_size || extracted.team_size || 1,
+    // founders_count must be the number of co-founders (2-5), NOT total employees.
+    // team_size > 10 almost certainly means total headcount — don't use as founders_count.
+    founders_count: (() => {
+      const ts = startup.team_size || extracted.team_size || null;
+      const explicit = extracted.founders_count || null;
+      if (explicit) return explicit;
+      if (ts && ts <= 10) return ts; // plausibly a founder count
+      return 1; // default: assume solo until we have better data
+    })(),
+    team_size: startup.team_size || extracted.team_size || extracted.team?.team_size || null, // total employees
     technical_cofounders: (startup.has_technical_cofounder ? 1 : 0) || (extracted.has_technical_cofounder ? 1 : 0),
     
     // Numeric traction values — PARSED METRICS are primary, old fields are fallback

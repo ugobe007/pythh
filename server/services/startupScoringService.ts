@@ -233,6 +233,7 @@ interface StartupProfile {
     age?: number; // Founder age if known
   }>;
   founders_count?: number;
+  team_size?: number; // total employee headcount (distinct from founders_count)
   technical_cofounders?: number;
   
   // Founder Age (NEW)
@@ -905,14 +906,26 @@ function calculatePsychologicalBonus(startup: StartupProfile): number {
 function scoreTeam(startup: StartupProfile): number {
   let score = 0;
   const reasons: string[] = [];
-  
+
+  // Employee headcount — credible signal for company maturity
+  if (startup.team_size) {
+    if (startup.team_size >= 200) score += 1.0;      // Big team — serious company
+    else if (startup.team_size >= 50) score += 0.7;
+    else if (startup.team_size >= 10) score += 0.4;
+    else if (startup.team_size >= 3) score += 0.2;
+  }
+
   // Technical co-founders (YC priority)
-  if (startup.technical_cofounders && startup.founders_count) {
+  // Guard: only compute ratio if founders_count looks like actual founders (≤ 10)
+  if (startup.technical_cofounders && startup.founders_count && startup.founders_count <= 10) {
     const techRatio = startup.technical_cofounders / startup.founders_count;
     if (techRatio >= 0.5) {
       score += 1;
       reasons.push('Strong technical team');
     }
+  } else if (startup.technical_cofounders) {
+    // We know there's at least one technical person, even if we don't know the ratio
+    score += 0.5;
   }
   
   // Pedigree & experience (Sequoia/FF)

@@ -59,7 +59,16 @@ function toScoringProfile(startup) {
       name: 'Team Member',
       previousCompanies: [c]
     })) : (extracted.team || []),
-    founders_count: startup.team_size || extracted.team_size || 1,
+    // founders_count = co-founders (2-5), NOT total employees.
+    // team_size > 10 is almost certainly total headcount — guard against false ratio.
+    founders_count: (() => {
+      const ts = startup.team_size || extracted.team_size || null;
+      const explicit = extracted.founders_count || null;
+      if (explicit) return explicit;
+      if (ts && ts <= 10) return ts;
+      return 1;
+    })(),
+    team_size: startup.team_size || extracted.team_size || extracted.team?.team_size || null,
     technical_cofounders: (startup.has_technical_cofounder ? 1 : 0) || (extracted.has_technical_cofounder ? 1 : 0),
     // Numeric traction values
     mrr: startup.mrr || extracted.mrr,
