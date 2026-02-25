@@ -20,7 +20,7 @@ export default function AboutPage() {
           {/* Pythia — outline only, no background, no circle, no button */}
           <div className="flex-shrink-0">
             <img
-              src="/images/delphi-pythia-icon-in-glyph-style-vector.jpg"
+              src="/images/delphi-pythia-icon-glyph-dark.jpg"
               alt="Pythia, the Oracle of Delphi"
               className="w-72 h-auto md:w-80 opacity-90"
               style={{ filter: "drop-shadow(0 0 40px rgba(255, 255, 255, 0.06))" }}

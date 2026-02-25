@@ -180,7 +180,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
             {/* Logo (left side) */}
             <Link to="/" className="group flex items-center gap-2">
               <img
-                src="/images/delphi-pythia-icon-in-glyph-style-vector.jpg"
+                src="/images/delphi-pythia-icon-glyph-dark.jpg"
                 alt=""
                 className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
               />
