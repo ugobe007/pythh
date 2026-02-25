@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { WatchButton } from '../components/WatchButton';
 
 const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3002' : '');
@@ -339,6 +340,13 @@ export default function MatchPreviewPage() {
               <div className="text-xs text-zinc-500 mt-0.5">investors matched</div>
             </div>
           </div>
+
+          {/* Watch / save button */}
+          {startupId && (
+            <div className="flex justify-center mt-3">
+              <WatchButton startupId={startupId} variant="button" />
+            </div>
+          )}
         </div>
 
         {/* ── Score breakdown ── */}

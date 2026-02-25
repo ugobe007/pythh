@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import PremiumServiceModal, { type ServiceType } from '../components/PremiumServiceModal';
 import { 
   Check, 
   X,
@@ -183,6 +184,7 @@ export default function PricingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingTier, setLoadingTier] = useState<PlanTier | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [activeService, setActiveService] = useState<ServiceType | null>(null);
   
   // Get upgrade source from URL params or sessionStorage
   const urlSource = searchParams.get('source') as UpgradeMoment | null;
@@ -731,7 +733,7 @@ export default function PricingPage() {
                 <h3 className="text-white font-semibold mb-1">Professional Pitch Deck</h3>
                 <p className="text-zinc-500 text-sm">AI-structured, human-refined pitch deck built from your GOD Score profile and investor signal data. Designed to land the meeting.</p>
               </div>
-              <a href="mailto:team@pythh.ai?subject=Pitch%20Deck%20Service" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+              <button onClick={() => setActiveService('pitch_deck')} className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium text-left">Request this service →</button>
             </div>
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
@@ -740,7 +742,7 @@ export default function PricingPage() {
                 <h3 className="text-white font-semibold mb-1">Pythh Research Report</h3>
                 <p className="text-zinc-500 text-sm">Deep competitive and investor landscape analysis for your startup. Know exactly who's moving in your space and why.</p>
               </div>
-              <a href="mailto:team@pythh.ai?subject=Research%20Report" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+              <button onClick={() => setActiveService('research_report')} className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium text-left">Request this service →</button>
             </div>
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
@@ -749,7 +751,7 @@ export default function PricingPage() {
                 <h3 className="text-white font-semibold mb-1">Advisor & Board Recruitment</h3>
                 <p className="text-zinc-500 text-sm">We match you with vetted advisors and board candidates aligned to your sector, stage, and signal gaps. No cold outreach.</p>
               </div>
-              <a href="mailto:team@pythh.ai?subject=Advisor%20Recruitment" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+              <button onClick={() => setActiveService('advisor_recruitment')} className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium text-left">Request this service →</button>
             </div>
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
@@ -758,7 +760,7 @@ export default function PricingPage() {
                 <h3 className="text-white font-semibold mb-1">Investor Outreach Campaign</h3>
                 <p className="text-zinc-500 text-sm">We run a signal-targeted outreach campaign to the investors the algorithm identifies as your highest-probability matches.</p>
               </div>
-              <a href="mailto:team@pythh.ai?subject=Investor%20Outreach" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+              <button onClick={() => setActiveService('investor_outreach')} className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium text-left">Request this service →</button>
             </div>
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-3">
@@ -767,7 +769,7 @@ export default function PricingPage() {
                 <h3 className="text-white font-semibold mb-1">Term Sheet Support</h3>
                 <p className="text-zinc-500 text-sm">Expert review and negotiation guidance when a term sheet lands. We help you read the signals and protect your equity.</p>
               </div>
-              <a href="mailto:team@pythh.ai?subject=Term%20Sheet%20Support" className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium">Request → team@pythh.ai</a>
+              <button onClick={() => setActiveService('term_sheet')} className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium text-left">Request this service →</button>
             </div>
 
             <div className="bg-gradient-to-br from-cyan-500/10 to-emerald-500/5 border border-cyan-500/20 rounded-xl p-6 flex flex-col gap-3">
@@ -781,6 +783,14 @@ export default function PricingPage() {
 
           </div>
         </div>
+
+        {/* Premium service modal */}
+        {activeService && (
+          <PremiumServiceModal
+            service={activeService}
+            onClose={() => setActiveService(null)}
+          />
+        )}
 
         {/* FAQ Section */}
         <div className="max-w-2xl mx-auto mb-16">

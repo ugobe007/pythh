@@ -66,6 +66,9 @@ const SupportPage = lazy(() => import("./pages/SupportPage"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const NewsletterPage = lazy(() => import("./pages/NewsletterPage"));
+const WatchlistPage = lazy(() => import("./pages/WatchlistPage"));
+const SubmitStartupPage = lazy(() => import("./pages/SubmitStartupPage"));
+const ReferralPage = lazy(() => import("./pages/ReferralPage"));
 
 // Sector landing pages
 const AIMLInvestorsPage = lazy(() => import("./pages/sectors/AIMLInvestorsPage"));
@@ -249,6 +252,12 @@ const App: React.FC = () => {
           {/* Weekly signal digest */}
           <Route path="/newsletter" element={<NewsletterPage />} />
           <Route path="/newsletter/:date" element={<NewsletterPage />} />
+
+          {/* Growth / engagement pages */}
+          <Route path="/watchlist" element={<WatchlistPage />} />
+          <Route path="/submit" element={<SubmitStartupPage />} />
+          <Route path="/referral" element={<ReferralPage />} />
+          <Route path="/refer" element={<Navigate to="/referral" replace />} />
 
           {/* Shared dashboard views (public, read-only — no auth required) */}
           <Route path="/s/:shareId" element={<SharedDashboardView />} />

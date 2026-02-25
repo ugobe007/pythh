@@ -1130,6 +1130,143 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
 });
 
 // ============================================================
+// POST /api/newsletter/send-digest — Admin: email digest to all subscribers
+// Protected by admin key
+// ============================================================
+app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Generate newsletter content
+    const { generateNewsletter } = require('./newsletter-generator');
+    const newsletter = await generateNewsletter();
+
+    // Get confirmed subscribers
+    const { data: subscribers, error: subError } = await supabase
+      .from('newsletter_subscribers')
+      .select('email')
+      .is('unsubscribed_at', null);
+
+    if (subError) throw subError;
+    if (!subscribers || subscribers.length === 0) {
+      return res.json({ ok: true, sent: 0, message: 'No subscribers found' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const siteUrl = process.env.SITE_URL || 'https://pythh.ai';
+
+    // Build HTML email
+    const topMatches = (newsletter.hotMatches || []).slice(0, 5)
+      .map(m => `<li><strong>${m.startup_name}</strong> → ${m.investor_name} (${Math.round(m.match_score)}% match)</li>`)
+      .join('');
+
+    const topStartups = (newsletter.leaderboard || []).slice(0, 5)
+      .map(s => `<li><strong>${s.name}</strong> — GOD Score: ${s.total_god_score}</li>`)
+      .join('');
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0a0a;color:#e4e4e7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <h1 style="color:#f97316;font-size:28px;margin:0;">pythh</h1>
+      <p style="color:#71717a;font-size:14px;margin:4px 0 0;">Signal Digest — ${today}</p>
+    </div>
+
+    <h2 style="color:#fff;font-size:18px;border-bottom:1px solid #27272a;padding-bottom:8px;">🔥 Hot Matches</h2>
+    <ul style="color:#a1a1aa;font-size:14px;line-height:1.8;padding-left:20px;">${topMatches || '<li>Loading next batch…</li>'}</ul>
+
+    <h2 style="color:#fff;font-size:18px;border-bottom:1px solid #27272a;padding-bottom:8px;margin-top:28px;">⚡ GOD Score Leaderboard</h2>
+    <ul style="color:#a1a1aa;font-size:14px;line-height:1.8;padding-left:20px;">${topStartups || '<li>Loading next batch…</li>'}</ul>
+
+    <div style="text-align:center;margin-top:36px;padding:20px;background:#18181b;border-radius:12px;">
+      <a href="${siteUrl}/newsletter/${today}" style="display:inline-block;padding:12px 24px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Read Full Digest →</a>
+    </div>
+
+    <p style="color:#3f3f46;font-size:11px;text-align:center;margin-top:24px;">
+      Pythh · Signal Intelligence for Venture<br>
+      <a href="${siteUrl}/newsletter" style="color:#52525b;">Unsubscribe</a>
+    </p>
+  </div>
+</body>
+</html>`;
+
+    // Send to all subscribers
+    let sent = 0;
+    let failed = 0;
+    for (const { email } of subscribers) {
+      const result = await sendEmailViaResend({
+        to: email,
+        subject: `Pythh Signal Digest — ${today}`,
+        html,
+        text: `Pythh Signal Digest ${today}\n\nRead online: ${siteUrl}/newsletter/${today}\n\nHot Matches:\n${(newsletter.hotMatches || []).slice(0, 5).map(m => `- ${m.startup_name} → ${m.investor_name}`).join('\n')}`,
+      });
+      if (result.success) sent++;
+      else failed++;
+      // Small delay to avoid rate limit
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    console.log(`[newsletter] Digest sent: ${sent} ok, ${failed} failed`);
+    return res.json({ ok: true, sent, failed, total: subscribers.length });
+  } catch (err) {
+    console.error('[newsletter] send-digest error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// POST /api/premium-service-inquiry — Forward premium service request via Resend
+// ============================================================
+app.post('/api/premium-service-inquiry', async (req, res) => {
+  const { name, company, email, service_label, brief } = req.body || {};
+  if (!name || !email || !service_label) {
+    return res.status(400).json({ error: 'name, email, and service_label required' });
+  }
+
+  const html = `
+<div style="font-family:sans-serif;font-size:14px;color:#333;">
+  <h2 style="color:#f97316;">New Premium Service Request</h2>
+  <table style="border-collapse:collapse;width:100%;">
+    <tr><td style="padding:6px 0;font-weight:600;width:120px;">Service</td><td>${service_label}</td></tr>
+    <tr><td style="padding:6px 0;font-weight:600;">Name</td><td>${name}</td></tr>
+    <tr><td style="padding:6px 0;font-weight:600;">Company</td><td>${company || '—'}</td></tr>
+    <tr><td style="padding:6px 0;font-weight:600;">Email</td><td>${email}</td></tr>
+    <tr><td style="padding:6px 0;font-weight:600;vertical-align:top;">Brief</td><td>${brief || '—'}</td></tr>
+  </table>
+</div>`;
+
+  try {
+    const result = await sendEmailViaResend({
+      to: 'team@pythh.ai',
+      subject: `[Pythh Premium] ${service_label} — ${name}${company ? ` (${company})` : ''}`,
+      html,
+      text: `Service: ${service_label}\nName: ${name}\nCompany: ${company}\nEmail: ${email}\nBrief: ${brief}`,
+    });
+
+    if (!result.success) {
+      console.error('[premium-inquiry] Resend failed:', result.error);
+    }
+
+    // Also log to ai_logs table
+    try {
+      const supabase = getSupabaseClient();
+      await supabase.from('ai_logs').insert({
+        event_type: 'premium_service_inquiry',
+        data: { name, company, email, service: service_label, brief: brief?.slice(0, 500) },
+      });
+    } catch (_) { /* silent */ }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[premium-inquiry] Error:', err.message);
+    return res.status(500).json({ error: 'Failed to send inquiry.' });
+  }
+});
+
+// ============================================================
 // GET /api/matches - Startup → Investor matches with tier gating
 // Core conversion endpoint - the page people pay for
 // HARDENED: rate limit + cache + timeout + degradation
