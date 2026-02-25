@@ -122,7 +122,7 @@ export default function SubmitStartupPage() {
           <h1 className="text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05] mb-5">
             <span className="text-white">Score your startup.</span><br />
             <span style={{
-              background: 'linear-gradient(90deg, #f97316 0%, #fb923c 40%, #06b6d4 100%)',
+              background: 'linear-gradient(90deg, #cbd5e1 0%, #e2e8f0 50%, #67e8f9 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',

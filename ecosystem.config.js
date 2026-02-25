@@ -105,6 +105,29 @@ module.exports = {
     },
     
     // ========================================
+    // STARTUP ENRICHMENT WORKER
+    // Processes startups with enrichment_status='waiting' through the
+    // two-step inference pipeline (HTML scrape → news fallback).
+    // Runs every 4h at :30 — score-recalc at :00 picks up enriched data
+    // on the next 2h cycle (e.g. enrich runs 00:30 → score-recalc at 02:00).
+    // ========================================
+    {
+      name: 'startup-enrichment-worker',
+      script: 'node',
+      args: 'scripts/enrich-sparse-startups.js --limit=100',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '400M',
+      max_restarts: 3,
+      cron_restart: '30 */4 * * *',  // Every 4 hours at :30
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
+    // ========================================
     // HOLDING REVIEW WORKER
     // Daily: retry enrichment on 'holding' startups, delete after 30 days
     // ========================================

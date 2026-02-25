@@ -850,8 +850,8 @@ async function regenerateMatches() {
           reasons.push({ key: 'gate', points: 0, note: `⚠️ ${weakSector ? 'Sector' : 'Stage'} weak → capped at ${CONFIG.WEAK_FIT_CAP}` });
         }
         
-        // No need to cap at 100 — weights naturally sum to 100 max
-        const finalScore = Math.round(rawTotal);
+        // Cap at 95 — a perfect 100 looks broken in social posts / tweets
+        const finalScore = Math.min(Math.round(rawTotal), 95);
         
         // Store raw similarity for the similarity_score column
         const rawSimilarity = similarity > 0 ? parseFloat(similarity.toFixed(4)) : null;
