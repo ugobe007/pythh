@@ -10,6 +10,8 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
 const path = require('path');
+// Shared URL validation — prevents article URLs being stored as startup websites
+const { sanitiseWebsiteUrl } = require('../../lib/junk-url-config');
 
 // Import Phase-Change frame parser for entity extraction fallback
 let frameParser;
@@ -610,7 +612,9 @@ async function scrapeRssFeeds() {
           const insertPromise = supabase.from('discovered_startups').insert({
             name: companyName,
             description: (item.contentSnippet || item.title || '').slice(0, 500),
-            website: item.link,
+            // sanitiseWebsiteUrl returns null for news/article/social URLs so we
+            // don't store the TechCrunch article link as the startup's website.
+            website: sanitiseWebsiteUrl(item.link),
             source: 'rss',            // ✅ For tracking discovery source
             rss_source: source.name,  // ✅ CORRECT - not "source"
             article_url: item.link,   // ✅ CORRECT - not "source_url"

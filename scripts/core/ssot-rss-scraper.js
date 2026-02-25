@@ -29,6 +29,8 @@ const { parseFrameFromTitle, toCapitalEvent, setOntologyEntities } = require('..
 // Import v2 Inference Extractor + REAL GOD Scoring
 const { extractInferenceData, extractSectors: v2ExtractSectors, assessConfidence } = require('../../lib/inference-extractor');
 const { calculateHotScore } = require('../../server/services/startupScoringService.ts');
+// Shared URL validation — import as PUBLISHER_DOMAINS to keep existing usages unchanged
+const { JUNK_DOMAINS: PUBLISHER_DOMAINS, isJunkUrl } = require('../../lib/junk-url-config');
 
 /**
  * Transform a startup row into a scoring profile (matches recalculate-scores.ts SSOT).
@@ -797,23 +799,8 @@ function isValidStartupName(name) {
 
 // PUBLISHER DOMAINS TO BLOCK (these are article sources, not company websites)
 // Also used by name validation below
-const PUBLISHER_DOMAINS = new Set([
-  'techcrunch.com', 'businessinsider.com', 'entrepreneur.com', 'forbes.com',
-  'cnbc.com', 'theverge.com', 'wired.com', 'fastcompany.com', 'inc.com',
-  'wsj.com', 'nytimes.com', 'medium.com', 'twitter.com', 'linkedin.com',
-  'reddit.com', 'ycombinator.com', 'venturebeat.com', 'arstechnica.com',
-  'bloomberg.com', 'reuters.com', 'bbc.com', 'cnn.com', 'theguardian.com',
-  'axios.com', 'strictlyvc.com', 'avc.com', 'mattermark.com', 'dealroom.co',
-  'crunchbase.com', 'pitchbook.com', 'finsmes.com', 'pulse2.com', 'inc42.com',
-  'theblock.co', 'coindesk.com', 'decrypt.co', 'cointelegraph.com', 'zdnet.com',
-  'engadget.com', 'gizmodo.com', 'mashable.com', 'theregister.com', 'techmeme.com',
-  'github.com', 'gitlab.com', 'stackoverflow.com', 'news.ycombinator.com',
-  'producthunt.com', 'betalist.com', 'angellist.com', 'substack.com', 'mirror.xyz',
-  'google.com', 'google.co', 'apple.com', 'amazon.com', 'microsoft.com', 'ibm.com',
-  'walmart.com', 'target.com', 'bestbuy.com', 'costco.com',
-  'facebook.com', 'instagram.com', 'tiktok.com', 'x.com', 'threads.net',
-  'youtube.com', 'spotify.com', 'netflix.com', 'twitch.tv',
-]);
+// Shared PUBLISHER_DOMAINS is now imported from lib/junk-url-config.js
+// See the require() block at the top of this file.
 
 // Helper: Extract company URL from article content (HTML)
 // When the article link is a publisher domain, look inside the content for company URLs

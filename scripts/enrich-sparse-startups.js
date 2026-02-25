@@ -26,46 +26,8 @@ const { createClient } = require('@supabase/supabase-js');
 // Shared inference engine — same functions used by instantSubmit.js
 const { extractInferenceData } = require('../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../server/services/inferenceService');
-
-// ============================================================================
-// JUNK URL DETECTION
-// Scraper stores article URLs in 'website' field. Skip HTML for these.
-// ============================================================================
-const JUNK_URL_DOMAINS = [
-  // Major tech/business news
-  'techcrunch.com', 'venturebeat.com', 'forbes.com', 'bloomberg.com', 'reuters.com',
-  'cnbc.com', 'wsj.com', 'nytimes.com', 'theverge.com', 'wired.com', 'businessinsider.com',
-  'inc.com', 'axios.com', 'businesswire.com', 'prnewswire.com', 'globenewswire.com',
-  // Crypto / tech
-  'decrypt.co', 'cision.com', 'yahoo.com', 'google.com',
-  // Regional & funding news
-  'contxto.com', 'euronews.com', 'sifted.eu', 'startupnews.fyi', 'techeu.eu',
-  'silicon.co.uk', 'theregister.com', 'analyticsindiamag.com', 'pymnts.com',
-  'arcticstartup.com', 'techfundingnews.com', 'finsmes.com', 'geekwire.com',
-  'eu-startups.com', 'tech.eu', 'startupbeat.com', 'venturebeat.com',
-  // Aggregators & directories (not startup own sites)
-  'news.ycombinator.com', 'ycombinator.com', 'producthunt.com', 'crunchbase.com',
-  'angellist.com', 'f6s.com', 'startupblink.com', 'pitchbook.com',
-  // Social & content platforms
-  'medium.com', 'substack.com', 'linkedin.com', 'twitter.com', 'x.com',
-  'instagram.com', 'facebook.com', 'reddit.com', 'youtube.com',
-  // Job boards
-  'venturefizz.com', 'lever.co', 'greenhouse.io', 'workable.com', 'jobs.ashbyhq.com',
-];
-
-function isJunkUrl(url) {
-  if (!url) return false;
-  try {
-    const u = new URL(url.startsWith('http') ? url : 'https://' + url);
-    const hostname = u.hostname.replace('www.', '');
-    const isNewsHost = JUNK_URL_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d));
-    // Also flag deep article paths like /2026/01/26/some-article (3+ path segments)
-    const deepPath = u.pathname.split('/').filter(Boolean).length >= 3;
-    return isNewsHost || deepPath;
-  } catch {
-    return false;
-  }
-}
+// Shared URL validation — SINGLE SOURCE OF TRUTH for junk domain detection
+const { isJunkUrl } = require('../lib/junk-url-config');
 
 // ============================================================================
 // CONCURRENCY LIMIT — process N startups in parallel

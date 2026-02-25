@@ -700,5 +700,29 @@ module.exports = {
       // --preview flag: generate copy but do not post
       // --type=hot_match flag: force a specific content type
     },
+
+    // ========================================
+    // ENRICHMENT HEALTH CHECK - Daily pipeline monitor
+    // Detects silent regressions in enrichment/GOD score quality
+    // ========================================
+    {
+      name: 'enrich-health-check',
+      script: 'node',
+      args: 'scripts/enrich-health-check.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle, exits 0=ok 1=fail
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 2,
+      cron_restart: '0 8 * * *',  // Daily at 8:00 AM
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Checks: enriched%, traction coverage, avg fields/startup,
+      //         GOD score avg, data freshness (24h), junk URL %
+      // Logs results to ai_logs table (type='enrich_health_check')
+      // Exit code 1 triggers PM2 error state — visible in 'pm2 status'
+    },
   ]
 };
