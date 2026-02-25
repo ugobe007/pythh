@@ -761,7 +761,7 @@ app.get('/api/hot-matches', async (req, res) => {
         investor_id,
         match_score,
         created_at,
-        startup_uploads!startup_id ( name, total_god_score, sectors, stage ),
+        startup_uploads!startup_id ( name, total_god_score, sectors, stage, status ),
         investors!investor_id ( name, firm )
       `)
       .order('match_score', { ascending: false })
@@ -769,11 +769,30 @@ app.get('/api/hot-matches', async (req, res) => {
 
     if (error) throw error;
 
-    // Deduplicate: keep only the best match per startup, then shuffle, then cap
+    // Name quality guard — same patterns used in cleanup-junk-startups.ts
+    function isCleanStartupName(name) {
+      if (!name || name.trim() === '') return false;
+      const n = name.trim();
+      if (n.length > 60) return false;                                      // Too long
+      if (n.split(/\s+/).length > 6) return false;                         // Sentence fragment
+      if (/^[a-z]/.test(n)) return false;                                   // Lowercase start
+      if (/^(How|Why|What|When|Where|While|If|As|Since|After|Before|Former|Post)\s+/i.test(n)) return false;
+      if (/\b(funding|raises|raised|million|billion)\b/i.test(n)) return false;
+      if (/^(Startup|Firm|Company|Article|Report|Deeptech|European)\s+/i.test(n)) return false;
+      if (/\b(startup|platform|service|solution|provider|startups)s?\s*$/i.test(n) && n.split(/\s+/).length > 1) return false;
+      return true;
+    }
+
+    // Deduplicate: keep only approved startups with clean names, best match per startup
     const seenStartups = new Set();
     const deduped = [];
     for (const m of (matches || [])) {
       if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
+      // Only show approved startups
+      const status = m.startup_uploads?.status;
+      if (!status || status !== 'approved') continue;
+      // Skip junk names
+      if (!isCleanStartupName(m.startup_uploads?.name)) continue;
       seenStartups.add(m.startup_id);
       deduped.push(m);
     }
