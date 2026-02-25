@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/apiConfig';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface HotMatch {
   match_id: string;
@@ -28,20 +28,21 @@ interface HotMatchesFeedProps {
   autoRefresh?: boolean;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const POOL_SIZE     = 20;
 const VISIBLE       = 5;
 const TICK_MS       = 5000;
-const REFETCH_TICKS = 36;  // 36 × 5s = ~3 min data refresh
-const ROW_H         = 46;  // px — height of one row slot (includes gap)
-const ANIM_MS       = 380; // transition duration ms
+const REFETCH_TICKS = 36;   // 36 × 5s = ~3 min data refresh
+const ROW_H         = 46;   // px — height of one row slot (includes gap)
+const ANIM_MS       = 380;  // transition duration ms
+const MAX_ROWS      = VISIBLE + 3; // hard cap — prevents unbounded accumulation
 
-// ─── Waterfall row item ──────────────────────────────────────────────────────
+// ─── Waterfall row item ───────────────────────────────────────────────────────
 
 interface RowItem {
   match: HotMatch;
-  id: string;    // stable key = match_id
+  id: string;    // stable key = `{match_id}-{tickKey}` — unique per entry
   pos: number;   // -1 = above viewport, 0..(N-1) = visible, N = exiting below
 }
 
@@ -185,9 +186,18 @@ export default function HotMatchesFeed({
 
   const poolIdxRef   = useRef(0);
   const tickCountRef = useRef(0);
+  // poolRef: always-current pool — avoids stale closure in tick()
+  const poolRef      = useRef<HotMatch[]>([]);
+  // tickKeyRef: monotonic counter appended to match_id → unique React keys
+  // This is the core fix for the "garbled font" corruption bug:
+  // when the same match_id re-enters after a pool reshuffle, giving it a new
+  // key forces React to create a fresh DOM node instead of reusing the old one.
+  const tickKeyRef   = useRef(0);
+
   const visibleCount = Math.max(1, limit);
 
-  // ── Fetch pool ──────────────────────────────────────────────────────────────
+  // ── Fetch pool ─────────────────────────────────────────────────────────────
+
   const fetchPool = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/hot-matches?limit_count=${POOL_SIZE}&hours_ago=${hoursAgo}`);
@@ -198,12 +208,20 @@ export default function HotMatchesFeed({
 
       if (fetched && fetched.length > 0) {
         const shuffled = [...fetched].sort(() => Math.random() - 0.5);
+        // Sync poolRef before resetting counters so tick() never reads stale data
+        poolRef.current      = shuffled;
+        tickKeyRef.current   = 0;
+        poolIdxRef.current   = 0;
+        tickCountRef.current = 0;
         setPool(shuffled);
         const initial = shuffled.slice(0, visibleCount);
-        setRows(initial.map((m, i) => ({ match: m, id: m.match_id, pos: i })));
-        setNewestId(initial[0]?.match_id ?? null);
-        poolIdxRef.current  = visibleCount;
-        tickCountRef.current = 0;
+        const initialRows = initial.map((m, i) => ({
+          match: m,
+          id: `${m.match_id}-${i}`,
+          pos: i,
+        }));
+        setRows(initialRows);
+        setNewestId(initialRows[0]?.id ?? null);
       }
 
       setLoading(false);
@@ -215,50 +233,72 @@ export default function HotMatchesFeed({
     }
   }, [hoursAgo, visibleCount]);
 
-  // ── Rotate one match in at position 0 every tick ────────────────────────────
+  // ── Rotate one match in at position 0 every tick ─────────────────────────
+  //
+  // BUG FIX NOTES:
+  //
+  // Old code called setPool(currentPool => { ... setRows() ... setNewestId() ... })
+  // — i.e., nested state mutations inside a state updater. React may defer or
+  // batch these in unexpected ways, causing rows to desync from the pool.
+  //
+  // Old code used `id: incoming.match_id` as the row key. When the pool
+  // reshuffles and the same match_id comes back around, rows[] got two entries
+  // with the same key. React's reconciler reused the same DOM node for both,
+  // producing garbled/overwritten text content. Very visible after ~3 min.
+  //
+  // Fix: read pool from poolRef (ref = always current, no closure staleness),
+  // assign each row a unique id = `{match_id}-{tickKeyRef++}`, and cap rows
+  // array at MAX_ROWS to prevent unbounded growth.
+
   const tick = useCallback(() => {
-    setPool(currentPool => {
-      if (currentPool.length === 0) return currentPool;
-      const incoming = currentPool[poolIdxRef.current % currentPool.length];
-      poolIdxRef.current++;
-      // Re-shuffle pool when we complete a full cycle so order never repeats
-      if (poolIdxRef.current % currentPool.length === 0) {
-        return [...currentPool].sort(() => Math.random() - 0.5);
-      }
-      setNewestId(incoming.match_id);
+    const currentPool = poolRef.current;
+    if (currentPool.length === 0) return;
 
-      // Step 1: place incoming above the viewport (pos = -1)
-      setRows(prev => [
-        { match: incoming, id: incoming.match_id, pos: -1 },
-        ...prev,
-      ]);
+    const idx      = poolIdxRef.current % currentPool.length;
+    const incoming = currentPool[idx];
+    poolIdxRef.current++;
 
-      // Step 2: two rAF ticks later, trigger CSS transition:
-      //   incoming slides -1 → 0, everyone else shifts down +1
+    // Re-shuffle when we complete a full cycle so the order never repeats
+    if (poolIdxRef.current % currentPool.length === 0) {
+      const reshuffled = [...currentPool].sort(() => Math.random() - 0.5);
+      poolRef.current = reshuffled;
+      setPool(reshuffled);
+    }
+
+    // Unique key: `{match_id}-{tickKey}` — prevents duplicate-key DOM corruption
+    const key = `${incoming.match_id}-${tickKeyRef.current++}`;
+    setNewestId(key);
+
+    // Step 1: place incoming above the viewport (pos = -1), cap array size
+    setRows(prev => [
+      { match: incoming, id: key, pos: -1 },
+      ...prev.slice(0, MAX_ROWS - 1),
+    ]);
+
+    // Step 2: two rAF frames later, trigger CSS transition:
+    //   incoming slides -1 → 0, all existing rows shift down +1
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setRows(prev =>
-            prev.map(r =>
-              r.id === incoming.match_id && r.pos === -1
-                ? { ...r, pos: 0 }
-                : r.id === incoming.match_id
-                ? r
-                : { ...r, pos: r.pos + 1 }
-            )
-          );
-        });
+        setRows(prev =>
+          prev.map(r =>
+            r.id === key && r.pos === -1
+              ? { ...r, pos: 0 }
+              : r.id === key
+              ? r
+              : { ...r, pos: r.pos + 1 }
+          )
+        );
       });
-
-      // Step 3: after the transition, prune rows that have slid out
-      setTimeout(() => {
-        setRows(prev => prev.filter(r => r.pos < visibleCount));
-      }, ANIM_MS + 80);
-
-      return currentPool;
     });
+
+    // Step 3: after transition completes, prune rows that have scrolled out
+    setTimeout(() => {
+      setRows(prev => prev.filter(r => r.pos < visibleCount));
+    }, ANIM_MS + 100);
   }, [visibleCount]);
 
-  // ── Bootstrap ────────────────────────────────────────────────────────────────
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+
   useEffect(() => {
     const safetyTimer = setTimeout(() => setLoading(false), 5000);
     fetchPool().finally(() => clearTimeout(safetyTimer));
@@ -277,7 +317,8 @@ export default function HotMatchesFeed({
     return () => { clearInterval(interval); clearTimeout(safetyTimer); };
   }, [fetchPool, tick, autoRefresh]);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
   const formatTimeAgo = (ts: string) => {
     const diffMins  = Math.floor((Date.now() - new Date(ts).getTime()) / 60000);
     const diffHours = Math.floor(diffMins / 60);
@@ -302,7 +343,8 @@ export default function HotMatchesFeed({
     score >= 85 ? 'text-orange-300'  :
     score >= 80 ? 'text-cyan-400'    : 'text-emerald-400';
 
-  // ── Skeleton ─────────────────────────────────────────────────────────────────
+  // ── Skeleton ───────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="space-y-0.5">
@@ -314,7 +356,8 @@ export default function HotMatchesFeed({
     );
   }
 
-  // ── Empty ────────────────────────────────────────────────────────────────────
+  // ── Empty ──────────────────────────────────────────────────────────────────
+
   if (rows.length === 0) {
     return (
       <div className="opacity-40 space-y-1">
@@ -329,7 +372,8 @@ export default function HotMatchesFeed({
     );
   }
 
-  // ── Feed ─────────────────────────────────────────────────────────────────────
+  // ── Feed ───────────────────────────────────────────────────────────────────
+
   return (
     <>
       <div className="space-y-0.5">
