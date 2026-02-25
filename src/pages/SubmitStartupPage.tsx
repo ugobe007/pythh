@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Rocket, Globe, CheckCircle, ChevronRight, Flame, Star, ArrowRight } from 'lucide-react';
 import { submitStartup } from '../services/submitStartup';
+import PythhUnifiedNav from '../components/PythhUnifiedNav';
 
 type Step = 'form' | 'loading' | 'done' | 'error';
 
@@ -47,7 +48,10 @@ export default function SubmitStartupPage() {
   // ── Done state ──
   if (step === 'done') {
     return (
-      <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4"
+      <div className="min-h-screen bg-[#080808] flex flex-col"
+        style={{ backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(62,207,142,0.12) 0%, transparent 60%)' }}>
+        <PythhUnifiedNav />
+        <div className="flex-1 flex items-center justify-center px-4 py-20"
         style={{ backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(62,207,142,0.12) 0%, transparent 60%)' }}>
         <div className="text-center max-w-lg">
           <div className="w-20 h-20 rounded-full border border-emerald-500/30 flex items-center justify-center mx-auto mb-6"
@@ -81,13 +85,18 @@ export default function SubmitStartupPage() {
             </button>
           </div>
         </div>
+        </div>
+        <footer className="border-t border-white/5 px-6 py-6 text-center text-xs text-zinc-700">
+          <p>© {new Date().getFullYear()} pythh.ai — Signal science for founders.</p>
+          <div className="mt-2"><Link to="/admin-login" className="text-zinc-800 hover:text-zinc-600 transition">admin</Link></div>
+        </footer>
       </div>
     );
   }
 
   return (
     <div
-      className="min-h-screen bg-[#080808] px-4 pt-16 pb-24"
+      className="min-h-screen bg-[#080808] flex flex-col"
       style={{
         backgroundImage: [
           'radial-gradient(ellipse 100% 40% at 50% 0%, rgba(62,207,142,0.09) 0%, transparent 60%)',
@@ -98,6 +107,8 @@ export default function SubmitStartupPage() {
         backgroundSize: 'auto, auto, 48px 48px, 48px 48px',
       }}
     >
+      <PythhUnifiedNav />
+      <div className="flex-1 px-4 pt-16 pb-24">
       <div className="max-w-2xl mx-auto">
 
         {/* Eyebrow */}
@@ -207,6 +218,11 @@ export default function SubmitStartupPage() {
         </div>
 
       </div>
+      </div>
+      <footer className="border-t border-white/5 px-6 py-6 text-center text-xs text-zinc-700">
+        <p>© {new Date().getFullYear()} pythh.ai — Signal science for founders.</p>
+        <div className="mt-2"><Link to="/admin-login" className="text-zinc-800 hover:text-zinc-600 transition">admin</Link></div>
+      </footer>
     </div>
   );
 }
