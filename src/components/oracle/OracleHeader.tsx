@@ -13,7 +13,7 @@ export default function OracleHeader({ onOpenMenu }: OracleHeaderProps) {
         {/* Brand lockup (always visible) */}
         <Link to="/" className="group flex items-center gap-2">
           <img
-            src="/pythia-outline.png"
+            src="/images/delphi-pythia-icon-in-glyph-style-vector.jpg"
             alt=""
             className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
           />
