@@ -248,6 +248,16 @@ function validateEntityQuality(entity: string): { valid: boolean; reason?: strin
   if (/^Former\s+/i.test(entity)) {
     return { valid: false, reason: 'former_prefix' };
   }
+
+  // Block "Post [Name]" scraper artifact pattern
+  if (/^Post\s+[A-Z]/i.test(entity) && entity.split(/\s+/).length === 2) {
+    return { valid: false, reason: 'post_prefix' };
+  }
+
+  // Block "Article about X" / "Report on X" patterns
+  if (/^(Article|Report|Story|Feature|Interview|Profile|Analysis|Overview|Preview|Review|Summary|Brief|Recap|Roundup|Thread|Discussion)\s+/i.test(entity)) {
+    return { valid: false, reason: 'media_prefix' };
+  }
   
   // Block political/government references
   if (/^White House$/i.test(entity) || /^Capitol$/i.test(entity) || /^Senate$/i.test(entity) || /^Congress$/i.test(entity)) {
@@ -298,19 +308,31 @@ async function cleanupJunkStartups(dryRun: boolean = false) {
     console.log('🔍 DRY RUN MODE - No changes will be made\n');
   }
   
-  // Fetch all startups
+  // Fetch ALL startups using pagination (Supabase default limit is 1000)
   console.log('📥 Fetching all startups from database...');
-  const { data: startups, error } = await supabase
-    .from('startup_uploads')
-    .select('id, name, status, total_god_score, source_type, created_at')
-    .order('created_at', { ascending: false });
+  const startups: any[] = [];
+  const PAGE_SIZE = 1000;
+  let page = 0;
   
-  if (error) {
-    console.error('❌ Error fetching startups:', error.message);
-    process.exit(1);
+  while (true) {
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, status, total_god_score, source_type, created_at')
+      .order('created_at', { ascending: false })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    
+    if (error) {
+      console.error('❌ Error fetching startups:', error.message);
+      process.exit(1);
+    }
+    if (!data || data.length === 0) break;
+    startups.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    page++;
+    console.log(`  📄 Fetched page ${page} (${startups.length} total so far)...`);
   }
   
-  console.log(`✅ Fetched ${startups.length} startups\n`);
+  console.log(`✅ Fetched ${startups.length} startups total\n`);
   
   // Validate each startup
   const invalid: any[] = [];
@@ -352,9 +374,9 @@ async function cleanupJunkStartups(dryRun: boolean = false) {
   
   console.log('🔍 INVALID STARTUPS BY REASON');
   console.log('==============================');
-  for (const [reason, items] of Object.entries(byReason)) {
+  for (const [reason, items] of Object.entries(byReason) as [string, any[]][]) {
     console.log(`\n${reason} (${items.length}):`);
-    items.slice(0, 10).forEach(s => {
+    items.slice(0, 10).forEach((s: any) => {
       console.log(`  • ${s.name} (GOD: ${s.total_god_score || 'N/A'}, ${s.source_type || 'unknown'})`);
     });
     if (items.length > 10) {

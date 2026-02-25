@@ -698,6 +698,27 @@ module.exports = {
     },
 
     // ========================================
+    // JUNK STARTUP CLEANUP - Nightly quality control
+    // Scans all startup_uploads for junk names and marks them rejected
+    // Runs nightly at 2am — catches scraper garbage before it spreads
+    // ========================================
+    {
+      name: 'junk-startup-cleanup',
+      script: 'npx',
+      args: 'tsx scripts/cleanup-junk-startups.ts',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 1,
+      cron_restart: '0 2 * * *',  // Every day at 2:00 AM
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
+    // ========================================
     // SOCIAL MEDIA POSTER - Daily AI-written posts
     // Posts to Twitter/X, LinkedIn, Threads at 9am daily
     // Skip platforms with missing credentials — they're optional
