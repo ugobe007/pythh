@@ -677,6 +677,27 @@ module.exports = {
     // }
 
     // ========================================
+    // INVESTOR SOCIAL HANDLE ENRICHMENT
+    // Populates twitter_handle, linkedin_url, crunchbase_url for investors
+    // Runs weekly on Sunday at 3am — curated lookup + AI inference
+    // ========================================
+    {
+      name: 'investor-social-enrichment',
+      script: 'node',
+      args: 'scripts/enrich-investor-socials.js --limit=500',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '200M',
+      max_restarts: 2,
+      cron_restart: '0 3 * * 0',  // Every Sunday at 3:00 AM
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
+    // ========================================
     // SOCIAL MEDIA POSTER - Daily AI-written posts
     // Posts to Twitter/X, LinkedIn, Threads at 9am daily
     // Skip platforms with missing credentials — they're optional

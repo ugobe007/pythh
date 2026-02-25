@@ -157,6 +157,9 @@ Extract:
    - Type (VC Firm, Angel Network, Accelerator, Corporate VC, VC Partner)
    - Description (brief, under 200 chars - include role/title for team members)
    - Focus (sectors/stages if mentioned)
+   - Twitter handle or twitter.com/x.com URL if visible on the page
+   - LinkedIn URL if visible (linkedin.com/company/... or linkedin.com/in/...)
+   - Crunchbase URL if visible (crunchbase.com/organization/...)
 
 2. STARTUPS (Companies, Products)
    - Name
@@ -172,7 +175,7 @@ Extract:
 Return JSON in this exact format:
 {
   "investors": [
-    {"name": "string", "type": "string", "description": "string", "focus": "string"}
+    {"name": "string", "type": "string", "description": "string", "focus": "string", "twitter": "string or null", "linkedin_url": "string or null", "crunchbase_url": "string or null"}
   ],
   "startups": [
     {"name": "string", "description": "string", "category": "string", "url": "string"}
@@ -436,6 +439,27 @@ async function saveInvestors(investors, sourceUrl) {
       .limit(1);
     
     if (existing && existing.length > 0) {
+      // Backfill social handles if we scraped them and they're missing
+      const newTwitter = inv.twitter || inv.twitter_handle || null;
+      const newLinkedin = inv.linkedin_url || null;
+      const newCrunchbase = inv.crunchbase_url || null;
+      if (newTwitter || newLinkedin || newCrunchbase) {
+        const { data: cur } = await supabase
+          .from('investors')
+          .select('twitter_handle, twitter_url, linkedin_url, crunchbase_url')
+          .eq('id', existing[0].id)
+          .single();
+        const patch = {};
+        if (newTwitter && !cur?.twitter_handle) patch.twitter_handle = newTwitter;
+        if (newTwitter && newTwitter.includes('twitter.com') && !cur?.twitter_url) patch.twitter_url = newTwitter;
+        if (newLinkedin && !cur?.linkedin_url) patch.linkedin_url = newLinkedin;
+        if (newCrunchbase && !cur?.crunchbase_url) patch.crunchbase_url = newCrunchbase;
+        if (Object.keys(patch).length > 0) {
+          patch.socials_updated_at = new Date().toISOString();
+          await supabase.from('investors').update(patch).eq('id', existing[0].id);
+          console.log(`  🔗 ${inv.name} - Backfilled socials: ${Object.keys(patch).filter(k => k !== 'socials_updated_at').join(', ')}`);
+        }
+      }
       console.log(`  ⏭️  ${inv.name} - Already exists`);
       skipped++;
       continue;
@@ -451,7 +475,12 @@ async function saveInvestors(investors, sourceUrl) {
         investment_thesis: inv.focus || '',
         status: 'active',
         sectors: inv.sectors || [],
-        stage: inv.stage || []
+        stage: inv.stage || [],
+        twitter_handle: inv.twitter || inv.twitter_handle || null,
+        twitter_url: inv.twitter_url || (inv.twitter && inv.twitter.includes('twitter.com') ? inv.twitter : null) || null,
+        linkedin_url: inv.linkedin_url || null,
+        crunchbase_url: inv.crunchbase_url || null,
+        socials_updated_at: (inv.twitter || inv.twitter_handle || inv.linkedin_url) ? new Date().toISOString() : null,
       });
     
     if (error) {

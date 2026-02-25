@@ -125,6 +125,100 @@ async function fetchDailyDigest() {
 
 // ─── Social Enrichment Helpers ──────────────────────────────────────────────────
 
+// Platform/ecosystem hashtags added to every post
+const PLATFORM_TAGS = ['#VentureCapital', '#Startups'];
+
+// Sector → hashtag mapping
+const SECTOR_TAGS = {
+  'AI':                  '#AI',
+  'Artificial Intelligence': '#AI',
+  'Machine Learning':    '#MachineLearning',
+  'Fintech':             '#Fintech',
+  'Financial Technology':'#Fintech',
+  'SaaS':                '#SaaS',
+  'B2B':                 '#B2BSaaS',
+  'Cybersecurity':       '#Cybersecurity',
+  'Security':            '#Cybersecurity',
+  'Healthcare':          '#HealthTech',
+  'Health Tech':         '#HealthTech',
+  'Biotech':             '#Biotech',
+  'Climate':             '#ClimateTech',
+  'CleanTech':           '#Cleantech',
+  'EdTech':              '#EdTech',
+  'Education':           '#EdTech',
+  'Crypto':              '#Crypto',
+  'Web3':                '#Web3',
+  'Blockchain':          '#Web3',
+  'E-commerce':          '#Ecommerce',
+  'Developer Tools':     '#DevTools',
+  'Infrastructure':      '#CloudInfra',
+  'Mobile':              '#MobileTech',
+  'Media':               '#MediaTech',
+  'Marketing Technology':'#MarTech',
+  'PropTech':            '#PropTech',
+  'Real Estate':         '#PropTech',
+  'LegalTech':           '#LegalTech',
+  'HRTech':              '#HRTech',
+  'Deep Tech':           '#DeepTech',
+  'Space':               '#SpaceTech',
+  'Robotics':            '#Robotics',
+  'Logistics':           '#LogisTech',
+  'Supply Chain':        '#SupplyChain',
+  'Gaming':              '#GameTech',
+  'Sports':              '#SportsTech',
+  'AgTech':              '#AgTech',
+  'FoodTech':            '#FoodTech',
+  'InsurTech':           '#InsurTech',
+  'Attribution':         '#MarTech',
+  'Analytics':           '#DataAnalytics',
+  'Data':                '#DataAnalytics',
+};
+
+// Stage → ecosystem hashtag
+const STAGE_TAGS = {
+  0: '#PreSeedStartup',
+  1: '#SeedFunding',
+  2: '#SeriesA',
+  3: '#SeriesB',
+  4: '#GrowthStage',
+  5: '#GrowthStage',
+};
+
+function getPlatformAndSectorTags(post_type, rawData) {
+  const tags = [...PLATFORM_TAGS]; // always include base VC/startup tags
+
+  const sectors = (() => {
+    if (post_type === 'hot_match')         return rawData?.startup?.sectors || [];
+    if (post_type === 'startup_spotlight') return rawData?.sectors || [];
+    if (post_type === 'daily_digest')      return rawData?.hotSector ? [rawData.hotSector.sector] : [];
+    if (post_type === 'vc_signal')         return rawData?.sectors || [];
+    return [];
+  })();
+
+  const stage = (() => {
+    if (post_type === 'hot_match')         return rawData?.startup?.stage;
+    if (post_type === 'startup_spotlight') return rawData?.stage;
+    return null;
+  })();
+
+  for (const sector of (Array.isArray(sectors) ? sectors : []).slice(0, 3)) {
+    const tag = SECTOR_TAGS[sector];
+    if (tag && !tags.includes(tag)) tags.push(tag);
+  }
+
+  if (stage !== null && stage !== undefined) {
+    const stageTag = STAGE_TAGS[stage];
+    if (stageTag) tags.push(stageTag);
+  }
+
+  // Special ecosystem tags
+  if (post_type === 'daily_digest') tags.push('#StartupFunding');
+  if (post_type === 'vc_signal')    tags.push('#AngelInvesting');
+  if (rawData?.startup?.total_god_score >= 75 || rawData?.total_god_score >= 75) tags.push('#HotStartup');
+
+  return [...new Set(tags)];
+}
+
 // "Branch.io" -> "#Branchio", "Sequoia Capital" -> "#SequoiaCapital"
 function toHashtag(name) {
   if (!name) return null;
@@ -209,43 +303,51 @@ function buildSocialEnrichment(post_type, rawData) {
   return {
     hashtags: [...new Set(hashtags.filter(Boolean))],
     mentions: [...new Set(mentions.filter(Boolean))],
+    platformTags: getPlatformAndSectorTags(post_type, rawData),
     url,
   };
 }
 
 // Safety net: append any tags/mentions/URL the AI forgot to include
-function appendSocialTags(text, { hashtags, mentions, url }, platform) {
+function appendSocialTags(text, { hashtags, mentions, platformTags = [], url }, platform) {
   let result = text;
 
-  // Twitter: fixed 23-char cost per URL regardless of length, so budget accordingly
-  const URL_COST = url ? 24 : 0; // 23 chars + 1 space
+  const URL_COST = url ? 24 : 0; // Twitter counts t.co as 23 chars + 1 space
   const TWITTER_LIMIT = 280;
 
-  // Append missing @mentions first (higher engagement value)
+  // 1. Append missing @mentions (highest priority)
   const missingMentions = mentions.filter(m => !result.includes(m));
-  // Append missing hashtags
+  // 2. Append missing name-specific hashtags
   const missingHashtags = hashtags.filter(h => !result.includes(h));
 
-  const tagStr = [
-    ...missingMentions,
-    ...missingHashtags,
-  ].join(' ');
+  const primaryTagStr = [...missingMentions, ...missingHashtags].join(' ');
 
-  if (tagStr) {
-    const addition = ' ' + tagStr;
+  if (primaryTagStr) {
+    const addition = ' ' + primaryTagStr;
     if (platform === 'twitter') {
       const budget = TWITTER_LIMIT - URL_COST;
-      if ((result + addition).length <= budget) {
-        result = result + addition;
-      } else {
-        result = result.slice(0, budget - addition.length).trimEnd() + addition;
-      }
+      result = (result + addition).length <= budget
+        ? result + addition
+        : result.slice(0, budget - addition.length).trimEnd() + addition;
     } else {
-      result = result + '\n' + tagStr;
+      result = result + '\n' + primaryTagStr;
     }
   }
 
-  // Append URL last (Twitter renders as link card; LinkedIn/Threads as inline link)
+  // 3. Platform/sector tags — always on LinkedIn/Threads, Twitter only if room
+  const missingPlatformTags = platformTags.filter(t => !result.includes(t));
+  if (missingPlatformTags.length > 0) {
+    const ptStr = ' ' + missingPlatformTags.join(' ');
+    if (platform === 'twitter') {
+      const budget = TWITTER_LIMIT - URL_COST;
+      if ((result + ptStr).length <= budget) result = result + ptStr;
+      // Skip if no room — name tags + URL take priority
+    } else {
+      result = result + '\n' + missingPlatformTags.join(' ');
+    }
+  }
+
+  // 4. Append URL last (Twitter: link card; LinkedIn/Threads: inline link)
   if (url) {
     const alreadyHasUrl = result.includes(url) ||
       (url.startsWith('https://') && result.includes(url.replace('https://', '')));
@@ -378,9 +480,10 @@ async function main() {
 
   // Generate AI copy
   const enrichment = buildSocialEnrichment(post_type, rawData);
-  console.log(`[social-poster] Hashtags: ${enrichment.hashtags.join(' ') || '(none)'}`);
-  console.log(`[social-poster] Mentions: ${enrichment.mentions.join(' ') || '(none)'}`);
-  console.log(`[social-poster] URL: ${enrichment.url || '(none)'}`);
+  console.log(`[social-poster] Hashtags:     ${enrichment.hashtags.join(' ') || '(none)'}`)
+  console.log(`[social-poster] Mentions:     ${enrichment.mentions.join(' ') || '(none)'}`)
+  console.log(`[social-poster] PlatformTags: ${enrichment.platformTags.join(' ') || '(none)'}`)
+  console.log(`[social-poster] URL:          ${enrichment.url || '(none)'}`);
 
   let content;
   try {
