@@ -45,8 +45,8 @@ async function fetchHotMatch(supabase) {
   const match = matches[Math.floor(Math.random() * matches.length)];
 
   const [{ data: startups }, { data: investors }] = await Promise.all([
-    supabase.from('startup_uploads').select('name, tagline, total_god_score, sectors').eq('id', match.startup_id).limit(1),
-    supabase.from('investors').select('name, firm_name, sectors').eq('id', match.investor_id).limit(1),
+    supabase.from('startup_uploads').select('name, tagline, total_god_score, sectors, website').eq('id', match.startup_id).limit(1),
+    supabase.from('investors').select('name, firm_name, sectors, twitter_url, twitter_handle').eq('id', match.investor_id).limit(1),
   ]);
 
   return {
@@ -59,7 +59,7 @@ async function fetchHotMatch(supabase) {
 async function fetchStartupSpotlight(supabase) {
   const { data } = await supabase
     .from('startup_uploads')
-    .select('name, tagline, total_god_score, sectors, team_score, pitch, traction_score')
+    .select('name, tagline, total_god_score, sectors, team_score, pitch, traction_score, website')
     .eq('status', 'approved')
     .order('total_god_score', { ascending: false })
     .limit(20);
@@ -98,7 +98,7 @@ async function fetchSectorInsight(supabase) {
 async function fetchVCSignal(supabase) {
   const { data } = await supabase
     .from('investors')
-    .select('name, firm_name, sectors, stage, investment_thesis')
+    .select('name, firm_name, sectors, stage, investment_thesis, twitter_url, twitter_handle')
     .not('investment_thesis', 'is', null)
     .limit(20);
 
@@ -123,11 +123,13 @@ async function fetchDailyDigest() {
   };
 }
 
-// ─── Hashtag Helpers ──────────────────────────────────────────────────────────
+// ─── Social Enrichment Helpers ──────────────────────────────────────────────────
+
+// "Branch.io" -> "#Branchio", "Sequoia Capital" -> "#SequoiaCapital"
 function toHashtag(name) {
   if (!name) return null;
   const clean = name
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')  // dots, dashes, punctuation → spaces
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .split(' ')
@@ -137,70 +139,149 @@ function toHashtag(name) {
   return clean ? `#${clean}` : null;
 }
 
-function buildHashtagsForData(post_type, rawData) {
-  const tags = [];
-  if (post_type === 'hot_match' && rawData) {
-    if (rawData.startup?.name)  tags.push(toHashtag(rawData.startup.name));
-    const investorName = rawData.investor?.firm_name || rawData.investor?.name;
-    if (investorName) tags.push(toHashtag(investorName));
-  } else if (post_type === 'startup_spotlight' && rawData?.name) {
-    tags.push(toHashtag(rawData.name));
-  } else if (post_type === 'daily_digest' && rawData) {
-    const s = rawData.topStartup?.name || rawData.topMatch?.startup?.name;
-    if (s) tags.push(toHashtag(s));
-    const inv = rawData.topMatch?.investor?.firm_name || rawData.topMatch?.investor?.name;
-    if (inv) tags.push(toHashtag(inv));
-  } else if (post_type === 'vc_signal' && rawData) {
-    const investorName = rawData.firm_name || rawData.name;
-    if (investorName) tags.push(toHashtag(investorName));
+// "https://twitter.com/sequoia" or "sequoia" -> "@sequoia"
+function urlToHandle(urlOrHandle) {
+  if (!urlOrHandle) return null;
+  const s = String(urlOrHandle).trim();
+  if (!s) return null;
+  if (s.startsWith('@')) return s;
+  const m = s.match(/(?:twitter\.com|x\.com)\/([^/?#\s]+)/i);
+  if (m?.[1]) {
+    const handle = m[1].toLowerCase();
+    if (!['home', 'intent', 'search', 'i', 'messages', 'notifications'].includes(handle)) {
+      return '@' + m[1];
+    }
   }
-  return [...new Set(tags.filter(Boolean))];
+  // bare handle (no URL, no spaces, valid chars)
+  if (/^[a-zA-Z0-9_]{1,50}$/.test(s)) return '@' + s;
+  return null;
 }
 
-function appendHashtags(text, hashtags, platform) {
-  if (!hashtags.length) return text;
-  const missing = hashtags.filter(h => !text.includes(h));
-  if (!missing.length) return text;
-  const tagStr = ' ' + missing.join(' ');
-  if (platform === 'twitter') {
-    if ((text + tagStr).length <= 280) return text + tagStr;
-    const maxText = 280 - tagStr.length;
-    return text.slice(0, maxText).trimEnd() + tagStr;
+// "11x.ai" -> "https://11x.ai", "https://branch.io" -> unchanged
+function toHttpsUrl(website) {
+  if (!website) return null;
+  const s = String(website).trim();
+  if (!s) return null;
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  return 'https://' + s;
+}
+
+// Returns { hashtags: string[], mentions: string[], url: string|null }
+function buildSocialEnrichment(post_type, rawData) {
+  const hashtags = [];
+  const mentions = [];
+  let url = null;
+
+  if (post_type === 'hot_match' && rawData) {
+    if (rawData.startup?.name)  hashtags.push(toHashtag(rawData.startup.name));
+    const investorName = rawData.investor?.firm_name || rawData.investor?.name;
+    if (investorName) hashtags.push(toHashtag(investorName));
+    // @mention investor if handle available
+    const investorHandle = urlToHandle(rawData.investor?.twitter_handle) ||
+                           urlToHandle(rawData.investor?.twitter_url);
+    if (investorHandle) mentions.push(investorHandle);
+    // startup website -> link card
+    url = toHttpsUrl(rawData.startup?.website);
+
+  } else if (post_type === 'startup_spotlight' && rawData) {
+    if (rawData.name) hashtags.push(toHashtag(rawData.name));
+    url = toHttpsUrl(rawData.website);
+
+  } else if (post_type === 'daily_digest' && rawData) {
+    const startupName = rawData.topStartup?.name || rawData.topMatch?.startup?.name;
+    if (startupName) hashtags.push(toHashtag(startupName));
+    const investorName = rawData.topMatch?.investor?.firm_name || rawData.topMatch?.investor?.name;
+    if (investorName) hashtags.push(toHashtag(investorName));
+    const investorHandle = urlToHandle(rawData.topMatch?.investor?.twitter_handle) ||
+                           urlToHandle(rawData.topMatch?.investor?.twitter_url);
+    if (investorHandle) mentions.push(investorHandle);
+    url = toHttpsUrl(rawData.topMatch?.startup?.website) ||
+          toHttpsUrl(rawData.topStartup?.website) ||
+          rawData.link || null;
+
+  } else if (post_type === 'vc_signal' && rawData) {
+    const investorName = rawData.firm_name || rawData.name;
+    if (investorName) hashtags.push(toHashtag(investorName));
+    const handle = urlToHandle(rawData.twitter_handle) || urlToHandle(rawData.twitter_url);
+    if (handle) mentions.push(handle);
   }
-  return text + '\n' + missing.join(' ');
+
+  return {
+    hashtags: [...new Set(hashtags.filter(Boolean))],
+    mentions: [...new Set(mentions.filter(Boolean))],
+    url,
+  };
+}
+
+// Safety net: append any tags/mentions/URL the AI forgot to include
+function appendSocialTags(text, { hashtags, mentions, url }, platform) {
+  let result = text;
+
+  // Twitter: fixed 23-char cost per URL regardless of length, so budget accordingly
+  const URL_COST = url ? 24 : 0; // 23 chars + 1 space
+  const TWITTER_LIMIT = 280;
+
+  // Append missing @mentions first (higher engagement value)
+  const missingMentions = mentions.filter(m => !result.includes(m));
+  // Append missing hashtags
+  const missingHashtags = hashtags.filter(h => !result.includes(h));
+
+  const tagStr = [
+    ...missingMentions,
+    ...missingHashtags,
+  ].join(' ');
+
+  if (tagStr) {
+    const addition = ' ' + tagStr;
+    if (platform === 'twitter') {
+      const budget = TWITTER_LIMIT - URL_COST;
+      if ((result + addition).length <= budget) {
+        result = result + addition;
+      } else {
+        result = result.slice(0, budget - addition.length).trimEnd() + addition;
+      }
+    } else {
+      result = result + '\n' + tagStr;
+    }
+  }
+
+  // Append URL last (Twitter renders as link card; LinkedIn/Threads as inline link)
+  if (url) {
+    const alreadyHasUrl = result.includes(url) ||
+      (url.startsWith('https://') && result.includes(url.replace('https://', '')));
+    if (!alreadyHasUrl) {
+      result = platform === 'twitter'
+        ? result.trimEnd() + ' ' + url
+        : result + '\n' + url;
+    }
+  }
+
+  return result;
 }
 
 // ─── AI Copy Generator ────────────────────────────────────────────────────────
-async function generateCopy(post_type, rawData, hashtags = []) {
+async function generateCopy(post_type, rawData, enrichment = {}) {
+  const { hashtags = [], mentions = [], url = null } = enrichment;
   const baseContext = `You write social media posts for pythh.ai — an AI system that scores startups and matches them to investors.
 Your tone: quiet confidence. You're sitting on signal most people don't have access to.
 Never explain what pythh.ai does. Never use generic startup-speak. Never write ads.
 Write like you're sharing something interesting you noticed — not selling something.
 Be specific. Be brief. Leave them wanting more.`;
 
-  const hashtagNote = hashtags.length
-    ? `REQUIRED: include these hashtags in your post (for the startup/investor names): ${hashtags.join(' ')}`
-    : '';
+  const tagInstructions = [
+    hashtags.length ? `REQUIRED hashtags (include in your post): ${hashtags.join(' ')}` : '',
+    mentions.length ? `REQUIRED @mentions (include in your post): ${mentions.join(' ')}` : '',
+    url        ? `A link will be appended automatically — do NOT include the URL in your text.` : '',
+  ].filter(Boolean).join('\n');
 
   const platforms = {
     twitter: post_type === 'daily_digest'
-      ? `Write a single tweet, MAX 260 characters. No exclamation points.
-${hashtagNote}
-Tease the week's most interesting signal find — one specific data point or match. End with: pythh.ai/newsletter`
-      : `Write a single tweet, MAX 260 characters. No exclamation points.
-${hashtagNote}
-No direct CTA — just an observation or a question that makes a founder or VC stop scrolling.
-End with a quiet signal, not a pitch. pythh.ai can appear naturally but doesn't need to.`,
+      ? `Write a single tweet, MAX 220 characters (a link will be auto-appended). No exclamation points.\n${tagInstructions}\nTease the week's most interesting signal find — one specific data point or match. End with: pythh.ai/newsletter`
+      : `Write a single tweet, MAX 220 characters (a link will be auto-appended). No exclamation points.\n${tagInstructions}\nNo direct CTA — just an observation or a question that makes a founder or VC stop scrolling.\nEnd with a quiet signal, not a pitch. pythh.ai can appear naturally but doesn't need to.`,
     linkedin: post_type === 'daily_digest'
-      ? `Write a LinkedIn digest post of 150-250 words. Lead with the most interesting match or startup signal from the data.
-${hashtagNote}
-Include 3-5 hashtags total. End with "Full digest: pythh.ai/newsletter"`
-      : `Write a LinkedIn post of 150-250 words with a professional but engaging tone.
-${hashtagNote}
-Include 3-5 hashtags total. Reference pythh.ai as the source. Paragraph breaks for readability.`,
-    threads: `Write a Threads post (conversational, max 500 chars).
-${hashtagNote}
-Keep it casual and interesting.`,
+      ? `Write a LinkedIn digest post of 150-250 words. Lead with the most interesting match or startup signal from the data.\n${tagInstructions}\nInclude 3-5 hashtags total. End with "Full digest: pythh.ai/newsletter"`
+      : `Write a LinkedIn post of 150-250 words with a professional but engaging tone.\n${tagInstructions}\nInclude 3-5 hashtags total. Reference pythh.ai as the source. Paragraph breaks for readability.`,
+    threads: `Write a Threads post (conversational, max 500 chars).\n${tagInstructions}\nKeep it casual and interesting.`,
   };
 
   const dataSummary = JSON.stringify(rawData, null, 2).slice(0, 800);
@@ -231,12 +312,12 @@ Write the ${platform} post now. Return ONLY the post text, nothing else.`
     generateForPlatform('threads',  platforms.threads),
   ]);
 
-  // Safety net: append any hashtags the AI missed
+  // Safety net: ensure all required tags + URL are present
   return {
-    twitter:  appendHashtags(twitter,  hashtags, 'twitter'),
-    linkedin: appendHashtags(linkedin, hashtags, 'linkedin'),
-    threads:  appendHashtags(threads,  hashtags, 'threads'),
-    default:  appendHashtags(twitter,  hashtags, 'twitter'),
+    twitter:  appendSocialTags(twitter,  enrichment, 'twitter'),
+    linkedin: appendSocialTags(linkedin, enrichment, 'linkedin'),
+    threads:  appendSocialTags(threads,  enrichment, 'threads'),
+    default:  appendSocialTags(twitter,  enrichment, 'twitter'),
   };
 }
 
@@ -296,13 +377,15 @@ async function main() {
   }
 
   // Generate AI copy
-  const hashtags = buildHashtagsForData(post_type, rawData);
-  console.log(`[social-poster] Hashtags for this post: ${hashtags.join(' ') || '(none)'}`);
+  const enrichment = buildSocialEnrichment(post_type, rawData);
+  console.log(`[social-poster] Hashtags: ${enrichment.hashtags.join(' ') || '(none)'}`);
+  console.log(`[social-poster] Mentions: ${enrichment.mentions.join(' ') || '(none)'}`);
+  console.log(`[social-poster] URL: ${enrichment.url || '(none)'}`);
 
   let content;
   try {
     console.log('[social-poster] Generating AI copy...');
-    content = await generateCopy(post_type, rawData, hashtags);
+    content = await generateCopy(post_type, rawData, enrichment);
   } catch (e) {
     console.error('[social-poster] AI copy generation failed:', e.message);
     process.exit(1);
