@@ -95,10 +95,21 @@ async function runHealthCheck() {
   let anyFail = false;
 
   // ── 1. Enrichment status breakdown ────────────────────────────────────────
-  const { data: allApproved } = await supabase
-    .from('startup_uploads')
-    .select('id, enrichment_status, total_god_score, website, extracted_data, last_enrichment_attempt')
-    .eq('status', 'approved');
+  // Paginate past Supabase's 1000-row default limit
+  let allApproved = [];
+  let page = 0;
+  const PAGE_SIZE = 1000;
+  while (true) {
+    const { data: batch } = await supabase
+      .from('startup_uploads')
+      .select('id, enrichment_status, total_god_score, website, extracted_data, last_enrichment_attempt')
+      .eq('status', 'approved')
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (!batch || batch.length === 0) break;
+    allApproved = allApproved.concat(batch);
+    if (batch.length < PAGE_SIZE) break;
+    page++;
+  }
 
   const total = allApproved?.length || 0;
   if (total === 0) {
