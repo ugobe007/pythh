@@ -27,7 +27,7 @@ const NAV_LINKS: NavLink[] = [
   { label: "Rankings", to: "/rankings" },
   { label: "Explore", to: "/explore" },
   { label: "Submit", to: "/submit" },
-  { label: "Signal Digest", to: "/newsletter" },
+  { label: "Newsletter", to: "/newsletter" },
   { label: "Pricing", to: "/pricing" },
   { label: "About", to: "/about" },
 ];

@@ -127,10 +127,10 @@ export default function AboutPage() {
           <h2 className="text-2xl font-semibold tracking-tight mb-4">Ready to read the signals?</h2>
           <p className="text-zinc-400 mb-8">Submit your startup URL and see what the oracle sees.</p>
           <Link
-            to="/"
+            to="/signup"
             className="inline-block px-8 py-3 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition-colors"
           >
-            Try pythh.ai
+            Get Started Free
           </Link>
         </div>
       </section>

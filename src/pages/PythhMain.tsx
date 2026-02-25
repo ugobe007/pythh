@@ -558,7 +558,7 @@ export default function PythhHome() {
           <Link to="/platform" className="hover:text-zinc-300 transition">Platform</Link>
           <Link to="/rankings" className="hover:text-zinc-300 transition">Rankings</Link>
           <Link to="/explore" className="hover:text-zinc-300 transition">Explore</Link>
-          <Link to="/newsletter" className="hover:text-zinc-300 transition">Signal Digest</Link>
+          <Link to="/newsletter" className="hover:text-zinc-300 transition">Newsletter</Link>
           <Link to="/pricing" className="hover:text-zinc-300 transition">Pricing</Link>
           <Link to="/about" className="hover:text-zinc-300 transition">About</Link>
           <Link to="/support" className="hover:text-zinc-300 transition">Support</Link>
