@@ -435,9 +435,9 @@ export default function PricingPage() {
           )}
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto mb-12">
-          {PLANS.map((plan) => {
+        {/* Pricing Cards — Free, Pro, Pro+ */}
+        <div className="grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto mb-6">
+          {PLANS.filter(p => p.tier !== 'elite').map((plan) => {
             const price = getPrice(plan);
             const isCurrent = isCurrentPlan(plan.tier);
             const isPopular = plan.popular;
@@ -572,6 +572,47 @@ export default function PricingPage() {
             );
           })}
         </div>
+
+        {/* Signal Navigator — inline strip */}
+        {(() => {
+          const nav = PLANS.find(p => p.tier === 'elite')!;
+          const navPrice = getPrice(nav);
+          const isCurrent = isCurrentPlan('elite');
+          return (
+            <div className="max-w-4xl mx-auto mb-10">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 rounded-2xl border border-cyan-400/30 bg-zinc-900/60 hover:border-cyan-400/50 transition-all">
+                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                  <div className="flex items-center gap-3">
+                    <Crown className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    <span className="text-white font-semibold">Signal Navigator</span>
+                    <span className="text-zinc-500 text-sm hidden sm:inline">—</span>
+                    <span className="text-cyan-400 font-bold">${navPrice}<span className="text-zinc-500 font-normal text-sm">/{billingCycle === 'annual' ? 'mo' : 'month'}</span></span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-400">
+                    <span>Real-time signal shift alerts</span>
+                    <span className="text-zinc-700 hidden sm:inline">·</span>
+                    <span>Priority support</span>
+                    <span className="text-zinc-700 hidden sm:inline">·</span>
+                    <span>Early access to new features</span>
+                    <span className="text-zinc-700 hidden sm:inline">·</span>
+                    <span>Concierge onboarding</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleSelectPlan('elite')}
+                  disabled={isLoading || isCurrent}
+                  className={`flex-shrink-0 px-5 py-2 rounded-xl font-semibold text-sm border transition-all ${
+                    isCurrent
+                      ? 'border-emerald-500/40 text-emerald-400 cursor-default'
+                      : 'border-cyan-400 text-cyan-400 hover:bg-cyan-400/10'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {loadingTier === 'elite' ? 'Processing...' : isCurrent ? 'Current Plan' : 'Go Navigator'}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Fund Tier — Contact Card */}
         <div className="max-w-5xl mx-auto mb-12">
