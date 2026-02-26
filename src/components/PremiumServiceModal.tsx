@@ -66,7 +66,7 @@ export default function PremiumServiceModal({ service, onClose }: PremiumService
       if (!res.ok) throw new Error('Server error');
       setStep('done');
     } catch (err) {
-      setErrorMsg('Failed to send. Please email team@pythh.ai directly.');
+      setErrorMsg('Failed to send. Please email info@pythh.ai directly.');
       setStep('error');
     }
   };
@@ -181,7 +181,7 @@ export default function PremiumServiceModal({ service, onClose }: PremiumService
             </button>
 
             <p className="mt-3 text-zinc-600 text-xs text-center">
-              Or email directly: team@pythh.ai
+              Or email directly: info@pythh.ai
             </p>
           </form>
         )}

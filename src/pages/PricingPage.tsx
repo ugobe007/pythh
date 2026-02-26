@@ -634,7 +634,7 @@ export default function PricingPage() {
             </div>
             <div className="flex-shrink-0">
               <a
-                href="mailto:team@pythh.ai?subject=Fund%20Tier%20Inquiry"
+                href="mailto:info@pythh.ai?subject=Fund%20Tier%20Inquiry"
                 className="inline-flex items-center gap-2 px-8 py-3 rounded-xl font-semibold text-sm border border-cyan-400 text-cyan-400 hover:bg-cyan-400/10 transition-all"
               >
                 Contact Us
@@ -881,7 +881,7 @@ export default function PricingPage() {
         <div className="text-center mt-12">
           <p className="text-zinc-500 text-sm mb-2">Need custom limits or team features?</p>
           <a
-            href="mailto:team@pythh.ai?subject=Enterprise%20Inquiry"
+            href="mailto:info@pythh.ai?subject=Enterprise%20Inquiry"
             className="inline-flex items-center gap-2 text-cyan-400 hover:text-cyan-300 text-sm font-medium"
           >
             Contact us for Enterprise

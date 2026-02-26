@@ -1259,7 +1259,7 @@ app.post('/api/premium-service-inquiry', async (req, res) => {
 
   try {
     const result = await sendEmailViaResend({
-      to: 'team@pythh.ai',
+      to: 'info@pythh.ai',
       subject: `[Pythh Premium] ${service_label} — ${name}${company ? ` (${company})` : ''}`,
       html,
       text: `Service: ${service_label}\nName: ${name}\nCompany: ${company}\nEmail: ${email}\nBrief: ${brief}`,
