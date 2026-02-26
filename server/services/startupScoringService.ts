@@ -1056,7 +1056,7 @@ function scoreTraction(startup: StartupProfile): number {
   // --- 2A. Revenue/Business Model Signals ---
   const revenuePatterns = [
     /\b(revenue|profitable|monetiz|paying customers|subscription|saas|arr|mrr)/i,
-    /\b(\$\d+[KMB]|\d+\s*(million|billion)|raised\s*\$)/i,
+    /([€£$]|US\$|USD\s*)[\d,\.]+\s*[KMBbillion|million]?|\d+\s*(million|billion)|raised\s*[€£$]/i,
     /\b(enterprise|b2b|sales|contracts|deals|clients)/i,
     /\b(funded|backed by|investors|seed|series [a-d]|pe funding|vc)/i
   ];

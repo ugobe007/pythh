@@ -127,14 +127,16 @@ function toScoringProfile(startup: any): any {
   //   4. Two-pass best-mention selection
   //
   // Wire them in as PRIMARY source, with old fields as fallback.
-  // Gate on confidence: only use parsed funding if funding_confidence ≥ 0.5
+  // Gate on confidence: only use parsed funding if funding_confidence ≥ 0.35
+  // (Reduced from 0.5 — small rounds (<$50M) tagged with high keyword specificity
+  //  are near-certain; the old 0.5 gate was filtering too aggressively)
   // ============================================================================
   
   const fundingConfidence = startup.funding_confidence || 0;
   const tractionConfidence = startup.traction_confidence || 0;
   
-  // Parsed ARR/revenue (gate on traction confidence ≥ 0.4)
-  const parsedRevenue = (tractionConfidence >= 0.4)
+  // Parsed ARR/revenue (gate on traction confidence ≥ 0.35, reduced from 0.4)
+  const parsedRevenue = (tractionConfidence >= 0.35)
     ? (startup.arr_usd || startup.revenue_usd || 0)
     : 0;
   
@@ -142,7 +144,7 @@ function toScoringProfile(startup: any): any {
   const parsedCustomers = startup.parsed_customers || 0;
   const parsedUsers = startup.parsed_users || 0;
   
-  // Parsed funding amount (gate on funding confidence ≥ 0.5)
+  // Parsed funding amount (gate on funding confidence ≥ 0.35, reduced from 0.5)
   const parsedFunding = (fundingConfidence >= 0.5)
     ? (startup.last_round_amount_usd || startup.total_funding_usd || 0)
     : 0;
