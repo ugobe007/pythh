@@ -145,7 +145,7 @@ function toScoringProfile(startup: any): any {
   const parsedUsers = startup.parsed_users || 0;
   
   // Parsed funding amount (gate on funding confidence ≥ 0.35, reduced from 0.5)
-  const parsedFunding = (fundingConfidence >= 0.5)
+  const parsedFunding = (fundingConfidence >= 0.35)
     ? (startup.last_round_amount_usd || startup.total_funding_usd || 0)
     : 0;
   
@@ -207,7 +207,9 @@ function toScoringProfile(startup: any): any {
     funding_stage: extracted.funding_stage,
     
     // Funding & financial planning — wire in parsed metrics
-    previous_funding: parsedFunding || startup.previous_funding || extracted.previous_funding,
+    // extracted.funding_amount is written by enrich-floor-startups.js — must be included here
+    // so the scorer's fundingVelocityBonus and traction scoring can use it
+    previous_funding: parsedFunding || startup.previous_funding || extracted.previous_funding || extracted.funding_amount,
     burn_rate: parsedBurn || startup.burn_rate || extracted.burn_rate,
     runway_months: parsedRunway || startup.runway_months || extracted.runway_months,
     

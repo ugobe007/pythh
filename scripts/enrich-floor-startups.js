@@ -179,6 +179,71 @@ function detectSignals(text) {
 }
 
 // ---------------------------------------------------------------------------
+// INDUSTRY / SECTOR EXTRACTOR
+// Maps description keywords → standard sector labels the scorer uses
+// ---------------------------------------------------------------------------
+const SECTOR_KEYWORDS = {
+  'AI / Machine Learning': ['artificial intelligence', ' ai ', 'machine learning', 'deep learning', 'llm', 'large language model', 'neural network', 'generative ai', 'ai-powered', 'ai-driven'],
+  'Cybersecurity': ['cybersecurity', 'data protection', 'security startup', 'infosec', 'threat detection', 'zero trust', 'siem', 'endpoint security', 'identity security', 'data privacy'],
+  'Fintech': ['fintech', 'financial technology', 'payments', 'neobank', 'banking', 'lending', 'insurtech', 'wealthtech', 'financial services', 'remittance', 'crypto', 'defi', 'blockchain'],
+  'Healthcare': ['healthtech', 'health tech', 'medtech', 'medical', 'healthcare', 'clinical', 'patient', 'hospital', 'pharma', 'biotech', 'drug discovery', 'diagnostics', 'digital health', 'mental health'],
+  'SaaS': ['saas', 'software as a service', 'b2b software', 'enterprise software', 'subscription software', 'cloud software', 'platform for'],
+  'Developer Tools': ['developer', 'devops', 'api', 'sdk', 'open source', 'infrastructure', 'deployment', 'ci/cd', 'monitoring', 'observability', 'cloud-native'],
+  'E-commerce': ['e-commerce', 'ecommerce', 'marketplace', 'online store', 'retail tech', 'd2c', 'direct-to-consumer', 'supply chain'],
+  'Climate Tech': ['climate', 'cleantech', 'clean tech', 'renewable', 'sustainability', 'carbon', 'net zero', 'electric vehicle', 'solar', 'green energy', 'energy storage'],
+  'Logistics': ['logistics', 'supply chain', 'shipping', 'fulfillment', 'last-mile', 'freight', 'warehouse', 'delivery'],
+  'EdTech': ['edtech', 'education technology', 'e-learning', 'online learning', 'tutoring', 'upskilling', 'skill development', 'training platform'],
+  'Real Estate': ['proptech', 'real estate', 'property tech', 'construction tech', 'contech', 'renting', 'mortgage'],
+  'Space': ['space tech', 'satellite', 'aerospace', 'launch vehicle', 'orbital', 'spacetech'],
+  'Robotics': ['robotics', 'robot', 'automation hardware', 'industrial automation', 'autonomous systems', 'drones', 'drone'],
+  'Biotech': ['biotech', 'biotechnology', 'genomics', 'gene therapy', 'crispr', 'cell therapy', 'protein', 'synthetic biology'],
+  'AgriTech': ['agritech', 'agtech', 'agriculture', 'farming', 'crop', 'food tech', 'food technology'],
+  'HR Tech': ['hr tech', 'hrtech', 'workforce', 'talent management', 'recruiting', 'hiring platform', 'payroll', 'employee'],
+  'Legal Tech': ['legaltech', 'legal tech', 'law tech', 'compliance', 'contract management', 'legal ai'],
+  'Gaming': ['gaming', 'game studio', 'esports', 'game engine', 'metaverse', 'web3 game'],
+};
+
+function extractIndustries(text) {
+  if (!text) return [];
+  const t = text.toLowerCase();
+  const found = new Set();
+  for (const [sector, keywords] of Object.entries(SECTOR_KEYWORDS)) {
+    if (keywords.some(kw => t.includes(kw))) {
+      found.add(sector);
+    }
+  }
+  return [...found].slice(0, 3);
+}
+
+// ---------------------------------------------------------------------------
+// VALUE PROPOSITION EXTRACTOR
+// Extracts what the startup does from patterns like:
+//   "X startup NAME raises $Y" → "X" is the vp
+//   "NAME, a X platform, raises..." → "X platform" is the vp
+// ---------------------------------------------------------------------------
+function extractValueProp(text, startupName) {
+  if (!text) return null;
+
+  // Pattern: "a/an [descriptor] [startup/platform/company]"
+  const vpPatterns = [
+    /\ba(?:n)?\s+(.{5,60}?)\s+(?:startup|company|firm|platform|provider|solution|tool|app)\b/i,
+    /\b(?:develop|build|create|offer|provide)s?\s+(.{5,80}?)\s+(?:platform|tool|solution|software|app|service)\b/i,
+  ];
+
+  for (const pat of vpPatterns) {
+    const m = pat.exec(text);
+    if (m) {
+      const vp = m[1].trim();
+      // Must be reasonable length, not just "AI" or "the"
+      if (vp.length > 8 && vp.length < 80 && !/^\b(an?|the)\b$/i.test(vp)) {
+        return vp.charAt(0).toUpperCase() + vp.slice(1);
+      }
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // STAGE INFERENCE
 // ---------------------------------------------------------------------------
 function inferStage(text) {
@@ -211,6 +276,8 @@ function enrichStartup(startup) {
   const userCount = parseUserCount(fullText);
   const { hasRevenue, isLaunched, inAccelerator } = detectSignals(fullText);
   const stage = inferStage(fullText);
+  const industries = extractIndustries(fullText);
+  const valueProp = extractValueProp(fullText, startup.name);
 
   // Build execution_signals array
   const execSignals = [];
@@ -221,7 +288,7 @@ function enrichStartup(startup) {
   if (inAccelerator) execSignals.push('Accelerator Alumni');
 
   // Only return a patch if we found SOMETHING useful
-  const hasSomething = fundingAmount || investors.length > 0 || userCount || hasRevenue || isLaunched || inAccelerator || stage;
+  const hasSomething = fundingAmount || investors.length > 0 || userCount || hasRevenue || isLaunched || inAccelerator || stage || industries.length > 0 || valueProp;
   if (!hasSomething) return null;
 
   // Merge into existing extracted_data
@@ -236,6 +303,9 @@ function enrichStartup(startup) {
     ...(hasRevenue && !existing.has_revenue ? { has_revenue: true } : {}),
     ...(isLaunched && !existing.is_launched ? { is_launched: true } : {}),
     ...(stage && !existing.funding_stage ? { funding_stage: stage } : {}),
+    // Industries/value prop: feed market + vision scorers
+    ...(industries.length > 0 && !existing.industries ? { industries, sectors: industries } : {}),
+    ...(valueProp && !existing.value_proposition ? { value_proposition: valueProp } : {}),
     execution_signals: [...new Set([...(existing.execution_signals || []), ...execSignals])],
     enriched_at: new Date().toISOString(),
     enrichment_source: 'enrich-floor-startups',
@@ -252,6 +322,8 @@ function enrichStartup(startup) {
       isLaunched,
       inAccelerator,
       stage,
+      industries,
+      valueProp,
     },
   };
 }
@@ -328,6 +400,8 @@ async function main() {
     withUsers: enriched.filter(e => e.signals.userCount).length,
     withRevenue: enriched.filter(e => e.signals.hasRevenue).length,
     withLaunch: enriched.filter(e => e.signals.isLaunched).length,
+    withIndustries: enriched.filter(e => e.signals.industries && e.signals.industries.length > 0).length,
+    withValueProp: enriched.filter(e => e.signals.valueProp).length,
   };
 
   console.log(`\n  📊 Enrichment results:`);
@@ -338,6 +412,8 @@ async function main() {
   console.log(`     User count:    ${stats.withUsers}`);
   console.log(`     Revenue flag:  ${stats.withRevenue}`);
   console.log(`     Launched flag: ${stats.withLaunch}`);
+  console.log(`     Industries:    ${stats.withIndustries}`);
+  console.log(`     Value prop:    ${stats.withValueProp}`);
 
   if (DRY_RUN) {
     console.log('\n  [DRY RUN] — not writing to database');
