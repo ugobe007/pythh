@@ -166,6 +166,23 @@ function validateEntityQuality(entity: string): { valid: boolean; reason?: strin
     // Crypto
     'Binance', 'FTX', 'Kraken', 'Gemini', 'Celsius', 'BlockFi',
     'Alchemy', 'Infura', 'Metamask', 'Opensea', 'Uniswap',
+    // Food & Retail (large chains that appear in startup RSS feeds)
+    'Chipotle', 'Starbucks', 'McDonald', 'McDonalds', "McDonald's",
+    'Walmart', 'Target', 'Costco', 'Kroger', 'Whole Foods', 'Trader Joe',
+    'Nike', 'Adidas', 'Lululemon', 'Under Armour', 'Gap', 'Zara', 'H&M',
+    'IKEA', 'Home Depot', 'Lowes', "Lowe's", "Lowe",
+    // Southeast Asian / global super-apps
+    'Grab', 'Gojek', 'GoTo', 'Sea', 'Lazada', 'Tokopedia', 'Shopee',
+    'Naver', 'Kakao', 'Line', 'Mercado Libre',
+    // Finance / trading
+    'Charles Schwab', 'Fidelity', 'Vanguard', 'BlackRock', 'Bridgewater',
+    'Citadel', 'Two Sigma', 'Renaissance', 'D.E. Shaw',
+    // Auto
+    'Toyota', 'Honda', 'Hyundai', 'BMW', 'Mercedes', 'Volkswagen', 'Audi',
+    'Ferrari', 'Lamborghini', 'Porsche', 'Volvo', 'Stellantis',
+    // Telecom
+    'AT&T', 'Verizon', 'T-Mobile', 'Comcast', 'Charter', 'SoftBank',
+    'Vodafone', 'Deutsche Telekom', 'Rakuten',
     // Well-known apps/tools
     'Camscanner', 'CamScanner', 'Ko-fi', 'Kofi', 'Patreon',
     'ClickFunnels', 'Teachable', 'Podia', 'Gumroad', 'Lemon Squeezy',
@@ -206,6 +223,32 @@ function validateEntityQuality(entity: string): { valid: boolean; reason?: strin
     return { valid: false, reason: 'famous_person' };
   }
   
+  // Possessive form — "Instacart's", "Grab's", "Apple's" → news headline about a company
+  if (/[\u2019']s\s*$/i.test(entity)) {
+    return { valid: false, reason: 'possessive_form' };
+  }
+
+  // Verb-phrase headlines — "Grab agrees", "Chipotle reports", "Apple announces"
+  const headlineVerbs = [
+    'agrees', 'acquires', 'announces', 'backs', 'buys', 'closes', 'cuts',
+    'denies', 'expands', 'files', 'fires', 'gains', 'gets', 'hires',
+    'joins', 'launches', 'lays off', 'loses', 'raises', 'reports',
+    'reveals', 'says', 'secures', 'sells', 'settles', 'signs',
+    'slashes', 'soars', 'strikes', 'sues', 'surges', 'unveils',
+    'wins', 'withdraws',
+  ];
+  const lowerEntity = entity.toLowerCase();
+  if (headlineVerbs.some(verb => lowerEntity.endsWith(' ' + verb) || lowerEntity.includes(' ' + verb + ' '))) {
+    if (entity.split(/\s+/).length >= 2) {
+      return { valid: false, reason: 'headline_verb_phrase' };
+    }
+  }
+
+  // Political role patterns — "Democrat Senator", "Republican Congressman", "GOP"
+  if (/\b(democrat|republican|GOP|senator|congressman|congresswoman|lawmaker|legislator|governor|mayor|politician)s?\b/i.test(entity)) {
+    return { valid: false, reason: 'political_reference' };
+  }
+
   // Compound patterns
   if (/^(Backed|Chinese|Indian|Top|Leading|Global|Major|Biggest)\s+(AI|ML|Tech|Cloud)\s+(Startup|Company|Firm)/i.test(entity)) {
     return { valid: false, reason: 'compound_pattern' };
