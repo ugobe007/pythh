@@ -214,9 +214,10 @@ const SECTOR_SYNONYMS = {
   ],
   
   // Gaming
+  // Note: ar/vr, vr/ar, metaverse REMOVED — they map to non-gaming sectors too
   'Gaming': [
     'gaming', 'games', 'video games', 'esports',
-    'game dev', 'ar/vr', 'vr/ar', 'metaverse',
+    'game dev', 'game studio', 'mobile games', 'console games',
   ],
   
   // Media
@@ -327,8 +328,13 @@ function getCanonicalSector(sector) {
     if (synonyms.some(syn => normSector(syn) === norm)) {
       return canonical;
     }
-    // Also check partial match
-    if (synonyms.some(syn => norm.includes(normSector(syn)) || normSector(syn).includes(norm))) {
+    // Also check partial match (both strings must be > 4 chars to avoid false positives
+    // like "ar" matching "ar/vr", or "game" matching "games")
+    if (synonyms.some(syn => {
+      const normSyn = normSector(syn);
+      if (!normSyn || normSyn.length <= 4 || norm.length <= 4) return false;
+      return norm.includes(normSyn) || normSyn.includes(norm);
+    })) {
       return canonical;
     }
   }

@@ -317,6 +317,41 @@ export default function NewsletterPage() {
               </section>
             )}
 
+            {/* ── Market Intelligence ─────────────────────────────────── */}
+            {data.news.length > 0 && (
+              <section>
+                <SectionHeading icon="📰" label="Market Intelligence" sub="Signals captured from the web in the last 24 hours" />
+                <div className="space-y-2">
+                  {data.news.map((n, i) => (
+                    <a
+                      key={i}
+                      href={n.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 hover:border-zinc-600 hover:bg-zinc-800/40 transition group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-zinc-200 text-sm group-hover:text-white transition line-clamp-2">{n.title}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                            {n.company && <span className="text-cyan-500 text-xs">{n.company}</span>}
+                            {n.funding && <span className="text-emerald-400 text-xs font-mono">{n.funding}</span>}
+                            {n.investors.slice(0, 2).map(inv => (
+                              <span key={inv} className="text-zinc-500 text-xs">{inv}</span>
+                            ))}
+                            <span className="text-zinc-700 text-xs">{n.source}</span>
+                          </div>
+                        </div>
+                        <svg className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* ── Section 3: Sector Trends ───────────────────────────────── */}
             {data.sectorTrends.length > 0 && (
               <section>
@@ -388,42 +423,7 @@ export default function NewsletterPage() {
               </section>
             )}
 
-            {/* ── Section 6: Market Intelligence ─────────────────────────── */}
-            {data.news.length > 0 && (
-              <section>
-                <SectionHeading icon="📰" label="Market Intelligence" sub="Signals captured from the web in the last 24 hours" />
-                <div className="space-y-2">
-                  {data.news.map((n, i) => (
-                    <a
-                      key={i}
-                      href={n.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 hover:border-zinc-600 hover:bg-zinc-800/40 transition group"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-zinc-200 text-sm group-hover:text-white transition line-clamp-2">{n.title}</p>
-                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                            {n.company && <span className="text-cyan-500 text-xs">{n.company}</span>}
-                            {n.funding && <span className="text-emerald-400 text-xs font-mono">{n.funding}</span>}
-                            {n.investors.slice(0, 2).map(inv => (
-                              <span key={inv} className="text-zinc-500 text-xs">{inv}</span>
-                            ))}
-                            <span className="text-zinc-700 text-xs">{n.source}</span>
-                          </div>
-                        </div>
-                        <svg className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* ── Section 7: Investor of the Week ───────────────────────── */}
+            {/* ── Section 6: Investor of the Week ───────────────────────── */}
             {data.investorOfWeek && (
               <section>
                 <SectionHeading icon="🏆" label="Investor of the Week" sub="Most active by match volume this week" />
