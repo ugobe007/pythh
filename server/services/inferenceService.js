@@ -14,6 +14,7 @@ const {
   extractExecutionSignals,
   extractTeamSignals
 } = require('../../lib/inference-extractor');
+const { isJunkUrl } = require('../../lib/junk-url-config');
 
 const parser = new Parser({
   timeout: 4000,
@@ -160,13 +161,190 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   return articles;
 }
 
+// ─── HTML entity decode map for common encodings in RSS content ─────────────
+const HTML_ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ', '&#x27;': "'" };
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  return str.replace(/&[#a-z0-9]+;/gi, e => HTML_ENTITIES[e] || e);
+}
+
+/**
+ * WORD-PROXIMITY ASSOCIATION
+ * Scan text for domain-like tokens that appear within ±N words of the startup name.
+ * Handles bare domains ("brief.ai"), hyphenated slugs, and encoded content.
+ *
+ * @param {string} text - Raw article text (HTML entities NOT yet stripped)
+ * @param {string} startupName - Company name to anchor proximity scan
+ * @returns {string|null} Best matching domain or null
+ */
+function extractUrlByWordProximity(text, startupName) {
+  if (!text || !startupName) return null;
+  const decoded = decodeHtmlEntities(text);
+
+  // Build a slug of the startup name for proximity scoring
+  const slug = startupName.toLowerCase()
+    .replace(/\b(inc|llc|corp|ltd|co|limited|technologies|tech|labs?|group|ventures?|ai|app|platform|software|systems?)\b\.?/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  // Domain regex: catches bare TLD domains that sanitizeTextForAnalysis would strip
+  const DOMAIN_RE = /\b([a-z0-9][a-z0-9-]{1,40})\.(com|io|ai|app|co|xyz|dev|tech|vc|health|finance|me|so|run|sh|org|net|us|eu|uk)\b/gi;
+
+  const tokens = decoded.split(/\s+/);
+  const candidates = [];
+
+  // Find the startup name position(s) in the token stream
+  const nameLower = startupName.toLowerCase();
+  const nameTokens = nameLower.split(/\s+/);
+
+  for (let i = 0; i < tokens.length; i++) {
+    const windowStr = tokens.slice(Math.max(0, i - 15), Math.min(tokens.length, i + 15)).join(' ');
+
+    // Check if this window contains the startup name
+    if (!windowStr.toLowerCase().includes(nameTokens[0])) continue;
+
+    let m;
+    DOMAIN_RE.lastIndex = 0;
+    while ((m = DOMAIN_RE.exec(windowStr)) !== null) {
+      const domain = m[0].toLowerCase();
+      if (isJunkUrl(`https://${domain}`)) continue;
+      // Score: +3 if slug matches domain stem, +1 otherwise
+      const domainStem = m[1].replace(/-/g, '');
+      const score = slug.length >= 3 && (domainStem.includes(slug.slice(0, 8)) || slug.slice(0, 8).includes(domainStem)) ? 3 : 1;
+      candidates.push({ domain, score });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0].domain;
+}
+
+/**
+ * NAME→DOMAIN SLUG INFERENCE with HTTP HEAD verification.
+ * Derives candidate domains from the startup name and verifies which resolves.
+ * Respects a tight timeout to stay fast in batch enrichment.
+ *
+ * @param {string} startupName - Company name
+ * @param {number} timeoutMs - Per-candidate HEAD request timeout
+ * @returns {Promise<string|null>} Verified domain or null
+ */
+async function inferDomainFromName(startupName, timeoutMs = 2000) {
+  if (!startupName) return null;
+
+  // Normalize: strip legal/generic suffixes, lowercase, collapse to slug
+  const cleaned = startupName
+    .replace(/\b(inc\.?|llc\.?|corp\.?|ltd\.?|technologies|technology|solutions|labs?|group|ventures?|capital|systems?|networks?|platform|platforms?|software|services?|ai|app)\b\.?/gi, '')
+    .trim();
+
+  const slug = cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const hyphenSlug = cleaned.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  if (slug.length < 3) return null;
+
+  // Candidate list — ordered by real-world startup domain likelihood
+  // .com first (most established companies), then .ai/.io (modern startups)
+  const candidates = [
+    `${slug}.com`,
+    `${slug}.ai`,
+    `${slug}.io`,
+    `${slug}.app`,
+    `${slug}.co`,
+    `${hyphenSlug}.com`,
+    `${hyphenSlug}.ai`,
+    `${hyphenSlug}.io`,
+    `try${slug}.com`,
+    `get${slug}.com`,
+    `use${slug}.com`,
+    `${slug}.dev`,
+    `${slug}.xyz`,
+  ].filter((d, i, a) => a.indexOf(d) === i); // dedupe
+
+  // Verify candidates in sequence — return first that resolves
+  for (const domain of candidates) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(`https://${domain}`, {
+        method: 'HEAD',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PythhBot/1.0; +https://pythh.ai)' }
+      });
+      clearTimeout(timer);
+      // Any non-error response (even 4xx) means the domain resolves
+      if (res.status < 500) return domain;
+    } catch { /* domain doesn't resolve — try next */ }
+  }
+  return null;
+}
+
+/**
+ * Extract the startup's own website URL from article text/content.
+ * Strategy (in order):
+ *   1. Full http(s):// URLs in text  (regex scan on raw content)
+ *   2. www. prefixed domains
+ *   3. Word-proximity association    (domain tokens near startup name)
+ *   4. Bare startup-TLD domains      (.ai, .io, .app, etc.)
+ * Filters all candidates through isJunkUrl().
+ *
+ * @param {Array} articles - [{title, content, link, pubDate, source}]
+ * @param {string} startupName - Company name for heuristic matching
+ * @returns {string|null} Clean domain (no protocol/path) or null
+ */
+function extractCompanyUrlFromArticles(articles, startupName = '') {
+  // Match: https?:// URLs or bare www. domains or domains with tech-startup TLDs
+  const URL_RE = /(?:https?:\/\/(?:www\.)?|(?:^|[\s(])www\.)([a-z0-9][a-z0-9-]{0,61}[a-z0-9]?\.)+[a-z]{2,}(?:\/[^\s<>"')\]]*)?/gi;
+  // Also catch bare startup-style domains: "name.io", "name.ai", "name.app" etc.
+  const BARE_DOMAIN_RE = /\b([a-z0-9][a-z0-9-]{2,30})\.(io|ai|app|co|xyz|dev|tech|vc|fund|health|finance|me|so|run|sh)\b/gi;
+
+  const nameLower = startupName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const candidates = [];
+
+  for (const article of articles) {
+    const rawText = decodeHtmlEntities(`${article.title || ''} ${article.content || ''}`);
+
+    // Pass 1: full URLs (https:// or www.)
+    const urlMatches = rawText.match(URL_RE) || [];
+    for (const rawUrl of urlMatches) {
+      const normalized = rawUrl.trim().startsWith('http') ? rawUrl.trim() : `https://${rawUrl.trim()}`;
+      if (isJunkUrl(normalized)) continue;
+      try {
+        const domain = new URL(normalized).hostname.replace(/^www\./, '').toLowerCase();
+        if (!domain || domain.length < 3) continue;
+        const score = nameLower.length >= 3 && domain.replace(/\.[^.]+$/, '').includes(nameLower.slice(0, Math.min(nameLower.length, 10))) ? 2 : 1;
+        candidates.push({ domain, score });
+      } catch { /* malformed */ }
+    }
+
+    // Pass 2: bare startup-TLD domains like "serval.ai", "acme.io"
+    BARE_DOMAIN_RE.lastIndex = 0;
+    let m;
+    while ((m = BARE_DOMAIN_RE.exec(rawText)) !== null) {
+      const domain = `${m[1]}.${m[2]}`.toLowerCase();
+      if (isJunkUrl(`https://${domain}`)) continue;
+      const score = nameLower.length >= 3 && domain.startsWith(nameLower.slice(0, Math.min(nameLower.length, 8))) ? 3 : 1;
+      candidates.push({ domain, score });
+    }
+
+    // Pass 3: word-proximity — domain tokens within ±15 words of startup name
+    const proximityUrl = extractUrlByWordProximity(rawText, startupName);
+    if (proximityUrl) candidates.push({ domain: proximityUrl, score: 2 });
+  }
+
+  if (candidates.length === 0) return null;
+  // Return best-scoring candidate (name-match prioritised)
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0].domain;
+}
+
 /**
  * Extract data from news articles using pattern matching
  * @param {Array} articles - Array of {title, content, link, pubDate, source}
  * @param {Object} currentData - Current startup data (extracted_data object)
+ * @param {string} startupName - Used for company URL heuristic matching
  * @returns {Object} {enrichedData, enrichmentCount, fieldsEnriched: []}
  */
-function extractDataFromArticles(articles, currentData = {}) {
+function extractDataFromArticles(articles, currentData = {}, startupName = '') {
   const enrichedData = { ...currentData };
   const fieldsEnriched = [];
   
@@ -226,6 +404,15 @@ function extractDataFromArticles(articles, currentData = {}) {
     fieldsEnriched.push('team_signals');
   }
   
+// Extract company website URL from article content (if not already known)
+  if (!enrichedData.website && !enrichedData.company_url) {
+    const discoveredUrl = extractCompanyUrlFromArticles(articles, startupName);
+    if (discoveredUrl) {
+      enrichedData.company_url = discoveredUrl;
+      fieldsEnriched.push('company_url');
+    }
+  }
+
   // Store article references for transparency
   if (articles.length > 0) {
     enrichedData.enrichment_sources = articles.map(a => ({
@@ -271,7 +458,18 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
       }
       
       // Step 2: Extract data (< 100ms typical)
-      const result = extractDataFromArticles(articles, currentData);
+      const result = extractDataFromArticles(articles, currentData, startupName);
+
+      // Step 3: If still no company URL found in articles, try name→domain inference
+      if (!result.enrichedData.company_url && !currentData.website && !currentData.company_url) {
+        const inferred = await inferDomainFromName(startupName, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
+        if (inferred) {
+          result.enrichedData.company_url = inferred;
+          result.enrichedData.company_url_source = 'name_inference';
+          result.fieldsEnriched.push('company_url');
+          result.enrichmentCount++;
+        }
+      }
       
       return {
         ...result,
@@ -331,5 +529,6 @@ module.exports = {
   searchStartupNews,
   extractDataFromArticles,
   quickEnrich,
-  isDataSparse
+  isDataSparse,
+  inferDomainFromName,
 };

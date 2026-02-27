@@ -137,7 +137,7 @@ async function enrichOneStartup(startup, dryRun = false) {
   if (runNews) {
     // Pass null for junk URLs — don't let news use an article URL as domain query
     const newsUrl = urlToUse && !isJunkUrl(urlToUse) ? urlToUse : null;
-    const newsResult = await quickEnrich(startup.name, inferenceData, newsUrl, 4000);
+    const newsResult = await quickEnrich(startup.name, inferenceData, newsUrl, 8000);
     if (newsResult.enrichmentCount > 0) {
       inferenceData = { ...inferenceData, ...newsResult.enrichedData };
       stepLog.push(`News: +${newsResult.enrichmentCount} fields (${newsResult.fieldsEnriched.join(', ')}) from ${newsResult.articlesFound} articles`);
@@ -204,6 +204,16 @@ async function enrichOneStartup(startup, dryRun = false) {
     updatePayload.mrr = inferenceData.mrr;
   if (inferenceData.description && !startup.pitch)
     updatePayload.pitch = inferenceData.description;
+  // Promote discovered company URL to website column
+  // Priority: explicit company_url from news > source_url from HTML scrape
+  const discoveredUrl = inferenceData.company_url || inferenceData.source_url || null;
+  if (discoveredUrl && !startup.website && !startup.company_website && !isJunkUrl(discoveredUrl)) {
+    try {
+      updatePayload.website = new URL(
+        discoveredUrl.startsWith('http') ? discoveredUrl : `https://${discoveredUrl}`
+      ).hostname.replace(/^www\./, '');
+    } catch { /* malformed - skip */ }
+  }
 
   const { error: updateError } = await supabase
     .from('startup_uploads')
@@ -218,6 +228,25 @@ async function enrichOneStartup(startup, dryRun = false) {
 // ============================================================================
 // MAIN ENRICHMENT PROCESS
 // ============================================================================
+// ============================================================================
+// SUPABASE QUERY WITH RETRY (handles intermittent DNS failures)
+// ============================================================================
+async function runWithRetry(fn, maxAttempts = 3, baseDelayMs = 5000) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await fn();
+    if (!result.error) return result;
+    const isNetworkError =
+      result.error?.message?.includes('fetch failed') ||
+      result.error?.message?.includes('ENOTFOUND') ||
+      result.error?.message?.includes('ECONNREFUSED') ||
+      result.error?.message?.includes('ETIMEDOUT');
+    if (!isNetworkError || attempt === maxAttempts) return result;
+    const delay = baseDelayMs * attempt;
+    console.log(`[retry] Network error (attempt ${attempt}/${maxAttempts}), retrying in ${delay / 1000}s…`);
+    await new Promise(r => setTimeout(r, delay));
+  }
+}
+
 async function enrichSparseStartups() {
   console.log('=== STARTUP ENRICHMENT — Full Inference Pipeline ===\n');
   console.log('Pipeline: URL scrape (extractInferenceData) → news fallback (quickEnrich)\n');
@@ -235,29 +264,31 @@ async function enrichSparseStartups() {
 
   // ── Load sparse startups ──
   console.log('Loading data-sparse startups...');
-  let query = supabase
-    .from('startup_uploads')
-    .select('id, name, website, company_website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since')
-    .eq('status', 'approved');
 
-  if (noUrlOnly) {
-    // Target only startups with no URL — skip enrichment_status filter so we catch
-    // holding entries too (their website was never recovered)
-    query = query
-      .is('website', null)
-      .is('company_website', null)
-      .order('enrichment_attempts', { ascending: true })
-      .order('updated_at', { ascending: true })
-      .limit(limit * 2);
-  } else {
-    query = query
-      .or('enrichment_status.eq.waiting,enrichment_status.is.null')
-      .order('enrichment_attempts', { ascending: true })
-      .order('updated_at', { ascending: true })
-      .limit(limit * 3);
-  }
+  const buildQuery = () => {
+    let q = supabase
+      .from('startup_uploads')
+      .select('id, name, website, company_website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since')
+      .eq('status', 'approved');
 
-  const { data: startups, error } = await query;
+    if (noUrlOnly) {
+      q = q
+        .is('website', null)
+        .is('company_website', null)
+        .order('enrichment_attempts', { ascending: true })
+        .order('updated_at', { ascending: true })
+        .limit(limit * 2);
+    } else {
+      q = q
+        .or('enrichment_status.eq.waiting,enrichment_status.is.null')
+        .order('enrichment_attempts', { ascending: true })
+        .order('updated_at', { ascending: true })
+        .limit(limit * 3);
+    }
+    return q;
+  };
+
+  const { data: startups, error } = await runWithRetry(buildQuery, 3, 5000);
 
   if (error) {
     console.error('Error loading startups:', error);

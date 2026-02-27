@@ -605,10 +605,10 @@ export default function PythhHome() {
             {topStartups.length >= 4 && (
               <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-3 pt-12 bg-gradient-to-t from-[#0a0e13] via-[#0a0e13]/70 to-transparent rounded-b-lg pointer-events-none">
                 <Link
-                  to="/signup"
-                  className="pointer-events-auto px-5 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-all shadow-lg"
+                  to="/submit"
+                  className="pointer-events-auto px-5 py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-sm font-medium hover:bg-orange-500/20 hover:border-orange-500/50 transition-all shadow-lg"
                 >
-                  Sign up to see all {stats.startups > 0 ? `${stats.startups.toLocaleString()}` : '12,600+'} startups →
+                  Get my investor matches →
                 </Link>
               </div>
             )}

@@ -4,7 +4,7 @@
  * top investor matches, meeting success forecast, and next steps.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Globe, ChevronRight, Flame, ArrowRight, Lock, TrendingUp, Target, Lightbulb, Users, Zap, BarChart2 } from 'lucide-react';
 import { submitStartup } from '../services/submitStartup';
@@ -170,6 +170,16 @@ function MatchCard({ match, rank, blurred }: { match: Match; rank: number; blurr
   );
 }
 
+// ─── Loading stages ───────────────────────────────────────────────────────
+
+const LOADING_STAGES = [
+  { label: 'Scraping your website…',        sublabel: 'Reading public signals and content' },
+  { label: 'Extracting team & traction…',   sublabel: 'Parsing founder data and growth metrics' },
+  { label: 'Calibrating GOD score…',        sublabel: 'Running team · traction · market · product · vision' },
+  { label: 'Scanning 12,600+ investors…',   sublabel: 'Matching thesis, stage, and sector fit' },
+  { label: 'Building your report…',         sublabel: 'Almost there — compiling insights' },
+] as const;
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 type Step = 'form' | 'loading' | 'report' | 'error';
@@ -179,6 +189,18 @@ export default function SubmitStartupPage() {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
   const [report, setReport] = useState<ReportData | null>(null);
+  const [loadingStage, setLoadingStage] = useState(0);
+
+  // Cycle through loading stages while step === 'loading'
+  useEffect(() => {
+    if (step !== 'loading') { setLoadingStage(0); return; }
+    setLoadingStage(0);
+    const delays = [0, 3000, 7000, 11000, 16000];
+    const timers = delays.map((ms, i) =>
+      setTimeout(() => setLoadingStage(i), ms)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [step]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,6 +228,65 @@ export default function SubmitStartupPage() {
   };
 
   const reset = () => { setStep('form'); setUrl(''); setError(''); setReport(null); };
+
+  // ── Loading view ─────────────────────────────────────────────────────────
+  if (step === 'loading') {
+    const stage = LOADING_STAGES[loadingStage];
+    return (
+      <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center"
+        style={{ backgroundImage: 'radial-gradient(ellipse 80% 40% at 50% 0%, rgba(62,207,142,0.07) 0%, transparent 55%)' }}>
+        <div className="w-full max-w-sm px-6 text-center">
+          {/* Pulsing orb */}
+          <div className="relative w-20 h-20 mx-auto mb-8">
+            <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" style={{ animationDuration: '2s' }} />
+            <div className="absolute inset-2 rounded-full bg-emerald-500/30 animate-pulse" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl font-black text-emerald-400 font-mono">G</span>
+            </div>
+          </div>
+
+          {/* Current stage */}
+          <p className="text-white font-semibold text-lg mb-1 transition-all duration-500">{stage.label}</p>
+          <p className="text-zinc-500 text-sm mb-8">{stage.sublabel}</p>
+
+          {/* Progress dots */}
+          <div className="flex items-center justify-center gap-2 mb-8">
+            {LOADING_STAGES.map((_, i) => (
+              <div key={i} className={`rounded-full transition-all duration-500 ${
+                i < loadingStage ? 'w-2 h-2 bg-emerald-500' :
+                i === loadingStage ? 'w-3 h-3 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' :
+                'w-2 h-2 bg-zinc-700'
+              }`} />
+            ))}
+          </div>
+
+          {/* Step list */}
+          <div className="text-left space-y-2">
+            {LOADING_STAGES.map((s, i) => (
+              <div key={i} className={`flex items-center gap-3 text-sm transition-colors duration-300 ${
+                i < loadingStage ? 'text-emerald-500/60' :
+                i === loadingStage ? 'text-white' :
+                'text-zinc-700'
+              }`}>
+                <span className={`w-4 h-4 flex-shrink-0 rounded-full border flex items-center justify-center text-[9px] transition-colors duration-300 ${
+                  i < loadingStage ? 'border-emerald-600 bg-emerald-900/40 text-emerald-400' :
+                  i === loadingStage ? 'border-emerald-400 bg-emerald-500/10 text-emerald-400' :
+                  'border-zinc-700 text-zinc-700'
+                }`}>
+                  {i < loadingStage ? '✓' : i + 1}
+                </span>
+                <span>{s.label}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-10 text-xs text-zinc-700 font-mono">
+            {url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Report view ──────────────────────────────────────────────────────────
   if (step === 'report' && report) {
@@ -410,17 +491,13 @@ export default function SubmitStartupPage() {
               <div className="flex-1 relative">
                 <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 pointer-events-none" />
                 <input type="text" value={url} onChange={e => { setUrl(e.target.value); setError(''); }}
-                  placeholder="yourcompany.com" disabled={step === 'loading'} autoFocus
+                  placeholder="yourcompany.com" autoFocus
                   className="w-full pl-11 pr-4 py-4 bg-transparent text-white placeholder-zinc-700 text-base focus:outline-none disabled:opacity-50" />
               </div>
-              <button type="submit" disabled={step === 'loading' || !url.trim()}
+              <button type="submit" disabled={!url.trim()}
                 className="flex items-center justify-center gap-2 px-7 py-4 border border-orange-500/60 text-orange-400 hover:border-orange-400 hover:text-orange-300 hover:bg-orange-500/5 disabled:opacity-30 disabled:cursor-not-allowed font-semibold rounded-xl transition text-sm whitespace-nowrap"
                 style={{ boxShadow: '0 0 24px rgba(249,115,22,0.15)' }}>
-                {step === 'loading' ? (
-                  <><span className="w-4 h-4 border border-orange-400/30 border-t-orange-400 rounded-full animate-spin" />Analyzing…</>
-                ) : (
-                  <>Get Report <ChevronRight className="w-4 h-4" /></>
-                )}
+                <>Get Report <ChevronRight className="w-4 h-4" /></>
               </button>
             </div>
             {(error || step === 'error') && (

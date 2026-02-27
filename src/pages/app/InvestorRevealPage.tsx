@@ -25,6 +25,11 @@ import {
   Loader2,
   Lock,
   AlertCircle,
+  Copy,
+  Check,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { useInvestorReveal, useUnlock, invalidateInvestorReveal } from '@/services/pythh-rpc';
@@ -50,6 +55,17 @@ export default function InvestorRevealPage() {
   // Data hook
   const { reveal, loading, error, refresh } = useInvestorReveal(startupId, investorId || null);
   const { unlock, isPending } = useUnlock(startupId);
+
+  // Outreach template state
+  const [showTemplate, setShowTemplate] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyEmail = useCallback((text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, []);
 
   // Handle inline unlock
   const handleUnlock = useCallback(async () => {
@@ -245,12 +261,36 @@ export default function InvestorRevealPage() {
         </div>
 
         {/* Match Reasoning */}
-        {match?.reasoning && (
-          <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-800/50 rounded-xl">
-            <h2 className="text-sm font-medium text-blue-400 uppercase tracking-wider mb-2">
-              Why This Match
-            </h2>
-            <p className="text-gray-200">{match.reasoning}</p>
+        {/* Match Score Visual Bar */}
+        {match?.score && (
+          <div className="mb-6 p-5 bg-gray-900/50 border border-gray-800 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-gray-300">Match Score</span>
+              <span className={`text-2xl font-bold ${
+                match.score >= 80 ? 'text-emerald-400' : match.score >= 65 ? 'text-cyan-400' : 'text-amber-400'
+              }`}>{match.score.toFixed(0)}%</span>
+            </div>
+            <div className="h-2 w-full bg-gray-800 rounded-full overflow-hidden mb-3">
+              <div
+                className={`h-2 rounded-full transition-all duration-1000 ${
+                  match.score >= 80 ? 'bg-emerald-500' : match.score >= 65 ? 'bg-cyan-500' : 'bg-amber-500'
+                }`}
+                style={{ width: `${match.score}%`, filter: match.score >= 80 ? 'drop-shadow(0 0 4px rgba(52,211,153,0.5))' : 'drop-shadow(0 0 4px rgba(34,211,238,0.4))' }}
+              />
+            </div>
+            {match.reasoning && (
+              <div className="border-t border-gray-800 pt-3 mt-1">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Why This Match</p>
+                <ul className="space-y-1">
+                  {match.reasoning.split(/\.\s+/).filter(s => s.trim().length > 4).slice(0, 4).map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                      <span className="text-emerald-400 mt-0.5 flex-shrink-0">›</span>
+                      <span>{s.replace(/\.$/, '')}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -369,6 +409,39 @@ export default function InvestorRevealPage() {
             <p className="text-gray-300 whitespace-pre-wrap">{investor.bio}</p>
           </div>
         )}
+
+        {/* Outreach Email Template */}
+        <div className="mb-8 bg-gray-900/50 border border-emerald-800/30 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowTemplate(v => !v)}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-800/30 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-5 h-5 text-emerald-400" />
+              <div className="text-left">
+                <p className="text-sm font-medium text-white">Outreach Email Template</p>
+                <p className="text-xs text-gray-500">Personalized to this investor's thesis and your match signals</p>
+              </div>
+            </div>
+            {showTemplate ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+          </button>
+
+          {showTemplate && (
+            <div className="px-6 pb-6">
+              <div className="relative bg-gray-950 border border-gray-800 rounded-lg p-4 font-mono text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
+                {generateOutreachEmail(investor, match)}
+                <button
+                  onClick={() => copyEmail(generateOutreachEmail(investor, match))}
+                  className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-600">Customize the [brackets] before sending. Keep it under 150 words.</p>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
@@ -383,4 +456,36 @@ function formatMoney(amount: number | null): string {
   if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
   if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}K`;
   return `$${amount}`;
+}
+
+function generateOutreachEmail(
+  investor: NonNullable<import('@/lib/pythh-types').InvestorReveal['investor']>,
+  match: import('@/lib/pythh-types').InvestorReveal['match']
+): string {
+  const firstName = investor.name?.split(' ')[0] ?? 'Hi';
+  const firm = investor.firm ?? 'your fund';
+  const sectors = investor.sectors?.slice(0, 2).join(' and ') ?? 'your focus areas';
+  const thesisSnippet = investor.investment_thesis
+    ? investor.investment_thesis.slice(0, 90).replace(/\s\w+$/, '') + '…'
+    : null;
+  const reason = match?.reasoning
+    ? match.reasoning.split(/\.\s/)[0].replace(/\s+/g, ' ').trim()
+    : `strong sector and stage alignment`;
+
+  return [
+    `Hi ${firstName},`,
+    ``,
+    `I'm [Your Name], founder of [Startup Name] — [one sentence on what you do].`,
+    ``,
+    `I've been following ${firm}'s work in ${sectors}${thesisSnippet ? ` and appreciated your thesis: "${thesisSnippet}"` : ''}.`,
+    ``,
+    `We matched because: ${reason}.`,
+    ``,
+    `We're currently [stage, e.g. pre-seed / raising $Xm] and would love a 20-minute call to share traction and see if there's a fit.`,
+    ``,
+    `Would you have time next week?`,
+    ``,
+    `Best,`,
+    `[Your Name]`,
+  ].join('\n');
 }
