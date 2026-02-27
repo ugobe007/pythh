@@ -17,3 +17,19 @@ FS_TREE_L4.txt
 server_backup_*.tar.gz
 *.md
 !README.md
+# Build output — rebuilt fresh inside Docker
+dist/
+# Large dirs not needed at runtime
+public/snapshots/
+_graveyard/
+testsprite_tests/
+golden/
+docs/
+database/
+pipeline/
+# Loose data files
+airtable-*.json
+mercury-*.json
+cleanup-*.json
+industry-*.json
+goldilocks-*.json
