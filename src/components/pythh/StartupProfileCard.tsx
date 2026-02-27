@@ -401,10 +401,36 @@ export default function StartupProfileCard({
         <div className="flex-shrink-0 w-full lg:w-64 space-y-3">
           {/* Signal Score + Matches */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
+            {/* Signal Score with hover breakdown tooltip */}
+            <div className="relative group bg-zinc-800/40 rounded-lg px-3 py-2 cursor-default">
               <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Signal Score</p>
               <p className="text-2xl font-bold text-white">{signals.total.toFixed(1)}</p>
               <p className="text-[9px] text-zinc-500">/10</p>
+              {/* Breakdown tooltip — appears on hover */}
+              <div className="absolute bottom-full left-0 mb-2 w-52 bg-zinc-950 border border-zinc-700/60 rounded-lg p-3 shadow-2xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-30">
+                <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-2 pb-1 border-b border-zinc-800">Signal Breakdown</p>
+                <div className="space-y-1.5">
+                  {([
+                    ['Language Shift', signals.founder_language_shift],
+                    ['Investor Pull',  signals.investor_receptivity],
+                    ['News Momentum', signals.news_momentum],
+                    ['Capital Signal', signals.capital_convergence],
+                    ['Execution',      signals.execution_velocity],
+                  ] as [string, number][]).map(([label, val]) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-500/70 rounded-full"
+                          style={{ width: `${Math.min(100, (val / 2.5) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-zinc-400 w-28 truncate">{label}</span>
+                      <span className="text-[10px] text-white font-mono w-6 text-right">{(val || 0).toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[9px] text-zinc-600 mt-2 pt-1 border-t border-zinc-800">Hover each component for details</p>
+              </div>
             </div>
             <div className="bg-zinc-800/40 rounded-lg px-3 py-2">
               <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-0.5">Matches</p>

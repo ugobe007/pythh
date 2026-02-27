@@ -64,6 +64,11 @@ export default function PythhHome() {
     startup_stage: string | null;
     sectors: string[] | null;
   }>>([]);
+  const [sectorHeatLive, setSectorHeatLive] = useState<Array<{
+    sector: string;
+    startup_count: number;
+    avg_god: number;
+  }>>([]);
   const navigate = useNavigate();
   
   // Auth state for Pro user bypass
@@ -158,20 +163,51 @@ export default function PythhHome() {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
-  // ── Sector heat (derived from investor signals for live feel) ─────────────
+  // ── Sector heat (live from DB, falls back to hardcoded) ───────────────────────────────
   const sectorHeat = useMemo(() => {
-    const base = [
-      { name: 'AI / ML',  signal: 8.4, delta: 0.3,  vcCount: 14, emoji: '🔥' },
-      { name: 'FinTech',  signal: 7.9, delta: -0.1, vcCount: 9,  emoji: '⚡' },
-      { name: 'BioTech',  signal: 7.3, delta: 0.2,  vcCount: 6,  emoji: '🧬' },
-    ];
+    const SECTOR_EMOJIS: Record<string, string> = {
+      'AI/ML': '🔥', 'Fintech': '⚡', 'Climate Tech': '🌱',
+      'Developer Tools': '🛠️', 'SaaS': '☁️', 'Healthcare': '🧬',
+      'Gaming': '🎮', 'BioTech': '🧬',
+    };
+    // Map avg GOD score (35–100) to signal display range (5.5–9.5)
+    const toSignal = (god: number) =>
+      Math.min(9.9, +((Math.max(35, god) - 35) / 65 * 4.0 + 5.5).toFixed(1));
+    const base = sectorHeatLive.length >= 3
+      ? sectorHeatLive.slice(0, 3).map(s => ({
+          name: s.sector,
+          signal: toSignal(s.avg_god),
+          delta: +((s.avg_god - 50) / 125).toFixed(1),
+          vcCount: Math.max(1, Math.round(s.startup_count / 60)),
+          emoji: SECTOR_EMOJIS[s.sector] ?? '📊',
+        }))
+      : [
+          { name: 'AI / ML',  signal: 8.4, delta: 0.3,  vcCount: 14, emoji: '🔥' },
+          { name: 'FinTech',  signal: 7.9, delta: -0.1, vcCount: 9,  emoji: '⚡' },
+          { name: 'BioTech',  signal: 7.3, delta: 0.2,  vcCount: 6,  emoji: '🧬' },
+        ];
     const avg = investorSignals.length > 0
       ? investorSignals.reduce((s, i) => s + i.signal, 0) / investorSignals.length
       : 7;
     return base.map(s => ({ ...s, signal: Math.min(9.9, +(s.signal + (avg - 7) * 0.05).toFixed(1)) }));
-  }, [investorSignals]);
+  }, [investorSignals, sectorHeatLive]);
 
-  // ── Fetch top startups for leaderboard ────────────────────────────────────
+  // ── Fetch live sector heat from DB ─────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchSectorHeat() {
+      try {
+        const { data } = await supabase.rpc('get_sector_heat', { p_limit: 3 });
+        if (data && Array.isArray(data) && data.length >= 3 && !cancelled) {
+          setSectorHeatLive(data);
+        }
+      } catch { /* falls back to hardcoded */ }
+    }
+    fetchSectorHeat();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Fetch top startups for leaderboard (refetches on window focus) ──────────
   useEffect(() => {
     let cancelled = false;
     async function fetchTop() {
@@ -187,7 +223,9 @@ export default function PythhHome() {
       } catch { /* fails silently */ }
     }
     fetchTop();
-    return () => { cancelled = true; };
+    const onFocus = () => fetchTop();
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -694,22 +732,15 @@ export default function PythhHome() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
+          NEWSLETTER DIGEST
+          ═══════════════════════════════════════════════════════════════ */}
+      <NewsletterWidget />
+
+      {/* ═══════════════════════════════════════════════════════════════
           FOOTER
-          ═══════════════════════════════════════════════════════════════════ */}
-      <footer className="max-w-7xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
-        {/* Newsletter subscribe — folded into footer */}
-        <div className="mb-10 text-center">
-          <p className="text-xs uppercase tracking-widest text-white/20 font-semibold mb-3">Daily Signal Digest</p>
-          <p className="text-sm text-zinc-400 mb-4 max-w-md mx-auto">
-            Investor moves, sector shifts, and the top-ranked startups of the week — every Friday.
-          </p>
-          <Link
-            to="/newsletter"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-sm hover:border-cyan-500/40 hover:text-cyan-400 transition-all"
-          >
-            Subscribe free →
-          </Link>
-        </div>
+          ═══════════════════════════════════════════════════════════════ */}
+      <footer className="max-w-7xl mx-auto px-4 sm:px-8 py-10 border-t border-zinc-800/30">
+        {/* Footer nav links */}
         <div className="flex flex-wrap justify-center gap-6 text-sm text-zinc-500 mb-4">
           <Link to="/platform" className="hover:text-zinc-300 transition">Platform</Link>
           <Link to="/rankings" className="hover:text-zinc-300 transition">Rankings</Link>

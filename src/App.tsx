@@ -32,7 +32,7 @@
  */
 
 import React, { useEffect, lazy, Suspense } from "react";
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate, useParams } from "react-router-dom";
 import "./App.css";
 
 import { AuthProvider } from "./contexts/AuthContext";
@@ -48,6 +48,12 @@ import AdminRouteWrapper from "./components/AdminRouteWrapper";
 
 // Homepage — critical path, must stay eager
 import PythhMain from "./pages/PythhMain";
+
+// Startup detail redirect: /startup/:id → /signal-matches?startup=:id
+function StartupIdRedirect() {
+  const { startupId } = useParams<{ startupId: string }>();
+  return <Navigate to={`/signal-matches?startup=${startupId}`} replace />;
+}
 
 // Fallback shown while lazy chunks load
 const RouteFallback = () => (
@@ -219,6 +225,9 @@ const App: React.FC = () => {
             <Route path="/live" element={<Live />} />
             <Route path="/demo" element={<DemoPageDoctrine />} />
           </Route>
+
+          {/* Startup profile — redirect to signal-matches (canonical results page) */}
+          <Route path="/startup/:startupId" element={<StartupIdRedirect />} />
 
           {/* Investor profile (public) */}
           <Route path="/investor/:id" element={<InvestorProfile />} />
