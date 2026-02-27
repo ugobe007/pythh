@@ -34,7 +34,7 @@ const POOL_SIZE     = 20;
 const VISIBLE       = 5;
 const TICK_MS       = 5000;
 const REFETCH_TICKS = 36;   // 36 × 5s = ~3 min data refresh
-const ROW_H         = 46;   // px — height of one row slot (includes gap)
+const ROW_H         = 54;   // px — height of one row slot (includes gap)
 const ANIM_MS       = 380;  // transition duration ms
 const MAX_ROWS      = VISIBLE + 3; // hard cap — prevents unbounded accumulation
 
@@ -444,12 +444,24 @@ export default function HotMatchesFeed({
                         {match.investor_name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1 mt-px">
-                      <span className={`text-[9px] font-mono font-bold tracking-tight ${godColor(match.startup_god_score)}`}>
+                    <div className="flex items-center gap-1 mt-0.5 overflow-hidden">
+                      <span className={`text-[9px] font-mono font-bold tracking-tight flex-shrink-0 ${godColor(match.startup_god_score)}`}>
                         GOD {match.startup_god_score}
                       </span>
-                      <span className="text-white/15 text-[9px]">·</span>
-                      <span className="text-white/25 text-[9px] tabular-nums">{formatTimeAgo(match.created_at)}</span>
+                      {match.investor_firm && match.investor_firm !== match.investor_name && (
+                        <>
+                          <span className="text-white/15 text-[9px] flex-shrink-0">·</span>
+                          <span className="text-white/30 text-[9px] truncate max-w-[72px] flex-shrink">{match.investor_firm}</span>
+                        </>
+                      )}
+                      {(match.startup_sectors || [])[0] && (
+                        <>
+                          <span className="text-white/15 text-[9px] flex-shrink-0">·</span>
+                          <span className="text-cyan-400/50 text-[9px] truncate flex-shrink">{match.startup_sectors[0]}</span>
+                        </>
+                      )}
+                      <span className="text-white/15 text-[9px] flex-shrink-0">·</span>
+                      <span className="text-white/25 text-[9px] tabular-nums flex-shrink-0">{formatTimeAgo(match.created_at)}</span>
                     </div>
                   </div>
 

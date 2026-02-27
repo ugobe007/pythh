@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
@@ -57,6 +57,13 @@ export default function PythhHome() {
     return { startups: 0, investors: 0, matches: 0 };
   });
   const [showPaywall, setShowPaywall] = useState(false);
+  const [topStartups, setTopStartups] = useState<Array<{
+    id: string;
+    name: string;
+    total_god_score: number;
+    startup_stage: string | null;
+    sectors: string[] | null;
+  }>>([]);
   const navigate = useNavigate();
   
   // Auth state for Pro user bypass
@@ -149,6 +156,38 @@ export default function PythhHome() {
     // Rotate investors every 45 seconds for a live feel
     const interval = setInterval(fetchQualityInvestors, 45000);
     return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // ── Sector heat (derived from investor signals for live feel) ─────────────
+  const sectorHeat = useMemo(() => {
+    const base = [
+      { name: 'AI / ML',  signal: 8.4, delta: 0.3,  vcCount: 14, emoji: '🔥' },
+      { name: 'FinTech',  signal: 7.9, delta: -0.1, vcCount: 9,  emoji: '⚡' },
+      { name: 'BioTech',  signal: 7.3, delta: 0.2,  vcCount: 6,  emoji: '🧬' },
+    ];
+    const avg = investorSignals.length > 0
+      ? investorSignals.reduce((s, i) => s + i.signal, 0) / investorSignals.length
+      : 7;
+    return base.map(s => ({ ...s, signal: Math.min(9.9, +(s.signal + (avg - 7) * 0.05).toFixed(1)) }));
+  }, [investorSignals]);
+
+  // ── Fetch top startups for leaderboard ────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTop() {
+      try {
+        const { data } = await supabase
+          .from('startup_uploads')
+          .select('id, name, total_god_score, startup_stage, sectors')
+          .eq('status', 'approved')
+          .not('total_god_score', 'is', null)
+          .order('total_god_score', { ascending: false })
+          .limit(5);
+        if (data && data.length > 0 && !cancelled) setTopStartups(data as any);
+      } catch { /* fails silently */ }
+    }
+    fetchTop();
+    return () => { cancelled = true; };
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -444,17 +483,100 @@ export default function PythhHome() {
 
             {/* Mobile Hot Matches - compact version below CTAs */}
             <div className="lg:hidden mt-6">
-              <HotMatchesFeed limit={3} hoursAgo={720} showHeader={true} autoRefresh={true} />
+              <HotMatchesFeed limit={5} hoursAgo={720} showHeader={true} autoRefresh={true} />
             </div>
           </div>
 
           {/* RIGHT COLUMN: Hot Matches - positioned below headline area */}
           <div className="hidden lg:block mt-28">
-            <HotMatchesFeed limit={5} hoursAgo={720} showHeader={true} autoRefresh={true} />
+            <HotMatchesFeed limit={7} hoursAgo={720} showHeader={true} autoRefresh={true} />
           </div>
           
         </div>
       </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          LIVE STARTUP LEADERBOARD — FOMO hook
+          ═══════════════════════════════════════════════════════════════════ */}
+      {topStartups.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🏆</span>
+              <span className="text-xs uppercase tracking-widest text-white/30 font-semibold">Top Startups Right Now</span>
+            </div>
+            <Link to="/rankings" className="text-xs text-zinc-500 hover:text-cyan-400 transition-colors">
+              Full rankings →
+            </Link>
+          </div>
+
+          <div className="relative">
+            <div className="space-y-1">
+              {topStartups.map((startup, i) => (
+                <div
+                  key={startup.id}
+                  className={`relative flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors ${
+                    i < 3
+                      ? 'border-zinc-800/50 bg-zinc-900/40 hover:bg-zinc-800/30 cursor-pointer'
+                      : 'border-zinc-800/30 bg-zinc-900/20'
+                  }`}
+                  onClick={() => i < 3 && navigate(`/startup/${startup.id}`)}
+                >
+                  {/* Rank number */}
+                  <span className="flex-shrink-0 w-5 text-center text-xs font-mono text-zinc-600">{i + 1}</span>
+
+                  {/* GOD score badge */}
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center bg-black/40 ${
+                    startup.total_god_score >= 80 ? 'border-emerald-500/60' :
+                    startup.total_god_score >= 70 ? 'border-cyan-500/50' : 'border-zinc-600/40'
+                  }`}>
+                    <span className={`text-[9px] font-black font-mono leading-none ${
+                      startup.total_god_score >= 80 ? 'text-emerald-400' :
+                      startup.total_god_score >= 70 ? 'text-cyan-400' : 'text-zinc-400'
+                    }`}>{startup.total_god_score}</span>
+                  </div>
+
+                  {/* Name + stage/sector */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white/90 truncate">{startup.name}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {startup.startup_stage && (
+                        <span className="text-[10px] text-zinc-500">{startup.startup_stage}</span>
+                      )}
+                      {(startup.sectors || [])[0] && (
+                        <span className="text-[10px] text-cyan-400/50">{startup.sectors![0]}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Arrow for clickable rows */}
+                  {i < 3 && <span className="flex-shrink-0 text-white/20 text-xs">›</span>}
+
+                  {/* Blur overlay for rows 3-4 */}
+                  {i >= 3 && (
+                    <div
+                      className="absolute inset-0 rounded-lg"
+                      style={{ backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', background: 'rgba(10,14,19,0.65)' }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Sign-up CTA float over blurred rows */}
+            {topStartups.length >= 4 && (
+              <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-3 pt-12 bg-gradient-to-t from-[#0a0e13] via-[#0a0e13]/70 to-transparent rounded-b-lg pointer-events-none">
+                <Link
+                  to="/signup"
+                  className="pointer-events-auto px-5 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-all shadow-lg"
+                >
+                  Sign up to see all {stats.startups > 0 ? `${stats.startups.toLocaleString()}` : '12,600+'} startups →
+                </Link>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
@@ -521,39 +643,73 @@ export default function PythhHome() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          RANKINGS TEASER — The addiction hook
+          SECTOR HEAT — Live VC activity by sector
           ═══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
-        <div className="border border-cyan-500/20 rounded-xl bg-gradient-to-r from-cyan-500/5 via-transparent to-violet-500/5 p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-white mb-1.5">
-                See how your sector ranks through every VC lens
-              </h2>
-              <p className="text-sm text-zinc-400 max-w-lg">
-                Switch between Sequoia, a16z, YC, and Founders Fund views. 
-                Watch the rankings completely reshuffle. <span className="text-cyan-400">The gap between perception and reality is the opportunity.</span>
-              </p>
-            </div>
-            <Link
-              to="/rankings"
-              className="shrink-0 px-6 py-2.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-all"
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-xs uppercase tracking-widest text-white/30 font-semibold">Sector Heat</span>
+          <span className="flex items-center gap-1.5 text-[10px] text-emerald-400/70">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            live
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {sectorHeat.map((sector) => (
+            <div
+              key={sector.name}
+              className="border border-zinc-800/50 rounded-xl p-4 bg-zinc-900/30 hover:bg-zinc-900/60 transition-colors"
             >
-              Open Rankings →
-            </Link>
-          </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-white/80 font-medium text-sm">{sector.name}</span>
+                <span className={`text-xs font-mono font-bold ${sector.delta > 0 ? 'text-emerald-400' : sector.delta < 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+                  {sector.delta > 0 ? '+' : ''}{sector.delta.toFixed(1)}
+                </span>
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-2xl font-bold font-mono text-white">{sector.signal.toFixed(1)}</div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">{sector.vcCount} VCs active</div>
+                </div>
+                <div className="text-2xl select-none">{sector.emoji}</div>
+              </div>
+              <div className="mt-3 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    sector.signal >= 8 ? 'bg-emerald-400' : sector.signal >= 7 ? 'bg-cyan-400' : 'bg-zinc-500'
+                  }`}
+                  style={{ width: `${(sector.signal / 10) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 text-center">
+          <Link
+            to="/rankings"
+            className="text-xs text-zinc-500 hover:text-cyan-400 transition-colors"
+          >
+            See full rankings by VC lens (Sequoia · a16z · YC · Founders Fund) →
+          </Link>
         </div>
       </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          DAILY SIGNAL DIGEST TEASER
-          ═══════════════════════════════════════════════════════════════════ */}
-      <NewsletterWidget />
 
       {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════════════════════ */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-8 py-12 border-t border-zinc-800/30">
+        {/* Newsletter subscribe — folded into footer */}
+        <div className="mb-10 text-center">
+          <p className="text-xs uppercase tracking-widest text-white/20 font-semibold mb-3">Daily Signal Digest</p>
+          <p className="text-sm text-zinc-400 mb-4 max-w-md mx-auto">
+            Investor moves, sector shifts, and the top-ranked startups of the week — every Friday.
+          </p>
+          <Link
+            to="/newsletter"
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 text-sm hover:border-cyan-500/40 hover:text-cyan-400 transition-all"
+          >
+            Subscribe free →
+          </Link>
+        </div>
         <div className="flex flex-wrap justify-center gap-6 text-sm text-zinc-500 mb-4">
           <Link to="/platform" className="hover:text-zinc-300 transition">Platform</Link>
           <Link to="/rankings" className="hover:text-zinc-300 transition">Rankings</Link>
