@@ -63,6 +63,9 @@ export interface RadarRowViewModel {
   
   // ACTION column
   action: 'Unlock' | 'View';
+
+  // FULL REASONING (for tooltip / expand)
+  whySummary: string | null;
   
   // Glow derivation (per spec)
   glow: {
@@ -187,12 +190,17 @@ export function mapMatchRowToRadarRow(
   
   // --- CONTEXT ---
   // Warming: "Early signal" (fallback tier)
-  // Unlocked: from investor data (not available in current MatchRow)
+  // Unlocked: first sentence of why_summary
   // Locked: derived from FIT tier
+  const whySummary = row.why_summary || null;
+  // Extract first sentence (up to 80 chars) for inline context
+  const firstSentence = whySummary
+    ? (whySummary.split(/\.\s/)[0].slice(0, 80) + (whySummary.length > 80 ? '…' : ''))
+    : null;
   const context = 
     row.is_fallback ? 'Early signal' :
     effectivelyLocked ? deriveLockedContext(fitTier) :
-    null; // TODO: Add investor.thesis or investment_focus
+    firstSentence;
   
   // --- GLOW ---
   const hasHighSignal = signalValue >= RADAR_THRESHOLDS.SIGNAL_WINDOW_OPENING;
@@ -238,6 +246,8 @@ export function mapMatchRowToRadarRow(
     status,
     
     action: effectivelyLocked ? 'Unlock' : 'View',
+
+    whySummary: effectivelyLocked ? null : whySummary,
     
     glow: {
       row: rowGlow,

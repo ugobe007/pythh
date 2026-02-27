@@ -186,7 +186,7 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
       data-testid={`match-row-${row.investorId}`}
     >
       {/* ENTITY: Investor name + context - ALWAYS UNLOCKED */}
-      <div className="flex-1 flex items-center gap-3 min-w-0">
+      <div className="relative group flex-1 flex items-center gap-3 min-w-0">
         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center flex-shrink-0">
           <User className="w-4 h-4 text-white" />
         </div>
@@ -212,6 +212,23 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
             <div className="text-xs text-zinc-500 truncate">{row.entity.context}</div>
           )}
         </div>
+
+        {/* WHY hover tooltip — only for unlocked rows with reasoning */}
+        {row.whySummary && (
+          <div className="pointer-events-none absolute left-0 bottom-full mb-2 z-40
+                          opacity-0 group-hover:opacity-100 transition-opacity duration-150
+                          w-72 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-3">
+            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Why this match</p>
+            <ul className="space-y-1">
+              {row.whySummary.split(/\.\s+/).filter(s => s.trim().length > 4).slice(0, 4).map((sentence, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <span className="text-emerald-400 mt-0.5 flex-shrink-0">›</span>
+                  <span className="text-xs text-zinc-300 leading-snug">{sentence.replace(/\.$/, '')}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* SIGNAL: value + direction arrow - normalized to 0-100 for display */}
