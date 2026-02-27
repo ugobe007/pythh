@@ -24,10 +24,8 @@ interface NavLink {
 
 const NAV_LINKS: NavLink[] = [
   { label: "Platform", to: "/platform" },
-  { label: "Rankings", to: "/rankings" },
   { label: "Explore", to: "/explore" },
   { label: "Submit", to: "/submit" },
-  { label: "Newsletter", to: "/newsletter" },
   { label: "Pricing", to: "/pricing" },
   { label: "About", to: "/about" },
 ];

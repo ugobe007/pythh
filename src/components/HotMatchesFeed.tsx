@@ -215,10 +215,13 @@ export default function HotMatchesFeed({
         tickCountRef.current = 0;
         setPool(shuffled);
         const initial = shuffled.slice(0, visibleCount);
-        const initialRows = initial.map((m, i) => ({
+        // Use tickKeyRef (not index i) for initial row ids — prevents the first
+        // tick() from producing a key like `${match_id}-0` that collides with an
+        // initial row, causing React to reuse the same DOM node (garbled text).
+        const initialRows = initial.map((m) => ({
           match: m,
-          id: `${m.match_id}-${i}`,
-          pos: i,
+          id: `${m.match_id}-${tickKeyRef.current++}`,
+          pos: initial.indexOf(m),
         }));
         setRows(initialRows);
         setNewestId(initialRows[0]?.id ?? null);
