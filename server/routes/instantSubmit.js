@@ -797,25 +797,28 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       })
       .eq('id', startupId);
 
-    // ── Seed signal score ──
+    // ── Seed signal score (awaited — ensures score is readable before match gen) ──
     const godScore = scores.total_god_score || 50;
     const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
     const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
     const factor = signalTotal / 7.0;
-    void supabase
-      .from('startup_signal_scores')
-      .upsert({
-        startup_id: startupId,
-        signals_total: signalTotal,
-        founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
-        investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
-        news_momentum: parseFloat((1.1 * factor).toFixed(1)),
-        capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
-        execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
-        as_of: new Date().toISOString(),
-      }, { onConflict: 'startup_id' })
-      .then(() => console.log(`  🔄 [BG] Signal score: ${signalTotal}`))
-      .catch(e => console.warn(`  🔄 [BG] Signal seed failed: ${e.message}`));
+    try {
+      await supabase
+        .from('startup_signal_scores')
+        .upsert({
+          startup_id: startupId,
+          signals_total: signalTotal,
+          founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
+          investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
+          news_momentum: parseFloat((1.1 * factor).toFixed(1)),
+          capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
+          execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
+          as_of: new Date().toISOString(),
+        }, { onConflict: 'startup_id' });
+      console.log(`  ✅ Signal score seeded: ${signalTotal}`);
+    } catch (e) {
+      console.warn(`  ⚠️  Signal seed failed: ${e.message}`);
+    }
 
     // ── Write signal_events (Layer 1 raw evidence) ──
     // Create signal events from enrichment evidence: execution_velocity (always),
@@ -898,15 +901,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
       const investors = getRelevantInvestors(startupSectors);
       
-      let signalScore = 0;
-      try {
-        const { data: sigData } = await supabase
-          .from('startup_signal_scores')
-          .select('signal_score')
-          .eq('startup_id', startupId)
-          .single();
-        signalScore = sigData?.signal_score || 0;
-      } catch (_) { /* optional */ }
+      // Use the just-seeded signal total (already computed above) for match scoring
+      const signalScore = signalTotal;
 
       const allMatches = [];
       for (let idx = 0; idx < investors.length; idx++) {
