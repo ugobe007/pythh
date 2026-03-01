@@ -4,7 +4,7 @@
  * Pythh Portfolio Monitoring Agent
  *
  * For each company in the active virtual portfolio:
- *  1. Searches Google News RSS for recent articles (last 14 days)
+ *  1. Searches Hacker News (Algolia API) for recent articles (last 14 days)
  *  2. Uses GPT-4o-mini to classify signals:
  *       funding_round | acquisition | ipo | product_launch |
  *       revenue_milestone | team_milestone | prediction_hit
@@ -18,7 +18,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import Parser from 'rss-parser';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -27,7 +26,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const VERBOSE  = process.argv.includes('--verbose') || DRY_RUN;
 const MAX_ARTICLES_PER_COMPANY = 8;
 const LOOKBACK_DAYS = 14;
-const RSS_TIMEOUT_MS = 8000;  // hard abort — Fly can silently drop RSS connections
+const FETCH_TIMEOUT_MS = 10000;
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -35,7 +34,6 @@ const supabase = createClient(
 );
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const rssParser = new Parser({ timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0' } });
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -55,9 +53,29 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-function googleNewsUrl(companyName) {
-  const q = encodeURIComponent(`"${companyName}" startup`);
-  return `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
+// Fetch articles from Hacker News via Algolia (reliable from cloud IPs, no key required)
+async function fetchNewsForCompany(name) {
+  const cutoff = cutoffDate();
+  const since  = Math.floor(cutoff.getTime() / 1000);
+  const q = encodeURIComponent(name);
+  const url = `https://hn.algolia.com/api/v1/search?query=${q}&tags=story&numericFilters=created_at_i>${since}&hitsPerPage=${MAX_ARTICLES_PER_COMPANY}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const resp = await fetch(url, { signal: controller.signal });
+    if (!resp.ok) throw new Error(`HN API ${resp.status}`);
+    const data = await resp.json();
+    return (data.hits || []).map(h => ({
+      title:   h.title || h.story_title || '',
+      snippet: h.story_text || '',
+      url:     h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+      pubDate: h.created_at,
+      source:  'Hacker News',
+    }));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Crude valuation extractor from text: "raises $45M Series A" → 45_000_000
@@ -150,7 +168,6 @@ async function main() {
     .not('source_url', 'is', null);
   const seenUrls = new Set((existingEvents || []).map(e => e.source_url));
 
-  const cutoff = cutoffDate();
   const stats = { companies: 0, articles_scanned: 0, events_found: 0, events_inserted: 0, errors: 0 };
   const summary_lines = [];
 
@@ -159,37 +176,26 @@ async function main() {
     const name = company.startup_name;
 
     try {
-      // Fetch Google News RSS (hard timeout — Fly can silently drop connections)
-      let feed;
+      // Fetch news via Hacker News Algolia (works from cloud IPs)
+      let articles;
       try {
-        feed = await withTimeout(
-          rssParser.parseURL(googleNewsUrl(name)),
-          RSS_TIMEOUT_MS,
-          name
-        );
+        articles = await withTimeout(fetchNewsForCompany(name), FETCH_TIMEOUT_MS + 2000, name);
       } catch (feedErr) {
-        if (VERBOSE) console.log(`  ⚠️  RSS fetch failed for ${name}: ${feedErr.message}`);
+        if (VERBOSE) console.log(`  ⚠️  News fetch failed for ${name}: ${feedErr.message}`);
         stats.errors++;
         await sleep(300);
         continue;
       }
 
-      const recentItems = (feed.items || [])
-        .filter(item => {
-          const pubDate = item.pubDate ? new Date(item.pubDate) : null;
-          return pubDate && pubDate >= cutoff;
-        })
-        .slice(0, MAX_ARTICLES_PER_COMPANY);
-
-      stats.articles_scanned += recentItems.length;
-      if (VERBOSE) console.log(`📰 ${name}: ${recentItems.length} recent articles`);
+      stats.articles_scanned += articles.length;
+      if (VERBOSE) console.log(`📰 ${name}: ${articles.length} recent articles`);
 
       const companyEvents = [];
 
-      for (const item of recentItems) {
-        const url    = item.link || item.guid || '';
+      for (const item of articles) {
+        const url    = item.url || '';
         const title  = item.title || '';
-        const snippet = item.contentSnippet || item.content || '';
+        const snippet = item.snippet || '';
 
         // Skip already-seen URLs
         if (url && seenUrls.has(url)) continue;
@@ -218,7 +224,7 @@ async function main() {
           lead_investor:  signal.lead_investor || null,
           headline:       signal.headline || title.slice(0, 120),
           source_url:     url || null,
-          source_name:    feed.title || 'Google News',
+          source_name:    item.source || 'Hacker News',
           verified:       false,
         };
 
