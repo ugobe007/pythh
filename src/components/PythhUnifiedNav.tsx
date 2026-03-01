@@ -25,6 +25,7 @@ const PRIMARY_LINKS: NavLink[] = [
 // Secondary links tucked into "More" dropdown
 const MORE_LINKS: NavLink[] = [
   { label: "Rankings", to: "/rankings" },
+  { label: "Portfolio", to: "/portfolio" },
   { label: "Newsletter", to: "/newsletter" },
   { label: "About", to: "/about" },
 ];

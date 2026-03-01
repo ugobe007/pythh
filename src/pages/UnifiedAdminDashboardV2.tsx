@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Database, Activity, Cpu, RefreshCw, 
   Settings, ArrowRight, Rss, Users, BarChart3,
-  FileText, Search, Shield, AlertCircle, Brain
+  FileText, Search, Shield, AlertCircle, Brain, Briefcase
 } from 'lucide-react';
 import { adminRpc } from '../services/adminRpc';
 import { GODScoreMonitor, SocialSignalsMonitor, SystemHealthAlerts } from '../components/admin';
@@ -184,6 +184,7 @@ export default function UnifiedAdminDashboard() {
               <QuickLink icon={BarChart3} label="View All Scores" route="/admin/god-scores" color="amber" />
               <QuickLink icon={Settings} label="Algorithm Settings" route="/admin/god-settings" color="amber" />
               <QuickLink icon={BarChart3} label="Industry Rankings" route="/admin/industry-rankings" color="amber" />
+              <QuickLink icon={Briefcase} label="Virtual Portfolio" route="/admin/portfolio" color="amber" />
             </div>
           </div>
 

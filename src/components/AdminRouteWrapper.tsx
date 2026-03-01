@@ -34,6 +34,7 @@ export function AdminRouteWrapper() {
       'ai-intelligence': 'AI Intelligence',
       'diagnostic': 'Diagnostic',
       'database-check': 'Database Check',
+      'portfolio': 'Virtual Portfolio',
     };
     return pageNames[path] || path.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
