@@ -109,15 +109,19 @@ module.exports = {
 
     // ========================================
     // PORTFOLIO MONITORING AGENT
-    // Scans Google News for each portfolio company, logs events to portfolio_events
+    // Scans HN Algolia for each portfolio company, logs events to portfolio_events
     // ========================================
     {
       name: 'portfolio-monitor',
-      interpreter: 'node',
-      interpreter_args: '--import tsx/esm',
+      interpreter: TSX,
+      exec_mode: 'fork',
       script: 'scripts/portfolio-monitor.mjs',
-      cron_restart: '0 6 * * *',   // 6 AM daily
+      cwd: '/app',
+      instances: 1,
       autorestart: false,
+      watch: false,
+      max_memory_restart: '384M',
+      cron_restart: '0 6 * * *',   // 6 AM UTC daily
       env: { NODE_ENV: 'production' }
     },
 
