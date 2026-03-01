@@ -528,7 +528,7 @@ async function recalculateScores(): Promise<void> {
 
     const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;
     const cappedBonuses = Math.min(rawBonuses, 15); // Cap: bonuses ≤ +15 total — raised Feb 28 2026 from +10; allows pedigree+signals+momentum stacks to fully count without truncation
-    const finalScore = Math.max(Math.min(Math.round(scores.total_god_score + cappedBonuses), 100), 55); // Floor=55, Cap=100 (Feb 28 2026: admin-approved startups start at neutral 55 — not a failing grade; GOD + bonuses differentiate above that)
+    const finalScore = Math.min(Math.round(scores.total_god_score + cappedBonuses), 100); // No artificial floor — honest score; baseBoostMinimum in startupScoringService.ts provides natural minimum for human-vetted startups
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 
     // ============================================================================
