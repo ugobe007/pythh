@@ -377,23 +377,45 @@ app.get('/api/live-signals', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
     const { limit = 20 } = req.query;
+    const n = Math.min(parseInt(limit) || 20, 50);
 
-    // Query investor_events_weighted or ai_logs for recent signals
-    const { data: signals, error } = await supabase
-      .from('ai_logs')
-      .select('created_at, type, action, output')
-      .eq('type', 'signal')
-      .order('created_at', { ascending: false })
-      .limit(parseInt(limit));
+    // Pull recent high-score matches with startup + investor names in one parallel batch
+    const [matchResult, startupResult, investorResult] = await Promise.all([
+      supabase
+        .from('startup_investor_matches')
+        .select('created_at, match_score, startup_id, investor_id')
+        .order('created_at', { ascending: false })
+        .gte('match_score', 80)
+        .limit(n),
+      supabase
+        .from('startup_uploads')
+        .select('id, name')
+        .eq('status', 'approved')
+        .limit(500),
+      supabase
+        .from('investors')
+        .select('id, name, firm')
+        .limit(500),
+    ]);
 
-    if (error) throw error;
+    if (matchResult.error) throw matchResult.error;
+    const matches = matchResult.data || [];
 
-    // Format as firm · signal · time
-    const formatted = (signals || []).map(s => ({
-      firm: s.output?.firm || 'Unknown Firm',
-      signal: s.output?.signal_type || s.action || 'Activity detected',
-      time: formatTimeAgo(new Date(s.created_at))
-    }));
+    if (matches.length === 0) {
+      return res.json({ signals: [], timestamp: new Date().toISOString() });
+    }
+
+    const startupMap  = Object.fromEntries((startupResult.data || []).map(s => [s.id, s.name]));
+    const investorMap = Object.fromEntries((investorResult.data || []).map(i => [i.id, { name: i.name, firm: i.firm }]));
+
+    const formatted = matches.map(m => {
+      const inv = investorMap[m.investor_id] || {};
+      return {
+        firm:   inv.firm || inv.name || 'Unknown Firm',
+        signal: `Matched ${startupMap[m.startup_id] || 'startup'} — score ${Math.round(m.match_score)}`,
+        time:   formatTimeAgo(new Date(m.created_at)),
+      };
+    });
 
     res.json({ signals: formatted, timestamp: new Date().toISOString() });
   } catch (error) {
@@ -982,6 +1004,10 @@ app.get('/api/live-pairings', async (req, res) => {
 const TRENDING_LIMITS = { free: 3, pro: 10, elite: 50 };
 
 // ============================================================
+// Simple in-memory cache for trending (keyed by plan+sector, 2-min TTL)
+const trendingCache = new Map();
+const TRENDING_CACHE_TTL = 2 * 60 * 1000;
+
 // GET /api/trending - Sector/Trending data with tier gating
 // Returns startups with sector signals, gated by plan
 // ============================================================
@@ -993,7 +1019,17 @@ app.get('/api/trending', async (req, res) => {
     const requestedLimit = parseInt(req.query.limit) || maxLimit;
     const limit = Math.min(Math.max(requestedLimit, 1), maxLimit, 50);
     const sector = req.query.sector || null; // Optional sector filter
-    
+
+    // Serve from cache if fresh
+    const cacheKey = `${plan}:${sector ?? '_all'}:${limit}`;
+    const cached = trendingCache.get(cacheKey);
+    if (cached && (Date.now() - cached.ts) < TRENDING_CACHE_TTL) {
+      res.set('Cache-Control', `public, max-age=120`);
+      res.set('X-Plan', plan);
+      res.set('X-Cache', 'HIT');
+      return res.json(cached.data);
+    }
+
     const supabase = getSupabaseClient();
     
     // Query startup_intel_v5_sector view with sector filter
@@ -1061,12 +1097,16 @@ app.get('/api/trending', async (req, res) => {
     const cacheMaxAge = plan === 'elite' ? 30 : 120;
     res.set('Cache-Control', `public, max-age=${cacheMaxAge}`);
     res.set('X-Plan', plan);
-    res.json({
+    res.set('X-Cache', 'MISS');
+    const responseBody = {
       plan,
       limit,
       total: maskedStartups.length,
       data: maskedStartups,
-    });
+    };
+    // Store in cache
+    trendingCache.set(cacheKey, { ts: Date.now(), data: responseBody });
+    res.json(responseBody);
     
   } catch (error) {
     console.error('[trending] Error:', error);
@@ -6150,9 +6190,19 @@ app.get('/api/admin/system-health', async (req, res) => {
 app.get('/api/admin/social-signals', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { data: platformData } = await supabase.from('social_signals').select('platform, startup_id').limit(10000);
-    const { data: topData } = await supabase.from('social_signals').select('startup_name, engagement_score').not('startup_name', 'is', null).limit(5000);
-    const { data: lastSignal } = await supabase.from('social_signals').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+    // Fetch signals data and last updated in parallel
+    const [{ data: platformData }, { data: topData }, { data: lastSignal }] = await Promise.all([
+      supabase.from('social_signals').select('platform, startup_id').limit(10000),
+      supabase.from('social_signals').select('startup_id, startup_name, engagement_score').limit(10000),
+      supabase.from('social_signals').select('created_at').order('created_at', { ascending: false }).limit(1).single(),
+    ]);
+    // Collect unique startup_ids that have no stored name — resolve from startup_uploads
+    const unresolvedIds = [...new Set((topData || []).filter(s => s.startup_id && !s.startup_name).map(s => s.startup_id))];
+    const idToName = {};
+    if (unresolvedIds.length > 0) {
+      const { data: nameRows } = await supabase.from('startup_uploads').select('id, name').in('id', unresolvedIds.slice(0, 500));
+      (nameRows || []).forEach(r => { idToName[r.id] = r.name; });
+    }
     const platformMap = new Map();
     (platformData || []).forEach(s => {
       const existing = platformMap.get(s.platform) || { count: 0, startups: new Set() };
@@ -6161,16 +6211,18 @@ app.get('/api/admin/social-signals', async (req, res) => {
       platformMap.set(s.platform, existing);
     });
     const platforms = Array.from(platformMap.entries()).map(([platform, data]) => ({ platform, count: data.count, uniqueStartups: data.startups.size })).sort((a, b) => b.count - a.count);
-    const uniqueStartups = new Set((platformData || []).map(s => s.startup_id)).size;
+    const uniqueStartups = new Set((platformData || []).filter(s => s.startup_id).map(s => s.startup_id)).size;
+    // Resolve name: stored startup_name > id lookup from startup_uploads > skip
     const startupMap = new Map();
     (topData || []).forEach(s => {
-      const name = s.startup_name || 'Unknown';
+      const name = s.startup_name || idToName[s.startup_id] || null;
+      if (!name) return;
       const existing = startupMap.get(name) || { count: 0, totalEngagement: 0 };
       existing.count++;
       existing.totalEngagement += s.engagement_score || 0;
       startupMap.set(name, existing);
     });
-    const topStartups = Array.from(startupMap.entries()).map(([name, data]) => ({ name, signalCount: data.count, buzzScore: Math.round(data.totalEngagement) })).sort((a, b) => b.signalCount - a.signalCount).slice(0, 5);
+    const topStartups = Array.from(startupMap.entries()).map(([name, data]) => ({ name, signalCount: data.count, buzzScore: Math.round(data.totalEngagement) })).sort((a, b) => b.signalCount - a.signalCount).slice(0, 10);
     res.json({
       totalSignals: (platformData || []).length,
       uniqueStartups,
@@ -6271,6 +6323,76 @@ app.get('/api/admin/god-scores', async (req, res) => {
   } catch (err) {
     console.error('[/api/admin/god-scores] Error:', err);
     res.status(500).json({ error: err.message, startups: [], stats: { avgScore: 0, topScore: 0, totalScored: 0 }, scoreChanges: [], algorithmBias: [] });
+  }
+});
+
+// ============================================================
+// GET /api/funding-predictions
+// Returns active funding window predictions for high-GOD startups
+// Optional: ?startup_id=UUID for a single startup's prediction
+// Optional: ?limit=N (default 50)
+// ============================================================
+app.get('/api/funding-predictions', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { startup_id, limit = '50' } = req.query;
+    const limitN = Math.min(parseInt(limit, 10) || 50, 200);
+
+    if (startup_id) {
+      // Single startup prediction
+      const { data, error } = await supabase
+        .from('funding_predictions')
+        .select('*')
+        .eq('startup_id', startup_id)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (error) throw error;
+      return res.json({ prediction: data || null });
+    }
+
+    // Full feed — most imminent first
+    const { data: predictions, error } = await supabase
+      .from('funding_predictions')
+      .select(`
+        id, startup_id, god_score, signals_score, confidence, confidence_label,
+        window_start, window_end, window_days, signals_snapshot, status, created_at
+      `)
+      .eq('status', 'active')
+      .gt('window_end', new Date().toISOString())
+      .order('confidence', { ascending: false })
+      .order('window_end', { ascending: true })
+      .limit(limitN);
+
+    if (error) throw error;
+
+    // Enrich with startup names + sectors
+    const startupIds = [...new Set((predictions || []).map(p => p.startup_id))];
+    let startupMap = {};
+    if (startupIds.length > 0) {
+      const { data: startups } = await supabase
+        .from('startup_uploads')
+        .select('id, name, tagline, sectors, stage, website')
+        .in('id', startupIds);
+      if (startups) {
+        startupMap = Object.fromEntries(startups.map(s => [s.id, s]));
+      }
+    }
+
+    const enriched = (predictions || []).map(p => ({
+      ...p,
+      startup: startupMap[p.startup_id] || null,
+    }));
+
+    res.json({
+      predictions: enriched,
+      total: enriched.length,
+      imminent: enriched.filter(p => p.confidence_label === 'Imminent').length,
+      strong_signal: enriched.filter(p => p.confidence_label === 'Strong Signal').length,
+      likely: enriched.filter(p => p.confidence_label === 'Likely').length,
+    });
+  } catch (err) {
+    console.error('[/api/funding-predictions] Error:', err);
+    res.status(500).json({ error: err.message, predictions: [] });
   }
 });
 
@@ -7831,6 +7953,234 @@ app.post('/api/admin/social-posts/trigger', async (req, res) => {
       if (err && !stdout) return res.status(500).json({ error: err.message, stderr });
       res.json({ success: true, output: stdout, stderr });
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ------------------------------------------------------------
+// VIRTUAL PORTFOLIO ENDPOINTS
+// ------------------------------------------------------------
+
+// Valuation estimator (mirrors virtualPortfolioService.ts)
+function _estimateEntryValuation(stage, godScore) {
+  const bases = {
+    'Stage 1': 3000000, '1': 3000000, 'Pre-Seed': 3000000, 'pre-seed': 3000000,
+    'Stage 2': 8000000, '2': 8000000, 'Seed': 8000000, 'seed': 8000000,
+    'Stage 3': 20000000, '3': 20000000, 'Series A': 20000000,
+    'Stage 4': 60000000, '4': 60000000, 'Series B': 60000000, 'Series B+': 60000000,
+  };
+  const base = bases[String(stage || '').trim()] || 3000000;
+  const premium = Math.max(0.8, (godScore || 70) / 70);
+  return Math.round(base * premium);
+}
+
+function _calcMoic(entry, current) {
+  if (!entry || !current) return null;
+  return Math.round((current / entry) * 100) / 100;
+}
+
+function _calcIrr(entry, current, days) {
+  if (!entry || !current || days < 1) return null;
+  const years = days / 365;
+  return Math.round((Math.pow(current / entry, 1 / years) - 1) * 10000) / 10000;
+}
+
+// GET /api/portfolio — public listing from portfolio_summary view
+app.get('/api/portfolio', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const limit = Math.min(parseInt(req.query.limit || '200', 10), 500);
+    const status = req.query.status || null;
+
+    let query = supabase
+      .from('portfolio_summary')
+      .select('*')
+      .order('entry_god_score', { ascending: false })
+      .limit(limit);
+
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.json({ entries: data || [], count: data?.length || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portfolio/metrics — headline stats from portfolio_metrics view
+app.get('/api/portfolio/metrics', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('portfolio_metrics').select('*').maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ metrics: data || {} });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portfolio/:startupId — single company detail + events
+app.get('/api/portfolio/:startupId', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { startupId } = req.params;
+
+    const [{ data: entry }, { data: events }] = await Promise.all([
+      supabase.from('portfolio_summary').select('*').eq('startup_id', startupId).maybeSingle(),
+      supabase.from('portfolio_events').select('*').eq('startup_id', startupId).order('event_date', { ascending: false }),
+    ]);
+
+    if (!entry) return res.status(404).json({ error: 'Not in portfolio' });
+    res.json({ entry, events: events || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/portfolio/seed — auto-populate GOD ≥ threshold
+app.post('/api/admin/portfolio/seed', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const threshold = parseInt(req.body?.threshold || '70', 10);
+
+    const { data: startups, error: err1 } = await supabase
+      .from('startup_uploads')
+      .select('id, name, stage, total_god_score, valuation_usd, created_at')
+      .eq('status', 'approved')
+      .gte('total_god_score', threshold)
+      .order('total_god_score', { ascending: false });
+
+    if (err1) return res.status(500).json({ error: err1.message });
+
+    const { data: existing } = await supabase.from('virtual_portfolio').select('startup_id').eq('status', 'active');
+    const existingIds = new Set((existing || []).map(e => e.startup_id));
+
+    let added = 0, skipped = 0;
+    const errors = [];
+
+    for (const su of (startups || [])) {
+      if (existingIds.has(su.id)) { skipped++; continue; }
+      const godScore = su.total_god_score || threshold;
+      const entryVal = su.valuation_usd || _estimateEntryValuation(su.stage, godScore);
+
+      const { error } = await supabase.from('virtual_portfolio').insert({
+        startup_id: su.id,
+        entry_date: su.created_at || new Date().toISOString(),
+        entry_stage: su.stage || null,
+        entry_god_score: godScore,
+        entry_valuation_usd: entryVal,
+        entry_rationale: `Auto-seeded: GOD ${godScore} ≥ ${threshold}`,
+        virtual_check_usd: 100000,
+        current_valuation_usd: entryVal,
+        moic: 1.0,
+        added_by: 'admin-seed',
+      });
+
+      if (error && error.code !== '23505') errors.push(`${su.name}: ${error.message}`);
+      else added++;
+    }
+
+    res.json({ added, skipped, errors });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/portfolio/events — log funding round / milestone / etc.
+app.post('/api/admin/portfolio/events', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { startupId, eventType, eventDate, roundType, amountUsd, preMoney, postMoney,
+            leadInvestor, investorsList, headline, sourceUrl, sourceName, verified,
+            godScoreBefore, godScoreAfter } = req.body;
+
+    if (!startupId || !eventType) return res.status(400).json({ error: 'startupId and eventType are required' });
+
+    // Find active portfolio entry
+    const { data: vp } = await supabase
+      .from('virtual_portfolio')
+      .select('id, entry_valuation_usd, entry_date')
+      .eq('startup_id', startupId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    const { data: event, error } = await supabase.from('portfolio_events').insert({
+      startup_id: startupId,
+      portfolio_id: vp?.id || null,
+      event_type: eventType,
+      event_date: eventDate || new Date().toISOString(),
+      amount_usd: amountUsd || null,
+      pre_money_usd: preMoney || null,
+      post_money_usd: postMoney || null,
+      round_type: roundType || null,
+      lead_investor: leadInvestor || null,
+      investors_list: Array.isArray(investorsList) ? investorsList : null,
+      headline: headline || null,
+      source_url: sourceUrl || null,
+      source_name: sourceName || null,
+      verified: verified || false,
+      god_score_before: godScoreBefore || null,
+      god_score_after: godScoreAfter || null,
+    }).select().single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Update current valuation if post-money provided
+    if (postMoney && vp?.id) {
+      const holdingDays = Math.max(1, Math.round((Date.now() - new Date(vp.entry_date).getTime()) / 86400000));
+      const moic = _calcMoic(vp.entry_valuation_usd, postMoney);
+      const irr = _calcIrr(vp.entry_valuation_usd, postMoney, holdingDays);
+      await supabase.from('virtual_portfolio')
+        .update({ current_valuation_usd: postMoney, moic, irr_annualized: irr, holding_days: holdingDays })
+        .eq('id', vp.id);
+    }
+
+    res.json({ event });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/portfolio/exit — mark a company as acquired / IPO / exited
+app.post('/api/admin/portfolio/exit', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { startupId, exitType, exitDate, exitValuationUsd, acquirer, exitSourceUrl } = req.body;
+
+    if (!startupId || !exitType) return res.status(400).json({ error: 'startupId and exitType required' });
+
+    const { data: vp, error: vpErr } = await supabase
+      .from('virtual_portfolio')
+      .select('id, entry_valuation_usd, entry_date')
+      .eq('startup_id', startupId)
+      .eq('status', 'active')
+      .single();
+
+    if (vpErr || !vp) return res.status(404).json({ error: 'Active portfolio entry not found' });
+
+    const date = exitDate ? new Date(exitDate) : new Date();
+    const holdingDays = Math.max(1, Math.round((date.getTime() - new Date(vp.entry_date).getTime()) / 86400000));
+    const moic = exitValuationUsd ? _calcMoic(vp.entry_valuation_usd, exitValuationUsd) : null;
+    const irr = exitValuationUsd ? _calcIrr(vp.entry_valuation_usd, exitValuationUsd, holdingDays) : null;
+
+    const statusMap = { acquisition: 'acquired', ipo: 'ipo', secondary: 'exited', unknown: 'exited' };
+
+    const { data, error } = await supabase.from('virtual_portfolio').update({
+      status: statusMap[exitType] || 'exited',
+      exit_date: date.toISOString(),
+      exit_type: exitType,
+      exit_valuation_usd: exitValuationUsd || null,
+      exit_acquirer: acquirer || null,
+      exit_source_url: exitSourceUrl || null,
+      current_valuation_usd: exitValuationUsd || null,
+      moic, irr_annualized: irr, holding_days: holdingDays,
+    }).eq('id', vp.id).select().single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ entry: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

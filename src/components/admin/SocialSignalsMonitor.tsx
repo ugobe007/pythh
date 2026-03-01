@@ -62,7 +62,7 @@ export default function SocialSignalsMonitor() {
   const triggerScraper = async () => {
     if (scraping) return;
     
-    if (!confirm('Start social signals scraper? This will scrape Reddit, HackerNews, ProductHunt, and other platforms.')) {
+    if (!confirm('Start social signals scraper in BROADCAST mode?\n\nThis scans Reddit + HackerNews broadly and matches mentions against ALL 7,000+ startups at once. Takes ~2 min.')) {
       return;
     }
 
@@ -73,20 +73,20 @@ export default function SocialSignalsMonitor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scriptName: 'scripts/enrichment/social-signals-scraper.js',
-          description: 'Social Signals Scraper',
-          args: ['50'] // Scrape top 50 startups
+          description: 'Social Signals Broadcast Scraper — all startups',
+          args: ['--all'] // Broadcast mode: scan platforms broadly vs all 7k+ startup names
         })
       });
 
       if (response.ok) {
-        alert('✅ Social signals scraper started! Scraping 50 startups across 12 platforms.');
-        setTimeout(loadStats, 10000);
+        alert('✅ Social signals scraper started in broadcast mode!\nSweeping Reddit + HackerNews against all 7,000+ startups.');
+        setTimeout(loadStats, 15000);
       } else {
         throw new Error('Failed to start scraper');
       }
     } catch (error) {
       console.error('Error starting scraper:', error);
-      alert('❌ Failed to start scraper. You can run manually:\nnode scripts/enrichment/social-signals-scraper.js 50');
+      alert('❌ Failed to start scraper. You can run manually:\nnode scripts/enrichment/social-signals-scraper.js --all');
     } finally {
       setScraping(false);
     }
@@ -173,7 +173,7 @@ export default function SocialSignalsMonitor() {
         <div className="p-4 border-b border-slate-700">
           <div className="text-sm font-medium text-slate-300 mb-3">Most Discussed</div>
           <div className="space-y-2">
-            {stats.topStartups.slice(0, 3).map((s, i) => (
+            {stats.topStartups.slice(0, 10).map((s, i) => (
               <div key={s.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500">#{i + 1}</span>

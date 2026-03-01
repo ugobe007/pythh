@@ -17,6 +17,42 @@ const { getSupabaseClient } = require('./lib/supabaseClient');
 const { postToAllPlatforms, getEnabledPlatforms } = require('./services/socialMediaService');
 const { generateNewsletter } = require('./newsletter-generator');
 
+// ─── Post History (prevent startup repeats across all post types) ─────────────
+const HISTORY_FILE = path.join(__dirname, '..', '.social-post-history.json');
+
+function loadPostHistory() {
+  try { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf8')); }
+  catch { return { startups: [], investors: [] }; }
+}
+
+function savePostHistory(history) {
+  // Keep last 30 of each to cycle through full pool before repeating
+  history.startups  = (history.startups  || []).slice(-30);
+  history.investors = (history.investors || []).slice(-30);
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
+}
+
+const fs = require('fs');
+
+// ─── Tweet Image ──────────────────────────────────────────────────────────────────
+// The Pythia breathing GIF is attached to every tweet.
+const GIF_PATH = path.join(__dirname, '..', 'public', 'pythia-breathing.gif');
+
+function loadTweetImage() {
+  try {
+    if (fs.existsSync(GIF_PATH)) {
+      const buf = fs.readFileSync(GIF_PATH);
+      console.log(`[social-poster] Tweet image loaded (${(buf.length / 1024).toFixed(0)} KB)`);
+      return buf;
+    }
+    console.warn('[social-poster] pythia-breathing.gif not found — posting without image');
+    return null;
+  } catch (err) {
+    console.error('[social-poster] Could not load tweet image:', err.message);
+    return null;
+  }
+}
+
 // ─── Config ──────────────────────────────────────────────────────────────────
 const PREVIEW_MODE = process.argv.includes('--preview');
 const FORCE_TYPE   = process.argv.find(a => a.startsWith('--type='))?.split('=')[1] || null;
@@ -32,6 +68,8 @@ const DAILY_ROTATION = {
 
 // ─── Data Fetchers ────────────────────────────────────────────────────────────
 async function fetchHotMatch(supabase) {
+  const history = loadPostHistory();
+
   // No FK relationships in DB — do manual join
   const { data: matches } = await supabase
     .from('startup_investor_matches')
@@ -39,15 +77,23 @@ async function fetchHotMatch(supabase) {
     .not('startup_id', 'is', null)
     .not('investor_id', 'is', null)
     .order('match_score', { ascending: false })
-    .limit(10);
+    .limit(30);
 
   if (!matches?.length) return null;
-  const match = matches[Math.floor(Math.random() * matches.length)];
+
+  // Prefer startups not recently posted
+  const fresh = matches.filter(m => !history.startups.includes(m.startup_id));
+  const pool  = fresh.length > 0 ? fresh : matches;
+  const match = pool[Math.floor(Math.random() * Math.min(pool.length, 10))];
 
   const [{ data: startups }, { data: investors }] = await Promise.all([
     supabase.from('startup_uploads').select('name, tagline, total_god_score, sectors, website').eq('id', match.startup_id).limit(1),
     supabase.from('investors').select('name, firm_name, sectors, twitter_url, twitter_handle').eq('id', match.investor_id).limit(1),
   ]);
+
+  // Record startup as used
+  history.startups.push(match.startup_id);
+  savePostHistory(history);
 
   return {
     match_score: match.match_score,
@@ -57,15 +103,26 @@ async function fetchHotMatch(supabase) {
 }
 
 async function fetchStartupSpotlight(supabase) {
+  const history = loadPostHistory();
+
   const { data } = await supabase
     .from('startup_uploads')
-    .select('name, tagline, total_god_score, sectors, team_score, pitch, traction_score, website')
+    .select('id, name, tagline, total_god_score, sectors, team_score, pitch, traction_score, website')
     .eq('status', 'approved')
     .order('total_god_score', { ascending: false })
-    .limit(20);
+    .limit(40);
 
   if (!data?.length) return null;
-  return data[Math.floor(Math.random() * data.length)];
+
+  // Exclude recently posted startups; reset if pool exhausted
+  const fresh = data.filter(s => !history.startups.includes(s.id));
+  const candidates = fresh.length > 0 ? fresh : data;
+  const pick = candidates[Math.floor(Math.random() * Math.min(candidates.length, 15))];
+
+  history.startups.push(pick.id);
+  savePostHistory(history);
+
+  return pick;
 }
 
 async function fetchWeeklyStats(supabase) {
@@ -364,11 +421,16 @@ function appendSocialTags(text, { hashtags, mentions, platformTags = [], url }, 
 // ─── AI Copy Generator ────────────────────────────────────────────────────────
 async function generateCopy(post_type, rawData, enrichment = {}) {
   const { hashtags = [], mentions = [], url = null } = enrichment;
-  const baseContext = `You write social media posts for pythh.ai — an AI system that scores startups and matches them to investors.
-Your tone: quiet confidence. You're sitting on signal most people don't have access to.
-Never explain what pythh.ai does. Never use generic startup-speak. Never write ads.
-Write like you're sharing something interesting you noticed — not selling something.
-Be specific. Be brief. Leave them wanting more.`;
+  const baseContext = `You write social media posts for pythh.ai — an AI system that reads signals and matches startups to investors.
+Your tone: dry, observational. Like a veteran analyst sharing something quietly interesting.
+Rules:
+- NEVER name specific metrics (revenue, DAU, funding amounts, scores) — these feel like press releases
+- NEVER write promotional copy or direct calls to action
+- NEVER say "intriguing", "exciting", "impressive", "perfect score", "off the charts"
+- DO NOT lead with the startup name — that reads like an ad
+- Write about the pattern or signal, not the company
+- One concrete observation. Brief. Let the reader wonder.
+- If you mention pythh.ai, it must feel incidental, not branded`;
 
   const tagInstructions = [
     hashtags.length ? `REQUIRED hashtags (include in your post): ${hashtags.join(' ')}` : '',
@@ -386,7 +448,24 @@ Be specific. Be brief. Leave them wanting more.`;
     threads: `Write a Threads post (conversational, max 500 chars).\n${tagInstructions}\nKeep it casual and interesting.`,
   };
 
-  const dataSummary = JSON.stringify(rawData, null, 2).slice(0, 800);
+  // Sanitize: strip internal scores and specific financial metrics before
+  // sending to GPT — prevents the AI from leaking them even if instructed not to
+  const STRIP_KEYS = [
+    'total_god_score', 'team_score', 'traction_score', 'market_score',
+    'product_score', 'vision_score', 'match_score', 'god_score',
+    'revenue', 'arr', 'mrr', 'dau', 'mau', 'funding_amount',
+    'previous_funding', 'raised', 'valuation',
+  ];
+  function sanitizeForAI(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeForAI);
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([k]) => !STRIP_KEYS.includes(k.toLowerCase()))
+        .map(([k, v]) => [k, sanitizeForAI(v)])
+    );
+  }
+  const dataSummary = JSON.stringify(sanitizeForAI(rawData), null, 2).slice(0, 800);
 
   const generateForPlatform = async (platform, promptHint) => {
     const completion = await openai.chat.completions.create({
@@ -507,10 +586,13 @@ async function main() {
     process.exit(0);
   }
 
+  // Attach the Pythia breathing GIF to every tweet
+  const imageBuffer = loadTweetImage();
+
   // Post to all platforms
   let results = [];
   try {
-    results = await postToAllPlatforms({ post_type, content, metadata: { rawData } });
+    results = await postToAllPlatforms({ post_type, content, metadata: { rawData }, imageBuffer });
   } catch (e) {
     console.error('[social-poster] Posting failed:', e.message);
     process.exit(1);

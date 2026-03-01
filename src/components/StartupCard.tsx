@@ -4,6 +4,8 @@ import { StartupComponent } from '../types';
 import { useReactions } from '../hooks/useReactions';
 import { useAuth } from '../hooks/useAuth';
 import FlameIcon from './FlameIcon';
+import FundingCountdown from './FundingCountdown';
+import { useFundingPrediction } from '../hooks/useFundingPrediction';
 
 interface Props {
   startup: StartupComponent;
@@ -225,6 +227,7 @@ function DetailedStartupCard({ startup, onVote, onSwipeAway }: Omit<Props, 'vari
   const { castReaction, getCounts, hasReacted, fetchUserReactions } = useReactions(startup.id.toString());
   const supabaseReactionCounts = getCounts(startup.id.toString());
   const supabaseUserReaction = hasReacted(startup.id.toString());
+  const { prediction: fundingPrediction } = useFundingPrediction(startup.id);
 
   useEffect(() => {
     if (userId && !userId.startsWith('anon_')) {
@@ -374,6 +377,9 @@ function DetailedStartupCard({ startup, onVote, onSwipeAway }: Omit<Props, 'vari
         </div>
 
         <div className="p-4 pt-0 space-y-3">
+          {/* Funding Prediction Countdown */}
+          {fundingPrediction && <FundingCountdown prediction={fundingPrediction} compact />}
+
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-2 gap-2">
             {startup.team_size && startup.team_size > 0 && (

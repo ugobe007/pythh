@@ -816,15 +816,14 @@ function extractCompanyUrlFromContent(content, entityName) {
         const url = new URL(match[1]);
         const domain = url.hostname.replace('www.', '').toLowerCase();
         
-        // Skip publisher domains, social media, and generic sites
-        if (PUBLISHER_DOMAINS.has(domain)) continue;
-        if (domain.includes('news.') || domain.includes('blog.') || 
-            domain.endsWith('.medium.com') || domain.includes('substack.')) continue;
+        // Skip publisher/article URLs using the shared authoritative check
+        if (isJunkUrl(match[1])) continue;
         // Skip image/CDN/tracking domains
         if (domain.includes('cdn.') || domain.includes('img.') || 
             domain.includes('pixel.') || domain.includes('analytics.') ||
             domain.includes('tracking.') || domain.includes('googleusercontent')) continue;
-        // Skip common non-company domains
+        // Skip common non-company domains (use isJunkUrl for known publishers)
+        if (isJunkUrl(match[1])) continue;
         if (['t.co', 'bit.ly', 'goo.gl', 'ow.ly', 'fb.me', 'youtu.be',
              'youtube.com', 'facebook.com', 'instagram.com', 'tiktok.com',
              'x.com', 'threads.net', 'pinterest.com', 'wikipedia.org',
@@ -850,24 +849,15 @@ function extractCompanyUrlFromContent(content, entityName) {
 }
 
 // Helper: Extract website from link or content
-// CRITICAL: Do NOT store publisher domains as company websites!
+// CRITICAL: Do NOT store publisher/article URLs as company websites!
+// Uses isJunkUrl (shared SSOT in lib/junk-url-config.js) for all checks.
 function extractWebsite(link, content) {
   if (!link) return '';
+  // Use the shared authoritative check — catches all known junk domains,
+  // subdomains thereof, AND article-style deep paths (3+ segments).
+  if (isJunkUrl(link)) return '';
   try {
-    const url = new URL(link);
-    const domain = url.hostname.replace('www.', '').toLowerCase();
-    
-    // BLOCK publisher domains - these are NOT company websites
-    if (PUBLISHER_DOMAINS.has(domain)) {
-      return ''; // Return empty - don't store article URL as company website
-    }
-    
-    // Also block if domain contains common publisher patterns
-    if (domain.includes('news.') || domain.includes('blog.') || 
-        domain.endsWith('.medium.com') || domain.includes('substack.')) {
-      return '';
-    }
-    
+    const domain = new URL(link).hostname.replace('www.', '').toLowerCase();
     return domain;
   } catch {
     return '';

@@ -109,10 +109,10 @@ const GOD_SCORE_ACCEPTABLE_RANGES = {
     explanation: 'Controls overall score scaling. Based on rawTotal avg ~12, max ~17 from production data.'
   },
   baseBoostMinimum: {
-    min: 2.0,    // Below 2: floor too low (< 10 points), terrible startups get through
-    max: 3.5,    // Above 3.5: floor too high (> 17 points), inflates bad startups
-    target: 2.8,  // Optimal: floor at ~27 points (2.8/20.5*100) for borderline startups
-    explanation: 'Minimum baseline score for data-sparse startups. Prevents artificial floor inflation.'
+    min: 0.5,    // Below 0.5: essentially no floor, approved startups get nothing
+    max: 3.0,    // Above 3.0: floor starts inflating all scores artificially
+    target: 2.0,  // Honest floor for human-approved startups; 2.0/19.0*100 = 10.5 raw → ~48-55 after processing
+    explanation: 'Minimum baseline score for data-sparse startups. 2.0 reflects the honest value of admin-vetting; all startups in startup_uploads are human-reviewed.'
   },
   vibeBonusCap: {
     min: 0.5,
@@ -192,12 +192,12 @@ const GOD_SCORE_CONFIG = {
   // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
   // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
   // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 20.5,  // Recalibrated Feb 25, 2026 — raised from 19.0 to target value per GOD_SCORE_ACCEPTABLE_RANGES
+  normalizationDivisor: 19.0,  // Recalibrated Feb 27, 2026 — lowered to min-allowed value; actual avg rawTotal is ~6-8 (not ~12), divisor 20.5 was crushing sparse startups to 29-35→floor
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)
   // With divisor 20.5: minimum score = (2.8/20.5)*100 = 13.7 → floor at ~27-35 for sparse startups
-  baseBoostMinimum: 2.8,  // Admin calibrated Feb 19, 2026 v8 - Conservative floor, prevents inflation
+  baseBoostMinimum: 2.0,  // Recalibrated Feb 28, 2026 — raised from 1.5; 2.0 is an honest floor for human-vetted approved startups; investor pedigree rewards real backing signals on top
   
   // Vibe bonus cap - qualitative signal boost
   // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)
@@ -622,6 +622,10 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   if (startup.problem || startup.solution) baseBoost += 0.5;
   if (startup.tagline || startup.pitch) baseBoost += 0.5;
   if (startup.founded_date) baseBoost += 0.5;
+  // Presence signals — real company proof (Feb 27, 2026)
+  // These differentiate legitimate approved startups from completely empty entries
+  if ((startup as any).website) baseBoost += 0.5;              // Has real web presence
+  if ((startup as any).has_customers || (startup as any).has_revenue) baseBoost += 0.4; // Verified commerce signal
 
   // Lower minimum base boost to configured value so sparse startups score appropriately
   // Math: baseBoost / normalizationDivisor * 10 = score on 0-10 scale

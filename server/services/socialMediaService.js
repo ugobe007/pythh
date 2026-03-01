@@ -12,7 +12,7 @@ const { getSupabaseClient } = require('../lib/supabaseClient');
 // Requires: TWITTER_API_KEY, TWITTER_API_SECRET,
 //           TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET
 // ============================================================
-async function postToTwitter(text) {
+async function postToTwitter(text, imageBuffer) {
   const { TwitterApi } = require('twitter-api-v2');
   const client = new TwitterApi({
     appKey:           process.env.TWITTER_API_KEY,
@@ -22,7 +22,19 @@ async function postToTwitter(text) {
   });
   const rwClient = client.readWrite;
   try {
-    const result = await rwClient.v2.tweet(text);
+    const tweetParams = { text };
+
+    if (imageBuffer) {
+      // Upload via v1 (media upload) then attach to v2 tweet
+      // Detect GIF vs PNG by magic bytes
+      const isGif = imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49 && imageBuffer[2] === 0x46;
+      const mimeType = isGif ? 'image/gif' : 'image/png';
+      const mediaId = await rwClient.v1.uploadMedia(imageBuffer, { mimeType });
+      tweetParams.media = { media_ids: [mediaId] };
+      console.log('[twitter] Media uploaded:', mediaId);
+    }
+
+    const result = await rwClient.v2.tweet(tweetParams);
     return { platform: 'twitter', post_id: result.data.id };
   } catch (e) {
     // Log the full API error response for debugging
@@ -215,7 +227,7 @@ function getEnabledPlatforms() {
 // MAIN: POST TO ALL ENABLED PLATFORMS
 // Returns array of results per platform
 // ============================================================
-async function postToAllPlatforms({ post_type, content, metadata = {} }) {
+async function postToAllPlatforms({ post_type, content, metadata = {}, imageBuffer = null }) {
   const platforms = getEnabledPlatforms();
   if (platforms.length === 0) {
     console.log('[social] No platforms configured — skipping post');
@@ -227,7 +239,7 @@ async function postToAllPlatforms({ post_type, content, metadata = {} }) {
   for (const platform of platforms) {
     try {
       let result;
-      if (platform === 'twitter')   result = await postToTwitter(content.twitter || content.default);
+      if (platform === 'twitter')   result = await postToTwitter(content.twitter || content.default, imageBuffer);
       if (platform === 'linkedin')  result = await postToLinkedIn(content.linkedin || content.default);
       if (platform === 'threads')   result = await postToThreads(content.threads || content.default);
       if (platform === 'instagram') result = await postToInstagram(content.instagram || content.default);

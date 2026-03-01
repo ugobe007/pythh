@@ -151,6 +151,8 @@ const AIIntelligenceDashboard = lazy(() => import("./pages/AIIntelligenceDashboa
 const AdminActions = lazy(() => import("./pages/AdminActions"));
 const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const MLDashboard = lazy(() => import("./pages/MLDashboard"));
+const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
+const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -262,6 +264,9 @@ const App: React.FC = () => {
           <Route path="/newsletter" element={<NewsletterPage />} />
           <Route path="/newsletter/:date" element={<NewsletterPage />} />
 
+          {/* Virtual Portfolio — YC-style pick tracking */}
+          <Route path="/portfolio" element={<PortfolioPage />} />
+
           {/* Growth / engagement pages */}
           <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/submit" element={<SubmitStartupPage />} />
@@ -346,6 +351,7 @@ const App: React.FC = () => {
             <Route path="actions" element={<AdminActions />} />
             <Route path="review-queue" element={<ReviewQueue />} />
             <Route path="ml-dashboard" element={<MLDashboard />} />
+            <Route path="portfolio" element={<AdminPortfolioPage />} />
           </Route>
 
           {/* 404 → main */}

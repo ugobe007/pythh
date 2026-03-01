@@ -1597,16 +1597,188 @@ async function calculateFounderReputation(founderName) {
   };
 }
 
+// ═══════════════════════════════════════════════════════════════
+// BROADCAST SCRAPE — covers ALL 7,000+ startups at once
+// Instead of searching per-startup (N × platform requests),
+// we scrape platforms broadly and match post content against
+// the full startup name list. Far fewer HTTP calls.
+// ═══════════════════════════════════════════════════════════════
+async function broadcastScrape() {
+  console.log('📡 BROADCAST MODE — scanning platforms for all startups');
+  console.log('─────────────────────────────────────────────────────────\n');
+
+  // 1. Load all approved startup names from DB (paginated to get all 7k+)
+  console.log('📥 Loading all startup names from database...');
+  let allStartups = [];
+  let page = 0;
+  const PAGE_SIZE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, description')
+      .eq('status', 'approved')
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    allStartups = allStartups.concat(data);
+    if (data.length < PAGE_SIZE) break;
+    page++;
+  }
+  console.log(`  ✅ Loaded ${allStartups.length} startups\n`);
+  if (allStartups.length === 0) { console.log('No startups found.'); return; }
+
+  // Build fast lookup: lowercase name → startup (skip names < 4 chars to avoid noise)
+  const nameIndex = new Map();
+  for (const s of allStartups) {
+    if (!s.name || s.name.length < 4) continue;
+    nameIndex.set(s.name.toLowerCase().trim(), s);
+  }
+
+  // Helper: check a block of text for startup mentions, returns array of {startup, score}
+  function findMentions(text, upvotes = 0) {
+    if (!text) return [];
+    const textLower = text.toLowerCase();
+    const hits = [];
+    for (const [nameLower, startup] of nameIndex) {
+      // Word-boundary check: name must not be surrounded by word chars
+      const idx = textLower.indexOf(nameLower);
+      if (idx === -1) continue;
+      const before = idx === 0 ? ' ' : textLower[idx - 1];
+      const after = idx + nameLower.length >= textLower.length ? ' ' : textLower[idx + nameLower.length];
+      const wordBefore = /[a-z0-9]/.test(before);
+      const wordAfter = /[a-z0-9]/.test(after);
+      if (wordBefore || wordAfter) continue;
+      hits.push({ startup, engagementScore: Math.min(upvotes, 9999) });
+    }
+    return hits;
+  }
+
+  // Helper: batch-insert signals
+  async function insertSignals(signals) {
+    if (signals.length === 0) return 0;
+    const CHUNK = 100;
+    let inserted = 0;
+    for (let i = 0; i < signals.length; i += CHUNK) {
+      const chunk = signals.slice(i, i + CHUNK);
+      const { error } = await supabase.from('social_signals').insert(chunk);
+      if (!error) inserted += chunk.length;
+      else console.error('  ⚠️  Insert error:', error.message);
+    }
+    return inserted;
+  }
+
+  const pendingSignals = [];
+  const seenKey = new Set(); // dedup: startupId+sourceUrl
+
+  // 2. Scrape Reddit subreddits broadly (hot + new listings)
+  const subreddits = PLATFORMS.reddit.subreddits;
+  const REDDIT_SORTS = ['hot', 'new'];
+  for (const sort of REDDIT_SORTS) {
+    for (const sub of subreddits) {
+      try {
+        const url = `https://www.reddit.com/r/${sub}/${sort}.json?limit=100`;
+        const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StartupResearch/1.0)' } });
+        if (!resp.ok) { if (resp.status === 429) await new Promise(r => setTimeout(r, 5000)); continue; }
+        const json = await resp.json();
+        for (const post of json.data?.children || []) {
+          const p = post.data;
+          const fullText = `${p.title || ''} ${p.selftext || ''}`;
+          const score = (p.score || 0) + (p.num_comments || 0);
+          for (const { startup, engagementScore } of findMentions(fullText, score)) {
+            const key = `${startup.id}:${p.permalink}`;
+            if (seenKey.has(key)) continue;
+            seenKey.add(key);
+            const contentLower = fullText.toLowerCase();
+            let sentiment = 'neutral';
+            for (const [type, patterns] of Object.entries(SENTIMENT)) {
+              if (patterns.some(pat => pat.test(contentLower))) { sentiment = type; break; }
+            }
+            pendingSignals.push({
+              startup_id: startup.id,
+              startup_name: startup.name,
+              platform: 'reddit',
+              source_url: `https://reddit.com${p.permalink}`,
+              author: p.author || '',
+              content: (p.title || '').substring(0, 500),
+              sentiment,
+              signal_type: 'mention',
+              engagement_score: engagementScore,
+              created_at: new Date(p.created_utc * 1000).toISOString(),
+              collected_at: new Date().toISOString(),
+            });
+          }
+        }
+        // Polite delay between Reddit requests
+        await new Promise(r => setTimeout(r, 800));
+      } catch (err) {
+        console.error(`  ⚠️  Reddit r/${sub}/${sort}:`, err.message);
+      }
+    }
+  }
+  console.log(`  📣 Reddit scan complete — ${pendingSignals.length} signals so far`);
+
+  // 3. Scrape Hacker News broadly
+  const HN_QUERIES = ['startup', 'founder', 'saas', 'indiehacker', 'ycombinator', 'seed funding', 'series a'];
+  for (const q of HN_QUERIES) {
+    try {
+      const url = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=200`;
+      const resp = await fetch(url);
+      if (!resp.ok) continue;
+      const json = await resp.json();
+      for (const hit of json.hits || []) {
+        const fullText = `${hit.title || ''} ${hit.story_text || ''}`;
+        const score = (hit.points || 0) + (hit.num_comments || 0);
+        for (const { startup, engagementScore } of findMentions(fullText, score)) {
+          const key = `${startup.id}:${hit.objectID}`;
+          if (seenKey.has(key)) continue;
+          seenKey.add(key);
+          pendingSignals.push({
+            startup_id: startup.id,
+            startup_name: startup.name,
+            platform: 'hackernews',
+            source_url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+            author: hit.author || '',
+            content: (hit.title || '').substring(0, 500),
+            sentiment: 'neutral',
+            signal_type: 'mention',
+            engagement_score: engagementScore,
+            created_at: hit.created_at || new Date().toISOString(),
+            collected_at: new Date().toISOString(),
+          });
+        }
+      }
+      await new Promise(r => setTimeout(r, 300));
+    } catch (err) {
+      console.error(`  ⚠️  HN query "${q}":`, err.message);
+    }
+  }
+  console.log(`  📣 HN scan complete — ${pendingSignals.length} signals so far`);
+
+  // 4. Insert all found signals
+  const uniqueStartupIds = new Set(pendingSignals.map(s => s.startup_id));
+  console.log(`\n💾 Inserting ${pendingSignals.length} signals covering ${uniqueStartupIds.size} startups...`);
+  const inserted = await insertSignals(pendingSignals);
+  console.log(`\n✅ Broadcast complete! Inserted ${inserted} signals covering ${uniqueStartupIds.size} unique startups`);
+}
+
 // MAIN EXECUTION
 async function main() {
   console.log('🕵️  SOCIAL SIGNALS INTELLIGENCE SYSTEM');
   console.log('========================================\n');
-  console.log('📡 Using Getlate API for Twitter scraping\n');
-  
-  const limit = process.argv[2] ? parseInt(process.argv[2]) : 10;
-  
+
+  const args = process.argv.slice(2);
+  const broadcastMode = args.includes('--all') || args.includes('--broadcast');
+
   // Check/create table
   await createSocialSignalsTable();
+
+  if (broadcastMode) {
+    await broadcastScrape();
+    return;
+  }
+
+  console.log('📡 Using Getlate API for Twitter scraping\n');
+  
+  const limit = args[0] ? parseInt(args[0]) : 10;
   
   // Get startups to analyze (include website for better filtering)
   const { data: startups, error } = await supabase

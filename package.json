@@ -64,7 +64,9 @@
     "pce:customer": "tsx scripts/pce/customerProofAndMaterialize.ts",
     "pce:capital": "tsx scripts/pce/capitalSignalAndMaterialize.ts",
     "pce:market:event": "tsx scripts/pce/marketEventUpsert.ts",
-    "pce:market:link": "tsx scripts/pce/marketLinkAndMaterialize.ts"
+    "pce:market:link": "tsx scripts/pce/marketLinkAndMaterialize.ts",
+    "prod:health": "node scripts/prod-health.js",
+    "prod:health:verbose": "node scripts/prod-health.js --verbose"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

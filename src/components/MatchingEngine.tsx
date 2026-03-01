@@ -16,6 +16,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Zap, RefreshCw, Search } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import DataCompletenessBadge from "./DataCompletenessBadge";
+import FundingCountdown from "./FundingCountdown";
+import { useFundingPrediction } from "../hooks/useFundingPrediction";
 
 // ────────────────────────────────────────
 // TYPES
@@ -210,6 +212,7 @@ export default function MatchingEngine() {
 
   const active = matches[activeIndex] || null;
   const reasons = useMemo(() => (active ? parseReasoning(active.reasoning) : []), [active]);
+  const { prediction: activePrediction } = useFundingPrediction(active?.startup?.id);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white" style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -417,6 +420,9 @@ export default function MatchingEngine() {
                         )}
                       </div>
                     )}
+
+                    {/* Funding Prediction Countdown */}
+                    {activePrediction && <FundingCountdown prediction={activePrediction} />}
                   </div>
                 )}
               </div>

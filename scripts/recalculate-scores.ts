@@ -29,6 +29,9 @@ import { calculateEliteBoost } from '../server/services/eliteScoringService';
 // T6: Spiky Bachelor + Hot Startup recognition
 import { calculateSpikyAndHotBonus } from '../server/services/spikyBachelorService';
 
+// T7: Investor Pedigree bonus — rewards real backer/advisor confidence signals (Feb 28, 2026)
+import { calculateInvestorPedigreeBonus } from '../server/services/investorPedigreeScoringService';
+
 dotenv.config();
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
@@ -199,8 +202,15 @@ function toScoringProfile(startup: any): any {
     signed_contracts: extracted.signed_contracts,
     
     // Boolean inference signals — enriched with parsed metric detection
-    has_revenue: parsedHasRevenue || extracted.has_revenue,
-    has_customers: parsedHasCustomers || extracted.has_customers,
+    // BUG FIX (Feb 27 2026): startup.has_revenue and startup.has_customers (DB columns)
+    // were being silently dropped by these overrides, losing 7 + 203 confirmed signals.
+    // traction_confidence >= 0.5 means parser found strong revenue/customer language
+    // (ARR/MRR/GMV/CUSTOMERS/USERS mention with high confidence) — treat as has_customers.
+    // traction_confidence >= 0.7 is a very strong signal — treat as has_revenue if none found.
+    has_revenue: parsedHasRevenue || startup.has_revenue || extracted.has_revenue
+      || (tractionConfidence >= 0.7 && !startup.has_revenue && !extracted.has_revenue),
+    has_customers: parsedHasCustomers || startup.has_customers || extracted.has_customers
+      || (tractionConfidence >= 0.5),
     execution_signals: extracted.execution_signals || [],
     team_signals: extracted.team_signals || [],
     funding_amount: parsedFunding || extracted.funding_amount,
@@ -384,6 +394,7 @@ async function recalculateScores(): Promise<void> {
   let eliteApplied = 0;
   let spikyApplied = 0;
   let hotApplied = 0;
+  let pedigreeApplied = 0;
 
   // Process each phase sequentially
   for (const phaseNum of [1, 2, 3, 4]) {
@@ -418,6 +429,7 @@ async function recalculateScores(): Promise<void> {
     let momentumBonus = 0;
     let apPromisingBonus = 0;
     let eliteSpikyBonus = 0; // Combined Elite + Spiky
+    let pedigreeBonus = 0;  // T7: Investor / Advisor pedigree
     let apType: 'ap' | 'promising' | 'none' = 'none';
     let eliteTier = 'none';
     
@@ -498,9 +510,25 @@ async function recalculateScores(): Promise<void> {
     // max 25.2 pts, which was inflating 60–70 range artificially.)
     const psychBonus = scores.psychological_multiplier || 0;
     const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 7); // Psych: -5 to +7 GOD pts
-    const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD;
-    const cappedBonuses = Math.min(rawBonuses, 10); // Hard cap: bonuses ≤ +10 total — preserves GOD as source of truth
-    const finalScore = Math.max(Math.min(Math.round(scores.total_god_score + cappedBonuses), 100), 40); // Floor=40, Cap=100
+
+    // T7: Investor Pedigree — applied to ALL startups (not gated on isDataRich)
+    // Rationale: even sparse-data startups have investor info; pedigree is a standalone signal
+    try {
+      const pedigreeResult = calculateInvestorPedigreeBonus(startup);
+      if (pedigreeResult.applied && pedigreeResult.bonus > 0) {
+        pedigreeBonus = pedigreeResult.bonus;
+        pedigreeApplied++;
+        if (pedigreeResult.tier === 'elite' || pedigreeResult.bonus >= 5) {
+          console.log(`  💰 ${startup.name}: +${pedigreeBonus} pedigree (${pedigreeResult.tier}) — ${pedigreeResult.matchedInvestors.slice(0,3).join(', ')}`);
+        }
+      }
+    } catch (e) {
+      // Pedigree scoring is optional, continue if it fails
+    }
+
+    const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;
+    const cappedBonuses = Math.min(rawBonuses, 15); // Cap: bonuses ≤ +15 total — raised Feb 28 2026 from +10; allows pedigree+signals+momentum stacks to fully count without truncation
+    const finalScore = Math.max(Math.min(Math.round(scores.total_god_score + cappedBonuses), 100), 55); // Floor=55, Cap=100 (Feb 28 2026: admin-approved startups start at neutral 55 — not a failing grade; GOD + bonuses differentiate above that)
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 
     // ============================================================================
@@ -899,6 +927,7 @@ async function recalculateScores(): Promise<void> {
   console.log(`  Elite boost applied: ${eliteApplied}`);
   console.log(`  Spiky Bachelor recognized: ${spikyApplied}`);
   console.log(`  Hot startup bonus: ${hotApplied}`);
+  console.log(`  Investor pedigree bonus: ${pedigreeApplied}`);
   console.log(`  Total: ${startups.length}`);
   console.log('✅ Score recalculation complete');
 }

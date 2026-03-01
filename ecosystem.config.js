@@ -114,14 +114,14 @@ module.exports = {
     {
       name: 'startup-enrichment-worker',
       script: 'node',
-      args: 'scripts/enrich-sparse-startups.js --limit=100',
+      args: 'scripts/enrich-sparse-startups.js --limit=200 --no-url-only',
       cwd: './',
       instances: 1,
       autorestart: false,  // Run once per cron cycle
       watch: false,
-      max_memory_restart: '400M',
+      max_memory_restart: '600M',  // bumped: name→domain inference does HTTP HEAD requests
       max_restarts: 3,
-      cron_restart: '30 */4 * * *',  // Every 4 hours at :30
+      cron_restart: '0 */2 * * *',  // Every 2 hours (was 4h — faster with improved URL parsing)
       env: {
         NODE_ENV: 'production'
       }
@@ -765,6 +765,23 @@ module.exports = {
       //         GOD score avg, data freshness (24h), junk URL %
       // Logs results to ai_logs table (type='enrich_health_check')
       // Exit code 1 triggers PM2 error state — visible in 'pm2 status'
+    },
+    {
+      name: 'funding-prediction-runner',
+      script: 'npx',
+      args: 'tsx scripts/predict-funding-windows.ts',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 2,
+      cron_restart: '0 2 * * *',  // Daily at 2:00 AM UTC
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Generates/updates funding predictions for GOD ≥ 70 startups
+      // Writes to funding_predictions table (upserts active, expires stale)
     },
   ]
 };

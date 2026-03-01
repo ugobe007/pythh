@@ -1,0 +1,286 @@
+Script started on Wed Feb 25 10:29:05 2026
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  node /tmp/score-audit.js 2>/dev/null[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  node /tmp/score-audit.js[?2004l
+node:internal/modules/cjs/loader:1372
+  throw err;
+  ^
+
+Error: Cannot find module 'dotenv'
+Require stack:
+- /private/tmp/score-audit.js
+[90m    at Module._resolveFilename (node:internal/modules/cjs/loader:1369:15)[39m
+[90m    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)[39m
+[90m    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)[39m
+[90m    at Module._load (node:internal/modules/cjs/loader:1179:37)[39m
+[90m    at TracingChannel.traceSync (node:diagnostics_channel:322:14)[39m
+[90m    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)[39m
+[90m    at Module.require (node:internal/modules/cjs/loader:1449:12)[39m
+[90m    at require (node:internal/modules/helpers:135:16)[39m
+    at Object.<anonymous> (/private/tmp/score-audit.js:1:1)
+[90m    at Module._compile (node:internal/modules/cjs/loader:1692:14)[39m {
+  code: [32m'MODULE_NOT_FOUND'[39m,
+  requireStack: [ [32m'/private/tmp/score-audit.js'[39m ]
+}
+
+Node.js v24.3.0
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  cp /tmp/score-audit.js /Users/legupla [Kbbs/Desktop/hot-honey/score-audit.js && node /Users/leguplabs/Desktop/hot-honey/s [Kccore-audit.js 2>&1 | grep -v dotenv && rm /Users/leguplabs/Desktop/hot-honey/sco [Krre-audit.js[?2004l
+/Users/leguplabs/Desktop/hot-honey/node_modules/@supabase/supabase-js/dist/main/SupabaseClient.js:43
+            throw new Error('supabaseKey is required.');
+            ^
+
+Error: supabaseKey is required.
+    at new SupabaseClient (/Users/leguplabs/Desktop/hot-honey/node_modules/@supabase/supabase-js/dist/main/SupabaseClient.js:43:19)
+    at createClient (/Users/leguplabs/Desktop/hot-honey/node_modules/@supabase/supabase-js/dist/main/index.js:46:12)
+    at Object.<anonymous> (/Users/leguplabs/Desktop/hot-honey/score-audit.js:3:12)
+    at Module._compile (node:internal/modules/cjs/loader:1692:14)
+    at Object..js (node:internal/modules/cjs/loader:1824:10)
+    at Module.load (node:internal/modules/cjs/loader:1427:32)
+    at Module._load (node:internal/modules/cjs/loader:1250:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:152:5)
+
+Node.js v24.3.0
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  eval $(grep -v '^#' /Users/leguplabs/ [KDDesktop/hot-honey/.env | grep -E '^(VITE_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY) [K==' | sed 's/^/export /') && node /Users/leguplabs/Desktop/hot-honey/scripts/enri [Kcch-health-check.js --no-log 2>&1 | grep -v dotenv[?2004l
+
+═══════════════════════════════════════════════════════════════
+  ENRICHMENT PIPELINE HEALTH CHECK
+  2026-02-25T18:31:37.184Z
+═══════════════════════════════════════════════════════════════
+
+▶ Enrichment Status
+  ❌ Enriched                            15%  — 1170/7965 approved
+  ⚠️  Waiting/null                        85%  — 6795 startups need enrichment
+  ✅ Holding                              0%  — 0 startups gave up after 3 attempts
+
+▶ Data Quality
+  ❌ Traction coverage                    6%  — 482/7965 have funding/ARR/customers
+  ⚠️    → With funding                     5%  — raise_amount or funding_amount
+  ⚠️    → With customers                   2%  — customer_count or customers
+  ⚠️    → With revenue                     0%  — arr / mrr / revenue
+  ✅ Avg fields/startup                   16  — across 1170 enriched startups
+
+▶ GOD Score Distribution
+  ⚠️  Average GOD score                    46  — (floor=40, target avg≥52)
+  ⚠️  At floor (40-45)                    61%  — 4852 startups barely above minimum
+  ❌ High scores (≥65)                    5%  — 406 genuinely strong profiles
+
+▶ Data Freshness
+  ✅ Enriched (last 24h)                 166  — target ≥20/day
+  ✅ Enriched (last 7d)                 1159
+
+▶ Data Integrity
+  ❌ Junk URLs in website field           9%  — 371/4089 are article/social URLs
+         "undefined" → https://www.bloomberg.com/news/videos/2026-02-09/the-majorit
+         "undefined" → https://techcrunch.com/2026/02/11/integrate-raises-17m-to-mo
+         "undefined" → https://www.ycombinator.com/companies/magnetic
+
+═══════════════════════════════════════════════════════════════
+  OVERALL: ❌ FAIL  (3 fail, 1 warn)
+
+  REMEDIATION HINTS:
+    → Run: pm2 start "node scripts/enrich-sparse-startups.js --limit=800" --name enrichment-backfill
+    → Low traction coverage — news enrichment may be broken; check inferenceService.js
+    → Low GOD scores — run: npx tsx scripts/recalculate-scores.ts
+    → Junk URLs in DB — scraper may be writing article links as website field; check ssot-rss-scraper.js
+═══════════════════════════════════════════════════════════════
+
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  node scripts/score-audit.js 2>&1 | gr [Keep -v dotenv[?2004l
+/Users/leguplabs/Desktop/hot-honey/node_modules/@supabase/supabase-js/dist/main/SupabaseClient.js:43
+            throw new Error('supabaseKey is required.');
+            ^
+
+Error: supabaseKey is required.
+    at new SupabaseClient (/Users/leguplabs/Desktop/hot-honey/node_modules/@supabase/supabase-js/dist/main/SupabaseClient.js:43:19)
+    at createClient (/Users/leguplabs/Desktop/hot-honey/node_modules/@supabase/supabase-js/dist/main/index.js:46:12)
+    at Object.<anonymous> (/Users/leguplabs/Desktop/hot-honey/scripts/score-audit.js:3:12)
+    at Module._compile (node:internal/modules/cjs/loader:1692:14)
+    at Object..js (node:internal/modules/cjs/loader:1824:10)
+    at Module.load (node:internal/modules/cjs/loader:1427:32)
+    at Module._load (node:internal/modules/cjs/loader:1250:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:152:5)
+
+Node.js v24.3.0
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  grep -E "SUPABASE|supabase" /Users/le [Kgguplabs/Desktop/hot-honey/.env | sed 's/=.*/=***/'[?2004l
+VITE_SUPABASE_URL=***
+VITE_SUPABASE_ANON_KEY=***
+SUPABASE_SERVICE_KEY=***
+SUPABASE_URL=***
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  node scripts/score-audit.js 2>&1 | gr [Keep -v dotenv[?2004l
+Total approved: 7965 | With score: 7965
+Overall avg: 46.4 | Min: 40 | Max: 86
+
+--- Full Distribution (5-pt buckets, ALL approved) ---
+  40-44:  4487 ( 56.3%)  ████████████████████████████
+  45-49:  1269 ( 15.9%)  ████████
+  50-54:   829 ( 10.4%)  █████
+  55-59:   601 (  7.5%)  ████
+  60-64:   373 (  4.7%)  ██
+  65-69:   242 (  3.0%)  ██
+  70-74:   113 (  1.4%)  █
+  75-79:    40 (  0.5%)  
+  80-84:     9 (  0.1%)  
+  85-89:     2 (  0.0%)  
+  90-94:     0 (  0.0%)  
+  95-99:     0 (  0.0%)  
+
+--- Enriched only (1170 startups) ---
+  Avg: 48.4
+  40-44:   568 ( 48.5%)  ████████████████████████
+  45-49:   154 ( 13.2%)  ███████
+  50-54:   142 ( 12.1%)  ██████
+  55-59:   119 ( 10.2%)  █████
+  60-64:    89 (  7.6%)  ████
+  65-69:    62 (  5.3%)  ███
+  70-74:    24 (  2.1%)  █
+  75-79:    11 (  0.9%)  
+  80-84:     1 (  0.1%)  
+  85-89:     0 (  0.0%)  
+  90-94:     0 (  0.0%)  
+  95-99:     0 (  0.0%)  
+
+--- Component avgs (ALL / ENRICHED) ---
+  team_score              43.0  /    43.4
+  traction_score          17.3  /    23.0
+  market_score            36.1  /    36.5
+  product_score           37.2  /    40.7
+  vision_score            29.4  /    29.3
+
+--- Bonus inflation (component-weighted total vs stored total_god_score) ---
+  With bonus (total > weighted sum) : 1169 / 1170 (99.9%)
+  Avg bonus                          : 13.4
+  Avg bonus (only positive)          : 13.4
+  Max bonus                          : 25.2
+  Bonus   0-4:    14 (1.2%)
+  Bonus   5-9:   142 (12.1%)
+  Bonus  10-14:   676 (57.8%)
+  Bonus  15-19:   258 (22.1%)
+  Bonus  20-24:    78 (6.7%)
+  Bonus  25-+:     1 (0.1%)
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  node scripts/simulate-score-change.js [K  2>&1 | grep -v dotenv[?2004l
+Simulating impact of: normalizationDivisor 19.0→20.5 + bonus cap 10pts
+Startups: 7965
+
+Bucket       CURRENT   PROJECTED   CHANGE
+  40-44:     56.3%     66.6%   +821
+  45-49:     15.9%     14.2%   -139
+  50-54:     10.4%      8.1%   -184
+  55-59:      7.5%      5.3%   -181
+  60-64:      4.7%      3.7%   -75
+  65-69:      3.0%      1.4%   -129
+  70-74:      1.4%      0.5%   -73
+  75-79:      0.5%      0.1%   -30
+  80-84:      0.1%      0.0%   -8
+  85-89:      0.0%      0.0%   -2
+
+  Avg current:   46.4
+  Avg projected: 44.5
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  node scripts/score-audit.js 2>&1 | gr [Keep -v dotenv | grep -E "Total|Avg|60-|65-|70-|50-|55-|45-|40-44"[?2004l
+Total approved: 7965 | With score: 7965
+  40-44:  4487 ( 56.3%)  ████████████████████████████
+  45-49:  1269 ( 15.9%)  ████████
+  50-54:   829 ( 10.4%)  █████
+  55-59:   601 (  7.5%)  ████
+  60-64:   373 (  4.7%)  ██
+  65-69:   242 (  3.0%)  ██
+  70-74:   113 (  1.4%)  █
+  Avg: 48.4
+  40-44:   568 ( 48.5%)  ████████████████████████
+  45-49:   154 ( 13.2%)  ███████
+  50-54:   142 ( 12.1%)  ██████
+  55-59:   119 ( 10.2%)  █████
+  60-64:    89 (  7.6%)  ████
+  65-69:    62 (  5.3%)  ███
+  70-74:    24 (  2.1%)  █
+  Avg bonus                          : 13.4
+  Avg bonus (only positive)          : 13.4
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  npx tsx scripts/recalculate-scores.ts [K  2>&1 | tail -20[?2004l
+^C
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  npx tsx scripts/recalculate-scores.ts [K  2>&1 | grep -E "Phase|updated|GOD|✅|Error|Warning|SUMMARY|Phase [0-9]|startups [K||avg" | head -40[?2004l
+^C
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  npx tsx scripts/recalculate-scores.ts [K  2>&1 | tee /tmp/recalc.log | tail -3 &[?2004l
+[1] 96861 96862 96863
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  sleep 5 && head -20 /tmp/recalc.log[?2004l
+✅ GOD Score config validated successfully
+   Divisor: 20.5 (range: 19-22)
+   Base Boost: 2.8 (range: 2-3.5)
+   Expected avg score: 55-65
+[dotenv@17.2.3] injecting env (10) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+🔢 Starting GOD Score recalculation (PHASED BY DATA RICHNESS)...
+🚀 Including Bootstrap Scoring for sparse-data startups...
+
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  jobs && ls -la /tmp/recalc.log[?2004l
+[1]  + running    npx tsx scripts/recalculate-scores.ts 2>&1 | tee /tmp/recalc.log | tail -3
+-rw-r--r--@ 1 leguplabs  wheel  389 Feb 25 10:38 /tmp/recalc.log
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  cat /tmp/recalc.log[?2004l
+✅ GOD Score config validated successfully
+   Divisor: 20.5 (range: 19-22)
+   Base Boost: 2.8 (range: 2-3.5)
+   Expected avg score: 55-65
+[dotenv@17.2.3] injecting env (10) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+🔢 Starting GOD Score recalculation (PHASED BY DATA RICHNESS)...
+🚀 Including Bootstrap Scoring for sparse-data startups...
+
+📊 Processing 8772 startups in 4 phases:
+   Phase 1 (Data Rich):  0 startups
+   Phase 2 (Good Data):  8 startups
+   Phase 3 (Medium):     3206 startups
+   Phase 4 (Sparse):     5558 startups
+
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  wait %1 && echo "DONE" && tail -15 /t [Kmmp/recalc.log[?2004l
+^C sleep 30 && wc -l /tmp/recalc.log && tail -5 /tmp/recalc.log
+^C wc -l /tmp/recalc.log && tail -5 /tmp/recalc.log
+^C npx tsx scripts/recalculate-scores.ts > /tmp/recalc2.log 2>&1; echo "Exit: $?"; tail -10 /tmp/recalc2.log
+^C tail -30 /tmp/recalc.log 2>/dev/null || tail -30 /tmp/recalc2.log 2>/dev/null || echo "No log found"
+  Hot startup bonus: 5
+  Total: 8772
+✅ Score recalculation complete
+[1]  + done       npx tsx scripts/recalculate-scores.ts 2>&1 | tee /tmp/recalc.log | tail -3
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h  tail -30 /tmp/recalc.log 2>/dev/null  [K||| tail -30 /tmp/recalc2.log 2>/dev/null || echo "No log found"[?2004l
+    🎯 Cursor: GOD adjustment -1.0
+    🎯 Firestorm Labs Announces: GOD adjustment -1.0
+    🎯 BeInCrypto: GOD adjustment -1.0
+    🎯 PaleBlueDot AI: GOD adjustment -1.0
+    🎯 Eventual: GOD adjustment -1.0
+    🎯 Octonomy: GOD adjustment -1.0
+    🎯 Qapita: GOD adjustment -1.0
+    🎯 Assort Health: GOD adjustment -1.0
+    🎯 A16z: GOD adjustment -1.0
+    🎯 Stepchange: GOD adjustment -1.0
+  📊 Created 25 score snapshots
+  🎯 Applied 16 GOD adjustments from verified deltas
+
+🔐 Refreshing verification pipeline...
+  📋 Processing 3 pending actions...
+  📊 Processed 3 actions
+  🔄 Updated 0 verification states
+
+📊 SUMMARY
+  Updated: 4826
+  Unchanged: 3946
+  Bootstrap applied: 0
+  Momentum applied: 8
+  AP applied: 0
+  Promising applied: 0
+  Elite boost applied: 3
+  Spiky Bachelor recognized: 0
+  Hot startup bonus: 5
+  Total: 8772
+✅ Score recalculation complete
+[1m[7m%[27m[1m[0m                                                                                [0m[27m[24m[Jleguplabs@Roberts-MacBook-Air hot-honey % [K[?2004h
