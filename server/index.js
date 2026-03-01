@@ -8010,6 +8010,34 @@ app.get('/api/portfolio/metrics', async (req, res) => {
   }
 });
 
+// GET /api/portfolio/events/recent — last N events across all portfolio companies
+app.get('/api/portfolio/events/recent', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const { data, error } = await supabase
+      .from('portfolio_events')
+      .select(`
+        id, event_type, event_date, amount_usd, post_money_usd,
+        round_type, lead_investor, headline, source_url, source_name,
+        verified, startup_id,
+        startup_uploads!portfolio_events_startup_id_fkey(name, tagline)
+      `)
+      .order('event_date', { ascending: false })
+      .limit(limit);
+    if (error) return res.status(500).json({ error: error.message });
+    // Flatten startup name for easier client consumption
+    const events = (data || []).map(e => ({
+      ...e,
+      startup_name: e.startup_uploads?.name || null,
+      startup_uploads: undefined,
+    }));
+    res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/portfolio/:startupId — single company detail + events
 app.get('/api/portfolio/:startupId', async (req, res) => {
   try {
