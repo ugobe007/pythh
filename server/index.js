@@ -7852,19 +7852,6 @@ app.post('/api/ml/training/run', async (req, res) => {
   }
 });
 
-// ------------------------------------------------------------
-// API 404 HANDLER (catch unmatched /api/* BEFORE static/SPA)
-// ------------------------------------------------------------
-app.use('/api', (req, res) => {
-  console.log(`[API 404] Not found: ${req.method} ${req.path} [${req.requestId || 'no-id'}]`);
-  res.status(404).json({
-    ok: false,
-    error: { code: 'not_found', message: 'API route not found' },
-    path: req.path,
-    requestId: req.requestId
-  });
-});
-
 // === PRODUCTION: Serve Frontend Static Files ===
 // This serves the built React app from /app/dist in production
 const distPath = path.join(__dirname, '..', 'dist');
@@ -8185,6 +8172,19 @@ app.post('/api/admin/portfolio/exit', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ------------------------------------------------------------
+// API 404 HANDLER (catch unmatched /api/* BEFORE static/SPA)
+// ------------------------------------------------------------
+app.use('/api', (req, res) => {
+  console.log(`[API 404] Not found: ${req.method} ${req.path} [${req.requestId || 'no-id'}]`);
+  res.status(404).json({
+    ok: false,
+    error: { code: 'not_found', message: 'API route not found' },
+    path: req.path,
+    requestId: req.requestId
+  });
 });
 
 // ------------------------------------------------------------
