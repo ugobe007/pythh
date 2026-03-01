@@ -688,7 +688,8 @@ async function regenerateMatches() {
       let query = supabase
         .from('startup_uploads')
         .select('id, name, sectors, stage, total_god_score, embedding')
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .gte('total_god_score', 35); // Exclude sub-35 startups from match pool — insufficient signal
       
       // In delta mode, only fetch startups updated since the lookback window
       if (deltaThreshold) {

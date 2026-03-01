@@ -150,6 +150,11 @@ FROM virtual_portfolio;
 ALTER TABLE virtual_portfolio ENABLE ROW LEVEL SECURITY;
 ALTER TABLE portfolio_events  ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS public_read_portfolio    ON virtual_portfolio;
+DROP POLICY IF EXISTS public_read_events       ON portfolio_events;
+DROP POLICY IF EXISTS service_write_portfolio  ON virtual_portfolio;
+DROP POLICY IF EXISTS service_write_events     ON portfolio_events;
+
 CREATE POLICY public_read_portfolio ON virtual_portfolio
   FOR SELECT USING (true);
 

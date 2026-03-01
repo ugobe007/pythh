@@ -2655,6 +2655,10 @@ function scoreLearningVelocity(startup: StartupProfile): number {
  * Quick qualification check - should this startup get matched at all?
  */
 export function qualifiesForMatching(startup: StartupProfile): boolean {
+  // GOD score gate: sub-35 startups have insufficient signal — exclude from match pool
+  // This prevents data-sparse scraped articles from diluting investor match quality
+  const godScore = (startup as any).total_god_score;
+  if (typeof godScore === 'number' && godScore < 35) return false;
   const score = calculateHotScore(startup);
   return score.total >= 2; // Minimum score of 2/10 to get any matches
 }
