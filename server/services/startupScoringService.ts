@@ -103,10 +103,10 @@
  */
 const GOD_SCORE_ACCEPTABLE_RANGES = {
   normalizationDivisor: {
-    min: 19.0,   // Below 19: scores too high (avg > 65), unrealistic distribution
-    max: 22.0,   // Above 22: scores too low (avg < 50), crushes quality startups
-    target: 20.5, // Optimal: avg score ~58-62 with proper bell curve
-    explanation: 'Controls overall score scaling. Based on rawTotal avg ~12, max ~17 from production data.'
+    min: 19.0,   // Below 19: avg > 65 (rawTotal ~12.7 / 19 * 100 = 66.8 — measured Mar 2026)
+    max: 23.0,   // Above 23: avg < 55 (rawTotal ~12.7 / 23 * 100 = 55.2)
+    target: 21.0, // Optimal: rawTotal ~12.7 / 21 * 100 = 60.5 — hits the 58-62 design target
+    explanation: 'Controls overall score scaling. Measured avg rawTotal ~12.7 from 1000-startup production sample (Mar 1, 2026). Previous comment of ~12 was roughly correct; 19.0 was too low (→ avg 67).'
   },
   baseBoostMinimum: {
     min: 0.5,    // Below 0.5: essentially no floor, approved startups get nothing
@@ -192,7 +192,7 @@ const GOD_SCORE_CONFIG = {
   // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
   // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
   // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 19.0,  // Recalibrated Feb 27, 2026 — lowered to min-allowed value; actual avg rawTotal is ~6-8 (not ~12), divisor 20.5 was crushing sparse startups to 29-35→floor
+  normalizationDivisor: 21.0,  // Recalibrated Mar 1, 2026 — measured avg rawTotal ~12.7 across sample; 12.7/21*100=60.5 hits target 58-62; 19.0 was producing avg 67 (too high)
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)
@@ -1181,6 +1181,30 @@ function scoreMarket(startup: StartupProfile): number {
   else if (marketSizeNum >= 0.1) score += 0.25; // $100M+ TAM - viable for seed
   else if (marketSizeNum > 0) score += 0.15; // Any market size mentioned
   
+  // TEXT-BASED MARKET SIZE (when market_size field is not set)
+  // Many startups describe their TAM in prose: "the $50B logistics market", etc.
+  // Scan pitch + problem + solution + value_proposition for these patterns.
+  if (marketSizeNum === 0) {
+    const mktText = [
+      startup.pitch || '',
+      startup.problem || '',
+      startup.solution || '',
+      (startup as any).value_proposition || '',
+      (startup as any).description || '',
+    ].join(' ');
+    // Match patterns like "$50B market", "50 billion dollar industry", "$5T opportunity"
+    const mktMatch = mktText.match(/\$\s*([\d,.]+)\s*(trillion|billion|million|[TBM])\b/i);
+    if (mktMatch) {
+      const num = parseFloat(mktMatch[1].replace(/,/g, ''));
+      const unit = mktMatch[2][0].toLowerCase();
+      const inferredBillions = unit === 't' ? num * 1000 : unit === 'b' ? num : num / 1000;
+      if (inferredBillions >= 10) score += 0.8;       // $10B+: strong market signal from text
+      else if (inferredBillions >= 1) score += 0.5;   // $1B+: solid
+      else if (inferredBillions >= 0.1) score += 0.25; // $100M+: viable
+      else if (inferredBillions > 0) score += 0.1;
+    }
+  }
+
   // Clear problem/solution articulation (Seed: "compelling story")
   // This is a key differentiator when market_size is missing
   if (startup.problem && startup.solution) {
