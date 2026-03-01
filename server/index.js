@@ -7963,12 +7963,13 @@ app.post('/api/admin/social-posts/trigger', async (req, res) => {
 // ------------------------------------------------------------
 
 // Valuation estimator (mirrors virtualPortfolioService.ts)
+// 2025 market benchmarks (YC standard: pre-seed ~$20M post, seed ~$30-50M, etc.)
 function _estimateEntryValuation(stage, godScore) {
   const bases = {
-    'Stage 1': 3000000, '1': 3000000, 'Pre-Seed': 3000000, 'pre-seed': 3000000,
-    'Stage 2': 8000000, '2': 8000000, 'Seed': 8000000, 'seed': 8000000,
-    'Stage 3': 20000000, '3': 20000000, 'Series A': 20000000,
-    'Stage 4': 60000000, '4': 60000000, 'Series B': 60000000, 'Series B+': 60000000,
+    'Stage 1': 15000000, '1': 15000000, 'Pre-Seed': 15000000, 'pre-seed': 15000000,
+    'Stage 2': 35000000, '2': 35000000, 'Seed': 35000000, 'seed': 35000000,
+    'Stage 3': 80000000, '3': 80000000, 'Series A': 80000000,
+    'Stage 4': 250000000, '4': 250000000, 'Series B': 250000000, 'Series B+': 250000000,
   };
   const base = bases[String(stage || '').trim()] || 3000000;
   const premium = Math.max(0.8, (godScore || 70) / 70);

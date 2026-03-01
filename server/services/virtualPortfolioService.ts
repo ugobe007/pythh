@@ -28,21 +28,22 @@ const supabase = createClient(
 // ---------------------------------------------------------------------------
 
 function estimateEntryValuationUsd(stage: string | null, godScore: number): number {
+  // 2025 market benchmarks (YC standard: pre-seed ~$20M post, seed ~$30-50M, etc.)
   const bases: Record<string, number> = {
-    'Stage 1': 3_000_000,
-    'Stage 2': 8_000_000,
-    'Stage 3': 20_000_000,
-    'Stage 4': 60_000_000,
-    '1': 3_000_000,
-    '2': 8_000_000,
-    '3': 20_000_000,
-    '4': 60_000_000,
-    'Pre-Seed': 3_000_000,
-    'Seed': 8_000_000,
-    'Series A': 20_000_000,
-    'Series B': 60_000_000,
-    'Series B+': 60_000_000,
-    'Series C': 120_000_000,
+    'Stage 1': 15_000_000,
+    'Stage 2': 35_000_000,
+    'Stage 3': 80_000_000,
+    'Stage 4': 250_000_000,
+    '1': 15_000_000,
+    '2': 35_000_000,
+    '3': 80_000_000,
+    '4': 250_000_000,
+    'Pre-Seed': 15_000_000,
+    'Seed': 35_000_000,
+    'Series A': 80_000_000,
+    'Series B': 250_000_000,
+    'Series B+': 250_000_000,
+    'Series C': 600_000_000,
   };
 
   const stageKey = stage ? String(stage).trim() : 'Stage 1';

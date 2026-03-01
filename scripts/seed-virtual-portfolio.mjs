@@ -40,12 +40,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ---------------------------------------------------------------------------
 // Stage → estimated valuation
 // ---------------------------------------------------------------------------
+// 2025 market benchmarks (YC standard: pre-seed ~$20M post, seed ~$30-50M, etc.)
 function estimateValuation(stage, godScore) {
   const bases = {
-    'Stage 1': 3_000_000, '1': 3_000_000, 'Pre-Seed': 3_000_000, 'pre-seed': 3_000_000,
-    'Stage 2': 8_000_000, '2': 8_000_000, 'Seed': 8_000_000, 'seed': 8_000_000,
-    'Stage 3': 20_000_000, '3': 20_000_000, 'Series A': 20_000_000,
-    'Stage 4': 60_000_000, '4': 60_000_000, 'Series B': 60_000_000, 'Series B+': 60_000_000,
+    'Stage 1': 15_000_000, '1': 15_000_000, 'Pre-Seed': 15_000_000, 'pre-seed': 15_000_000,
+    'Stage 2': 35_000_000, '2': 35_000_000, 'Seed': 35_000_000, 'seed': 35_000_000,
+    'Stage 3': 80_000_000, '3': 80_000_000, 'Series A': 80_000_000,
+    'Stage 4': 250_000_000, '4': 250_000_000, 'Series B': 250_000_000, 'Series B+': 250_000_000,
   };
   const base = bases[String(stage || '').trim()] ?? 3_000_000;
   const premium = Math.max(0.8, (godScore || 70) / 70);
