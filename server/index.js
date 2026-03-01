@@ -7971,7 +7971,7 @@ function _estimateEntryValuation(stage, godScore) {
     'Stage 3': 80000000, '3': 80000000, 'Series A': 80000000,
     'Stage 4': 250000000, '4': 250000000, 'Series B': 250000000, 'Series B+': 250000000,
   };
-  const base = bases[String(stage || '').trim()] || 3000000;
+  const base = bases[String(stage || '').trim()] || 15000000; // null stage → $15M pre-seed floor
   const premium = Math.max(0.8, (godScore || 70) / 70);
   return Math.round(base * premium);
 }

@@ -48,7 +48,7 @@ function estimateValuation(stage, godScore) {
     'Stage 3': 80_000_000, '3': 80_000_000, 'Series A': 80_000_000,
     'Stage 4': 250_000_000, '4': 250_000_000, 'Series B': 250_000_000, 'Series B+': 250_000_000,
   };
-  const base = bases[String(stage || '').trim()] ?? 3_000_000;
+  const base = bases[String(stage || '').trim()] ?? 15_000_000; // null stage → $15M pre-seed floor
   const premium = Math.max(0.8, (godScore || 70) / 70);
   return Math.round(base * premium);
 }

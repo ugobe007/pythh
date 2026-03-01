@@ -46,8 +46,8 @@ function estimateEntryValuationUsd(stage: string | null, godScore: number): numb
     'Series C': 600_000_000,
   };
 
-  const stageKey = stage ? String(stage).trim() : 'Stage 1';
-  const base = bases[stageKey] ?? bases['Stage 1'];
+  const stageKey = stage ? String(stage).trim() : 'Pre-Seed';
+  const base = bases[stageKey] ?? bases['Pre-Seed']; // null stage → $15M pre-seed floor
   const premium = Math.max(0.8, (godScore || 70) / 70);
   return Math.round(base * premium);
 }
