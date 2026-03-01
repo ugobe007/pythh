@@ -448,6 +448,43 @@ interface StartupProfile {
   // Calculated bonus (additive to base GOD score)
   psychological_bonus?: number; // -3 to +10 points (additive)
   enhanced_god_score?: number; // total_god_score + psychological_bonus (capped at 100)
+
+  // ============================================================================
+  // SOCIAL SIGNALS (enriched by scripts/social-signals-fetcher.mjs)
+  // ============================================================================
+  // Fetched from public zero-auth APIs:  Google News RSS · GitHub API · iTunes
+  // Stored in extracted_data.social_signals, spreads into profile via
+  // toScoringProfile() in recalculate-scores.ts.
+  // Re-run social-signals-fetcher.mjs monthly, then recalculate-scores.ts.
+  // ============================================================================
+  social_signals?: {
+    // Google News RSS (universal — every real startup has press)
+    news_article_count?: number;   // quoted-name search result count
+
+    // GitHub (tech/SaaS startups — strong product signal)
+    github_repo_name?: string;
+    github_stars?: number;
+    github_forks?: number;
+    github_last_commit_days?: number; // days since last push
+    github_language?: string;
+    github_match_confidence?: number; // 0-100
+
+    // iTunes / App Store (consumer & B2C startups)
+    app_store_app_name?: string;
+    app_store_rating?: number;       // average rating 0-5
+    app_store_rating_count?: number; // # of ratings ≈ user count proxy
+    app_store_rating_version?: number;
+    app_store_price?: string;
+    app_store_match_confidence?: number; // 0-100
+
+    // LinkedIn (future — currently too fragile to scrape reliably)
+    linkedin_employees?: number;   // employee count (midpoint of range)
+    linkedin_followers?: number;
+
+    // Metadata
+    fetch_timestamp?: string;
+    fetch_version?: number;
+  };
 }
 
 interface HotScore {
@@ -965,7 +1002,20 @@ function scoreTeam(startup: StartupProfile): number {
   
   // Young founders (under 30) - "chip on shoulder" mentality
   // If we had age data, would add 0.5 points
-  
+
+  // ============================================================================
+  // SOCIAL SIGNALS: LinkedIn employees (externally enriched)
+  // When linkedin_employees is present it confirms real headcount without bias
+  // ============================================================================
+  const teamSocial = (startup as any).social_signals ?? {};
+  if (typeof teamSocial.linkedin_employees === 'number') {
+    const emp = teamSocial.linkedin_employees;
+    if (emp >= 50)      score += 0.8; // Substantial verified team
+    else if (emp >= 20) score += 0.5; // Growing team
+    else if (emp >= 10) score += 0.3; // Small but real
+    else if (emp >= 5)  score += 0.15; // Micro-team confirmed
+  }
+
   return Math.min(score, 3);
 }
 
@@ -1131,7 +1181,28 @@ function scoreTraction(startup: StartupProfile): number {
   if ((startup as any).has_customers) score += 0.6; // Customers = strong signal
   if (startup.launched || (startup as any).is_launched) score += 0.4; // Launched = baseline signal
   if (startup.demo_available || (startup as any).has_demo) score += 0.15;
-  
+
+  // ============================================================================
+  // SOCIAL SIGNALS: Press coverage + App Store ratings (externally enriched)
+  // Source: scripts/social-signals-fetcher.mjs  (PM2 monthly cron)
+  //
+  // Rationale: Every real startup has news. Every real consumer app has ratings.
+  // These signals are freely accessible; empty DB fields ≠ no data.
+  // ============================================================================
+  const trxSocial = (startup as any).social_signals ?? {};
+
+  // News article count — quoted-name search → confirmed real press coverage
+  if      (trxSocial.news_article_count >= 20) score += 1.0; // Significant coverage
+  else if (trxSocial.news_article_count >= 10) score += 0.6; // Solid press
+  else if (trxSocial.news_article_count >= 5)  score += 0.35; // Getting noticed
+  else if (trxSocial.news_article_count >= 2)  score += 0.15; // Acknowledged
+
+  // App Store rating count — ratings ≈ real user count (consumer/B2C traction)
+  if      (trxSocial.app_store_rating_count >= 10000) score += 1.0; // Major app
+  else if (trxSocial.app_store_rating_count >= 1000)  score += 0.6; // Solid user base
+  else if (trxSocial.app_store_rating_count >= 100)   score += 0.35; // Real users
+  else if (trxSocial.app_store_rating_count >= 10)    score += 0.15; // Some users
+
   return Math.min(score, 3);
 }
 
@@ -1356,7 +1427,36 @@ function scoreProduct(startup: StartupProfile): number {
   if (startup.solution && startup.solution.length > 50) {
     score += 0.15;
   }
-  
+
+  // ============================================================================
+  // SOCIAL SIGNALS: GitHub (externally enriched — tech/SaaS startups)
+  // Stars and commit recency are among the strongest product-quality proxies
+  // available without private data access.
+  // ============================================================================
+  const prodSocial = (startup as any).social_signals ?? {};
+
+  // GitHub star count — community interest + product maturity
+  if (typeof prodSocial.github_stars === 'number') {
+    if      (prodSocial.github_stars >= 1000) score += 1.0; // Strong open-source community
+    else if (prodSocial.github_stars >= 100)  score += 0.6; // Growing community
+    else if (prodSocial.github_stars >= 10)   score += 0.3; // Some interest
+    else if (prodSocial.github_stars >= 1)    score += 0.15; // Public repo = real code
+  }
+
+  // Recent commits = active development = product not abandoned
+  if (typeof prodSocial.github_last_commit_days === 'number'
+      && prodSocial.github_last_commit_days < 30) {
+    score += 0.25; // Active within 30 days
+  } else if (typeof prodSocial.github_last_commit_days === 'number'
+             && prodSocial.github_last_commit_days < 90) {
+    score += 0.1; // Active within 90 days
+  }
+
+  // App Store presence — product is live and downloadable (complements GitHub for non-tech)
+  if (prodSocial.app_store_rating_count >= 1) {
+    score += 0.3; // App exists on store = product is shipped
+  }
+
   return Math.min(score, 3);
 }
 

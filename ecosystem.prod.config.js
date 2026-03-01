@@ -126,6 +126,27 @@ module.exports = {
     },
 
     // ========================================
+    // SOCIAL SIGNALS FETCHER
+    // Enriches data-sparse startups (GOD 40-60) with public-API signals:
+    //   Google News RSS count, GitHub stars/commits, iTunes rating count
+    // Stores in extracted_data.social_signals; run recalculate-scores after.
+    // ========================================
+    {
+      name: 'social-signals-fetcher',
+      interpreter: 'node',
+      exec_mode: 'fork',
+      script: 'scripts/social-signals-fetcher.mjs',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 1,
+      cron_restart: '0 2 * * 3',   // 2 AM UTC every Wednesday
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // ALL OTHER PROCESSES DISABLED FOR PERFORMANCE
     // Uncomment to re-enable when resources allow
     // ========================================
