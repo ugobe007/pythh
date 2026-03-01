@@ -27,6 +27,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const VERBOSE  = process.argv.includes('--verbose') || DRY_RUN;
 const MAX_ARTICLES_PER_COMPANY = 8;
 const LOOKBACK_DAYS = 14;
+const RSS_TIMEOUT_MS = 8000;  // hard abort — Fly can silently drop RSS connections
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -44,6 +45,14 @@ function cutoffDate() {
   const d = new Date();
   d.setDate(d.getDate() - LOOKBACK_DAYS);
   return d;
+}
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function googleNewsUrl(companyName) {
@@ -150,14 +159,18 @@ async function main() {
     const name = company.startup_name;
 
     try {
-      // Fetch Google News RSS
+      // Fetch Google News RSS (hard timeout — Fly can silently drop connections)
       let feed;
       try {
-        feed = await rssParser.parseURL(googleNewsUrl(name));
+        feed = await withTimeout(
+          rssParser.parseURL(googleNewsUrl(name)),
+          RSS_TIMEOUT_MS,
+          name
+        );
       } catch (feedErr) {
         if (VERBOSE) console.log(`  ⚠️  RSS fetch failed for ${name}: ${feedErr.message}`);
         stats.errors++;
-        await sleep(500);
+        await sleep(300);
         continue;
       }
 
@@ -181,9 +194,13 @@ async function main() {
         // Skip already-seen URLs
         if (url && seenUrls.has(url)) continue;
 
-        // GPT classification
-        const signal = await classifyArticle(title, snippet, name);
-        await sleep(100); // gentle rate limit
+        // GPT classification (10s hard timeout)
+        const signal = await withTimeout(
+          classifyArticle(title, snippet, name),
+          10000,
+          `GPT:${name}`
+        ).catch(() => ({ event_type: 'noise', confidence: 0 }));
+        await sleep(80);
 
         if (!signal || signal.event_type === 'noise' || signal.confidence < 50) continue;
 
@@ -260,7 +277,7 @@ async function main() {
       }
 
       // Polite delay between companies
-      await sleep(800);
+      await sleep(300);
 
     } catch (err) {
       console.error(`  ❌ Error processing ${name}: ${err.message}`);
