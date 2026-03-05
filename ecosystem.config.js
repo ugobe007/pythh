@@ -128,6 +128,28 @@ module.exports = {
     },
 
     // ========================================
+    // TRACTION SIGNAL BACKFILL
+    // Infers is_launched, has_revenue, has_customers, has_demo, team_signals
+    // from existing text fields — runs 20 min after enrichment so new text
+    // is in place, then score-recalc on the next :00 cycle picks it up.
+    // ========================================
+    {
+      name: 'traction-signal-backfill',
+      script: 'node',
+      args: 'scripts/backfill-traction-signals.js --limit=300',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle, then exit
+      watch: false,
+      max_memory_restart: '300M',
+      max_restarts: 2,
+      cron_restart: '20 */2 * * *',  // Every 2 hours at :20 (after enrichment at :00)
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
+    // ========================================
     // HOLDING REVIEW WORKER
     // Daily: retry enrichment on 'holding' startups, delete after 30 days
     // ========================================
@@ -782,6 +804,58 @@ module.exports = {
       }
       // Generates/updates funding predictions for GOD ≥ 70 startups
       // Writes to funding_predictions table (upserts active, expires stale)
+    },
+
+    // ========================================
+    // MARKET SIGNALS TRACKER
+    // Tracks behavioral & market signals for portfolio companies:
+    //   - Press mentions (tier-weighted, dated)
+    //   - Funding events (extracted from news headlines)
+    //   - Hiring velocity (career page detection)
+    //   - Product launches (headlines + GitHub activity)
+    //   - Partnerships & market expansion
+    //   - GitHub commit velocity & star growth
+    // Writes to: startup_signals, startup_momentum_snapshots
+    // Updates:   startup_uploads.market_momentum
+    // Processes 200 startups per run, cycling through the full portfolio daily
+    // ========================================
+    {
+      name: 'market-signals-tracker',
+      script: 'node',
+      args: 'scripts/track-market-signals.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,  // Run once per cron cycle
+      watch: false,
+      max_memory_restart: '400M',
+      max_restarts: 3,
+      min_uptime: '30s',
+      restart_delay: 30000,
+      cron_restart: '30 */6 * * *',  // Every 6 hours (staggered from score-recalc)
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
+    // ========================================
+    // JUNK CLEANUP SCHEDULER
+    // Rejects RSS-scraped junk entries (article titles, generic nouns, political names)
+    // Runs daily after the overnight scrape window to keep portfolio clean
+    // ========================================
+    {
+      name: 'junk-cleanup',
+      script: 'node',
+      args: 'scripts/remove-empty-startups.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '200M',
+      max_restarts: 2,
+      cron_restart: '0 5 * * *',  // Daily at 5:00 AM UTC (after overnight scrape)
+      env: {
+        NODE_ENV: 'production'
+      }
     },
   ]
 };

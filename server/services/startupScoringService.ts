@@ -1203,6 +1203,27 @@ function scoreTraction(startup: StartupProfile): number {
   else if (trxSocial.app_store_rating_count >= 100)   score += 0.35; // Real users
   else if (trxSocial.app_store_rating_count >= 10)    score += 0.15; // Some users
 
+  // Web signals — Tier 1 press coverage (TC, Forbes, WSJ, Bloomberg, etc.)
+  // Strong editorial press = third-party validation of real traction
+  const tier1Press = (startup as any).tier1_press_count ?? 0;
+  const tier2Press = (startup as any).tier2_press_count ?? 0;
+  const pressTotal = (startup as any).press_total ?? 0;
+  if      (tier1Press >= 5)  score += 0.6;  // Multiple top-tier features
+  else if (tier1Press >= 2)  score += 0.4;  // Covered by major outlets
+  else if (tier1Press >= 1)  score += 0.2;  // One major press hit
+  else if (tier2Press >= 5)  score += 0.15; // Niche trade press
+  else if (pressTotal >= 3)  score += 0.08; // Some press, classify unknown
+
+  // Reddit mentions — organic community recognition
+  const redditMentions = (startup as any).reddit_mentions ?? 0;
+  const redditPositive = (startup as any).reddit_positive ?? 0;
+  if (redditMentions >= 20) score += 0.3;
+  else if (redditMentions >= 10) score += 0.2;
+  else if (redditMentions >= 5)  score += 0.12;
+  else if (redditMentions >= 2)  score += 0.06;
+  // Bonus if predominantly positive sentiment
+  if (redditMentions >= 3 && redditPositive > (redditMentions * 0.7)) score += 0.1;
+
   return Math.min(score, 3);
 }
 
@@ -1457,6 +1478,21 @@ function scoreProduct(startup: StartupProfile): number {
     score += 0.3; // App exists on store = product is shipped
   }
 
+  // Web signals — Company blog = active product communication
+  // A maintained blog signals product iteration + team that ships & shares
+  const hasBlog = (startup as any).has_blog ?? false;
+  const blogPostCount = (startup as any).blog_post_count ?? 0;
+  const daysSinceBlog = (startup as any).days_since_blog_post ?? null;
+  if (hasBlog) {
+    if      (blogPostCount >= 20) score += 0.4; // Active content machine
+    else if (blogPostCount >= 10) score += 0.25; // Regular publishing
+    else if (blogPostCount >= 3)  score += 0.15; // Has published content
+    else                          score += 0.08; // Blog exists
+    // Recency bonus — published within 30 days = product actively moving
+    if (daysSinceBlog !== null && daysSinceBlog <= 30)  score += 0.15;
+    else if (daysSinceBlog !== null && daysSinceBlog <= 90)  score += 0.08;
+  }
+
   return Math.min(score, 3);
 }
 
@@ -1631,7 +1667,23 @@ function scoreVision(startup: StartupProfile): number {
   if (startup.passionate_customers && startup.passionate_customers >= 3) {
     score += 0.15;
   }
-  
+
+  // Web signals — Blog as vision signal: founders who write = founders with vision
+  // Publishing articles/changelogs = communicating direction + thought leadership
+  const hasBlogV = (startup as any).has_blog ?? false;
+  const blogCountV = (startup as any).blog_post_count ?? 0;
+  const daysSinceBlogV = (startup as any).days_since_blog_post ?? null;
+  const tier1PressV = (startup as any).tier1_press_count ?? 0;
+  if (hasBlogV && blogCountV >= 5) {
+    score += 0.12; // Thought leaders publish regularly
+    if (daysSinceBlogV !== null && daysSinceBlogV <= 60) score += 0.08; // Active recently
+  } else if (hasBlogV) {
+    score += 0.05;
+  }
+  // Tier 1 press = media recognizes the vision/narrative
+  if      (tier1PressV >= 3) score += 0.12;
+  else if (tier1PressV >= 1) score += 0.06;
+
   return Math.min(score, 2); // Cap at 2.0 points max
 }
 

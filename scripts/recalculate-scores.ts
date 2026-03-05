@@ -234,6 +234,21 @@ function toScoringProfile(startup: any): any {
     founded_date: startup.founded_date || startup.created_at || extracted.founded_date,
     value_proposition: startup.value_proposition || startup.tagline || extracted.value_proposition,
     backed_by: startup.backed_by || extracted.backed_by || extracted.investors,
+    
+    // Web signals — from enrich-web-signals.mjs (stored in extracted_data.web_signals)
+    // These override nothing; scoring fns read them as fresh signal sources
+    has_blog: (extracted.web_signals?.blog?.found) ?? false,
+    blog_post_count: extracted.web_signals?.blog?.post_count_estimate ?? 0,
+    days_since_blog_post: extracted.web_signals?.blog?.days_since_last_post ?? null,
+    tier1_press_count: extracted.web_signals?.press_tier?.tier1_count ?? 0,
+    tier2_press_count: extracted.web_signals?.press_tier?.tier2_count ?? 0,
+    press_wire_count: extracted.web_signals?.press_tier?.pr_wire_count ?? 0,
+    press_total: extracted.web_signals?.press_tier?.total 
+      ?? extracted.social_signals?.news_count 
+      ?? 0,
+    reddit_mentions: extracted.web_signals?.reddit?.mention_count ?? 0,
+    reddit_positive: extracted.web_signals?.reddit?.positive_count ?? 0,
+    reddit_negative: extracted.web_signals?.reddit?.negative_count ?? 0,
   };
 }
 

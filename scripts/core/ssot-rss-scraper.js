@@ -751,11 +751,37 @@ const COMMON_CITIES = new Set([
 
 const BATCH_SEASONS = /\b(W|S|F|Winter|Summer|Fall|Spring)\s*\d{2,4}\b/i;
 
+// Single generic dictionary words that are never company names
+const GENERIC_SINGLE_WORDS = new Set([
+  'refinance','refinancing','nutrition','natural','organic','renewable','sustainable',
+  'digital','virtual','mobile','wireless','broadband','cloud','cyber','smart',
+  'banking','insurance','lending','mortgage','investing','trading','crypto','bitcoin',
+  'healthcare','wellness','fitness','nutrition','therapy','medical','pharma',
+  'logistics','transport','shipping','delivery','commerce','retail','marketing',
+  'analytics','automation','optimization','infrastructure','platform','solution',
+  'enterprise','startup','venture','capital','equity','fund','portfolio',
+  'innovation','disruption','transformation','acceleration',
+  'software','hardware','firmware','semiconductor','microchip',
+  'engineering','manufacturing','processing',
+  'education','learning','training','coaching',
+  'media','content','streaming','broadcasting','publishing',
+  'energy','solar','wind','nuclear','hydrogen','battery',
+  'agriculture','farming','livestock','aquaculture',
+  'construction','architecture','interior','exterior',
+  'cybersecurity','blockchain','metaverse','nft','defi','dao',
+]);
+
+// Well-known political figures and celebrities (not companies)
+const POLITICAL_FIGURE_PATTERN = /^(ocasio|ocasio-cortez|aoc|biden|trump|harris|obama|pelosi|bernie|sanders|warren|desantis|musk|bezos|zuckerberg|gates|buffett|soros|koch|thiel|andreessen|york|macron|merkel|zelenskyy|putin|xi|modi|scholz|starmer|netanyahu)/i;
+
+// Article verb chains: "X drives Y", "Enterprises Raise Round", "Company Acquires Z"
+const ARTICLE_VERB_CHAIN = /\b(raises?|raised|drive|drives|drove|acquires?|acquired|launches?|launched|partnered|secures?|secured|announces?|announced|expands?|expanded|closes?|closed|wins?|won|names?|named|hires?|hired|cuts?|cut|lays?\s+off|layoffs?|files?\s+for|ipo|spac|goes?\s+public)\b/i;
+
 function isValidStartupName(name) {
   if (!name || typeof name !== 'string') return { valid: false, reason: 'empty' };
   const trimmed = name.trim();
   
-  // Too long (likely concatenated data)
+  // Too long (likely article title or concatenated data)
   if (trimmed.length > 60) return { valid: false, reason: `too_long (${trimmed.length} chars)` };
   
   // Too short
@@ -764,8 +790,32 @@ function isValidStartupName(name) {
   // Contains batch/season indicators (YC bad name pattern)
   if (BATCH_SEASONS.test(trimmed)) return { valid: false, reason: 'contains_batch_season' };
   
-  // Contains city name (concatenation artifact)
   const lower = trimmed.toLowerCase();
+
+  // Single generic dictionary word — ONLY when name is exactly that word (lowercase match)
+  // "Pharma" → flagged, but "35Pharma", "Pharma Inc" → passes
+  if (!trimmed.includes(' ') && GENERIC_SINGLE_WORDS.has(lower)) {
+    return { valid: false, reason: `generic_single_word (${trimmed})` };
+  }
+
+  // Political figures / celebrities
+  if (POLITICAL_FIGURE_PATTERN.test(trimmed)) {
+    return { valid: false, reason: 'political_figure_or_celebrity' };
+  }
+
+  // Article verb chain: reads like a news headline (only flag 3+ word names to avoid
+  // false positives on legitimate names like "Drive Health", "Launch Pad", etc.)
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 3 && ARTICLE_VERB_CHAIN.test(trimmed)) {
+    return { valid: false, reason: 'article_headline_verb_chain' };
+  }
+
+  // Starts with a number followed by a noun (e.g. "5 Ways", "10 Startups")
+  if (/^\d+\s+\w+/.test(trimmed)) {
+    return { valid: false, reason: 'starts_with_number_noun' };
+  }
+
+  // Contains city name (concatenation artifact)
   for (const city of COMMON_CITIES) {
     // Only flag if city appears as a suffix (not the whole name or prefix of a real name)
     if (lower.length > city.length + 3 && lower.endsWith(city)) {

@@ -141,11 +141,9 @@ const INVESTOR_SOURCES = [
   // ═══════════════════════════════════════════════════════════════════════
   // TIER 1: VC NEWS & FUND ANNOUNCEMENTS
   // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Axios Pro Rata', url: 'https://www.axios.com/pro/tech-deals/feed', priority: 1, expectedYield: 10 },
   { name: 'Crunchbase VC News', url: 'https://news.crunchbase.com/feed/', priority: 1, expectedYield: 15 },
   { name: 'TechCrunch Venture', url: 'https://techcrunch.com/category/venture/feed/', priority: 1, expectedYield: 12 },
   { name: 'NVCA News', url: 'https://nvca.org/feed/', priority: 2, expectedYield: 5 },
-  { name: 'Institutional Investor PE', url: 'https://www.institutionalinvestor.com/rss/Private-Equity', priority: 2, expectedYield: 5 },
   
   // ═══════════════════════════════════════════════════════════════════════
   // TIER 1: GOOGLE NEWS - VC & INVESTOR
@@ -162,22 +160,6 @@ const INVESTOR_SOURCES = [
   { name: 'Google: Micro VC', url: 'https://news.google.com/rss/search?q=micro+vc+fund&hl=en-US', priority: 2, expectedYield: 5 },
   { name: 'Google: CVC Launch', url: 'https://news.google.com/rss/search?q=corporate+venture+capital+launches&hl=en-US', priority: 2, expectedYield: 6 },
   { name: 'Google: Family Office VC', url: 'https://news.google.com/rss/search?q=family+office+venture+investment&hl=en-US', priority: 2, expectedYield: 4 },
-  
-  // ═══════════════════════════════════════════════════════════════════════
-  // TIER 2: VC FIRM BLOGS (working ones)
-  // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Sequoia Ideas', url: 'https://www.sequoiacap.com/feed/', priority: 2, expectedYield: 2 },
-  { name: 'Y Combinator Blog', url: 'https://www.ycombinator.com/blog/rss/', priority: 2, expectedYield: 3 },
-  { name: 'Union Square Ventures', url: 'https://www.usv.com/writing/feed/', priority: 2, expectedYield: 2 },
-  { name: 'Bessemer Cloud Index', url: 'https://www.bvp.com/atlas/rss.xml', priority: 2, expectedYield: 2 },
-  
-  // ═══════════════════════════════════════════════════════════════════════
-  // TIER 2: REGIONAL VC NEWS
-  // ═══════════════════════════════════════════════════════════════════════
-  { name: 'Google: Europe VC', url: 'https://news.google.com/rss/search?q=europe+venture+capital+fund&hl=en-US', priority: 2, expectedYield: 6 },
-  { name: 'Google: India VC', url: 'https://news.google.com/rss/search?q=india+venture+capital+fund&hl=en-US', priority: 2, expectedYield: 6 },
-  { name: 'Google: Asia VC', url: 'https://news.google.com/rss/search?q=asia+venture+capital+fund&hl=en-US', priority: 2, expectedYield: 5 },
-  { name: 'Google: LATAM VC', url: 'https://news.google.com/rss/search?q=latin+america+venture+capital&hl=en-US', priority: 2, expectedYield: 4 },
 ];
 
 // ============================================================================

@@ -24,6 +24,23 @@ function fatal(stage: string, err: any) {
   }
 }
 
+// ── vite:preloadError ────────────────────────────────────────────────────────
+// Fires when a lazy-loaded chunk 404s (e.g. after a new deploy invalidated
+// old content-hashed filenames cached by the browser).  Auto-reload gets the
+// fresh index.html which references the updated chunk hashes.
+// ─────────────────────────────────────────────────────────────────────────────
+window.addEventListener('vite:preloadError', () => {
+  // Guard: only reload once per session to avoid infinite reload loops.
+  const RELOAD_KEY = '__vite_preload_reload__';
+  if (sessionStorage.getItem(RELOAD_KEY)) {
+    console.warn('[boot] vite:preloadError — already reloaded once, not retrying.');
+    return;
+  }
+  sessionStorage.setItem(RELOAD_KEY, '1');
+  console.warn('[boot] vite:preloadError — chunk load failed, reloading for fresh assets…');
+  window.location.reload();
+});
+
 // Install global handlers BEFORE first await — these catch anything that
 // bubbles out of lazy-loaded chunks after React mounts too.
 window.addEventListener('error', (e) => {

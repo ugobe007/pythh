@@ -137,6 +137,13 @@ function normalizeInvestorData(investor: any) {
     notable_investments: investor.notable_investments || investor.notableInvestments || [],
     portfolio_size: investor.portfolio_size || investor.total_investments || 0,
     total_investments: investor.total_investments || investor.portfolio_size || 0,
+
+    // Market intelligence / capital deployment signals
+    deployment_velocity_index: investor.deployment_velocity_index ?? null,
+    dry_powder_estimate: investor.dry_powder_estimate ?? null,
+    capital_power_score: investor.capital_power_score ?? null,
+    fund_size_estimate_usd: investor.fund_size_estimate_usd ?? null,
+    last_investment_date: investor.last_investment_date ?? null,
   };
 }
 
@@ -282,6 +289,23 @@ export function calculateAdvancedMatchScore(startup: any, investor: any, verbose
         } else if (investorScore >= 7) {
           investorBonus += 0.5; // REDUCED from 1 to 0.5
           if (verbose) console.log(`   Investor Score:     +0.5 (Score: ${investorScore}/10)`);
+        }
+
+        // 🔥 DEPLOYMENT VELOCITY BONUS
+        // Hot investors (recently deployed capital) get a small boost to surface to founders.
+        // Only applies when real fit exists (stage or sector match above).
+        const velocity = investor.deployment_velocity_index ?? normalizedInvestor.deployment_velocity_index;
+        if (velocity !== null && velocity !== undefined) {
+          let velocityBonus = 0;
+          if (velocity >= 75)      velocityBonus = 3; // Hot — deal in last 30-90 days
+          else if (velocity >= 50) velocityBonus = 2; // Active — recent deployment
+          else if (velocity >= 35) velocityBonus = 1; // Moderate — has some activity
+          if (velocityBonus > 0) {
+            investorBonus += velocityBonus;
+            if (verbose) console.log(`   Deploy Velocity:    +${velocityBonus} (velocity: ${velocity}/100)`);
+          } else if (verbose) {
+            console.log(`   Deploy Velocity:    +0 (velocity: ${velocity}/100 — slow)`);
+          }
         }
       } else if (verbose) {
         console.log(`   Investor Quality:   +0 (no fit - conditional bonus not applied)`);
