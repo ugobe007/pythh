@@ -61,7 +61,7 @@ export default function PythhHome() {
     id: string;
     name: string;
     total_god_score: number;
-    startup_stage: string | null;
+    stage: string | null;
     sectors: string[] | null;
   }>>([]);
   const [sectorHeatLive, setSectorHeatLive] = useState<Array<{
@@ -214,7 +214,7 @@ export default function PythhHome() {
       try {
         const { data } = await supabase
           .from('startup_uploads')
-          .select('id, name, total_god_score, startup_stage, sectors')
+          .select('id, name, total_god_score, stage, sectors')
           .eq('status', 'approved')
           .not('total_god_score', 'is', null)
           .order('total_god_score', { ascending: false })
@@ -578,8 +578,8 @@ export default function PythhHome() {
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white/90 truncate">{startup.name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {startup.startup_stage && (
-                        <span className="text-[10px] text-zinc-500">{startup.startup_stage}</span>
+                      {startup.stage && (
+                        <span className="text-[10px] text-zinc-500">{startup.stage}</span>
                       )}
                       {(startup.sectors || [])[0] && (
                         <span className="text-[10px] text-cyan-400/50">{startup.sectors![0]}</span>
