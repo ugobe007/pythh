@@ -103,6 +103,7 @@ export default function PortfolioPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'exited'>('all');
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -138,14 +139,28 @@ export default function PortfolioPage() {
   });
 
   const exits = entries.filter((e) => ['acquired', 'ipo', 'exited'].includes(e.status));
+  
+  // Collapse to 10, expand to 50
+  const displayedEntries = showAll ? filtered.slice(0, 50) : filtered.slice(0, 10);
+  const hasMore = filtered.length > (showAll ? 50 : 10);
 
   return (
     <div className="min-h-screen bg-black text-white">
       {/* ── Header ── */}
       <div className="border-b border-white/10 py-5">
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
-          <Link to="/" className="text-xl font-bold text-emerald-400 tracking-tight">
-            pythh
+          <Link to="/" className="group flex items-center gap-2">
+            <img
+              src="/images/delphi-pythia-icon-glyph-dark.jpg"
+              alt=""
+              className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
+            />
+            <span className="text-sm font-semibold tracking-wide text-white/90 group-hover:text-white">
+              pythh.ai
+            </span>
+            <span className="text-xs tracking-[0.25em] text-white/40 group-hover:text-white/60 hidden sm:inline">
+              SIGNAL SCIENCE
+            </span>
           </Link>
           <nav className="flex gap-6 text-sm text-white/50">
             <Link to="/rankings" className="hover:text-white transition-colors">Rankings</Link>
@@ -165,7 +180,7 @@ export default function PortfolioPage() {
             </span>
           </div>
           <h1 className="text-4xl font-bold mb-3 tracking-tight">
-            Our best startup picks.
+            The Oracle's Picks
           </h1>
           <p className="text-white/60 text-base max-w-2xl leading-relaxed">
             Every startup that crosses a GOD score of 70 gets added to the Pythh virtual fund.
@@ -197,19 +212,25 @@ export default function PortfolioPage() {
 
         {/* ── Filters ── */}
         <div className="flex gap-2 mb-6">
-          {(['all', 'active', 'exited'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors ${
-                filter === f
-                  ? 'border-emerald-400 text-emerald-400'
-                  : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'
-              }`}
-            >
-              {f} {f === 'all' ? `(${entries.length})` : f === 'active' ? `(${entries.filter(e => e.status === 'active').length})` : `(${exits.length})`}
-            </button>
-          ))}
+          {(['all', 'active', 'exited'] as const).map((f) => {
+            const count = f === 'all' ? entries.length : f === 'active' ? entries.filter(e => e.status === 'active').length : exits.length;
+            return (
+              <button
+                key={f}
+                onClick={() => {
+                  setFilter(f);
+                  setShowAll(false); // Reset to collapsed when changing filter
+                }}
+                className={`px-4 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors ${
+                  filter === f
+                    ? 'border-emerald-400 text-emerald-400'
+                    : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'
+                }`}
+              >
+                {f} ({count})
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Content ── */}
@@ -223,11 +244,23 @@ export default function PortfolioPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-white/40">No entries yet. Portfolio builds automatically as startups cross GOD 70.</div>
         ) : (
-          <div className="space-y-4">
-            {filtered.map((entry) => (
-              <PortfolioCard key={entry.id} entry={entry} />
-            ))}
-          </div>
+          <>
+            <div className="space-y-4">
+              {displayedEntries.map((entry) => (
+                <PortfolioCard key={entry.id} entry={entry} />
+              ))}
+            </div>
+            {hasMore && (
+              <div className="mt-8 text-center">
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="px-6 py-2 border border-cyan-400/50 text-cyan-400 rounded-lg hover:border-cyan-400 hover:text-cyan-300 transition-colors text-sm font-semibold"
+                >
+                  {showAll ? 'Show Less' : `Show All (${filtered.length})`}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── How We Pick ── */}
