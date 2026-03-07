@@ -10,162 +10,336 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { getSignalStrength, formatTimeAgo } from '../utils/signalHelpers';
 import { SignalResult } from '../types/signals';
+import { supabase } from '../lib/supabase';
+import { withErrorMonitoring } from '../lib/dbErrorMonitor';
 
 export default function SignalResultsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const url = searchParams.get('url') || 'acme-robotics.com';
+  const url = searchParams.get('url') || '';
   
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [showContent, setShowContent] = useState(false);
+  const [signals, setSignals] = useState<SignalResult[]>([]);
+  const [startupName, setStartupName] = useState<string>('');
+  const [stats, setStats] = useState({
+    totalInvestors: 0,
+    topScore: 0,
+    stage: 'N/A',
+    avgCheck: '$12M'
+  });
+  const [godScore, setGodScore] = useState<{
+    total: number | null;
+    team: number | null;
+    traction: number | null;
+    market: number | null;
+    product: number | null;
+    vision: number | null;
+  }>({
+    total: null,
+    team: null,
+    traction: null,
+    market: null,
+    product: null,
+    vision: null,
+  });
+  const [signalScores, setSignalScores] = useState<{
+    total: number | null;
+    founderLanguageShift: number | null;
+    investorReceptivity: number | null;
+    newsMomentum: number | null;
+    capitalConvergence: number | null;
+    executionVelocity: number | null;
+  }>({
+    total: null,
+    founderLanguageShift: null,
+    investorReceptivity: null,
+    newsMomentum: null,
+    capitalConvergence: null,
+    executionVelocity: null,
+  });
+  const [timingInsights, setTimingInsights] = useState<{
+    bestTimeToReachOut: string;
+    receptivityWindow: string;
+    recentActivity: string;
+  } | null>(null);
 
-  // Simulate analysis
+  // Fetch signals from database
   useEffect(() => {
-    const timer = setInterval(() => {
+    if (!url) {
+      setLoading(false);
+      return;
+    }
+
+    let progressTimer: NodeJS.Timeout;
+    let cancelled = false;
+
+    async function fetchSignals() {
+      try {
+        // Step 1: Resolve startup from URL
+        const { data: rpcResult, error: rpcErr } = await withErrorMonitoring(
+          'SignalResultsPage',
+          'resolve_startup_by_url',
+          () => supabase.rpc('resolve_startup_by_url', { p_url: url }),
+          { url }
+        );
+
+        if (rpcErr || !rpcResult?.found || !rpcResult?.startup_id) {
+          console.error('Failed to resolve startup:', rpcErr);
+          setLoading(false);
+          return;
+        }
+
+        const startupId = rpcResult.startup_id;
+
+        // Step 2: Fetch startup details for name, stats, and GOD scores
+        const { data: startup, error: startupErr } = await supabase
+          .from('startup_uploads')
+          .select('name, stage, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+          .eq('id', startupId)
+          .single();
+
+        if (startup) {
+          setStartupName(startup.name || url);
+          setStats(prev => ({
+            ...prev,
+            stage: startup.stage || 'N/A'
+          }));
+          setGodScore({
+            total: startup.total_god_score,
+            team: startup.team_score,
+            traction: startup.traction_score,
+            market: startup.market_score,
+            product: startup.product_score,
+            vision: startup.vision_score,
+          });
+        }
+
+        // Step 2b: Fetch signal scores
+        const { data: signalData } = await supabase
+          .from('startup_signal_scores')
+          .select('signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity')
+          .eq('startup_id', startupId)
+          .single();
+
+        if (signalData) {
+          setSignalScores({
+            total: signalData.signals_total,
+            founderLanguageShift: signalData.founder_language_shift,
+            investorReceptivity: signalData.investor_receptivity,
+            newsMomentum: signalData.news_momentum,
+            capitalConvergence: signalData.capital_convergence,
+            executionVelocity: signalData.execution_velocity,
+          });
+        }
+
+        // Step 3: Fetch top matches with investor details
+        const { data: matches, error: matchErr } = await withErrorMonitoring(
+          'SignalResultsPage',
+          'fetch_matches',
+          () => supabase
+            .from('startup_investor_matches')
+            .select(`
+              investor_id,
+              match_score,
+              reasoning,
+              why_you_match,
+              fit_analysis,
+              created_at,
+              investors!inner(
+                id,
+                name,
+                firm,
+                title,
+                sectors,
+                stage,
+                check_size_min,
+                check_size_max
+              )
+            `)
+            .eq('startup_id', startupId)
+            .gte('match_score', 50)
+            .order('match_score', { ascending: false })
+            .limit(5),
+          { startupId }
+        );
+
+        if (matchErr) {
+          console.error('Failed to fetch matches:', matchErr);
+          setLoading(false);
+          return;
+        }
+
+        if (!matches || matches.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        // Step 4: Transform to SignalResult format
+        const transformedSignals: SignalResult[] = matches.map((m: any) => {
+          const investor = m.investors;
+          const matchScore = Math.round(m.match_score || 0);
+          
+          // Parse lookingFor from reasoning or why_you_match
+          const lookingFor = parseLookingFor(m.reasoning || m.why_you_match || m.fit_analysis || '');
+          
+          // Calculate breakdown from match score
+          const breakdown = {
+            portfolioFit: Math.round(matchScore * 0.3),
+            stageMatch: Math.round(matchScore * 0.25),
+            sectorVelocity: Math.round(matchScore * 0.25),
+            geoFit: Math.round(matchScore * 0.2)
+          };
+
+          // Calculate composition (simplified from match score)
+          const composition = {
+            recentActivity: Math.round(matchScore / 10),
+            portfolioAdjacency: Math.round(matchScore / 8),
+            thesisAlignment: Math.round(matchScore / 12),
+            stageMatch: Math.round(matchScore / 9)
+          };
+
+          // Calculate prediction
+          const prediction = {
+            outreachProbability: Math.min(95, Math.round(matchScore * 0.8)),
+            likelyTimeframe: matchScore >= 80 ? '7-14 days' : matchScore >= 70 ? '14-21 days' : matchScore >= 60 ? '21-30 days' : '30-60 days',
+            trigger: 'High match score indicates strong alignment'
+          };
+
+          // Get initials from firm or name
+          const initials = investor.firm 
+            ? investor.firm.substring(0, 2).toUpperCase()
+            : investor.name 
+            ? investor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)
+            : 'VC';
+
+          return {
+            investor: {
+              id: investor.id,
+              name: investor.name || 'Unknown',
+              firm: investor.firm || 'Unknown Firm',
+              title: investor.title || 'Partner',
+              initials,
+              practice: investor.sectors?.[0] || ''
+            },
+            signalStrength: matchScore,
+            timestamp: m.created_at ? new Date(m.created_at) : new Date(),
+            lookingFor,
+            matchBreakdown: breakdown,
+            composition,
+            prediction,
+            recentContext: [] // Could be populated from investor activity if available
+          };
+        });
+
+        // Update stats
+        setStats({
+          totalInvestors: transformedSignals.length,
+          topScore: transformedSignals[0]?.signalStrength || 0,
+          stage: startup?.stage || 'N/A',
+          avgCheck: calculateAvgCheck(matches)
+        });
+
+        setSignals(transformedSignals);
+
+        // Step 5: Calculate timing insights based on matches
+        if (transformedSignals.length > 0) {
+          const topMatch = transformedSignals[0];
+          const avgScore = transformedSignals.reduce((sum, s) => sum + s.signalStrength, 0) / transformedSignals.length;
+          
+          let bestTime = 'Next 2-4 weeks';
+          let receptivity = 'Moderate';
+          let activity = 'Active';
+          
+          if (avgScore >= 80) {
+            bestTime = 'This week';
+            receptivity = 'High';
+            activity = 'Very active';
+          } else if (avgScore >= 70) {
+            bestTime = 'Next 1-2 weeks';
+            receptivity = 'High';
+            activity = 'Active';
+          } else if (avgScore >= 60) {
+            bestTime = 'Next 2-4 weeks';
+            receptivity = 'Moderate';
+            activity = 'Moderate';
+          } else {
+            bestTime = 'Next 4-6 weeks';
+            receptivity = 'Low';
+            activity = 'Limited';
+          }
+
+          setTimingInsights({
+            bestTimeToReachOut: bestTime,
+            receptivityWindow: receptivity,
+            recentActivity: activity,
+          });
+        }
+
+        setLoading(false);
+        setShowContent(true);
+      } catch (err) {
+        console.error('Failed to fetch signals:', err);
+        setLoading(false);
+      }
+    }
+
+    // Progress simulation
+    progressTimer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
-          clearInterval(timer);
-          setTimeout(() => {
-            setLoading(false);
-            setShowContent(true);
-          }, 300);
+          clearInterval(progressTimer);
           return 100;
         }
         return prev + 2;
       });
     }, 40);
 
-    return () => clearInterval(timer);
-  }, []);
+    fetchSignals();
 
-  // Mock data - 5 top signals (using real investor UUIDs from database)
-  const signals: SignalResult[] = [
-    {
-      investor: {
-        id: '32b659b6-c483-4f31-9b34-c80f15f56eac', // Shaun Maguire - Sequoia Capital
-        name: 'Shaun Maguire',
-        firm: 'Sequoia Capital',
-        title: 'Partner',
-        initials: 'SC',
-        practice: 'Hardware & Robotics Practice'
-      },
-      signalStrength: 82,
-      timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-      lookingFor: [
-        'Labor automation with proven unit economics',
-        'Series A stage ($8-15M typical check)',
-        'Manufacturing partnerships (Asia preferred)',
-        '3-5 customer deployments minimum'
-      ],
-      matchBreakdown: {
-        portfolioFit: 94,
-        stageMatch: 88,
-        sectorVelocity: 92,
-        geoFit: 85
-      },
-      composition: {
-        recentActivity: 8,
-        portfolioAdjacency: 10,
-        thesisAlignment: 7,
-        stageMatch: 9
-      },
-      prediction: {
-        outreachProbability: 67,
-        likelyTimeframe: '7-14 days',
-        trigger: 'Series A announcement or customer milestone'
-      },
-      recentContext: [
-        { date: 'Dec 2025', event: 'Led $12M Series A in Plus One Robotics' },
-        { date: 'Nov 2025', event: 'Wrote "Labor Automation" thesis post' },
-        { date: 'Oct 2025', event: 'Attended RoboBusiness (where you presented)' }
-      ]
-    },
-    {
-      investor: {
-        id: 'ea67baeb-12ba-47f2-b462-7574159d08d8', // Dan Boneh - Andreessen Horowitz
-        name: 'Dan Boneh',
-        firm: 'Andreessen Horowitz',
-        title: 'Co-Founder',
-        initials: 'MA'
-      },
-      signalStrength: 78,
-      timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
-      lookingFor: [
-        'Deep tech with real-world applications',
-        'Series A-B ($10-25M rounds)',
-        'Strong technical founders',
-        'Clear path to scale'
-      ],
-      matchBreakdown: { portfolioFit: 91, stageMatch: 85, sectorVelocity: 88, geoFit: 82 },
-      composition: { recentActivity: 7, portfolioAdjacency: 9, thesisAlignment: 8, stageMatch: 8 },
-      prediction: { outreachProbability: 62, likelyTimeframe: '14-21 days' },
-      recentContext: []
-    },
-    {
-      investor: {
-        id: 'demo-founders-fund', // Demo ID - Founders Fund not in database yet
-        name: 'Brian Singerman',
-        firm: 'Founders Fund',
-        title: 'Partner',
-        initials: 'BS'
-      },
-      signalStrength: 74,
-      timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000),
-      lookingFor: [
-        'Contrarian bets in automation',
-        'Series A stage',
-        'Hardware-software integration',
-        'Manufacturing capability'
-      ],
-      matchBreakdown: { portfolioFit: 87, stageMatch: 90, sectorVelocity: 85, geoFit: 78 },
-      composition: { recentActivity: 6, portfolioAdjacency: 9, thesisAlignment: 7, stageMatch: 9 },
-      prediction: { outreachProbability: 58, likelyTimeframe: '21-30 days' },
-      recentContext: []
-    },
-    {
-      investor: {
-        id: '966bf9f8-c446-4851-aa02-69f42ef0ce11', // Greylock Ventures
-        name: 'Greylock Ventures',
-        firm: 'Greylock Partners',
-        title: 'Partner',
-        initials: 'RH'
-      },
-      signalStrength: 71,
-      timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000),
-      lookingFor: [
-        'Platform plays in B2B',
-        'Series A-B rounds',
-        'Network effects potential',
-        'Enterprise sales motion'
-      ],
-      matchBreakdown: { portfolioFit: 83, stageMatch: 88, sectorVelocity: 80, geoFit: 85 },
-      composition: { recentActivity: 5, portfolioAdjacency: 8, thesisAlignment: 7, stageMatch: 8 },
-      prediction: { outreachProbability: 54, likelyTimeframe: '30-45 days' },
-      recentContext: []
-    },
-    {
-      investor: {
-        id: '06aec117-cd04-47a4-a26c-9102130c1f0b', // Vinod Khosla - Khosla Ventures
-        name: 'Vinod Khosla',
-        firm: 'Khosla Ventures',
-        title: 'Founder',
-        initials: 'VK'
-      },
-      signalStrength: 68,
-      timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000),
-      lookingFor: [
-        'Hard tech with impact',
-        'Early-stage bets',
-        'Climate/efficiency angle',
-        'Big vision founders'
-      ],
-      matchBreakdown: { portfolioFit: 79, stageMatch: 82, sectorVelocity: 77, geoFit: 80 },
-      composition: { recentActivity: 5, portfolioAdjacency: 7, thesisAlignment: 8, stageMatch: 8 },
-      prediction: { outreachProbability: 51, likelyTimeframe: '30-60 days' },
-      recentContext: []
+    return () => {
+      cancelled = true;
+      clearInterval(progressTimer);
+    };
+  }, [url]);
+
+  // Helper function to parse lookingFor from text
+  function parseLookingFor(text: string | null): string[] {
+    if (!text) return ['Strong alignment with portfolio', 'Stage match', 'Sector focus'];
+    
+    // Try to extract key points from reasoning text
+    const sentences = text.split(/[.!?]\s+/).filter(s => s.length > 20);
+    if (sentences.length >= 3) {
+      return sentences.slice(0, 4);
     }
-  ];
+    
+    // Fallback to generic points
+    return [
+      'Strong alignment with portfolio',
+      'Stage match',
+      'Sector focus',
+      'Geographic fit'
+    ];
+  }
+
+  // Helper to calculate average check size
+  function calculateAvgCheck(matches: any[]): string {
+    const checks = matches
+      .map(m => {
+        const inv = m.investors;
+        if (inv.check_size_min && inv.check_size_max) {
+          return (inv.check_size_min + inv.check_size_max) / 2;
+        }
+        return null;
+      })
+      .filter((v): v is number => v !== null);
+    
+    if (checks.length === 0) return '$12M';
+    const avg = checks.reduce((a, b) => a + b, 0) / checks.length;
+    return `$${Math.round(avg)}M`;
+  }
+
 
   if (loading) {
     return (
@@ -191,6 +365,27 @@ export default function SignalResultsPage() {
               {progress >= 60 && progress < 90 && 'Calculating signal strength...'}
               {progress >= 90 && 'Preparing your results...'}
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (signals.length === 0 && !loading) {
+    return (
+      <div className="min-h-screen bg-black text-white relative overflow-hidden">
+        <div className="max-w-5xl mx-auto px-6 py-20 relative z-10">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold mb-4">No signals found</h1>
+            <p className="text-lg text-white/60 mb-8">
+              We couldn't find investor signals for {url}
+            </p>
+            <Link 
+              to="/" 
+              className="px-6 py-3 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg text-sm font-medium border border-cyan-500/30 transition"
+            >
+              Try another URL
+            </Link>
           </div>
         </div>
       </div>
@@ -235,24 +430,155 @@ export default function SignalResultsPage() {
         </div>
 
         {/* Stats Banner */}
-        <div className="grid grid-cols-4 gap-4 mb-12">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <div className="text-2xl font-bold text-cyan-400 mb-1">60</div>
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="border border-white/10 rounded-lg p-4">
+            <div className="text-2xl font-bold text-cyan-400 mb-1">{stats.totalInvestors}</div>
             <div className="text-xs text-white/50 uppercase tracking-wider">Investors Signaling</div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <div className="text-2xl font-bold text-green-400 mb-1" style={{ textShadow: '0 0 15px rgba(74, 222, 128, 0.5)' }}>82</div>
+          <div className="border border-white/10 rounded-lg p-4">
+            <div className="text-2xl font-bold text-green-400 mb-1">{stats.topScore}</div>
             <div className="text-xs text-white/50 uppercase tracking-wider">Top Signal Score</div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <div className="text-2xl font-bold text-amber-500 mb-1" style={{ textShadow: '0 0 15px rgba(245, 158, 11, 0.5)' }}>Series A</div>
+          <div className="border border-white/10 rounded-lg p-4">
+            <div className="text-2xl font-bold text-amber-500 mb-1">{stats.stage}</div>
             <div className="text-xs text-white/50 uppercase tracking-wider">Capital Pushing →</div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <div className="text-2xl font-bold text-purple-400 mb-1" style={{ textShadow: '0 0 15px rgba(192, 132, 252, 0.5)' }}>$12M</div>
+          <div className="border border-white/10 rounded-lg p-4">
+            <div className="text-2xl font-bold text-purple-400 mb-1">{stats.avgCheck}</div>
             <div className="text-xs text-white/50 uppercase tracking-wider">Avg Check Size</div>
           </div>
         </div>
+
+        {/* GOD Score & Breakdown */}
+        {godScore.total !== null && (
+          <div className="mb-8 border border-white/10 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-white">GOD Score</h2>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-emerald-400">{Math.round(godScore.total)}</div>
+                <div className="text-xs text-white/50">/ 100</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-5 gap-4">
+              <div className="border-l border-white/10 pl-4">
+                <div className="text-xs text-white/50 mb-1">Team</div>
+                <div className="text-lg font-semibold text-white">{godScore.team !== null ? Math.round(godScore.team) : '—'}</div>
+              </div>
+              <div className="border-l border-white/10 pl-4">
+                <div className="text-xs text-white/50 mb-1">Traction</div>
+                <div className="text-lg font-semibold text-white">{godScore.traction !== null ? Math.round(godScore.traction) : '—'}</div>
+              </div>
+              <div className="border-l border-white/10 pl-4">
+                <div className="text-xs text-white/50 mb-1">Market</div>
+                <div className="text-lg font-semibold text-white">{godScore.market !== null ? Math.round(godScore.market) : '—'}</div>
+              </div>
+              <div className="border-l border-white/10 pl-4">
+                <div className="text-xs text-white/50 mb-1">Product</div>
+                <div className="text-lg font-semibold text-white">{godScore.product !== null ? Math.round(godScore.product) : '—'}</div>
+              </div>
+              <div className="border-l border-white/10 pl-4">
+                <div className="text-xs text-white/50 mb-1">Vision</div>
+                <div className="text-lg font-semibold text-white">{godScore.vision !== null ? Math.round(godScore.vision) : '—'}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Signal Score Breakdown */}
+        {signalScores.total !== null && (
+          <div className="mb-8 border border-white/10 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-white">Signal Score</h2>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-cyan-400">{signalScores.total.toFixed(1)}</div>
+                <div className="text-xs text-white/50">/ 10</div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-white/70">Founder Language Shift</span>
+                  <span className="text-sm font-semibold text-white">{signalScores.founderLanguageShift !== null ? signalScores.founderLanguageShift.toFixed(1) : '—'} / 2.0</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-cyan-400 rounded-full"
+                    style={{ width: `${signalScores.founderLanguageShift !== null ? (signalScores.founderLanguageShift / 2.0) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-white/70">Investor Receptivity</span>
+                  <span className="text-sm font-semibold text-white">{signalScores.investorReceptivity !== null ? signalScores.investorReceptivity.toFixed(1) : '—'} / 2.5</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-cyan-400 rounded-full"
+                    style={{ width: `${signalScores.investorReceptivity !== null ? (signalScores.investorReceptivity / 2.5) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-white/70">News Momentum</span>
+                  <span className="text-sm font-semibold text-white">{signalScores.newsMomentum !== null ? signalScores.newsMomentum.toFixed(1) : '—'} / 1.5</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-cyan-400 rounded-full"
+                    style={{ width: `${signalScores.newsMomentum !== null ? (signalScores.newsMomentum / 1.5) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-white/70">Capital Convergence</span>
+                  <span className="text-sm font-semibold text-white">{signalScores.capitalConvergence !== null ? signalScores.capitalConvergence.toFixed(1) : '—'} / 2.0</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-cyan-400 rounded-full"
+                    style={{ width: `${signalScores.capitalConvergence !== null ? (signalScores.capitalConvergence / 2.0) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-white/70">Execution Velocity</span>
+                  <span className="text-sm font-semibold text-white">{signalScores.executionVelocity !== null ? signalScores.executionVelocity.toFixed(1) : '—'} / 2.0</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-cyan-400 rounded-full"
+                    style={{ width: `${signalScores.executionVelocity !== null ? (signalScores.executionVelocity / 2.0) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Timing Insights */}
+        {timingInsights && (
+          <div className="mb-8 border border-white/10 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-white mb-6">Timing Insights</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="border-l border-cyan-400/30 pl-4">
+                <div className="text-xs text-white/50 mb-1 uppercase tracking-wider">Best Time to Reach Out</div>
+                <div className="text-lg font-semibold text-cyan-400">{timingInsights.bestTimeToReachOut}</div>
+              </div>
+              <div className="border-l border-cyan-400/30 pl-4">
+                <div className="text-xs text-white/50 mb-1 uppercase tracking-wider">Receptivity Window</div>
+                <div className="text-lg font-semibold text-cyan-400">{timingInsights.receptivityWindow}</div>
+              </div>
+              <div className="border-l border-cyan-400/30 pl-4">
+                <div className="text-xs text-white/50 mb-1 uppercase tracking-wider">Recent Activity</div>
+                <div className="text-lg font-semibold text-cyan-400">{timingInsights.recentActivity}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Compact Signal Cards */}
         <div className="space-y-4 mb-12">
@@ -260,8 +586,8 @@ export default function SignalResultsPage() {
             const strength = getSignalStrength(signal.signalStrength);
             return (
               <div 
-                key={index}
-                className="bg-white/5 border border-white/10 hover:border-cyan-500/30 rounded-2xl p-6 transition-all hover:bg-white/10"
+                key={signal.investor.id || index}
+                className="border border-white/10 hover:border-cyan-400/50 rounded-lg p-6 transition-all"
                 style={{ animation: `fadeIn 0.3s ease-out ${0.5 + index * 0.1}s both` }}
               >
                 <div className="flex items-center justify-between">
@@ -277,13 +603,13 @@ export default function SignalResultsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-6 text-sm text-white/70">
                       <div>
-                        <span className="text-white/50">focus:</span> {signal.lookingFor[0].split(' ').slice(0, 3).join(' ')}
+                        <span className="text-white/50">focus:</span> {signal.lookingFor[0]?.split(' ').slice(0, 3).join(' ') || 'Strong alignment'}
                       </div>
                       <div>
-                        <span className="text-white/50">stage:</span> Series A
+                        <span className="text-white/50">stage:</span> {stats.stage}
                       </div>
                       <div>
-                        <span className="text-white/50">size:</span> $8-15M
+                        <span className="text-white/50">size:</span> {stats.avgCheck}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-white/50">signal:</span> 
@@ -306,34 +632,36 @@ export default function SignalResultsPage() {
         </div>
 
         {/* Why They Match */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 mb-12">
-          <h2 className="text-2xl font-bold mb-6">Why they match</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Portfolio Fit</div>
-              <div className="text-xl font-bold text-cyan-400 mb-1">94%</div>
-              <div className="text-sm text-white/70">They've backed 3 similar robotics companies at your stage</div>
-            </div>
-            <div>
-              <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Sector Velocity</div>
-              <div className="text-xl font-bold text-cyan-400 mb-1">5 deals</div>
-              <div className="text-sm text-white/70">In automation space in last 12 months</div>
-            </div>
-            <div>
-              <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Recent Activity</div>
-              <div className="text-xl font-bold text-cyan-400 mb-1">4 hours ago</div>
-              <div className="text-sm text-white/70">Latest signal from Sequoia Capital</div>
-            </div>
-            <div>
-              <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Outreach Window</div>
-              <div className="text-xl font-bold text-cyan-400 mb-1">7-14 days</div>
-              <div className="text-sm text-white/70">Predicted timeframe for top match</div>
+        {signals.length > 0 && (
+          <div className="border border-white/10 rounded-lg p-8 mb-12">
+            <h2 className="text-2xl font-bold mb-6">Why they match</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Portfolio Fit</div>
+                <div className="text-xl font-bold text-cyan-400 mb-1">{signals[0].matchBreakdown.portfolioFit}%</div>
+                <div className="text-sm text-white/70">Strong alignment with portfolio companies</div>
+              </div>
+              <div>
+                <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Sector Velocity</div>
+                <div className="text-xl font-bold text-cyan-400 mb-1">{signals[0].matchBreakdown.sectorVelocity}%</div>
+                <div className="text-sm text-white/70">Active in your sector</div>
+              </div>
+              <div>
+                <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Recent Activity</div>
+                <div className="text-xl font-bold text-cyan-400 mb-1">{formatTimeAgo(signals[0].timestamp)}</div>
+                <div className="text-sm text-white/70">Latest signal from {signals[0].investor.firm}</div>
+              </div>
+              <div>
+                <div className="text-sm text-white/50 uppercase tracking-wider mb-2">Outreach Window</div>
+                <div className="text-xl font-bold text-cyan-400 mb-1">{signals[0].prediction.likelyTimeframe}</div>
+                <div className="text-sm text-white/70">Predicted timeframe for top match</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* What to Do Next */}
-        <div className="bg-gradient-to-br from-cyan-500/10 to-teal-500/10 border border-cyan-500/20 rounded-2xl p-8">
+        <div className="border border-cyan-400/30 rounded-lg p-8">
           <h2 className="text-2xl font-bold mb-6">What to do next</h2>
           <div className="space-y-4">
             <div className="flex items-start gap-4">
@@ -341,8 +669,8 @@ export default function SignalResultsPage() {
                 <span className="text-cyan-400 font-bold">1</span>
               </div>
               <div>
-                <div className="font-semibold mb-1">Publish technical proof</div>
-                <div className="text-sm text-white/70">Add GitHub repo with demos to boost credibility (+15 to GOD score)</div>
+                <div className="font-semibold mb-1">Review your matches</div>
+                <div className="text-sm text-white/70">These investors have the strongest signal alignment with your startup</div>
               </div>
             </div>
             <div className="flex items-start gap-4">
@@ -350,8 +678,8 @@ export default function SignalResultsPage() {
                 <span className="text-cyan-400 font-bold">2</span>
               </div>
               <div>
-                <div className="font-semibold mb-1">Add customer ROI data</div>
-                <div className="text-sm text-white/70">Quantified results prove labor automation thesis (+12 to sector fit)</div>
+                <div className="font-semibold mb-1">Prepare your pitch</div>
+                <div className="text-sm text-white/70">Tailor your approach based on each investor's focus areas</div>
               </div>
             </div>
             <div className="flex items-start gap-4">
@@ -359,8 +687,8 @@ export default function SignalResultsPage() {
                 <span className="text-cyan-400 font-bold">3</span>
               </div>
               <div>
-                <div className="font-semibold mb-1">Reframe as "automation infrastructure"</div>
-                <div className="text-sm text-white/70">23 investors shifted thesis to this positioning (+18 to alignment)</div>
+                <div className="font-semibold mb-1">Reach out strategically</div>
+                <div className="text-sm text-white/70">Use the predicted timeframe to time your outreach</div>
               </div>
             </div>
           </div>

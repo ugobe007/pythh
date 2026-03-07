@@ -153,6 +153,14 @@ export default function PythhHome() {
         if (!cancelled) setInvestorSignals(signals);
       } catch (err) {
         console.error('Failed to fetch quality investors:', err);
+        // Log detailed error for debugging
+        if (err instanceof Error) {
+          console.error('Error details:', {
+            message: err.message,
+            stack: err.stack,
+            name: err.name
+          });
+        }
         // Falls back to STATIC_INVESTOR_SIGNALS (initial state)
       }
     }

@@ -9,6 +9,8 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBilling } from '../../hooks/useBilling';
+import { useOracleStartupId } from '../../hooks/useOracleStartupId';
+import { withErrorMonitoring } from '../../lib/dbErrorMonitor';
 
 /* ──────────────────────────── Types ──────────────────────────── */
 
@@ -101,6 +103,7 @@ function generatePlaybooks(matches: any[]): InvestorPlaybook[] {
 export default function SignalPlaybook() {
   const { user } = useAuth();
   const { plan } = useBilling();
+  const startupId = useOracleStartupId();
 
   const [playbooks, setPlaybooks] = useState<InvestorPlaybook[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,25 +114,184 @@ export default function SignalPlaybook() {
 
   useEffect(() => {
     loadPlaybooks();
-  }, [user]);
+  }, [user, startupId]);
 
   async function loadPlaybooks() {
     try {
-      const { data: matches } = await supabase
+      setLoading(true);
+      
+      // Use startupId from hook (URL param or localStorage) or fallback to user's startup
+      let targetStartupId: string | null = startupId;
+      
+      if (!targetStartupId && user) {
+        const { data: userStartup } = await supabase
+          .from('startup_uploads')
+          .select('id')
+          .eq('created_by', user.id)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (userStartup) {
+          targetStartupId = userStartup.id;
+        }
+      }
+
+      // Fetch matches with full investor details
+      let query = supabase
         .from('startup_investor_matches')
-        .select('investor_id, match_score, investor:investors(name, firm_name)')
+        .select(`
+          investor_id,
+          match_score,
+          reasoning,
+          why_you_match,
+          fit_analysis,
+          investors!inner(
+            id,
+            name,
+            firm,
+            sectors,
+            stage,
+            investment_thesis,
+            notable_investments,
+            portfolio_companies,
+            check_size_min,
+            check_size_max,
+            last_investment_date,
+            investment_pace_per_year,
+            preferred_intro_method
+          )
+        `)
         .order('match_score', { ascending: false })
         .limit(10);
 
+      if (targetStartupId) {
+        query = query.eq('startup_id', targetStartupId);
+      }
+
+      const { data: matches, error } = await withErrorMonitoring(
+        'SignalPlaybook',
+        'fetch_matches',
+        () => query,
+        { startupId: targetStartupId }
+      );
+
+      if (error) {
+        console.error('Failed to load playbooks:', error);
+        throw error;
+      }
+
       if (matches && matches.length > 0) {
-        const normalized = matches.map((m: any) => ({
-          investor_id: m.investor_id,
-          investor_name: m.investor?.name || 'Unknown',
-          firm_name: m.investor?.firm_name || '',
-          match_score: m.match_score,
-        }));
-        setPlaybooks(generatePlaybooks(normalized));
+        // Transform database data to playbook format
+        const playbooks: InvestorPlaybook[] = matches.map((m: any, i: number) => {
+          const investor = m.investors;
+          const matchScore = Math.round(m.match_score || 0);
+          
+          // Determine alignment grade from match score
+          const alignmentGrade: 'A' | 'B' | 'C' | 'D' = 
+            matchScore >= 85 ? 'A' : 
+            matchScore >= 70 ? 'B' : 
+            matchScore >= 55 ? 'C' : 'D';
+
+          // Determine timing based on last investment and pace
+          const lastInvestment = investor.last_investment_date 
+            ? new Date(investor.last_investment_date)
+            : null;
+          const daysSinceLastInvestment = lastInvestment
+            ? Math.floor((Date.now() - lastInvestment.getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+          
+          const investmentPace = investor.investment_pace_per_year || 12; // defaults to 12 per year
+          const avgDaysBetweenInvestments = 365 / investmentPace;
+          
+          let timing: 'now' | 'soon' | 'later' = 'later';
+          let timingReason = 'Building relationship for future opportunity';
+          let timingWindow = '2-3 months';
+          
+          if (daysSinceLastInvestment !== null && daysSinceLastInvestment < avgDaysBetweenInvestments * 0.5) {
+            timing = 'now';
+            timingReason = 'Active deployment cycle — recent investments indicate active fund';
+            timingWindow = '1-2 weeks';
+          } else if (daysSinceLastInvestment !== null && daysSinceLastInvestment < avgDaysBetweenInvestments) {
+            timing = 'soon';
+            timingReason = 'Currently evaluating sector — approach in 2-4 weeks';
+            timingWindow = '2-6 weeks';
+          }
+
+          // Extract key signals from reasoning or fit_analysis
+          const reasoningText = m.reasoning || m.why_you_match || m.fit_analysis || '';
+          const keySignals = reasoningText
+            ? reasoningText.split(/[.!?]\s+/).filter(s => s.length > 20).slice(0, 3)
+            : [
+                'Strong alignment with portfolio companies',
+                'Stage and sector match',
+                'Geographic fit'
+              ];
+
+          // Get portfolio companies for talking points
+          const portfolioCompanies = (investor.portfolio_companies || []).slice(0, 3);
+          const talkingPoints = portfolioCompanies.length > 0
+            ? [
+                `Reference their portfolio company ${portfolioCompanies[0]} — similar GTM motion`,
+                'Lead with your "aha" metric — the one that proves PMF',
+                'Frame the ask as partnership, not capital injection'
+              ]
+            : [
+                'Lead with your "aha" metric — the one that proves PMF',
+                'Frame the ask as partnership, not capital injection',
+                'Emphasize alignment with their investment thesis'
+              ];
+
+          // Get sectors for approach
+          const sectors = investor.sectors || [];
+          const primarySector = sectors[0] || 'your sector';
+          
+          return {
+            investor_id: investor.id,
+            investor_name: investor.name || 'Unknown',
+            firm: investor.firm || 'Unknown Firm',
+            match_score: matchScore,
+            alignment_grade: alignmentGrade,
+            timing: {
+              readiness: timing,
+              reason: timingReason,
+              window: timingWindow
+            },
+            approach: {
+              channel: investor.preferred_intro_method || 'Warm intro via portfolio founder',
+              opener: `Lead with your traction metrics and ${primarySector} focus — this aligns with their portfolio pattern.`,
+              key_signals: keySignals,
+              avoid: [
+                "Don't lead with competitive positioning against their portfolio companies",
+                'Avoid discussing valuation before establishing conviction'
+              ]
+            },
+            talking_points: talkingPoints,
+            conviction_triggers: [
+              'Show month-over-month retention above 85%',
+              'Reference named enterprise prospects in pipeline',
+              'Demonstrate technical moat with specific architecture choices'
+            ],
+            deal_breakers: [
+              'Red flag: cap table complexity from prior rounds',
+              'Concern: burn rate relative to revenue trajectory'
+            ],
+            warm_paths: portfolioCompanies.length > 0
+              ? [
+                  `Portfolio founder: speak to CEO of ${portfolioCompanies[0]}`,
+                  portfolioCompanies[1] ? `Mutual connection: ${portfolioCompanies[1]} founder` : 'Warm intro via accelerator network'
+                ]
+              : [
+                  'Warm intro via accelerator network',
+                  'Mutual connection through advisor network'
+                ]
+          };
+        });
+
+        setPlaybooks(playbooks);
       } else {
+        // Fallback to demo data if no matches
         setPlaybooks(generatePlaybooks(
           Array.from({ length: 8 }, (_, i) => ({
             investor_id: `demo-${i}`,
@@ -139,7 +301,9 @@ export default function SignalPlaybook() {
           }))
         ));
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to load playbooks:', err);
+      // Fallback to demo data on error
       setPlaybooks(generatePlaybooks(
         Array.from({ length: 5 }, (_, i) => ({
           investor_id: `demo-${i}`,

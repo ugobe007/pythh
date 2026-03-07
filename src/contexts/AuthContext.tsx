@@ -46,36 +46,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load user from localStorage AND Supabase on mount
   useEffect(() => {
-    // First check localStorage for backward compat
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    
-    // Then check Supabase session. If there's a session error (e.g. stale token),
-    // we log it and move on — do NOT call signOut() here because that corrupts
-    // the Supabase JS client and makes ALL subsequent supabase.* calls hang.
+    // Check Supabase session FIRST (this is the source of truth)
+    // Session persistence is now enabled, so this should work
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) {
         // Just warn and return — client remains usable for anon queries
         console.warn('[AuthContext] getSession error (ignored):', error.message);
+        // Clear stale localStorage if session is invalid
+        if (error.message.includes('expired') || error.message.includes('invalid')) {
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('isLoggedIn');
+        }
         return;
       }
+      
       if (session?.user) {
+        // Supabase session exists - use it (source of truth)
         await syncUserFromSupabase(session.user);
         loadProfile(session.user.id);
+      } else {
+        // No Supabase session - check localStorage for backward compat
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+          try {
+            const parsed = JSON.parse(savedUser);
+            setUser(parsed);
+            // Try to restore session if we have email/password (not recommended, but for backward compat)
+            console.log('[AuthContext] No Supabase session, using localStorage user');
+          } catch (err) {
+            console.warn('[AuthContext] Failed to parse saved user:', err);
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('isLoggedIn');
+          }
+        }
       }
     }).catch((err) => {
       console.warn('[AuthContext] getSession threw (ignored):', err);
     });
     
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen for auth changes (this will fire when session is restored or created)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AuthContext] Auth state changed:', event, session?.user?.id);
+      
       if (session?.user) {
         await syncUserFromSupabase(session.user);
         loadProfile(session.user.id);
       } else {
-        // Don't clear localStorage user - keep backward compat
+        // Session removed - clear state
+        setUser(null);
+        setProfile(null);
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('isLoggedIn');
       }
     });
     
@@ -145,8 +166,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    // Sign out from Supabase
-    await supabase.auth.signOut();
+    try {
+      // Sign out from Supabase (this clears the persisted session)
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('[AuthContext] Sign out error:', error);
+      }
+    } catch (err) {
+      console.error('[AuthContext] Sign out exception:', err);
+    }
     
     // Clear local state
     setUser(null);

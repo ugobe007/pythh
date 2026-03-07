@@ -310,18 +310,18 @@ function MomentumChart({ analytics }: { analytics: MatchAnalytics }) {
 function FitDistribution({ analytics }: { analytics: MatchAnalytics }) {
   const total = analytics.total || 1;
   const items = [
-    { label: 'High Fit', count: analytics.highFit, pct: Math.round((analytics.highFit / total) * 100), color: 'text-emerald-400', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30' },
-    { label: 'Good Fit', count: analytics.goodFit, pct: Math.round((analytics.goodFit / total) * 100), color: 'text-cyan-400', bg: 'bg-cyan-500/20', border: 'border-cyan-500/30' },
-    { label: 'Early Fit', count: analytics.earlyFit, pct: Math.round((analytics.earlyFit / total) * 100), color: 'text-gray-400', bg: 'bg-gray-500/20', border: 'border-gray-500/30' },
+    { label: 'High Fit', count: analytics.highFit, pct: Math.round((analytics.highFit / total) * 100), color: 'text-emerald-400', border: 'border-emerald-400/50' },
+    { label: 'Good Fit', count: analytics.goodFit, pct: Math.round((analytics.goodFit / total) * 100), color: 'text-cyan-400', border: 'border-cyan-400/50' },
+    { label: 'Early Fit', count: analytics.earlyFit, pct: Math.round((analytics.earlyFit / total) * 100), color: 'text-white/50', border: 'border-white/20' },
   ];
 
   return (
     <div className="grid grid-cols-3 gap-3">
       {items.map((item) => (
-        <div key={item.label} className={`${item.bg} border ${item.border} rounded-lg p-3 text-center`}>
+        <div key={item.label} className={`border ${item.border} rounded-lg p-3 text-center`}>
           <p className={`text-xl font-bold ${item.color}`}>{item.count}</p>
-          <p className="text-xs text-gray-500 mt-1">{item.label}</p>
-          <p className="text-[10px] text-gray-600">{item.pct}%</p>
+          <p className="text-xs text-white/50 mt-1">{item.label}</p>
+          <p className="text-[10px] text-white/40">{item.pct}%</p>
         </div>
       ))}
     </div>
@@ -392,21 +392,21 @@ export default function SignalPathDashboard({
       {/* === ROW 1: Signal Health + Match Landscape === */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LEFT: Signal Health */}
-        <div className="bg-gray-900/40 border border-zinc-800/50 rounded-xl p-6 space-y-5">
+        <div className="border border-white/10 rounded-lg p-6 space-y-5">
           <div>
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-1">Signal Health</h3>
-            <p className="text-xs text-gray-500">How investor attention is forming around your startup.</p>
+            <p className="text-xs text-white/50">How investor attention is forming around your startup.</p>
           </div>
 
           {/* Signal Score Banner */}
-          <div className="flex items-center justify-between bg-gray-800/50 rounded-lg p-4">
+          <div className="flex items-center justify-between border border-white/10 rounded-lg p-4">
             <div>
-              <p className="text-xs text-gray-500">Total Signal Score</p>
-              <p className="text-3xl font-bold text-white">{context.signals.total.toFixed(1)}<span className="text-base text-gray-500">/10</span></p>
+              <p className="text-xs text-white/50">Total Signal Score</p>
+              <p className="text-3xl font-bold text-white">{context.signals.total.toFixed(1)}<span className="text-base text-white/50">/10</span></p>
             </div>
             {context.comparison?.percentile !== undefined && (
               <div className="text-right">
-                <p className="text-xs text-gray-500">Percentile</p>
+                <p className="text-xs text-white/50">Percentile</p>
                 <p className="text-2xl font-bold text-cyan-400">
                   {context.comparison.percentile >= 99 ? 'Top 1%' : `${context.comparison.percentile}th`}
                 </p>
@@ -418,60 +418,60 @@ export default function SignalPathDashboard({
           <SignalComponents context={context} />
         </div>
 
-        {/* RIGHT: Match Landscape */}
-        <div className="bg-gray-900/40 border border-zinc-800/50 rounded-xl p-6 space-y-5">
+        {/* RIGHT: Match Profile */}
+        <div className="border border-white/10 rounded-lg p-6 space-y-5">
           <div>
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-1">Match Landscape</h3>
-            <p className="text-xs text-gray-500">{analytics.total} investors analyzed. Here's the breakdown.</p>
+            <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-1">Match Profile</h3>
+            <p className="text-xs text-white/50">{analytics.total} investors analyzed. Here's the breakdown.</p>
           </div>
 
           {/* Fit Distribution */}
           <div>
-            <p className="text-xs text-gray-500 mb-2">Fit Distribution</p>
+            <p className="text-xs text-white/50 mb-2">Fit Distribution</p>
             <FitDistribution analytics={analytics} />
           </div>
 
           {/* Momentum */}
           <div>
-            <p className="text-xs text-gray-500 mb-2">Investor Momentum</p>
+            <p className="text-xs text-white/50 mb-2">Investor Momentum</p>
             <MomentumChart analytics={analytics} />
           </div>
 
           {/* Quick Stats */}
-          <div className="flex items-center gap-4 pt-2 border-t border-zinc-800/30 text-xs text-gray-500">
-            <span>Avg Signal: <strong className="text-gray-300">{analytics.avgSignalScore}</strong></span>
-            <span>Top Signal: <strong className="text-gray-300">{analytics.topSignalScore.toFixed(1)}</strong></span>
-            <span>Unlocked: <strong className="text-gray-300">{analytics.unlockedCount}/{analytics.total}</strong></span>
+          <div className="flex items-center gap-4 pt-2 border-t border-white/10 text-xs text-white/50">
+            <span>Avg Signal: <strong className="text-white">{analytics.avgSignalScore}</strong></span>
+            <span>Top Signal: <strong className="text-white">{analytics.topSignalScore.toFixed(1)}</strong></span>
+            <span>Unlocked: <strong className="text-white">{analytics.unlockedCount}/{analytics.total}</strong></span>
           </div>
         </div>
       </div>
 
       {/* === ROW 2: GOD Score Breakdown === */}
-      <div className="bg-gray-900/40 border border-zinc-800/50 rounded-xl p-6">
+      <div className="border border-white/10 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-1">Your Position</h3>
-            <p className="text-xs text-gray-500">GOD Score breakdown — what investors see when evaluating your startup.</p>
+            <p className="text-xs text-white/50">GOD Score breakdown — what investors see when evaluating your startup.</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-500">GOD Score</p>
-            <p className="text-2xl font-bold text-white">{context.god.total}<span className="text-sm text-gray-500">/100</span></p>
+            <p className="text-2xl font-bold text-white">{context.god.total}<span className="text-sm text-white/50">/100</span></p>
           </div>
         </div>
         <GODMiniChart context={context} />
         {context.comparison && (
-          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-zinc-800/30 text-xs text-gray-500">
-            <span>Industry Avg: <strong className="text-gray-300">{context.comparison.industry_avg}</strong></span>
-            <span>Top Quartile: <strong className="text-gray-300">{context.comparison.top_quartile}</strong></span>
+          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-white/10 text-xs text-white/50">
+            <span>Industry Avg: <strong className="text-white">{context.comparison.industry_avg}</strong></span>
+            <span>Top Quartile: <strong className="text-white">{context.comparison.top_quartile}</strong></span>
             {context.comparison.sectors?.length > 0 && (
-              <span>Sectors: <strong className="text-gray-300">{context.comparison.sectors.slice(0, 3).join(', ')}</strong></span>
+              <span>Sectors: <strong className="text-white">{context.comparison.sectors.slice(0, 3).join(', ')}</strong></span>
             )}
           </div>
         )}
       </div>
 
       {/* === ROW 3: NEXT MOVES — Supabase inline style === */}
-      <div className="bg-gray-900/40 border border-zinc-800/50 rounded-xl p-6">
+      <div className="border border-white/10 rounded-lg p-6">
         <div className="mb-4">
           <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Next moves</h3>
         </div>
@@ -500,8 +500,8 @@ export default function SignalPathDashboard({
         </div>
 
         {/* Oracle — single inline line */}
-        <div className="mt-4 pt-3 border-t border-zinc-800/30 text-xs text-zinc-500">
-          Need custom outreach plans or thesis decks? <a href="/app/oracle" className="text-zinc-400 hover:text-white transition-colors">Open the Oracle →</a>
+        <div className="mt-4 pt-3 border-t border-white/10 text-xs text-white/50">
+          Need custom outreach plans or thesis decks? <a href="/app/oracle" className="text-cyan-400 hover:text-cyan-300 transition-colors border-b border-cyan-400/30 pb-0.5">Open the Oracle →</a>
         </div>
       </div>
     </div>

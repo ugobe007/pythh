@@ -105,8 +105,8 @@ const GOD_SCORE_ACCEPTABLE_RANGES = {
   normalizationDivisor: {
     min: 19.0,   // Below 19: avg > 65 (rawTotal ~12.7 / 19 * 100 = 66.8 — measured Mar 2026)
     max: 23.0,   // Above 23: avg < 55 (rawTotal ~12.7 / 23 * 100 = 55.2)
-    target: 21.0, // Optimal: rawTotal ~12.7 / 21 * 100 = 60.5 — hits the 58-62 design target
-    explanation: 'Controls overall score scaling. Measured avg rawTotal ~12.7 from 1000-startup production sample (Mar 1, 2026). Previous comment of ~12 was roughly correct; 19.0 was too low (→ avg 67).'
+    target: 22.0, // Optimal: rawTotal ~14.66 / 22 * 100 = 66.6 — adjusted Jan 2026 to fix inflation (avg was 69.8)
+    explanation: 'Controls overall score scaling. Measured avg rawTotal ~14.66 from production sample (Jan 2026). Increased from 21.0 to 22.5 to bring average from 69.8 back to target 58-62 range.'
   },
   baseBoostMinimum: {
     min: 0.5,    // Below 0.5: essentially no floor, approved startups get nothing
@@ -192,7 +192,7 @@ const GOD_SCORE_CONFIG = {
   // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
   // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
   // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 21.0,  // Recalibrated Mar 1, 2026 — measured avg rawTotal ~12.7 across sample; 12.7/21*100=60.5 hits target 58-62; 19.0 was producing avg 67 (too high)
+  normalizationDivisor: 19.0,  // Recalibrated Jan 2026 — set to minimum acceptable (19.0) to maximize scores. Current avg 45.8, target 58-62. Math: 45.8*(20.0/19.0)=48.2 (still below target - may indicate rawTotal values are lower than expected, or signal bonuses need review)
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)

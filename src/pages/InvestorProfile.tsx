@@ -20,6 +20,11 @@ import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SaveToSignalCard from '../components/SaveToSignalCard';
 import ShareButton from '../components/ShareButton';
+import { supabase } from '../lib/supabase';
+import { withErrorMonitoring } from '../lib/dbErrorMonitor';
+import { useAuth } from '../contexts/AuthContext';
+import { useOracleStartupId } from '../hooks/useOracleStartupId';
+import { Briefcase, TrendingUp, Clock, DollarSign, Award, Users, Target, Zap } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -46,207 +51,150 @@ interface InvestorData {
   signalsTheyRespondTo: string[];
   // Quiet guidance
   quietGuidance: string;
+  // Enhanced data
+  portfolioCompanies?: string[];
+  notableInvestments?: any[];
+  investmentThesis?: string;
+  bio?: string;
+  totalInvestments?: number;
+  successfulExits?: number;
+  investmentPace?: number;
+  checkSizeMin?: number;
+  checkSizeMax?: number;
+  lastInvestmentDate?: string;
+  leadsRounds?: boolean;
+  decisionMaker?: boolean;
+  preferredIntroMethod?: string;
+  avgResponseTime?: number;
+  firm?: string;
+  title?: string;
+  // Match data (if founder logged in)
+  matchScore?: number;
+  matchReasons?: string[];
 }
 
-// ═══════════════════════════════════════════════════════════════
-// INVESTOR DATA (would come from API)
-// ═══════════════════════════════════════════════════════════════
+// Helper function to clean investor name - removes artifacts like "AdministratorOperations"
+function cleanInvestorName(name: string): string {
+  if (!name) return name;
+  
+  // Remove "AdministratorOperations" prefix (case-insensitive)
+  let cleaned = name.replace(/^AdministratorOperations/i, '');
+  
+  // Handle format: "Name (Firm)" -> "Name @ Firm"
+  // Also handle: "Name(Firm)" -> "Name @ Firm"
+  cleaned = cleaned.replace(/\s*\(([^)]+)\)$/, ' @ $1');
+  
+  // Clean up any double spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
 
-const investorData: Record<string, InvestorData> = {
-  'sequoia': {
-    name: 'Sequoia Capital',
-    focus: 'Enterprise, Infra, SaaS',
-    stage: 'Seed → Series B',
-    observedSince: '2016',
+// Helper function to transform database investor to display format
+function transformInvestorData(dbInvestor: any, matchData?: { score: number; reasons: string[] }): InvestorData {
+  const sectors = dbInvestor.sectors || [];
+  const stages = dbInvestor.stage || [];
+  
+  // Clean the investor name
+  const cleanedName = cleanInvestorName(dbInvestor.name || 'Unknown Investor');
+  
+  // Parse notable investments (can be array of strings or objects)
+  let notableInvestments: any[] = [];
+  if (dbInvestor.notable_investments) {
+    if (Array.isArray(dbInvestor.notable_investments)) {
+      notableInvestments = dbInvestor.notable_investments;
+    } else if (typeof dbInvestor.notable_investments === 'string') {
+      try {
+        notableInvestments = JSON.parse(dbInvestor.notable_investments);
+      } catch {
+        notableInvestments = [];
+      }
+    }
+  }
+  
+  return {
+    name: cleanedName,
+    focus: sectors.length > 0 ? sectors.join(', ') : 'Not specified',
+    stage: stages.length > 0 ? stages.join(' → ') : 'Not specified',
+    observedSince: dbInvestor.created_at 
+      ? new Date(dbInvestor.created_at).getFullYear().toString()
+      : '—',
     behavioralPattern: [
-      'Engages after sustained momentum, not spikes',
-      'Prefers category clarity over early experimentation',
-      'Historically avoids crowded entry points',
+      dbInvestor.leads_rounds 
+        ? 'Typically leads investment rounds'
+        : 'Often participates in rounds',
+      dbInvestor.decision_maker
+        ? 'Decision maker at firm'
+        : 'Part of investment committee',
+      dbInvestor.check_size_min && dbInvestor.check_size_max
+        ? `Check size: $${(dbInvestor.check_size_min / 1000).toFixed(0)}K - $${(dbInvestor.check_size_max / 1000).toFixed(0)}K`
+        : 'Check size: Not specified',
     ],
     recentBehavior: [
-      'Increased activity in AI Infra',
-      'Quiet in FinTech APIs',
-      'Last engagement window: ~3 weeks ago',
-    ],
-    alignmentState: 'Cooling',
-    lensScore: 84.1,
-    timing: 'Cooling',
-    relativeBehavior: [
-      'Often engages later than a16z in this category',
-      'Moves earlier than Greylock during infrastructure cycles',
-    ],
-    signalsTheyRespondTo: [
-      'Hiring acceleration',
-      'Enterprise keyword emergence',
-      'Sustained category leadership signals',
-    ],
-    quietGuidance: 'Most founders monitor this investor before engaging.',
-  },
-  'general-catalyst': {
-    name: 'General Catalyst',
-    focus: 'FinTech, Enterprise, Growth',
-    stage: 'Seed → Series B',
-    observedSince: '2018',
-    behavioralPattern: [
-      'Moves quickly when thesis aligns',
-      'Prefers warm intros but responds cold',
-      'Engages during expansion phases, not contraction',
-    ],
-    recentBehavior: [
-      'Active FinTech API scanning',
-      'Stable in AI Infrastructure',
-      'Quiet in B2B SaaS',
-    ],
-    alignmentState: 'Warming',
-    lensScore: 82.4,
-    timing: 'Active',
-    relativeBehavior: [
-      'Moves faster than Sequoia in fintech',
-      'Often co-invests with QED in this category',
-    ],
-    signalsTheyRespondTo: [
-      'Revenue acceleration',
-      'Partnership announcements',
-      'Category momentum indicators',
-    ],
-    quietGuidance: 'This investor typically engages after momentum stabilizes.',
-  },
-  'a16z': {
-    name: 'a16z Fintech',
-    focus: 'FinTech, Crypto, Infra',
-    stage: 'Seed → Series C',
-    observedSince: '2019',
-    behavioralPattern: [
-      'Engages early in category formation',
-      'Favors technical founders with infrastructure background',
-      'Moves aggressively once conviction forms',
-    ],
-    recentBehavior: [
-      'Increased activity in payments infrastructure',
-      'Active in AI-adjacent fintech',
-      'Last deployment: ~2 weeks ago',
-    ],
-    alignmentState: 'Warming',
-    lensScore: 80.2,
-    timing: 'Active',
-    relativeBehavior: [
-      'Moves earlier than Sequoia in emerging categories',
-      'Often leads rounds that Index follows',
-    ],
-    signalsTheyRespondTo: [
-      'Technical talent concentration',
-      'API/infrastructure positioning',
-      'Category creation signals',
-    ],
-    quietGuidance: 'This investor typically engages after momentum stabilizes.',
-  },
-  'ribbit': {
-    name: 'Ribbit Capital',
-    focus: 'FinTech (pure play)',
-    stage: 'Seed → Series B',
-    observedSince: '2017',
-    behavioralPattern: [
-      'Deep fintech expertise drives faster diligence',
-      'Prefers founders with financial services background',
-      'Patient with regulatory complexity',
-    ],
-    recentBehavior: [
-      'Active in embedded finance',
-      'Increased scanning of payments APIs',
-      'Quiet in crypto-adjacent fintech',
-    ],
-    alignmentState: 'Warming',
-    lensScore: 78.9,
-    timing: 'Active',
-    relativeBehavior: [
-      'Moves faster than generalists in fintech',
-      'Often competes with QED for sector deals',
-    ],
-    signalsTheyRespondTo: [
-      'Regulatory moat signals',
-      'Partnership with banks/FIs',
-      'Payment volume growth',
-    ],
-    quietGuidance: 'Founders with fintech-native positioning see stronger engagement.',
-  },
-  'index': {
-    name: 'Index Ventures',
-    focus: 'Consumer, Enterprise, FinTech',
-    stage: 'Seed → Series C',
-    observedSince: '2015',
-    behavioralPattern: [
-      'Engages steadily across market cycles',
-      'Prefers product-led growth narratives',
-      'European origin means broader geo coverage',
-    ],
-    recentBehavior: [
-      'Warming in FinTech APIs',
-      'Stable across enterprise categories',
-      'Last engagement window: ~1 week ago',
+      dbInvestor.last_investment_date
+        ? `Last investment: ${new Date(dbInvestor.last_investment_date).toLocaleDateString()}`
+        : 'Investment history being tracked',
+      dbInvestor.investment_pace_per_year
+        ? `Investment pace: ~${dbInvestor.investment_pace_per_year} deals per year`
+        : 'Investment activity being monitored',
+      dbInvestor.total_investments
+        ? `Total investments: ${dbInvestor.total_investments}`
+        : 'Portfolio data being collected',
     ],
     alignmentState: 'Monitoring',
-    lensScore: 79.1,
-    timing: 'Warming',
+    lensScore: dbInvestor.investor_score || 0,
+    timing: dbInvestor.last_investment_date
+      ? (Date.now() - new Date(dbInvestor.last_investment_date).getTime() < 90 * 24 * 60 * 60 * 1000 ? 'Active' : 'Warming')
+      : 'Dormant',
     relativeBehavior: [
-      'More patient than US-only funds',
-      'Often follows conviction from European signals',
-    ],
+      dbInvestor.firm ? `Firm: ${dbInvestor.firm}` : '',
+      dbInvestor.investor_tier ? `Tier: ${dbInvestor.investor_tier}` : '',
+    ].filter(Boolean),
     signalsTheyRespondTo: [
-      'Product-led growth metrics',
-      'European expansion signals',
-      'Developer adoption indicators',
+      // Show actual market signals: sectors and stages (NOT geography, NOT behavioral patterns)
+      ...(sectors.length > 0 ? sectors.slice(0, 5) : []),
+      ...(stages.length > 0 ? stages.slice(0, 3) : []),
     ],
-    quietGuidance: 'Many founders monitor this investor before engaging.',
-  },
-  'qed': {
-    name: 'QED Investors',
-    focus: 'FinTech (pure play)',
-    stage: 'Seed → Series A',
-    observedSince: '2016',
-    behavioralPattern: [
-      'Capital One heritage = deep credit/lending expertise',
-      'Prefers data-driven founders',
-      'Patient with unit economics validation',
-    ],
-    recentBehavior: [
-      'Active in embedded lending',
-      'Stable in payments infrastructure',
-      'Quiet in B2B neobanking',
-    ],
-    alignmentState: 'Monitoring',
-    lensScore: 75.4,
-    timing: 'Warming',
-    relativeBehavior: [
-      'Often co-invests with Ribbit',
-      'Moves slower than generalists but with higher conviction',
-    ],
-    signalsTheyRespondTo: [
-      'Unit economics clarity',
-      'Data infrastructure signals',
-      'Lending/credit market positioning',
-    ],
-    quietGuidance: 'Many founders monitor this investor before engaging.',
-  },
-};
+    quietGuidance: dbInvestor.bio 
+      ? dbInvestor.bio.substring(0, 150) + (dbInvestor.bio.length > 150 ? '...' : '')
+      : 'Profile data is being enriched. Check back soon for detailed insights.',
+    // Enhanced data
+    portfolioCompanies: dbInvestor.portfolio_companies || [],
+    notableInvestments,
+    investmentThesis: dbInvestor.investment_thesis || null,
+    bio: dbInvestor.bio || null,
+    totalInvestments: dbInvestor.total_investments || null,
+    successfulExits: dbInvestor.successful_exits || null,
+    investmentPace: dbInvestor.investment_pace_per_year || null,
+    checkSizeMin: dbInvestor.check_size_min || null,
+    checkSizeMax: dbInvestor.check_size_max || null,
+    lastInvestmentDate: dbInvestor.last_investment_date || null,
+    leadsRounds: dbInvestor.leads_rounds || false,
+    decisionMaker: dbInvestor.decision_maker || false,
+    preferredIntroMethod: dbInvestor.preferred_intro_method || null,
+    avgResponseTime: dbInvestor.avg_response_time_days || null,
+    firm: dbInvestor.firm || null,
+    title: dbInvestor.title || null,
+    // Match data
+    matchScore: matchData?.score,
+    matchReasons: matchData?.reasons || [],
+  };
+}
 
-// Default for unknown IDs
+// Default for loading/error states
 const defaultInvestor: InvestorData = {
-  name: 'Unknown Investor',
-  focus: 'Unknown',
-  stage: 'Unknown',
+  name: 'Loading...',
+  focus: 'Loading...',
+  stage: 'Loading...',
   observedSince: '—',
-  behavioralPattern: [
-    'Insufficient data for pattern analysis',
-  ],
-  recentBehavior: [
-    'No recent activity detected',
-  ],
+  behavioralPattern: ['Loading investor data...'],
+  recentBehavior: ['Loading recent activity...'],
   alignmentState: 'Dormant',
   lensScore: 0,
   timing: 'Dormant',
   relativeBehavior: [],
   signalsTheyRespondTo: [],
-  quietGuidance: 'Insufficient data to provide guidance.',
+  quietGuidance: 'Loading...',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -255,15 +203,95 @@ const defaultInvestor: InvestorData = {
 
 export default function InvestorProfile() {
   const { id } = useParams();
-  const investor = investorData[id || ''] || defaultInvestor;
+  const { user, isLoggedIn } = useAuth();
+  const startupId = useOracleStartupId();
+  const [investor, setInvestor] = useState<InvestorData>(defaultInvestor);
+  const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // Demo: Check if startup is claimed
-  const startupClaimed = true;
-  const startup = {
-    name: 'FinTech API',
-    stage: 'Seed',
-  };
+  // Check if founder is logged in and has a startup
+  const startupClaimed = isLoggedIn && !!startupId;
+
+  // Load investor data from database
+  useEffect(() => {
+    async function loadInvestor() {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        
+        // Load investor data
+        const { data: dbInvestor, error } = await withErrorMonitoring(
+          'InvestorProfile',
+          'fetch_investor',
+          () => supabase
+            .from('investors')
+            .select('id, name, firm, title, sectors, stage, geography_focus, check_size_min, check_size_max, investment_thesis, bio, total_investments, successful_exits, investor_tier, investor_score, score_signals, leads_rounds, portfolio_companies, notable_investments, investment_pace_per_year, last_investment_date, decision_maker, preferred_intro_method, avg_response_time_days, created_at')
+            .eq('id', id)
+            .single(),
+          { investorId: id }
+        );
+
+        if (error) {
+          console.error('[InvestorProfile] Error loading investor:', error);
+          setInvestor({
+            ...defaultInvestor,
+            name: 'Investor Not Found',
+            quietGuidance: 'This investor profile could not be loaded. Please check the URL or try again later.',
+          });
+          setLoading(false);
+          return;
+        }
+
+        if (!dbInvestor) {
+          setLoading(false);
+          return;
+        }
+
+        // Load match data if founder is logged in
+        let matchData: { score: number; reasons: string[] } | undefined;
+        if (startupId && isLoggedIn) {
+          try {
+            const { data: match } = await supabase
+              .from('startup_investor_matches')
+              .select('match_score, reasoning, why_you_match')
+              .eq('startup_id', startupId)
+              .eq('investor_id', id)
+              .single();
+            
+            if (match) {
+              matchData = {
+                score: Math.round(match.match_score || 0),
+                reasons: [
+                  match.reasoning || '',
+                  match.why_you_match || '',
+                ].filter(Boolean).slice(0, 3),
+              };
+            }
+          } catch (matchErr) {
+            // Match not found or error - that's okay, continue without match data
+            console.log('[InvestorProfile] No match data available');
+          }
+        }
+
+        setInvestor(transformInvestorData(dbInvestor, matchData));
+      } catch (err) {
+        console.error('[InvestorProfile] Load error:', err);
+        setInvestor({
+          ...defaultInvestor,
+          name: 'Error Loading Profile',
+          quietGuidance: 'An error occurred while loading this investor profile. Please try again later.',
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadInvestor();
+  }, [id, startupId, isLoggedIn]);
 
   // Lifeform breathing
   useEffect(() => {
@@ -274,19 +302,19 @@ export default function InvestorProfile() {
     return () => clearInterval(interval);
   }, []);
 
-  // Style helpers
+  // Style helpers with Pythh colors
   const alignmentColor = (state: AlignmentState): string => {
     switch (state) {
-      case 'Warming': return 'text-[#3ECF8E]';
-      case 'Monitoring': return 'text-[#8f8f8f]';
+      case 'Warming': return 'text-emerald-400';
+      case 'Monitoring': return 'text-cyan-400';
       case 'Cooling': return 'text-amber-400';
       case 'Dormant': return 'text-[#5f5f5f]';
     }
   };
 
   const timingColor = (t: string): string => {
-    if (t === 'Active') return 'text-[#3ECF8E]';
-    if (t === 'Warming') return 'text-[#8f8f8f]';
+    if (t === 'Active') return 'text-emerald-400';
+    if (t === 'Warming') return 'text-cyan-400';
     if (t === 'Cooling') return 'text-amber-400';
     return 'text-[#5f5f5f]';
   };
@@ -340,7 +368,9 @@ export default function InvestorProfile() {
         ═══════════════════════════════════════════════════════════════ */}
         <section className="mb-10">
           <div className="flex items-start justify-between mb-2">
-            <h1 className="text-xl text-white font-medium">{investor.name}</h1>
+            <div className="px-4 py-2 border border-emerald-400/50 rounded-lg">
+              <h1 className="text-xl text-emerald-400 font-medium">{investor.name}</h1>
+            </div>
             <div className="flex items-center gap-3">
               <SaveToSignalCard
                 entityType="investor"
@@ -385,22 +415,53 @@ export default function InvestorProfile() {
             </div>
           </div>
           <div className="text-sm text-[#8f8f8f] space-y-1">
-            <p>Focus: {investor.focus}</p>
-            <p>Stage: {investor.stage}</p>
-            <p className="text-[#5f5f5f] text-xs mt-2">Observed since: {investor.observedSince}</p>
+            <p><span className="text-cyan-400">Focus:</span> <span className="text-white/90">{investor.focus}</span></p>
+            <p><span className="text-cyan-400">Stage:</span> <span className="text-white/90">{investor.stage}</span></p>
+            <p className="text-[#5f5f5f] text-xs mt-2">Observed since: <span className="text-cyan-400/70">{investor.observedSince}</span></p>
           </div>
         </section>
+
+        {/* ═══════════════════════════════════════════════════════════════
+            🎯 SIGNALS THIS INVESTOR RESPONDS TO — Top priority for founders
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.signalsTheyRespondTo.length > 0 && (
+          <section className="mb-10 border border-emerald-400/50 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-400" />
+                <div className="text-cyan-400 text-sm font-medium">Signals this investor responds to</div>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-emerald-400">{investor.lensScore.toFixed(1)}</span>
+                <span className="text-xs text-white/60">/ 10</span>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              {investor.signalsTheyRespondTo.map((signal, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <span className="text-emerald-400 mt-0.5">•</span>
+                  <span className="text-white/90">{signal}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-emerald-500/20">
+              <p className="text-xs text-cyan-400/70 italic">
+                Signal score reflects investor quality and responsiveness. Higher scores indicate stronger signal alignment.
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════════
             2️⃣ BEHAVIORAL SUMMARY — This is the soul (3 bullets max)
         ═══════════════════════════════════════════════════════════════ */}
         <section className="mb-10">
-          <div className="text-[#5f5f5f] text-sm mb-3">Behavioral pattern</div>
+          <div className="text-cyan-400 text-sm mb-3 font-medium">Behavioral pattern</div>
           <div className="space-y-2">
             {investor.behavioralPattern.map((pattern, i) => (
               <div key={i} className="flex items-start gap-2 text-sm">
-                <span className="text-[#5f5f5f] mt-0.5">•</span>
-                <span className="text-[#c0c0c0]">{pattern}</span>
+                <span className="text-emerald-400 mt-0.5">•</span>
+                <span className="text-white/90">{pattern}</span>
               </div>
             ))}
           </div>
@@ -410,7 +471,7 @@ export default function InvestorProfile() {
             3️⃣ RECENT BEHAVIOR — Lifeform core (≤30 days)
         ═══════════════════════════════════════════════════════════════ */}
         <section className="mb-10">
-          <div className="text-[#5f5f5f] text-sm mb-3">Recent behavior</div>
+          <div className="text-cyan-400 text-sm mb-3 font-medium">Recent behavior</div>
           <div className="space-y-2">
             {investor.recentBehavior.map((item, i) => (
               <div 
@@ -418,90 +479,231 @@ export default function InvestorProfile() {
                 className="flex items-start gap-2 text-sm"
                 style={{ animation: `profileFadeIn 0.2s ease-out ${i * 0.05}s both` }}
               >
-                <span className="text-[#5f5f5f] mt-0.5">•</span>
-                <span className="text-[#8f8f8f]">{item}</span>
+                <span className="text-emerald-400 mt-0.5">•</span>
+                <span className="text-white/80">{item}</span>
               </div>
             ))}
           </div>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════
-            4️⃣ ALIGNMENT & TIMING — This is discipline
+            4️⃣ MATCH QUALITY (if founder logged in)
         ═══════════════════════════════════════════════════════════════ */}
-        <section className="mb-10 bg-[#232323] rounded-lg border border-[#2e2e2e] p-5">
+        {startupClaimed && investor.matchScore !== undefined && (
+          <section className="mb-10 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 rounded-lg border border-emerald-500/30 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="w-4 h-4 text-emerald-400" />
+              <div className="text-cyan-400 text-sm font-medium">Your match quality</div>
+            </div>
+            <div className="flex items-baseline gap-3 mb-3">
+              <span className="text-3xl font-bold text-emerald-400">{investor.matchScore}</span>
+              <span className="text-sm text-white/60">/ 100</span>
+            </div>
+            {investor.matchReasons && investor.matchReasons.length > 0 && (
+              <div className="space-y-1.5 mt-3">
+                {investor.matchReasons.map((reason, i) => (
+                  <div key={i} className="text-sm text-white/80 flex items-start gap-2">
+                    <span className="text-emerald-400 mt-0.5">✓</span>
+                    <span>{reason}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            5️⃣ ALIGNMENT & TIMING — This is discipline
+        ═══════════════════════════════════════════════════════════════ */}
+        <section className="mb-10 bg-[#232323] rounded-lg border border-cyan-500/20 p-5">
           {startupClaimed ? (
             <>
-              <div className="text-[#5f5f5f] text-sm mb-4">Your alignment</div>
+              <div className="text-cyan-400 text-sm mb-4 font-medium">Your alignment</div>
               <div className="grid grid-cols-3 gap-6 text-sm">
                 <div>
-                  <span className="text-[#5f5f5f] block mb-1">Current state</span>
-                  <span className={alignmentColor(investor.alignmentState)}>
+                  <span className="text-cyan-400/70 block mb-1 text-xs">Current state</span>
+                  <span className={`${alignmentColor(investor.alignmentState)} font-medium`}>
                     {investor.alignmentState}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[#5f5f5f] block mb-1">Lens score</span>
+                  <span className="text-cyan-400/70 block mb-1 text-xs">Lens score</span>
                   <span 
-                    className="text-white font-mono cursor-pointer hover:text-[#3ECF8E] transition-colors"
+                    className="text-emerald-400 font-mono cursor-pointer hover:text-emerald-300 transition-colors font-semibold"
                     onClick={handleScoreClick}
                   >
                     {investor.lensScore} <span className="text-[#5f5f5f] text-xs">(GOD)</span>
                   </span>
                 </div>
                 <div>
-                  <span className="text-[#5f5f5f] block mb-1">Timing</span>
-                  <span className={timingColor(investor.timing)}>
+                  <span className="text-cyan-400/70 block mb-1 text-xs">Timing</span>
+                  <span className={`${timingColor(investor.timing)} font-medium`}>
                     {investor.timing}
                   </span>
                 </div>
               </div>
             </>
           ) : (
-            <div className="text-[#8f8f8f] text-sm">
-              Claim your startup to see alignment and timing.
+            <div className="text-white/70 text-sm">
+              <Link to="/signup/founder" className="text-cyan-400 hover:text-cyan-300 underline">
+                Claim your startup
+              </Link> to see alignment and timing.
             </div>
           )}
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════
-            5️⃣ COMPETITIVE CONTEXT — Relative, not flattering
+            6️⃣ KEY METRICS — Investment activity
+        ═══════════════════════════════════════════════════════════════ */}
+        {(investor.totalInvestments || investor.successfulExits || investor.investmentPace) && (
+          <section className="mb-10 grid grid-cols-3 gap-4">
+            {investor.totalInvestments && (
+              <div className="bg-[#232323] rounded-lg border border-cyan-500/20 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Briefcase className="w-4 h-4 text-cyan-400" />
+                  <span className="text-cyan-400/70 text-xs">Total Investments</span>
+                </div>
+                <div className="text-2xl font-bold text-emerald-400">{investor.totalInvestments}</div>
+              </div>
+            )}
+            {investor.successfulExits && (
+              <div className="bg-[#232323] rounded-lg border border-cyan-500/20 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Award className="w-4 h-4 text-cyan-400" />
+                  <span className="text-cyan-400/70 text-xs">Successful Exits</span>
+                </div>
+                <div className="text-2xl font-bold text-emerald-400">{investor.successfulExits}</div>
+              </div>
+            )}
+            {investor.investmentPace && (
+              <div className="bg-[#232323] rounded-lg border border-cyan-500/20 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" />
+                  <span className="text-cyan-400/70 text-xs">Deals/Year</span>
+                </div>
+                <div className="text-2xl font-bold text-emerald-400">~{investor.investmentPace}</div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            7️⃣ PORTFOLIO COMPANIES — Visual showcase
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.portfolioCompanies && investor.portfolioCompanies.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Briefcase className="w-4 h-4 text-cyan-400" />
+              <div className="text-cyan-400 text-sm font-medium">Portfolio Companies</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {investor.portfolioCompanies.slice(0, 12).map((company, i) => (
+                <span
+                  key={i}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm hover:bg-emerald-500/20 transition-colors"
+                >
+                  {company}
+                </span>
+              ))}
+              {investor.portfolioCompanies.length > 12 && (
+                <span className="px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm">
+                  +{investor.portfolioCompanies.length - 12} more
+                </span>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            8️⃣ NOTABLE INVESTMENTS — Highlight reel
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.notableInvestments && investor.notableInvestments.length > 0 && (
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Award className="w-4 h-4 text-cyan-400" />
+              <div className="text-cyan-400 text-sm font-medium">Notable Investments</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {investor.notableInvestments.slice(0, 8).map((inv: any, i: number) => {
+                const name = typeof inv === 'string' ? inv : (inv.name || inv.company || String(inv));
+                return (
+                  <span
+                    key={i}
+                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 border border-cyan-400/40 text-cyan-300 text-sm font-medium"
+                  >
+                    {name}
+                  </span>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            9️⃣ INVESTMENT THESIS — Full text
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.investmentThesis && (
+          <section className="mb-10 bg-[#232323] rounded-lg border border-cyan-500/20 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="w-4 h-4 text-cyan-400" />
+              <div className="text-cyan-400 text-sm font-medium">Investment Thesis</div>
+            </div>
+            <p className="text-white/90 text-sm leading-relaxed">{investor.investmentThesis}</p>
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            🔟 WARM INTRO GUIDANCE — How to reach them
+        ═══════════════════════════════════════════════════════════════ */}
+        {investor.preferredIntroMethod && (
+          <section className="mb-10 bg-gradient-to-br from-cyan-500/10 to-emerald-500/10 rounded-lg border border-cyan-500/30 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-cyan-400" />
+              <div className="text-cyan-400 text-sm font-medium">Preferred Introduction Method</div>
+            </div>
+            <p className="text-white/90 text-sm">{investor.preferredIntroMethod}</p>
+            {investor.avgResponseTime && (
+              <p className="text-cyan-400/70 text-xs mt-2 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Average response time: {investor.avgResponseTime} days
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════════
+            1️⃣1️⃣ COMPETITIVE CONTEXT — Relative, not flattering
         ═══════════════════════════════════════════════════════════════ */}
         {investor.relativeBehavior.length > 0 && (
           <section className="mb-10">
-            <div className="text-[#5f5f5f] text-sm mb-3">Relative behavior</div>
+            <div className="text-cyan-400 text-sm mb-3 font-medium">Relative behavior</div>
             <div className="space-y-2">
               {investor.relativeBehavior.map((item, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-[#5f5f5f] mt-0.5">•</span>
-                  <span className="text-[#8f8f8f]">{item}</span>
+                  <span className="text-emerald-400 mt-0.5">•</span>
+                  <span className="text-white/80">{item}</span>
                 </div>
               ))}
             </div>
           </section>
         )}
 
+
         {/* ═══════════════════════════════════════════════════════════════
-            6️⃣ SIGNALS THEY RESPOND TO — Historical correlations
+            1️⃣3️⃣ FULL BIO — If available
         ═══════════════════════════════════════════════════════════════ */}
-        {investor.signalsTheyRespondTo.length > 0 && (
-          <section className="mb-10">
-            <div className="text-[#5f5f5f] text-sm mb-3">Signals this investor responds to</div>
-            <div className="space-y-2">
-              {investor.signalsTheyRespondTo.map((signal, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-[#5f5f5f] mt-0.5">•</span>
-                  <span className="text-[#8f8f8f]">{signal}</span>
-                </div>
-              ))}
-            </div>
+        {investor.bio && investor.bio.length > 150 && (
+          <section className="mb-10 bg-[#232323] rounded-lg border border-cyan-500/20 p-5">
+            <div className="text-cyan-400 text-sm mb-3 font-medium">About</div>
+            <p className="text-white/90 text-sm leading-relaxed">{investor.bio}</p>
           </section>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════
-            7️⃣ QUIET GUIDANCE — One line, no emphasis
+            1️⃣4️⃣ QUIET GUIDANCE — One line, no emphasis
         ═══════════════════════════════════════════════════════════════ */}
-        <section className="mb-10 pl-4 border-l border-[#2e2e2e]">
-          <p className="text-sm text-[#5f5f5f]">{investor.quietGuidance}</p>
+        <section className="mb-10 pl-4 border-l border-cyan-500/30">
+          <p className="text-sm text-white/70 italic">{investor.quietGuidance}</p>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════

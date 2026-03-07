@@ -513,13 +513,13 @@ export default function SignalMatches() {
 
         {/* Tools */}
         <div className="mt-8 flex items-center gap-6 text-sm">
-          <Link to="/app/oracle/coaching" className="text-amber-400 hover:text-amber-300 transition">
+          <Link to="/app/oracle/coaching" className="text-amber-400 hover:text-amber-300 transition border-b border-amber-400/30 pb-0.5">
             Oracle coaching →
           </Link>
-          <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 transition">
+          <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 transition border-b border-cyan-400/30 pb-0.5">
             Signal Playbook →
           </Link>
-          <Link to="/app/pitch-scan" className="text-zinc-400 hover:text-white transition">
+          <Link to="/app/pitch-scan" className="text-white/50 hover:text-white transition border-b border-white/20 pb-0.5">
             Pitch Scan →
           </Link>
         </div>

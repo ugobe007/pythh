@@ -86,17 +86,45 @@ export default function SignupFounderPythh() {
 
       if (authError) {
         if (authError.message.includes('already registered')) {
+          // User exists, try to sign in
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
           });
           if (signInError) throw signInError;
+          
+          // Session is automatically persisted now, but ensure it's set
+          if (signInData.session) {
+            await supabase.auth.setSession(signInData.session);
+          }
           setUserId(signInData.user?.id || null);
         } else {
           throw authError;
         }
       } else {
+        // New user created
         setUserId(data?.user?.id || null);
+        
+        // If session is available (email confirmation might not be required), set it
+        if (data.session) {
+          await supabase.auth.setSession(data.session);
+          console.log('[SignupFounderPythh] Session set for new user');
+        } else if (data.user) {
+          // If no session (email confirmation required), try to sign in anyway
+          // This handles cases where email confirmation is disabled
+          try {
+            const { data: signInData } = await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            });
+            if (signInData?.session) {
+              await supabase.auth.setSession(signInData.session);
+              console.log('[SignupFounderPythh] Signed in after signup');
+            }
+          } catch (signInErr) {
+            console.warn('[SignupFounderPythh] Could not sign in after signup (may need email confirmation):', signInErr);
+          }
+        }
       }
 
       console.log('[SignupFounderPythh] Account created, advancing to step 2');
@@ -117,6 +145,7 @@ export default function SignupFounderPythh() {
         }
       }
 
+      // Update localStorage for backward compatibility
       login(formData.email, formData.password);
       setStep(2);
     } catch (err: any) {

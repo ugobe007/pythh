@@ -44,15 +44,24 @@ if (!hasValidSupabaseCredentials) {
 
 // IMPORTANT: keep Database typing OFF until you login + regenerate types.
 // Otherwise .from('votes') becomes `never` and you get hundreds of TS errors.
+
+// Browser: Enable session persistence and auto-refresh
+// Server: Disable persistence (no localStorage available)
+const authConfig = isServer
+  ? {
+      persistSession: false,
+      autoRefreshToken: false,
+    }
+  : {
+      persistSession: true,  // ✅ Enable session persistence in browser
+      autoRefreshToken: true, // ✅ Enable automatic token refresh
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    };
+
 export const supabase = hasValidSupabaseCredentials
-  ? createClient<any>(supabaseUrl, supabaseKey)
+  ? createClient<any>(supabaseUrl, supabaseKey, { auth: authConfig })
   : createClient<any>(
       supabaseUrl || "https://placeholder.supabase.co",
       supabaseKey || "placeholder-key",
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      }
+      { auth: authConfig }
     );

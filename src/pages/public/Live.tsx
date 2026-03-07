@@ -1,8 +1,10 @@
-import React, { useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import PageShell, { ContentContainer } from "../../components/layout/PageShell";
 import TopBar, { TopBarBrand } from "../../components/layout/TopBar";
 import { PythhTokens } from "../../lib/designTokens";
 import { Activity, TrendingUp, Zap } from "lucide-react";
+import { dbErrorMonitor } from "../../lib/dbErrorMonitor";
+import { apiUrl } from "../../lib/apiConfig";
 
 type SignalItem = {
   firm: string;
@@ -10,15 +12,6 @@ type SignalItem = {
   time: string;
   correlation: 'high' | 'mid' | 'low';
 };
-
-const MOCK_SIGNALS: SignalItem[] = [
-  { firm: "Sequoia", signal: "Partner mention: agent infrastructure", time: "1h ago", correlation: 'high' },
-  { firm: "Accel", signal: "Seed velocity spike in agent tooling", time: "20m ago", correlation: 'high' },
-  { firm: "Greylock", signal: "Thesis published: developer automation", time: "today", correlation: 'mid' },
-  { firm: "Khosla", signal: "Thesis convergence: compute efficiency", time: "today", correlation: 'high' },
-  { firm: "Lightspeed", signal: "New seed: developer automation stack", time: "3h ago", correlation: 'mid' },
-  { firm: "NFX", signal: "Partner post: agent workflows & reliability", time: "today", correlation: 'low' },
-];
 
 // Signal correlation colors: cyan=high, green=mid, orange=low
 const getSignalColor = (correlation: 'high' | 'mid' | 'low') => {
@@ -30,7 +23,68 @@ const getSignalColor = (correlation: 'high' | 'mid' | 'low') => {
 };
 
 export default function Live() {
-  const rows = useMemo(() => MOCK_SIGNALS, []);
+  const [signals, setSignals] = useState<SignalItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchLiveSignals() {
+      try {
+        setError(null);
+        const response = await fetch(apiUrl('/api/live-signals?limit=20'));
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.signals && Array.isArray(data.signals)) {
+          const formatted: SignalItem[] = data.signals.map((s: any) => {
+            // Extract match score from signal text if available
+            const scoreMatch = s.signal.match(/score (\d+)/i);
+            const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
+            
+            // Determine correlation based on score
+            let correlation: 'high' | 'mid' | 'low' = 'low';
+            if (score >= 85) {
+              correlation = 'high';
+            } else if (score >= 70) {
+              correlation = 'mid';
+            }
+            
+            return {
+              firm: s.firm || 'Unknown Firm',
+              signal: s.signal || 'Signal detected',
+              time: s.time || 'just now',
+              correlation
+            };
+          });
+          
+          setSignals(formatted);
+        } else {
+          setSignals([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch live signals:', err);
+        dbErrorMonitor.logError('Live', 'fetch_live_signals', err as Error, {
+          endpoint: '/api/live-signals'
+        });
+        setError(err instanceof Error ? err.message : 'Failed to load signals');
+        setSignals([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    // Initial fetch
+    fetchLiveSignals();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchLiveSignals, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <PageShell variant="standard">
@@ -84,8 +138,23 @@ export default function Live() {
               </div>
               
               {/* Feed */}
-              <div className="max-h-[500px] overflow-auto divide-y divide-white/5">
-                {rows.map((s, idx) => {
+              {loading ? (
+                <div className="px-6 py-12 text-center">
+                  <div className="text-white/50">Loading signals...</div>
+                </div>
+              ) : error ? (
+                <div className="px-6 py-12 text-center">
+                  <div className="text-red-400 mb-2">Error loading signals</div>
+                  <div className="text-white/50 text-sm">{error}</div>
+                </div>
+              ) : signals.length === 0 ? (
+                <div className="px-6 py-12 text-center">
+                  <div className="text-white/50">No signals detected yet</div>
+                  <div className="text-white/30 text-sm mt-2">Check back soon for live investor activity</div>
+                </div>
+              ) : (
+                <div className="max-h-[500px] overflow-auto divide-y divide-white/5">
+                  {signals.map((s, idx) => {
                   const colors = getSignalColor(s.correlation);
                   return (
                     <div 
@@ -134,8 +203,9 @@ export default function Live() {
                       <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-${colors.glow} to-transparent pointer-events-none`} />
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

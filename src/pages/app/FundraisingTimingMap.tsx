@@ -8,6 +8,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useBilling } from '../../hooks/useBilling';
+import { useOracleStartupId } from '../../hooks/useOracleStartupId';
+import { supabase } from '../../lib/supabase';
+import { withErrorMonitoring } from '../../lib/dbErrorMonitor';
 
 /* ──────────────────────────── Types ──────────────────────────── */
 
@@ -151,6 +154,7 @@ function generateTimingMap(): TimingMapData {
 export default function FundraisingTimingMap() {
   const { user } = useAuth();
   const { plan } = useBilling();
+  const startupId = useOracleStartupId();
 
   const [data, setData] = useState<TimingMapData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,12 +164,288 @@ export default function FundraisingTimingMap() {
   const isLocked = !plan || plan === 'free';
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    loadTimingMap();
+  }, [startupId, user]);
+
+  async function loadTimingMap() {
+    try {
+      setLoading(true);
+      
+      // Get startup ID from hook or user's startup
+      let targetStartupId: string | null = startupId;
+      
+      if (!targetStartupId && user) {
+        const { data: userStartup } = await supabase
+          .from('startup_uploads')
+          .select('id')
+          .eq('created_by', user.id)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (userStartup) {
+          targetStartupId = userStartup.id;
+        }
+      }
+
+      if (!targetStartupId) {
+        // No startup available, use mock data
+        setData(generateTimingMap());
+        setLoading(false);
+        return;
+      }
+
+      // Fetch startup data and signal history
+      const [startupRes, historyRes, signalsRes] = await Promise.all([
+        withErrorMonitoring(
+          'FundraisingTimingMap',
+          'fetch_startup',
+          () => supabase
+            .from('startup_uploads')
+            .select('name, stage, sectors, total_god_score, created_at')
+            .eq('id', targetStartupId)
+            .single(),
+          { startupId: targetStartupId }
+        ),
+        withErrorMonitoring(
+          'FundraisingTimingMap',
+          'fetch_signal_history',
+          () => supabase
+            .from('startup_signal_history')
+            .select('readiness, fundraising_window, signal_strength, power_score, recorded_at')
+            .eq('startup_id', targetStartupId)
+            .order('recorded_at', { ascending: false })
+            .limit(1)
+            .single(),
+          { startupId: targetStartupId }
+        ),
+        withErrorMonitoring(
+          'FundraisingTimingMap',
+          'fetch_signals',
+          () => supabase
+            .from('startup_signals')
+            .select('signal_type, signal_date, signal_title, strength')
+            .eq('startup_id', targetStartupId)
+            .order('signal_date', { ascending: false })
+            .limit(10),
+          { startupId: targetStartupId }
+        )
+      ]);
+
+      const startup = startupRes.data;
+      const history = historyRes.data;
+      const signals = signalsRes.data || [];
+
+      // Calculate overall readiness from latest history or startup score
+      const overallReadiness = history?.readiness || 
+        (startup?.total_god_score ? Math.round(startup.total_god_score) : 72);
+
+      // Determine optimal window from history
+      const currentWindow = history?.fundraising_window || 'Forming';
+      const optimalWindow = calculateOptimalWindow(currentWindow, history?.recorded_at);
+      
+      // Determine current phase based on readiness and window
+      const currentPhase = determinePhase(overallReadiness, currentWindow);
+
+      // Get market temperature from signals
+      const marketTemperature = calculateMarketTemperature(signals);
+
+      // Build phases based on readiness and window
+      const phases = generatePhases(currentPhase, optimalWindow, overallReadiness);
+
+      // Build market signals from startup_signals
+      const marketSignals = buildMarketSignals(signals, startup?.sectors || []);
+
+      // Build readiness metrics from startup data
+      const readinessMetrics = buildReadinessMetrics(startup, history);
+
+      // Build weekly cadence based on current phase
+      const weeklyCadence = buildWeeklyCadence(currentPhase, overallReadiness);
+
+      setData({
+        overall_readiness: overallReadiness,
+        optimal_window: optimalWindow,
+        current_phase: currentPhase,
+        market_temperature: marketTemperature,
+        phases,
+        market_signals: marketSignals,
+        readiness_metrics: readinessMetrics,
+        weekly_cadence: weeklyCadence
+      });
+    } catch (err) {
+      console.error('Failed to load timing map:', err);
+      // Fallback to mock data on error
       setData(generateTimingMap());
+    } finally {
       setLoading(false);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, []);
+    }
+  }
+
+  // Helper functions
+  function calculateOptimalWindow(window: string, lastRecorded: string | null): string {
+    const now = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonth = months[now.getMonth()];
+    const currentYear = now.getFullYear();
+    
+    if (window === 'Prime') {
+      return `${currentMonth} ${currentYear} - ${months[(now.getMonth() + 1) % 12]} ${currentYear}`;
+    } else if (window === 'Forming') {
+      const nextMonth = (now.getMonth() + 1) % 12;
+      const nextYear = nextMonth === 0 ? currentYear + 1 : currentYear;
+      return `${months[nextMonth]} ${nextYear} - ${months[(nextMonth + 1) % 12]} ${nextYear}`;
+    } else {
+      const futureMonth = (now.getMonth() + 2) % 12;
+      const futureYear = futureMonth < now.getMonth() ? currentYear + 1 : currentYear;
+      return `${months[futureMonth]} ${futureYear} - ${months[(futureMonth + 1) % 12]} ${futureYear}`;
+    }
+  }
+
+  function determinePhase(readiness: number, window: string): string {
+    if (readiness >= 80 && window === 'Prime') return 'outreach';
+    if (readiness >= 60 && window === 'Forming') return 'preparation';
+    if (readiness < 60) return 'research';
+    return 'preparation';
+  }
+
+  function calculateMarketTemperature(signals: any[]): string {
+    if (signals.length === 0) return 'warm';
+    const avgStrength = signals.reduce((sum, s) => sum + (s.strength || 0.5), 0) / signals.length;
+    if (avgStrength >= 0.7) return 'hot';
+    if (avgStrength >= 0.5) return 'warm';
+    return 'cool';
+  }
+
+  function generatePhases(currentPhase: string, optimalWindow: string, readiness: number): Phase[] {
+    const phases: Phase[] = [];
+    const now = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    // Research phase
+    phases.push({
+      id: 'research',
+      label: 'Research & Targeting',
+      status: currentPhase === 'research' ? 'active' : currentPhase === 'preparation' || currentPhase === 'outreach' ? 'complete' : 'future',
+      window: `${months[(now.getMonth() - 2 + 12) % 12]} ${now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear()} - ${months[(now.getMonth() - 1 + 12) % 12]} ${now.getMonth() < 1 ? now.getFullYear() - 1 : now.getFullYear()}`,
+      description: 'Investor list built, thesis alignment mapped, warm intro paths identified.',
+      actions: [
+        'Built target list of investors with thesis match',
+        'Mapped warm intro paths through network',
+        'Completed competitive landscape analysis',
+      ],
+    });
+
+    // Preparation phase
+    phases.push({
+      id: 'preparation',
+      label: 'Materials & Narrative',
+      status: currentPhase === 'preparation' ? 'active' : currentPhase === 'outreach' ? 'complete' : 'upcoming',
+      window: `${months[now.getMonth()]} ${now.getFullYear()} - ${months[(now.getMonth() + 1) % 12]} ${(now.getMonth() + 1) % 12 === 0 ? now.getFullYear() + 1 : now.getFullYear()}`,
+      description: 'Deck, data room, and narrative being finalized. Key metrics being packaged for maximum signal strength.',
+      actions: [
+        'Finalize pitch deck with updated metrics',
+        'Build data room with diligence-ready docs',
+        'Prepare founder story arc and practice delivery',
+        'Set up CRM for tracking investor conversations',
+      ],
+    });
+
+    // Outreach phase
+    phases.push({
+      id: 'outreach',
+      label: 'Outreach & Meetings',
+      status: currentPhase === 'outreach' ? 'active' : 'upcoming',
+      window: optimalWindow,
+      description: 'Concentrated 6-week push. Launch all warm intros in week 1, create urgency through parallel process.',
+      actions: [
+        'Activate all warm intros in first 5 days',
+        'Schedule 3-4 meetings per day in weeks 2-4',
+        'Send weekly investor updates to build momentum',
+        'Track and optimize conversion at each stage',
+      ],
+    });
+
+    // Close phase
+    phases.push({
+      id: 'close',
+      label: 'Term Sheet & Close',
+      status: 'future',
+      window: optimalWindow.split(' - ')[1] ? `${optimalWindow.split(' - ')[1]} - ${months[(now.getMonth() + 2) % 12]} ${(now.getMonth() + 2) % 12 < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear()}` : `${months[(now.getMonth() + 2) % 12]} ${now.getFullYear()} - ${months[(now.getMonth() + 3) % 12]} ${now.getFullYear()}`,
+      description: 'Negotiate terms, run final diligence, close round. Target 2-week close from term sheet.',
+      actions: [
+        'Compare term sheets on key dimensions',
+        'Run reference checks on lead investor',
+        'Negotiate key terms (valuation, board, pro-rata)',
+        'Execute docs and wire funds',
+      ],
+    });
+
+    return phases;
+  }
+
+  function buildMarketSignals(signals: any[], sectors: string[]): MarketSignal[] {
+    const marketSignals: MarketSignal[] = [];
+    
+    // Add signals from database
+    signals.slice(0, 3).forEach(signal => {
+      const direction = signal.strength >= 0.7 ? 'up' : signal.strength >= 0.4 ? 'stable' : 'down';
+      marketSignals.push({
+        signal: signal.signal_title || `${signal.signal_type} activity detected`,
+        direction,
+        impact: `Recent ${signal.signal_type} signal indicates market movement`,
+        relevance: signal.strength >= 0.7 ? 'high' : signal.strength >= 0.4 ? 'medium' : 'low'
+      });
+    });
+
+    // Add default signals if not enough from database
+    if (marketSignals.length < 3) {
+      marketSignals.push(
+        { signal: 'VC dry powder at record levels', direction: 'up', impact: 'More capital available, but investors still selective', relevance: 'high' },
+        { signal: `${sectors[0] || 'Tech'} deal volume increasing`, direction: 'up', impact: 'Category tailwind if positioned correctly', relevance: 'high' },
+        { signal: 'Time to close extending to 3-4 months', direction: 'down', impact: 'Need earlier start, more runway buffer', relevance: 'high' }
+      );
+    }
+
+    return marketSignals.slice(0, 5);
+  }
+
+  function buildReadinessMetrics(startup: any, history: any): ReadinessMetric[] {
+    // These would ideally come from startup metrics, but we'll use defaults for now
+    // In a full implementation, you'd extract these from startup.extracted_data or a metrics table
+    return [
+      { label: 'GOD Score', current: Math.round(startup?.total_god_score || 72), target: 80, unit: '', status: (startup?.total_god_score || 72) >= 80 ? 'on-track' : (startup?.total_god_score || 72) >= 60 ? 'at-risk' : 'behind' },
+      { label: 'Readiness', current: history?.readiness || 72, target: 80, unit: '%', status: (history?.readiness || 72) >= 80 ? 'on-track' : (history?.readiness || 72) >= 60 ? 'at-risk' : 'behind' },
+      { label: 'Signal Strength', current: Math.round((history?.signal_strength || 70) / 10), target: 8, unit: '/10', status: (history?.signal_strength || 70) >= 80 ? 'on-track' : (history?.signal_strength || 70) >= 60 ? 'at-risk' : 'behind' },
+      { label: 'Power Score', current: history?.power_score || 72, target: 80, unit: '%', status: (history?.power_score || 72) >= 80 ? 'on-track' : (history?.power_score || 72) >= 60 ? 'at-risk' : 'behind' },
+    ];
+  }
+
+  function buildWeeklyCadence(currentPhase: string, readiness: number): CadenceItem[] {
+    const cadence: CadenceItem[] = [];
+    const weekFocus = [
+      { week: 1, focus: 'Deck finalization', milestone: 'Deck v3 complete with updated metrics' },
+      { week: 2, focus: 'Data room build', milestone: 'All diligence docs uploaded and organized' },
+      { week: 3, focus: 'Narrative practice', milestone: '3 practice pitches with advisors, iterate' },
+      { week: 4, focus: 'Pre-outreach warm-up', milestone: 'Soft intros to 5 target investors' },
+      { week: 5, focus: 'Launch outreach', milestone: 'All warm intros activated, 10+ meetings booked' },
+      { week: 6, focus: 'Meeting sprint 1', milestone: '15+ first meetings completed' },
+      { week: 7, focus: 'Meeting sprint 2', milestone: 'Partner meetings with top 5 firms' },
+      { week: 8, focus: 'Follow-up & close', milestone: 'Term sheet(s) in hand, begin negotiation' },
+    ];
+
+    weekFocus.forEach((item, idx) => {
+      let status: 'done' | 'current' | 'upcoming' = 'upcoming';
+      if (currentPhase === 'research' && idx < 2) status = 'done';
+      else if (currentPhase === 'preparation' && idx < 3) status = 'done';
+      else if (currentPhase === 'preparation' && idx === 3) status = 'current';
+      else if (currentPhase === 'outreach' && idx >= 4) status = idx === 4 ? 'current' : 'upcoming';
+
+      cadence.push({ ...item, status });
+    });
+
+    return cadence;
+  }
 
   const statusColor = (s: string) =>
     s === 'on-track' || s === 'complete' || s === 'done' ? 'text-emerald-400'

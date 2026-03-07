@@ -82,11 +82,35 @@ export default function Login() {
           
           // Profile is auto-created by database trigger
           console.log('[Login] Created new user:', signUpData.user?.id);
+          
+          // If session is available, set it
+          if (signUpData.session) {
+            await supabase.auth.setSession(signUpData.session);
+            console.log('[Login] Session set for new user');
+          } else if (signUpData.user) {
+            // Try to sign in if no session (email confirmation might be disabled)
+            try {
+              const { data: signInData } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+              });
+              if (signInData?.session) {
+                await supabase.auth.setSession(signInData.session);
+                console.log('[Login] Signed in after signup');
+              }
+            } catch (signInErr) {
+              console.warn('[Login] Could not sign in after signup:', signInErr);
+            }
+          }
         } else {
           throw authError;
         }
       } else {
+        // Successful sign in - session is automatically persisted
         console.log('[Login] Signed in:', data.user?.id);
+        if (data.session) {
+          await supabase.auth.setSession(data.session);
+        }
       }
       
       // Also update localStorage auth for backward compatibility
