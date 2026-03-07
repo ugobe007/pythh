@@ -77,19 +77,19 @@ function formatDate(s?: string | null) {
   return new Date(s).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
-function godBadgeColor(score: number) {
-  if (score >= 85) return '#00e5a0';
-  if (score >= 70) return '#ff6600';
-  return '#888';
+function godBadgeColor(score: number): string {
+  if (score >= 85) return 'text-emerald-400 border-emerald-400/50';
+  if (score >= 70) return 'text-cyan-400 border-cyan-400/50';
+  return 'text-white/50 border-white/20';
 }
 
 function statusChip(status: string) {
-  const map: Record<string, { label: string; bg: string; color: string }> = {
-    active:      { label: 'Active',      bg: '#0a2a0a', color: '#00e5a0' },
-    acquired:    { label: 'Acquired 🎯', bg: '#1a1a00', color: '#ffd700' },
-    ipo:         { label: 'IPO 🚀',      bg: '#0a001a', color: '#a78bfa' },
-    exited:      { label: 'Exited',      bg: '#111',    color: '#888' },
-    written_off: { label: 'Written Off', bg: '#1a0000', color: '#ef4444' },
+  const map: Record<string, { label: string; color: string; border: string }> = {
+    active:      { label: 'Active',      color: 'text-emerald-400', border: 'border-emerald-400/50' },
+    acquired:    { label: 'Acquired 🎯', color: 'text-cyan-400', border: 'border-cyan-400/50' },
+    ipo:         { label: 'IPO 🚀',      color: 'text-cyan-400', border: 'border-cyan-400/50' },
+    exited:      { label: 'Exited',      color: 'text-white/50', border: 'border-white/20' },
+    written_off: { label: 'Written Off', color: 'text-red-400', border: 'border-red-400/50' },
   };
   return map[status] ?? map.active;
 }
@@ -140,34 +140,34 @@ export default function PortfolioPage() {
   const exits = entries.filter((e) => ['acquired', 'ipo', 'exited'].includes(e.status));
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
+    <div className="min-h-screen bg-black text-white">
       {/* ── Header ── */}
-      <div style={{ borderBottom: '1px solid #1a1a1a', padding: '20px 0' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: '#ff6600', letterSpacing: '-1px' }}>Pythh</span>
+      <div className="border-b border-white/10 py-5">
+        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
+          <Link to="/" className="text-xl font-bold text-emerald-400 tracking-tight">
+            pythh
           </Link>
-          <nav style={{ display: 'flex', gap: 24, fontSize: 14, color: '#888' }}>
-            <Link to="/rankings" style={{ color: '#888', textDecoration: 'none' }}>Rankings</Link>
-            <Link to="/explore" style={{ color: '#888', textDecoration: 'none' }}>Explore</Link>
-            <span style={{ color: '#ff6600' }}>Portfolio</span>
+          <nav className="flex gap-6 text-sm text-white/50">
+            <Link to="/rankings" className="hover:text-white transition-colors">Rankings</Link>
+            <Link to="/explore" className="hover:text-white transition-colors">Explore</Link>
+            <span className="text-cyan-400">Portfolio</span>
           </nav>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
+      <div className="max-w-5xl mx-auto px-6 py-12">
         {/* ── Hero ── */}
-        <div style={{ marginBottom: 48 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <Award size={20} color="#ff6600" />
-            <span style={{ fontSize: 13, color: '#ff6600', textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700 }}>
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-3">
+            <Award size={20} className="text-emerald-400" />
+            <span className="text-xs text-emerald-400 uppercase tracking-wider font-semibold">
               Virtual Portfolio
             </span>
           </div>
-          <h1 style={{ fontSize: 42, fontWeight: 900, margin: 0, lineHeight: 1.1, letterSpacing: '-2px' }}>
+          <h1 className="text-4xl font-bold mb-3 tracking-tight">
             Our best startup picks.
           </h1>
-          <p style={{ color: '#888', fontSize: 16, marginTop: 12, maxWidth: 540, lineHeight: 1.6 }}>
+          <p className="text-white/60 text-base max-w-2xl leading-relaxed">
             Every startup that crosses a GOD score of 70 gets added to the Pythh virtual fund.
             We track them like YC — watching for funding rounds, acquisitions, and IPOs.
           </p>
@@ -175,12 +175,7 @@ export default function PortfolioPage() {
 
         {/* ── Metrics Bar ── */}
         {metrics && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 16,
-            marginBottom: 48,
-          }}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12">
             {[
               { icon: <Target size={16} />, label: 'Total Picks', value: String(metrics.total_picks ?? 0), sub: `${metrics.active_picks ?? 0} active` },
               { icon: <TrendingUp size={16} />, label: 'Win Rate', value: metrics.win_rate_pct ? `${metrics.win_rate_pct}%` : '—', sub: 'funded or exited' },
@@ -188,40 +183,29 @@ export default function PortfolioPage() {
               { icon: <DollarSign size={16} />, label: 'Virtual Capital', value: formatUSD(metrics.total_virtual_deployed_usd), sub: '$100K / pick' },
               { icon: <Award size={16} />, label: 'Exits', value: String(metrics.successful_exits ?? 0), sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
             ].map((m) => (
-              <div key={m.label} style={{
-                background: '#111',
-                border: '1px solid #1e1e1e',
-                borderRadius: 12,
-                padding: '20px 24px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#ff6600', marginBottom: 8 }}>
+              <div key={m.label} className="border border-white/10 rounded-lg p-5">
+                <div className="flex items-center gap-2 text-cyan-400 mb-2">
                   {m.icon}
-                  <span style={{ fontSize: 12, color: '#555', textTransform: 'uppercase', letterSpacing: 1 }}>{m.label}</span>
+                  <span className="text-xs text-white/50 uppercase tracking-wider">{m.label}</span>
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-1px' }}>{m.value}</div>
-                <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>{m.sub}</div>
+                <div className="text-2xl font-bold tracking-tight">{m.value}</div>
+                <div className="text-xs text-white/50 mt-1">{m.sub}</div>
               </div>
             ))}
           </div>
         )}
 
         {/* ── Filters ── */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+        <div className="flex gap-2 mb-6">
           {(['all', 'active', 'exited'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              style={{
-                padding: '6px 16px',
-                borderRadius: 20,
-                border: filter === f ? '1px solid #ff6600' : '1px solid #2a2a2a',
-                background: filter === f ? '#ff660022' : 'transparent',
-                color: filter === f ? '#ff6600' : '#666',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                textTransform: 'capitalize',
-              }}
+              className={`px-4 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors ${
+                filter === f
+                  ? 'border-emerald-400 text-emerald-400'
+                  : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'
+              }`}
             >
               {f} {f === 'all' ? `(${entries.length})` : f === 'active' ? `(${entries.filter(e => e.status === 'active').length})` : `(${exits.length})`}
             </button>
@@ -230,17 +214,16 @@ export default function PortfolioPage() {
 
         {/* ── Content ── */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 80, color: '#444' }}>
-            <Activity size={28} style={{ margin: '0 auto 12px', display: 'block', animation: 'spin 1s linear infinite' }} />
+          <div className="text-center py-20 text-white/40">
+            <Activity size={28} className="mx-auto mb-3 animate-spin" />
             Loading portfolio…
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           </div>
         ) : error ? (
-          <div style={{ textAlign: 'center', padding: 80, color: '#ef4444' }}>{error}</div>
+          <div className="text-center py-20 text-red-400">{error}</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 80, color: '#444' }}>No entries yet. Portfolio builds automatically as startups cross GOD 70.</div>
+          <div className="text-center py-20 text-white/40">No entries yet. Portfolio builds automatically as startups cross GOD 70.</div>
         ) : (
-          <div style={{ display: 'grid', gap: 16 }}>
+          <div className="space-y-4">
             {filtered.map((entry) => (
               <PortfolioCard key={entry.id} entry={entry} />
             ))}
@@ -248,18 +231,12 @@ export default function PortfolioPage() {
         )}
 
         {/* ── How We Pick ── */}
-        <div style={{
-          marginTop: 80,
-          padding: '40px',
-          background: '#111',
-          border: '1px solid #1e1e1e',
-          borderRadius: 16,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <Zap size={18} color="#ff6600" />
-            <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>How the Pythh Fund works</h2>
+        <div className="mt-20 border border-white/10 rounded-lg p-10">
+          <div className="flex items-center gap-2 mb-6">
+            <Zap size={18} className="text-emerald-400" />
+            <h2 className="text-xl font-bold">How the Pythh Fund works</h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 24 }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { step: '01', title: 'GOD Score ≥ 70', desc: 'Every approved startup that scores 70 or higher on the proprietary GOD algorithm is automatically added.' },
               { step: '02', title: '$100K virtual check', desc: 'We log a $100,000 virtual investment at the estimated entry valuation at time of picking.' },
@@ -267,9 +244,9 @@ export default function PortfolioPage() {
               { step: '04', title: 'MOIC + IRR', desc: 'As valuations update we compute unrealised MOIC and annualised IRR just like a real fund.' },
             ].map((s) => (
               <div key={s.step}>
-                <div style={{ fontSize: 11, color: '#ff6600', fontWeight: 800, letterSpacing: 2, marginBottom: 6 }}>STEP {s.step}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{s.title}</div>
-                <div style={{ fontSize: 13, color: '#666', lineHeight: 1.6 }}>{s.desc}</div>
+                <div className="text-xs text-cyan-400 font-bold tracking-wider mb-2">STEP {s.step}</div>
+                <div className="text-base font-semibold mb-2">{s.title}</div>
+                <div className="text-sm text-white/60 leading-relaxed">{s.desc}</div>
               </div>
             ))}
           </div>
@@ -284,91 +261,77 @@ export default function PortfolioPage() {
 // ---------------------------------------------------------------------------
 function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
   const chip = statusChip(entry.status);
-  const scoreColor = godBadgeColor(entry.entry_god_score);
+  const scoreColorClass = godBadgeColor(entry.entry_god_score);
   const isExit = ['acquired', 'ipo', 'exited'].includes(entry.status);
   const moicDelta = entry.moic ? entry.moic - 1 : 0;
 
   return (
-    <div style={{
-      background: '#111',
-      border: '1px solid #1e1e1e',
-      borderRadius: 12,
-      padding: '20px 24px',
-      display: 'grid',
-      gridTemplateColumns: '1fr auto',
-      gap: 24,
-      alignItems: 'center',
-      transition: 'border-color 0.15s',
-    }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div className="border border-white/10 rounded-lg p-6 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-center hover:border-cyan-400/30 transition-colors">
+      <div className="flex flex-col gap-2">
         {/* Name row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 17, fontWeight: 700 }}>{entry.startup_name}</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-lg font-semibold">{entry.startup_name}</span>
 
           {/* Status chip */}
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-            background: chip.bg, color: chip.color, border: `1px solid ${chip.color}44`,
-          }}>{chip.label}</span>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${chip.color} ${chip.border}`}>
+            {chip.label}
+          </span>
 
           {/* GOD badge */}
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-            background: `${scoreColor}18`, color: scoreColor, border: `1px solid ${scoreColor}44`,
-          }}>GOD {entry.entry_god_score}</span>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${scoreColorClass}`}>
+            GOD {entry.entry_god_score}
+          </span>
 
           {/* Round badge */}
           {entry.latest_round_type && (
-            <span style={{
-              fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
-              background: '#0a1a2a', color: '#60a5fa', border: '1px solid #1e3a5266',
-            }}>{entry.latest_round_type} {entry.latest_round_post_money ? `· ${formatUSD(entry.latest_round_post_money)}` : ''}</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-cyan-400/50 text-cyan-400">
+              {entry.latest_round_type} {entry.latest_round_post_money ? `· ${formatUSD(entry.latest_round_post_money)}` : ''}
+            </span>
           )}
         </div>
 
         {/* Tagline */}
         {entry.tagline && (
-          <p style={{ fontSize: 13, color: '#666', margin: 0, lineHeight: 1.4 }}>{entry.tagline}</p>
+          <p className="text-sm text-white/60 m-0 leading-relaxed">{entry.tagline}</p>
         )}
 
         {/* Meta row */}
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginTop: 4 }}>
-          <span style={{ fontSize: 12, color: '#555' }}>
-            <Clock size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+        <div className="flex gap-5 flex-wrap mt-1">
+          <span className="text-xs text-white/50 flex items-center gap-1">
+            <Clock size={11} />
             Picked {formatDate(entry.entry_date)}
           </span>
-          <span style={{ fontSize: 12, color: '#555' }}>Entry val: {formatUSD(entry.entry_valuation_usd)}</span>
+          <span className="text-xs text-white/50">Entry val: {formatUSD(entry.entry_valuation_usd)}</span>
           {entry.total_rounds_tracked ? (
-            <span style={{ fontSize: 12, color: '#555' }}>{entry.total_rounds_tracked} round{entry.total_rounds_tracked > 1 ? 's' : ''} tracked</span>
+            <span className="text-xs text-white/50">{entry.total_rounds_tracked} round{entry.total_rounds_tracked > 1 ? 's' : ''} tracked</span>
           ) : null}
           {entry.latest_lead_investor && (
-            <span style={{ fontSize: 12, color: '#555' }}>Lead: {entry.latest_lead_investor}</span>
+            <span className="text-xs text-white/50">Lead: {entry.latest_lead_investor}</span>
           )}
           {isExit && entry.exit_acquirer && (
-            <span style={{ fontSize: 12, color: '#ffd700' }}>Acquired by {entry.exit_acquirer}</span>
+            <span className="text-xs text-cyan-400">Acquired by {entry.exit_acquirer}</span>
           )}
         </div>
       </div>
 
       {/* Right side — MOIC */}
-      <div style={{ textAlign: 'right', minWidth: 100 }}>
+      <div className="text-right min-w-[100px]">
         {entry.moic ? (
           <>
-            <div style={{
-              fontSize: 26, fontWeight: 900, letterSpacing: '-1px',
-              color: moicDelta > 0 ? '#00e5a0' : moicDelta < 0 ? '#ef4444' : '#fff',
-            }}>
+            <div className={`text-2xl font-bold tracking-tight ${
+              moicDelta > 0 ? 'text-emerald-400' : moicDelta < 0 ? 'text-red-400' : 'text-white'
+            }`}>
               {entry.moic.toFixed(2)}×
             </div>
-            <div style={{ fontSize: 11, color: '#555' }}>MOIC</div>
+            <div className="text-xs text-white/50">MOIC</div>
             {entry.irr_annualized != null && (
-              <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
+              <div className="text-xs text-white/50 mt-1">
                 IRR {(entry.irr_annualized * 100).toFixed(1)}%
               </div>
             )}
           </>
         ) : (
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#333' }}>1.00×</div>
+          <div className="text-xl font-bold text-white/30">1.00×</div>
         )}
 
         {entry.website && (
@@ -376,7 +339,7 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
             href={entry.website}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: '#555', textDecoration: 'none' }}
+            className="inline-flex items-center gap-1 mt-2 text-xs text-white/50 hover:text-cyan-400 transition-colors"
           >
             <ExternalLink size={11} /> Visit
           </a>
