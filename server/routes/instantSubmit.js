@@ -550,11 +550,25 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
   const fullUrl = inputRaw.startsWith('http') ? inputRaw : `https://${domain}`;
   const displayName = domainToName(domain);
   
+  // CRITICAL: Hard timeout for entire pipeline (30 seconds max)
+  const PIPELINE_TIMEOUT = 30000;
+  const pipelineDeadline = Date.now() + PIPELINE_TIMEOUT;
+  let pipelineTimedOut = false;
+  let fastMatches = []; // Declare at top level so it's accessible in catch block
+  
+  const checkTimeout = () => {
+    if (Date.now() >= pipelineDeadline) {
+      pipelineTimedOut = true;
+      return true;
+    }
+    return false;
+  };
+  
   try {
-    console.log(`  🔄 [BG] Starting background pipeline for ${startupId} (${domain})`);
+    console.log(`  🔄 [BG] Starting background pipeline for ${startupId} (${domain}) [timeout: ${PIPELINE_TIMEOUT}ms]`);
     
     // =========================================================================
-    // PHASE 1: FAST MATCHES (~3-5s) — Generate matches with placeholder data
+    // PHASE 1: FAST MATCHES (~1-2s) — Generate matches with placeholder data
     // so the user sees results immediately while enrichment runs
     // =========================================================================
     const phase1Start = Date.now();
@@ -578,28 +592,65 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     
     const quickInvestors = getRelevantInvestors(['Technology']);
     const quickMatches = [];
-    for (let idx = 0; idx < quickInvestors.length; idx++) {
-      const investor = quickInvestors[idx];
-      // Yield event loop every 100 investors so server stays responsive
-      if (idx > 0 && idx % 100 === 0) await new Promise(r => setImmediate(r));
-      const result = calculateMatchScore(placeholderStartup, investor, 0, investor.signals || null);
-      if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
-        quickMatches.push({
-          startup_id: startupId,
-          investor_id: investor.id,
-          match_score: result.score,
-          reasoning: generateReasoning(placeholderStartup, investor, result.fitAnalysis),
-          fit_analysis: result.fitAnalysis,
-          confidence_level: result.confidence,
-          why_you_match: generateWhyYouMatch(placeholderStartup, investor, result.fitAnalysis),
-          status: 'suggested',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+    
+    // CRITICAL FIX: Parallel processing with timeout protection
+    const BATCH_SIZE = 50;
+    const CONCURRENT_BATCHES = 10; // Process 10 batches (500 investors) in parallel
+    const PHASE1_TIMEOUT = 5000; // 5 second hard timeout for Phase 1
+    const phase1Deadline = Math.min(Date.now() + PHASE1_TIMEOUT, pipelineDeadline);
+    
+    // Process investors in parallel batches
+    for (let i = 0; i < quickInvestors.length; i += BATCH_SIZE * CONCURRENT_BATCHES) {
+      // Check timeout
+      if (checkTimeout() || Date.now() >= phase1Deadline) {
+        console.warn(`  ⚠️ [BG] Phase 1 timeout - processed ${i}/${quickInvestors.length} investors`);
+        break;
+      }
+      
+      const batch = quickInvestors.slice(i, i + BATCH_SIZE * CONCURRENT_BATCHES);
+      const batchPromises = [];
+      
+      // Process CONCURRENT_BATCHES batches in parallel
+      for (let j = 0; j < batch.length; j += BATCH_SIZE) {
+        const concurrentBatch = batch.slice(j, j + BATCH_SIZE);
+        batchPromises.push(
+          Promise.all(concurrentBatch.map(investor => {
+            try {
+              const result = calculateMatchScore(placeholderStartup, investor, 0, investor.signals || null);
+              if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+                return {
+                  startup_id: startupId,
+                  investor_id: investor.id,
+                  match_score: result.score,
+                  reasoning: generateReasoning(placeholderStartup, investor, result.fitAnalysis),
+                  fit_analysis: result.fitAnalysis,
+                  confidence_level: result.confidence,
+                  why_you_match: generateWhyYouMatch(placeholderStartup, investor, result.fitAnalysis),
+                  status: 'suggested',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                };
+              }
+              return null;
+            } catch (err) {
+              console.warn(`  ⚠️ [BG] Match calculation error for investor ${investor.id}:`, err.message);
+              return null;
+            }
+          })).then(results => results.filter(r => r !== null))
+        );
+      }
+      
+      const batchResults = await Promise.all(batchPromises);
+      quickMatches.push(...batchResults.flat());
+      
+      // Early exit if we have enough matches
+      if (quickMatches.length >= MATCH_CONFIG.TOP_MATCHES_PER_STARTUP * 2) {
+        console.log(`  ⚡ [BG] Early exit - found ${quickMatches.length} matches`);
+        break;
       }
     }
     quickMatches.sort((a, b) => b.match_score - a.match_score);
-    const fastMatches = quickMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
+    fastMatches = quickMatches.slice(0, MATCH_CONFIG.TOP_MATCHES_PER_STARTUP);
     
     // Insert fast matches so frontend picks them up on next poll (~3s)
     // Uses unique(startup_id, investor_id) constraint for proper deduplication
@@ -620,38 +671,52 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     
     console.log(`  ⚡ [BG] PHASE 1 DONE: ${fastMatches.length} fast matches in ${Date.now() - phase1Start}ms`);
     
+    // If pipeline timed out, exit early with fast matches
+    if (checkTimeout()) {
+      console.warn(`  ⚠️ [BG] Pipeline timeout - returning ${fastMatches.length} fast matches`);
+      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
+      return;
+    }
+    
     // =========================================================================
     // PHASE 2: ENRICHMENT (~5-15s) — Scrape, infer, score, re-match
     // Matches are already visible; this refines them with real data
     // =========================================================================
     
-    // ── Fetch website content (3s hard timeout) ──
+    // ── Fetch website content (2s hard timeout, reduced for speed) ──
     let websiteContent = null;
-    try {
-      const response = await Promise.race([
-        axios.get(fullUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          },
-          timeout: 3000,
-          maxRedirects: 3,
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), 3500))
-      ]);
-      websiteContent = response.data
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 15000);
-      console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
-    } catch (fetchErr) {
-      console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
+    if (!checkTimeout()) {
+      try {
+        const fetchTimeout = Math.min(2000, pipelineDeadline - Date.now());
+        if (fetchTimeout <= 0) {
+          console.warn(`  ⚠️ [BG] Skipping fetch - pipeline timeout approaching`);
+        } else {
+          const response = await Promise.race([
+            axios.get(fullUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              },
+              timeout: fetchTimeout,
+              maxRedirects: 3,
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), fetchTimeout + 500))
+          ]);
+          websiteContent = response.data
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .substring(0, 15000);
+          console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
+        } catch (fetchErr) {
+          console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
+        }
+      }
     }
 
     // ── Inference engine (free, instant) ──
@@ -665,60 +730,78 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     }
 
-    // ── NEWS-BASED ENRICHMENT (if still sparse, search news - 2-3s) ──
-    console.log(`  🔄 [BG] Enrichment check: dataTier=${dataTier}, hasInferenceData=${!!inferenceData}, isSparse=${inferenceData ? isDataSparse({ extracted_data: inferenceData }) : 'N/A'}`);
-    
-    if (dataTier === 'C' || !inferenceData || isDataSparse({ extracted_data: inferenceData })) {
-      try {
-        console.log(`  🔄 [BG] Attempting news enrichment for "${displayName}"...`);
-        const newsEnrichment = await quickEnrich(displayName, inferenceData || {}, fullUrl, 3000);
-        
-        if (newsEnrichment.enrichmentCount > 0) {
-          inferenceData = { ...(inferenceData || {}), ...newsEnrichment.enrichedData };
-          dataTier = 'B'; // Upgrade to Tier B if we found data
-          console.log(`  🔄 [BG] News enrichment: +${newsEnrichment.enrichmentCount} fields (${newsEnrichment.fieldsEnriched.join(', ')}) from ${newsEnrichment.articlesFound} articles`);
-        } else {
-          console.log(`  🔄 [BG] News enrichment: No data found (${newsEnrichment.articlesFound} articles)`);
+    // ── NEWS-BASED ENRICHMENT (if still sparse, search news - 2s max) ──
+    if (!checkTimeout()) {
+      console.log(`  🔄 [BG] Enrichment check: dataTier=${dataTier}, hasInferenceData=${!!inferenceData}, isSparse=${inferenceData ? isDataSparse({ extracted_data: inferenceData }) : 'N/A'}`);
+      
+      if (dataTier === 'C' || !inferenceData || isDataSparse({ extracted_data: inferenceData })) {
+        try {
+          const enrichTimeout = Math.min(2000, pipelineDeadline - Date.now());
+          if (enrichTimeout > 500) {
+            console.log(`  🔄 [BG] Attempting news enrichment for "${displayName}"...`);
+            const newsEnrichment = await Promise.race([
+              quickEnrich(displayName, inferenceData || {}, fullUrl, enrichTimeout),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('enrich timeout')), enrichTimeout + 500))
+            ]);
+            
+            if (newsEnrichment.enrichmentCount > 0) {
+              inferenceData = { ...(inferenceData || {}), ...newsEnrichment.enrichedData };
+              dataTier = 'B'; // Upgrade to Tier B if we found data
+              console.log(`  🔄 [BG] News enrichment: +${newsEnrichment.enrichmentCount} fields (${newsEnrichment.fieldsEnriched.join(', ')}) from ${newsEnrichment.articlesFound} articles`);
+            } else {
+              console.log(`  🔄 [BG] News enrichment: No data found (${newsEnrichment.articlesFound} articles)`);
+            }
+          } else {
+            console.warn(`  ⚠️ [BG] Skipping news enrichment - timeout approaching`);
+          }
+        } catch (newsErr) {
+          console.warn(`  🔄 [BG] News enrichment failed: ${newsErr.message}`);
         }
-      } catch (newsErr) {
-        console.warn(`  🔄 [BG] News enrichment failed: ${newsErr.message}`);
       }
     }
 
-    // ── AI scraper fallback (ONLY for Tier C, hard 5s race timeout) ──
+    // ── AI scraper fallback (ONLY for Tier C, skip if timeout approaching) ──
     let aiData = null;
-    if (dataTier === 'C') {
+    if (!checkTimeout() && dataTier === 'C') {
       try {
-        const scrapeResult = await Promise.race([
-          scrapeAndScoreStartup(fullUrl),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('AI scraper timeout (5s)')), 5000))
-        ]);
-        aiData = scrapeResult?.data;
-        const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
-        dataTier = hasSomeAI ? 'B' : 'C';
+        const scrapeTimeout = Math.min(3000, pipelineDeadline - Date.now());
+        if (scrapeTimeout > 1000) {
+          const scrapeResult = await Promise.race([
+            scrapeAndScoreStartup(fullUrl),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('AI scraper timeout')), scrapeTimeout))
+          ]);
+          aiData = scrapeResult?.data;
+          const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
+          dataTier = hasSomeAI ? 'B' : 'C';
+        } else {
+          console.warn(`  ⚠️ [BG] Skipping AI scraper - timeout approaching`);
+        }
       } catch (aiErr) {
         console.warn(`  🔄 [BG] AI scraper skipped: ${aiErr.message}`);
       }
 
-      // DynamicParser fallback (only if still Tier C, 5s)
-      if (dataTier === 'C') {
+      // DynamicParser fallback (only if still Tier C, skip if timeout)
+      if (!checkTimeout() && dataTier === 'C') {
         try {
-          const DynamicParser = require('../../lib/dynamic-parser');
-          const parser = new DynamicParser();
-          const dpResult = await Promise.race([
-            parser.parse(fullUrl, {
-              extractionSchema: {
-                name: 'string', description: 'string', pitch: 'string',
-                problem: 'string', solution: 'string', sectors: 'array',
-                funding_amount: 'number', funding_stage: 'string',
-                founders: 'array', team_size: 'number',
-              }
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('DynamicParser timeout')), 5000))
-          ]);
-          if (dpResult && (dpResult.description || dpResult.pitch)) {
-            aiData = { ...(aiData || {}), ...dpResult };
-            dataTier = 'B';
+          const dpTimeout = Math.min(2000, pipelineDeadline - Date.now());
+          if (dpTimeout > 1000) {
+            const DynamicParser = require('../../lib/dynamic-parser');
+            const parser = new DynamicParser();
+            const dpResult = await Promise.race([
+              parser.parse(fullUrl, {
+                extractionSchema: {
+                  name: 'string', description: 'string', pitch: 'string',
+                  problem: 'string', solution: 'string', sectors: 'array',
+                  funding_amount: 'number', funding_stage: 'string',
+                  founders: 'array', team_size: 'number',
+                }
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('DynamicParser timeout')), dpTimeout))
+            ]);
+            if (dpResult && (dpResult.description || dpResult.pitch)) {
+              aiData = { ...(aiData || {}), ...dpResult };
+              dataTier = 'B';
+            }
           }
         } catch (dpErr) {
           console.warn(`  🔄 [BG] DynamicParser skipped: ${dpErr.message}`);
@@ -909,6 +992,13 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       console.log(`  ⏭️  [BG] Signal events skipped (duplicates within 24h window)`);
     }
 
+    // Check timeout before Phase 3
+    if (checkTimeout()) {
+      console.warn(`  ⚠️ [BG] Pipeline timeout before Phase 3 - returning ${fastMatches.length} fast matches`);
+      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
+      return;
+    }
+    
     // =========================================================================
     // PHASE 3: RE-GENERATE MATCHES with enriched data (only if sectors changed)
     // =========================================================================
@@ -929,25 +1019,62 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       // Use the just-seeded signal total (already computed above) for match scoring
       const signalScore = signalTotal;
 
+      // CRITICAL FIX: Parallel processing with timeout protection
+      const BATCH_SIZE = 50;
+      const CONCURRENT_BATCHES = 10;
+      const PHASE3_TIMEOUT = 8000; // 8 second hard timeout for Phase 3
+      const phase3Deadline = Math.min(Date.now() + PHASE3_TIMEOUT, pipelineDeadline);
+      
       const allMatches = [];
-      for (let idx = 0; idx < investors.length; idx++) {
-        const investor = investors[idx];
-        // Yield event loop every 100 investors so server stays responsive
-        if (idx > 0 && idx % 100 === 0) await new Promise(r => setImmediate(r));
-        const result = calculateMatchScore(enrichedStartup, investor, signalScore, investor.signals || null);
-        if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
-          allMatches.push({
-            startup_id: startupId,
-            investor_id: investor.id,
-            match_score: result.score,
-            reasoning: generateReasoning(enrichedStartup, investor, result.fitAnalysis),
-            fit_analysis: result.fitAnalysis,
-            confidence_level: result.confidence,
-            why_you_match: generateWhyYouMatch(enrichedStartup, investor, result.fitAnalysis),
-            status: 'suggested',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
+      
+      // Process investors in parallel batches
+      for (let i = 0; i < investors.length; i += BATCH_SIZE * CONCURRENT_BATCHES) {
+        // Check timeout
+        if (checkTimeout() || Date.now() >= phase3Deadline) {
+          console.warn(`  ⚠️ [BG] Phase 3 timeout - processed ${i}/${investors.length} investors`);
+          break;
+        }
+        
+        const batch = investors.slice(i, i + BATCH_SIZE * CONCURRENT_BATCHES);
+        const batchPromises = [];
+        
+        // Process CONCURRENT_BATCHES batches in parallel
+        for (let j = 0; j < batch.length; j += BATCH_SIZE) {
+          const concurrentBatch = batch.slice(j, j + BATCH_SIZE);
+          batchPromises.push(
+            Promise.all(concurrentBatch.map(investor => {
+              try {
+                const result = calculateMatchScore(enrichedStartup, investor, signalScore, investor.signals || null);
+                if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+                  return {
+                    startup_id: startupId,
+                    investor_id: investor.id,
+                    match_score: result.score,
+                    reasoning: generateReasoning(enrichedStartup, investor, result.fitAnalysis),
+                    fit_analysis: result.fitAnalysis,
+                    confidence_level: result.confidence,
+                    why_you_match: generateWhyYouMatch(enrichedStartup, investor, result.fitAnalysis),
+                    status: 'suggested',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  };
+                }
+                return null;
+              } catch (err) {
+                console.warn(`  ⚠️ [BG] Match calculation error for investor ${investor.id}:`, err.message);
+                return null;
+              }
+            })).then(results => results.filter(r => r !== null))
+          );
+        }
+        
+        const batchResults = await Promise.all(batchPromises);
+        allMatches.push(...batchResults.flat());
+        
+        // Early exit if we have enough matches
+        if (allMatches.length >= MATCH_CONFIG.TOP_MATCHES_PER_STARTUP * 2) {
+          console.log(`  ⚡ [BG] Early exit - found ${allMatches.length} matches`);
+          break;
         }
       }
 
@@ -995,10 +1122,25 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 
   } catch (err) {
     console.error(`  🔄 [BG] FATAL: ${err.message}`);
-    await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
+    
+    // Even on error, check if we have any matches to return
+    const { count: existingMatchCount } = await supabase
+      .from('startup_investor_matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('startup_id', startupId)
+      .eq('status', 'suggested')
+      .then(r => r).catch(() => ({ count: 0 }));
+    
+    if (existingMatchCount && existingMatchCount > 0) {
+      console.log(`  ✅ [BG] Error occurred but ${existingMatchCount} matches exist - marking as done`);
+      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
+    } else {
+      await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'failed', p_run_id: runId }).then(() => {}).catch(() => {});
+    }
+    
     void supabase.from('match_gen_logs').insert({
       startup_id: startupId, run_id: runId,
-      event: 'failed', source: genSource,
+      event: pipelineTimedOut ? 'timeout' : 'failed', source: genSource,
       reason: err.message,
       duration_ms: Date.now() - startTime,
     }).then(() => {}).catch(() => {});
