@@ -356,7 +356,7 @@ export default function PythhHome() {
       
       {/* SEO Meta Tags */}
       <SEO
-        title="Hot Honey - AI-Powered Startup-Investor Matching | 12.6K+ Startups Analyzed"
+        title="pythh.ai - Signal Science for Venture | 12.6K+ Startups Analyzed"
         description="Get matched with the right investors using our proprietary GOD Algorithm. 12,600+ startups analyzed, 841,915+ live matches, trusted by 500+ YC founders. Find your perfect investor match."
         keywords="startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score, venture capital matching"
         canonical="/"

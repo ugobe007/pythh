@@ -192,12 +192,12 @@ const GOD_SCORE_CONFIG = {
   // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
   // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
   // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 21.0,  // Recalibrated Feb 28, 2026 — balanced at 21.0. Combined with baseBoostMinimum 1.5 and signal cap +9 to achieve target average 58-62 and proper 50-59 distribution.
+  normalizationDivisor: 19.0,  // Recalibrated Feb 28, 2026 — reduced to 19.0 (minimum allowed) to bring average up to target 58-62. Combined with baseBoostMinimum 2.0 and signal cap +9.
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)
   // With divisor 20.5: minimum score = (2.8/20.5)*100 = 13.7 → floor at ~27-35 for sparse startups
-  baseBoostMinimum: 1.5,  // Recalibrated Feb 28, 2026 — set to 1.5. Combined with normalizationDivisor 21.0 to achieve target average 58-62.
+  baseBoostMinimum: 2.0,  // Recalibrated Feb 28, 2026 — increased to 2.0 to bring average up to target 58-62. Combined with normalizationDivisor 20.0.
   
   // Vibe bonus cap - qualitative signal boost
   // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)

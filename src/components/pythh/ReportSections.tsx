@@ -121,7 +121,7 @@ interface MeetingSuccessForecastProps {
 export function MeetingSuccessForecast({ context, topMatchScores, totalMatches }: MeetingSuccessForecastProps) {
   if (!context || topMatchScores.length === 0) return null;
 
-  const topAvg = topMatchScores.slice(0, 3).reduce((s, m) => s + m, 0) / Math.min(topMatchScores.length, 3);
+  const topAvg = topMatchScores.slice(0, 5).reduce((s, m) => s + m, 0) / Math.min(topMatchScores.length, 5);
   const successRate = meetingSuccessRate(context.god.total, topAvg);
   const godScore = context.god.total;
 

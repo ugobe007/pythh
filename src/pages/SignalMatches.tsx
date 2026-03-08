@@ -48,6 +48,10 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams, useParams, useLocation, Link } from 'react-router-dom';
 import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import InvestorReadinessReport, { type ReportData } from '@/components/pythh/InvestorReadinessReport';
+
+const API_BASE = import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:3002' : '');
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
@@ -236,6 +240,32 @@ export default function SignalMatches() {
   
   const { context, loading: contextLoading, refresh: refreshContext } = useStartupContext(resolvedStartupId);
   const { unlock, isPending, isAnyPending } = useUnlock(resolvedStartupId);
+  
+  // Fetch report data from /api/preview (same as SubmitStartupPage)
+  const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  
+  useEffect(() => {
+    if (!resolvedStartupId) {
+      setReportData(null);
+      return;
+    }
+    
+    setReportLoading(true);
+    fetch(`${API_BASE}/api/preview/${resolvedStartupId}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Could not load report');
+        return res.json();
+      })
+      .then((data: ReportData) => {
+        setReportData(data);
+        setReportLoading(false);
+      })
+      .catch(err => {
+        console.error('[SignalMatches] Failed to load report:', err);
+        setReportLoading(false);
+      });
+  }, [resolvedStartupId]);
   
   // Heartbeat timestamp (updated by onUpdated callback)
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
@@ -525,31 +555,17 @@ export default function SignalMatches() {
           Start with the top rows — those are your fastest outreach wins.
         </p>
 
-        {/* Startup Profile Card */}
-        <StartupProfileCard
-          context={context}
-          displayName={displayName}
-          loading={contextLoading}
-          unlockedCount={unlockedCount}
-          totalMatches={rows.length}
-        />
-
-        {/* ═══ TOP 5 MATCHES IN CARD FORMAT — What founders came here for ═══ */}
-        {resolvedStartupId && (
-          <TopMatchesCards
-            startupId={resolvedStartupId}
-            totalMatches={rows.length}
-          />
-        )}
-
-        {/* ═══ REPORT SECTIONS — Consistent with SubmitStartupPage ═══ */}
-        {context && resolvedStartupId && (
-          <ReportSectionsWrapper
-            context={context}
-            startupId={resolvedStartupId}
-            totalMatches={rows.length}
-          />
-        )}
+        {/* ═══ INVESTOR READINESS REPORT — Same as SubmitStartupPage ═══ */}
+        {reportData && !reportLoading ? (
+          <div className="mb-8">
+            <InvestorReadinessReport report={reportData} />
+          </div>
+        ) : reportLoading ? (
+          <div className="mb-8 text-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-zinc-500 mx-auto mb-2" />
+            <p className="text-sm text-zinc-500">Loading report...</p>
+          </div>
+        ) : null}
 
         {/* ═══ ALL MATCHES TABLE — Full match list ═══ */}
         <RadarMatchTable

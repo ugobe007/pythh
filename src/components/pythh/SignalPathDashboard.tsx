@@ -101,7 +101,7 @@ function generatePath(
     const hot = analytics.strongMomentum + analytics.emergingMomentum;
     steps.push({
       order: order++,
-      title: `Reach out to your top ${Math.min(hot, 3)} investors`,
+      title: `Reach out to your top ${Math.min(hot, 5)} investors`,
       detail: `${hot} investor${hot > 1 ? 's' : ''} show${hot === 1 ? 's' : ''} active momentum toward your space. Their attention window is open — warm outreach converts best when signals are strong.`,
       urgency: 'now',
     });
