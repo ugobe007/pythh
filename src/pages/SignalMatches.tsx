@@ -51,6 +51,8 @@ import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
+import TopMatchesCards from '@/components/pythh/TopMatchesCards';
+import ReportSectionsWrapper from '@/components/pythh/ReportSectionsWrapper';
 import {
   useResolveStartup,
   useStartupContext,
@@ -465,7 +467,24 @@ export default function SignalMatches() {
           totalMatches={rows.length}
         />
 
-        {/* ═══ TOP MATCHES — What founders came here for ═══ */}
+        {/* ═══ TOP 5 MATCHES IN CARD FORMAT — What founders came here for ═══ */}
+        {resolvedStartupId && (
+          <TopMatchesCards
+            startupId={resolvedStartupId}
+            totalMatches={rows.length}
+          />
+        )}
+
+        {/* ═══ REPORT SECTIONS — Consistent with SubmitStartupPage ═══ */}
+        {context && resolvedStartupId && (
+          <ReportSectionsWrapper
+            context={context}
+            startupId={resolvedStartupId}
+            totalMatches={rows.length}
+          />
+        )}
+
+        {/* ═══ ALL MATCHES TABLE — Full match list ═══ */}
         <RadarMatchTable
           rows={rows}
           context={context}
