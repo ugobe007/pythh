@@ -70,52 +70,81 @@ export const pythhRpc = {
 
   // Resolve startup by URL or name
   // DELEGATES to unified submitStartup() service — single source of truth
-  // HARD_TIMEOUT: 20s safety net only — the RPC fast path is < 50ms.
+  // HARD_TIMEOUT: 8s for RPC, then fallback to direct backend API
   // New startups going through Express backend (scrape+score+match) take 5-15s.
   async resolveStartup(url: string, forceGenerate = false): Promise<ResolverResponse> {
-    const HARD_TIMEOUT = 20_000;
+    const RPC_TIMEOUT = 8_000; // Reduced from 20s - RPC should be fast
     const t0 = Date.now();
-    const resultPromise = unifiedSubmit(url, { forceGenerate });
-    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), HARD_TIMEOUT));
+    
+    // Try RPC first (fast path)
+    try {
+      const rpcPromise = supabase.rpc('resolve_startup_by_url', { p_url: url });
+      const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), RPC_TIMEOUT));
+      const rpcResult = await Promise.race([rpcPromise, timeoutPromise]);
+      
+      if (rpcResult && !rpcResult.error && rpcResult.data) {
+        const row = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+        if (row?.startup_id || row?.resolved) {
+          return {
+            found: true,
+            startup_id: row.startup_id,
+            name: row.startup_name,
+            website: row.canonical_url,
+            searched: url,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn(`[pythhRpc] RPC call failed, falling back to backend API:`, err);
+    }
+    
+    // Fallback: Use backend API directly (bypasses slow RPC)
+    try {
+      const resultPromise = unifiedSubmit(url, { forceGenerate });
+      const BACKEND_TIMEOUT = 15_000; // Backend can take longer
+      const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), BACKEND_TIMEOUT));
+      const result = await Promise.race([resultPromise, timeoutPromise]);
+      const elapsed = Date.now() - t0;
 
-    const result = await Promise.race([resultPromise, timeoutPromise]);
-    const elapsed = Date.now() - t0;
+      if (!result) {
+        console.error(`[pythhRpc] resolveStartup BACKEND TIMEOUT after ${BACKEND_TIMEOUT / 1000}s for:`, url);
+        return { found: false, searched: url };
+      }
 
-    if (!result) {
-      console.error(`[pythhRpc] resolveStartup HARD TIMEOUT after ${HARD_TIMEOUT / 1000}s for:`, url);
+      // Log resolver diagnostics from the RPC response (branch used + server-side timing)
+      const rpcBranch = (result as any)._resolver_branch ?? 'unknown';
+      const rpcElapsedMs = (result as any)._elapsed_ms ?? null;
+      console.info(
+        `[pythhRpc] resolved in ${elapsed}ms | status=${result.status} | branch=${rpcBranch}` +
+        (rpcElapsedMs != null ? ` | db=${rpcElapsedMs}ms` : '')
+      );
+
+      // Fire-and-forget: write telemetry row — void + .catch() guarantees it
+      // cannot throw into the caller regardless of RLS or network failure.
+      const domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+      const found = result.status !== 'not_found' && result.status !== 'error';
+      void supabase.from('resolver_telemetry').insert({
+        domain,
+        found,
+        branch: rpcBranch,
+        elapsed_ms: elapsed,
+        startup_id: found ? (result.startup_id ?? null) : null,
+      }).catch(() => { /* intentional: best-effort only */ });
+
+      return {
+        found,
+        startup_id: result.startup_id ?? undefined,
+        name: result.name ?? undefined,
+        website: result.website ?? undefined,
+        company_website: result.company_website ?? undefined,
+        source_url: result.source_url ?? undefined,
+        has_company_site: result.has_company_site ?? true,
+        searched: result.searched,
+      };
+    } catch (err) {
+      console.error(`[pythhRpc] resolveStartup error:`, err);
       return { found: false, searched: url };
     }
-
-    // Log resolver diagnostics from the RPC response (branch used + server-side timing)
-    const rpcBranch = (result as any)._resolver_branch ?? 'unknown';
-    const rpcElapsedMs = (result as any)._elapsed_ms ?? null;
-    console.info(
-      `[pythhRpc] resolved in ${elapsed}ms | status=${result.status} | branch=${rpcBranch}` +
-      (rpcElapsedMs != null ? ` | db=${rpcElapsedMs}ms` : '')
-    );
-
-    // Fire-and-forget: write telemetry row — void + .catch() guarantees it
-    // cannot throw into the caller regardless of RLS or network failure.
-    const domain = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
-    const found = result.status !== 'not_found' && result.status !== 'error';
-    void supabase.from('resolver_telemetry').insert({
-      domain,
-      found,
-      branch: rpcBranch,
-      elapsed_ms: elapsed,
-      startup_id: found ? (result.startup_id ?? null) : null,
-    }).catch(() => { /* intentional: best-effort only */ });
-
-    return {
-      found,
-      startup_id: result.startup_id ?? undefined,
-      name: result.name ?? undefined,
-      website: result.website ?? undefined,
-      company_website: result.company_website ?? undefined,
-      source_url: result.source_url ?? undefined,
-      has_company_site: result.has_company_site ?? true,
-      searched: result.searched,
-    };
   },
 
   // Get saved sessions for returning user
