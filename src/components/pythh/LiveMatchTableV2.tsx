@@ -126,8 +126,8 @@ export function LiveMatchTable({
         <div className="w-28 text-right">Action</div>
       </div>
 
-      {/* Unlocked rows */}
-      {showUnlocked && unlockedRows.map((row, index) => (
+      {/* Unlocked rows - show top 5 only */}
+      {showUnlocked && unlockedRows.slice(0, 5).map((row, index) => (
         <RadarTableRow
           key={row.investorId}
           row={row}

@@ -245,7 +245,7 @@ export default function InvestorReadinessReport({ report, showFooter = false, on
         </div>
         <div className="space-y-3">
           {matches.slice(0, 5).map((m, i) => (
-            <MatchCard key={m.investor.id} match={m} rank={i + 1} blurred={i >= 5} />
+            <MatchCard key={m.investor.id} match={m} rank={i + 1} blurred={false} />
           ))}
         </div>
         <div className="relative mt-4 rounded-xl border border-orange-500/20 bg-gradient-to-b from-zinc-900/80 to-zinc-950/80 p-5 text-center"
