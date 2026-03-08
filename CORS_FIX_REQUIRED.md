@@ -8,21 +8,40 @@ Origin https://pythh.ai is not allowed by Access-Control-Allow-Origin. Status co
 ```
 
 ## Root Cause
-Supabase CORS settings need to include `https://pythh.ai` as an allowed origin.
+Supabase automatically allows CORS for the **Site URL** configured in Authentication settings. The Site URL must match your production domain.
 
 ## Fix Required (Supabase Dashboard)
 
-1. Go to Supabase Dashboard → Project Settings → API
-2. Under "CORS Settings" or "Allowed Origins", add:
+### Step 1: Configure Site URL
+1. Go to Supabase Dashboard → **Authentication** → **URL Configuration**
+2. Under **Site URL**, set:
    - `https://pythh.ai`
-   - `https://www.pythh.ai` (if using www subdomain)
-3. Save changes
+3. Under **Redirect URLs**, add (if not already present):
+   - `https://pythh.ai/**`
+   - `https://www.pythh.ai/**` (if using www subdomain)
+   - `https://pythh.ai/*` (wildcard pattern)
+4. Click **Save**
 
-## Alternative: Environment Variable Check
+### Step 2: Verify API Settings
+1. Go to **Project Settings** → **API**
+2. Verify your **Project URL** matches: `https://unkpogyhhjbvxxjvmxlt.supabase.co`
+3. Check that **anon/public key** is correctly set in your environment variables
 
-If using environment variables for CORS, ensure:
-- `VITE_SUPABASE_URL` is correctly set
-- Supabase project has the correct allowed origins configured
+### Step 3: Check RLS Policies (if still failing)
+If CORS errors persist after setting Site URL, check Row Level Security:
+1. Go to **Authentication** → **Policies**
+2. Ensure policies allow public access where needed (or use service role key for server-side)
+
+## Alternative: Check Network/Proxy Issues
+
+The 520/522 errors might also indicate:
+- **520**: Cloudflare "Unknown Error" - Supabase instance might be down
+- **522**: Cloudflare "Connection Timed Out" - Network issue between Cloudflare and Supabase
+
+If these persist, check:
+- Supabase project status page
+- Network connectivity
+- Cloudflare proxy settings (if using Cloudflare)
 
 ## Impact
 - All Supabase REST API calls are failing
@@ -32,3 +51,9 @@ If using environment variables for CORS, ensure:
 
 ## Status
 **URGENT** - This is blocking all database operations on production.
+
+## Verification
+After updating Site URL, test by:
+1. Opening browser console on `https://pythh.ai`
+2. Run: `fetch('https://unkpogyhhjbvxxjvmxlt.supabase.co/rest/v1/startup_uploads?select=id&limit=1', { headers: { 'apikey': 'YOUR_ANON_KEY' } })`
+3. Should return data without CORS error
