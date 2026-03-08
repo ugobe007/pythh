@@ -48,7 +48,7 @@
 
 const MOMENTUM_CONFIG = {
   // Maximum total momentum bonus
-  maxBonus: 5, // Admin recalibrated Feb 20, 2026 (was 8 — reduces overlap with traction signals)
+  maxBonus: 3, // Reduced Feb 2026 from 5 to 3 to lower average GOD scores toward target 58-62 range
 
   // Per-dimension caps
   revenueTrajectory: {

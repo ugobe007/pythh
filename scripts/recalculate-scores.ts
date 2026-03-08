@@ -436,7 +436,7 @@ async function recalculateScores(): Promise<void> {
     // PRIORITY 2: SIGNALS BONUS (Market intelligence layer)
     // ============================================================================
     // Get signals_bonus from startup (already populated from startup_signal_scores table)
-    const signalsBonus = Math.min(startup.signals_bonus || 0, 10); // Capped at 10
+    const signalsBonus = Math.min(startup.signals_bonus || 0, 9); // Capped at 9 — balanced Feb 28 2026 to allow meaningful signal impact while preventing excessive inflation
     
     // ============================================================================
     // CONDITIONAL BONUSES: Only apply if data-rich (Phase 1-2)
@@ -542,7 +542,7 @@ async function recalculateScores(): Promise<void> {
     }
 
     const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;
-    const cappedBonuses = Math.min(rawBonuses, 15); // Cap: bonuses ≤ +15 total — raised Feb 28 2026 from +10; allows pedigree+signals+momentum stacks to fully count without truncation
+    const cappedBonuses = Math.min(rawBonuses, 10); // Cap: bonuses ≤ +10 total — reduced Feb 28 2026 from +15 to prevent scores from being pushed out of 50-59 range into 60+
     const finalScore = Math.min(Math.round(scores.total_god_score + cappedBonuses), 100); // No artificial floor — honest score; baseBoostMinimum in startupScoringService.ts provides natural minimum for human-vetted startups
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 

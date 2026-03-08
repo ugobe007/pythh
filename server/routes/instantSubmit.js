@@ -823,6 +823,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // ── Write signal_events (Layer 1 raw evidence) ──
     // Create signal events from enrichment evidence: execution_velocity (always),
     // news_momentum (if extraction found articles), capital_convergence (if funding found)
+    // IMPORTANT: Deduplicate to prevent inflating signal scores from repeated URL submissions
     const signalEvents = [];
     const extracted = enrichedRow.extracted_data || {};
     const hasFunding = !!(extracted.funding?.amount || extracted.funding?.stage_name);
@@ -830,24 +831,46 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
                            extracted.metrics?.users || extracted.metrics?.customers);
     const hasCoverage = !!(enrichedRow.last_news_check);
 
-    // Always: execution_velocity — we just enriched this startup
-    signalEvents.push({
-      startup_id: startupId,
-      event_type: 'execution_velocity',
-      source_type: 'enrichment',
-      source_url: enrichedRow.website || null,
-      confidence: Math.min(0.5 + normalized * 0.4, 0.95).toFixed(2),
-      magnitude: parseFloat((1.1 * factor).toFixed(2)),
-      payload: { 
-        trigger: 'url_submit_enrichment', 
-        god_score: godScore,
-        has_traction: hasTraction,
-        data_completeness: completenessResult?.percentage || 0
-      }
-    });
+    // Check for existing events with same trigger within last 24 hours (deduplication window)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: existingEvents } = await supabase
+      .from('signal_events')
+      .select('event_type, payload')
+      .eq('startup_id', startupId)
+      .gte('occurred_at', twentyFourHoursAgo)
+      .or('payload->>trigger.eq.url_submit_enrichment,payload->>trigger.eq.funding_data_found,payload->>trigger.eq.inference_news_search');
 
-    // If funding info found: capital_convergence
-    if (hasFunding) {
+    const existingEventTypes = new Set();
+    const existingTriggers = new Set();
+    if (existingEvents) {
+      existingEvents.forEach(e => {
+        existingEventTypes.add(e.event_type);
+        if (e.payload?.trigger) {
+          existingTriggers.add(e.payload.trigger);
+        }
+      });
+    }
+
+    // Only create execution_velocity event if it doesn't already exist (deduplication)
+    if (!existingEventTypes.has('execution_velocity') || !existingTriggers.has('url_submit_enrichment')) {
+      signalEvents.push({
+        startup_id: startupId,
+        event_type: 'execution_velocity',
+        source_type: 'enrichment',
+        source_url: enrichedRow.website || null,
+        confidence: Math.min(0.5 + normalized * 0.4, 0.95).toFixed(2),
+        magnitude: parseFloat((1.1 * factor).toFixed(2)),
+        payload: { 
+          trigger: 'url_submit_enrichment', 
+          god_score: godScore,
+          has_traction: hasTraction,
+          data_completeness: completenessResult?.percentage || 0
+        }
+      });
+    }
+
+    // Only create capital_convergence event if funding found AND not already exists
+    if (hasFunding && (!existingEventTypes.has('capital_convergence') || !existingTriggers.has('funding_data_found'))) {
       signalEvents.push({
         startup_id: startupId,
         event_type: 'capital_convergence',
@@ -863,8 +886,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       });
     }
 
-    // If recent news discovered: news_momentum
-    if (hasCoverage) {
+    // Only create news_momentum event if coverage found AND not already exists
+    if (hasCoverage && (!existingEventTypes.has('news_momentum') || !existingTriggers.has('inference_news_search'))) {
       signalEvents.push({
         startup_id: startupId,
         event_type: 'news_momentum',
@@ -880,8 +903,10 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       void supabase
         .from('signal_events')
         .insert(signalEvents)
-        .then(() => console.log(`  🔄 [BG] Signal events: ${signalEvents.length} created`))
+        .then(() => console.log(`  🔄 [BG] Signal events: ${signalEvents.length} created (deduplicated)`))
         .catch(e => console.warn(`  🔄 [BG] Signal events failed: ${e.message}`));
+    } else {
+      console.log(`  ⏭️  [BG] Signal events skipped (duplicates within 24h window)`);
     }
 
     // =========================================================================
@@ -1152,6 +1177,18 @@ router.post('/submit', async (req, res) => {
     // ── NEW STARTUP: create minimal row + fire background ──
     isNew = true;
     const displayName = domainToName(domain);
+    
+    // Validate startup name to prevent junk entries
+    const { isValidStartupName } = await import('../utils/startupNameValidator.js');
+    const nameValidation = isValidStartupName(displayName);
+    if (!nameValidation.isValid) {
+      console.warn(`[instant/submit] Rejected invalid startup name: "${displayName}" (reason: ${nameValidation.reason})`);
+      return res.status(400).json({
+        error: 'Invalid startup name',
+        reason: nameValidation.reason,
+        suggestion: 'Please provide a valid company name'
+      });
+    }
     
     // Insert minimal startup row immediately (no scraping, no AI)
     let insertName = displayName;

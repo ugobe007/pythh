@@ -262,6 +262,18 @@ router.post('/scrape', async (req, res) => {
       });
     }
     
+    // Validate startup name to prevent junk entries
+    const { isValidStartupName } = await import('../utils/startupNameValidator.js');
+    const nameValidation = isValidStartupName(name);
+    if (!nameValidation.isValid) {
+      console.warn(`[startup/scrape] Rejected invalid startup name: "${name}" (reason: ${nameValidation.reason})`);
+      return res.status(400).json({
+        error: 'Invalid startup name',
+        reason: nameValidation.reason,
+        suggestion: 'The scraped name appears to be invalid. Please verify the URL.'
+      });
+    }
+    
     // Create new startup
     const { data: created, error } = await supabase
       .from('startup_uploads')

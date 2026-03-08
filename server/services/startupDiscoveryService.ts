@@ -288,6 +288,15 @@ RESPONSE FORMAT (JSON only, no markdown):
 
     for (const startup of startups) {
       try {
+        // Validate startup name to prevent junk entries
+        const { isValidStartupName } = await import('../utils/startupNameValidator');
+        const nameValidation = isValidStartupName(startup.name);
+        if (!nameValidation.isValid) {
+          console.warn(`   ⚠️  Skipping invalid startup name: "${startup.name}" (reason: ${nameValidation.reason})`);
+          skipped++;
+          continue;
+        }
+        
         // Check if already exists (by name)
         const { data: existing } = await supabase
           .from('discovered_startups')

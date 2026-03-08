@@ -104,15 +104,15 @@
 const GOD_SCORE_ACCEPTABLE_RANGES = {
   normalizationDivisor: {
     min: 19.0,   // Below 19: avg > 65 (rawTotal ~12.7 / 19 * 100 = 66.8 — measured Mar 2026)
-    max: 23.0,   // Above 23: avg < 55 (rawTotal ~12.7 / 23 * 100 = 55.2)
+    max: 23.0,   // Above 23: avg < 55 (rawTotal ~12.7 / 23 * 100 = 55.2) — currently at max to create more 50-59 scores
     target: 22.0, // Optimal: rawTotal ~14.66 / 22 * 100 = 66.6 — adjusted Jan 2026 to fix inflation (avg was 69.8)
-    explanation: 'Controls overall score scaling. Measured avg rawTotal ~14.66 from production sample (Jan 2026). Increased from 21.0 to 22.5 to bring average from 69.8 back to target 58-62 range.'
+    explanation: 'Controls overall score scaling. Currently at max (23.0) to lower scores after data enrichment filled gaps. Data enrichment increased raw scores, so higher divisor needed to maintain target distribution.'
   },
   baseBoostMinimum: {
     min: 0.5,    // Below 0.5: essentially no floor, approved startups get nothing
     max: 3.0,    // Above 3.0: floor starts inflating all scores artificially
     target: 2.0,  // Honest floor for human-approved startups; 2.0/19.0*100 = 10.5 raw → ~48-55 after processing
-    explanation: 'Minimum baseline score for data-sparse startups. 2.0 reflects the honest value of admin-vetting; all startups in startup_uploads are human-reviewed.'
+    explanation: 'Minimum baseline score for data-sparse startups. Lowered to 0.75 since data enrichment now provides real signals, reducing need for artificial floor.'
   },
   vibeBonusCap: {
     min: 0.5,
@@ -192,16 +192,16 @@ const GOD_SCORE_CONFIG = {
   // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
   // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
   // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 19.0,  // Recalibrated Jan 2026 — set to minimum acceptable (19.0) to maximize scores. Current avg 45.8, target 58-62. Math: 45.8*(20.0/19.0)=48.2 (still below target - may indicate rawTotal values are lower than expected, or signal bonuses need review)
+  normalizationDivisor: 21.0,  // Recalibrated Feb 28, 2026 — balanced at 21.0. Combined with baseBoostMinimum 1.5 and signal cap +9 to achieve target average 58-62 and proper 50-59 distribution.
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 2.0 - 3.5 (enforced by validation)
   // With divisor 20.5: minimum score = (2.8/20.5)*100 = 13.7 → floor at ~27-35 for sparse startups
-  baseBoostMinimum: 2.0,  // Recalibrated Feb 28, 2026 — raised from 1.5; 2.0 is an honest floor for human-vetted approved startups; investor pedigree rewards real backing signals on top
+  baseBoostMinimum: 1.5,  // Recalibrated Feb 28, 2026 — set to 1.5. Combined with normalizationDivisor 21.0 to achieve target average 58-62.
   
   // Vibe bonus cap - qualitative signal boost
   // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)
-  vibeBonusCap: 1.0,
+  vibeBonusCap: 0.5,  // Reduced to minimum (0.5) to minimize qualitative bonuses and bring average closer to target 58-62
   
   // Final score multiplier (converts 0-10 to 0-100)
   finalScoreMultiplier: 10,

@@ -110,6 +110,18 @@ router.post("/submit", async (req, res) => {
     }
 
     if (!startupId) {
+      // Validate startup name to prevent junk entries
+      const { isValidStartupName } = await import('../utils/startupNameValidator.js');
+      const nameValidation = isValidStartupName(companyName);
+      if (!nameValidation.isValid) {
+        console.warn(`[discovery/submit] Rejected invalid startup name: "${companyName}" (reason: ${nameValidation.reason})`);
+        return res.status(400).json({
+          error: 'Invalid startup name',
+          reason: nameValidation.reason,
+          suggestion: 'Please provide a valid company name'
+        });
+      }
+      
       // Create new startup
       const { data: startupUpload, error: uploadErr } = await supabase
         .from("startup_uploads")

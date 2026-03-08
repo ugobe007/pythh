@@ -250,8 +250,8 @@ export function calculateInvestorPedigreeBonus(startup: any): PedigreeResult {
   if (advisorHits.length >= 3) rawBonus += Math.min(rawBonus > 0 ? 1 : 2, 2);
   else if (advisorHits.length >= 1) rawBonus += Math.min(rawBonus > 0 ? 0.5 : 1, 1);
 
-  // Hard cap at 8 (leaves headroom for other bonuses up to the +10 total cap)
-  const bonus = Math.min(Math.round(rawBonus), 8);
+  // Hard cap at 5 (reduced Feb 2026 from 8 to lower average GOD scores toward target 58-62 range)
+  const bonus = Math.min(Math.round(rawBonus), 5);
 
   if (bonus === 0 && matchedInvestors.length === 0 && matchedAdvisors.length === 0) {
     return {
