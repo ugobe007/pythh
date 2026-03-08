@@ -122,10 +122,54 @@ export default function SignalMatches() {
   // Returns: startup_id + name + 5 unlocked + 50 locked signals
   // SKIP if we already have startup_id from query param (prefetch from PythhMain)
   const skipUrlResolve = !!(startupIdFromQuery && urlToResolve);
+  
+  // Track if we've triggered creation for this URL
+  const [creationTriggered, setCreationTriggered] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  
   const { result: resolverResult, loading: resolverLoading, isSlowLoading } = useResolveStartup(
     skipUrlResolve ? null : urlToResolve,
     forceGenerate
   );
+  
+  // Auto-trigger creation if not found (only once per URL)
+  useEffect(() => {
+    if (
+      urlToResolve &&
+      !skipUrlResolve &&
+      !resolverLoading &&
+      resolverResult &&
+      !resolverResult.found &&
+      creationTriggered !== urlToResolve &&
+      !isCreating
+    ) {
+      // Trigger creation by calling submitStartup directly
+      console.log('[SignalMatches] Startup not found, triggering creation for:', urlToResolve);
+      setCreationTriggered(urlToResolve);
+      setIsCreating(true);
+      
+      import('@/services/submitStartup').then(({ submitStartup }) => {
+        submitStartup(urlToResolve, { forceGenerate: true })
+          .then((result) => {
+            setIsCreating(false);
+            if (result.startup_id) {
+              // Successfully created - navigate to the new startup
+              console.log('[SignalMatches] Startup created:', result.startup_id);
+              navigate(`/signal-matches?startup=${result.startup_id}&url=${encodeURIComponent(urlToResolve)}`, { replace: true });
+            } else {
+              // Creation failed or timed out - will show not_found UI
+              console.warn('[SignalMatches] Startup creation failed or timed out:', result.status);
+              setCreationTriggered(null); // Allow retry
+            }
+          })
+          .catch((err) => {
+            setIsCreating(false);
+            console.error('[SignalMatches] Error creating startup:', err);
+            setCreationTriggered(null); // Allow retry
+          });
+      });
+    }
+  }, [urlToResolve, skipUrlResolve, resolverLoading, resolverResult, creationTriggered, isCreating, navigate]);
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {
@@ -151,12 +195,20 @@ export default function SignalMatches() {
     // If we have a resolved ID, we're ready
     if (resolvedStartupId) return { mode: 'ready' };
     
+    // If creating startup, show loading
+    if (isCreating) return { mode: 'loading' };
+    
     // If URL resolver is loading, show loading
     if (urlToResolve && resolverLoading) return { mode: 'loading' };
     
-    // If URL resolver finished but not found
-    if (urlToResolve && resolverResult && !resolverResult.found) {
+    // If URL resolver finished but not found (and we haven't triggered creation yet)
+    if (urlToResolve && resolverResult && !resolverResult.found && !creationTriggered) {
       return { mode: 'not_found', searched: resolverResult.searched || urlToResolve };
+    }
+    
+    // If we triggered creation but it's still processing, show loading
+    if (urlToResolve && creationTriggered && isCreating) {
+      return { mode: 'loading' };
     }
     
     // RUNTIME INVARIANT: Detect missing context from public flow
@@ -318,22 +370,37 @@ export default function SignalMatches() {
         )}
 
         <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Not found</div>
-          <p className="text-sm text-zinc-400 leading-relaxed mb-6">
-            No startup matched "<span className="text-white">{uiState.searched}</span>"
-          </p>
+          {isCreating ? (
+            <>
+              <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Creating startup profile...</div>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+                We're analyzing "<span className="text-white">{uiState.searched}</span>" and creating your investor matches.
+              </p>
+              <div className="flex items-center gap-2 text-sm text-zinc-500">
+                <div className="w-4 h-4 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
+                <span>This may take 10-30 seconds...</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Not found</div>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+                No startup matched "<span className="text-white">{uiState.searched}</span>"
+              </p>
 
-          <div className="text-sm text-zinc-500 space-y-1.5 mb-8">
-            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Check for typos in the domain name</p>
-            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Use the full domain (e.g. stripe.com, not stripe)</p>
-            <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Make sure it is a real company website</p>
-          </div>
+              <div className="text-sm text-zinc-500 space-y-1.5 mb-8">
+                <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Check for typos in the domain name</p>
+                <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Use the full domain (e.g. stripe.com, not stripe)</p>
+                <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Make sure it is a real company website</p>
+              </div>
 
-          <p className="text-sm text-zinc-400">
-            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
-            <span className="text-zinc-700 mx-3">·</span>
-            <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
-          </p>
+              <p className="text-sm text-zinc-400">
+                <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
+                <span className="text-zinc-700 mx-3">·</span>
+                <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
+              </p>
+            </>
+          )}
         </main>
       </div>
     );
