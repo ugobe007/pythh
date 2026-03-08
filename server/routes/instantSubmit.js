@@ -713,9 +713,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             .trim()
             .substring(0, 15000);
           console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
-        } catch (fetchErr) {
-          console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
         }
+      } catch (fetchErr) {
+        console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
       }
     }
 
