@@ -205,13 +205,20 @@ export default function SignalMatches() {
     // If URL resolver is loading, show loading
     if (urlToResolve && resolverLoading) return { mode: 'loading' };
     
+    // If we triggered creation (even if not currently creating), show loading
+    // This handles the case where creation was triggered but is waiting/retrying
+    if (urlToResolve && creationTriggered) {
+      return { mode: 'loading' };
+    }
+    
     // If URL resolver finished but not found (and we haven't triggered creation yet)
     if (urlToResolve && resolverResult && !resolverResult.found && !creationTriggered) {
       return { mode: 'not_found', searched: resolverResult.searched || urlToResolve };
     }
     
-    // If we triggered creation but it's still processing, show loading
-    if (urlToResolve && creationTriggered && isCreating) {
+    // If URL exists but resolver hasn't returned yet (timeout case), show loading
+    // This handles RPC timeouts where resolverResult is null but urlToResolve exists
+    if (urlToResolve && !resolverResult && !resolverLoading && !creationTriggered) {
       return { mode: 'loading' };
     }
     
@@ -225,7 +232,7 @@ export default function SignalMatches() {
     
     // Has input but waiting for resolution: show picker
     return { mode: 'picker' };
-  }, [resolvedStartupId, urlToResolve, resolverLoading, resolverResult, startupIdFromPath, startupIdFromQuery, pickedStartupId]);
+  }, [resolvedStartupId, urlToResolve, resolverLoading, resolverResult, creationTriggered, isCreating, startupIdFromPath, startupIdFromQuery, pickedStartupId]);
   
   // Resolved name (for header)
   const resolvedName = useMemo(() => {
