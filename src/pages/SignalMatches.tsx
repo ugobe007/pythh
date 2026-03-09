@@ -130,13 +130,14 @@ export default function SignalMatches() {
   // Track if we've triggered creation for this URL
   const [creationTriggered, setCreationTriggered] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [creationFailed, setCreationFailed] = useState<string | null>(null); // Track failed URLs to prevent infinite retries
   
   const { result: resolverResult, loading: resolverLoading, isSlowLoading } = useResolveStartup(
     skipUrlResolve ? null : urlToResolve,
     forceGenerate
   );
   
-  // Auto-trigger creation if not found (only once per URL)
+  // Auto-trigger creation if not found (only once per URL, prevent infinite retries)
   useEffect(() => {
     if (
       urlToResolve &&
@@ -145,6 +146,7 @@ export default function SignalMatches() {
       resolverResult &&
       !resolverResult.found &&
       creationTriggered !== urlToResolve &&
+      creationFailed !== urlToResolve && // Don't retry if already failed
       !isCreating
     ) {
       // Trigger creation by calling submitStartup directly
@@ -161,19 +163,21 @@ export default function SignalMatches() {
               console.log('[SignalMatches] Startup created:', result.startup_id);
               navigate(`/signal-matches?startup=${result.startup_id}&url=${encodeURIComponent(urlToResolve)}`, { replace: true });
             } else {
-              // Creation failed or timed out - will show not_found UI
+              // Creation failed or timed out - mark as failed to prevent infinite retries
               console.warn('[SignalMatches] Startup creation failed or timed out:', result.status);
-              setCreationTriggered(null); // Allow retry
+              setCreationFailed(urlToResolve);
+              setCreationTriggered(null);
             }
           })
           .catch((err) => {
             setIsCreating(false);
             console.error('[SignalMatches] Error creating startup:', err);
-            setCreationTriggered(null); // Allow retry
+            setCreationFailed(urlToResolve); // Mark as failed to prevent infinite retries
+            setCreationTriggered(null);
           });
       });
     }
-  }, [urlToResolve, skipUrlResolve, resolverLoading, resolverResult, creationTriggered, isCreating, navigate]);
+  }, [urlToResolve, skipUrlResolve, resolverLoading, resolverResult, creationTriggered, creationFailed, isCreating, navigate]);
   
   // THE SINGLE SOURCE OF TRUTH
   const resolvedStartupId = useMemo(() => {
@@ -211,9 +215,14 @@ export default function SignalMatches() {
       return { mode: 'loading' };
     }
     
-    // If URL resolver finished but not found (and we haven't triggered creation yet)
-    if (urlToResolve && resolverResult && !resolverResult.found && !creationTriggered) {
+    // If URL resolver finished but not found (and we haven't triggered creation yet, or creation failed)
+    if (urlToResolve && resolverResult && !resolverResult.found && (!creationTriggered || creationFailed === urlToResolve)) {
       return { mode: 'not_found', searched: resolverResult.searched || urlToResolve };
+    }
+    
+    // If creation failed, show not_found (even if resolverResult is null due to timeout)
+    if (urlToResolve && creationFailed === urlToResolve && !isCreating) {
+      return { mode: 'not_found', searched: urlToResolve };
     }
     
     // If URL exists but resolver hasn't returned yet (timeout case), show loading
