@@ -39,6 +39,13 @@ router.get('/:startupId', async (req, res) => {
       return res.status(404).json({ error: 'Startup not found' });
     }
 
+    // 1b. Fetch signal scores
+    const { data: signalData } = await supabase
+      .from('startup_signal_scores')
+      .select('signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity')
+      .eq('startup_id', startupId)
+      .maybeSingle();
+
     // 2. Fetch total match count
     const { count: totalMatches } = await supabase
       .from('startup_investor_matches')
@@ -114,6 +121,14 @@ router.get('/:startupId', async (req, res) => {
           product: startup.product_score,
           vision: startup.vision_score,
         },
+        signal_score: signalData?.signals_total || 0,
+        signal_components: signalData ? {
+          founder_language_shift: signalData.founder_language_shift || 0,
+          investor_receptivity: signalData.investor_receptivity || 0,
+          news_momentum: signalData.news_momentum || 0,
+          capital_convergence: signalData.capital_convergence || 0,
+          execution_velocity: signalData.execution_velocity || 0,
+        } : null,
         percentile,
       },
       total_matches: totalMatches || 0,

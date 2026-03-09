@@ -15,8 +15,16 @@ const API_BASE = import.meta.env.VITE_API_URL ||
 interface ScoreComponents { team: number; traction: number; market: number; product: number; vision: number; }
 interface Investor { id: string; name: string; firm: string; title?: string; sectors?: string[] | string; stage?: string[] | string; check_size_min?: number; check_size_max?: number; investor_tier?: string; photo_url?: string; }
 interface Match { match_score: number; why_you_match?: string; investor: Investor; }
+interface SignalComponents {
+  founder_language_shift: number;
+  investor_receptivity: number;
+  news_momentum: number;
+  capital_convergence: number;
+  execution_velocity: number;
+}
+
 export interface ReportData {
-  startup: { id: string; name: string; tagline?: string; website?: string; god_score: number; score_components: ScoreComponents; percentile: number; };
+  startup: { id: string; name: string; tagline?: string; description?: string; website?: string; god_score: number; signal_score?: number; score_components: ScoreComponents; signal_components?: SignalComponents | null; percentile: number; };
   total_matches: number;
   matches: Match[];
 }
@@ -190,6 +198,18 @@ export default function InvestorReadinessReport({ report, showFooter = false, on
         <p className="text-xs font-mono tracking-[0.2em] text-emerald-500/60 uppercase mb-2">Investor Readiness Report</p>
         <h1 className="text-3xl font-bold text-white">{startup.name}</h1>
         {startup.tagline && <p className="text-zinc-500 text-sm mt-1">{startup.tagline}</p>}
+        {startup.description && (
+          <div className="max-w-2xl mx-auto mt-4">
+            <p className="text-zinc-400 text-sm leading-relaxed">{startup.description}</p>
+          </div>
+        )}
+        {startup.website && (
+          <a href={startup.website.startsWith('http') ? startup.website : `https://${startup.website}`}
+             target="_blank" rel="noopener noreferrer"
+             className="text-cyan-400 hover:text-cyan-300 text-xs mt-2 inline-block">
+            {startup.website.replace(/^https?:\/\//, '').replace(/\/$/, '')} ↗
+          </a>
+        )}
         <p className="text-zinc-600 text-xs mt-2">Top {100 - startup.percentile}% of all startups on pythh</p>
       </div>
 
@@ -208,6 +228,34 @@ export default function InvestorReadinessReport({ report, showFooter = false, on
           </div>
         </div>
       </div>
+
+      {/* Signal Score + Components */}
+      {startup.signal_score != null && startup.signal_score > 0 && (
+        <div className="rounded-2xl border border-cyan-500/20 bg-zinc-900/50 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="w-4 h-4 text-cyan-400" />
+            <h2 className="text-sm font-semibold text-white">Signal Score</h2>
+            <span className="text-xs text-zinc-600 ml-auto">Market intelligence layer</span>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-8">
+            <div className="flex-shrink-0 text-center">
+              <div className="text-5xl font-bold text-cyan-400" style={{ filter: 'drop-shadow(0 0 12px rgba(34,211,238,0.4))' }}>
+                {startup.signal_score.toFixed(1)}
+              </div>
+              <div className="text-xs text-zinc-600 mt-1 font-mono tracking-widest uppercase">/ 10</div>
+            </div>
+            {startup.signal_components && (
+              <div className="flex-1 w-full space-y-3">
+                <ScoreBar label="Founder Language Shift" value={(startup.signal_components.founder_language_shift / 2.0) * 100} />
+                <ScoreBar label="Investor Receptivity" value={(startup.signal_components.investor_receptivity / 2.5) * 100} />
+                <ScoreBar label="News Momentum" value={(startup.signal_components.news_momentum / 1.5) * 100} />
+                <ScoreBar label="Capital Convergence" value={(startup.signal_components.capital_convergence / 2.0) * 100} />
+                <ScoreBar label="Execution Velocity" value={(startup.signal_components.execution_velocity / 2.0) * 100} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Focus Areas */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6">
