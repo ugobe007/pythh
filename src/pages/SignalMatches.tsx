@@ -245,27 +245,53 @@ export default function SignalMatches() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   
+  // Poll for updated GOD score if it's still 50 (placeholder)
   useEffect(() => {
     if (!resolvedStartupId) {
       setReportData(null);
       return;
     }
     
-    setReportLoading(true);
-    fetch(`${API_BASE}/api/preview/${resolvedStartupId}`)
-      .then(res => {
+    const fetchReport = async () => {
+      setReportLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/preview/${resolvedStartupId}`);
         if (!res.ok) throw new Error('Could not load report');
-        return res.json();
-      })
-      .then((data: ReportData) => {
+        const data: ReportData = await res.json();
         setReportData(data);
         setReportLoading(false);
-      })
-      .catch(err => {
+        
+        // If GOD score is still 50 (placeholder), poll for updates
+        if (data.startup.god_score === 50 && urlToResolve) {
+          console.log('[SignalMatches] GOD score is placeholder (50), polling for real score...');
+          const pollInterval = setInterval(async () => {
+            try {
+              const pollRes = await fetch(`${API_BASE}/api/preview/${resolvedStartupId}`);
+              if (pollRes.ok) {
+                const pollData: ReportData = await pollRes.json();
+                // If score updated, refresh report
+                if (pollData.startup.god_score !== 50) {
+                  console.log('[SignalMatches] GOD score updated:', pollData.startup.god_score);
+                  setReportData(pollData);
+                  clearInterval(pollInterval);
+                }
+              }
+            } catch (err) {
+              console.warn('[SignalMatches] Poll error:', err);
+            }
+          }, 3000); // Poll every 3 seconds
+          
+          // Stop polling after 60 seconds
+          setTimeout(() => clearInterval(pollInterval), 60000);
+        }
+      } catch (err) {
         console.error('[SignalMatches] Failed to load report:', err);
         setReportLoading(false);
-      });
-  }, [resolvedStartupId]);
+      }
+    };
+    
+    fetchReport();
+  }, [resolvedStartupId, urlToResolve]);
   
   // Heartbeat timestamp (updated by onUpdated callback)
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);

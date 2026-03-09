@@ -992,9 +992,11 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       console.log(`  ⏭️  [BG] Signal events skipped (duplicates within 24h window)`);
     }
 
-    // Check timeout before Phase 3
+    // CRITICAL: Ensure GOD score is saved even if pipeline times out
+    // The score calculation is the most important part - don't skip it
     if (checkTimeout()) {
-      console.warn(`  ⚠️ [BG] Pipeline timeout before Phase 3 - returning ${fastMatches.length} fast matches`);
+      console.warn(`  ⚠️ [BG] Pipeline timeout before Phase 3 - but GOD score was saved: ${scores.total_god_score}`);
+      // Score is already saved above (line 874), so we're good
       await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});
       return;
     }
