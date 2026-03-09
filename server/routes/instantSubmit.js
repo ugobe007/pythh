@@ -249,8 +249,26 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   return;
 }
 
+const SUPABASE_HTTP_TIMEOUT_MS = 8000;
+const fetchWithTimeout = async (url, options = {}) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SUPABASE_HTTP_TIMEOUT_MS);
+  try {
+    let signal = controller.signal;
+    if (options.signal && typeof AbortSignal !== 'undefined' && typeof AbortSignal.any === 'function') {
+      signal = AbortSignal.any([options.signal, controller.signal]);
+    } else if (options.signal) {
+      signal = options.signal;
+    }
+    return await fetch(url, { ...options, signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-  auth: { persistSession: false }
+  auth: { persistSession: false },
+  global: { fetch: fetchWithTimeout }
 });
 
 // Warm investor cache on module load so first request isn't penalized
@@ -1155,6 +1173,17 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 router.post('/submit', async (req, res) => {
   console.error(`🔥 [DEBUG] POST /submit HIT at ${new Date().toISOString()}`); // FORCE DEBUG OUTPUT
   const startTime = Date.now();
+  const HARD_RESPONSE_TIMEOUT_MS = 12000;
+  const responseTimer = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error(`[INSTANT] Hard response timeout after ${HARD_RESPONSE_TIMEOUT_MS}ms`);
+      res.status(503).json({
+        error: 'Temporarily unavailable',
+        code: 'upstream_timeout',
+        message: 'Signal engine is under heavy load. Please retry in a few seconds.'
+      });
+    }
+  }, HARD_RESPONSE_TIMEOUT_MS);
   
   try {
     const urlRaw = req.body?.url;
@@ -1461,6 +1490,8 @@ router.post('/submit', async (req, res) => {
     return res.status(500).json({
       error: 'Processing failed'
     });
+  } finally {
+    clearTimeout(responseTimer);
   }
 });
 
