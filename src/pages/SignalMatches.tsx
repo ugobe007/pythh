@@ -586,8 +586,8 @@ export default function SignalMatches() {
         </p>
 
         {/* ═══ URL SUBMISSION FLOW: Show ONLY InvestorReadinessReport (like SubmitStartupPage) ═══ */}
-        {/* Show report if: (1) URL param exists, OR (2) we have reportData (means we came from URL submission) */}
-        {(urlToResolve || reportData) ? (
+        {/* Show report if: URL param exists (reportOnlyMode) OR we have startup from query (came from URL submission) */}
+        {(reportOnlyMode || (startupIdFromQuery && urlToResolve)) ? (
           reportData && !reportLoading ? (
             <InvestorReadinessReport report={reportData} />
           ) : reportLoading ? (
