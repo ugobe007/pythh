@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { supabase } from '@/lib/supabase';
+import { canonicalizeStartupUrl } from '@/utils/normalizeUrl';
 
 // -----------------------------------------------------------------------------
 // TYPES
@@ -104,7 +105,11 @@ export async function submitStartup(
     signal,
   } = options;
 
-  const searched = urlOrQuery.trim();
+  const rawInput = urlOrQuery.trim();
+  const normalized = canonicalizeStartupUrl(rawInput);
+  const searched = normalized?.canonicalUrl ?? rawInput;
+  const domainHint = normalized?.domain ?? null;
+  const companyNameHint = normalized?.companyName ?? null;
   if (!searched) {
     return { status: 'error', startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Empty URL' };
   }
@@ -237,6 +242,8 @@ export async function submitStartup(
         url: searched,
         session_id: sessionId,
         force_generate: forceGenerate,
+        domain_hint: domainHint,
+        company_name_hint: companyNameHint,
       }),
       signal: combinedSignal,
     });
@@ -360,6 +367,7 @@ function triggerMatchGeneration(
   forceGenerate: boolean,
   signal?: AbortSignal
 ): void {
+  const normalized = canonicalizeStartupUrl(url);
   fetch('/api/instant/submit', {
     method: 'POST',
     headers: {
@@ -370,6 +378,8 @@ function triggerMatchGeneration(
       url,
       session_id: sessionId,
       force_generate: forceGenerate,
+      ...(normalized?.domain ? { domain_hint: normalized.domain } : {}),
+      ...(normalized?.companyName ? { company_name_hint: normalized.companyName } : {}),
     }),
     signal,
   }).catch((e) => {

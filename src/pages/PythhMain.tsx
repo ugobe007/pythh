@@ -8,6 +8,7 @@ import SEO from '../components/SEO';
 import NewsletterWidget from '../components/NewsletterWidget';
 import { supabase } from '../lib/supabase';
 import { submitStartup } from '../services/submitStartup';
+import { canonicalizeStartupUrl } from '../utils/normalizeUrl';
 import { useUsageTracking } from '../hooks/useUsageTracking';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -248,12 +249,6 @@ export default function PythhHome() {
   // 6. Returns: 5 unlocked signals + 50 locked signals
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const extractDomain = (input: string): string => {
-    const trimmed = input.trim();
-    const withoutProtocol = trimmed.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
-    return withoutProtocol.split('/')[0];
-  };
-
   const submit = () => {
     const trimmed = url.trim();
     console.log('[PythhMain] Submit called with:', trimmed);
@@ -274,11 +269,19 @@ export default function PythhHome() {
     setUrlError('');
     setSuggestion('');
     
+    const normalized = canonicalizeStartupUrl(trimmed);
+    if (!normalized) {
+      setUrlError('Please enter a valid domain (e.g., example.com)');
+      return;
+    }
+    const canonicalUrl = normalized.canonicalUrl;
+    const domain = normalized.domain;
+
     // Check for TLD typos
-    const lowerUrl = trimmed.toLowerCase();
+    const lowerUrl = domain.toLowerCase();
     for (const [typo, correct] of Object.entries(COMMON_TLD_TYPOS)) {
       if (lowerUrl.endsWith(typo)) {
-        const suggested = trimmed.slice(0, -typo.length) + correct;
+        const suggested = `https://${domain.slice(0, -typo.length)}${correct}/`;
         console.log('[PythhMain] TLD typo detected:', typo, '→', correct);
         setSuggestion(suggested);
         setUrlError(`Did you mean ${correct}?`);
@@ -287,7 +290,6 @@ export default function PythhHome() {
     }
     
     // Basic domain format validation (relaxed)
-    const domain = extractDomain(trimmed);
     if (!domain.includes('.')) {
       console.log('[PythhMain] No TLD detected:', domain);
       setUrlError('Please enter a valid domain (e.g., example.com)');
@@ -303,16 +305,16 @@ export default function PythhHome() {
     console.log('[PythhMain] Tracked analysis - new count:', analysisCount + 1);
     
     const navigateFallback = () => {
-      console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(trimmed)}`);
-      navigate(`/signal-matches?url=${encodeURIComponent(trimmed)}`);
+      console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(canonicalUrl)}`);
+      navigate(`/signal-matches?url=${encodeURIComponent(canonicalUrl)}`);
     };
     
     const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 2000));
-    Promise.race([submitStartup(trimmed), timeout])
+    Promise.race([submitStartup(canonicalUrl), timeout])
       .then((result) => {
         if (result?.startup_id) {
           console.log('[PythhMain] Prefetch resolved startup:', result.startup_id, 'in <2s');
-          navigate(`/signal-matches?startup=${encodeURIComponent(result.startup_id)}&url=${encodeURIComponent(trimmed)}`);
+          navigate(`/signal-matches?startup=${encodeURIComponent(result.startup_id)}&url=${encodeURIComponent(canonicalUrl)}`);
         } else {
           navigateFallback();
         }
@@ -493,7 +495,7 @@ export default function PythhHome() {
                   </div>
                 ) : url.trim() ? (
                   <div className="text-xs text-zinc-500">
-                    Will search: <span className="text-cyan-400 font-mono">{extractDomain(url)}</span>
+                    Will search: <span className="text-cyan-400 font-mono">{canonicalizeStartupUrl(url)?.domain || url.trim()}</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-4 text-[13px] text-zinc-500">
