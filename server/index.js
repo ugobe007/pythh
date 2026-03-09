@@ -57,6 +57,75 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
+// Supabase outage guard: avoid hammering upstream during 522/timeout windows.
+const SUPABASE_BACKOFF_MS = 45_000;
+const RESPONSE_CACHE_DEFAULT_TTL_MS = 30_000;
+const responseCache = new Map();
+const supabaseRuntime = {
+  backoffUntil: 0,
+  lastError: null,
+};
+
+function isSupabaseTimeoutError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return (
+    msg.includes('522') ||
+    msg.includes('connection timed out') ||
+    msg.includes('timeout') ||
+    msg.includes('db_unreachable') ||
+    msg.includes('fetch failed') ||
+    msg.includes('connection terminated')
+  );
+}
+
+function setSupabaseBackoff(err) {
+  if (!isSupabaseTimeoutError(err)) return;
+  supabaseRuntime.backoffUntil = Date.now() + SUPABASE_BACKOFF_MS;
+  supabaseRuntime.lastError = String(err?.message || err || 'supabase_timeout');
+}
+
+function inSupabaseBackoff() {
+  return Date.now() < supabaseRuntime.backoffUntil;
+}
+
+function getCachedResponse(key) {
+  const cached = responseCache.get(key);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    responseCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+}
+
+function setCachedResponse(key, payload, ttlMs = RESPONSE_CACHE_DEFAULT_TTL_MS) {
+  responseCache.set(key, {
+    payload,
+    expiresAt: Date.now() + ttlMs,
+  });
+}
+
+async function resolveWithCacheAndBackoff({ cacheKey, ttlMs, fetcher }) {
+  const cached = getCachedResponse(cacheKey);
+
+  if (inSupabaseBackoff()) {
+    if (cached) return { payload: cached, fromCache: true, degraded: true };
+    const err = new Error('supabase_backoff_active');
+    err.code = 'SUPABASE_BACKOFF';
+    throw err;
+  }
+
+  try {
+    const payload = await fetcher();
+    setCachedResponse(cacheKey, payload, ttlMs);
+    return { payload, fromCache: false, degraded: false };
+  } catch (err) {
+    setSupabaseBackoff(err);
+    if (cached) return { payload: cached, fromCache: true, degraded: true };
+    throw err;
+  }
+}
+
 // Gzip compression for all responses
 app.use(compression());
 
@@ -209,20 +278,45 @@ app.use('/api/share-links', shareLinksRouter);
 // Supports both /api/health and /api/v1/health (for frontend auto-detection)
 app.get(['/api/health', '/api/v1/health'], async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('ai_logs').select('created_at').limit(1).single();
-    
-    res.json({
-      status: error ? 'degraded' : 'ok',
-      timestamp: new Date().toISOString(),
-      port: PORT,
-      version: '0.1.0',
-      database: { 
-        connected: !error, 
-        lastActivity: data?.created_at || null,
-        error: error?.message || null
-      }
+    const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
+      cacheKey: 'api:health',
+      ttlMs: 5_000,
+      fetcher: async () => {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('ai_logs')
+          .select('created_at')
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        return {
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          port: PORT,
+          version: '0.1.0',
+          database: {
+            connected: true,
+            lastActivity: data?.created_at || null,
+            error: null,
+          }
+        };
+      },
     });
+
+    if (fromCache && degraded) {
+      return res.json({
+        ...payload,
+        status: 'degraded',
+        timestamp: new Date().toISOString(),
+        database: {
+          connected: false,
+          lastActivity: payload?.database?.lastActivity || null,
+          error: supabaseRuntime.lastError || 'supabase_backoff_active',
+        }
+      });
+    }
+
+    res.json(payload);
   } catch (err) {
     console.error('[/api/health] db error', err);
     res.json({
@@ -6097,28 +6191,35 @@ app.get('/api/admin/inference-status', requireAdminToken, async (req, res) => {
 // Returns the same KPIs as admin_get_dashboard_kpis() RPC but via service role
 app.get('/api/admin/kpis', async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
-    const [approved, pending, investors, matches, avgScore] = await Promise.all([
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('investors').select('*', { count: 'exact', head: true }),
-      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-      supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
-    ]);
-    const scores = avgScore.data || [];
-    const avg = scores.length > 0
-      ? scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / scores.length
-      : 0;
-    res.json({
-      startups_approved: approved.count || 0,
-      startups_pending: pending.count || 0,
-      investors_total: investors.count || 0,
-      matches_total: matches.count || 0,
-      avg_god_score: Math.round(avg * 10) / 10,
+    const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
+      cacheKey: 'api:admin:kpis',
+      ttlMs: 30_000,
+      fetcher: async () => {
+        const supabase = getSupabaseClient();
+        const [approved, pending, investors, matches, avgScore] = await Promise.all([
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('investors').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
+        ]);
+        const scores = avgScore.data || [];
+        const avg = scores.length > 0
+          ? scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / scores.length
+          : 0;
+        return {
+          startups_approved: approved.count || 0,
+          startups_pending: pending.count || 0,
+          investors_total: investors.count || 0,
+          matches_total: matches.count || 0,
+          avg_god_score: Math.round(avg * 10) / 10,
+        };
+      },
     });
+    res.json({ ...payload, _meta: { cached: fromCache, degraded } });
   } catch (err) {
     console.error('[/api/admin/kpis] Error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err?.code === 'SUPABASE_BACKOFF' ? 503 : 500).json({ error: err.message });
   }
 });
 
@@ -6168,40 +6269,47 @@ app.get('/api/admin/score-health', async (req, res) => {
 // Returns health checks for SystemHealthAlerts component
 app.get('/api/admin/system-health', async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
-    const checks = [];
-    // GOD Score distribution check
-    const { data: scores } = await supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved');
-    if (scores && scores.length > 0) {
-      const total = scores.length;
-      const lowBandCount = scores.filter(s => s.total_god_score >= 40 && s.total_god_score < 50).length;
-      const lowBandPercent = (lowBandCount / total) * 100;
-      const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
-      if (lowBandPercent > 30) checks.push({ name: 'GOD Score Distribution', status: 'error', message: `${lowBandPercent.toFixed(1)}% stuck in 40-49 band`, action: { label: 'Fix Scores', route: '/admin/god-settings' } });
-      else if (lowBandPercent > 10) checks.push({ name: 'GOD Score Distribution', status: 'warning', message: `${lowBandPercent.toFixed(1)}% in 40-49 band`, action: { label: 'View Scores', route: '/admin/god-scores' } });
-      else checks.push({ name: 'GOD Score Distribution', status: 'ok', message: `Healthy distribution (avg: ${avg.toFixed(1)})` });
-    } else {
-      checks.push({ name: 'GOD Score Distribution', status: 'error', message: 'No approved startups found', action: { label: 'Add Startups', route: '/admin/edit-startups' } });
-    }
-    // Match count check
-    const { count: matchCount } = await supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true });
-    if ((matchCount || 0) < 1000) checks.push({ name: 'Match Count', status: 'error', message: `Only ${matchCount || 0} matches — regeneration needed`, action: { label: 'Regenerate', route: '/admin/actions' } });
-    else if ((matchCount || 0) < 10000) checks.push({ name: 'Match Count', status: 'warning', message: `${(matchCount || 0).toLocaleString()} matches (low)` });
-    else checks.push({ name: 'Match Count', status: 'ok', message: `${(matchCount || 0).toLocaleString()} matches` });
-    // Pending review check
-    const { count: pendingCount } = await supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending');
-    if ((pendingCount || 0) > 50) checks.push({ name: 'Review Queue', status: 'warning', message: `${pendingCount} startups awaiting review`, action: { label: 'Review', route: '/admin/review-queue' } });
-    else if ((pendingCount || 0) > 0) checks.push({ name: 'Review Queue', status: 'ok', message: `${pendingCount} pending startups` });
-    else checks.push({ name: 'Review Queue', status: 'ok', message: 'Queue is clear' });
-    // Investor count check
-    const { count: investorCount } = await supabase.from('investors').select('*', { count: 'exact', head: true });
-    if ((investorCount || 0) < 100) checks.push({ name: 'Investor Database', status: 'warning', message: `Only ${investorCount || 0} investors`, action: { label: 'Add Investors', route: '/admin/discovered-investors' } });
-    else checks.push({ name: 'Investor Database', status: 'ok', message: `${(investorCount || 0).toLocaleString()} investors` });
-    const overallStatus = checks.some(c => c.status === 'error') ? 'error' : checks.some(c => c.status === 'warning') ? 'warning' : 'ok';
-    res.json({ checks, overallStatus, lastChecked: new Date().toISOString() });
+    const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
+      cacheKey: 'api:admin:system-health',
+      ttlMs: 30_000,
+      fetcher: async () => {
+        const supabase = getSupabaseClient();
+        const checks = [];
+        // GOD Score distribution check
+        const { data: scores } = await supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved');
+        if (scores && scores.length > 0) {
+          const total = scores.length;
+          const lowBandCount = scores.filter(s => s.total_god_score >= 40 && s.total_god_score < 50).length;
+          const lowBandPercent = (lowBandCount / total) * 100;
+          const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
+          if (lowBandPercent > 30) checks.push({ name: 'GOD Score Distribution', status: 'error', message: `${lowBandPercent.toFixed(1)}% stuck in 40-49 band`, action: { label: 'Fix Scores', route: '/admin/god-settings' } });
+          else if (lowBandPercent > 10) checks.push({ name: 'GOD Score Distribution', status: 'warning', message: `${lowBandPercent.toFixed(1)}% in 40-49 band`, action: { label: 'View Scores', route: '/admin/god-scores' } });
+          else checks.push({ name: 'GOD Score Distribution', status: 'ok', message: `Healthy distribution (avg: ${avg.toFixed(1)})` });
+        } else {
+          checks.push({ name: 'GOD Score Distribution', status: 'error', message: 'No approved startups found', action: { label: 'Add Startups', route: '/admin/edit-startups' } });
+        }
+        // Match count check
+        const { count: matchCount } = await supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true });
+        if ((matchCount || 0) < 1000) checks.push({ name: 'Match Count', status: 'error', message: `Only ${matchCount || 0} matches — regeneration needed`, action: { label: 'Regenerate', route: '/admin/actions' } });
+        else if ((matchCount || 0) < 10000) checks.push({ name: 'Match Count', status: 'warning', message: `${(matchCount || 0).toLocaleString()} matches (low)` });
+        else checks.push({ name: 'Match Count', status: 'ok', message: `${(matchCount || 0).toLocaleString()} matches` });
+        // Pending review check
+        const { count: pendingCount } = await supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+        if ((pendingCount || 0) > 50) checks.push({ name: 'Review Queue', status: 'warning', message: `${pendingCount} startups awaiting review`, action: { label: 'Review', route: '/admin/review-queue' } });
+        else if ((pendingCount || 0) > 0) checks.push({ name: 'Review Queue', status: 'ok', message: `${pendingCount} pending startups` });
+        else checks.push({ name: 'Review Queue', status: 'ok', message: 'Queue is clear' });
+        // Investor count check
+        const { count: investorCount } = await supabase.from('investors').select('*', { count: 'exact', head: true });
+        if ((investorCount || 0) < 100) checks.push({ name: 'Investor Database', status: 'warning', message: `Only ${investorCount || 0} investors`, action: { label: 'Add Investors', route: '/admin/discovered-investors' } });
+        else checks.push({ name: 'Investor Database', status: 'ok', message: `${(investorCount || 0).toLocaleString()} investors` });
+        const overallStatus = checks.some(c => c.status === 'error') ? 'error' : checks.some(c => c.status === 'warning') ? 'warning' : 'ok';
+        return { checks, overallStatus, lastChecked: new Date().toISOString() };
+      }
+    });
+    res.json({ ...payload, _meta: { cached: fromCache, degraded } });
   } catch (err) {
     console.error('[/api/admin/system-health] Error:', err);
-    res.status(500).json({ error: err.message, checks: [{ name: 'Server Error', status: 'error', message: err.message }], overallStatus: 'error', lastChecked: new Date().toISOString() });
+    res.status(err?.code === 'SUPABASE_BACKOFF' ? 503 : 500).json({ error: err.message, checks: [{ name: 'Server Error', status: 'error', message: err.message }], overallStatus: 'error', lastChecked: new Date().toISOString() });
   }
 });
 
@@ -6422,101 +6530,108 @@ app.get('/api/funding-predictions', async (req, res) => {
 // ============================================================
 app.get('/api/admin/system-stats', async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
+      cacheKey: 'api:admin:system-stats',
+      ttlMs: 30_000,
+      fetcher: async () => {
+        const supabase = getSupabaseClient();
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Run all counts in parallel
-    const [
-      { count: totalStartups },
-      { count: approvedStartups },
-      { count: pendingStartups },
-      { data: avgScoreData },
-      { count: totalInvestors },
-      { count: investorsWithEmbedding },
-      { count: matchCount },
-      { count: hqMatchCount },
-      { data: matchAvgData },
-      { count: discovered24h },
-      { count: startups24h },
-      { count: investors24h },
-      { count: matches24h },
-      { data: god7dData },
-      { data: match7dData },
-      { data: scoreDistData },
-      { data: recentLogs },
-      { data: lastActivity }
-    ] = await Promise.all([
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
-      supabase.from('investors').select('*', { count: 'exact', head: true }),
-      supabase.from('investors').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
-      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('match_score', 70),
-      supabase.from('startup_investor_matches').select('match_score').limit(500),
-      supabase.from('discovered_startups').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
-      supabase.from('investors').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
-      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
-      supabase.from('startup_uploads').select('total_god_score, created_at').eq('status', 'approved').not('total_god_score', 'is', null).lte('created_at', sevenDaysAgo),
-      supabase.from('startup_investor_matches').select('match_score').lte('created_at', sevenDaysAgo).limit(500),
-      supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
-      supabase.from('ai_logs').select('*').order('created_at', { ascending: false }).limit(5),
-      supabase.from('startup_uploads').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
-    ]);
+        // Run all counts in parallel
+        const [
+          { count: totalStartups },
+          { count: approvedStartups },
+          { count: pendingStartups },
+          { data: avgScoreData },
+          { count: totalInvestors },
+          { count: investorsWithEmbedding },
+          { count: matchCount },
+          { count: hqMatchCount },
+          { data: matchAvgData },
+          { count: discovered24h },
+          { count: startups24h },
+          { count: investors24h },
+          { count: matches24h },
+          { data: god7dData },
+          { data: match7dData },
+          { data: scoreDistData },
+          { data: recentLogs },
+          { data: lastActivity }
+        ] = await Promise.all([
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
+          supabase.from('investors').select('*', { count: 'exact', head: true }),
+          supabase.from('investors').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
+          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('match_score', 70),
+          supabase.from('startup_investor_matches').select('match_score').limit(500),
+          supabase.from('discovered_startups').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+          supabase.from('investors').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
+          supabase.from('startup_uploads').select('total_god_score, created_at').eq('status', 'approved').not('total_god_score', 'is', null).lte('created_at', sevenDaysAgo),
+          supabase.from('startup_investor_matches').select('match_score').lte('created_at', sevenDaysAgo).limit(500),
+          supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
+          supabase.from('ai_logs').select('*').order('created_at', { ascending: false }).limit(5),
+          supabase.from('startup_uploads').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
+        ]);
 
-    const avgGodScore = avgScoreData?.length ? avgScoreData.reduce((a, s) => a + (s.total_god_score || 0), 0) / avgScoreData.length : 0;
-    const avgMatchScore = matchAvgData?.length ? matchAvgData.reduce((a, m) => a + (m.match_score || 0), 0) / matchAvgData.length : 0;
-    const avgGod7dAgo = god7dData?.length ? god7dData.reduce((a, s) => a + (s.total_god_score || 0), 0) / god7dData.length : avgGodScore;
-    const avgMatch7dAgo = match7dData?.length ? match7dData.reduce((a, m) => a + (m.match_score || 0), 0) / match7dData.length : avgMatchScore;
+        const avgGodScore = avgScoreData?.length ? avgScoreData.reduce((a, s) => a + (s.total_god_score || 0), 0) / avgScoreData.length : 0;
+        const avgMatchScore = matchAvgData?.length ? matchAvgData.reduce((a, m) => a + (m.match_score || 0), 0) / matchAvgData.length : 0;
+        const avgGod7dAgo = god7dData?.length ? god7dData.reduce((a, s) => a + (s.total_god_score || 0), 0) / god7dData.length : avgGodScore;
+        const avgMatch7dAgo = match7dData?.length ? match7dData.reduce((a, m) => a + (m.match_score || 0), 0) / match7dData.length : avgMatchScore;
 
-    const distribution = { low: 0, medium: 0, high: 0, elite: 0 };
-    (scoreDistData || []).forEach(s => {
-      const score = s.total_god_score || 0;
-      if (score < 50) distribution.low++;
-      else if (score < 70) distribution.medium++;
-      else if (score < 85) distribution.high++;
-      else distribution.elite++;
-    });
+        const distribution = { low: 0, medium: 0, high: 0, elite: 0 };
+        (scoreDistData || []).forEach(s => {
+          const score = s.total_god_score || 0;
+          if (score < 50) distribution.low++;
+          else if (score < 70) distribution.medium++;
+          else if (score < 85) distribution.high++;
+          else distribution.elite++;
+        });
 
-    const hqRateNow = (matchCount || 1) > 0 ? ((hqMatchCount || 0) / (matchCount || 1)) * 100 : 0;
-    const hoursSinceActivity = lastActivity?.created_at
-      ? (Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60)
-      : 999;
+        const hqRateNow = (matchCount || 1) > 0 ? ((hqMatchCount || 0) / (matchCount || 1)) * 100 : 0;
+        const hoursSinceActivity = lastActivity?.created_at
+          ? (Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60)
+          : 999;
 
-    res.json({
-      startups: { total: totalStartups || 0, approved: approvedStartups || 0, pending: pendingStartups || 0, avgScore: avgGodScore },
-      investors: { total: totalInvestors || 0, withEmbedding: investorsWithEmbedding || 0 },
-      matches: { total: matchCount || 0, highQuality: hqMatchCount || 0, avgScore: avgMatchScore },
-      scrapers: { discovered24h: discovered24h || 0, lastActivity: lastActivity?.created_at || 'Never' },
-      godScores: { avgScore: avgGodScore, distribution },
-      deltas: {
-        startups24h: startups24h || 0,
-        investors24h: investors24h || 0,
-        matches24h: matches24h || 0,
-        avgGod7dDelta: avgGodScore - avgGod7dAgo,
-        avgMatch7dDelta: avgMatchScore - avgMatch7dAgo,
-        hqRate7dDeltaPct: hqRateNow - (
-          (match7dData?.length || 1) > 0
-            ? (((hqMatchCount || 0) / (matchCount || 1)) * 100) // simplified: use same hq rate for 7d ago
-            : 0
-        )
-      },
-      recentLogs: recentLogs || [],
-      checks: {
-        startupHealth: (approvedStartups || 0) > 100 ? 'OK' : (approvedStartups || 0) > 50 ? 'WARN' : 'ERROR',
-        matchQuality: (matchCount || 0) > 5000 ? 'OK' : (matchCount || 0) > 1000 ? 'WARN' : 'ERROR',
-        scoreHealth: avgGodScore >= 35 && avgGodScore <= 75 ? 'OK' : 'WARN',
-        freshnessHealth: hoursSinceActivity < 24 ? 'OK' : hoursSinceActivity < 48 ? 'WARN' : 'ERROR',
-        mlHealth: (investorsWithEmbedding || 0) / (totalInvestors || 1) > 0.3 ? 'OK' : 'WARN',
-        hoursSinceActivity
+        return {
+          startups: { total: totalStartups || 0, approved: approvedStartups || 0, pending: pendingStartups || 0, avgScore: avgGodScore },
+          investors: { total: totalInvestors || 0, withEmbedding: investorsWithEmbedding || 0 },
+          matches: { total: matchCount || 0, highQuality: hqMatchCount || 0, avgScore: avgMatchScore },
+          scrapers: { discovered24h: discovered24h || 0, lastActivity: lastActivity?.created_at || 'Never' },
+          godScores: { avgScore: avgGodScore, distribution },
+          deltas: {
+            startups24h: startups24h || 0,
+            investors24h: investors24h || 0,
+            matches24h: matches24h || 0,
+            avgGod7dDelta: avgGodScore - avgGod7dAgo,
+            avgMatch7dDelta: avgMatchScore - avgMatch7dAgo,
+            hqRate7dDeltaPct: hqRateNow - (
+              (match7dData?.length || 1) > 0
+                ? (((hqMatchCount || 0) / (matchCount || 1)) * 100) // simplified: use same hq rate for 7d ago
+                : 0
+            )
+          },
+          recentLogs: recentLogs || [],
+          checks: {
+            startupHealth: (approvedStartups || 0) > 100 ? 'OK' : (approvedStartups || 0) > 50 ? 'WARN' : 'ERROR',
+            matchQuality: (matchCount || 0) > 5000 ? 'OK' : (matchCount || 0) > 1000 ? 'WARN' : 'ERROR',
+            scoreHealth: avgGodScore >= 35 && avgGodScore <= 75 ? 'OK' : 'WARN',
+            freshnessHealth: hoursSinceActivity < 24 ? 'OK' : hoursSinceActivity < 48 ? 'WARN' : 'ERROR',
+            mlHealth: (investorsWithEmbedding || 0) / (totalInvestors || 1) > 0.3 ? 'OK' : 'WARN',
+            hoursSinceActivity
+          }
+        };
       }
     });
+    res.json({ ...payload, _meta: { cached: fromCache, degraded } });
   } catch (err) {
     console.error('[/api/admin/system-stats] Error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err?.code === 'SUPABASE_BACKOFF' ? 503 : 500).json({ error: err.message });
   }
 });
 
