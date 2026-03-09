@@ -555,45 +555,32 @@ export default function SignalMatches() {
           Start with the top rows — those are your fastest outreach wins.
         </p>
 
-        {/* ═══ INVESTOR READINESS REPORT — Same as SubmitStartupPage ═══ */}
-        {reportData && !reportLoading ? (
-          <div className="mb-8">
+        {/* ═══ URL SUBMISSION FLOW: Show ONLY InvestorReadinessReport (like SubmitStartupPage) ═══ */}
+        {urlToResolve ? (
+          reportData && !reportLoading ? (
             <InvestorReadinessReport report={reportData} />
-          </div>
-        ) : reportLoading ? (
-          <div className="mb-8 text-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-500 mx-auto mb-2" />
-            <p className="text-sm text-zinc-500">Loading report...</p>
-          </div>
-        ) : null}
-
-        {/* ═══ ALL MATCHES TABLE — Full match list ═══ */}
-        <RadarMatchTable
-          rows={rows}
-          context={context}
-          loading={tableLoading && rows.length === 0}
-          isPending={isPending}
-          onUnlock={handleUnlock}
-          unlocksRemaining={unlocksRemaining}
-          matchGenPending={matchGenPending}
-          mode="unlocked"
-        />
-
-        {/* ═══ YOUR POSITION — Signal Health + Match Landscape + GOD Breakdown ═══ */}
-        <SignalPathDashboard
-          context={context}
-          rows={rows}
-          startupName={displayName}
-          loading={contextLoading || tableLoading}
-        />
-
-        {/* ═══ LOCKED MATCHES — Below position, limited to 5 ═══ */}
-        {rows.some(r => r.is_locked) && (
-          <div className="mt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">More Matches</h3>
-              <span className="text-xs text-zinc-600">{lockedCount} available</span>
+          ) : reportLoading ? (
+            <div className="text-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-zinc-500 mx-auto mb-2" />
+              <p className="text-sm text-zinc-500">Loading report...</p>
             </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-sm text-zinc-500">Preparing your report...</p>
+            </div>
+          )
+        ) : (
+          /* ═══ DIRECT ACCESS FLOW: Show full table view (for /signal-matches without URL) ═══ */
+          <>
+            {/* Intro */}
+            <p className="text-sm text-zinc-400 leading-relaxed mb-8">
+              <span className="text-cyan-400">Signal</span> = timing.
+              <span className="text-zinc-300 ml-1">GOD</span> = your position.
+              <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
+              Start with the top rows — those are your fastest outreach wins.
+            </p>
+
+            {/* ═══ ALL MATCHES TABLE — Full match list ═══ */}
             <RadarMatchTable
               rows={rows}
               context={context}
@@ -601,9 +588,37 @@ export default function SignalMatches() {
               isPending={isPending}
               onUnlock={handleUnlock}
               unlocksRemaining={unlocksRemaining}
-              mode="locked"
+              matchGenPending={matchGenPending}
+              mode="unlocked"
             />
-          </div>
+
+            {/* ═══ YOUR POSITION — Signal Health + Match Landscape + GOD Breakdown ═══ */}
+            <SignalPathDashboard
+              context={context}
+              rows={rows}
+              startupName={displayName}
+              loading={contextLoading || tableLoading}
+            />
+
+            {/* ═══ LOCKED MATCHES — Below position, limited to 5 ═══ */}
+            {rows.some(r => r.is_locked) && (
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">More Matches</h3>
+                  <span className="text-xs text-zinc-600">{lockedCount} available</span>
+                </div>
+                <RadarMatchTable
+                  rows={rows}
+                  context={context}
+                  loading={tableLoading && rows.length === 0}
+                  isPending={isPending}
+                  onUnlock={handleUnlock}
+                  unlocksRemaining={unlocksRemaining}
+                  mode="locked"
+                />
+              </div>
+            )}
+          </>
         )}
           
         {/* Count summary */}
