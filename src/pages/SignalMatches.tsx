@@ -239,7 +239,8 @@ export default function SignalMatches() {
   // -----------------------------------------------------------------------------
   // In URL submission flow we render report-only UI, so table/unlock polling
   // must stay disabled to avoid noisy fetch loops while startup is generating.
-  const reportOnlyMode = !!urlToResolve;
+  // Report mode: URL param exists OR we have startup from query (came from URL submission)
+  const reportOnlyMode = !!urlToResolve || (!!startupIdFromQuery && !startupIdFromPath);
   const tableStartupId = reportOnlyMode ? null : resolvedStartupId;
   
   const { context, loading: contextLoading, refresh: refreshContext } = useStartupContext(tableStartupId);
