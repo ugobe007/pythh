@@ -1174,15 +1174,24 @@ router.post('/submit', async (req, res) => {
   console.error(`🔥 [DEBUG] POST /submit HIT at ${new Date().toISOString()}`); // FORCE DEBUG OUTPUT
   const startTime = Date.now();
   const HARD_RESPONSE_TIMEOUT_MS = 12000;
+  const originalStatus = res.status.bind(res);
+  const originalJson = res.json.bind(res);
+  // Guard all downstream status/json calls after timeout sends a response.
+  res.status = (code) => (res.headersSent ? res : originalStatus(code));
+  res.json = (body) => (res.headersSent ? res : originalJson(body));
+  const safeJson = (status, payload) => {
+    if (res.headersSent) return false;
+    res.status(status).json(payload);
+    return true;
+  };
   const responseTimer = setTimeout(() => {
-    if (!res.headersSent) {
-      console.error(`[INSTANT] Hard response timeout after ${HARD_RESPONSE_TIMEOUT_MS}ms`);
-      res.status(503).json({
-        error: 'Temporarily unavailable',
-        code: 'upstream_timeout',
-        message: 'Signal engine is under heavy load. Please retry in a few seconds.'
-      });
-    }
+    if (res.headersSent) return;
+    console.error(`[INSTANT] Hard response timeout after ${HARD_RESPONSE_TIMEOUT_MS}ms`);
+    safeJson(503, {
+      error: 'Temporarily unavailable',
+      code: 'upstream_timeout',
+      message: 'Signal engine is under heavy load. Please retry in a few seconds.'
+    });
   }, HARD_RESPONSE_TIMEOUT_MS);
   
   try {
@@ -1434,7 +1443,8 @@ router.post('/submit', async (req, res) => {
         startup = found;
         isNew = false;
       } else {
-        return res.status(500).json({ error: 'Failed to create startup' });
+        safeJson(500, { error: 'Failed to create startup' });
+        return;
       }
     } else {
       startupId = newStartup.id;
@@ -1475,7 +1485,7 @@ router.post('/submit', async (req, res) => {
     const processingTime = Date.now() - startTime;
     console.log(`  ⚡ Early return (new startup) in ${processingTime}ms — background pipeline started`);
     
-    return res.json({
+    safeJson(200, {
       startup_id: startupId,
       startup,
       matches: [],
@@ -1484,12 +1494,14 @@ router.post('/submit', async (req, res) => {
       gen_in_progress: true,
       processing_time_ms: processingTime
     });
+    return;
     
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
-    return res.status(500).json({
+    safeJson(500, {
       error: 'Processing failed'
     });
+    return;
   } finally {
     clearTimeout(responseTimer);
   }

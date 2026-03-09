@@ -767,6 +767,12 @@ app.get('/e/click', async (req, res) => {
 // GET /api/hot-matches - Hot Matches feed for public ticker
 // Direct table query — immune to browser auth state, no RPC hanging
 // ============================================================
+let HOT_MATCHES_CACHE = {
+  matches: [],
+  totalThisWeek: null,
+  updatedAt: null,
+};
+
 app.get('/api/hot-matches', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
@@ -857,9 +863,23 @@ app.get('/api/hot-matches', async (req, res) => {
       matches: shaped,
       totalThisWeek: weekCount || null,
     });
+    HOT_MATCHES_CACHE = {
+      matches: shaped,
+      totalThisWeek: weekCount || null,
+      updatedAt: new Date().toISOString(),
+    };
   } catch (err) {
     console.error('[/api/hot-matches] Error:', err);
-    res.status(500).json({ matches: [], totalThisWeek: null, error: err.message });
+    // Fail-soft: keep homepage alive during transient upstream outages (e.g., Supabase 522).
+    if (HOT_MATCHES_CACHE.matches.length > 0) {
+      return res.status(200).json({
+        matches: HOT_MATCHES_CACHE.matches,
+        totalThisWeek: HOT_MATCHES_CACHE.totalThisWeek,
+        stale: true,
+        updatedAt: HOT_MATCHES_CACHE.updatedAt,
+      });
+    }
+    res.status(200).json({ matches: [], totalThisWeek: null, stale: true, error: 'upstream_unavailable' });
   }
 });
 
