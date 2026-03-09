@@ -860,120 +860,123 @@ app.get('/e/click', async (req, res) => {
 // ============================================================
 // GET /api/hot-matches - Hot Matches feed for public ticker
 // Direct table query — immune to browser auth state, no RPC hanging
+// Now protected with cache/backoff to prevent self-amplification during outages
 // ============================================================
-let HOT_MATCHES_CACHE = {
-  matches: [],
-  totalThisWeek: null,
-  updatedAt: null,
-};
-
 app.get('/api/hot-matches', async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
     const limitCount = Math.min(parseInt(req.query.limit_count) || 20, 50);
 
-    // Fetch a large pool then deduplicate by startup so the ticker shows variety
-    // (without this, one high-scoring startup dominates all top slots)
-    const FETCH_POOL = Math.max(limitCount * 15, 300);
-    const { data: matches, error } = await supabase
-      .from('startup_investor_matches')
-      .select(`
-        id,
-        startup_id,
-        investor_id,
-        match_score,
-        created_at,
-        startup_uploads!startup_id ( name, total_god_score, sectors, stage, status ),
-        investors!investor_id ( name, firm )
-      `)
-      .order('match_score', { ascending: false })
-      .limit(FETCH_POOL);
+    const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
+      cacheKey: `api:hot-matches:${limitCount}`,
+      ttlMs: 25_000, // 25s cache for ticker (frequent but not real-time)
+      fetcher: async () => {
+        const supabase = getSupabaseClient();
 
-    if (error) throw error;
+        // Fetch a large pool then deduplicate by startup so the ticker shows variety
+        // (without this, one high-scoring startup dominates all top slots)
+        const FETCH_POOL = Math.max(limitCount * 15, 300);
+        const [matchesResult, weekCountResult] = await Promise.all([
+          supabase
+            .from('startup_investor_matches')
+            .select(`
+              id,
+              startup_id,
+              investor_id,
+              match_score,
+              created_at,
+              startup_uploads!startup_id ( name, total_god_score, sectors, stage, status ),
+              investors!investor_id ( name, firm )
+            `)
+            .order('match_score', { ascending: false })
+            .limit(FETCH_POOL),
+          supabase
+            .from('startup_investor_matches')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+        ]);
 
-    // Name quality guard — same patterns used in cleanup-junk-startups.ts
-    function isCleanStartupName(name) {
-      if (!name || name.trim() === '') return false;
-      const n = name.trim();
-      if (n.length > 60) return false;                                      // Too long
-      if (n.split(/\s+/).length > 6) return false;                         // Sentence fragment
-      if (/^[a-z]/.test(n)) return false;                                   // Lowercase start
-      if (/^(How|Why|What|When|Where|While|If|As|Since|After|Before|Former|Post)\s+/i.test(n)) return false;
-      if (/\b(funding|raises|raised|million|billion)\b/i.test(n)) return false;
-      if (/^(Startup|Firm|Company|Article|Report|Deeptech|European)\s+/i.test(n)) return false;
-      if (/\b(startup|platform|service|solution|provider|startups)s?\s*$/i.test(n) && n.split(/\s+/).length > 1) return false;
-      return true;
-    }
+        if (matchesResult.error) throw matchesResult.error;
+        const matches = matchesResult.data || [];
 
-    // Deduplicate: keep only approved startups with clean names, best match per startup
-    const seenStartups = new Set();
-    const deduped = [];
-    for (const m of (matches || [])) {
-      if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
-      // Only show approved startups
-      const status = m.startup_uploads?.status;
-      if (!status || status !== 'approved') continue;
-      // Skip junk names
-      if (!isCleanStartupName(m.startup_uploads?.name)) continue;
-      seenStartups.add(m.startup_id);
-      deduped.push(m);
-    }
-    // Fisher-Yates shuffle so every page load shows a different mix
-    for (let i = deduped.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deduped[i], deduped[j]] = [deduped[j], deduped[i]];
-    }
-    const pool = deduped.slice(0, limitCount);
+        // Name quality guard — same patterns used in cleanup-junk-startups.ts
+        function isCleanStartupName(name) {
+          if (!name || name.trim() === '') return false;
+          const n = name.trim();
+          if (n.length > 60) return false;                                      // Too long
+          if (n.split(/\s+/).length > 6) return false;                         // Sentence fragment
+          if (/^[a-z]/.test(n)) return false;                                   // Lowercase start
+          if (/^(How|Why|What|When|Where|While|If|As|Since|After|Before|Former|Post)\s+/i.test(n)) return false;
+          if (/\b(funding|raises|raised|million|billion)\b/i.test(n)) return false;
+          if (/^(Startup|Firm|Company|Article|Report|Deeptech|European)\s+/i.test(n)) return false;
+          if (/\b(startup|platform|service|solution|provider|startups)s?\s*$/i.test(n) && n.split(/\s+/).length > 1) return false;
+          return true;
+        }
 
-    // Shape data to match the HotMatch interface the component expects
-    const shaped = pool.map((m, i) => ({
-      match_id: m.id,
-      startup_id: m.startup_id,
-      investor_id: m.investor_id,
-      startup_name: m.startup_uploads?.name || 'Unknown Startup',
-      startup_god_score: m.startup_uploads?.total_god_score || 60,
-      startup_tier: (m.startup_uploads?.total_god_score || 0) >= 80 ? 'Elite'
-                  : (m.startup_uploads?.total_god_score || 0) >= 70 ? 'Strong'
-                  : (m.startup_uploads?.total_god_score || 0) >= 60 ? 'Rising'
-                  : 'Emerging',
-      startup_sectors: m.startup_uploads?.sectors || [],
-      startup_stage: m.startup_uploads?.stage || 'Seed',
-      investor_name: m.investors?.name || 'Anonymous Investor',
-      investor_tier: 'Active',
-      investor_firm: m.investors?.firm || null,
-      match_score: m.match_score || 0,
-      created_at: m.created_at,
-      is_anonymized: false,
-    }));
+        // Deduplicate: keep only approved startups with clean names, best match per startup
+        const seenStartups = new Set();
+        const deduped = [];
+        for (const m of matches) {
+          if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
+          // Only show approved startups
+          const status = m.startup_uploads?.status;
+          if (!status || status !== 'approved') continue;
+          // Skip junk names
+          if (!isCleanStartupName(m.startup_uploads?.name)) continue;
+          seenStartups.add(m.startup_id);
+          deduped.push(m);
+        }
+        // Fisher-Yates shuffle so every page load shows a different mix
+        for (let i = deduped.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [deduped[i], deduped[j]] = [deduped[j], deduped[i]];
+        }
+        const pool = deduped.slice(0, limitCount);
 
-    // Count matches from last 7 days for velocity
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { count: weekCount } = await supabase
-      .from('startup_investor_matches')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', sevenDaysAgo);
+        // Shape data to match the HotMatch interface the component expects
+        const shaped = pool.map((m) => ({
+          match_id: m.id,
+          startup_id: m.startup_id,
+          investor_id: m.investor_id,
+          startup_name: m.startup_uploads?.name || 'Unknown Startup',
+          startup_god_score: m.startup_uploads?.total_god_score || 60,
+          startup_tier: (m.startup_uploads?.total_god_score || 0) >= 80 ? 'Elite'
+                      : (m.startup_uploads?.total_god_score || 0) >= 70 ? 'Strong'
+                      : (m.startup_uploads?.total_god_score || 0) >= 60 ? 'Rising'
+                      : 'Emerging',
+          startup_sectors: m.startup_uploads?.sectors || [],
+          startup_stage: m.startup_uploads?.stage || 'Seed',
+          investor_name: m.investors?.name || 'Anonymous Investor',
+          investor_tier: 'Active',
+          investor_firm: m.investors?.firm || null,
+          match_score: m.match_score || 0,
+          created_at: m.created_at,
+          is_anonymized: false,
+        }));
+
+        return {
+          matches: shaped,
+          totalThisWeek: weekCountResult.count || null,
+        };
+      },
+    });
 
     res.json({
-      matches: shaped,
-      totalThisWeek: weekCount || null,
+      ...payload,
+      _meta: {
+        cached: fromCache,
+        degraded,
+      },
     });
-    HOT_MATCHES_CACHE = {
-      matches: shaped,
-      totalThisWeek: weekCount || null,
-      updatedAt: new Date().toISOString(),
-    };
   } catch (err) {
     console.error('[/api/hot-matches] Error:', err);
-    // Fail-soft: keep homepage alive during transient upstream outages (e.g., Supabase 522).
-    if (HOT_MATCHES_CACHE.matches.length > 0) {
-      return res.status(200).json({
-        matches: HOT_MATCHES_CACHE.matches,
-        totalThisWeek: HOT_MATCHES_CACHE.totalThisWeek,
-        stale: true,
-        updatedAt: HOT_MATCHES_CACHE.updatedAt,
-      });
-    }
-    res.status(200).json({ matches: [], totalThisWeek: null, stale: true, error: 'upstream_unavailable' });
+    // Fail-soft: return empty array during outages if no cache available
+    res.status(200).json({
+      matches: [],
+      totalThisWeek: null,
+      stale: true,
+      error: 'upstream_unavailable',
+      _meta: { cached: false, degraded: true },
+    });
   }
 });
 
