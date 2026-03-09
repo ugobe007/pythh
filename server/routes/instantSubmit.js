@@ -1178,90 +1178,61 @@ router.post('/submit', async (req, res) => {
       });
     }
     
-    const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';
-
-    // ── Resolve existing startup (fast exact resolver first, then fuzzy fallback) ──
+    // ── Resolve existing startup (fuzzy match) ──
     let startupId = null;
     let startup = null;
     let isNew = false;
-
-    try {
-      const { data: resolvedRows, error: resolveErr } = await supabase.rpc('resolve_startup_by_url', { p_url: inputRaw });
-      if (!resolveErr && resolvedRows) {
-        const resolved = Array.isArray(resolvedRows) ? resolvedRows[0] : resolvedRows;
-        if (resolved?.startup_id) {
-          const { data: exactStartup, error: exactErr } = await supabase
-            .from('startup_uploads')
-            .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
-            .eq('id', resolved.startup_id)
-            .eq('status', 'approved')
-            .single();
-          if (!exactErr && exactStartup) {
-            startup = exactStartup;
-            startupId = exactStartup.id;
-            console.log(`  ✓ Found existing startup (exact resolver): ${startup.name}`);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn(`  ⚠️ Exact resolver failed (non-fatal): ${err.message}`);
-    }
-
-    if (!startupId) {
-      const searchPatterns = [
-        `website.ilike.%${domain}%`,
-        `website.ilike.%${companyName}.%`,
-        `name.ilike.%${companyName}%`
-      ];
-
-      const { data: candidates, error: searchErr } = await supabase
-        .from('startup_uploads')
-        .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
-        .or(searchPatterns.join(','))
-        .eq('status', 'approved')
-        .limit(100);
-
-      if (searchErr) console.error(`  ✗ Search error:`, searchErr);
-
-      if (candidates && candidates.length > 0) {
-        const scored = candidates.map(c => {
-          let score = 0;
-          const hasUrl = !!(c.website);
-          const candidateCompanyName = extractCompanyName(c.website || '');
-          const candidateNameLower = (c.name || '').toLowerCase();
-          // URL-bearing candidates: full score range
-          if (c.website && normalizeUrl(c.website) === urlNormalized) score = 100;
-          else if (candidateCompanyName === companyName) score = 90; // domain-derived name exact
-          else if (c.website && c.website.toLowerCase().includes(companyName)) score = 50;
-          // Name-only candidates (no website set): use lower scores to avoid false positives
-          // from scraper-sourced entries that share a common word (e.g. "Foundry", "Grows")
-          else if (hasUrl && candidateNameLower.includes(companyName)) score = 70;
-          else if (hasUrl && companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) score = 60;
-          else if (!hasUrl && candidateNameLower === companyName) score = 65; // exact name match even without URL
-          // No URL + fuzzy name = below match threshold (prevents scraper noise false positives)
-          else if (!hasUrl) score = 20;
-          return { ...c, matchScore: score };
-        });
-        scored.sort((a, b) => b.matchScore - a.matchScore);
-        if (scored[0].matchScore >= 50) {
-          startup = scored[0];
-          startupId = startup.id;
-          console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
-        }
+    
+    const searchPatterns = [
+      `website.ilike.%${domain}%`,
+      `website.ilike.%${companyName}.%`,
+      `name.ilike.%${companyName}%`
+    ];
+    
+    const { data: candidates, error: searchErr } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
+      .or(searchPatterns.join(','))
+      .eq('status', 'approved')
+      .limit(100);
+    
+    if (searchErr) console.error(`  ✗ Search error:`, searchErr);
+    
+    if (candidates && candidates.length > 0) {
+      const scored = candidates.map(c => {
+        let score = 0;
+        const hasUrl = !!(c.website);
+        const candidateCompanyName = extractCompanyName(c.website || '');
+        const candidateNameLower = (c.name || '').toLowerCase();
+        // URL-bearing candidates: full score range
+        if (c.website && normalizeUrl(c.website) === urlNormalized) score = 100;
+        else if (candidateCompanyName === companyName) score = 90; // domain-derived name exact
+        else if (c.website && c.website.toLowerCase().includes(companyName)) score = 50;
+        // Name-only candidates (no website set): use lower scores to avoid false positives
+        // from scraper-sourced entries that share a common word (e.g. "Foundry", "Grows")
+        else if (hasUrl && candidateNameLower.includes(companyName)) score = 70;
+        else if (hasUrl && companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) score = 60;
+        else if (!hasUrl && candidateNameLower === companyName) score = 65; // exact name match even without URL
+        // No URL + fuzzy name = below match threshold (prevents scraper noise false positives)
+        else if (!hasUrl) score = 20;
+        return { ...c, matchScore: score };
+      });
+      scored.sort((a, b) => b.matchScore - a.matchScore);
+      if (scored[0].matchScore >= 50) {
+        startup = scored[0];
+        startupId = startup.id;
+        console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
       }
     }
     
     // ── EXISTING STARTUP: check for cached matches ──
     if (startupId) {
-      let existingMatchCount = 0;
-      if (!forceGenerate) {
-        const { count } = await supabase
-          .from('startup_investor_matches')
-          .select('*', { count: 'exact', head: true })
-          .eq('startup_id', startupId)
-          .eq('status', 'suggested');
-        existingMatchCount = count || 0;
-      }
+      const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';
+      const { count: existingMatchCount } = await supabase
+        .from('startup_investor_matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('startup_id', startupId)
+        .eq('status', 'suggested');
       
       if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate) {
         const { data: existingMatches } = await supabase
