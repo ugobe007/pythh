@@ -111,90 +111,79 @@ export async function submitStartup(
 
   const sessionId = getOrCreateSessionId();
 
-  // ── STEP 1: Fast path — Supabase RPC (strict timeout) ────────────────────
-  // resolve_startup_by_url should be extremely fast; if it stalls, skip to backend.
-  // Also skip RPC entirely on forceGenerate to avoid duplicate waiting.
-  if (!forceGenerate) {
-    const RPC_TIMEOUT_MS = 2_500;
-    try {
-      const rpcRace = await Promise.race([
-        supabase.rpc('resolve_startup_by_url', { p_url: searched }),
-        new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), RPC_TIMEOUT_MS)),
-      ]);
+  // ── STEP 1: Fast path — Supabase RPC ─────────────────────────────────────
+  // resolve_startup_by_url uses indexed company_domain + website equality lookups.
+  // Expected latency: < 50ms. match_count is embedded in the RPC response.
+  try {
+    const rpcResult = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
 
-      if (rpcRace !== 'timeout') {
-        const rpcResult = rpcRace;
-        if (!rpcResult.error && rpcResult.data) {
-          const data = rpcResult.data;
-          const row = Array.isArray(data) ? data[0] : data;
-          if (row?.found || row?.startup_id) {
-            // match_count is returned by the RPC directly — no separate query needed
-            const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
-            const resolverBranch: string = row.resolver_branch ?? 'unknown';
-            const elapsedMs: number | undefined = typeof row.elapsed_ms === 'number' ? row.elapsed_ms : undefined;
+    if (!rpcResult.error && rpcResult.data) {
+      const data = rpcResult.data;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row?.found || row?.startup_id) {
+        // match_count is returned by the RPC directly — no separate query needed
+        const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
+        const resolverBranch: string = row.resolver_branch ?? 'unknown';
+        const elapsedMs: number | undefined = typeof row.elapsed_ms === 'number' ? row.elapsed_ms : undefined;
 
-            // If enough matches and not forced → done
-            // BUT: also check data quality; if data is clearly bad (enrichment never ran
-            // or team_score is near-floor) fire a silent background re-enrich pass.
-            if (matchCount >= minMatches) {
-              // Background data-quality check (non-blocking — fire-and-forget)
-              void (async () => {
-                try {
-                  const { data: qd } = await supabase
-                    .from('startup_uploads')
-                    .select('team_score, enrichment_status')
-                    .eq('id', row.startup_id)
-                    .single();
-                  const needsRefresh =
-                    qd?.enrichment_status === 'waiting' ||
-                    (typeof qd?.team_score === 'number' && qd.team_score < 28);
-                  if (needsRefresh) {
-                    console.log(`[submitStartup] Stale/sparse data for "${row.startup_name}" (team=${qd?.team_score}, status=${qd?.enrichment_status}) — background re-enrich`);
-                    triggerMatchGeneration(searched, sessionId, true, signal);
-                  }
-                } catch { /* non-fatal */ }
-              })();
+        // If enough matches and not forced → done
+        // BUT: also check data quality; if data is clearly bad (enrichment never ran
+        // or team_score is near-floor) fire a silent background re-enrich pass.
+        if (matchCount >= minMatches && !forceGenerate) {
+          // Background data-quality check (non-blocking — fire-and-forget)
+          void (async () => {
+            try {
+              const { data: qd } = await supabase
+                .from('startup_uploads')
+                .select('team_score, enrichment_status')
+                .eq('id', row.startup_id)
+                .single();
+              const needsRefresh =
+                qd?.enrichment_status === 'waiting' ||
+                (typeof qd?.team_score === 'number' && qd.team_score < 28);
+              if (needsRefresh) {
+                console.log(`[submitStartup] Stale/sparse data for "${row.startup_name}" (team=${qd?.team_score}, status=${qd?.enrichment_status}) — background re-enrich`);
+                triggerMatchGeneration(searched, sessionId, true, signal);
+              }
+            } catch { /* non-fatal */ }
+          })();
 
-              return {
-                status: 'resolved',
-                startup_id: row.startup_id,
-                name: row.startup_name,
-                website: row.canonical_url,
-                match_count: matchCount,
-                searched,
-                _resolver_branch: resolverBranch,
-                _elapsed_ms: elapsedMs,
-                company_website: row.company_website ?? null,
-                source_url: row.source_url ?? null,
-                has_company_site: row.has_company_site ?? true,
-              };
-            }
-
-            // Startup exists but needs matches → trigger generation (fire-and-forget)
-            console.log(`[submitStartup] Found "${row.startup_name}" with ${matchCount} matches — triggering match generation`);
-            triggerMatchGeneration(searched, sessionId, false, signal);
-
-            return {
-              status: 'generating',
-              startup_id: row.startup_id,
-              name: row.startup_name,
-              website: row.canonical_url,
-              match_count: matchCount,
-              searched,
-              _resolver_branch: resolverBranch,
-              _elapsed_ms: elapsedMs,
-              company_website: row.company_website ?? null,
-              source_url: row.source_url ?? null,
-              has_company_site: row.has_company_site ?? true,
-            };
-          }
+          return {
+            status: 'resolved',
+            startup_id: row.startup_id,
+            name: row.startup_name,
+            website: row.canonical_url,
+            match_count: matchCount,
+            searched,
+            _resolver_branch: resolverBranch,
+            _elapsed_ms: elapsedMs,
+            company_website: row.company_website ?? null,
+            source_url: row.source_url ?? null,
+            has_company_site: row.has_company_site ?? true,
+          };
         }
-      } else {
-        console.warn(`[submitStartup] RPC fast path timed out after ${RPC_TIMEOUT_MS}ms (non-fatal)`);
+
+        // Startup exists but needs matches → trigger generation (fire-and-forget)
+        console.log(`[submitStartup] Found "${row.startup_name}" with ${matchCount} matches${forceGenerate ? ' (forced)' : ''} — triggering match generation`);
+        triggerMatchGeneration(searched, sessionId, forceGenerate, signal);
+
+        return {
+          status: 'generating',
+          startup_id: row.startup_id,
+          name: row.startup_name,
+          website: row.canonical_url,
+          match_count: matchCount,
+          searched,
+          _resolver_branch: resolverBranch,
+          _elapsed_ms: elapsedMs,
+          company_website: row.company_website ?? null,
+          source_url: row.source_url ?? null,
+          has_company_site: row.has_company_site ?? true,
+        };
       }
-    } catch (e) {
-      console.warn('[submitStartup] RPC fast path failed (non-fatal):', e);
     }
+  } catch (e) {
+    console.warn('[submitStartup] RPC fast path failed (non-fatal):', e);
   }
 
   // Check abort
