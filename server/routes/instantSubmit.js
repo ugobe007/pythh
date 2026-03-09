@@ -1187,10 +1187,10 @@ router.post('/submit', async (req, res) => {
   const responseTimer = setTimeout(() => {
     if (res.headersSent) return;
     console.error(`[INSTANT] Hard response timeout after ${HARD_RESPONSE_TIMEOUT_MS}ms`);
-    safeJson(503, {
-      error: 'Temporarily unavailable',
-      code: 'upstream_timeout',
-      message: 'Signal engine is under heavy load. Please retry in a few seconds.'
+    safeJson(202, {
+      status: 'queued',
+      queued: true,
+      message: 'Startup analysis queued. Continue polling status for completion.'
     });
   }, HARD_RESPONSE_TIMEOUT_MS);
   
@@ -1525,6 +1525,54 @@ router.get('/health', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+/**
+ * GET /api/instant/status?url=... OR ?startup_id=...
+ * Lightweight status check for queued URL submissions.
+ */
+router.get('/status', async (req, res) => {
+  try {
+    const startupId = req.query?.startup_id ? String(req.query.startup_id) : null;
+    const urlRaw = req.query?.url ? String(req.query.url) : null;
+
+    let resolvedStartupId = startupId;
+
+    if (!resolvedStartupId && urlRaw) {
+      const { data, error } = await supabase.rpc('resolve_startup_by_url', { p_url: urlRaw });
+      if (!error && data) {
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row?.startup_id) resolvedStartupId = row.startup_id;
+      }
+    }
+
+    if (!resolvedStartupId) {
+      return res.status(200).json({ status: 'pending', startup_id: null, match_count: 0 });
+    }
+
+    const [{ data: startup }, { count: matchCount }] = await Promise.all([
+      supabase
+        .from('startup_uploads')
+        .select('id, name, website, total_god_score')
+        .eq('id', resolvedStartupId)
+        .single(),
+      supabase
+        .from('startup_investor_matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('startup_id', resolvedStartupId)
+        .eq('status', 'suggested'),
+    ]);
+
+    return res.status(200).json({
+      status: (matchCount || 0) >= 5 ? 'ready' : 'generating',
+      startup_id: resolvedStartupId,
+      startup,
+      match_count: matchCount || 0,
+    });
+  } catch (err) {
+    console.error('[STATUS] Error:', err);
+    return res.status(200).json({ status: 'pending', startup_id: null, match_count: 0 });
   }
 });
 

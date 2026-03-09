@@ -111,6 +111,33 @@ export async function submitStartup(
 
   const sessionId = getOrCreateSessionId();
 
+  // Poll queued status endpoint for a bounded window.
+  const pollQueuedStatus = async (searchValue: string, timeoutMs = 20000): Promise<SubmitResult | null> => {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const statusRes = await fetch(`/api/instant/status?url=${encodeURIComponent(searchValue)}`);
+        if (statusRes.ok) {
+          const status = await statusRes.json();
+          if (status?.startup_id) {
+            return {
+              status: status.status === 'ready' ? 'created' : 'generating',
+              startup_id: status.startup_id,
+              name: status.startup?.name ?? null,
+              website: status.startup?.website ?? null,
+              match_count: status.match_count ?? 0,
+              searched: searchValue,
+            };
+          }
+        }
+      } catch {
+        // best effort; keep polling
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    return null;
+  };
+
   // ── STEP 1: Fast path — Supabase RPC ─────────────────────────────────────
   // resolve_startup_by_url uses indexed company_domain + website equality lookups.
   // Expected latency: < 50ms. match_count is embedded in the RPC response.
@@ -238,11 +265,33 @@ export async function submitStartup(
             searched,
           };
         }
+
+        // Accepted/queued without startup_id yet: poll status endpoint.
+        if (result?.status === 'queued' || result?.queued === true) {
+          const queued = await pollQueuedStatus(searched, 20000);
+          if (queued) return queued;
+          return {
+            status: 'generating',
+            startup_id: null,
+            name: null,
+            website: null,
+            match_count: 0,
+            searched,
+            error: 'Analysis queued — still processing',
+          };
+        }
       }
 
       // Non-OK response
       const errText = await response.text().catch(() => '');
       console.error('[submitStartup] Backend returned', response.status, errText);
+
+      // If upstream timeout occurred, keep polling status in case backend continues async.
+      if (response.status === 503) {
+        const queued = await pollQueuedStatus(searched, 20000);
+        if (queued) return queued;
+      }
+
       return {
         status: 'not_found',
         startup_id: null,
