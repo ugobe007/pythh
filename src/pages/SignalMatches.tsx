@@ -244,11 +244,11 @@ export default function SignalMatches() {
   // -----------------------------------------------------------------------------
   // DATA HOOKS
   // -----------------------------------------------------------------------------
-  // In URL submission flow we render report-only UI, so table/unlock polling
-  // must stay disabled to avoid noisy fetch loops while startup is generating.
-  // Report mode: URL param exists OR we have startup from query (came from URL submission)
-  const reportOnlyMode = !!urlToResolve || (!!startupIdFromQuery && !startupIdFromPath);
-  const tableStartupId = reportOnlyMode ? null : resolvedStartupId;
+  // RESTORED: Original working behavior - always show table view
+  // Table view works reliably even when RPC is slow/times out
+  // Report view is optional enhancement, not required
+  const reportOnlyMode = false; // Disabled - restore original table view behavior
+  const tableStartupId = resolvedStartupId; // Always use resolvedStartupId for table
   
   const { context, loading: contextLoading, refresh: refreshContext } = useStartupContext(tableStartupId);
   const { unlock, isPending, isAnyPending } = useUnlock(tableStartupId);
@@ -593,21 +593,10 @@ export default function SignalMatches() {
           Start with the top rows — those are your fastest outreach wins.
         </p>
 
-        {/* ═══ URL SUBMISSION FLOW: Show ONLY InvestorReadinessReport (like SubmitStartupPage) ═══ */}
-        {/* Show report if: URL param exists (reportOnlyMode) OR we have startup from query (came from URL submission) */}
-        {(reportOnlyMode || (startupIdFromQuery && urlToResolve)) ? (
-          reportData && !reportLoading ? (
-            <InvestorReadinessReport report={reportData} />
-          ) : reportLoading ? (
-            <div className="text-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-zinc-500 mx-auto mb-2" />
-              <p className="text-sm text-zinc-500">Loading report...</p>
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-sm text-zinc-500">Preparing your report...</p>
-            </div>
-          )
+        {/* ═══ MAIN CONTENT: Show table view (original working behavior) ═══ */}
+        {/* Report view is optional - only show if reportData is explicitly available */}
+        {reportData && !reportLoading && reportOnlyMode ? (
+          <InvestorReadinessReport report={reportData} />
         ) : (
           /* ═══ DIRECT ACCESS FLOW: Show full table view (for /signal-matches without URL) ═══ */
           <>
