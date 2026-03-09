@@ -235,11 +235,15 @@ export default function SignalMatches() {
   }, [resolverResult?.name, pickedStartupName]);
 
   // -----------------------------------------------------------------------------
-  // DATA HOOKS (all gated on resolvedStartupId)
+  // DATA HOOKS
   // -----------------------------------------------------------------------------
+  // In URL submission flow we render report-only UI, so table/unlock polling
+  // must stay disabled to avoid noisy fetch loops while startup is generating.
+  const reportOnlyMode = !!urlToResolve;
+  const tableStartupId = reportOnlyMode ? null : resolvedStartupId;
   
-  const { context, loading: contextLoading, refresh: refreshContext } = useStartupContext(resolvedStartupId);
-  const { unlock, isPending, isAnyPending } = useUnlock(resolvedStartupId);
+  const { context, loading: contextLoading, refresh: refreshContext } = useStartupContext(tableStartupId);
+  const { unlock, isPending, isAnyPending } = useUnlock(tableStartupId);
   
   // Fetch report data from /api/preview (same as SubmitStartupPage)
   const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -310,7 +314,7 @@ export default function SignalMatches() {
   
   // Pause polling while unlock is in-flight (prevents flicker)
   const { rows, loading: tableLoading, lastFetch, refresh: refreshTable, optimisticUnlock, rollbackUnlock, isStale } = 
-    useLiveMatchTable(resolvedStartupId, {
+    useLiveMatchTable(tableStartupId, {
       pollIntervalMs: 10000,
       pausePolling: isAnyPending,
       onUpdated: ({ at }) => setLastRefreshAt(at.getTime()),
@@ -320,7 +324,7 @@ export default function SignalMatches() {
   // If we resolved a startup from URL but have 0 rows, match gen was likely triggered.
   // Show a "generating" banner and poll faster (every 5s) until matches arrive.
   const matchGenPending = !!(
-    resolvedStartupId &&
+    tableStartupId &&
     urlToResolve &&  // came from URL submission (not picker/direct ID)
     !tableLoading &&
     rows.length === 0
