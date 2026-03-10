@@ -433,6 +433,10 @@ export function useLiveMatchTable(
   const startupIdRef = useRef<string | null>(startupId);
   startupIdRef.current = startupId;
 
+  // Client-side cache for same startupId (2 min TTL) — avoids refetch on back/return
+  const CACHE_TTL_MS = 120_000;
+  const matchCacheRef = useRef<Map<string, { rows: MatchRow[]; at: number }>>(new Map());
+
   const enabled = !!startupId;
 
   const doFetch = useCallback(async (force = false) => {
@@ -467,6 +471,9 @@ export function useLiveMatchTable(
         const now = new Date();
         setLastFetch(now);
         onUpdated?.({ at: now, count: data.length, stale: false });
+        
+        // Cache for client-side reuse (same startupId within TTL)
+        matchCacheRef.current.set(currentStartupId, { rows: data, at: now.getTime() });
         
         // Reset backoff on success
         backoffRef.current = 0;
@@ -504,9 +511,18 @@ export function useLiveMatchTable(
   // Initial fetch when startupId becomes available
   useEffect(() => {
     if (startupId) {
-      setLoading(true);
-      backoffRef.current = 0; // Reset backoff on new startup
-      void doFetch(true); // Force fetch on startupId change
+      const cached = matchCacheRef.current.get(startupId);
+      const age = cached ? Date.now() - cached.at : Infinity;
+      if (cached && age < CACHE_TTL_MS) {
+        setRows(cached.rows);
+        setLoading(false);
+        onUpdated?.({ at: new Date(cached.at), count: cached.rows.length, stale: false });
+        void doFetch(true); // Background refresh
+      } else {
+        setLoading(true);
+        backoffRef.current = 0;
+        void doFetch(true);
+      }
     } else {
       setRows([]);
       setLoading(false);

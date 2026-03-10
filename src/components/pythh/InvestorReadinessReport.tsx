@@ -5,7 +5,7 @@
  */
 
 import { Link } from 'react-router-dom';
-import { Flame, ArrowRight, Lock, TrendingUp, Target, Lightbulb, Users, Zap, BarChart2 } from 'lucide-react';
+import { Flame, ChevronRight, Lock, TrendingUp, Target, Lightbulb, Users, Zap, BarChart2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3002' : '');
@@ -304,7 +304,7 @@ export default function InvestorReadinessReport({ report, showFooter = false, on
           <a href={signupUrl}
             className="inline-flex items-center gap-2 px-5 py-2.5 border border-orange-500/60 text-orange-400 hover:border-orange-400 hover:text-orange-300 font-semibold rounded-xl transition text-sm"
             style={{ boxShadow: '0 0 20px rgba(249,115,22,0.15)' }}>
-            Get Full Access <ArrowRight className="w-3.5 h-3.5" />
+            Get Full Access <ChevronRight className="w-3.5 h-3.5" />
           </a>
         </div>
       </div>
@@ -363,7 +363,7 @@ export default function InvestorReadinessReport({ report, showFooter = false, on
           <a href={signupUrl}
             className="inline-flex items-center justify-center gap-2 px-6 py-3 border border-orange-500/60 text-orange-400 hover:border-orange-400 hover:text-orange-300 font-semibold rounded-xl transition text-sm"
             style={{ boxShadow: '0 0 20px rgba(249,115,22,0.15)' }}>
-            Create Free Account <ArrowRight className="w-4 h-4" />
+            Create Free Account <ChevronRight className="w-4 h-4" />
           </a>
           {onReset && (
             <button onClick={onReset}

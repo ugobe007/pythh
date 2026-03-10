@@ -39,6 +39,8 @@ import { useLegacyRadarAdapter } from '@/hooks/useRadarViewModel';
 const API_BASE =
   import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3002' : '');
 
+const SAVED_MATCHES_KEY = 'pythh_saved_matches';
+
 // -----------------------------------------------------------------------------
 // TYPES
 // -----------------------------------------------------------------------------
@@ -235,6 +237,7 @@ export default function SignalMatches() {
 
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [savedMatchesAt, setSavedMatchesAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (!resolvedStartupId) {
@@ -403,6 +406,37 @@ export default function SignalMatches() {
     setPickedStartupName(name);
   }, []);
 
+  // Initialize saved state from localStorage when startup was previously saved
+  useEffect(() => {
+    if (!resolvedStartupId) return;
+    try {
+      const raw = localStorage.getItem(SAVED_MATCHES_KEY);
+      const list: Array<{ startupId: string; savedAt: number }> = raw ? JSON.parse(raw) : [];
+      const entry = list.find((x) => x.startupId === resolvedStartupId);
+      if (entry) setSavedMatchesAt(entry.savedAt);
+    } catch {
+      // ignore
+    }
+  }, [resolvedStartupId]);
+
+  const handleSaveMatches = useCallback(
+    (startupId: string, url: string | null, name: string) => {
+      try {
+        const raw = localStorage.getItem(SAVED_MATCHES_KEY);
+        const list: Array<{ startupId: string; url: string | null; displayName: string; savedAt: number }> = raw ? JSON.parse(raw) : [];
+        const existing = list.find((x) => x.startupId === startupId);
+        if (!existing) {
+          list.unshift({ startupId, url, displayName: name, savedAt: Date.now() });
+          localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(list.slice(0, 20)));
+        }
+        setSavedMatchesAt(Date.now());
+      } catch {
+        // ignore
+      }
+    },
+    []
+  );
+
   // ---------------------------------------------------------------------------
   // UI STATES
   // ---------------------------------------------------------------------------
@@ -522,13 +556,17 @@ export default function SignalMatches() {
       <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10" data-testid="radar-page">
         {/* Startup business card — name, URL, description, GOD + Signal scores */}
         <section
-          className="mb-8 min-h-[140px] rounded-xl border border-zinc-700/60 bg-zinc-900/40 overflow-hidden"
+          className="mb-8 rounded-xl border border-zinc-700/60 bg-zinc-900/40"
           data-testid="startup-business-card"
           aria-label="Startup profile"
         >
+          <div className="px-4 pt-4 pb-2">
+            <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Your startup</span>
+          </div>
           <StartupProfileCard
             context={context}
             displayName={displayName}
+            website={submitResult?.website ?? context?.startup?.company_website ?? context?.startup?.website}
             loading={contextLoading}
             unlockedCount={unlockedCount}
             totalMatches={rows.length}
@@ -600,26 +638,18 @@ export default function SignalMatches() {
           </div>
         )}
 
-        <div className="mt-8 flex items-center gap-6 text-sm">
-          <Link
-            to="/app/oracle/coaching"
-            className="text-amber-400 hover:text-amber-300 transition border-b border-amber-400/30 pb-0.5"
-          >
-            Oracle coaching →
-          </Link>
-          <Link
-            to="/app/playbook"
-            className="text-cyan-400 hover:text-cyan-300 transition border-b border-cyan-400/30 pb-0.5"
-          >
-            Signal Playbook →
-          </Link>
-          <Link
-            to="/app/pitch-scan"
-            className="text-white/50 hover:text-white transition border-b border-white/20 pb-0.5"
-          >
-            Pitch Scan →
-          </Link>
-        </div>
+        {/* Your next steps — promote actions after reviewing matches */}
+        {(rows.length > 0 || matchGenPending) && resolvedStartupId && (
+          <NextStepsBlock
+            startupId={resolvedStartupId}
+            url={urlToResolve}
+            displayName={displayName}
+            onSaveMatches={handleSaveMatches}
+            savedAt={savedMatchesAt}
+            unlocksRemaining={unlocksRemaining}
+            isInApp={isInApp}
+          />
+        )}
 
         {!!context && unlocksRemaining === 0 && (
           <p className="text-sm text-amber-400/70 mt-6">
@@ -632,6 +662,101 @@ export default function SignalMatches() {
         )}
       </main>
     </PageShell>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// NEXT STEPS BLOCK
+// -----------------------------------------------------------------------------
+
+function NextStepsBlock({
+  startupId,
+  url,
+  displayName,
+  onSaveMatches,
+  savedAt,
+  unlocksRemaining,
+  isInApp,
+}: {
+  startupId: string;
+  url: string | null;
+  displayName: string;
+  onSaveMatches: (id: string, u: string | null, name: string) => void;
+  savedAt: number | null;
+  unlocksRemaining: number;
+  isInApp: boolean;
+}) {
+  const basePath = isInApp ? '/app' : '';
+  const wasSaved = savedAt !== null;
+  const justSaved = wasSaved && savedAt > Date.now() - 3000;
+
+  const handleSave = () => {
+    onSaveMatches(startupId, url, displayName);
+  };
+
+  return (
+    <section className="mt-10 mb-8 rounded-xl border border-zinc-700/50 bg-zinc-900/30 p-6">
+      <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Your next steps</h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Link
+          to={`${basePath}/signal-matches?startup=${startupId}`}
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-emerald-500/40 hover:bg-zinc-800/60 transition"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400 font-bold text-sm">1</span>
+          <div>
+            <p className="font-medium text-white group-hover:text-emerald-400 transition">Unlock top matches</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{unlocksRemaining} free unlocks today</p>
+          </div>
+        </Link>
+        <Link
+          to={`${basePath}/pitch-scan`}
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">2</span>
+          <div>
+            <p className="font-medium text-white group-hover:text-cyan-400 transition">Scan your pitch</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Prep before outreach</p>
+          </div>
+        </Link>
+        <Link
+          to={`${basePath}/playbook`}
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">3</span>
+          <div>
+            <p className="font-medium text-white group-hover:text-cyan-400 transition">Signal Playbook</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Learn how to time outreach</p>
+          </div>
+        </Link>
+        <Link
+          to={`${basePath}/oracle/coaching`}
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-amber-500/40 hover:bg-zinc-800/60 transition"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-500/20 text-amber-400 font-bold text-sm">4</span>
+          <div>
+            <p className="font-medium text-white group-hover:text-amber-400 transition">Oracle coaching</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Improve your position</p>
+          </div>
+        </Link>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="inline-flex items-center gap-2 rounded-lg border border-zinc-600 bg-zinc-800/60 px-4 py-2 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-white transition"
+        >
+          {justSaved ? '✓ Saved' : wasSaved ? '✓ Saved' : 'Save these matches'}
+        </button>
+        {justSaved && (
+          <span className="text-xs text-zinc-500">
+            <Link to="/signup?ref=matches" className="text-cyan-400 hover:text-cyan-300">
+              Create account
+            </Link>{' '}
+            to keep them across devices
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 

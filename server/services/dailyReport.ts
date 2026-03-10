@@ -632,9 +632,18 @@ This is an automated daily report from pyth ai.
 
 /**
  * Send the daily report email using Resend (preferred) or SMTP fallback
+ * Set ADMIN_EMAIL_ENABLED=false to disable (reduces admin email noise)
  */
 export async function sendDailyReport(recipientEmail?: string): Promise<{ success: boolean; message: string }> {
   try {
+    const adminEmailEnabled = process.env.ADMIN_EMAIL_ENABLED;
+    const isEnabled = adminEmailEnabled === undefined || adminEmailEnabled === '' ||
+      ['true', '1', 'yes'].includes(String(adminEmailEnabled).toLowerCase());
+    if (!isEnabled) {
+      console.log('📧 Admin email disabled (ADMIN_EMAIL_ENABLED=false), skipping daily report');
+      return { success: false, message: 'Admin email disabled via ADMIN_EMAIL_ENABLED' };
+    }
+
     const email = recipientEmail || ADMIN_EMAIL;
     
     if (!email) {

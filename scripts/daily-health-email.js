@@ -373,10 +373,15 @@ async function main() {
     console.log('\n💡 TIP: Set SLACK_WEBHOOK_URL in .env for Slack alerts');
   }
 
-  // Send email
-  if (ALERT_EMAIL) {
+  // Send email (skip if ADMIN_EMAIL_ENABLED=false)
+  const adminEmailEnabled = process.env.ADMIN_EMAIL_ENABLED;
+  const emailEnabled = adminEmailEnabled === undefined || adminEmailEnabled === '' ||
+    ['true', '1', 'yes'].includes(String(adminEmailEnabled).toLowerCase());
+  if (ALERT_EMAIL && emailEnabled) {
     const sent = await sendEmailAlert(metrics);
     console.log(`📧 Email to ${ALERT_EMAIL}: ${sent ? 'sent' : 'not sent (configure RESEND_API_KEY)'}`);
+  } else if (ALERT_EMAIL && !emailEnabled) {
+    console.log('📧 Admin email disabled (ADMIN_EMAIL_ENABLED=false), skipping');
   }
 
   // Log to database

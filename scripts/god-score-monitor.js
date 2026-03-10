@@ -13,20 +13,36 @@ const supabase = createClient(
 
 async function checkGODScores() {
   const timestamp = new Date().toISOString();
-  
+  const PAGE_SIZE = 1000;
+
   try {
-    // Get all approved startup scores
-    const { data: startups, error } = await supabase
-      .from('startup_uploads')
-      .select('total_god_score, name')
-      .eq('status', 'approved')
-      .not('total_god_score', 'is', null)
-      .order('total_god_score', { ascending: true });
+    // Paginate to get ALL approved startup scores (Supabase defaults to 1000 max)
+    const allStartups = [];
+    let from = 0;
+    while (true) {
+      const { data: batch, error } = await supabase
+        .from('startup_uploads')
+        .select('total_god_score, name')
+        .eq('status', 'approved')
+        .not('total_god_score', 'is', null)
+        .order('total_god_score', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
 
-    if (error) throw error;
+      if (error) throw error;
+      if (!batch || batch.length === 0) break;
+      allStartups.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
 
+    const startups = allStartups;
     const scores = startups.map(s => s.total_god_score);
     const total = scores.length;
+
+    if (total === 0) {
+      console.log('No approved startups with GOD scores found.');
+      return { distribution: {}, tiers: {}, total: 0 };
+    }
     
     // Calculate distribution
     const distribution = {

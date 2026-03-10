@@ -12,11 +12,21 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ugobe07@gmail.com';
 const FROM_EMAIL = 'pyth ai <notifications@hotmoneyhoney.com>';
 
+// Set ADMIN_EMAIL_ENABLED=false to disable admin emails (reduces noise)
+const isAdminEmailEnabled = () => {
+  const v = process.env.ADMIN_EMAIL_ENABLED;
+  return v === undefined || v === '' || ['true', '1', 'yes'].includes(String(v).toLowerCase());
+};
+
 export class EmailNotificationService {
   /**
    * Send email notification to admin
    */
   private async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+    if (!isAdminEmailEnabled()) {
+      console.log(`📧 Admin email disabled (ADMIN_EMAIL_ENABLED=false): ${subject}`);
+      return false;
+    }
     if (!resend) {
       console.log(`📧 Email notification (no API key configured):`);
       console.log(`To: ${to}`);

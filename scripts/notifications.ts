@@ -123,10 +123,18 @@ export async function sendHealthAlert(status: 'healthy' | 'warning' | 'critical'
 
 /**
  * Send email alert using Resend
+ * Set ADMIN_EMAIL_ENABLED=false to disable (reduces admin email noise)
  */
 export async function sendEmailAlert(alert: Alert): Promise<boolean> {
   const toEmail = process.env.ALERT_EMAIL;
-  
+  const adminEmailEnabled = process.env.ADMIN_EMAIL_ENABLED;
+  const isEnabled = adminEmailEnabled === undefined || adminEmailEnabled === '' ||
+    ['true', '1', 'yes'].includes(String(adminEmailEnabled).toLowerCase());
+
+  if (!isEnabled) {
+    console.log('⚠️  Admin email disabled (ADMIN_EMAIL_ENABLED=false), skipping:', alert.title);
+    return false;
+  }
   if (!resend || !toEmail) {
     console.log('⚠️  RESEND_API_KEY or ALERT_EMAIL not set, skipping email');
     return false;

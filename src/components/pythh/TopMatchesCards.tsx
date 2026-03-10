@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Flame, Lock, ArrowRight } from 'lucide-react';
+import { Flame, Lock, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Investor {
@@ -108,7 +108,7 @@ function MatchCard({ match, rank, blurred }: { match: Match; rank: number; blurr
           to={`/investor/${investor.id}`}
           className="mt-3 inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
         >
-          View Profile <ArrowRight className="w-3 h-3" />
+          View Profile <ChevronRight className="w-3 h-3" />
         </Link>
       )}
     </div>
@@ -229,7 +229,7 @@ export default function TopMatchesCards({ startupId, totalMatches = 0 }: TopMatc
             className="inline-flex items-center gap-2 px-5 py-2.5 border border-orange-500/60 text-orange-400 hover:border-orange-400 hover:text-orange-300 font-semibold rounded-xl transition text-sm"
             style={{ boxShadow: '0 0 20px rgba(249,115,22,0.15)' }}
           >
-            Get Full Access <ArrowRight className="w-3.5 h-3.5" />
+            Get Full Access <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       )}

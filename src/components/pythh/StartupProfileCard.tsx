@@ -127,6 +127,8 @@ function ExternalLinkIcon() {
 interface StartupProfileCardProps {
   context: StartupContext | null;
   displayName: string;
+  /** URL to show when context is null (e.g. from submitResult) */
+  website?: string | null;
   loading?: boolean;
   unlockedCount: number;
   totalMatches: number;
@@ -135,6 +137,7 @@ interface StartupProfileCardProps {
 export default function StartupProfileCard({
   context,
   displayName,
+  website: websiteProp,
   loading = false,
   unlockedCount,
   totalMatches,
@@ -155,26 +158,42 @@ export default function StartupProfileCard({
     );
   }
 
-  // If no context after loading, show error/fallback with basic info
+  // If no context after loading, show fallback card with name, URL, scores placeholder
   if (!context) {
+    const websiteDisplay = websiteProp
+      ? websiteProp.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')
+      : null;
     return (
-      <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-xl p-6 mb-8">
+      <div className="bg-zinc-900/60 border border-zinc-800/50 rounded-xl p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
           {/* Placeholder GOD Score Ring */}
           <div className="flex-shrink-0 flex flex-col items-center gap-1">
             <ScoreRing score={50} />
-            <span className="text-[10px] text-zinc-500">Loading...</span>
+            <span className="text-[10px] text-zinc-500">GOD</span>
           </div>
 
-          {/* Basic Identity */}
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold text-white">{displayName}</h2>
-            <p className="text-sm text-zinc-500 mt-2">Profile data loading...</p>
-            <p className="text-xs text-zinc-600 mt-1">If this persists, the startup may not be in our database yet.</p>
+          {/* Basic Identity — same Supabase-style as full card */}
+          <div className="flex-1 min-w-0 space-y-2">
+            <span
+              className="inline-flex w-fit px-3 py-1.5 rounded-md border border-emerald-500/80 text-emerald-400 font-semibold bg-transparent text-base"
+            >
+              {displayName}
+            </span>
+            {websiteDisplay && (
+              <a
+                href={websiteProp!.startsWith('http') ? websiteProp! : `https://${websiteDisplay}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-zinc-500 hover:text-cyan-400 transition-colors w-fit"
+              >
+                {websiteDisplay} ↗
+              </a>
+            )}
+            <p className="text-sm text-zinc-500">Profile data loading…</p>
           </div>
 
           {/* Basic Stats */}
-          <div className="flex-shrink-0 w-full sm:w-56">
+          <div className="flex-shrink-0 w-full sm:w-48">
             <div className="bg-zinc-800/40 rounded-lg px-4 py-3">
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Matches</p>
               <p className="text-lg font-semibold text-zinc-300">{totalMatches}</p>
@@ -187,8 +206,8 @@ export default function StartupProfileCard({
   }
 
   const startup = context.startup;
-  const god = context.god;
-  const signals = context.signals;
+  const god = context.god ?? { total: 50, team: 0, traction: 0, market: 0, product: 0, vision: 0 };
+  const signals = context.signals ?? { total: 5.5, founder_language_shift: 0, investor_receptivity: 0, news_momentum: 0, capital_convergence: 0, execution_velocity: 0 };
   const comparison = context.comparison;
 
   const name = startup?.name || displayName;

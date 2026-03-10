@@ -59,6 +59,35 @@ const GLOW_COLORS = {
 } as const;
 
 // -----------------------------------------------------------------------------
+// SKELETON ROW
+// -----------------------------------------------------------------------------
+
+function SkeletonRow() {
+  return (
+    <div className="h-14 w-full flex items-center gap-4 px-4 border-b border-zinc-800/30 animate-pulse">
+      <div className="flex-1 flex items-center gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-full bg-zinc-700/60 flex-shrink-0" />
+        <div className="flex-1 min-w-0 space-y-2">
+          <div className="h-4 w-32 bg-zinc-700/60 rounded" />
+          <div className="h-3 w-24 bg-zinc-800/50 rounded" />
+        </div>
+      </div>
+      <div className="w-20 flex justify-center"><div className="h-4 w-12 bg-zinc-700/60 rounded" /></div>
+      <div className="w-16 flex justify-center"><div className="h-4 w-8 bg-zinc-700/60 rounded" /></div>
+      <div className="w-16 flex justify-center"><div className="h-4 w-8 bg-zinc-700/60 rounded" /></div>
+      <div className="w-12 flex justify-center"><div className="h-4 w-6 bg-zinc-700/60 rounded" /></div>
+      <div className="w-20 flex justify-center gap-0.5">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="w-1.5 h-3 bg-zinc-700/60 rounded-sm" />
+        ))}
+      </div>
+      <div className="w-20 flex justify-center"><div className="h-4 w-14 bg-zinc-700/60 rounded" /></div>
+      <div className="w-28 flex justify-end"><div className="h-8 w-20 bg-zinc-700/60 rounded" /></div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // MAIN COMPONENT
 // -----------------------------------------------------------------------------
 
@@ -84,14 +113,26 @@ export function LiveMatchTable({
   const relevantUnlocked = showUnlocked ? unlockedRows : [];
   const relevantLocked = showLocked ? lockedRows : [];
 
-  // Empty states
+  // Loading: show skeleton rows instead of spinner
   if (loading && relevantUnlocked.length === 0 && relevantLocked.length === 0) {
     return (
-      <div className={`flex items-center justify-center py-20 ${className}`}>
-        <div className="flex flex-col items-center gap-4 text-gray-400">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span>Loading matches...</span>
+      <div
+        data-testid={mode === 'all' ? 'match-table' : `match-table-${mode}`}
+        className={`space-y-0 ${className}`}
+      >
+        <div className="h-10 flex items-center gap-4 px-4 text-xs font-medium text-zinc-500 border-b border-zinc-800/50">
+          <div className="flex-1">Investor</div>
+          <div className="w-20 text-center">Signal</div>
+          <div className="w-16 text-center">Match</div>
+          <div className="w-16 text-center">YC++</div>
+          <div className="w-12 text-center">Δ</div>
+          <div className="w-20 text-center">Fit</div>
+          <div className="w-20 text-center">Status</div>
+          <div className="w-28 text-right">Action</div>
         </div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
       </div>
     );
   }

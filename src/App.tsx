@@ -106,6 +106,7 @@ const B2BSaaSInvestorsPage = lazy(() => import("./pages/sectors/B2BSaaSInvestors
 
 const DemoPageDoctrine = lazy(() => import("./pages/DemoPageDoctrine"));
 const Live = lazy(() => import("./pages/public/Live"));
+const HotMatchesPage = lazy(() => import("./pages/HotMatchesPage"));
 const InvestorProfile = lazy(() => import("./pages/InvestorProfile"));
 
 const SignupLanding = lazy(() => import("./pages/SignupLanding"));
@@ -234,6 +235,7 @@ const App = () => {
             <Route path="/rankings" element={<SignalTrends />} />
             <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
             <Route path="/explore" element={<ExplorePage />} />
+            <Route path="/hot-matches" element={<HotMatchesPage />} />
 
             <Route path="/ai-ml-investors" element={<AIMLInvestorsPage />} />
             <Route path="/fintech-investors" element={<FintechInvestorsPage />} />

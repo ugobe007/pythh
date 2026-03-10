@@ -256,7 +256,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '500M',
       kill_timeout: 35000,  // Allow 35s for graceful shutdown (SIGINT handler needs 30s)
-      cron_restart: '*/15 * * * *',  // Every 15 minutes
+      cron_restart: '*/30 * * * *',  // Every 30 minutes (was 15 — RSS feeds rarely need faster)
       env: {
         NODE_ENV: 'production',
         VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
@@ -499,7 +499,7 @@ module.exports = {
       exp_backoff_restart_delay: 10000,  // Exponential backoff up to 10s
       max_restarts: 10,  // Max 10 restarts per hour
       min_uptime: '5s',  // Must run 5s to count as successful
-      cron_restart: '*/2 * * * *',  // Every 2 minutes (was 6-field seconds cron — too aggressive)
+      cron_restart: '*/5 * * * *',  // Every 5 minutes (was 2 — still responsive, less load)
       env: {
         NODE_ENV: 'production',
         MAX_RUNS_PER_BATCH: '2',  // Process max 2 runs per tick

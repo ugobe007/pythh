@@ -7019,6 +7019,70 @@ app.get('/api/admin/rss-health', async (req, res) => {
 });
 
 // ============================================================
+// GET /api/admin/scraper-stats — Scraper health & success visibility
+// ============================================================
+app.get('/api/admin/scraper-stats', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    // RSS sources with success/failure tracking
+    const { data: rssSources, error: rssErr } = await supabase
+      .from('rss_sources')
+      .select('id, url, name, last_scraped, total_discoveries, avg_yield_per_scrape, consecutive_failures')
+      .order('consecutive_failures', { ascending: false });
+
+    if (rssErr) throw rssErr;
+
+    const sourcesHealthy = (rssSources || []).filter(s => (s.consecutive_failures || 0) === 0).length;
+    const sourcesFailing = (rssSources || []).filter(s => (s.consecutive_failures || 0) > 0).length;
+    const totalDiscoveries = (rssSources || []).reduce((sum, s) => sum + (s.total_discoveries || 0), 0);
+    const avgYield = (rssSources || []).length > 0
+      ? (rssSources || []).reduce((sum, s) => sum + (s.avg_yield_per_scrape || 0), 0) / (rssSources || []).length
+      : 0;
+
+    // Recent discoveries (24h)
+    const { count: discoveries24h } = await supabase
+      .from('discovered_startups')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', oneDayAgo);
+
+    // Recent ai_logs from key agents
+    const { data: recentLogs } = await supabase
+      .from('ai_logs')
+      .select('agent_name, action, status, created_at, details')
+      .in('agent_name', ['rss_scraper', 'god-score-monitor', 'enrich_health_check'])
+      .gte('created_at', oneDayAgo)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    const summary = {
+      rss_sources: {
+        total: (rssSources || []).length,
+        healthy: sourcesHealthy,
+        failing: sourcesFailing,
+        total_discoveries: totalDiscoveries,
+        avg_yield_per_scrape: Math.round(avgYield * 100) / 100
+      },
+      last_24h: {
+        discoveries: discoveries24h || 0
+      },
+      recent_activity: (recentLogs || []).slice(0, 15).map(l => ({
+        agent: l.agent_name,
+        action: l.action,
+        status: l.status,
+        at: l.created_at
+      }))
+    };
+
+    res.json({ success: true, ...summary, sources: (rssSources || []).slice(0, 20) });
+  } catch (err) {
+    console.error('[GET /api/admin/scraper-stats] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
 // GET /api/admin/ai-logs
 // ============================================================
 app.get('/api/admin/ai-logs', async (req, res) => {
@@ -8446,8 +8510,8 @@ try {
     console.log(`🔔 Alerts sweep scheduled every ${SWEEP_INTERVAL_MS / 1000 / 60} minutes`);
     
     // Prompt 19: Scheduled daily digest delivery
-    // Run every 5 minutes to check for users whose local time matches digest_time
-    const DIGEST_INTERVAL_MS = 5 * 60 * 1000;
+    // Run every 30 minutes to check for users whose local time matches digest_time
+    const DIGEST_INTERVAL_MS = 30 * 60 * 1000;
     
     // Initial digest check after 90 seconds
     setTimeout(async () => {

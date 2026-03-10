@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
-import HotMatchesFeed from '../components/HotMatchesFeed';
+import PythhExplainerBlock from '../components/PythhExplainerBlock';
+import LiveTeaser from '../components/LiveTeaser';
 import PaywallModal from '../components/PaywallModal';
 import SEO from '../components/SEO';
 import NewsletterWidget from '../components/NewsletterWidget';
@@ -485,15 +486,17 @@ export default function PythhHome() {
               </Link>
             </div>
 
-            {/* Mobile Hot Matches - compact version below CTAs */}
-            <div className="lg:hidden mt-6">
-              <HotMatchesFeed limit={5} hoursAgo={720} showHeader={true} autoRefresh={true} />
+            {/* Mobile: explainer + live teaser below CTAs */}
+            <div className="lg:hidden mt-8 space-y-6">
+              <PythhExplainerBlock />
+              <LiveTeaser />
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Hot Matches - positioned below headline area */}
-          <div className="hidden lg:block mt-28">
-            <HotMatchesFeed limit={7} hoursAgo={720} showHeader={true} autoRefresh={true} />
+          {/* RIGHT COLUMN: explainer + live teaser */}
+          <div className="hidden lg:block mt-28 space-y-6">
+            <PythhExplainerBlock />
+            <LiveTeaser />
           </div>
           
         </div>

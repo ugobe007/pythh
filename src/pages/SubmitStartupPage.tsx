@@ -210,13 +210,13 @@ export default function SubmitStartupPage() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-14">
             {[
-              { icon: Flame,      color: 'text-orange-400', border: 'border-orange-500/15', label: 'GOD Score',        desc: '0–100 investor-readiness rating' },
-              { icon: Target,     color: 'text-amber-400',  border: 'border-amber-500/15',  label: 'Focus Areas',      desc: 'What to fix before outreach' },
-              { icon: Users,      color: 'text-cyan-400',   border: 'border-cyan-500/15',   label: 'Top Matches',      desc: 'Ranked by fit & thesis' },
-              { icon: TrendingUp, color: 'text-emerald-400',border: 'border-emerald-500/15',label: 'Success Forecast', desc: 'Estimated meeting response rate' },
-            ].map(({ icon: Icon, color, border, label, desc }) => (
+              { emoji: '🔥', color: 'text-orange-400', border: 'border-orange-500/15', label: 'GOD Score',        desc: '0–100 investor-readiness rating' },
+              { emoji: '🎯', color: 'text-amber-400',  border: 'border-amber-500/15',  label: 'Focus Areas',      desc: 'What to fix before outreach' },
+              { emoji: '👥', color: 'text-cyan-400',   border: 'border-cyan-500/15',   label: 'Top Matches',      desc: 'Ranked by fit & thesis' },
+              { emoji: '📈', color: 'text-emerald-400',border: 'border-emerald-500/15',label: 'Success Forecast', desc: 'Estimated meeting response rate' },
+            ].map(({ emoji, color, border, label, desc }) => (
               <div key={label} className={`flex flex-col gap-2 px-4 py-3 border ${border} rounded-xl bg-zinc-950/40`}>
-                <Icon className={`w-4 h-4 ${color}`} />
+                <span className={`text-lg ${color}`}>{emoji}</span>
                 <div className="text-white text-xs font-semibold">{label}</div>
                 <div className="text-zinc-600 text-[11px] leading-relaxed">{desc}</div>
               </div>
@@ -226,7 +226,7 @@ export default function SubmitStartupPage() {
           <p className="text-zinc-600 text-sm text-center mb-12">
             Already have an account?{' '}
             <Link to="/login" className="text-cyan-500 hover:text-cyan-400 transition inline-flex items-center gap-1">
-              Sign in to track your score history <ArrowRight className="w-3 h-3" />
+              Sign in to track your score history <ChevronRight className="w-3 h-3" />
             </Link>
           </p>
 
