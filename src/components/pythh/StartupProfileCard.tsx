@@ -279,17 +279,22 @@ export default function StartupProfileCard({
 
         {/* MIDDLE: Identity + Description */}
         <div className="flex-1 min-w-0 space-y-2">
-          {/* Name + Website */}
+          {/* Name + Website — Supabase-style: emerald stroke + font, no fill */}
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <h2 className="text-lg font-bold text-white truncate">{name}</h2>
+              <div className="flex flex-col gap-1">
+                <span
+                  className="inline-flex w-fit px-3 py-1.5 rounded-md border border-emerald-500/80 text-emerald-400 font-semibold bg-transparent text-base"
+                  style={{ fontFamily: 'inherit' }}
+                >
+                  {name}
+                </span>
                 {websiteDisplay && !(!hasCompanySite && sourceUrl) && (
                   <a
                     href={website!}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-cyan-400 transition-colors"
+                    className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-cyan-400 transition-colors w-fit"
                   >
                     {hasCompanySite && <span className="text-[9px] text-emerald-500/70 uppercase tracking-wide mr-0.5">site</span>}
                     {websiteDisplay}

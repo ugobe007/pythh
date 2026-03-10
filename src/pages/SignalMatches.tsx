@@ -25,6 +25,7 @@ import type { MatchRow, StartupContext } from '@/lib/pythh-types';
 import InvestorReadinessReport, { type ReportData } from '@/components/pythh/InvestorReadinessReport';
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
+import StartupProfileCard from '@/components/pythh/StartupProfileCard';
 
 import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
@@ -519,22 +520,36 @@ export default function SignalMatches() {
   return (
     <PageShell isInApp={isInApp} onRefresh={handleRefresh} tableLoading={tableLoading}>
       <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10" data-testid="radar-page">
-        <p className="text-sm text-zinc-400 leading-relaxed mb-8">
-          <span className="text-cyan-400">Signal</span> = timing.
-          <span className="text-zinc-300 ml-1">GOD</span> = your position.
-          <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
-          Start with the top rows — those are your fastest outreach wins.
-        </p>
+        {/* Startup business card — name, URL, description, GOD + Signal scores */}
+        <section
+          className="mb-8 min-h-[140px] rounded-xl border border-zinc-700/60 bg-zinc-900/40 overflow-hidden"
+          data-testid="startup-business-card"
+          aria-label="Startup profile"
+        >
+          <StartupProfileCard
+            context={context}
+            displayName={displayName}
+            loading={contextLoading}
+            unlockedCount={unlockedCount}
+            totalMatches={rows.length}
+          />
+        </section>
 
-        <div className="mb-4 flex items-center gap-4">
+        <div className="mb-6 flex items-center gap-4">
           <LiveIndicator
             lastRefreshAt={lastRefreshAt}
             isPaused={isAnyPending}
             busySince={busySince}
             isStale={isStale}
           />
-          <span className="text-xs text-zinc-600">{displayName}</span>
         </div>
+
+        <p className="text-sm text-zinc-400 leading-relaxed mb-8">
+          <span className="text-cyan-400">Signal</span> = timing.
+          <span className="text-zinc-300 ml-1">GOD</span> = your position.
+          <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
+          Start with the top rows — those are your fastest outreach wins.
+        </p>
 
         {reportData && !reportLoading && reportOnlyMode ? (
           <InvestorReadinessReport report={reportData} />
