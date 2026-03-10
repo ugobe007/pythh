@@ -7,8 +7,7 @@ import PaywallModal from '../components/PaywallModal';
 import SEO from '../components/SEO';
 import NewsletterWidget from '../components/NewsletterWidget';
 import { supabase } from '../lib/supabase';
-import { submitStartup } from '../services/submitStartup';
-import { canonicalizeStartupUrl } from '../utils/normalizeUrl';
+import { normalizeStartupUrl, canonicalizeStartupUrl } from '../utils/normalizeUrl';
 import { useUsageTracking } from '../hooks/useUsageTracking';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -238,89 +237,46 @@ export default function PythhHome() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PYTHH ENGINE ENTRY POINT - DO NOT MODIFY
+  // FIND SIGNALS — Navigate only. SignalMatches page calls submitStartup().
+  // Single orchestration in submitStartup.ts — no duplicate workflow here.
   // ═══════════════════════════════════════════════════════════════════════════
-  // This is the CANONICAL workflow entry:
-  // 1. User submits URL → navigate to /signals?url=...
-  // 2. SignalsAlias redirects → /app/radar?url=...
-  // 3. SignalsRadarPage resolves URL via useResolveStartup hook
-  // 4. Hook calls resolve_startup_by_url RPC (pythh-rpc.ts)
-  // 5. RPC: scrapes → collects data → builds profile → scores → matches
-  // 6. Returns: 5 unlocked signals + 50 locked signals
-  // ═══════════════════════════════════════════════════════════════════════════
-  
   const submit = () => {
-    const trimmed = url.trim();
-    console.log('[PythhMain] Submit called with:', trimmed);
-    
-    if (!trimmed || submitting) {
-      console.log('[PythhMain] Empty URL or already submitting - aborting');
-      return;
-    }
-    
-    // Check freemium limit FIRST (Pro users bypass)
+    const raw = url.trim();
+    if (!raw || submitting) return;
+
     if (!isPro && hasHitLimit) {
-      console.log('[PythhMain] User hit free analysis limit (5) - showing paywall');
       setShowPaywall(true);
       return;
     }
-    
-    // Clear previous errors
+
     setUrlError('');
     setSuggestion('');
-    
-    const normalized = canonicalizeStartupUrl(trimmed);
+
+    const normalized = normalizeStartupUrl(raw);
     if (!normalized) {
       setUrlError('Please enter a valid domain (e.g., example.com)');
       return;
     }
-    const canonicalUrl = normalized.canonicalUrl;
-    const domain = normalized.domain;
 
-    // Check for TLD typos
-    const lowerUrl = domain.toLowerCase();
+    // TLD typo check
+    const host = normalized.split('/')[0] || normalized;
+    const lowerHost = host.toLowerCase();
     for (const [typo, correct] of Object.entries(COMMON_TLD_TYPOS)) {
-      if (lowerUrl.endsWith(typo)) {
-        const suggested = `https://${domain.slice(0, -typo.length)}${correct}/`;
-        console.log('[PythhMain] TLD typo detected:', typo, '→', correct);
+      if (lowerHost.endsWith(typo)) {
+        const suggested = `https://${host.slice(0, -typo.length)}${correct}/`;
         setSuggestion(suggested);
         setUrlError(`Did you mean ${correct}?`);
         return;
       }
     }
-    
-    // Basic domain format validation (relaxed)
-    if (!domain.includes('.')) {
-      console.log('[PythhMain] No TLD detected:', domain);
+
+    if (!host.includes('.')) {
       setUrlError('Please enter a valid domain (e.g., example.com)');
       return;
     }
-    
-    // PREFETCH: Fire submitStartup immediately (don't wait for SignalMatches page)
-    // Race: if we get a startup_id within 2s, navigate with it directly (skips re-resolution)
-    setSubmitting(true);
-    
-    // Track analysis before navigation
+
     trackAnalysis();
-    console.log('[PythhMain] Tracked analysis - new count:', analysisCount + 1);
-    
-    const navigateFallback = () => {
-      console.log('[PythhMain] Navigating to CANONICAL:', `/signal-matches?url=${encodeURIComponent(canonicalUrl)}`);
-      navigate(`/signal-matches?url=${encodeURIComponent(canonicalUrl)}`);
-    };
-    
-    const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 2000));
-    Promise.race([submitStartup(canonicalUrl), timeout])
-      .then((result) => {
-        if (result?.startup_id) {
-          console.log('[PythhMain] Prefetch resolved startup:', result.startup_id, 'in <2s');
-          navigate(`/signal-matches?startup=${encodeURIComponent(result.startup_id)}&url=${encodeURIComponent(canonicalUrl)}`);
-        } else {
-          navigateFallback();
-        }
-      })
-      .catch(() => navigateFallback())
-      .finally(() => setSubmitting(false));
+    navigate(`/signal-matches?url=${encodeURIComponent(raw)}`);
   };
 
   const applySuggestion = () => {

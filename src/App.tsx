@@ -24,14 +24,14 @@
  * App (instrument mode - inside pythh):
  * - /app/signals-dashboard     SignalsDashboard
  * - /app/in-signal-matches     Internal matches surface
- * - /app/signal-matches        Same as public submission page
+ * - /app/signal-matches        Same as public submission page, inside AppLayout
  *
- * Legacy redirects (ALL → /signal-matches):
- * - /discover, /get-matched, /match, /signals-radar
- * - /app/signals, /app/radar
+ * Legacy redirects:
+ * - /discover, /get-matched, /match, /signals-radar → /signal-matches
+ * - /app/signals, /app/radar → /app/signal-matches
  */
 
-import React, { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, useRef } from "react";
 import { Routes, Route, useLocation, Navigate, useParams } from "react-router-dom";
 import "./App.css";
 
@@ -41,29 +41,51 @@ import { L5Guard } from "./lib/routeGuards";
 import { trackEvent } from "./lib/analytics";
 import { useStore } from "./store";
 
-// Layouts (kept eager — used as wrappers across many routes)
+// Layouts
 import PublicLayout from "./layouts/PublicLayout";
 import AppLayout from "./layouts/AppLayout";
 import AdminRouteWrapper from "./components/AdminRouteWrapper";
 
-// Homepage — critical path, must stay eager
+// Critical-path homepage kept eager
 import PythhMain from "./pages/PythhMain";
 
-// Startup detail redirect: /startup/:id → /signal-matches?startup=:id
+// -----------------------------------------------------------------------------
+// ROUTE HELPERS
+// -----------------------------------------------------------------------------
+
 function StartupIdRedirect() {
   const { startupId } = useParams<{ startupId: string }>();
   return <Navigate to={`/signal-matches?startup=${startupId}`} replace />;
 }
 
-// Fallback shown while lazy chunks load
 const RouteFallback = () => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#0a0a0a" }}>
-    <div style={{ width: 32, height: 32, border: "3px solid #ff6600", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100vh",
+      background: "#0a0a0a",
+    }}
+  >
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        border: "3px solid #ff6600",
+        borderTopColor: "transparent",
+        borderRadius: "50%",
+        animation: "spin 0.7s linear infinite",
+      }}
+    />
     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
   </div>
 );
 
-// PUBLIC pages
+// -----------------------------------------------------------------------------
+// LAZY PAGES — PUBLIC
+// -----------------------------------------------------------------------------
+
 const PlatformPage = lazy(() => import("./pages/PlatformPage"));
 const SignalMatches = lazy(() => import("./pages/SignalMatches"));
 const SignalTrends = lazy(() => import("./pages/SignalTrends"));
@@ -76,27 +98,22 @@ const WatchlistPage = lazy(() => import("./pages/WatchlistPage"));
 const SubmitStartupPage = lazy(() => import("./pages/SubmitStartupPage"));
 const ReferralPage = lazy(() => import("./pages/ReferralPage"));
 
-// Sector landing pages
 const AIMLInvestorsPage = lazy(() => import("./pages/sectors/AIMLInvestorsPage"));
 const FintechInvestorsPage = lazy(() => import("./pages/sectors/FintechInvestorsPage"));
 const HealthTechInvestorsPage = lazy(() => import("./pages/sectors/HealthTechInvestorsPage"));
 const DevToolsInvestorsPage = lazy(() => import("./pages/sectors/DevToolsInvestorsPage"));
 const B2BSaaSInvestorsPage = lazy(() => import("./pages/sectors/B2BSaaSInvestorsPage"));
 
-// Legacy / preserved
 const DemoPageDoctrine = lazy(() => import("./pages/DemoPageDoctrine"));
 const Live = lazy(() => import("./pages/public/Live"));
-const SignalResultsPage = lazy(() => import("./pages/SignalResultsPage"));
 const InvestorProfile = lazy(() => import("./pages/InvestorProfile"));
 
-// Signup flow
 const SignupLanding = lazy(() => import("./pages/SignupLanding"));
 const SignupFounderPythh = lazy(() => import("./pages/SignupFounderPythh"));
 const InvestorSignupPythh = lazy(() => import("./pages/InvestorSignupPythh"));
 const SignupComplete = lazy(() => import("./pages/SignupComplete"));
 const EnrichStartupPage = lazy(() => import("./pages/EnrichStartupPage"));
 
-// User account pages
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const FounderProfileDashboard = lazy(() => import("./pages/FounderProfileDashboard"));
 const InvestorProfileDashboard = lazy(() => import("./pages/InvestorProfileDashboard"));
@@ -107,17 +124,18 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const AdminBypass = lazy(() => import("./pages/AdminBypass"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 
-// Shared / preview
 const SharedDashboardView = lazy(() => import("./pages/SharedDashboardView"));
 const MatchPreviewPage = lazy(() => import("./pages/MatchPreviewPage"));
 
-// APP (instrument mode)
+// -----------------------------------------------------------------------------
+// LAZY PAGES — APP
+// -----------------------------------------------------------------------------
+
 const SignalsDashboard = lazy(() => import("./pages/app/SignalsDashboard"));
 const InSignalMatches = lazy(() => import("./pages/inSignalMatches"));
 const InvestorRevealPage = lazy(() => import("./pages/app/InvestorRevealPage"));
 const EnginePipelineView = lazy(() => import("./pages/app/Engine"));
 
-// Oracle
 const OracleDashboard = lazy(() => import("./pages/app/OracleDashboard"));
 const OracleWizard = lazy(() => import("./pages/app/OracleWizard"));
 const OracleCohorts = lazy(() => import("./pages/app/OracleCohorts"));
@@ -127,12 +145,14 @@ const OraclePredictions = lazy(() => import("./pages/app/OraclePredictions"));
 const OracleCoaching = lazy(() => import("./pages/app/OracleCoaching"));
 const OracleScribe = lazy(() => import("./pages/app/OracleScribe"));
 
-// Signal navigation tools (premium)
 const SignalPlaybook = lazy(() => import("./pages/app/SignalPlaybook"));
 const PitchSignalScan = lazy(() => import("./pages/app/PitchSignalScan"));
 const FundraisingTimingMap = lazy(() => import("./pages/app/FundraisingTimingMap"));
 
-// Admin
+// -----------------------------------------------------------------------------
+// LAZY PAGES — ADMIN
+// -----------------------------------------------------------------------------
+
 const UnifiedAdminDashboard = lazy(() => import("./pages/UnifiedAdminDashboardV2"));
 const SystemHealthDashboard = lazy(() => import("./pages/SystemHealthDashboard"));
 const AILogsPage = lazy(() => import("./pages/AILogsPage"));
@@ -154,15 +174,19 @@ const MLDashboard = lazy(() => import("./pages/MLDashboard"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
 const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
 
-const App: React.FC = () => {
+// -----------------------------------------------------------------------------
+// APP
+// -----------------------------------------------------------------------------
+
+const App = () => {
   const location = useLocation();
   const qs = location.search || "";
   const loadStartupsFromDatabase = useStore((s) => s.loadStartupsFromDatabase);
-  const didInit = React.useRef(false);
+  const didInit = useRef(false);
 
-  // ── SSOT: Hydrate store from Supabase exactly once per app session ────────
-  // useRef guard prevents StrictMode double-invoke and any remount churn.
-  // The store-level single-flight + TTL cache is a second line of defence.
+  const toWithQuery = (to: string) => `${to}${qs}`;
+  const toAppWithQuery = (to: string) => `${to}${qs}`;
+
   useEffect(() => {
     if (didInit.current) return;
     didInit.current = true;
@@ -170,193 +194,166 @@ const App: React.FC = () => {
   }, [loadStartupsFromDatabase]);
 
   useEffect(() => {
-    trackEvent("page_viewed", { path: location.pathname, search: location.search });
+    trackEvent("page_viewed", {
+      path: location.pathname,
+      search: location.search,
+    });
   }, [location.pathname, location.search]);
-
-  const toWithQuery = (to: string) => `${to}${qs}`;
 
   return (
     <AppErrorBoundary>
       <AuthProvider>
         <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          {/* ──────────────────────────────────────────────────────────────
-              PUBLIC (pythh.ai)
-          ────────────────────────────────────────────────────────────── */}
-          <Route path="/" element={<PythhMain />} />
+          <Routes>
+            {/* -----------------------------------------------------------------
+                PUBLIC
+            ----------------------------------------------------------------- */}
+            <Route path="/" element={<PythhMain />} />
 
-          {/* About pythh.ai — the Pythia story */}
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/support" element={<SupportPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/support" element={<SupportPage />} />
+            <Route path="/platform" element={<PlatformPage />} />
 
-          {/* Platform — unified learn/signals/engine page */}
-          <Route path="/platform" element={<PlatformPage />} />
+            {/* Legacy/public informational aliases */}
+            <Route path="/engine" element={<Navigate to="/platform" replace />} />
+            <Route path="/signals" element={<Navigate to="/platform" replace />} />
+            <Route path="/how-it-works" element={<Navigate to="/platform" replace />} />
+            <Route path="/signals-significance" element={<Navigate to="/platform" replace />} />
+            <Route path="/matches" element={<Navigate to="/platform" replace />} />
 
-          {/* Old pages → redirect to /platform */}
-          <Route path="/engine" element={<Navigate to="/platform" replace />} />
-          <Route path="/signals" element={<Navigate to="/platform" replace />} />
-          <Route path="/how-it-works" element={<Navigate to="/platform" replace />} />
-          <Route path="/signals-significance" element={<Navigate to="/platform" replace />} />
-          <Route path="/matches" element={<Navigate to="/platform" replace />} />
+            {/* Canonical public submission results page */}
+            <Route path="/signal-matches" element={<SignalMatches />} />
 
-          {/* Canonical submission results page */}
-          <Route path="/signal-matches" element={<SignalMatches />} />
+            {/* Legacy submission aliases → public canonical */}
+            <Route path="/signals-radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            <Route path="/discover" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            <Route path="/get-matched" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            <Route path="/match" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            <Route path="/signal-results" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
 
-          {/* Legacy aliases: all roads lead to /signal-matches */}
-          <Route path="/signals-radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
-          <Route path="/discover" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
-          <Route path="/get-matched" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
-          <Route path="/match" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            <Route path="/rankings" element={<SignalTrends />} />
+            <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
+            <Route path="/explore" element={<ExplorePage />} />
 
-          {/* Rankings (was Trends) */}
-          <Route path="/rankings" element={<SignalTrends />} />
-          <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
+            <Route path="/ai-ml-investors" element={<AIMLInvestorsPage />} />
+            <Route path="/fintech-investors" element={<FintechInvestorsPage />} />
+            <Route path="/healthtech-investors" element={<HealthTechInvestorsPage />} />
+            <Route path="/devtools-investors" element={<DevToolsInvestorsPage />} />
+            <Route path="/b2b-saas-investors" element={<B2BSaaSInvestorsPage />} />
 
-          {/* Explore — startup search by name/sector/stage */}
-          <Route path="/explore" element={<ExplorePage />} />
+            <Route element={<PublicLayout />}>
+              <Route path="/live" element={<Live />} />
+              <Route path="/demo" element={<DemoPageDoctrine />} />
+            </Route>
 
-          {/* Sector landing pages */}
-          <Route path="/ai-ml-investors" element={<AIMLInvestorsPage />} />
-          <Route path="/fintech-investors" element={<FintechInvestorsPage />} />
-          <Route path="/healthtech-investors" element={<HealthTechInvestorsPage />} />
-          <Route path="/devtools-investors" element={<DevToolsInvestorsPage />} />
-          <Route path="/b2b-saas-investors" element={<B2BSaaSInvestorsPage />} />
+            <Route path="/startup/:startupId" element={<StartupIdRedirect />} />
+            <Route path="/investor/:id" element={<InvestorProfile />} />
 
-          {/* Optional preserved pages */}
-          <Route element={<PublicLayout />}>
-            <Route path="/live" element={<Live />} />
-            <Route path="/demo" element={<DemoPageDoctrine />} />
-          </Route>
+            <Route path="/signup" element={<SignupLanding />} />
+            <Route path="/signup/founder" element={<SignupFounderPythh />} />
+            <Route path="/signup/investor" element={<InvestorSignupPythh />} />
+            <Route path="/signup/complete" element={<SignupComplete />} />
 
-          {/* Startup profile — redirect to signal-matches (canonical results page) */}
-          <Route path="/startup/:startupId" element={<StartupIdRedirect />} />
+            <Route path="/enrich/:token" element={<EnrichStartupPage />} />
 
-          {/* Investor profile (public) */}
-          <Route path="/investor/:id" element={<InvestorProfile />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<FounderProfileDashboard />} />
+            <Route path="/profile/account" element={<ProfilePage />} />
+            <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
+            <Route path="/settings" element={<Settings />} />
 
-          {/* Signup flow (Pythh-branded) */}
-          <Route path="/signup" element={<SignupLanding />} />
-          <Route path="/signup/founder" element={<SignupFounderPythh />} />
-          <Route path="/signup/investor" element={<InvestorSignupPythh />} />
-          <Route path="/signup/complete" element={<SignupComplete />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/value" element={<Navigate to="/pricing" replace />} />
 
-          {/* Founder enrichment — self-service data quality improvement */}
-          <Route path="/enrich/:token" element={<EnrichStartupPage />} />
+            <Route path="/newsletter" element={<NewsletterPage />} />
+            <Route path="/newsletter/:date" element={<NewsletterPage />} />
 
-          {/* Legacy (consider deprecating later) */}
-          <Route path="/signal-results" element={<SignalResultsPage />} />
+            <Route path="/portfolio" element={<PortfolioPage />} />
+            <Route path="/watchlist" element={<WatchlistPage />} />
 
-          {/* User account pages */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/admin-login" element={<AdminLogin />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<FounderProfileDashboard />} />
-          <Route path="/profile/account" element={<ProfilePage />} />
-          <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
-          <Route path="/settings" element={<Settings />} />
+            {/* Optional/legacy growth surfaces */}
+            <Route path="/submit" element={<SubmitStartupPage />} />
+            <Route path="/referral" element={<ReferralPage />} />
+            <Route path="/refer" element={<Navigate to="/referral" replace />} />
 
-          {/* Commercial pages */}
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/value" element={<Navigate to="/pricing" replace />} />
+            <Route path="/s/:shareId" element={<SharedDashboardView />} />
+            <Route path="/matches/preview/:startupId" element={<MatchPreviewPage />} />
 
-          {/* Weekly signal digest */}
-          <Route path="/newsletter" element={<NewsletterPage />} />
-          <Route path="/newsletter/:date" element={<NewsletterPage />} />
+            <Route path="/admin-bypass" element={<AdminBypass />} />
 
-          {/* Virtual Portfolio — YC-style pick tracking */}
-          <Route path="/portfolio" element={<PortfolioPage />} />
+            {/* -----------------------------------------------------------------
+                APP (instrument mode)
+            ----------------------------------------------------------------- */}
+            <Route path="/app" element={<AppLayout />}>
+              <Route index element={<Navigate to="signals-dashboard" replace />} />
+              <Route path="signals-dashboard" element={<SignalsDashboard />} />
 
-          {/* Growth / engagement pages */}
-          <Route path="/watchlist" element={<WatchlistPage />} />
-          <Route path="/submit" element={<SubmitStartupPage />} />
-          <Route path="/referral" element={<ReferralPage />} />
-          <Route path="/refer" element={<Navigate to="/referral" replace />} />
+              <Route path="in-signal-matches" element={<InSignalMatches />} />
 
-          {/* Shared dashboard views (public, read-only — no auth required) */}
-          <Route path="/s/:shareId" element={<SharedDashboardView />} />
-          <Route path="/matches/preview/:startupId" element={<MatchPreviewPage />} />
+              {/* Canonical in-app results route */}
+              <Route path="signal-matches" element={<SignalMatches />} />
 
-          {/* Admin bypass (emergency access, no Supabase auth required) */}
-          <Route path="/admin-bypass" element={<AdminBypass />} />
+              {/* FIXED: keep aliases inside /app instead of bouncing to public */}
+              <Route path="signals" element={<Navigate to={toAppWithQuery("/app/signal-matches")} replace />} />
+              <Route path="radar" element={<Navigate to={toAppWithQuery("/app/signal-matches")} replace />} />
 
-          {/* ──────────────────────────────────────────────────────────────
-              APP (instrument mode - inside pythh)
-          ────────────────────────────────────────────────────────────── */}
-          <Route path="/app" element={<AppLayout />}>
-            {/* Dashboard renamed */}
-            <Route index element={<Navigate to="signals-dashboard" replace />} />
-            <Route path="signals-dashboard" element={<SignalsDashboard />} />
+              <Route path="investors/:investorId" element={<InvestorRevealPage />} />
+              <Route path="engine" element={<EnginePipelineView />} />
 
-            {/* Internal matches surface */}
-            <Route path="in-signal-matches" element={<InSignalMatches />} />
+              <Route path="oracle" element={<OracleDashboard />} />
+              <Route path="oracle/wizard" element={<OracleWizard />} />
+              <Route path="oracle/cohorts" element={<OracleCohorts />} />
+              <Route path="oracle/cohort" element={<OracleCohorts />} />
+              <Route path="oracle/actions" element={<OracleActions />} />
+              <Route path="oracle/vc-strategy" element={<OracleVCStrategy />} />
+              <Route path="oracle/predictions" element={<OraclePredictions />} />
+              <Route path="oracle/coaching" element={<OracleCoaching />} />
+              <Route path="oracle/scribe" element={<OracleScribe />} />
 
-            {/* Mirror route: allow internal navigation to same results page */}
-            <Route path="signal-matches" element={<SignalMatches />} />
+              <Route path="playbook" element={<SignalPlaybook />} />
+              <Route path="pitch-scan" element={<PitchSignalScan />} />
+              <Route path="timing-map" element={<FundraisingTimingMap />} />
+            </Route>
 
-            {/* Legacy aliases → canonical /signal-matches */}
-            <Route path="signals" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
-            <Route path="radar" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
+            {/* -----------------------------------------------------------------
+                ADMIN
+            ----------------------------------------------------------------- */}
+            <Route
+              path="/admin"
+              element={
+                <L5Guard>
+                  <AdminRouteWrapper />
+                </L5Guard>
+              }
+            >
+              <Route index element={<UnifiedAdminDashboard />} />
+              <Route path="god-scores" element={<GODScoresPage />} />
+              <Route path="god-settings" element={<GODSettingsPage />} />
+              <Route path="industry-rankings" element={<IndustryRankingsPage />} />
+              <Route path="edit-startups" element={<EditStartups />} />
+              <Route path="discovered-startups" element={<DiscoveredStartups />} />
+              <Route path="discovered-investors" element={<DiscoveredInvestors />} />
+              <Route path="bulk-upload" element={<BulkUpload />} />
+              <Route path="rss-manager" element={<RSSManager />} />
+              <Route path="health" element={<SystemHealthDashboard />} />
+              <Route path="ai-logs" element={<AILogsPage />} />
+              <Route path="diagnostic" element={<DiagnosticPage />} />
+              <Route path="database-check" element={<DatabaseDiagnostic />} />
+              <Route path="control" element={<Navigate to="/admin" replace />} />
+              <Route path="scrapers" element={<ScraperManagementPage />} />
+              <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
+              <Route path="actions" element={<AdminActions />} />
+              <Route path="review-queue" element={<ReviewQueue />} />
+              <Route path="ml-dashboard" element={<MLDashboard />} />
+              <Route path="portfolio" element={<AdminPortfolioPage />} />
+            </Route>
 
-            {/* Investor reveal (after unlock/view) */}
-            <Route path="investors/:investorId" element={<InvestorRevealPage />} />
-
-            {/* Engine — Pipeline View (how Pythh works) */}
-            <Route path="engine" element={<EnginePipelineView />} />
-
-            {/* Oracle — signal wizard & coaching */}
-            <Route path="oracle" element={<OracleDashboard />} />
-            <Route path="oracle/wizard" element={<OracleWizard />} />
-            <Route path="oracle/cohorts" element={<OracleCohorts />} />
-            <Route path="oracle/cohort" element={<OracleCohorts />} />
-            <Route path="oracle/actions" element={<OracleActions />} />
-            <Route path="oracle/vc-strategy" element={<OracleVCStrategy />} />
-            <Route path="oracle/predictions" element={<OraclePredictions />} />
-            <Route path="oracle/coaching" element={<OracleCoaching />} />
-            <Route path="oracle/scribe" element={<OracleScribe />} />
-
-            {/* Signal navigation tools (premium) */}
-            <Route path="playbook" element={<SignalPlaybook />} />
-            <Route path="pitch-scan" element={<PitchSignalScan />} />
-            <Route path="timing-map" element={<FundraisingTimingMap />} />
-          </Route>
-
-          {/* ──────────────────────────────────────────────────────────────
-              ADMIN (preserved for Phase B cleanup)
-          ────────────────────────────────────────────────────────────── */}
-          <Route
-            path="/admin"
-            element={
-              <L5Guard>
-                <AdminRouteWrapper />
-              </L5Guard>
-            }
-          >
-            <Route index element={<UnifiedAdminDashboard />} />
-            <Route path="god-scores" element={<GODScoresPage />} />
-            <Route path="god-settings" element={<GODSettingsPage />} />
-            <Route path="industry-rankings" element={<IndustryRankingsPage />} />
-            <Route path="edit-startups" element={<EditStartups />} />
-            <Route path="discovered-startups" element={<DiscoveredStartups />} />
-            <Route path="discovered-investors" element={<DiscoveredInvestors />} />
-            <Route path="bulk-upload" element={<BulkUpload />} />
-            <Route path="rss-manager" element={<RSSManager />} />
-            <Route path="health" element={<SystemHealthDashboard />} />
-            <Route path="ai-logs" element={<AILogsPage />} />
-            <Route path="diagnostic" element={<DiagnosticPage />} />
-            <Route path="database-check" element={<DatabaseDiagnostic />} />
-            <Route path="control" element={<Navigate to="/admin" replace />} />
-            <Route path="scrapers" element={<ScraperManagementPage />} />
-            <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
-            <Route path="actions" element={<AdminActions />} />
-            <Route path="review-queue" element={<ReviewQueue />} />
-            <Route path="ml-dashboard" element={<MLDashboard />} />
-            <Route path="portfolio" element={<AdminPortfolioPage />} />
-          </Route>
-
-          {/* 404 → main */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* 404 */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </Suspense>
       </AuthProvider>
     </AppErrorBoundary>

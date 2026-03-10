@@ -1,7 +1,41 @@
 /**
  * URL Normalization Utility
  * Handles websites, LinkedIn, Crunchbase, App Store URLs
+ *
+ * CANONICAL: Use normalizeStartupUrl() for the submit workflow.
+ * The RPC resolve_startup_by_url expects host-based matching.
  */
+
+// -----------------------------------------------------------------------------
+// CANONICAL: Single normalizer for submit workflow (used everywhere)
+// -----------------------------------------------------------------------------
+
+/**
+ * Normalize startup URL to canonical form for DB lookup and submission.
+ * Used by: submitStartup, PythhMain, SignalMatches, RPC calls.
+ * Do NOT keep multiple normalizers.
+ */
+export function normalizeStartupUrl(input: string): string {
+  let raw = (input || '').trim();
+  if (!raw) return '';
+
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `https://${raw}`;
+  }
+
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const path = u.pathname.replace(/\/+$/, '');
+    return path ? `${host}${path}` : host;
+  } catch {
+    return '';
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Legacy: Rich normalization (for components that need domain/kind/etc.)
+// -----------------------------------------------------------------------------
 
 export type NormalizedUrl = {
   raw: string;
@@ -38,13 +72,11 @@ export function normalizeUrl(input: string): NormalizedUrl | null {
 
   if (hostname.includes('linkedin.com')) {
     kind = 'linkedin';
-    // Extract company slug: linkedin.com/company/foo -> foo
-    const match = u.pathname.match(/\/company\/([^\/]+)/i);
+    const match = u.pathname.match(/\/company\/([^/]+)/i);
     if (match) linkedinSlug = match[1];
   } else if (hostname.includes('crunchbase.com')) {
     kind = 'crunchbase';
-    // Extract org slug: crunchbase.com/organization/foo -> foo
-    const match = u.pathname.match(/\/organization\/([^\/]+)/i);
+    const match = u.pathname.match(/\/organization\/([^/]+)/i);
     if (match) crunchbaseSlug = match[1];
   } else if (hostname.includes('apps.apple.com') || hostname.includes('play.google.com')) {
     kind = 'appstore';
@@ -99,25 +131,23 @@ function toTitleCaseCompany(slug: string): string {
 
 /**
  * Canonical startup URL details used by the submit workflow.
- * Produces:
- *  - canonicalUrl: origin-level URL only (https://domain.tld/)
- *  - domain: registrable domain (handles common ccTLD patterns)
- *  - companyName: domain-derived company label for UI hints/logging
+ * Wraps normalizeStartupUrl for consumers that need domain/companyName.
  */
 export function canonicalizeStartupUrl(input: string): {
   canonicalUrl: string;
   domain: string;
   companyName: string;
 } | null {
-  const n = normalizeUrl(input);
-  if (!n) return null;
+  const norm = normalizeStartupUrl(input);
+  if (!norm) return null;
 
-  const domain = getRegistrableDomain(n.domain);
+  const host = norm.split('/')[0] || norm;
+  const domain = getRegistrableDomain(host);
   const domainLabel = domain.split('.')[0] || '';
   const companyName = toTitleCaseCompany(domainLabel) || domainLabel;
 
   return {
-    canonicalUrl: `https://${domain}/`,
+    canonicalUrl: `https://${host}/`,
     domain,
     companyName,
   };

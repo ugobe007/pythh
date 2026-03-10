@@ -203,9 +203,12 @@ async function getInvestors(supabase) {
 function getRelevantInvestors(startupSectors) {
   if (!investorCache.data) return [];
   
-  // If no sectors, return all (fallback)
+  // If no sectors, return top-scored slice (fallback — never full universe)
   if (!startupSectors || startupSectors.length === 0) {
-    return investorCache.data;
+    const all = investorCache.data || [];
+    return all
+      .sort((a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0))
+      .slice(0, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
   }
   
   // Normalize startup sectors and expand to related sectors
@@ -237,6 +240,29 @@ function getRelevantInvestors(startupSectors) {
   }
   
   return relevant;
+}
+
+/**
+ * CHEAP PREFILTER — Candidate generation before expensive scoring
+ * Tier A: top 100–300 candidates for fast mode (2–5s)
+ * Tier B: top 500–1000 for expanded mode
+ * Never block first render on full-universe evaluation.
+ * Filters: sector overlap, investor quality score, hard cap.
+ */
+function getCandidateInvestors(startupSectors, maxCandidates) {
+  const relevant = getRelevantInvestors(startupSectors || []);
+  const minScore = PIPELINE_CONFIG.MIN_INVESTOR_SCORE;
+  const cap = Math.min(maxCandidates || PIPELINE_CONFIG.FAST_MATCH_LIMIT, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
+
+  const candidates = relevant
+    .filter((inv) => {
+      const score = Number(inv.investor_score);
+      return !Number.isFinite(score) || score >= minScore;
+    })
+    .sort((a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0))
+    .slice(0, cap);
+
+  return candidates;
 }
 // ============================================================================
 
@@ -331,6 +357,14 @@ const MATCH_CONFIG = {
   SUPER_MATCH_THRESHOLD: 12,
   PERSISTENCE_FLOOR: 30,
   TOP_MATCHES_PER_STARTUP: 50,
+};
+
+// Tiered candidate limits — cheap prefilter first, expensive scoring on shortlist only
+const PIPELINE_CONFIG = {
+  MAX_CANDIDATE_INVESTORS: parseInt(process.env.MAX_CANDIDATE_INVESTORS || '1000', 10),
+  FAST_MATCH_LIMIT: parseInt(process.env.FAST_MATCH_LIMIT || '300', 10),
+  TOP_RESULTS_TO_SAVE: parseInt(process.env.TOP_RESULTS_TO_SAVE || '100', 10),
+  MIN_INVESTOR_SCORE: parseFloat(process.env.MIN_INVESTOR_SCORE || '5.0'),
 };
 
 const STAGE_MAP = {
@@ -608,7 +642,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       total_god_score: 50,
     };
     
-    const quickInvestors = getRelevantInvestors(['Technology']);
+    // Tier A: cheap prefilter → max 300 candidates, then expensive scoring on shortlist only
+    const quickInvestors = getCandidateInvestors(['Technology'], PIPELINE_CONFIG.FAST_MATCH_LIMIT);
+    console.log(`  ⚡ [BG] Phase 1 shortlist: ${quickInvestors.length} candidates (cap=${PIPELINE_CONFIG.FAST_MATCH_LIMIT})`);
     const quickMatches = [];
     
     // CRITICAL FIX: Parallel processing with timeout protection
@@ -1034,7 +1070,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       };
 
       const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
-      const investors = getRelevantInvestors(startupSectors);
+      // Tier B: max 1000 candidates, expensive scoring on shortlist only
+      const investors = getCandidateInvestors(startupSectors, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
+      console.log(`  ⚡ [BG] Phase 3 shortlist: ${investors.length} candidates (cap=${PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS})`);
       
       // Use the just-seeded signal total (already computed above) for match scoring
       const signalScore = signalTotal;

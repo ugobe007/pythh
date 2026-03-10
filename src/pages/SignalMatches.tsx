@@ -1,406 +1,396 @@
 // ============================================================================
-// SignalsRadarPage - PYTHH ENGINE CANONICAL PROCESSOR
+// SignalMatches - Canonical Find Signals Results Page
 // ============================================================================
-// Route: /app/radar (CANONICAL)
-// Aliases (redirect-only): /signals, /signals-radar → /app/radar
-// 
-// *** CRITICAL PYTHH WORKFLOW HANDLER ***
-// This component is the EXECUTION POINT for the pythh URL submission workflow:
 //
-// CANONICAL FLOW:
-// 1. User submits URL on homepage (PythhHome.tsx)
-// 2. Navigate to /signals?url=example.com
-// 3. SignalsAlias redirects → /app/radar?url=example.com
-// 4. THIS COMPONENT receives ?url=example.com
-// 5. useResolveStartup hook (line ~72) calls resolve_startup_by_url RPC
-// 6. RPC performs FULL WORKFLOW:
-//    - Scrape website
-//    - Extract startup data
-//    - Build database entry
-//    - Calculate GOD score
-//    - Generate investor matches
-// 7. Display: 5 unlocked signals + 50 locked (paywall)
+// Canonical responsibilities:
+// 1. Read ?url=... or ?startup=... or /:startupId
+// 2. If URL is present and no startup id is known, call submitStartup()
+// 3. Once a startup id is known, load context + matches
+// 4. Render the results page
 //
-// DO NOT MODIFY URL RESOLUTION LOGIC WITHOUT FULL SYSTEM UNDERSTANDING
-// ============================================================================
-// 
-// Params: ?url=example.com OR :startupId (path param)
-// 
-// SINGLE SOURCE OF TRUTH: resolvedStartupId
-//   Computed from (in priority order):
-//   1. Route param /app/radar/:startupId
-//   2. Query param ?startup=UUID
-//   3. Query param ?url=... → resolve_startup_by_url RPC (PYTHH ENGINE)
-//   4. User picker selection (local state)
-//
-// Loading states:
-//   - startupId unknown: full-page skeleton
-//   - context loading: stat cards shimmer
-//   - matches loading: table shimmer
-//   - unlock in-flight: THAT row's button spins (not global)
-//
-// Polling:
-//   - Paused while any unlock is in-flight (prevents flicker)
-//   - Resumes 1s after unlock completes
+// Rules:
+// - submitStartup() is the ONLY orchestration path for URL submission
+// - This page does NOT implement backup submission logic
+// - This page does NOT directly call resolve_startup_by_url for orchestration
+// - This page only renders UI around resolvedStartupId
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate, useSearchParams, useParams, useLocation, Link } from 'react-router-dom';
-import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+
 import { supabase } from '@/lib/supabase';
-import InvestorReadinessReport, { type ReportData } from '@/components/pythh/InvestorReadinessReport';
-
-const API_BASE = import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3002' : '');
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
+
+import InvestorReadinessReport, { type ReportData } from '@/components/pythh/InvestorReadinessReport';
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
-import StartupProfileCard from '@/components/pythh/StartupProfileCard';
-import TopMatchesCards from '@/components/pythh/TopMatchesCards';
-import ReportSectionsWrapper from '@/components/pythh/ReportSectionsWrapper';
+import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
+
+import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
-  useResolveStartup,
   useStartupContext,
   useLiveMatchTable,
   useUnlock,
   invalidateStartupContext,
 } from '@/services/pythh-rpc';
-import {
-  EntitlementPill,
-} from '@/components/pythh';
-import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import { useLegacyRadarAdapter } from '@/hooks/useRadarViewModel';
 
+const API_BASE =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3002' : '');
+
 // -----------------------------------------------------------------------------
-// RESOLUTION STATE (for "not found" / "picker" / "missing context" UI states)
+// TYPES
 // -----------------------------------------------------------------------------
-type UIState = 
+
+type UIState =
   | { mode: 'loading' }
   | { mode: 'ready' }
-  | { mode: 'not_found'; searched: string }
+  | { mode: 'not_found'; searched: string; message?: string }
   | { mode: 'picker' }
-  | { mode: 'missing_context' };  // NEW: No URL/ID provided from public flow
+  | { mode: 'missing_context' };
+
+type SubmitPhase = 'idle' | 'loading' | 'done' | 'error';
+
+interface StartupBenchmarkRow {
+  id: string;
+  name: string;
+  signal_score: number;
+  god_score: number;
+  yc_plus_score: number;
+  momentum_delta: number;
+  readiness: number;
+  match_count: number;
+}
+
+// -----------------------------------------------------------------------------
+// PAGE
+// -----------------------------------------------------------------------------
 
 export default function SignalMatches() {
   const location = useLocation();
-  const isInApp = location.pathname.startsWith('/app/');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = useParams<{ startupId?: string }>();
-  
-  // Route truth beacon (logs once per navigation, not per render)
+
+  const isInApp = location.pathname.startsWith('/app/');
   const lastRoute = useRef<string>('');
+
   useEffect(() => {
     const key = `${location.pathname}${location.search}`;
     if (lastRoute.current === key) return;
     lastRoute.current = key;
-    
+
     if (import.meta.env.DEV) {
       console.log('[SignalMatches] HIT:', key);
     }
   }, [location.pathname, location.search]);
-  
-  // -----------------------------------------------------------------------------
-  // SINGLE SOURCE OF TRUTH: resolvedStartupId
-  // -----------------------------------------------------------------------------
-  
-  // Extract all possible inputs
+
+  // ---------------------------------------------------------------------------
+  // INPUT SOURCES
+  // ---------------------------------------------------------------------------
+
   const startupIdFromPath = params.startupId ?? null;
   const startupIdFromQuery = searchParams.get('startup');
-  
-  // *** PYTHH ENGINE CANONICAL INPUT ***
-  // This is where URL from homepage enters the system
-  // Example: /signals-radar?url=stripe.com
-  // DO NOT RENAME OR REMOVE - breaks entire pythh workflow
   const urlToResolve = searchParams.get('url');
-  
-  // ?regen=1 forces match regeneration (ops/debugging override)
   const forceGenerate = searchParams.get('regen') === '1';
-  
-  // Local picker state (only used when no URL params)
+
   const [pickedStartupId, setPickedStartupId] = useState<string | null>(null);
   const [pickedStartupName, setPickedStartupName] = useState<string | null>(null);
-  
-  // *** PYTHH ENGINE EXECUTION HOOK ***
-  // useResolveStartup calls resolve_startup_by_url RPC
-  // RPC flow: scrape → extract → build → score → match
-  // Returns: startup_id + name + 5 unlocked + 50 locked signals
-  // SKIP if we already have startup_id from query param (prefetch from PythhMain)
-  const skipUrlResolve = !!(startupIdFromQuery && urlToResolve);
-  
-  // Track if we've triggered creation for this URL
-  const [creationTriggered, setCreationTriggered] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [creationFailed, setCreationFailed] = useState<string | null>(null); // Track failed URLs to prevent infinite retries
-  
-  const { result: resolverResult, loading: resolverLoading, isSlowLoading } = useResolveStartup(
-    skipUrlResolve ? null : urlToResolve,
-    forceGenerate
-  );
-  
-  // Auto-trigger creation if not found (only once per URL, prevent infinite retries)
+
+  // ---------------------------------------------------------------------------
+  // URL SUBMISSION ORCHESTRATION
+  // ---------------------------------------------------------------------------
+
+  const [submitPhase, setSubmitPhase] = useState<SubmitPhase>('idle');
+  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
+
   useEffect(() => {
-    if (
-      urlToResolve &&
-      !skipUrlResolve &&
-      !resolverLoading &&
-      resolverResult &&
-      !resolverResult.found &&
-      creationTriggered !== urlToResolve &&
-      creationFailed !== urlToResolve && // Don't retry if already failed
-      !isCreating
-    ) {
-      // Trigger creation by calling submitStartup directly
-      console.log('[SignalMatches] Startup not found, triggering creation for:', urlToResolve);
-      setCreationTriggered(urlToResolve);
-      setIsCreating(true);
-      
-      import('@/services/submitStartup').then(({ submitStartup }) => {
-        submitStartup(urlToResolve, { forceGenerate: true })
-          .then((result) => {
-            setIsCreating(false);
-            if (result.startup_id) {
-              // Successfully created - navigate to the new startup
-              console.log('[SignalMatches] Startup created:', result.startup_id);
-              navigate(`/signal-matches?startup=${result.startup_id}&url=${encodeURIComponent(urlToResolve)}`, { replace: true });
-            } else {
-              // Creation failed or timed out - mark as failed to prevent infinite retries
-              console.warn('[SignalMatches] Startup creation failed or timed out:', result.status);
-              setCreationFailed(urlToResolve);
-              setCreationTriggered(null);
-            }
-          })
-          .catch((err) => {
-            setIsCreating(false);
-            console.error('[SignalMatches] Error creating startup:', err);
-            setCreationFailed(urlToResolve); // Mark as failed to prevent infinite retries
-            setCreationTriggered(null);
-          });
+    if (!urlToResolve) return;
+    if (startupIdFromPath || startupIdFromQuery) return;
+
+    let cancelled = false;
+
+    setSubmitPhase('loading');
+    setSubmitError(null);
+    setSubmitResult(null);
+    setIsSlowLoading(false);
+
+    const slowTimer = window.setTimeout(() => {
+      if (!cancelled) setIsSlowLoading(true);
+    }, 5000);
+
+    void submitStartup(urlToResolve, { forceGenerate })
+      .then((result) => {
+        if (cancelled) return;
+
+        setSubmitResult(result);
+
+        if (result.status === 'error' || result.status === 'not_found') {
+          setSubmitPhase('error');
+          setSubmitError(result.error || 'Startup not found');
+          return;
+        }
+
+        if (result.startup_id) {
+          setSubmitPhase('done');
+
+          navigate(
+            `/signal-matches?startup=${encodeURIComponent(result.startup_id)}&url=${encodeURIComponent(urlToResolve)}`,
+            { replace: true }
+          );
+          return;
+        }
+
+        setSubmitPhase('error');
+        setSubmitError('Could not resolve startup');
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setSubmitPhase('error');
+        setSubmitError(err instanceof Error ? err.message : 'Failed to resolve startup');
+      })
+      .finally(() => {
+        if (cancelled) return;
+        window.clearTimeout(slowTimer);
+        setIsSlowLoading(false);
       });
-    }
-  }, [urlToResolve, skipUrlResolve, resolverLoading, resolverResult, creationTriggered, creationFailed, isCreating, navigate]);
-  
-  // THE SINGLE SOURCE OF TRUTH
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(slowTimer);
+    };
+  }, [urlToResolve, forceGenerate, startupIdFromPath, startupIdFromQuery, navigate]);
+
+  // ---------------------------------------------------------------------------
+  // SINGLE SOURCE OF TRUTH: resolvedStartupId
+  // ---------------------------------------------------------------------------
+
   const resolvedStartupId = useMemo(() => {
-    // Priority 1: Path param /signal-matches/:startupId
     if (startupIdFromPath) return startupIdFromPath;
-    
-    // Priority 2: Query param ?startup=UUID
     if (startupIdFromQuery) return startupIdFromQuery;
-    
-    // Priority 3: URL resolver result
-    if (resolverResult?.found && resolverResult.startup_id) {
-      return resolverResult.startup_id;
-    }
-    
-    // Priority 4: User picked from list
+    if (submitResult?.startup_id) return submitResult.startup_id;
     if (pickedStartupId) return pickedStartupId;
-    
     return null;
-  }, [startupIdFromPath, startupIdFromQuery, resolverResult, pickedStartupId]);
-  
-  // Derive UI state (for rendering loading/error/picker screens)
+  }, [startupIdFromPath, startupIdFromQuery, submitResult?.startup_id, pickedStartupId]);
+
+  const resolvedName = useMemo(() => {
+    if (submitResult?.name) return submitResult.name;
+    if (pickedStartupName) return pickedStartupName;
+    return null;
+  }, [submitResult?.name, pickedStartupName]);
+
   const uiState = useMemo<UIState>(() => {
-    // If we have a resolved ID, we're ready
     if (resolvedStartupId) return { mode: 'ready' };
-    
-    // If creating startup, show loading
-    if (isCreating) return { mode: 'loading' };
-    
-    // If URL resolver is loading, show loading
-    if (urlToResolve && resolverLoading) return { mode: 'loading' };
-    
-    // If we triggered creation (even if not currently creating), show loading
-    // This handles the case where creation was triggered but is waiting/retrying
-    if (urlToResolve && creationTriggered) {
+
+    if (urlToResolve && submitPhase === 'loading') {
       return { mode: 'loading' };
     }
-    
-    // If URL resolver finished but not found (and we haven't triggered creation yet, or creation failed)
-    if (urlToResolve && resolverResult && !resolverResult.found && (!creationTriggered || creationFailed === urlToResolve)) {
-      return { mode: 'not_found', searched: resolverResult.searched || urlToResolve };
+
+    if (urlToResolve && submitPhase === 'error') {
+      return {
+        mode: 'not_found',
+        searched: submitResult?.searched || urlToResolve,
+        message: submitError || undefined,
+      };
     }
-    
-    // If creation failed, show not_found (even if resolverResult is null due to timeout)
-    if (urlToResolve && creationFailed === urlToResolve && !isCreating) {
-      return { mode: 'not_found', searched: urlToResolve };
-    }
-    
-    // If URL exists but resolver hasn't returned yet (timeout case), show loading
-    // This handles RPC timeouts where resolverResult is null but urlToResolve exists
-    if (urlToResolve && !resolverResult && !resolverLoading && !creationTriggered) {
-      return { mode: 'loading' };
-    }
-    
-    // RUNTIME INVARIANT: Detect missing context from public flow
-    // If no URL param, no startup ID, and no picked startup → show empty state
-    // This prevents "nothing nothing nothing" when routing breaks
+
     const hasAnyInput = !!(urlToResolve || startupIdFromPath || startupIdFromQuery || pickedStartupId);
+
     if (!hasAnyInput) {
       return { mode: 'missing_context' };
     }
-    
-    // Has input but waiting for resolution: show picker
-    return { mode: 'picker' };
-  }, [resolvedStartupId, urlToResolve, resolverLoading, resolverResult, creationTriggered, isCreating, startupIdFromPath, startupIdFromQuery, pickedStartupId]);
-  
-  // Resolved name (for header)
-  const resolvedName = useMemo(() => {
-    if (resolverResult?.name) return resolverResult.name;
-    if (pickedStartupName) return pickedStartupName;
-    return null; // Will fall back to context?.startup?.name
-  }, [resolverResult?.name, pickedStartupName]);
 
-  // -----------------------------------------------------------------------------
+    return { mode: 'picker' };
+  }, [
+    resolvedStartupId,
+    urlToResolve,
+    submitPhase,
+    submitResult?.searched,
+    submitError,
+    startupIdFromPath,
+    startupIdFromQuery,
+    pickedStartupId,
+  ]);
+
+  // ---------------------------------------------------------------------------
   // DATA HOOKS
-  // -----------------------------------------------------------------------------
-  // RESTORED: Original working behavior - always show table view
-  // Table view works reliably even when RPC is slow/times out
-  // Report view is optional enhancement, not required
-  const reportOnlyMode = false; // Disabled - restore original table view behavior
-  const tableStartupId = resolvedStartupId; // Always use resolvedStartupId for table
-  
-  const { context, loading: contextLoading, refresh: refreshContext } = useStartupContext(tableStartupId);
-  const { unlock, isPending, isAnyPending } = useUnlock(tableStartupId);
-  
-  // Fetch report data from /api/preview (same as SubmitStartupPage)
+  // ---------------------------------------------------------------------------
+
+  const tableStartupId = resolvedStartupId;
+
+  const {
+    context,
+    loading: contextLoading,
+    refresh: refreshContext,
+  } = useStartupContext(tableStartupId);
+
+  const {
+    unlock,
+    isPending,
+    isAnyPending,
+  } = useUnlock(tableStartupId);
+
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
-  
-  // Poll for updated GOD score if it's still 50 (placeholder)
+
   useEffect(() => {
     if (!resolvedStartupId) {
       setReportData(null);
       return;
     }
-    
-    const fetchReport = async () => {
+
+    let cancelled = false;
+    let pollInterval: number | null = null;
+    let stopTimer: number | null = null;
+
+    async function fetchReport() {
       setReportLoading(true);
+
       try {
         const res = await fetch(`${API_BASE}/api/preview/${resolvedStartupId}`);
         if (!res.ok) throw new Error('Could not load report');
+
         const data: ReportData = await res.json();
+        if (cancelled) return;
+
         setReportData(data);
         setReportLoading(false);
-        
-        // If GOD score is still 50 (placeholder), poll for updates
+
         if (data.startup.god_score === 50 && urlToResolve) {
           console.log('[SignalMatches] GOD score is placeholder (50), polling for real score...');
-          const pollInterval = setInterval(async () => {
+
+          pollInterval = window.setInterval(async () => {
             try {
               const pollRes = await fetch(`${API_BASE}/api/preview/${resolvedStartupId}`);
-              if (pollRes.ok) {
-                const pollData: ReportData = await pollRes.json();
-                // If score updated, refresh report
-                if (pollData.startup.god_score !== 50) {
-                  console.log('[SignalMatches] GOD score updated:', pollData.startup.god_score);
-                  setReportData(pollData);
-                  clearInterval(pollInterval);
+              if (!pollRes.ok) return;
+
+              const pollData: ReportData = await pollRes.json();
+              if (cancelled) return;
+
+              if (pollData.startup.god_score !== 50) {
+                console.log('[SignalMatches] GOD score updated:', pollData.startup.god_score);
+                setReportData(pollData);
+
+                if (pollInterval) {
+                  window.clearInterval(pollInterval);
+                  pollInterval = null;
                 }
               }
             } catch (err) {
               console.warn('[SignalMatches] Poll error:', err);
             }
-          }, 3000); // Poll every 3 seconds
-          
-          // Stop polling after 60 seconds
-          setTimeout(() => clearInterval(pollInterval), 60000);
+          }, 3000);
+
+          stopTimer = window.setTimeout(() => {
+            if (pollInterval) {
+              window.clearInterval(pollInterval);
+              pollInterval = null;
+            }
+          }, 60000);
         }
       } catch (err) {
         console.error('[SignalMatches] Failed to load report:', err);
-        setReportLoading(false);
+        if (!cancelled) setReportLoading(false);
       }
+    }
+
+    void fetchReport();
+
+    return () => {
+      cancelled = true;
+      if (pollInterval) window.clearInterval(pollInterval);
+      if (stopTimer) window.clearTimeout(stopTimer);
     };
-    
-    fetchReport();
   }, [resolvedStartupId, urlToResolve]);
-  
-  // Heartbeat timestamp (updated by onUpdated callback)
+
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
-  
-  // BUSY watchdog: track when BUSY started (null = not busy)
   const [busySince, setBusySince] = useState<number | null>(null);
-  
-  // Update busySince when isAnyPending changes
+
   useEffect(() => {
     if (isAnyPending) {
-      setBusySince(prev => prev ?? Date.now());
+      setBusySince((prev) => prev ?? Date.now());
     } else {
       setBusySince(null);
     }
   }, [isAnyPending]);
-  
-  // Pause polling while unlock is in-flight (prevents flicker)
-  const { rows, loading: tableLoading, lastFetch, refresh: refreshTable, optimisticUnlock, rollbackUnlock, isStale } = 
-    useLiveMatchTable(tableStartupId, {
-      pollIntervalMs: 10000,
-      pausePolling: isAnyPending,
-      onUpdated: ({ at }) => setLastRefreshAt(at.getTime()),
-    });
 
-  // Match generation in-progress detection:
-  // If we resolved a startup from URL but have 0 rows, match gen was likely triggered.
-  // Show a "generating" banner and poll faster (every 5s) until matches arrive.
+  const {
+    rows,
+    loading: tableLoading,
+    refresh: refreshTable,
+    optimisticUnlock,
+    rollbackUnlock,
+    isStale,
+  } = useLiveMatchTable(tableStartupId, {
+    pollIntervalMs: 10000,
+    pausePolling: isAnyPending,
+    onUpdated: ({ at }) => setLastRefreshAt(at.getTime()),
+  });
+
   const matchGenPending = !!(
     tableStartupId &&
-    urlToResolve &&  // came from URL submission (not picker/direct ID)
+    urlToResolve &&
     !tableLoading &&
     rows.length === 0
   );
 
-  // Fast-poll when generation is pending (supplement the 10s default)
   useEffect(() => {
     if (!matchGenPending) return;
-    const fastPoll = setInterval(() => refreshTable(), 3000);
-    return () => clearInterval(fastPoll);
+    const fastPoll = window.setInterval(() => {
+      refreshTable();
+    }, 3000);
+
+    return () => window.clearInterval(fastPoll);
   }, [matchGenPending, refreshTable]);
 
-  // Derived counts (memoized)
   const { unlockedCount, lockedCount } = useMemo(() => {
     let unlocked = 0;
     let locked = 0;
-    for (const r of rows) {
-      if (r.is_locked) locked++;
-      else unlocked++;
+
+    for (const row of rows) {
+      if (row.is_locked) locked += 1;
+      else unlocked += 1;
     }
+
     return { unlockedCount: unlocked, lockedCount: locked };
   }, [rows]);
 
-  // -----------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // HANDLERS
-  // -----------------------------------------------------------------------------
-  
-  const handleUnlock = useCallback(async (investorId: string) => {
-    if (!resolvedStartupId) return;
-    
-    // Optimistic UI update
-    optimisticUnlock(investorId);
-    
-    const result = await unlock(investorId);
-    
-    // Determine outcome
-    const wasAlreadyUnlocked = result?.already_unlocked === true;
-    const succeeded = result?.success === true;
-    const ok = succeeded || wasAlreadyUnlocked;
-    
-    if (ok) {
-      // Keep optimistic state (it's correct)
-      // Refresh entitlements if unlocks changed
-      if (succeeded && result?.unlocks_remaining !== undefined) {
-        setTimeout(() => {
-          invalidateStartupContext(resolvedStartupId);
-          refreshContext();
-        }, 100);
+  // ---------------------------------------------------------------------------
+
+  const handleUnlock = useCallback(
+    async (investorId: string) => {
+      if (!resolvedStartupId) return;
+
+      optimisticUnlock(investorId);
+
+      const result = await unlock(investorId);
+
+      const wasAlreadyUnlocked = result?.already_unlocked === true;
+      const succeeded = result?.success === true;
+      const ok = succeeded || wasAlreadyUnlocked;
+
+      if (ok) {
+        if (succeeded && result?.unlocks_remaining !== undefined) {
+          window.setTimeout(() => {
+            invalidateStartupContext(resolvedStartupId);
+            refreshContext();
+          }, 100);
+        }
+        return;
       }
-    } else {
-      // ROLLBACK: revert optimistic update on true failure
+
       rollbackUnlock(investorId);
-      
+
       if (result?.error === 'daily_limit_reached') {
         console.log('Daily limit reached. Resets at:', result.resets_at);
-        // TODO: Show toast to user
       }
-    }
-  }, [unlock, resolvedStartupId, refreshContext, optimisticUnlock, rollbackUnlock]);
+    },
+    [resolvedStartupId, optimisticUnlock, unlock, rollbackUnlock, refreshContext]
+  );
 
   const handleRefresh = useCallback(() => {
     refreshTable();
@@ -412,97 +402,55 @@ export default function SignalMatches() {
     setPickedStartupName(name);
   }, []);
 
-  // -----------------------------------------------------------------------------
-  // RENDER: UI state screens
-  // -----------------------------------------------------------------------------
-  
+  // ---------------------------------------------------------------------------
+  // UI STATES
+  // ---------------------------------------------------------------------------
+
   if (uiState.mode === 'loading') {
     return (
       <FullPageSkeleton
-        message={isSlowLoading
-          ? 'Still working… scraping signals and building your match profile'
-          : 'Resolving startup…'
+        message={
+          isSlowLoading
+            ? 'Still working… scraping signals and building your match profile'
+            : 'Resolving startup…'
         }
       />
     );
   }
-  
+
   if (uiState.mode === 'not_found') {
     return (
-      <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'} data-testid="radar-not-found">
-        {!isInApp && (
-          <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
-                <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
-              </div>
-              <nav className="flex items-center gap-6 text-sm text-zinc-400">
-                <Link to="/signals" className="hover:text-white">Signals</Link>
-                <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
-                <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-              </nav>
-            </div>
-          </header>
-        )}
-
+      <PageShell isInApp={isInApp} onRefresh={handleRefresh} tableLoading={tableLoading}>
         <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
-          {isCreating ? (
-            <>
-              <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Creating startup profile...</div>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
-                We're analyzing "<span className="text-white">{uiState.searched}</span>" and creating your investor matches.
-              </p>
-              <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <div className="w-4 h-4 border-2 border-zinc-600 border-t-cyan-400 rounded-full animate-spin" />
-                <span>This may take 10-30 seconds...</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Not found</div>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
-                No startup matched "<span className="text-white">{uiState.searched}</span>"
-              </p>
+          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">Not found</div>
 
-              <div className="text-sm text-zinc-500 space-y-1.5 mb-8">
-                <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Check for typos in the domain name</p>
-                <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Use the full domain (e.g. stripe.com, not stripe)</p>
-                <p><span className="text-zinc-400 mr-2">{"\u2192"}</span>Make sure it is a real company website</p>
-              </div>
+          <p className="text-sm text-zinc-400 leading-relaxed mb-3">
+            No startup matched &quot;<span className="text-white">{uiState.searched}</span>&quot;
+          </p>
 
-              <p className="text-sm text-zinc-400">
-                <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
-                <span className="text-zinc-700 mx-3">·</span>
-                <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
-              </p>
-            </>
+          {uiState.message && (
+            <p className="text-sm text-red-400/80 mb-6">{uiState.message}</p>
           )}
+
+          <div className="text-sm text-zinc-500 space-y-1.5 mb-8">
+            <p><span className="text-zinc-400 mr-2">→</span>Check for typos in the domain name</p>
+            <p><span className="text-zinc-400 mr-2">→</span>Use the full domain (e.g. stripe.com, not stripe)</p>
+            <p><span className="text-zinc-400 mr-2">→</span>Make sure it is a real company website</p>
+          </div>
+
+          <p className="text-sm text-zinc-400">
+            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
+            <span className="text-zinc-700 mx-3">·</span>
+            <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
+          </p>
         </main>
-      </div>
+      </PageShell>
     );
   }
-  
-  // MISSING CONTEXT: No URL/ID provided (routing broken or direct access)
+
   if (uiState.mode === 'missing_context') {
     return (
-      <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'}>
-        {!isInApp && (
-          <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
-            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
-                <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
-              </div>
-              <nav className="flex items-center gap-6 text-sm text-zinc-400">
-                <Link to="/signals" className="hover:text-white">Signals</Link>
-                <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
-                <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-              </nav>
-            </div>
-          </header>
-        )}
-
+      <PageShell isInApp={isInApp} onRefresh={handleRefresh} tableLoading={tableLoading}>
         <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
           <p className="text-sm text-zinc-400 leading-relaxed mb-10">
             This is where your <span className="text-cyan-400">investor matches</span> live — ranked by signal alignment,
@@ -522,6 +470,7 @@ export default function SignalMatches() {
           </div>
 
           <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-4">What you will see</div>
+
           <div className="space-y-3 text-sm">
             <p className="text-zinc-400">
               <span className="text-zinc-300 font-medium mr-2">Ranked matches</span>
@@ -546,55 +495,30 @@ export default function SignalMatches() {
             to activate your investor matches
           </p>
         </main>
-      </div>
+      </PageShell>
     );
   }
-  
+
   if (uiState.mode === 'picker') {
     return <StartupPicker onSelect={handlePickStartup} />;
   }
 
-  // -----------------------------------------------------------------------------
-  // RENDER: Main UI (uiState.mode === 'ready')
-  // -----------------------------------------------------------------------------
-  
-  const showContext = !contextLoading && !!context;
+  // ---------------------------------------------------------------------------
+  // READY STATE
+  // ---------------------------------------------------------------------------
+
   const unlocksRemaining = context?.entitlements?.unlocks_remaining ?? 0;
   const displayName = (() => {
     const raw = resolvedName || context?.startup?.name || '';
     if (!raw) return 'Loading...';
-    // Strip protocol + www prefix so URLs show as clean names
     return raw.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
   })();
 
-  return (
-    <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'} data-testid="radar-page">
-      {/* Header — only on public route (AppLayout provides nav on /app/* routes) */}
-      {!isInApp && (
-        <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
-              <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
-            </div>
-            <nav className="flex items-center gap-6 text-sm text-zinc-400">
-              <Link to="/signals" className="hover:text-white">Signals</Link>
-              <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
-              <Link to="/how-it-works" className="hover:text-white">How it works</Link>
-              <span
-                onClick={handleRefresh}
-                className="cursor-pointer hover:text-white transition"
-              >
-                {tableLoading ? 'Refreshing...' : 'Refresh'}
-              </span>
-            </nav>
-          </div>
-        </header>
-      )}
+  const reportOnlyMode = false;
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10">
-        {/* Intro */}
+  return (
+    <PageShell isInApp={isInApp} onRefresh={handleRefresh} tableLoading={tableLoading}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-10" data-testid="radar-page">
         <p className="text-sm text-zinc-400 leading-relaxed mb-8">
           <span className="text-cyan-400">Signal</span> = timing.
           <span className="text-zinc-300 ml-1">GOD</span> = your position.
@@ -602,22 +526,20 @@ export default function SignalMatches() {
           Start with the top rows — those are your fastest outreach wins.
         </p>
 
-        {/* ═══ MAIN CONTENT: Show table view (original working behavior) ═══ */}
-        {/* Report view is optional - only show if reportData is explicitly available */}
+        <div className="mb-4 flex items-center gap-4">
+          <LiveIndicator
+            lastRefreshAt={lastRefreshAt}
+            isPaused={isAnyPending}
+            busySince={busySince}
+            isStale={isStale}
+          />
+          <span className="text-xs text-zinc-600">{displayName}</span>
+        </div>
+
         {reportData && !reportLoading && reportOnlyMode ? (
           <InvestorReadinessReport report={reportData} />
         ) : (
-          /* ═══ DIRECT ACCESS FLOW: Show full table view (for /signal-matches without URL) ═══ */
           <>
-            {/* Intro */}
-            <p className="text-sm text-zinc-400 leading-relaxed mb-8">
-              <span className="text-cyan-400">Signal</span> = timing.
-              <span className="text-zinc-300 ml-1">GOD</span> = your position.
-              <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
-              Start with the top rows — those are your fastest outreach wins.
-            </p>
-
-            {/* ═══ ALL MATCHES TABLE — Full match list ═══ */}
             <RadarMatchTable
               rows={rows}
               context={context}
@@ -629,7 +551,6 @@ export default function SignalMatches() {
               mode="unlocked"
             />
 
-            {/* ═══ YOUR POSITION — Signal Health + Match Landscape + GOD Breakdown ═══ */}
             <SignalPathDashboard
               context={context}
               rows={rows}
@@ -637,13 +558,13 @@ export default function SignalMatches() {
               loading={contextLoading || tableLoading}
             />
 
-            {/* ═══ LOCKED MATCHES — Below position, limited to 5 ═══ */}
-            {rows.some(r => r.is_locked) && (
+            {rows.some((r) => r.is_locked) && (
               <div className="mt-6">
                 <div className="flex items-center gap-2 mb-3">
                   <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">More Matches</h3>
                   <span className="text-xs text-zinc-600">{lockedCount} available</span>
                 </div>
+
                 <RadarMatchTable
                   rows={rows}
                   context={context}
@@ -657,53 +578,98 @@ export default function SignalMatches() {
             )}
           </>
         )}
-          
-        {/* Count summary */}
+
         {rows.length > 0 && (
           <div className="mt-4 text-xs text-gray-500">
             {unlockedCount} ready • {lockedCount} available
           </div>
         )}
 
-        {/* Tools */}
         <div className="mt-8 flex items-center gap-6 text-sm">
-          <Link to="/app/oracle/coaching" className="text-amber-400 hover:text-amber-300 transition border-b border-amber-400/30 pb-0.5">
+          <Link
+            to="/app/oracle/coaching"
+            className="text-amber-400 hover:text-amber-300 transition border-b border-amber-400/30 pb-0.5"
+          >
             Oracle coaching →
           </Link>
-          <Link to="/app/playbook" className="text-cyan-400 hover:text-cyan-300 transition border-b border-cyan-400/30 pb-0.5">
+          <Link
+            to="/app/playbook"
+            className="text-cyan-400 hover:text-cyan-300 transition border-b border-cyan-400/30 pb-0.5"
+          >
             Signal Playbook →
           </Link>
-          <Link to="/app/pitch-scan" className="text-white/50 hover:text-white transition border-b border-white/20 pb-0.5">
+          <Link
+            to="/app/pitch-scan"
+            className="text-white/50 hover:text-white transition border-b border-white/20 pb-0.5"
+          >
             Pitch Scan →
           </Link>
         </div>
 
-        {/* Daily Limit Warning */}
-        {showContext && unlocksRemaining === 0 && (
+        {!!context && unlocksRemaining === 0 && (
           <p className="text-sm text-amber-400/70 mt-6">
             Daily unlock limit reached — resets at midnight.
-            <Link to="/pricing" className="text-cyan-400 hover:text-cyan-300 ml-1 transition">Upgrade</Link>{' '}
+            <Link to="/pricing" className="text-cyan-400 hover:text-cyan-300 ml-1 transition">
+              Upgrade
+            </Link>{' '}
             for unlimited.
           </p>
         )}
       </main>
+    </PageShell>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// SHELL
+// -----------------------------------------------------------------------------
+
+function PageShell({
+  isInApp,
+  onRefresh,
+  tableLoading,
+  children,
+}: {
+  isInApp: boolean;
+  onRefresh: () => void;
+  tableLoading: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={isInApp ? '' : 'min-h-screen bg-[#0a0a0a] text-white'}>
+      {!isInApp && (
+        <header className="border-b border-zinc-800/50 bg-[#0a0a0a]/95 backdrop-blur-md sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/" className="text-lg font-bold text-white tracking-tight">pythh.ai</Link>
+              <span className="text-xs text-zinc-500 uppercase tracking-widest">Signal Matches</span>
+            </div>
+
+            <nav className="flex items-center gap-6 text-sm text-zinc-400">
+              <Link to="/signals" className="hover:text-white">Signals</Link>
+              <Link to="/app/signals-dashboard" className="hover:text-white">Dashboard</Link>
+              <Link to="/how-it-works" className="hover:text-white">How it works</Link>
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="hover:text-white transition"
+              >
+                {tableLoading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </nav>
+          </div>
+        </header>
+      )}
+
+      {children}
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Percentile Formatter (handles edge cases)
+// FULL PAGE SKELETON
 // -----------------------------------------------------------------------------
-function formatPercentile(v: number | undefined): string {
-  if (v == null) return '—';
-  if (v <= 0) return 'N/A';
-  if (v >= 99) return 'Top 1%';
-  return `${v}th`;
-}
 
-// -----------------------------------------------------------------------------
-// Full Page Skeleton
-// -----------------------------------------------------------------------------
 function FullPageSkeleton({ message }: { message: string }) {
   const steps = [
     { label: 'Resolving startup', delay: 0 },
@@ -711,83 +677,97 @@ function FullPageSkeleton({ message }: { message: string }) {
     { label: 'Calculating GOD score', delay: 5000 },
     { label: 'Matching investors', delay: 8000 },
   ];
+
   const [elapsed, setElapsed] = useState(0);
+
   useEffect(() => {
-    const t = setInterval(() => setElapsed(e => e + 500), 500);
-    return () => clearInterval(t);
+    const t = window.setInterval(() => {
+      setElapsed((e) => e + 500);
+    }, 500);
+
+    return () => window.clearInterval(t);
   }, []);
-  const activeStep = steps.reduce((acc, s, i) => (elapsed >= s.delay ? i : acc), 0);
+
+  const activeStep = steps.reduce((acc, step, index) => {
+    return elapsed >= step.delay ? index : acc;
+  }, 0);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
       <div className="flex flex-col items-center gap-6 max-w-xs w-full px-4">
         <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
+
         <div className="space-y-3 w-full">
-          {steps.map((s, i) => (
-            <div key={s.label} className={`flex items-center gap-3 transition-opacity duration-500 ${
-              i <= activeStep ? 'opacity-100' : 'opacity-30'
-            }`}>
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-300 ${
-                i < activeStep ? 'bg-emerald-400' : i === activeStep ? 'bg-cyan-400 animate-pulse' : 'bg-zinc-700'
-              }`} />
-              <span className={`text-sm ${
-                i < activeStep ? 'text-emerald-400' : i === activeStep ? 'text-white' : 'text-zinc-600'
-              }`}>{s.label}</span>
-              {i < activeStep && <span className="text-emerald-400 text-xs ml-auto">\u2713</span>}
+          {steps.map((step, index) => (
+            <div
+              key={step.label}
+              className={`flex items-center gap-3 transition-opacity duration-500 ${
+                index <= activeStep ? 'opacity-100' : 'opacity-30'
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-300 ${
+                  index < activeStep
+                    ? 'bg-emerald-400'
+                    : index === activeStep
+                      ? 'bg-cyan-400 animate-pulse'
+                      : 'bg-zinc-700'
+                }`}
+              />
+              <span
+                className={`text-sm ${
+                  index < activeStep
+                    ? 'text-emerald-400'
+                    : index === activeStep
+                      ? 'text-white'
+                      : 'text-zinc-600'
+                }`}
+              >
+                {step.label}
+              </span>
+              {index < activeStep && <span className="text-emerald-400 text-xs ml-auto">✓</span>}
             </div>
           ))}
         </div>
-        <p className="text-xs text-zinc-500 mt-2">First-time lookups take 5\u201310 seconds</p>
+
+        <p className="text-sm text-zinc-400">{message}</p>
+        <p className="text-xs text-zinc-500 mt-2">First-time lookups take 5–10 seconds</p>
       </div>
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Live Indicator - State Priority: STALLED > BUSY > STALE > LIVE > AGED
-// -----------------------------------------------------------------------------
-// Truth table:
-//   isPaused && busyTooLong  → STALLED (red, something's wrong)
-//   isPaused                 → BUSY (amber, user action in progress)
-//   isStale                  → STALE (orange, showing cached data)
-//   secondsAgo < 15          → LIVE (green pulse)
-//   secondsAgo >= 15         → AGED (gray, "Xs ago")
-//   no data yet              → ... (connecting)
+// LIVE INDICATOR
 // -----------------------------------------------------------------------------
 
-const BUSY_TIMEOUT_MS = 12000; // 12s before BUSY becomes STALLED
-const LIVE_THRESHOLD_S = 15;   // Show LIVE if updated within 15s
+const BUSY_TIMEOUT_MS = 12000;
+const LIVE_THRESHOLD_S = 15;
 
-function LiveIndicator({ 
-  lastRefreshAt, 
+function LiveIndicator({
+  lastRefreshAt,
   isPaused,
   busySince,
-  isStale 
-}: { 
-  lastRefreshAt: number | null; 
+  isStale,
+}: {
+  lastRefreshAt: number | null;
   isPaused?: boolean;
   busySince?: number | null;
   isStale?: boolean;
 }) {
   const [now, setNow] = useState(Date.now());
-  
-  // Tick every second to update "Xs ago" and watchdog
+
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
   }, []);
-  
-  // Calculate derived values
-  const secondsAgo = lastRefreshAt 
-    ? Math.floor((now - lastRefreshAt) / 1000)
-    : null;
-  
+
+  const secondsAgo =
+    lastRefreshAt !== null ? Math.floor((now - lastRefreshAt) / 1000) : null;
+
   const busyDurationMs = busySince ? now - busySince : 0;
-  const isBusyTooLong = isPaused && busyDurationMs > BUSY_TIMEOUT_MS;
-  
-  // STATE PRIORITY: STALLED > BUSY > STALE > LIVE > AGED
-  
-  // 1. STALLED - BUSY watchdog triggered (something's stuck)
+  const isBusyTooLong = !!isPaused && busyDurationMs > BUSY_TIMEOUT_MS;
+
   if (isBusyTooLong) {
     return (
       <div className="flex items-center gap-2" title={`Operation stalled (${Math.floor(busyDurationMs / 1000)}s)`}>
@@ -796,8 +776,7 @@ function LiveIndicator({
       </div>
     );
   }
-  
-  // 2. BUSY - unlock in progress (overrides STALE)
+
   if (isPaused) {
     return (
       <div className="flex items-center gap-2" title="Processing unlock...">
@@ -806,8 +785,7 @@ function LiveIndicator({
       </div>
     );
   }
-  
-  // 3. STALE - last fetch failed, showing cached data
+
   if (isStale) {
     return (
       <div className="flex items-center gap-2" title="Connection issue - showing cached data">
@@ -816,8 +794,7 @@ function LiveIndicator({
       </div>
     );
   }
-  
-  // 4. LIVE - recent successful update
+
   if (secondsAgo !== null && secondsAgo < LIVE_THRESHOLD_S) {
     return (
       <div className="flex items-center gap-2" title={`Updated ${secondsAgo}s ago`}>
@@ -826,8 +803,7 @@ function LiveIndicator({
       </div>
     );
   }
-  
-  // 5. AGED - not stale, but not recent either
+
   if (secondsAgo !== null) {
     return (
       <div className="flex items-center gap-2" title={`Last update: ${new Date(lastRefreshAt!).toLocaleTimeString()}`}>
@@ -836,8 +812,7 @@ function LiveIndicator({
       </div>
     );
   }
-  
-  // 6. CONNECTING - no data yet
+
   return (
     <div className="flex items-center gap-2" title="Connecting...">
       <span className="w-2 h-2 rounded-full bg-gray-600 animate-pulse" />
@@ -847,72 +822,64 @@ function LiveIndicator({
 }
 
 // -----------------------------------------------------------------------------
-// Stat Card (with skeleton support) - kept for potential future use
+// RADAR MATCH TABLE WRAPPER
 // -----------------------------------------------------------------------------
-interface StatCardProps {
-  label: string;
-  value: string | number | undefined;
-  suffix?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  format?: (v: number | undefined) => string;
-  loading?: boolean;
-}
 
-function StatCard({ label, value, suffix, trend, format, loading }: StatCardProps) {
-  const displayValue = loading 
-    ? null 
-    : format 
-      ? format(value as number | undefined)
-      : value ?? '—';
-  
-  return (
-    <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
-      <p className="text-sm text-gray-500 mb-1">{label}</p>
-      {loading ? (
-        <div className="h-8 w-20 bg-gray-800 rounded animate-pulse" />
-      ) : (
-        <div className="flex items-baseline gap-1">
-          <span
-            className={`text-2xl font-bold ${
-              trend === 'up' ? 'text-emerald-400' :
-              trend === 'down' ? 'text-red-400' :
-              'text-white'
-            }`}
-          >
-            {displayValue}
-          </span>
-          {suffix && displayValue !== '—' && displayValue !== 'N/A' && (
-            <span className="text-sm text-gray-500">{suffix}</span>
-          )}
+function RadarMatchTable({
+  rows,
+  context,
+  loading,
+  isPending,
+  onUnlock,
+  unlocksRemaining,
+  matchGenPending = false,
+  mode = 'all',
+}: {
+  rows: MatchRow[];
+  context: StartupContext | null;
+  loading: boolean;
+  isPending: (investorId: string) => boolean;
+  onUnlock: (investorId: string) => Promise<void>;
+  unlocksRemaining: number;
+  matchGenPending?: boolean;
+  mode?: 'unlocked' | 'locked' | 'all';
+}) {
+  const { unlockedRows, lockedRows } = useLegacyRadarAdapter(rows, context?.god?.total, context);
+
+  if (matchGenPending && unlockedRows.length === 0 && lockedRows.length === 0) {
+    return (
+      <div className="mb-8 flex items-center justify-center py-20" data-testid="match-table">
+        <div className="flex flex-col items-center gap-4 text-gray-400">
+          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-lg font-medium text-cyan-400">Generating matches…</p>
+          <p className="text-sm text-gray-500">
+            Our engine is analyzing investor alignment. This usually takes 30–60 seconds.
+          </p>
+          <p className="text-xs text-gray-600">Auto-refreshing every 5 seconds</p>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4" data-testid={`match-table-${mode}`}>
+      <LiveMatchTable
+        unlockedRows={unlockedRows}
+        lockedRows={lockedRows}
+        loading={loading}
+        isPending={isPending}
+        onUnlock={onUnlock}
+        unlocksRemaining={unlocksRemaining}
+        mode={mode}
+      />
     </div>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Startup Picker - Wired v2 Final (Benchmark Intelligence)
-// -----------------------------------------------------------------------------
-// Dense Supabase-style table with three independent benchmarks:
-//   - Signal Score: Market attenuation — movement, timing, momentum
-//   - GOD Score: Market position — intrinsic company strength (22+ models)
-//   - YC++ Score: Market perception — elite investor pattern fit
-// 
-// Triangle model: Signal (when) / GOD (what) / YC++ (how perceived)
+// STARTUP PICKER
 // -----------------------------------------------------------------------------
 
-interface StartupBenchmarkRow {
-  id: string;
-  name: string;
-  signal_score: number;      // 0-10, market attenuation
-  god_score: number;         // 0-100, market position (multi-model)
-  yc_plus_score: number;     // 0-100, elite investor pattern fit
-  momentum_delta: number;    // change from prior period
-  readiness: number;         // 0-1, surface tension
-  match_count: number;       // investor matches waiting
-}
-
-// Tooltip content for benchmark explanations
 const BENCHMARK_TOOLTIPS = {
   signal: {
     title: 'Signal Score',
@@ -925,7 +892,7 @@ const BENCHMARK_TOOLTIPS = {
     subline: 'Evaluates company strength independent of hype, timing, or investor taste.',
     details: [
       'Team construction analysis',
-      'Traction integrity models', 
+      'Traction integrity models',
       'Market structure evaluation',
       'Execution velocity signals',
       'Capital efficiency heuristics',
@@ -952,37 +919,28 @@ const BENCHMARK_TOOLTIPS = {
   },
 } as const;
 
-// THRESHOLDS (LOCKED per spec)
 const SIGNAL_THRESHOLDS = {
-  WINDOW_OPENING: 7.5,  // Green ▲
-  ACTIVE: 5.5,          // Neutral
-  COOLING: 4.0,         // Amber
-  DORMANT: 0,           // Gray ▼
+  WINDOW_OPENING: 7.5,
+  ACTIVE: 5.5,
+  COOLING: 4.0,
+  DORMANT: 0,
 } as const;
 
-const GOD_THRESHOLDS = {
-  STRONG: 85,           // High intrinsic quality
-  SOLID: 70,            // Fundable with alignment  
-  DEVELOPING: 55,       // Needs improvement
-  EARLY: 0,             // Structural gaps
-} as const;
-
-const YC_PLUS_THRESHOLDS = {
-  FAMILIAR: 80,         // Familiar & legible
-  REQUIRES_EXPLANATION: 65,
-  UNFAMILIAR: 50,
-  LIKELY_IGNORED: 0,
-} as const;
-
-// Info icon with expandable tooltip
-function BenchmarkInfo({ benchmark }: { benchmark: keyof typeof BENCHMARK_TOOLTIPS }) {
+function BenchmarkInfo({
+  benchmark,
+}: {
+  benchmark: keyof typeof BENCHMARK_TOOLTIPS;
+}) {
   const [expanded, setExpanded] = useState(false);
   const info = BENCHMARK_TOOLTIPS[benchmark];
-  
+
   return (
     <div className="relative inline-block">
       <button
-        onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded(!expanded);
+        }}
         className="ml-1 text-gray-500 hover:text-gray-300 transition-colors"
         title={`${info.title}: ${info.subline}`}
       >
@@ -990,18 +948,15 @@ function BenchmarkInfo({ benchmark }: { benchmark: keyof typeof BENCHMARK_TOOLTI
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </button>
+
       {expanded && (
         <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setExpanded(false)}
-          />
-          {/* Tooltip panel */}
+          <div className="fixed inset-0 z-40" onClick={() => setExpanded(false)} />
           <div className="absolute z-50 left-0 top-6 w-72 bg-gray-900 border border-gray-700 rounded-lg shadow-xl p-4 text-left">
             <h4 className="text-sm font-semibold text-white mb-1">{info.title}</h4>
             <p className="text-xs text-gray-300 mb-2">{info.description}</p>
             <p className="text-xs text-gray-500 italic mb-2">{info.subline}</p>
+
             {'details' in info && (
               <div className="mt-2 pt-2 border-t border-gray-800">
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Built from:</p>
@@ -1014,6 +969,7 @@ function BenchmarkInfo({ benchmark }: { benchmark: keyof typeof BENCHMARK_TOOLTI
                 </ul>
               </div>
             )}
+
             {'footer' in info && (
               <p className="mt-2 pt-2 border-t border-gray-800 text-[10px] text-gray-500">
                 {info.footer}
@@ -1026,63 +982,41 @@ function BenchmarkInfo({ benchmark }: { benchmark: keyof typeof BENCHMARK_TOOLTI
   );
 }
 
-// Readiness bar component (5-bar, no number - per spec)
 function ReadinessBar({ value, className = '' }: { value: number; className?: string }) {
   const bars = Math.round(value * 5);
+
   return (
     <div className={`flex items-center gap-0.5 ${className}`} title="Confidence that this startup will perform once injected into the radar">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div 
+        <div
           key={i}
-          className={`w-1.5 h-3 rounded-sm ${
-            i < bars ? 'bg-gray-300' : 'bg-gray-700'
-          }`}
+          className={`w-1.5 h-3 rounded-sm ${i < bars ? 'bg-gray-300' : 'bg-gray-700'}`}
         />
       ))}
     </div>
   );
 }
 
-// Fit bar component (for radar page - no color per spec)
-function FitBar({ value, className = '' }: { value: number; className?: string }) {
-  const bars = Math.round(value * 5);
-  return (
-    <div className={`flex items-center gap-0.5 ${className}`} title="Probability this interaction converts if initiated now">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div 
-          key={i}
-          className={`w-1.5 h-3 rounded-sm ${
-            i < bars ? 'bg-gray-300' : 'bg-gray-700'
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
-
-// Signal score display with direction arrow
 function SignalDisplay({ score, delta }: { score: number; delta?: number }) {
-  // Determine direction
-  const direction = delta !== undefined 
-    ? (delta > 0.1 ? 'up' : delta < -0.1 ? 'down' : 'flat')
-    : 'flat';
-  
-  // Color based on LOCKED thresholds
-  const colorClass = score >= SIGNAL_THRESHOLDS.WINDOW_OPENING
-    ? 'text-emerald-400'
-    : score >= SIGNAL_THRESHOLDS.ACTIVE
-      ? 'text-gray-300'
-      : score >= SIGNAL_THRESHOLDS.COOLING
-        ? 'text-amber-400'
-        : 'text-gray-500';
-  
-  // Arrow color (only on arrow per spec)
-  const arrowClass = direction === 'up' 
-    ? 'text-emerald-400' 
-    : direction === 'down' 
-      ? 'text-red-400' 
-      : 'text-gray-600';
-  
+  const direction =
+    delta !== undefined ? (delta > 0.1 ? 'up' : delta < -0.1 ? 'down' : 'flat') : 'flat';
+
+  const colorClass =
+    score >= SIGNAL_THRESHOLDS.WINDOW_OPENING
+      ? 'text-emerald-400'
+      : score >= SIGNAL_THRESHOLDS.ACTIVE
+        ? 'text-gray-300'
+        : score >= SIGNAL_THRESHOLDS.COOLING
+          ? 'text-amber-400'
+          : 'text-gray-500';
+
+  const arrowClass =
+    direction === 'up'
+      ? 'text-emerald-400'
+      : direction === 'down'
+        ? 'text-red-400'
+        : 'text-gray-600';
+
   return (
     <span className="font-mono text-sm">
       <span className={colorClass}>{score.toFixed(1)}</span>
@@ -1093,128 +1027,62 @@ function SignalDisplay({ score, delta }: { score: number; delta?: number }) {
   );
 }
 
-// -----------------------------------------------------------------------------
-// RadarMatchTable Wrapper - Integrates LiveMatchTable with Canonical View Model
-// -----------------------------------------------------------------------------
-
-function RadarMatchTable({
-  rows,
-  context,
-  loading,
-  isPending,
-  onUnlock,
-  unlocksRemaining,
-  matchGenPending = false,
-  mode = 'all' as 'unlocked' | 'locked' | 'all',
-}: {
-  rows: MatchRow[];
-  context: StartupContext | null;
-  loading: boolean;
-  isPending: (investorId: string) => boolean;
-  onUnlock: (investorId: string) => Promise<void>;
-  unlocksRemaining: number;
-  matchGenPending?: boolean;
-  mode?: 'unlocked' | 'locked' | 'all';
-}) {
-  // Use the legacy adapter to transform rows to view model format
-  const { unlockedRows, lockedRows } = useLegacyRadarAdapter(rows, context?.god?.total, context);
-  
-  // Show generation-in-progress banner instead of "No matches found"
-  if (matchGenPending && unlockedRows.length === 0 && lockedRows.length === 0) {
-    return (
-      <div className="mb-8 flex items-center justify-center py-20" data-testid="match-table">
-        <div className="flex flex-col items-center gap-4 text-gray-400">
-          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-lg font-medium text-cyan-400">Generating matches&hellip;</p>
-          <p className="text-sm text-gray-500">
-            Our engine is analyzing investor alignment. This usually takes 30-60 seconds.
-          </p>
-          <p className="text-xs text-gray-600">Auto-refreshing every 5 seconds</p>
-        </div>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="mb-4" data-testid={`match-table-${mode}`}>
-      <LiveMatchTable
-        unlockedRows={unlockedRows}
-        lockedRows={lockedRows}
-        loading={loading}
-        isPending={isPending}
-        onUnlock={onUnlock}
-        unlocksRemaining={unlocksRemaining}
-        mode={mode}
-      />
-    </div>
-  );
-}
-
 function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => void }) {
   const [startups, setStartups] = useState<StartupBenchmarkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<keyof StartupBenchmarkRow>('signal_score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  
+
   useEffect(() => {
     async function fetchStartups() {
-      // Fetch startups with GOD scores
       const { data: startupsData, error: startupsError } = await supabase
         .from('startup_uploads')
         .select('id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors')
         .eq('status', 'approved')
         .order('total_god_score', { ascending: false })
         .limit(100);
-      
+
       if (startupsError || !startupsData) {
         console.error('Failed to fetch startups:', startupsError);
         setLoading(false);
         return;
       }
-      
-      // Fetch match counts per startup
+
       const { data: matchCounts, error: matchError } = await supabase
         .from('startup_investor_matches')
         .select('startup_id')
-        .in('startup_id', startupsData.map(s => s.id));
-      
-      // Count matches per startup
+        .in('startup_id', startupsData.map((s) => s.id));
+
       const countMap = new Map<string, number>();
+
       if (matchCounts && !matchError) {
-        matchCounts.forEach(m => {
+        matchCounts.forEach((m) => {
           countMap.set(m.startup_id, (countMap.get(m.startup_id) || 0) + 1);
         });
       }
-      
-      // Transform to benchmark rows
-      const benchmarks: StartupBenchmarkRow[] = startupsData.map(s => {
+
+      const benchmarks: StartupBenchmarkRow[] = startupsData.map((s) => {
         const godScore = s.total_god_score || 50;
-        
-        // Derive Signal Score (0-10) from GOD components + match velocity
-        // Maps GOD 40-100 → signal 5.5-9.5, with match velocity bonus
         const matchCount = countMap.get(s.id) || 0;
+
         const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-        const signalBase = 5.5 + normalized * 4.0; // 5.5-9.5 range
-        const matchBonus = Math.min(matchCount / 50, 0.5); // Match velocity bonus (0-0.5)
+        const signalBase = 5.5 + normalized * 4.0;
+        const matchBonus = Math.min(matchCount / 50, 0.5);
         const signalScore = Math.max(5.0, Math.min(10, signalBase + matchBonus));
-        
-        // Derive YC++ Score (0-100) from GOD + category premium
-        // Elite VCs favor: high traction, strong teams, hot sectors
-        // This measures pattern fit, not quality
-        const tractionWeight = (s.traction_score || 0) * 1.5; // VCs love traction
-        const teamWeight = (s.team_score || 0) * 1.2; // Strong teams
+
+        const tractionWeight = (s.traction_score || 0) * 1.5;
+        const teamWeight = (s.team_score || 0) * 1.2;
         const ycBase = ((tractionWeight + teamWeight) / 2.7) * 100;
         const ycPlusScore = Math.max(40, Math.min(95, ycBase + (Math.random() - 0.3) * 15));
-        
-        // Momentum delta (simulated for now - would come from signal history)
-        const momentumDelta = (Math.random() - 0.4) * 2; // Slight positive bias
-        
-        // Readiness score (0-1) - data completeness + match quality
+
+        const momentumDelta = (Math.random() - 0.4) * 2;
+
         const dataCompleteness = [s.team_score, s.traction_score, s.market_score, s.product_score]
-          .filter(v => v !== null && v > 0).length / 4;
+          .filter((v) => v !== null && v > 0).length / 4;
+
         const matchReadiness = matchCount > 0 ? Math.min(matchCount / 20, 1) : 0;
-        const readiness = (dataCompleteness * 0.6 + matchReadiness * 0.4);
-        
+        const readiness = dataCompleteness * 0.6 + matchReadiness * 0.4;
+
         return {
           id: s.id,
           name: s.name,
@@ -1226,14 +1094,14 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
           match_count: matchCount,
         };
       });
-      
+
       setStartups(benchmarks);
       setLoading(false);
     }
-    fetchStartups();
+
+    void fetchStartups();
   }, []);
-  
-  // Sort function
+
   const sorted = useMemo(() => {
     return [...startups].sort((a, b) => {
       const aVal = a[sortKey];
@@ -1242,18 +1110,27 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
       return (Number(aVal) - Number(bVal)) * mult;
     });
   }, [startups, sortKey, sortDir]);
-  
+
   const handleSort = (key: keyof StartupBenchmarkRow) => {
     if (sortKey === key) {
-      setSortDir(d => d === 'desc' ? 'asc' : 'desc');
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+      return;
     }
+
+    setSortKey(key);
+    setSortDir('desc');
   };
-  
-  const SortHeader = ({ label, field, benchmark }: { label: string; field: keyof StartupBenchmarkRow; benchmark?: keyof typeof BENCHMARK_TOOLTIPS }) => (
-    <th 
+
+  const SortHeader = ({
+    label,
+    field,
+    benchmark,
+  }: {
+    label: string;
+    field: keyof StartupBenchmarkRow;
+    benchmark?: keyof typeof BENCHMARK_TOOLTIPS;
+  }) => (
+    <th
       className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
       onClick={() => handleSort(field)}
     >
@@ -1266,26 +1143,21 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
       </span>
     </th>
   );
-  
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Header - per spec: restrained, professional */}
         <div className="mb-6">
-          <h1 className="text-xl font-semibold text-white mb-1">
-            Signal Radar
-          </h1>
+          <h1 className="text-xl font-semibold text-white mb-1">Signal Radar</h1>
           <p className="text-sm text-gray-500">
             Benchmark your startup across movement, position, and investor optics
           </p>
         </div>
-        
-        {/* Guidance line - always visible, per spec */}
+
         <div className="mb-4 text-sm text-gray-500">
           Use <strong className="text-gray-400">Signal</strong> to time outreach, <strong className="text-gray-400">GOD</strong> to assess strength, and <strong className="text-gray-400">YC++</strong> to understand investor optics.
         </div>
-        
-        {/* Table */}
+
         <div className="bg-gray-900/50 border border-gray-800 rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-800">
@@ -1297,7 +1169,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
                   <SortHeader label="Signal" field="signal_score" benchmark="signal" />
                   <SortHeader label="GOD" field="god_score" benchmark="god" />
                   <SortHeader label="YC++" field="yc_plus_score" benchmark="yc_plus" />
-                  <th 
+                  <th
                     className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSort('momentum_delta')}
                     title="Signal acceleration or decay"
@@ -1309,7 +1181,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
                       )}
                     </span>
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider" title="Confidence that this startup will perform once injected into the radar">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Readiness
                   </th>
                   <SortHeader label="Matches" field="match_count" />
@@ -1318,9 +1190,9 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
                   </th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-gray-800/50">
                 {loading ? (
-                  // Skeleton rows
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i} className="animate-pulse">
                       <td className="px-4 py-3"><div className="h-4 w-32 bg-gray-800 rounded" /></td>
@@ -1340,59 +1212,47 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
                     </td>
                   </tr>
                 ) : (
-                  sorted.map(s => (
-                    <tr 
-                      key={s.id} 
-                      className="hover:bg-gray-800/50 transition-colors group"
-                    >
-                      {/* Startup Name - just name, per spec */}
+                  sorted.map((s) => (
+                    <tr key={s.id} className="hover:bg-gray-800/50 transition-colors group">
                       <td className="px-4 py-3">
                         <span className="font-medium text-white">{s.name}</span>
                       </td>
-                      
-                      {/* Signal Score with direction */}
+
                       <td className="px-3 py-3">
                         <SignalDisplay score={s.signal_score} delta={s.momentum_delta} />
                       </td>
-                      
-                      {/* GOD Score - numbers speak, no colors needed per spec */}
+
                       <td className="px-3 py-3">
-                        <span className="font-mono text-sm text-gray-200">
-                          {s.god_score}
+                        <span className="font-mono text-sm text-gray-200">{s.god_score}</span>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <span className="font-mono text-sm text-gray-200">{s.yc_plus_score}</span>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <span
+                          className={`font-mono text-sm ${
+                            s.momentum_delta > 0.3
+                              ? 'text-emerald-400'
+                              : s.momentum_delta < -0.2
+                                ? 'text-red-400/60'
+                                : 'text-gray-600'
+                          }`}
+                        >
+                          {s.momentum_delta > 0 ? '+' : ''}
+                          {s.momentum_delta.toFixed(1)}
                         </span>
                       </td>
-                      
-                      {/* YC++ Score */}
-                      <td className="px-3 py-3">
-                        <span className="font-mono text-sm text-gray-200">
-                          {s.yc_plus_score}
-                        </span>
-                      </td>
-                      
-                      {/* Momentum Delta */}
-                      <td className="px-3 py-3">
-                        <span className={`font-mono text-sm ${
-                          s.momentum_delta > 0.3 ? 'text-emerald-400' :
-                          s.momentum_delta < -0.2 ? 'text-red-400/60' :
-                          'text-gray-600'
-                        }`}>
-                          {s.momentum_delta > 0 ? '+' : ''}{s.momentum_delta.toFixed(1)}
-                        </span>
-                      </td>
-                      
-                      {/* Readiness Bar - bars only, no number per spec */}
+
                       <td className="px-3 py-3">
                         <ReadinessBar value={s.readiness} />
                       </td>
-                      
-                      {/* Match Count */}
+
                       <td className="px-3 py-3">
-                        <span className="font-mono text-sm text-gray-400">
-                          {s.match_count}
-                        </span>
+                        <span className="font-mono text-sm text-gray-400">{s.match_count}</span>
                       </td>
-                      
-                      {/* Action - "▶ Enter" per spec */}
+
                       <td className="px-3 py-3 text-right">
                         <button
                           onClick={() => onSelect(s.id, s.name)}
@@ -1409,8 +1269,6 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
             </table>
           </div>
         </div>
-        
-        {/* No legend needed - guidance line above table suffices */}
       </div>
     </div>
   );

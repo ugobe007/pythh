@@ -1,34 +1,44 @@
 // ============================================================================
-// UNIFIED STARTUP SUBMISSION SERVICE
+// UNIFIED STARTUP SUBMISSION SERVICE — SINGLE ORCHESTRATION LAYER
 // ============================================================================
 //
-// THE SINGLE SOURCE OF TRUTH for submitting a startup URL anywhere in the app.
+// Single source of truth for:
+//   - URL normalization
+//   - Existing startup resolution
+//   - Workflow submission
+//   - Status polling
+//   - Final result shape
 //
-// Every surface (public URL bar, Find Signals, account profile, admin) MUST
-// use this module. No direct fetch('/api/...') calls for submission elsewhere.
+// Canonical flow:
+//   A) normalize input
+//   B) resolve existing startup via RPC
+//   C) if sufficient matches exist, return resolved
+//   D) if startup exists but matches are insufficient, trigger generation
+//   E) if startup does not exist, submit workflow
+//   F) poll until startup appears / processing advances
 //
-// Flow:
-//   1. FAST: Supabase RPC resolve_startup_by_url (< 500ms for existing)
-//   2. If found + ≥ 20 matches + not forced → return immediately
-//   3. If found but few matches, or forced → fire /api/instant/submit (async)
-//   4. If not found → /api/instant/submit (sync wait — scrape + score + match)
-//
-// Returns a SubmitResult that every caller can depend on.
+// Every surface (PythhMain, SignalMatches, legacy redirects, etc.) should call
+// this module rather than re-implementing flow logic.
 // ============================================================================
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { canonicalizeStartupUrl } from '@/utils/normalizeUrl';
+import { apiUrl } from '@/lib/apiConfig';
+import { normalizeStartupUrl, canonicalizeStartupUrl } from '@/utils/normalizeUrl';
+
+// Re-export for consumers
+export { normalizeStartupUrl } from '@/utils/normalizeUrl';
 
 // -----------------------------------------------------------------------------
 // TYPES
 // -----------------------------------------------------------------------------
 
 export type SubmitStatus =
-  | 'resolved'      // Startup found in DB with enough matches
-  | 'generating'    // Startup found but matches being generated
-  | 'created'       // New startup created via backend
-  | 'not_found'     // Could not resolve or create
-  | 'error';        // Something broke
+  | 'resolved'
+  | 'generating'
+  | 'created'
+  | 'not_found'
+  | 'error';
 
 export interface SubmitResult {
   status: SubmitStatus;
@@ -36,43 +46,40 @@ export interface SubmitResult {
   name: string | null;
   website: string | null;
   match_count: number;
-  /** Original URL or query the user typed */
   searched: string;
-  /** Error message when status='error' */
   error?: string;
-  /** Diagnostic: which DB branch resolved this (company_domain | website_equality | name_equality | not_found) */
   _resolver_branch?: string;
-  /** Diagnostic: server-side DB resolution time in ms */
   _elapsed_ms?: number;
-  /** Verified company homepage (null when sourced from publisher URL) */
   company_website?: string | null;
-  /** Original publisher/news source URL when website wasn't the company homepage */
   source_url?: string | null;
-  /** False when we only have a publisher URL — no real company site on file */
   has_company_site?: boolean;
 }
 
 export interface SubmitOptions {
-  /** Force regenerate matches even if enough exist */
   forceGenerate?: boolean;
-  /** Minimum match count to consider "ready" (default 20) */
   minMatches?: number;
-  /** Abort signal for cancellation */
   signal?: AbortSignal;
 }
+
+// -----------------------------------------------------------------------------
+// CONSTANTS
+// -----------------------------------------------------------------------------
+
+const SESSION_KEY = 'pythh_session_id';
+const SUBMIT_TIMEOUT_MS = 8_000;
+const POLL_INTERVAL_MS = 2_000;
+const DEFAULT_POLL_TIMEOUT_MS = 20_000;
 
 // -----------------------------------------------------------------------------
 // SESSION MANAGEMENT
 // -----------------------------------------------------------------------------
 
-const SESSION_KEY = 'pythh_session_id';
-
 function getOrCreateSessionId(): string {
-  let sessionId = localStorage.getItem(SESSION_KEY);
-  if (!sessionId) {
-    sessionId = 'sess_' + crypto.randomUUID();
-    localStorage.setItem(SESSION_KEY, sessionId);
-  }
+  const existing = localStorage.getItem(SESSION_KEY);
+  if (existing) return existing;
+
+  const sessionId = `sess_${crypto.randomUUID()}`;
+  localStorage.setItem(SESSION_KEY, sessionId);
   return sessionId;
 }
 
@@ -81,294 +88,173 @@ export function getSessionId(): string {
 }
 
 // -----------------------------------------------------------------------------
-// CORE: submitStartup()
+// INTERNAL HELPERS
 // -----------------------------------------------------------------------------
 
-/**
- * Submit a startup URL for matching. This is THE canonical function.
- *
- * @param urlOrQuery - A URL (stripe.com) or company name to resolve
- * @param options    - Optional config (forceGenerate, minMatches, signal)
- * @returns          - SubmitResult with startup_id, status, match_count
- *
- * @example
- *   const result = await submitStartup('stripe.com');
- *   if (result.startup_id) navigate(`/signal-matches?startup=${result.startup_id}`);
- */
-export async function submitStartup(
-  urlOrQuery: string,
-  options: SubmitOptions = {}
-): Promise<SubmitResult> {
-  const {
-    forceGenerate = false,
-    minMatches = 20,
-    signal,
-  } = options;
+type ResolveRow = {
+  startup_id?: string | null;
+  startup_name?: string | null;
+  canonical_url?: string | null;
+  company_website?: string | null;
+  source_url?: string | null;
+  has_company_site?: boolean | null;
+  match_count?: number | null;
+  resolved?: boolean | null;
+  found?: boolean | null;
+  resolver_branch?: string | null;
+  reason?: string | null;
+  elapsed_ms?: number | null;
+};
 
-  const rawInput = urlOrQuery.trim();
-  const normalized = canonicalizeStartupUrl(rawInput);
-  const searched = normalized?.canonicalUrl ?? rawInput;
-  const domainHint = normalized?.domain ?? null;
-  const companyNameHint = normalized?.companyName ?? null;
-  if (!searched) {
-    return { status: 'error', startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Empty URL' };
-  }
-
-  const sessionId = getOrCreateSessionId();
-
-  // Poll queued status endpoint for a bounded window.
-  const pollQueuedStatus = async (searchValue: string, timeoutMs = 20000): Promise<SubmitResult | null> => {
-    const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      try {
-        const statusRes = await fetch(`/api/instant/status?url=${encodeURIComponent(searchValue)}`);
-        if (statusRes.ok) {
-          const status = await statusRes.json();
-          if (status?.startup_id) {
-            return {
-              status: status.status === 'ready' ? 'created' : 'generating',
-              startup_id: status.startup_id,
-              name: status.startup?.name ?? null,
-              website: status.startup?.website ?? null,
-              match_count: status.match_count ?? 0,
-              searched: searchValue,
-            };
-          }
-        }
-      } catch {
-        // best effort; keep polling
-      }
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    return null;
-  };
-
-  // ── STEP 1: Fast path — Supabase RPC ─────────────────────────────────────
-  // resolve_startup_by_url uses indexed company_domain + website equality lookups.
-  // Expected latency: < 50ms. match_count is embedded in the RPC response.
-  try {
-    const rpcResult = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
-
-    if (!rpcResult.error && rpcResult.data) {
-      const data = rpcResult.data;
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row?.found || row?.startup_id) {
-        // match_count is returned by the RPC directly — no separate query needed
-        const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
-        const resolverBranch: string = row.resolver_branch ?? 'unknown';
-        const elapsedMs: number | undefined = typeof row.elapsed_ms === 'number' ? row.elapsed_ms : undefined;
-
-        // If enough matches and not forced → done
-        // BUT: also check data quality; if data is clearly bad (enrichment never ran
-        // or team_score is near-floor) fire a silent background re-enrich pass.
-        if (matchCount >= minMatches && !forceGenerate) {
-          // Background data-quality check (non-blocking — fire-and-forget)
-          void (async () => {
-            try {
-              const { data: qd } = await supabase
-                .from('startup_uploads')
-                .select('team_score, enrichment_status')
-                .eq('id', row.startup_id)
-                .single();
-              const needsRefresh =
-                qd?.enrichment_status === 'waiting' ||
-                (typeof qd?.team_score === 'number' && qd.team_score < 28);
-              if (needsRefresh) {
-                console.log(`[submitStartup] Stale/sparse data for "${row.startup_name}" (team=${qd?.team_score}, status=${qd?.enrichment_status}) — background re-enrich`);
-                triggerMatchGeneration(searched, sessionId, true, signal);
-              }
-            } catch { /* non-fatal */ }
-          })();
-
-          return {
-            status: 'resolved',
-            startup_id: row.startup_id,
-            name: row.startup_name,
-            website: row.canonical_url,
-            match_count: matchCount,
-            searched,
-            _resolver_branch: resolverBranch,
-            _elapsed_ms: elapsedMs,
-            company_website: row.company_website ?? null,
-            source_url: row.source_url ?? null,
-            has_company_site: row.has_company_site ?? true,
-          };
-        }
-
-        // Startup exists but needs matches → trigger generation (fire-and-forget)
-        console.log(`[submitStartup] Found "${row.startup_name}" with ${matchCount} matches${forceGenerate ? ' (forced)' : ''} — triggering match generation`);
-        triggerMatchGeneration(searched, sessionId, forceGenerate, signal);
-
-        return {
-          status: 'generating',
-          startup_id: row.startup_id,
-          name: row.startup_name,
-          website: row.canonical_url,
-          match_count: matchCount,
-          searched,
-          _resolver_branch: resolverBranch,
-          _elapsed_ms: elapsedMs,
-          company_website: row.company_website ?? null,
-          source_url: row.source_url ?? null,
-          has_company_site: row.has_company_site ?? true,
-        };
-      }
-    }
-  } catch (e) {
-    console.warn('[submitStartup] RPC fast path failed (non-fatal):', e);
-  }
-
-  // Check abort
-  if (signal?.aborted) {
-    return { status: 'error', startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Aborted' };
-  }
-
-  // ── STEP 2: Slow path — Express backend (scrape + score + match) ─────────
-  // Race the backend call against a timeout. If backend takes > 8s, check the
-  // DB directly (backend may have created the startup but still be matching).
-  try {
-    const fetchController = new AbortController();
-    const combinedSignal = signal
-      ? (AbortSignal as any).any?.([signal, fetchController.signal]) ?? fetchController.signal
-      : fetchController.signal;
-
-    const fetchPromise = fetch('/api/instant/submit', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Session-Id': sessionId,
-      },
-      body: JSON.stringify({
-        url: searched,
-        session_id: sessionId,
-        force_generate: forceGenerate,
-        domain_hint: domainHint,
-        company_name_hint: companyNameHint,
-      }),
-      signal: combinedSignal,
-    });
-
-    const TIMEOUT_MS = 8_000; // Backend should early-return in ~1s; 8s allows for Fly.io cold starts
-    const timeoutPromise = new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), TIMEOUT_MS));
-
-    const raceResult = await Promise.race([
-      fetchPromise.then(r => ({ type: 'response' as const, response: r })),
-      timeoutPromise.then(() => ({ type: 'timeout' as const })),
-    ]);
-
-    if (raceResult.type === 'response') {
-      const response = raceResult.response;
-      if (response.ok) {
-        const result = await response.json();
-        if (result.startup_id) {
-          // gen_in_progress means background pipeline is running — show "generating" UI
-          const isGenerating = result.gen_in_progress || result.timed_out || (result.is_new && result.match_count === 0);
-          return {
-            status: isGenerating ? 'generating' : 'created',
-            startup_id: result.startup_id,
-            name: result.startup?.name || result.name || null,
-            website: result.startup?.website || result.website || null,
-            match_count: result.match_count || 0,
-            searched,
-          };
-        }
-
-        // Accepted/queued without startup_id yet: poll status endpoint.
-        if (result?.status === 'queued' || result?.queued === true) {
-          const queued = await pollQueuedStatus(searched, 20000);
-          if (queued) return queued;
-          return {
-            status: 'generating',
-            startup_id: null,
-            name: null,
-            website: null,
-            match_count: 0,
-            searched,
-            error: 'Analysis queued — still processing',
-          };
-        }
-      }
-
-      // Non-OK response
-      const errText = await response.text().catch(() => '');
-      console.error('[submitStartup] Backend returned', response.status, errText);
-
-      // If upstream timeout occurred, keep polling status in case backend continues async.
-      if (response.status === 503) {
-        const queued = await pollQueuedStatus(searched, 20000);
-        if (queued) return queued;
-      }
-
-      return {
-        status: 'not_found',
-        startup_id: null,
-        name: null,
-        website: null,
-        match_count: 0,
-        searched,
-        error: `Backend returned ${response.status}`,
-      };
-    }
-
-    // ── TIMEOUT: Backend still working — abort fetch, check DB ──────────
-    console.log(`[submitStartup] Backend slow (>${TIMEOUT_MS / 1000}s) — aborting fetch, checking DB`);
-    // ABORT the fetch immediately — never block UI waiting for backend.
-    // Backend has early-return architecture; if it hasn't responded in 8s
-    // something is wrong. The background pipeline will still complete.
-    fetchController.abort();
-
-    try {
-      const { data } = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row?.startup_id) {
-        return {
-          status: 'generating',
-          startup_id: row.startup_id,
-          name: row.startup_name ?? null,
-          website: row.canonical_url ?? null,
-          match_count: row.match_count ?? 0,
-          searched,
-        };
-      }
-    } catch { /* ignore */ }
-
-    // Backend hasn't created the startup yet — return not_found.
-    // User can retry; SignalMatches will show appropriate UI.
-    return {
-      status: 'not_found',
-      startup_id: null,
-      name: null,
-      website: null,
-      match_count: 0,
-      searched,
-      error: 'Request timed out — please try again',
-    };
-  } catch (e: any) {
-    if (e?.name === 'AbortError') {
-      return { status: 'error', startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Aborted' };
-    }
-    console.error('[submitStartup] Backend call failed:', e);
-    return {
-      status: 'error',
-      startup_id: null,
-      name: null,
-      website: null,
-      match_count: 0,
-      searched,
-      error: e?.message || 'Network error',
-    };
-  }
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Fire-and-forget match generation trigger (non-blocking)
-function triggerMatchGeneration(
+function combineAbortSignals(signalA?: AbortSignal, signalB?: AbortSignal): AbortSignal | undefined {
+  if (!signalA && !signalB) return undefined;
+  if (!signalA) return signalB;
+  if (!signalB) return signalA;
+
+  const controller = new AbortController();
+
+  const abort = () => {
+    if (!controller.signal.aborted) controller.abort();
+  };
+
+  if (signalA.aborted || signalB.aborted) {
+    abort();
+    return controller.signal;
+  }
+
+  signalA.addEventListener('abort', abort, { once: true });
+  signalB.addEventListener('abort', abort, { once: true });
+
+  return controller.signal;
+}
+
+async function resolveStartupRow(searched: string): Promise<ResolveRow | null> {
+  const rpcResult = await supabase.rpc('resolve_startup_by_url', { p_url: searched });
+
+  if (rpcResult.error) {
+    throw rpcResult.error;
+  }
+
+  const data = rpcResult.data;
+  if (!data) return null;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row ?? null) as ResolveRow | null;
+}
+
+async function countSuggestedMatches(startupId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('startup_investor_matches')
+    .select('*', { count: 'exact', head: true })
+    .eq('startup_id', startupId)
+    .eq('status', 'suggested');
+
+  if (error) {
+    console.warn('[FindSignals] count matches failed:', error);
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
+function buildResolvedResult(
+  row: ResolveRow,
+  searched: string,
+  status: Extract<SubmitStatus, 'resolved' | 'generating'>
+): SubmitResult {
+  return {
+    status,
+    startup_id: row.startup_id ?? null,
+    name: row.startup_name ?? null,
+    website: row.canonical_url ?? row.company_website ?? row.source_url ?? null,
+    match_count: typeof row.match_count === 'number' ? row.match_count : 0,
+    searched,
+    _resolver_branch: row.resolver_branch ?? row.reason ?? 'rpc',
+    _elapsed_ms: typeof row.elapsed_ms === 'number' ? row.elapsed_ms : undefined,
+    company_website: row.company_website ?? null,
+    source_url: row.source_url ?? null,
+    has_company_site: row.has_company_site ?? true,
+  };
+}
+
+async function pollQueuedStatus(
+  searchValue: string,
+  signal?: AbortSignal,
+  timeoutMs = DEFAULT_POLL_TIMEOUT_MS
+): Promise<SubmitResult | null> {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    if (signal?.aborted) return null;
+
+    // 1) Try status endpoint
+    try {
+      const statusRes = await fetch(
+        apiUrl(`/api/instant/status?url=${encodeURIComponent(searchValue)}`),
+        { signal }
+      );
+
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        const startupId = status?.startupId ?? status?.startup_id ?? null;
+
+        if (startupId) {
+          console.log('[FindSignals] poll:done', { startupId });
+
+          return {
+            status: status?.status === 'ready' ? 'created' : 'generating',
+            startup_id: startupId,
+            name: status?.startup?.name ?? status?.name ?? null,
+            website: status?.startup?.website ?? status?.website ?? null,
+            match_count: status?.match_count ?? 0,
+            searched: searchValue,
+          };
+        }
+      }
+    } catch (error: unknown) {
+      const err = error as { name?: string };
+      if (err?.name !== 'AbortError') {
+        console.warn('[FindSignals] status poll failed (continuing):', error);
+      }
+    }
+
+    // 2) Also try RPC resolution during polling
+    try {
+      const row = await resolveStartupRow(searchValue);
+      if (row?.startup_id) {
+        const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
+        const result = {
+          ...buildResolvedResult(
+            { ...row, match_count: matchCount },
+            searchValue,
+            matchCount > 0 ? 'created' : 'generating'
+          ),
+        };
+        console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+        return result;
+      }
+    } catch (error) {
+      console.warn('[FindSignals] RPC poll failed (continuing):', error);
+    }
+
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  return null;
+}
+
+function fireAndForgetMatchGeneration(
   url: string,
   sessionId: string,
-  forceGenerate: boolean,
-  signal?: AbortSignal
+  forceGenerate: boolean
 ): void {
-  const normalized = canonicalizeStartupUrl(url);
-  fetch('/api/instant/submit', {
+  const canonical = canonicalizeStartupUrl(url);
+
+  fetch(apiUrl('/api/instant/submit'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -378,61 +264,277 @@ function triggerMatchGeneration(
       url,
       session_id: sessionId,
       force_generate: forceGenerate,
-      ...(normalized?.domain ? { domain_hint: normalized.domain } : {}),
-      ...(normalized?.companyName ? { company_name_hint: normalized.companyName } : {}),
+      ...(canonical?.domain ? { domain_hint: canonical.domain } : {}),
+      ...(canonical?.companyName ? { company_name_hint: canonical.companyName } : {}),
     }),
-    signal,
-  }).catch((e) => {
-    console.warn('[submitStartup] Background match generation failed (non-fatal):', e);
+  }).catch((error) => {
+    console.warn('[submitStartup] Background match generation failed:', error);
   });
 }
 
 // -----------------------------------------------------------------------------
-// REACT HOOK: useSubmitStartup()
+// CORE: submitStartup()
 // -----------------------------------------------------------------------------
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+export async function submitStartup(
+  urlOrQuery: string,
+  options: SubmitOptions = {}
+): Promise<SubmitResult> {
+  const { forceGenerate = false, minMatches = 20, signal } = options;
+
+  const rawInput = urlOrQuery.trim();
+  const normalizedUrl = normalizeStartupUrl(rawInput);
+
+  if (!normalizedUrl) {
+    console.log('[FindSignals] normalize', { rawUrl: rawInput, normalizedUrl: '' });
+    const result = { status: 'error' as const, startup_id: null, name: null, website: null, match_count: 0, searched: rawInput, error: 'Please enter a valid startup URL.' };
+    console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+    return result;
+  }
+
+  const canonical = canonicalizeStartupUrl(rawInput);
+  const searched = canonical?.canonicalUrl ?? `https://${normalizedUrl.split('/')[0]}/`;
+  const domainHint = canonical?.domain ?? null;
+  const companyNameHint = canonical?.companyName ?? null;
+  const sessionId = getOrCreateSessionId();
+
+  console.log('[FindSignals] normalize', {
+    rawUrl: rawInput,
+    normalizedUrl,
+    searched,
+    domainHint,
+    companyNameHint,
+  });
+
+  if (signal?.aborted) {
+    const result = { status: 'error' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Aborted' };
+    console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phase B: Resolve existing via RPC
+  // ---------------------------------------------------------------------------
+  try {
+    console.log('[FindSignals] resolve_existing:start', { searched });
+
+    const row = await resolveStartupRow(searched);
+    const found = !!(row?.resolved || row?.found || row?.startup_id);
+
+    if (found && row?.startup_id) {
+      const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
+
+      console.log('[FindSignals] resolve_existing:done', {
+        startupId: row.startup_id,
+        matchCount,
+      });
+
+      if (matchCount >= minMatches && !forceGenerate) {
+        const result = buildResolvedResult(
+          { ...row, match_count: matchCount },
+          searched,
+          'resolved'
+        );
+        console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+        return result;
+      }
+
+      // Do not block the UI on a direct match-count query.
+      // If match_count is unknown or low, return immediately and let the page load rows.
+      console.log('[FindSignals] submit:start', {
+        searched,
+        reason: 'needs_matches_or_unknown_count',
+      });
+
+      fireAndForgetMatchGeneration(searched, sessionId, forceGenerate);
+
+      const result = buildResolvedResult(
+        { ...row, match_count: matchCount },
+        searched,
+        'generating'
+      );
+      console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+      return result;
+    }
+  } catch (error) {
+    console.warn('[FindSignals] resolve failed (non-fatal):', error);
+  }
+
+  if (signal?.aborted) {
+    const result = { status: 'error' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Aborted' };
+    console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phase C + D: Submit workflow, then poll if needed
+  // ---------------------------------------------------------------------------
+  try {
+    console.log('[FindSignals] submit:start', { searched });
+
+    const timeoutController = new AbortController();
+    const combinedSignal = combineAbortSignals(signal, timeoutController.signal);
+
+    const timeoutHandle = window.setTimeout(() => {
+      timeoutController.abort();
+    }, SUBMIT_TIMEOUT_MS);
+
+    let response: Response | null = null;
+
+    try {
+      response = await fetch(apiUrl('/api/instant/submit'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Id': sessionId,
+        },
+        body: JSON.stringify({
+          url: searched,
+          session_id: sessionId,
+          force_generate: forceGenerate,
+          domain_hint: domainHint,
+          company_name_hint: companyNameHint,
+        }),
+        signal: combinedSignal,
+      });
+    } finally {
+      window.clearTimeout(timeoutHandle);
+    }
+
+    if (response.ok) {
+      const result = await response.json();
+      const startupId = result?.startup_id ?? result?.startupId ?? null;
+
+      if (startupId) {
+        const isGenerating =
+          result?.gen_in_progress === true ||
+          result?.timed_out === true ||
+          (result?.is_new === true && (result?.match_count ?? 0) === 0);
+
+        console.log('[FindSignals] submit:done', { startupId, isGenerating });
+
+        const apiResult = { status: (isGenerating ? 'generating' : 'created') as const, startup_id: startupId, name: result?.startup?.name ?? result?.name ?? null, website: result?.startup?.website ?? result?.website ?? null, match_count: result?.match_count ?? 0, searched };
+        console.log('[FindSignals] return', { status: apiResult.status, startup_id: apiResult.startup_id, searched: apiResult.searched });
+        return apiResult;
+      }
+
+      if (result?.status === 'queued' || result?.queued === true) {
+        const queued = await pollQueuedStatus(searched, signal, DEFAULT_POLL_TIMEOUT_MS);
+        if (queued) {
+          console.log('[FindSignals] return', { status: queued.status, startup_id: queued.startup_id, searched: queued.searched });
+          return queued;
+        }
+
+        const queuedResult = {
+          status: 'generating' as const,
+          startup_id: null,
+          name: null,
+          website: null,
+          match_count: 0,
+          searched,
+          error: 'Analysis queued — still processing',
+        };
+        console.log('[FindSignals] return', { status: queuedResult.status, startup_id: queuedResult.startup_id, searched: queuedResult.searched });
+        return queuedResult;
+      }
+
+      // Fallback: success response but no clear startup id.
+      const fallbackRow = await resolveStartupRow(searched).catch(() => null);
+      if (fallbackRow?.startup_id) {
+        const matchCount = typeof fallbackRow.match_count === 'number' ? fallbackRow.match_count : 0;
+        const result = buildResolvedResult(
+          { ...fallbackRow, match_count: matchCount },
+          searched,
+          matchCount > 0 ? 'created' : 'generating'
+        );
+        console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+        return result;
+      }
+    }
+
+    const errText = response ? await response.text().catch(() => '') : '';
+    const statusCode = response?.status ?? 0;
+
+    console.error('[FindSignals] submit failed', statusCode, errText);
+
+    if (statusCode === 503) {
+      const queued = await pollQueuedStatus(searched, signal, DEFAULT_POLL_TIMEOUT_MS);
+      if (queued) {
+        console.log('[FindSignals] return', { status: queued.status, startup_id: queued.startup_id, searched: queued.searched });
+        return queued;
+      }
+    }
+
+    const notFoundResult = { status: 'not_found' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: statusCode ? `Backend returned ${statusCode}` : 'Backend request failed' };
+    console.log('[FindSignals] return', { status: notFoundResult.status, startup_id: notFoundResult.startup_id, searched: notFoundResult.searched });
+    return notFoundResult;
+  } catch (error: unknown) {
+    const err = error as { name?: string; message?: string };
+
+    if (err?.name === 'AbortError') {
+      // Could be caller cancellation OR local submit timeout.
+      if (signal?.aborted) {
+        const abortResult = { status: 'error' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Aborted' };
+        console.log('[FindSignals] return', { status: abortResult.status, startup_id: abortResult.startup_id, searched: abortResult.searched });
+        return abortResult;
+      }
+
+      console.log('[FindSignals] submit timeout, checking DB');
+
+      try {
+        const row = await resolveStartupRow(searched);
+        if (row?.startup_id) {
+          const matchCount = typeof row.match_count === 'number' ? row.match_count : 0;
+          const result = buildResolvedResult(
+            { ...row, match_count: matchCount },
+            searched,
+            'generating'
+          );
+          console.log('[FindSignals] return', { status: result.status, startup_id: result.startup_id, searched: result.searched });
+          return result;
+        }
+      } catch {
+        // ignore and fall through
+      }
+
+      const queued = await pollQueuedStatus(searched, signal, DEFAULT_POLL_TIMEOUT_MS);
+      if (queued) {
+        console.log('[FindSignals] return', { status: queued.status, startup_id: queued.startup_id, searched: queued.searched });
+        return queued;
+      }
+
+      const timeoutResult = { status: 'not_found' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: 'Request timed out — please try again' };
+      console.log('[FindSignals] return', { status: timeoutResult.status, startup_id: timeoutResult.startup_id, searched: timeoutResult.searched });
+      return timeoutResult;
+    }
+
+    console.error('[FindSignals] submit error:', error);
+
+    const errorResult = { status: 'error' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: err?.message || 'Network error' };
+    console.log('[FindSignals] return', { status: errorResult.status, startup_id: errorResult.startup_id, searched: errorResult.searched });
+    return errorResult;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// REACT HOOK
+// -----------------------------------------------------------------------------
 
 export type SubmitPhase = 'idle' | 'submitting' | 'done' | 'error';
 
 export interface UseSubmitStartupResult {
-  /** Current phase of submission */
   phase: SubmitPhase;
-  /** Submission result (available when phase='done') */
   result: SubmitResult | null;
-  /** Error message (available when phase='error') */
   error: string | null;
-  /** The resolved startup_id (shortcut) */
   startupId: string | null;
-  /** Trigger submission imperatively */
   submit: (url: string, opts?: SubmitOptions) => Promise<SubmitResult>;
-  /** Reset to idle */
   reset: () => void;
 }
 
-/**
- * React hook for startup submission.
- *
- * Can be used in two modes:
- *   1. Auto-submit: pass initialUrl and it fires on mount
- *   2. Manual: call submit(url) from a button handler
- *
- * @param initialUrl - If provided, auto-submits on mount
- * @param options    - SubmitOptions (forceGenerate, minMatches)
- *
- * @example
- *   // Auto-submit from URL query param
- *   const url = searchParams.get('url');
- *   const { phase, startupId, result } = useSubmitStartup(url);
- *
- *   // Manual submit from form
- *   const { submit, phase, startupId } = useSubmitStartup();
- *   <button onClick={() => submit(inputValue)}>Find Matches</button>
- */
 export function useSubmitStartup(
   initialUrl?: string | null,
   options?: SubmitOptions
-) {
+): UseSubmitStartupResult {
   const [phase, setPhase] = useState<SubmitPhase>(initialUrl ? 'submitting' : 'idle');
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -440,49 +542,50 @@ export function useSubmitStartup(
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
-  // Cancel on unmount
   useEffect(() => {
     mountedRef.current = true;
+
     return () => {
       mountedRef.current = false;
       abortRef.current?.abort();
     };
   }, []);
 
-  const submit = useCallback(async (url: string, opts?: SubmitOptions): Promise<SubmitResult> => {
-    // Cancel previous in-flight request
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  const submit = useCallback(
+    async (url: string, opts?: SubmitOptions): Promise<SubmitResult> => {
+      abortRef.current?.abort();
 
-    if (mountedRef.current) {
-      setPhase('submitting');
-      setError(null);
-      setResult(null);
-    }
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    const mergedOpts: SubmitOptions = {
-      ...options,
-      ...opts,
-      signal: controller.signal,
-    };
+      if (mountedRef.current) {
+        setPhase('submitting');
+        setError(null);
+        setResult(null);
+      }
 
-    const res = await submitStartup(url, mergedOpts);
+      const res = await submitStartup(url, {
+        ...options,
+        ...opts,
+        signal: controller.signal,
+      });
 
-    if (!mountedRef.current) return res;
+      if (!mountedRef.current) return res;
 
-    if (res.status === 'error' || res.status === 'not_found') {
-      setPhase('error');
-      setError(res.error || 'Startup not found');
-      setResult(res);
-    } else {
-      setPhase('done');
-      setResult(res);
-      setError(null);
-    }
+      if (res.status === 'error' || res.status === 'not_found') {
+        setPhase('error');
+        setError(res.error || 'Startup not found');
+        setResult(res);
+      } else {
+        setPhase('done');
+        setResult(res);
+        setError(null);
+      }
 
-    return res;
-  }, [options]);
+      return res;
+    },
+    [options]
+  );
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -491,29 +594,29 @@ export function useSubmitStartup(
     setError(null);
   }, []);
 
-  // Auto-submit on initialUrl
   useEffect(() => {
-    if (initialUrl) {
-      submit(initialUrl);
-    }
-  }, [initialUrl]); // intentionally not including submit to avoid loops
+    if (!initialUrl) return;
+    void submit(initialUrl);
+  }, [initialUrl, submit]);
 
-  const startupId = result?.startup_id ?? null;
-
-  return { phase, result, error, startupId, submit, reset };
+  return {
+    phase,
+    result,
+    error,
+    startupId: result?.startup_id ?? null,
+    submit,
+    reset,
+  };
 }
 
 // -----------------------------------------------------------------------------
 // NAVIGATION HELPER
 // -----------------------------------------------------------------------------
 
-/**
- * Build the canonical URL path for viewing matches.
- * Use this everywhere instead of hardcoding paths.
- */
 export function matchesPath(startupIdOrUrl: string, isUrl = false): string {
   if (isUrl) {
     return `/signal-matches?url=${encodeURIComponent(startupIdOrUrl)}`;
   }
+
   return `/signal-matches?startup=${encodeURIComponent(startupIdOrUrl)}`;
 }
