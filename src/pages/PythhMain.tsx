@@ -364,6 +364,12 @@ export default function PythhHome() {
               We align your startup with investor signals. No guessing. Just math.
             </p>
 
+            <p className="text-sm text-zinc-500">
+              <Link to="/lookup" className="text-amber-400/90 hover:text-amber-400 transition-colors">
+                For investors: Build your portfolio →
+              </Link>
+            </p>
+
             {/* Social Proof & Stats */}
             <div className="flex flex-wrap items-center gap-6 text-sm">
               <div className="flex items-center gap-2">

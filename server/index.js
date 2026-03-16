@@ -159,7 +159,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key', 'X-Session-Id', 'x-admin-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key', 'X-Session-Id', 'X-Investor-Session', 'x-admin-key']
 }));
 // Skip JSON parsing for Stripe webhook (needs raw body for signature verification)
 app.use((req, res, next) => {
@@ -5772,6 +5772,10 @@ app.use('/api/god', godRouter);
 // Agent API v1 routes (public + keyed access)
 const apiV1Router = require('./routes/apiV1');
 app.use('/api/v1', apiV1Router);
+
+// Investor lookup: search startups + curated lists (VC portfolio building)
+const investorLookupRouter = require('./routes/investorLookup');
+app.use('/api/investor-lookup', investorLookupRouter);
 
 // Canonical Verification API routes (locked surface)
 const canonicalRouter = require('./routes/canonical');
