@@ -6,6 +6,8 @@
  * Supabase connection pool exhaustion. Re-enable when machine is upgraded.
  * 
  * Started via: pm2-runtime start ecosystem.prod.config.js
+ * 
+ * IMPORTANT: api-server must listen on 0.0.0.0:8080 for Fly proxy (server/index.js does this).
  */
 
 const TSX = '/app/node_modules/.bin/tsx';
@@ -14,11 +16,11 @@ module.exports = {
   apps: [
     // ========================================
     // EXPRESS API SERVER (serves frontend + API)
-    // Binds to PORT env var (8080 on Fly.io)
+    // Must listen on 0.0.0.0:8080 for Fly.io (see server/index.js app.listen)
     // ========================================
     {
       name: 'api-server',
-      interpreter: TSX,
+      interpreter: 'node',
       exec_mode: 'fork',
       script: 'server/index.js',
       cwd: '/app',

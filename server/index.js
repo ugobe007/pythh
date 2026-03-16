@@ -54,7 +54,8 @@ const { getSupabaseClient } = require('./lib/supabaseClient');
 // fs and path are already declared above
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+// Fly.io expects the app on 0.0.0.0:8080; bind to all interfaces so the proxy can reach it
+const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
 // Supabase outage guard: avoid hammering upstream during 522/timeout windows.
