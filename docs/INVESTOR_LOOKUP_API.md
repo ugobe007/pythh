@@ -4,6 +4,8 @@ Service for VCs to **search** PYTHH’s approved startups and **collect** them i
 
 Base path: **`/api/investor-lookup`**
 
+Investors can search **by sector and stage** (no text required) to get top GOD score startups in those categories, or search by **startup name or URL** in the optional search field.
+
 ---
 
 ## Search (no auth)
@@ -14,7 +16,7 @@ Query params:
 
 | Param      | Type   | Description                                      |
 |-----------|--------|---------------------------------------------------|
-| `q`       | string | Text search (name, tagline, pitch, description)  |
+| `q`       | string | Text search: **startup name or website URL only** (not tagline/pitch) |
 | `sectors` | string | Comma-separated sectors (e.g. `Fintech,AI`)       |
 | `stage`   | string | e.g. `seed`, `series-a`, `pre-seed`               |
 | `minScore` / `min_score` | number | Min GOD score (default none)        |
@@ -75,6 +77,26 @@ Remove a startup from the list.
 ### `DELETE /api/investor-lookup/lists/:id`
 
 Delete the list (and all items).
+
+---
+
+## Startup detail (no auth)
+
+### `GET /api/investor-lookup/startup/:id`
+
+Get one startup by id with detail and recent activity (for review). Response includes `recent_activity` (updates, funding, investors from DB).
+
+---
+
+## Virtual portfolio (owner id required)
+
+### `GET /api/investor-lookup/portfolio`
+
+Get the investor’s **Virtual portfolio** list (auto-created if missing) with items and **recent activity** per startup (from existing DB: `updated_at`, funding/investor mentions).
+
+### `POST /api/investor-lookup/portfolio/items`
+
+Add a startup to the virtual portfolio. Body: `{ startup_id }`. 409 if already in portfolio.
 
 ---
 

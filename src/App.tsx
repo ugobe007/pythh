@@ -108,6 +108,8 @@ const DemoPageDoctrine = lazy(() => import("./pages/DemoPageDoctrine"));
 const Live = lazy(() => import("./pages/public/Live"));
 const HotMatchesPage = lazy(() => import("./pages/HotMatchesPage"));
 const InvestorLookupPage = lazy(() => import("./pages/InvestorLookupPage"));
+const InvestorStartupDetailPage = lazy(() => import("./pages/InvestorStartupDetailPage"));
+const InvestorPortfolioPage = lazy(() => import("./pages/InvestorPortfolioPage"));
 const InvestorProfile = lazy(() => import("./pages/InvestorProfile"));
 
 const SignupLanding = lazy(() => import("./pages/SignupLanding"));
@@ -236,6 +238,8 @@ const App = () => {
             <Route path="/rankings" element={<SignalTrends />} />
             <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
             <Route path="/explore" element={<ExplorePage />} />
+            <Route path="/lookup/startup/:id" element={<InvestorStartupDetailPage />} />
+            <Route path="/lookup/portfolio" element={<InvestorPortfolioPage />} />
             <Route path="/lookup" element={<InvestorLookupPage />} />
             <Route path="/hot-matches" element={<HotMatchesPage />} />
 

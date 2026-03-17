@@ -32,23 +32,18 @@ RUN npm prune --production --legacy-peer-deps
 # ============================================
 # Stage 2: PRODUCTION (lean runtime image)
 # ============================================
+# Note: Supabase migrations are NOT in this image. Run `supabase db push` (or
+# apply in Supabase Dashboard) before/after deploy so your DB has the latest schema.
+# See docs/DEPLOY.md.
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Only curl needed at runtime (for health checks)
 RUN apk add --no-cache curl
 
-# Install PM2 globally
-RUN npm install -g pm2
-
-# Copy production node_modules (no devDependencies)
+# Copy only what the app needs at runtime (no supabase/, no dev files)
 COPY --from=builder /app/node_modules ./node_modules
-
-# Copy built frontend
 COPY --from=builder /app/dist ./dist
-
-# Copy server code + config files needed at runtime
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/lib ./lib
@@ -56,11 +51,14 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/ecosystem.prod.config.js ./ecosystem.prod.config.js
 COPY --from=builder /app/run-ml-training.js ./run-ml-training.js
 
-# Set production environment
+# Set production environment (FLY_APP_NAME so app uses 8080 when on Fly)
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV FLY_APP_NAME=hot-honey
+# Reduce log volume in production (pino: warn only; set LOG_LEVEL=info for more)
+ENV LOG_LEVEL=warn
 
 EXPOSE 8080
 
-# Start via PM2 runtime
-CMD ["pm2-runtime", "start", "ecosystem.prod.config.js"]
+# Run API server directly so it binds immediately; use PM2 only if you need cron workers
+CMD ["node", "server/index.js"]

@@ -1,11 +1,12 @@
 /**
  * /lookup — INVESTOR LOOKUP
  *
- * Search PYTHH startups by sector, stage, score; add results to curated lists.
- * Session stored in localStorage so lists persist per browser.
+ * Search by sector/stage (click FinTech or Series A for top GOD in that category)
+ * or by startup name/URL. Click a startup to review, then save to virtual portfolio.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { apiUrl } from '../lib/apiConfig';
 
@@ -63,6 +64,7 @@ export default function InvestorLookupPage() {
   const [listsLoading, setListsLoading] = useState(false);
   const [addDropdown, setAddDropdown] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const addDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function InvestorLookupPage() {
 
   const runSearch = useCallback(async () => {
     setLoading(true);
+    setSearchError(null);
     try {
       const params = new URLSearchParams();
       if (q.trim()) params.set('q', q.trim());
@@ -86,9 +89,12 @@ export default function InvestorLookupPage() {
       if (minScore.trim()) params.set('minScore', minScore.trim());
       if (maxScore.trim()) params.set('maxScore', maxScore.trim());
       params.set('limit', '50');
-      const res = await fetch(apiUrl(`/api/investor-lookup/search?${params}`));
+      const url = apiUrl(`/api/investor-lookup/search?${params}`);
+      const res = await fetch(url);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Search failed');
+      if (!res.ok) {
+        throw new Error(json.error || `Search failed (${res.status})`);
+      }
       setResults(json.data || []);
       setTotal(json.meta?.total ?? 0);
       setHasMore(json.meta?.hasMore ?? false);
@@ -96,6 +102,7 @@ export default function InvestorLookupPage() {
       setResults([]);
       setTotal(0);
       setHasMore(false);
+      setSearchError(e instanceof Error ? e.message : 'Search failed');
       console.error(e);
     } finally {
       setLoading(false);
@@ -115,9 +122,14 @@ export default function InvestorLookupPage() {
     }
   }, []);
 
+  // Run search on mount and whenever sector/stage or runSearch changes (so clicking a chip triggers search)
   useEffect(() => {
     runSearch();
-  }, []);
+  }, [sectors, stage, runSearch]);
+
+  const searchByNameOrUrl = useCallback(() => {
+    if (q.trim().length >= 2) runSearch();
+  }, [q, runSearch]);
 
   useEffect(() => {
     fetchLists();
@@ -173,6 +185,25 @@ export default function InvestorLookupPage() {
     setAddError(null);
   };
 
+  const saveToPortfolio = async (startupId: string) => {
+    setAddError(null);
+    try {
+      const res = await fetch(apiUrl('/api/investor-lookup/portfolio/items'), {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ startup_id: startupId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAddError(json.error || 'Failed to save');
+        return;
+      }
+      setAddDropdown(null);
+    } catch (e) {
+      setAddError('Failed to save to portfolio');
+    }
+  };
+
   return (
     <div
       className="min-h-screen"
@@ -194,23 +225,14 @@ export default function InvestorLookupPage() {
             <span className="text-amber-400" style={{ textShadow: '0 0 30px rgba(251,191,36,0.3)' }}>Start searching.</span>
           </h1>
           <p className="text-sm text-zinc-500 max-w-xl">
-            Filter by sector, stage, and score — add companies to your lists.
+            Click a sector or stage to see top GOD score startups. Review and save to your virtual portfolio.
+          </p>
+          <p className="text-sm text-amber-400/90 mt-2">
+            <Link to="/lookup/portfolio" className="hover:text-amber-400 underline">My virtual portfolio →</Link>
           </p>
         </div>
 
-        {/* Search input */}
-        <div className="mb-4">
-          <input
-            type="text"
-            value={q}
-            onChange={e => setQ(e.target.value)}
-            placeholder="Search by name, tagline..."
-            autoComplete="off"
-            className="w-full max-w-xl px-4 py-3 bg-[#0a0a0a] border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-600 focus:border-amber-800/60 focus:outline-none transition-colors"
-          />
-        </div>
-
-        {/* Sector chips */}
+        {/* Sector + Stage first — click to see top startups */}
         <div className="mb-3">
           <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Sector</div>
           <div className="flex flex-wrap gap-1.5">
@@ -230,8 +252,8 @@ export default function InvestorLookupPage() {
           </div>
         </div>
 
-        {/* Stage + score */}
-        <div className="mb-5 flex flex-wrap items-center gap-4">
+        {/* Stage */}
+        <div className="mb-4">
           <div>
             <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Stage</div>
             <div className="flex flex-wrap gap-1.5">
@@ -248,49 +270,48 @@ export default function InvestorLookupPage() {
               ))}
             </div>
           </div>
-          <div className="flex items-end gap-3">
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-zinc-600 block mb-1">Min score</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={minScore}
-                onChange={e => setMinScore(e.target.value)}
-                placeholder="40"
-                className="w-20 px-2 py-1.5 bg-[#0a0a0a] border border-zinc-800 rounded text-white text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-zinc-600 block mb-1">Max score</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={maxScore}
-                onChange={e => setMaxScore(e.target.value)}
-                placeholder="100"
-                className="w-20 px-2 py-1.5 bg-[#0a0a0a] border border-zinc-800 rounded text-white text-sm"
-              />
-            </div>
-            <button
-              onClick={() => runSearch()}
-              className="px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 transition-colors text-sm font-medium"
-            >
-              Search
-            </button>
-            <button
-              onClick={clearFilters}
-              className="px-3 py-2 text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
-            >
-              Clear
-            </button>
-          </div>
+        </div>
+
+        {/* Startup name or URL — optional */}
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && searchByNameOrUrl()}
+            placeholder="Startup name or URL (optional)"
+            autoComplete="off"
+            className="w-full max-w-md px-4 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-600 focus:border-amber-800/60 focus:outline-none"
+          />
+          <button
+            onClick={() => runSearch()}
+            className="px-4 py-2.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 transition-colors text-sm font-medium"
+          >
+            Search
+          </button>
+          <button onClick={clearFilters} className="px-3 py-2 text-xs text-zinc-500 hover:text-zinc-400">
+            Clear
+          </button>
+          <span className="text-[10px] text-zinc-600">Min score</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={minScore}
+            onChange={e => setMinScore(e.target.value)}
+            placeholder="40"
+            className="w-16 px-2 py-1.5 bg-[#0a0a0a] border border-zinc-800 rounded text-white text-sm"
+          />
         </div>
 
         {addError && (
           <div className="mb-4 px-4 py-2 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
             {addError}
+          </div>
+        )}
+        {searchError && (
+          <div className="mb-4 px-4 py-2 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
+            {searchError}
           </div>
         )}
 
@@ -306,13 +327,13 @@ export default function InvestorLookupPage() {
           className="bg-zinc-900/30 rounded-lg border border-amber-800/20 overflow-hidden"
           style={{ boxShadow: '0 0 15px rgba(251,191,36,0.05)' }}
         >
-          <div className="grid grid-cols-[40px_1fr_120px_80px_80px_140px] gap-3 px-4 py-3 border-b border-zinc-800/60 text-[10px] font-medium uppercase tracking-wider text-white/40">
+          <div className="grid grid-cols-[40px_1fr_120px_80px_80px_100px_120px] gap-3 px-4 py-3 border-b border-zinc-800/60 text-[10px] font-medium uppercase tracking-wider text-white/40">
             <div>#</div>
             <div>Startup</div>
             <div>Sector</div>
             <div>Stage</div>
             <div className="text-amber-400">GOD</div>
-            <div className="text-right">List</div>
+            <div className="text-right">Actions</div>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
             {loading ? (
@@ -325,11 +346,13 @@ export default function InvestorLookupPage() {
               results.map((row, idx) => (
                 <div
                   key={row.id}
-                  className="grid grid-cols-[40px_1fr_120px_80px_80px_140px] gap-3 px-4 py-3 border-b border-zinc-800/30 hover:bg-zinc-800/20 items-center"
+                  className="grid grid-cols-[40px_1fr_120px_80px_80px_100px_120px] gap-3 px-4 py-3 border-b border-zinc-800/30 hover:bg-zinc-800/20 items-center"
                 >
                   <div className="text-sm text-zinc-600">{idx + 1}</div>
                   <div className="min-w-0">
-                    <div className="text-sm text-white truncate">{row.name || '—'}</div>
+                    <Link to={`/lookup/startup/${row.id}`} className="text-sm text-white truncate block hover:text-amber-400">
+                      {row.name || '—'}
+                    </Link>
                     {row.tagline && <div className="text-[11px] text-zinc-600 truncate">{row.tagline}</div>}
                     {row.website && (
                       <a
@@ -337,6 +360,7 @@ export default function InvestorLookupPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[11px] text-amber-400/80 hover:text-amber-400 truncate block"
+                        onClick={e => e.stopPropagation()}
                       >
                         {row.website.replace(/^https?:\/\//, '')}
                       </a>
@@ -356,12 +380,25 @@ export default function InvestorLookupPage() {
                       {row.total_god_score ?? '—'}
                     </span>
                   </div>
-                  <div className="relative flex justify-end" ref={addDropdown === row.id ? addDropdownRef : null}>
+                  <div className="relative flex justify-end gap-1" ref={addDropdown === row.id ? addDropdownRef : null}>
+                    <Link
+                      to={`/lookup/startup/${row.id}`}
+                      className="px-2 py-1 rounded text-xs bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
+                    >
+                      Review
+                    </Link>
                     <button
-                      onClick={() => openAddDropdown(row.id)}
+                      onClick={() => saveToPortfolio(row.id)}
                       className="px-2 py-1 rounded text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25"
                     >
-                      Add to list
+                      Save to portfolio
+                    </button>
+                    <button
+                      onClick={() => openAddDropdown(row.id)}
+                      className="px-2 py-1 rounded text-xs text-zinc-500 hover:text-zinc-400"
+                      title="Add to list"
+                    >
+                      ⋮
                     </button>
                     {addDropdown === row.id && (
                       <AddToListDropdown

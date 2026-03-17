@@ -12,8 +12,9 @@
 //   5. Sharp corners, no borders, glow-only decoration
 // ============================================================================
 
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, ExternalLink } from 'lucide-react';
+import { User, Lock, Eye, ExternalLink, Copy, Check } from 'lucide-react';
 import type { RadarRowViewModel } from '@/lib/radar-view-model';
 import { RADAR_THRESHOLDS } from '@/lib/radar-view-model';
 import { UnlockButton } from './UnlockButton';
@@ -39,6 +40,10 @@ interface LiveMatchTableProps {
   className?: string;
   /** Render mode: 'unlocked' = only unlocked rows, 'locked' = only locked rows, 'all' = both */
   mode?: 'unlocked' | 'locked' | 'all';
+  /** For "Copy intro" — founder-facing get-the-meeting */
+  startupName?: string;
+  startupTagline?: string;
+  startupSectors?: string[];
 }
 
 // -----------------------------------------------------------------------------
@@ -82,7 +87,7 @@ function SkeletonRow() {
         ))}
       </div>
       <div className="w-20 flex justify-center"><div className="h-4 w-14 bg-zinc-700/60 rounded" /></div>
-      <div className="w-28 flex justify-end"><div className="h-8 w-20 bg-zinc-700/60 rounded" /></div>
+      <div className="w-36 flex justify-end"><div className="h-8 w-24 bg-zinc-700/60 rounded" /></div>
     </div>
   );
 }
@@ -90,6 +95,22 @@ function SkeletonRow() {
 // -----------------------------------------------------------------------------
 // MAIN COMPONENT
 // -----------------------------------------------------------------------------
+
+function buildIntroLine(
+  investorName: string,
+  startupName: string,
+  tagline?: string | null,
+  sectors?: string[]
+): string {
+  const firstLine = `Hi ${investorName}, I'm reaching out from ${startupName}.`;
+  const second = tagline?.trim()
+    ? tagline.replace(/\.$/, '')
+    : sectors?.length
+      ? `We're building in ${sectors.slice(0, 2).join(' and ')}.`
+      : 'We’re building something we think fits your thesis.';
+  const close = 'Would love 15 minutes to share our progress and get your take.';
+  return `${firstLine}\n\n${second}\n\n${close}`;
+}
 
 export function LiveMatchTable({
   unlockedRows,
@@ -100,6 +121,9 @@ export function LiveMatchTable({
   unlocksRemaining,
   className = '',
   mode = 'all',
+  startupName,
+  startupTagline,
+  startupSectors,
 }: LiveMatchTableProps) {
   const navigate = useNavigate();
 
@@ -128,7 +152,7 @@ export function LiveMatchTable({
           <div className="w-12 text-center">Δ</div>
           <div className="w-20 text-center">Fit</div>
           <div className="w-20 text-center">Status</div>
-          <div className="w-28 text-right">Action</div>
+          <div className="w-36 text-right">Action</div>
         </div>
         {Array.from({ length: 5 }).map((_, i) => (
           <SkeletonRow key={i} />
@@ -164,7 +188,7 @@ export function LiveMatchTable({
         <div className="w-12 text-center" title="Weekly change">Δ</div>
         <div className="w-20 text-center" title="Investor-startup fit alignment">Fit</div>
         <div className="w-20 text-center">Status</div>
-        <div className="w-28 text-right">Action</div>
+        <div className="w-36 text-right">Action</div>
       </div>
 
       {/* Unlocked rows - show top 5 only */}
@@ -177,6 +201,9 @@ export function LiveMatchTable({
           onUnlock={onUnlock}
           onView={handleView}
           unlocksDisabled={false}
+          startupName={startupName}
+          startupTagline={startupTagline}
+          startupSectors={startupSectors}
         />
       ))}
 
@@ -190,6 +217,9 @@ export function LiveMatchTable({
           onUnlock={onUnlock}
           onView={handleView}
           unlocksDisabled={unlocksRemaining === 0}
+          startupName={startupName}
+          startupTagline={startupTagline}
+          startupSectors={startupSectors}
         />
       ))}
 
@@ -214,10 +244,23 @@ interface RadarTableRowProps {
   onUnlock: (investorId: string) => Promise<void>;
   onView: (investorId: string) => void;
   unlocksDisabled: boolean;
-  rowIndex: number; // Add row index for blur logic
+  rowIndex: number;
+  startupName?: string;
+  startupTagline?: string | null;
+  startupSectors?: string[];
 }
 
-function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex }: RadarTableRowProps) {
+function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex, startupName, startupTagline, startupSectors }: RadarTableRowProps) {
+  const [copied, setCopied] = useState(false);
+  const handleCopyIntro = useCallback(() => {
+    const name = startupName || 'Our startup';
+    const investor = row.entity.name || 'there';
+    const line = buildIntroLine(investor, name, startupTagline, startupSectors);
+    void navigator.clipboard.writeText(line).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [row.entity.name, startupName, startupTagline, startupSectors]);
   // Supabase style: no glows, just clean borders and hover states
   const isHighSignal = row.signal.value >= RADAR_THRESHOLDS.SIGNAL_WINDOW_OPENING;
   
@@ -305,8 +348,19 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
         <StatusBadge status={row.status} />
       </div>
 
-      {/* ACTION - clean button, no glow */}
-      <div className="w-28 text-right">
+      {/* ACTION - Copy intro (get the meeting) + Unlock/View */}
+      <div className="w-36 text-right flex items-center justify-end gap-2">
+        {!row.entity.isLocked && startupName && (
+          <button
+            type="button"
+            onClick={handleCopyIntro}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-cyan-400 border border-zinc-700 hover:border-cyan-500/50 rounded transition-colors"
+            title="Copy intro line for this investor"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? 'Copied' : 'Copy intro'}</span>
+          </button>
+        )}
         <UnlockButton
           investorId={row.investorId}
           isLocked={row.entity.isLocked}

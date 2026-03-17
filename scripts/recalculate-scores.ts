@@ -543,7 +543,9 @@ async function recalculateScores(): Promise<void> {
 
     const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;
     const cappedBonuses = Math.min(rawBonuses, 10); // Cap: bonuses ≤ +10 total — reduced Feb 28 2026 from +15 to prevent scores from being pushed out of 50-59 range into 60+
-    const finalScore = Math.min(Math.round(scores.total_god_score + cappedBonuses), 100); // No artificial floor — honest score; baseBoostMinimum in startupScoringService.ts provides natural minimum for human-vetted startups
+    const GOD_SCORE_FLOOR = 40; // Approved startups never below 40 — enforced for consistency with monitor/tiers
+    const raw = Math.round(Number(scores.total_god_score) + cappedBonuses);
+    const finalScore = Math.max(GOD_SCORE_FLOOR, Math.min(Number.isFinite(raw) ? raw : GOD_SCORE_FLOOR, 100));
     const enhancedScore = finalScore; // Enhanced score is same as final after psychological application
 
     // ============================================================================

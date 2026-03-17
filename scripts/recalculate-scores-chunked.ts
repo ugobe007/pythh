@@ -276,7 +276,9 @@ async function recalculateChunk(): Promise<void> {
       
       const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;
       const cappedBonuses = Math.min(rawBonuses, 10);
-      const finalScore = Math.min(Math.round(scores.total_god_score + cappedBonuses), 100);
+      const GOD_SCORE_FLOOR = 40;
+      const raw = Math.round(Number(scores.total_god_score) + cappedBonuses);
+      const finalScore = Math.max(GOD_SCORE_FLOOR, Math.min(Number.isFinite(raw) ? raw : GOD_SCORE_FLOOR, 100));
       
       // Update if changed
       if (finalScore !== oldScore) {

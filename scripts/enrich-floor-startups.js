@@ -32,6 +32,7 @@ const BATCH_SIZE = 50;
 const DRY_RUN = process.argv.includes('--dry-run');
 const VERBOSE = process.argv.includes('--verbose');
 const ALL_FLOOR = process.argv.includes('--all-floor'); // re-process confidence=0 ones too
+const BELOW_40 = process.argv.includes('--below-40');   // target total_god_score < 40 (for enrich-purge-recalc pipeline)
 const limitArg = process.argv.find(a => a.startsWith('--limit='));
 const LIMIT = limitArg ? parseInt(limitArg.split('=')[1]) : null;
 
@@ -339,6 +340,7 @@ async function main() {
   console.log('╚══════════════════════════════════════════════════════════╝');
   console.log(`  Dry run: ${DRY_RUN}`);
   console.log(`  All floor: ${ALL_FLOOR} (includes confidence=0 re-runs)`);
+  console.log(`  Below 40: ${BELOW_40} (score < 40)`);
   if (LIMIT) console.log(`  Limit: ${LIMIT}`);
   console.log('');
 
@@ -347,12 +349,15 @@ async function main() {
     .from('startup_uploads')
     .select('id, name, tagline, description, pitch, extracted_data, total_god_score, funding_confidence')
     .eq('status', 'approved')
-    .eq('total_god_score', 40)
     .order('created_at', { ascending: false });
 
-  if (!ALL_FLOOR) {
-    // Default: only process startups never parsed before
-    query = query.is('funding_confidence', null);
+  if (BELOW_40) {
+    query = query.lt('total_god_score', 40).not('total_god_score', 'is', null);
+  } else {
+    query = query.eq('total_god_score', 40);
+    if (!ALL_FLOOR) {
+      query = query.is('funding_confidence', null);
+    }
   }
 
   const PAGE_SIZE = 1000;
@@ -372,7 +377,7 @@ async function main() {
   console.log(`  Found ${allStartups.length} target startups\n`);
 
   if (allStartups.length === 0) {
-    console.log('  Nothing to enrich. All floor startups already processed.');
+    console.log('  Nothing to enrich.' + (BELOW_40 ? ' No approved startups with score < 40.' : ' All floor startups already processed.'));
     return;
   }
 

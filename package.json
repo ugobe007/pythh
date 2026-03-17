@@ -12,6 +12,13 @@
     "autopilot": "node scripts/core/autopilot.js",
     "enrich": "node scripts/core/enrichment-orchestrator.js",
     "enrich:stats": "node scripts/core/enrichment-orchestrator.js --stats",
+    "enrich:rss-news": "node scripts/enrich-from-rss-news.js",
+    "enrich:below-40": "node scripts/enrich-floor-startups.js --below-40",
+    "below-40:pipeline": "node scripts/below-40-enrich-purge-recalc.js",
+    "enforce:sparse-30day": "node scripts/enforce-sparse-30day-policy.js",
+    "purge:sparse-now": "node scripts/purge-sparse-now.js",
+    "enrich:t1vc-sparse": "node scripts/enrich-t1vc-sparse.js",
+    "list:t1vc-startups": "node scripts/list-t1vc-startups.js",
     "score": "node scripts/core/god-score-v5-tiered.js",
     "match": "node scripts/core/queue-processor-v16.js",
     "scrape": "node scripts/core/simple-rss-scraper.js",
@@ -32,6 +39,7 @@
     "guards:check": "node -p \"require('./server/services/scoringGuards').checkDistributionHealth(require('@supabase/supabase-js').createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)).then(r => JSON.stringify(r, null, 2))\"",
     "status:discovered": "node scripts/check-discovered-startups.js",
     "status:comprehensive": "node scripts/comprehensive-system-status.js",
+    "recalc": "npx tsx scripts/recalculate-scores.ts",
     "recalculate:baseline": "npx tsx scripts/recalculate-baseline-snapshots.ts",
     "api": "node api/server.js",
     "api:dev": "node api/server.js",
@@ -66,7 +74,8 @@
     "pce:market:event": "tsx scripts/pce/marketEventUpsert.ts",
     "pce:market:link": "tsx scripts/pce/marketLinkAndMaterialize.ts",
     "prod:health": "node scripts/prod-health.js",
-    "prod:health:verbose": "node scripts/prod-health.js --verbose"
+    "prod:health:verbose": "node scripts/prod-health.js --verbose",
+    "check:server": "node scripts/check-server-load.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

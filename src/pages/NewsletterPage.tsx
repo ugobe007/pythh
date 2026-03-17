@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import SEO from '../components/SEO';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
+import { Share2, Check, ExternalLink } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3002' : '');
+const SITE = 'https://pythh.ai';
 
 interface HotMatch {
   match_score: number;
@@ -109,6 +111,60 @@ const SectorTag = ({ sector }: { sector: string }) => (
     {sector}
   </span>
 );
+
+// ─── Share individual story (copy + optional Web Share API) ─────────────────
+function ShareStoryButton({
+  text,
+  url,
+  title = 'Share',
+  className = '',
+}: {
+  text: string;
+  url?: string;
+  title?: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const shareUrl = url || `${SITE}/newsletter`;
+
+  const copyText = text.includes(shareUrl) ? text : `${text}\n${shareUrl}`;
+  const handleShare = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        if (navigator.share && navigator.canShare?.({ text, url: shareUrl, title: title || 'The Daily Signal' })) {
+          await navigator.share({
+            title: title || 'The Daily Signal',
+            text,
+            url: shareUrl,
+          });
+          setCopied(true);
+        } else {
+          await navigator.clipboard.writeText(copyText);
+          setCopied(true);
+        }
+      } catch {
+        await navigator.clipboard.writeText(copyText);
+        setCopied(true);
+      }
+      setTimeout(() => setCopied(false), 2000);
+    },
+    [text, shareUrl, title]
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={handleShare}
+      className={`inline-flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800/60 border border-transparent hover:border-zinc-700 transition ${className}`}
+      title="Share this story"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+      <span>{copied ? 'Copied' : 'Share'}</span>
+    </button>
+  );
+}
 
 export default function NewsletterPage() {
   const { date: dateParam } = useParams<{ date?: string }>();
@@ -277,6 +333,11 @@ export default function NewsletterPage() {
                           <span className="block text-emerald-400 font-bold text-lg font-mono">{m.match_score}%</span>
                           <p className="text-zinc-600 text-[10px]">match</p>
                         </div>
+                        <ShareStoryButton
+                          text={`${m.startup?.name} × ${m.investor?.firm_name || m.investor?.name} — ${m.match_score}% match. The Daily Signal: ${SITE}/newsletter`}
+                          url={`${SITE}/newsletter`}
+                          title={`${m.startup?.name} × ${m.investor?.firm_name || m.investor?.name}`}
+                        />
                       </div>
                     </div>
                   ))}
@@ -290,15 +351,15 @@ export default function NewsletterPage() {
                 <SectionHeading icon="⚡" label="GOD Score Leaderboard" sub="Top ranked startups by the GOD Algorithm this week" />
                 <div className="rounded-xl border border-zinc-800/60 overflow-hidden">
                   {data.leaderboard.map((s, i) => (
-                    <div key={s.id} className={`flex items-center gap-4 px-4 py-3.5 ${i < data.leaderboard.length - 1 ? 'border-b border-zinc-800/40' : ''} hover:bg-zinc-800/20 transition`}>
+                    <div key={s.id} className={`flex items-center gap-4 px-4 py-3.5 ${i < data.leaderboard.length - 1 ? 'border-b border-zinc-800/40' : ''} hover:bg-zinc-800/20 transition group`}>
                       <span className="text-zinc-700 font-mono text-sm w-5 text-right">{i + 1}</span>
-                      <div className="flex-1 min-w-0">
+                      <Link to={`/signal-matches?startup=${s.id}`} className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-white font-medium truncate">{s.name}</span>
+                          <span className="text-white font-medium truncate group-hover:text-cyan-400 transition">{s.name}</span>
                           {(s.sectors || []).slice(0, 1).map(sec => <SectorTag key={sec} sector={sec} />)}
                         </div>
                         {s.tagline && <p className="text-zinc-500 text-xs mt-0.5 truncate">{s.tagline}</p>}
-                      </div>
+                      </Link>
                       <div className="flex items-center gap-3 shrink-0 text-center">
                         <div>
                           <ScorePill score={s.total_god_score} />
@@ -310,6 +371,11 @@ export default function NewsletterPage() {
                             <p className="text-zinc-600 text-[10px] mt-0.5">traction</p>
                           </div>
                         )}
+                        <ShareStoryButton
+                          text={`${s.name} — GOD ${s.total_god_score}, #${i + 1} on today's leaderboard. ${SITE}/newsletter`}
+                          url={`${SITE}/signal-matches?startup=${s.id}`}
+                          title={`${s.name} — GOD ${s.total_god_score}`}
+                        />
                       </div>
                     </div>
                   ))}
@@ -323,15 +389,17 @@ export default function NewsletterPage() {
                 <SectionHeading icon="📰" label="Market Intelligence" sub="Signals captured from the web in the last 24 hours" />
                 <div className="space-y-2">
                   {data.news.map((n, i) => (
-                    <a
+                    <div
                       key={i}
-                      href={n.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 hover:border-zinc-600 hover:bg-zinc-800/40 transition group"
+                      className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-4 py-3 hover:border-zinc-600 hover:bg-zinc-800/40 transition group flex items-start gap-3"
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={n.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
                           <p className="text-zinc-200 text-sm group-hover:text-white transition line-clamp-2">{n.title}</p>
                           <div className="flex flex-wrap items-center gap-2 mt-1.5">
                             {n.company && <span className="text-cyan-500 text-xs">{n.company}</span>}
@@ -341,12 +409,25 @@ export default function NewsletterPage() {
                             ))}
                             <span className="text-zinc-700 text-xs">{n.source}</span>
                           </div>
-                        </div>
-                        <svg className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
+                        </a>
                       </div>
-                    </a>
+                      <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                        <ShareStoryButton
+                          text={`${n.title}\n${n.url}\n— via The Daily Signal ${SITE}/newsletter`}
+                          url={n.url}
+                          title={n.title}
+                        />
+                        <a
+                          href={n.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition"
+                          title="Open article"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>
@@ -383,17 +464,24 @@ export default function NewsletterPage() {
                         {(data.darkHorse.sectors || []).map(s => <SectorTag key={s} sector={s} />)}
                       </div>
                     </div>
-                    <div className="shrink-0 text-right space-y-1.5">
-                      <div>
-                        <ScorePill score={data.darkHorse.total_god_score} />
-                        <p className="text-zinc-600 text-[10px] mt-0.5">GOD</p>
+                    <div className="shrink-0 text-right space-y-1.5 flex items-start gap-3">
+                      <div className="space-y-1.5">
+                        <div>
+                          <ScorePill score={data.darkHorse.total_god_score} />
+                          <p className="text-zinc-600 text-[10px] mt-0.5">GOD</p>
+                        </div>
+                        <div>
+                          <span className="inline-block border border-violet-500/40 rounded px-1.5 py-0.5 text-xs font-mono text-violet-400">
+                            {data.darkHorse.momentum_score}
+                          </span>
+                          <p className="text-zinc-600 text-[10px] mt-0.5">momentum</p>
+                        </div>
                       </div>
-                      <div>
-                        <span className="inline-block border border-violet-500/40 rounded px-1.5 py-0.5 text-xs font-mono text-violet-400">
-                          {data.darkHorse.momentum_score}
-                        </span>
-                        <p className="text-zinc-600 text-[10px] mt-0.5">momentum</p>
-                      </div>
+                      <ShareStoryButton
+                        text={`${data.darkHorse.name} — Dark Horse, GOD ${data.darkHorse.total_god_score}. The Daily Signal: ${SITE}/newsletter`}
+                        url={`${SITE}/newsletter`}
+                        title={data.darkHorse.name}
+                      />
                     </div>
                   </div>
                 </div>
@@ -406,16 +494,21 @@ export default function NewsletterPage() {
                 <SectionHeading icon="🚀" label="New Arrivals" sub="Startups that cleared the algorithm this week" />
                 <div className="grid sm:grid-cols-2 gap-3">
                   {data.newArrivals.map((s, i) => (
-                    <div key={i} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-white font-medium truncate">{s.name}</p>
-                          {s.tagline && <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2">{s.tagline}</p>}
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {(s.sectors || []).slice(0, 2).map(sec => <SectorTag key={sec} sector={sec} />)}
-                          </div>
+                    <div key={i} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-white font-medium truncate">{s.name}</p>
+                        {s.tagline && <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2">{s.tagline}</p>}
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(s.sectors || []).slice(0, 2).map(sec => <SectorTag key={sec} sector={sec} />)}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
                         <ScorePill score={s.total_god_score} />
+                        <ShareStoryButton
+                          text={`${s.name} — New Arrival, GOD ${s.total_god_score}. The Daily Signal: ${SITE}/newsletter`}
+                          url={`${SITE}/newsletter`}
+                          title={s.name}
+                        />
                       </div>
                     </div>
                   ))}
@@ -506,6 +599,11 @@ export default function NewsletterPage() {
                         <span className={`font-bold font-mono text-sm ${m.delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {m.delta > 0 ? '+' : ''}{m.delta}
                         </span>
+                        <ShareStoryButton
+                          text={`${m.name} — GOD ${m.old_score} → ${m.new_score} (${m.delta > 0 ? '+' : ''}${m.delta}). The Daily Signal: ${SITE}/newsletter`}
+                          url={`${SITE}/newsletter`}
+                          title={`${m.name} score move`}
+                        />
                       </div>
                     </div>
                   ))}

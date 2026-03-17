@@ -231,9 +231,15 @@ async function runHoldingReviewWorker() {
         await promoteToEnriched(startup, inferenceData, dryRun);
         summary.rescued++;
       } else if (expired) {
-        console.log(`  🗑️  No data after ${HOLDING_DELETE_DAYS}d — DELETING`);
+        console.log(`  🗑️  No data after ${HOLDING_DELETE_DAYS}d — REJECTING`);
         if (!dryRun) {
-          await supabase.from('startup_uploads').delete().eq('id', startup.id);
+          await supabase
+            .from('startup_uploads')
+            .update({
+              status: 'rejected',
+              admin_notes: 'holding-review-worker: data-sparse 30+ days, could not enrich',
+            })
+            .eq('id', startup.id);
         }
         summary.deleted++;
       } else {

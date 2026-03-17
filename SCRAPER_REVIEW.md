@@ -1,191 +1,69 @@
-# 🎣 Startup Scraper Review & Guide
+# Scraper Review
 
-*Last Updated: Today*
+## Overview
 
-## 🎯 Main Startup Scrapers
-
-### 1. **Speedrun + YC Scraper** ⭐ RECOMMENDED
-**File:** `speedrun-yc-scraper.mjs`  
-**Purpose:** Scrapes early-stage startups from a16z Speedrun accelerator and Y Combinator batches
-
-**Usage:**
-```bash
-# Test first
-node speedrun-yc-scraper.mjs test
-
-# Scrape Speedrun only
-node speedrun-yc-scraper.mjs speedrun
-
-# Scrape YC batches (W24, S24, W23, S23)
-node speedrun-yc-scraper.mjs yc
-
-# Scrape everything
-node speedrun-yc-scraper.mjs all
-```
-
-**Features:**
-- ✅ Uses Playwright + Claude API (reliable)
-- ✅ Auto-scrolls to load all startups
-- ✅ Validated inserts (prevents malformed data)
-- ✅ Duplicate detection
-- ✅ Saves directly to `startup_uploads` table
-
-**Expected Output:** 200+ early-stage startups
+Scrapers and ingestion jobs in `ecosystem.config.js`, what they write, and how health is measured.
 
 ---
 
-### 2. **Speedrun Full Scraper**
-**File:** `speedrun-full.mjs`  
-**Purpose:** Scrapes ALL startups from a16z Speedrun
+## Scraper / ingestion jobs
 
-**Usage:**
-```bash
-# Preview (no save)
-node speedrun-full.mjs
-
-# Save to database
-node speedrun-full.mjs --save
-```
-
-**Features:**
-- ✅ Simpler than speedrun-yc-scraper
-- ✅ Uses validated-inserts.js
-- ✅ Auto-approves startups
+| Process | Script | Schedule | Writes to | Purpose |
+|--------|--------|----------|-----------|---------|
+| **rss-scraper** | `ssot-rss-scraper.js` | Every 30 min | `startup_events`, `startup_uploads` (new), `rss_sources` (read) | SSOT RSS: parse feeds → events, create/join startups. Does **not** write to `rss_articles` or `scraper_logs`. |
+| **simple-rss-discovery** | `simple-rss-scraper.js` | Every 2h | `discovered_startups` | Legacy RSS: extract startups from feeds → discovered_startups. Does **not** write to `rss_articles` or `scraper_logs`. |
+| **enrich-from-rss-news** | `enrich-from-rss-news.js` | Every 4h at :25 | `startup_uploads.extracted_data` (web_signals) | Match `startup_events` to startups, merge press/funding into profiles. |
+| **html-scraper** | `html-startup-scraper.js` | Every 6h | (see script) | University/accelerator pages (YC, Princeton, etc.). |
+| **event-rescue-agent** | `event-rescue-agent.js` | Every 30 min | (rescues events) | Reclassify misclassified events. |
+| **auto-import-pipeline** | `auto-import-pipeline.js` | Every hour at :15 | `startup_uploads`, matching queue | `discovered_startups` → `startup_uploads` with quality filter + GOD score. |
+| **match-worker** | (queue processor) | Every 5 min | `startup_investor_matches` | Generate matches for queued startups. |
+| **vc-team-scraper** | `vc-team-scraper.js` | Every 6h | (investors) | VC team data. |
+| **social-signals-scraper** | `social-signals-scraper.js` | Every 4h | (social signals) | Reddit/HN/social mentions. |
 
 ---
 
-### 3. **Simple RSS Scraper** ⚡ FAST
-**File:** `simple-rss-scraper.js`  
-**Purpose:** Scrapes RSS feeds WITHOUT AI (no API costs)
+## Health check vs reality
 
-**Usage:**
-```bash
-node simple-rss-scraper.js
-```
+**`scripts/comprehensive-system-health-check.js`** currently checks:
 
-**Features:**
-- ✅ No AI/API costs
-- ✅ Fast keyword-based extraction
-- ✅ Saves to `discovered_startups` table
-- ✅ Auto-detects sectors from keywords
-- ✅ Extracts company names from headlines
+- **scraper_logs** (last 24h) — WARNING if 0  
+- **rss_articles** (last 24h) — WARNING if 0  
+- **discovered_startups** (last 24h) — WARNING if 0  
+- **scraper_jobs** (last 24h)
 
-**Sources:** Uses `rss_sources` table (63 active sources)
+**Gap:** The main RSS scrapers do **not** write to `scraper_logs` or `rss_articles`:
+
+- **ssot-rss-scraper** writes to `startup_events` and `startup_uploads`.
+- **simple-rss-scraper** writes to `discovered_startups`.
+
+So “No scraper logs” and “No RSS articles” are expected unless another pipeline (e.g. NewsScraper / VC news jobs) populates those tables.
 
 ---
 
-### 4. **Intelligent Scraper** 🧠 AI-POWERED
-**File:** `intelligent-scraper.js`  
-**Purpose:** Deep AI-powered scraping of any URL
+## Recommendations
 
-**Usage:**
-```bash
-# Scrape a specific URL
-node intelligent-scraper.js "https://ycombinator.com/companies" startups
+1. **Align health check with actual writers**  
+   - Add checks for **startup_events** (last 24h or 7d) and optionally **discovered_startups** (last 24h).  
+   - Treat `scraper_logs` and `rss_articles` as optional / legacy, or document which process is supposed to fill them.
 
-# Scrape investor pages
-node intelligent-scraper.js "https://a16z.com/portfolio" investors
-```
+2. **Single source of RSS truth**  
+   - **ssot-rss-scraper** is the main feed: `rss_sources` → `startup_events` → `startup_uploads`.  
+   - **simple-rss-scraper** is a second path into `discovered_startups` → later **auto-import-pipeline**.  
+   - Decide whether both are needed long term or one should be deprecated.
 
-**Features:**
-- ✅ Uses OpenAI GPT-4o for extraction
-- ✅ Handles complex pages
-- ✅ Extracts structured data
-- ⚠️ Requires API credits
+3. **Monitoring**  
+   - Ensure PM2/cron is running on the host (e.g. Fly) so `rss-scraper` and `simple-rss-discovery` run on schedule.  
+   - Optional: log run count or last run time to `ai_logs` or a small `scraper_runs` table for dashboards.
 
----
-
-### 5. **Mega Scraper** 🚀 BULK
-**File:** `mega-scraper.js`  
-**Purpose:** High-volume scraping from multiple sources
-
-**Usage:**
-```bash
-node mega-scraper.js
-```
-
-**Features:**
-- ✅ Scrapes multiple sources in one run
-- ✅ Handles VC firms, startups, news
-- ✅ Parallel processing
+4. **rss_articles / scraper_logs**  
+   - If nothing is supposed to write there, remove or relax those health checks.  
+   - If a separate “news” or “VC news” job is supposed to fill them, add that job to this doc and to the health check.
 
 ---
 
-## 📊 Current Database Status
+## Quick reference: where data comes from
 
-Let's check what we have:
-
-```bash
-# Count startups
-node -e "
-const {createClient} = require('@supabase/supabase-js');
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-supabase.from('startup_uploads').select('id', {count: 'exact', head: true}).then(r => 
-  console.log('Total startups:', r.count)
-);
-supabase.from('startup_uploads').select('id', {count: 'exact', head: true}).eq('status', 'approved').then(r => 
-  console.log('Approved startups:', r.count)
-);
-supabase.from('discovered_startups').select('id', {count: 'exact', head: true}).then(r => 
-  console.log('Discovered (pending):', r.count)
-);
-"
-```
-
----
-
-## 🎣 Recommended Fishing Strategy
-
-### Quick Win (5 minutes):
-```bash
-# 1. Run simple RSS scraper (fast, no AI)
-node simple-rss-scraper.js
-
-# 2. Check results
-node -e "const {createClient} = require('@supabase/supabase-js'); const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY); supabase.from('discovered_startups').select('name, source').order('created_at', {ascending: false}).limit(10).then(r => console.log(r.data));"
-```
-
-### Deep Dive (30 minutes):
-```bash
-# 1. Scrape Speedrun (high-quality early-stage)
-node speedrun-full.mjs --save
-
-# 2. Scrape YC batches
-node speedrun-yc-scraper.mjs yc --save
-
-# 3. Run RSS scraper for news-based discoveries
-node simple-rss-scraper.js
-```
-
-### Maximum Volume (1 hour):
-```bash
-# 1. Run mega scraper
-node mega-scraper.js
-
-# 2. Run intelligent scraper on YC portfolio
-node intelligent-scraper.js "https://ycombinator.com/companies" startups
-
-# 3. Run RSS scraper
-node simple-rss-scraper.js
-```
-
----
-
-## 🔍 Next Steps
-
-1. **Check current startup count**
-2. **Run a quick scraper** (simple-rss-scraper.js)
-3. **Review results**
-4. **Run deeper scrapers** if needed
-
----
-
-## 📝 Notes
-
-- All scrapers use validated inserts (prevents malformed data)
-- Duplicates are automatically detected
-- Speedrun/YC scrapers save directly to `startup_uploads` (approved)
-- RSS scraper saves to `discovered_startups` (needs import)
-- Check `lib/validated-inserts.js` for validation logic
-
-
+- **startup_events** ← rss-scraper (ssot-rss-scraper)
+- **discovered_startups** ← simple-rss-discovery, possibly html-scraper
+- **startup_uploads** (new rows) ← rss-scraper (from events), auto-import-pipeline (from discovered_startups)
+- **startup_uploads** (enrichment) ← enrich-from-rss-news, enrich-web-signals, etc.

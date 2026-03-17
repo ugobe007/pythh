@@ -4,46 +4,60 @@ const path = require('path');
 const fs = require('fs');
 
 const envPath = path.join(__dirname, '..', '.env');
-console.log('[Server Startup] Loading .env from:', envPath);
-console.log('[Server Startup] .env file exists:', fs.existsSync(envPath));
+const isProd = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
+if (!isProd) {
+  console.log('[Server Startup] Loading .env from:', envPath);
+  console.log('[Server Startup] .env file exists:', fs.existsSync(envPath));
+}
 
 // Try to load dotenv - Node.js should find it in parent node_modules
 let dotenv;
 try {
   dotenv = require('dotenv');
 } catch (dotenvError) {
-  // If not found, try from root node_modules explicitly
   try {
     dotenv = require(path.join(__dirname, '..', 'node_modules', 'dotenv'));
   } catch (rootError) {
-    console.error('[Server Startup] ❌ Could not load dotenv module:', rootError.message);
-    console.error('[Server Startup] Please install dotenv: cd .. && npm install dotenv');
+    console.error('[Server Startup] Could not load dotenv:', rootError.message);
   }
 }
 
-// Load the .env file
 let envResult;
 if (dotenv) {
   envResult = dotenv.config({ path: envPath });
-} else {
-  console.error('[Server Startup] ❌ Cannot load .env - dotenv module not available');
+} else if (!isProd) {
+  console.error('[Server Startup] dotenv not available');
 }
 
-if (envResult.error) {
-  console.warn('[Server Startup] ⚠️  Error loading .env:', envResult.error.message);
-} else {
-  console.log('[Server Startup] ✅ .env loaded successfully');
-  const loadedVars = Object.keys(envResult.parsed || {});
-  console.log('[Server Startup] Loaded', loadedVars.length, 'environment variables');
-  const supabaseVars = loadedVars.filter(k => k.includes('SUPABASE'));
-  if (supabaseVars.length > 0) {
-    console.log('[Server Startup] Supabase variables found:', supabaseVars.join(', '));
-  } else {
-    console.warn('[Server Startup] ⚠️  No Supabase variables found in .env file');
-  }
+if (envResult && envResult.error && !isProd) {
+  console.warn('[Server Startup] .env load:', envResult.error.message);
+}
+if (envResult && !envResult.error && !isProd) {
+  console.log('[Server Startup] .env loaded,', Object.keys(envResult.parsed || {}).length, 'vars');
 }
 
+// Minimal bootstrap: bind 0.0.0.0:PORT immediately so Fly.io health checks pass (no logger/db/other requires yet)
 const express = require('express');
+const app = express();
+const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
+app.get('/ping', (req, res) => res.status(200).json({ ok: true, ts: new Date().toISOString() }));
+// Serve frontend immediately so the site loads even if a later require() crashes
+const distPath = path.join(__dirname, '..', 'dist');
+if (fs.existsSync(distPath)) {
+  app.use('/assets', express.static(path.join(distPath, 'assets'), { immutable: true, maxAge: '1y' }));
+  app.use(express.static(distPath, { maxAge: '0' }));
+  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$).*/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('[pythh] Listening on', PORT);
+  if (distPath && fs.existsSync(distPath)) {
+    console.log('[pythh] Serving site from', distPath);
+  }
+});
+
+// Rest of app (logger, db, routes) — loaded after listen so binding is not blocked
 const multer = require('multer');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -51,11 +65,6 @@ const compression = require('compression');
 const logger = require('./logger');
 const { pool } = require('./db');
 const { getSupabaseClient } = require('./lib/supabaseClient');
-// fs and path are already declared above
-
-const app = express();
-// Fly.io expects the app on 0.0.0.0:8080; bind to all interfaces so the proxy can reach it
-const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
 // Supabase outage guard: avoid hammering upstream during 522/timeout windows.
@@ -8059,35 +8068,7 @@ app.post('/api/ml/training/run', async (req, res) => {
   }
 });
 
-// === PRODUCTION: Serve Frontend Static Files ===
-// This serves the built React app from /app/dist in production
-const distPath = path.join(__dirname, '..', 'dist');
-if (fs.existsSync(distPath)) {
-  console.log('[Server] Serving static files from:', distPath);
-  // Hashed assets (/assets/*) — cache forever (content-hashed filenames)
-  app.use('/assets', express.static(path.join(distPath, 'assets'), {
-    immutable: true,
-    maxAge: '1y',
-    setHeaders(res) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    },
-  }));
-  // Everything else — no-cache so index.html is always fresh
-  app.use(express.static(distPath, {
-    maxAge: '0',
-    setHeaders(res, fp) {
-      if (fp.endsWith('index.html')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      }
-    },
-  }));
-
-  // SPA fallback - serve index.html for all non-API, non-asset routes
-  // Exclude /assets/ so missing chunks return 404 (not index.html which breaks module loading)
-  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/).*/, (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
+// Frontend static + SPA already registered above (right after /ping) so site loads before heavy requires
 
 // ------------------------------------------------------------
 // SOCIAL MEDIA ADMIN ENDPOINTS
@@ -8452,128 +8433,88 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server with error handling
-try {
-  app.listen(PORT, '0.0.0.0', () => {
-    logger.info({ component: 'startup', port: PORT, env: IS_PRODUCTION ? 'production' : 'development' }, 'Server started on port %d', PORT);
-    
-    // Prompt 14: Scheduled alerts sweep
-    // Run every 15 minutes (900000ms)
-    const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
-    
-    // Initial sweep after 60 seconds to let server stabilize
-    setTimeout(async () => {
-      console.log('[scheduled-sweep] Running initial alerts sweep...');
-      try {
-        const results = await runAlertsSweep();
-        console.log(`[scheduled-sweep] Initial sweep complete: ${results.processed} processed, ${results.alerts_sent} alerts sent`);
-      } catch (err) {
-        console.error('[scheduled-sweep] Initial sweep failed:', err.message);
+function schedulePostStartTasks() {
+  const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+  setTimeout(async () => {
+    console.log('[scheduled-sweep] Running initial alerts sweep...');
+    try {
+      const results = await runAlertsSweep();
+      console.log(`[scheduled-sweep] Initial sweep complete: ${results.processed} processed, ${results.alerts_sent} alerts sent`);
+    } catch (err) {
+      console.error('[scheduled-sweep] Initial sweep failed:', err.message);
+    }
+  }, 60 * 1000);
+  setInterval(async () => {
+    console.log('[scheduled-sweep] Running scheduled alerts sweep...');
+    try {
+      const results = await runAlertsSweep();
+      console.log(`[scheduled-sweep] Sweep complete: ${results.processed} processed, ${results.alerts_sent} alerts sent`);
+      if (results.alerts_sent > 0 || results.errors.length > 0) {
+        const supabase = getSupabaseClient();
+        await supabase.from('ai_logs').insert({
+          type: 'alerts_sweep',
+          action: 'scheduled_run',
+          status: results.errors.length > 0 ? 'partial' : 'success',
+          output: { processed: results.processed, alerts_sent: results.alerts_sent, errors: results.errors, timestamp: new Date().toISOString() }
+        });
       }
-    }, 60 * 1000);
-    
-    // Regular interval sweep
-    setInterval(async () => {
-      console.log('[scheduled-sweep] Running scheduled alerts sweep...');
-      try {
-        const results = await runAlertsSweep();
-        console.log(`[scheduled-sweep] Sweep complete: ${results.processed} processed, ${results.alerts_sent} alerts sent`);
-        
-        // Log to ai_logs for monitoring (Prompt 14)
-        if (results.alerts_sent > 0 || results.errors.length > 0) {
-          const supabase = getSupabaseClient();
-          await supabase.from('ai_logs').insert({
-            type: 'alerts_sweep',
-            action: 'scheduled_run',
-            status: results.errors.length > 0 ? 'partial' : 'success',
-            output: {
-              processed: results.processed,
-              alerts_sent: results.alerts_sent,
-              errors: results.errors,
-              timestamp: new Date().toISOString()
-            }
-          });
-        }
-      } catch (err) {
-        console.error('[scheduled-sweep] Sweep failed:', err.message);
-        
-        // Log failure to ai_logs
-        try {
-          const supabase = getSupabaseClient();
-          await supabase.from('ai_logs').insert({
-            type: 'alerts_sweep',
-            action: 'scheduled_run',
-            status: 'error',
-            output: { error: err.message, timestamp: new Date().toISOString() }
-          });
-        } catch (logErr) {
-          console.error('[scheduled-sweep] Failed to log error:', logErr.message);
-        }
-      }
-    }, SWEEP_INTERVAL_MS);
-    
-    console.log(`🔔 Alerts sweep scheduled every ${SWEEP_INTERVAL_MS / 1000 / 60} minutes`);
-    
-    // Prompt 19: Scheduled daily digest delivery
-    // Run every 30 minutes to check for users whose local time matches digest_time
-    const DIGEST_INTERVAL_MS = 30 * 60 * 1000;
-    
-    // Initial digest check after 90 seconds
-    setTimeout(async () => {
-      console.log('[scheduled-digest] Running initial digest check...');
-      try {
-        const enqueueResults = await enqueueDailyDigests();
-        const deliverResults = await deliverPendingDigests();
-        console.log(`[scheduled-digest] Initial check complete: enqueued ${enqueueResults.enqueued}, sent ${deliverResults.sent}`);
-      } catch (err) {
-        console.error('[scheduled-digest] Initial check failed:', err.message);
-      }
-    }, 90 * 1000);
-    
-    // Regular interval digest check
-    setInterval(async () => {
-      try {
-        const enqueueResults = await enqueueDailyDigests();
-        const deliverResults = await deliverPendingDigests();
-        
-        // Only log if something happened
-        if (enqueueResults.enqueued > 0 || deliverResults.sent > 0 || deliverResults.failed > 0) {
-          console.log(`[scheduled-digest] Cycle complete: enqueued ${enqueueResults.enqueued}, sent ${deliverResults.sent}, failed ${deliverResults.failed}`);
-          
-          const supabase = getSupabaseClient();
-          await supabase.from('ai_logs').insert({
-            type: 'digest_sweep',
-            action: 'scheduled_run',
-            status: deliverResults.failed > 0 ? 'partial' : 'success',
-            output: { enqueue: enqueueResults, deliver: deliverResults, timestamp: new Date().toISOString() }
-          }).catch(() => {});
-        }
-      } catch (err) {
-        console.error('[scheduled-digest] Cycle failed:', err.message);
-      }
-    }, DIGEST_INTERVAL_MS);
-    
-    console.log(`📊 Daily digest check scheduled every ${DIGEST_INTERVAL_MS / 1000 / 60} minutes`);
-
-    // Telemetry retention — prune resolver_telemetry rows older than 60 days.
-    // Runs once at startup (delayed 5 min) then every 24h.
-    const PRUNE_TELEMETRY = async () => {
+    } catch (err) {
+      console.error('[scheduled-sweep] Sweep failed:', err.message);
       try {
         const supabase = getSupabaseClient();
-        const { data: pruned } = await supabase.rpc('prune_resolver_telemetry', { keep_days: 60 });
-        if (pruned > 0) {
-          console.log(`[telemetry-prune] Deleted ${pruned} stale resolver_telemetry rows (>60d)`);
-        }
-      } catch (err) {
-        console.warn('[telemetry-prune] Skipped:', err.message);
+        await supabase.from('ai_logs').insert({
+          type: 'alerts_sweep',
+          action: 'scheduled_run',
+          status: 'error',
+          output: { error: err.message, timestamp: new Date().toISOString() }
+        });
+      } catch (logErr) {
+        console.error('[scheduled-sweep] Failed to log error:', logErr.message);
       }
-    };
-    setTimeout(PRUNE_TELEMETRY, 5 * 60 * 1000); // 5 min after boot
-    setInterval(PRUNE_TELEMETRY, 24 * 60 * 60 * 1000); // every 24h
-  });
-} catch (error) {
-  logger.fatal({ component: 'startup', err: error }, 'Failed to start server');
-  process.exit(1);
+    }
+  }, SWEEP_INTERVAL_MS);
+  console.log(`🔔 Alerts sweep scheduled every ${SWEEP_INTERVAL_MS / 1000 / 60} minutes`);
+  const DIGEST_INTERVAL_MS = 30 * 60 * 1000;
+  setTimeout(async () => {
+    console.log('[scheduled-digest] Running initial digest check...');
+    try {
+      const enqueueResults = await enqueueDailyDigests();
+      const deliverResults = await deliverPendingDigests();
+      console.log(`[scheduled-digest] Initial check complete: enqueued ${enqueueResults.enqueued}, sent ${deliverResults.sent}`);
+    } catch (err) {
+      console.error('[scheduled-digest] Initial check failed:', err.message);
+    }
+  }, 90 * 1000);
+  setInterval(async () => {
+    try {
+      const enqueueResults = await enqueueDailyDigests();
+      const deliverResults = await deliverPendingDigests();
+      if (enqueueResults.enqueued > 0 || deliverResults.sent > 0 || deliverResults.failed > 0) {
+        console.log(`[scheduled-digest] Cycle complete: enqueued ${enqueueResults.enqueued}, sent ${deliverResults.sent}, failed ${deliverResults.failed}`);
+        const supabase = getSupabaseClient();
+        await supabase.from('ai_logs').insert({
+          type: 'digest_sweep',
+          action: 'scheduled_run',
+          status: deliverResults.failed > 0 ? 'partial' : 'success',
+          output: { enqueue: enqueueResults, deliver: deliverResults, timestamp: new Date().toISOString() }
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[scheduled-digest] Cycle failed:', err.message);
+    }
+  }, DIGEST_INTERVAL_MS);
+  console.log(`📊 Daily digest check scheduled every ${DIGEST_INTERVAL_MS / 1000 / 60} minutes`);
+  const PRUNE_TELEMETRY = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data: pruned } = await supabase.rpc('prune_resolver_telemetry', { keep_days: 60 });
+      if (pruned > 0) console.log(`[telemetry-prune] Deleted ${pruned} stale resolver_telemetry rows (>60d)`);
+    } catch (err) {
+      console.warn('[telemetry-prune] Skipped:', err.message);
+    }
+  };
+  setTimeout(PRUNE_TELEMETRY, 5 * 60 * 1000);
+  setInterval(PRUNE_TELEMETRY, 24 * 60 * 60 * 1000);
 }
 
 // Handle server errors (these are fine outside app.listen)
@@ -8586,3 +8527,6 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   logger.error({ component: 'process', err: reason }, 'Unhandled Rejection');
 });
+
+// Run scheduled tasks (sweeps, digest, telemetry) after app is fully loaded
+setImmediate(schedulePostStartTasks);

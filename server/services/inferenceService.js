@@ -82,9 +82,10 @@ const FAST_SOURCES = {
  * @param {string} startupName - Company name
  * @param {string} startupWebsite - Company website (optional)
  * @param {number} maxArticles - Max articles to fetch (default: 5)
+ * @param {string} [extraSearchTerms] - Optional extra terms (e.g. VC name) for "StartupName VCName funding" search
  * @returns {Promise<Array>} Array of {title, content, link, pubDate, source}
  */
-async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 6) {
+async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 6, extraSearchTerms = null) {
   const articles = [];
 
   // Detect "ambiguous" names: single word, ≤7 chars (Branch, Arc, Bolt, Vibe, etc.)
@@ -97,23 +98,28 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
     try { domain = new URL(startupWebsite).hostname.replace('www.', ''); } catch (e) {}
   }
 
-  // Build contextual queries — domain-first for ambiguous names
-  const queries = isAmbiguousName && domain
-    ? [
-        // Lead with the domain so results are unambiguous
-        `"${domain}" funding`,
-        `"${domain}" startup`,
-        `"${startupName}" raises series funding`,
-        `"${startupName}" customers revenue`,
-      ]
-    : [
-        `"${startupName}" startup funding`,
-        `"${startupName}" raises series`,
-        `"${startupName}" customers revenue growth`,
-        `"${startupName}" launches product`,
-        // Domain fallback for non-ambiguous names too
-        ...(domain ? [`"${domain}" startup`] : []),
-      ];
+  // When VC name provided (sparse startups with T1 backing), lead with "StartupName VCName funding"
+  const vcQuery = extraSearchTerms && extraSearchTerms.trim()
+    ? [`"${startupName}" ${extraSearchTerms.trim()} funding`, `"${startupName}" ${extraSearchTerms.trim()} seed series`]
+    : [];
+
+  // Build contextual queries — VC-first when provided, else domain-first for ambiguous names
+  const queries = vcQuery.length > 0
+    ? [...vcQuery, `"${startupName}" startup funding`, `"${startupName}" raises series`]
+    : isAmbiguousName && domain
+      ? [
+          `"${domain}" funding`,
+          `"${domain}" startup`,
+          `"${startupName}" raises series funding`,
+          `"${startupName}" customers revenue`,
+        ]
+      : [
+          `"${startupName}" startup funding`,
+          `"${startupName}" raises series`,
+          `"${startupName}" customers revenue growth`,
+          `"${startupName}" launches product`,
+          ...(domain ? [`"${domain}" startup`] : []),
+        ];
 
   // Primary query
   const query = queries[0];
@@ -439,9 +445,47 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
  * @param {number} timeoutMs - Max time to spend (default: 3000ms = 3s)
  * @returns {Promise<Object>} {enrichedData, enrichmentCount, fieldsEnriched, articlesFound}
  */
+/**
+ * Quick enrichment using VC name as search signal (for sparse startups with known T1 backing).
+ * Uses query "StartupName VCName funding" to find relevant articles.
+ */
+async function quickEnrichWithVC(startupName, vcName, currentData = {}, startupWebsite = null, timeoutMs = 6000) {
+  const startTime = Date.now();
+  try {
+    const enrichmentPromise = (async () => {
+      let articles = await searchStartupNews(startupName, startupWebsite, 10, vcName);
+      if (articles.length === 0) {
+        articles = await searchStartupNews(startupName, startupWebsite, 8);
+      }
+      if (articles.length === 0) {
+        return { enrichedData: currentData, enrichmentCount: 0, fieldsEnriched: [], articlesFound: 0 };
+      }
+      const result = extractDataFromArticles(articles, currentData, startupName);
+      if (!result.enrichedData.company_url && !currentData.website && !currentData.company_url) {
+        const inferred = await inferDomainFromName(startupName, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
+        if (inferred) {
+          result.enrichedData.company_url = inferred;
+          result.enrichedData.company_url_source = 'name_inference';
+          result.fieldsEnriched.push('company_url');
+          result.enrichmentCount++;
+        }
+      }
+      return { ...result, articlesFound: articles.length };
+    })();
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => resolve({
+        enrichedData: currentData, enrichmentCount: 0, fieldsEnriched: [], articlesFound: 0, timedOut: true
+      }), timeoutMs);
+    });
+    return await Promise.race([enrichmentPromise, timeoutPromise]);
+  } catch (err) {
+    return { enrichedData: currentData, enrichmentCount: 0, fieldsEnriched: [], articlesFound: 0, error: err.message };
+  }
+}
+
 async function quickEnrich(startupName, currentData = {}, startupWebsite = null, timeoutMs = 3000) {
   const startTime = Date.now();
-  
+
   try {
     // Race against timeout
     const enrichmentPromise = (async () => {
@@ -529,6 +573,7 @@ module.exports = {
   searchStartupNews,
   extractDataFromArticles,
   quickEnrich,
+  quickEnrichWithVC,
   isDataSparse,
   inferDomainFromName,
 };

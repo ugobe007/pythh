@@ -18,6 +18,9 @@ const { getSupabaseClient } = require('../lib/supabaseClient');
 const {
   searchStartups,
   getThesisCriteria,
+  getStartupDetail,
+  getPortfolioWithActivity,
+  getOrCreateVirtualPortfolioListId,
 } = require('../services/investorLookupService');
 
 function getOwnerId(req) {
@@ -110,6 +113,81 @@ router.get('/thesis/:investorId', async (req, res) => {
   } catch (err) {
     console.error('[investor-lookup] thesis search error:', err);
     res.status(500).json({ ok: false, error: err.message || 'Thesis search failed' });
+  }
+});
+
+// GET /api/investor-lookup/startup/:id — startup detail + recent activity (for review)
+router.get('/startup/:id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const detail = await getStartupDetail(supabase, req.params.id);
+    if (!detail) {
+      return res.status(404).json({ ok: false, error: 'Startup not found' });
+    }
+    res.json({ ok: true, data: detail });
+  } catch (err) {
+    console.error('[investor-lookup] startup detail error:', err);
+    res.status(500).json({ ok: false, error: err.message || 'Failed to load startup' });
+  }
+});
+
+// GET /api/investor-lookup/portfolio — my virtual portfolio (list + items + recent activity)
+router.get('/portfolio', async (req, res) => {
+  try {
+    const ownerId = getOwnerId(req);
+    if (!ownerId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing owner id. Send X-Investor-Session or X-Session-Id header.',
+      });
+    }
+    const supabase = getSupabaseClient();
+    const portfolio = await getPortfolioWithActivity(supabase, ownerId);
+    if (!portfolio) {
+      return res.status(500).json({ ok: false, error: 'Failed to load portfolio' });
+    }
+    res.json({ ok: true, data: portfolio });
+  } catch (err) {
+    console.error('[investor-lookup] portfolio error:', err);
+    res.status(500).json({ ok: false, error: err.message || 'Failed to load portfolio' });
+  }
+});
+
+// POST /api/investor-lookup/portfolio/items — add startup to virtual portfolio
+router.post('/portfolio/items', async (req, res) => {
+  try {
+    const ownerId = getOwnerId(req);
+    if (!ownerId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing owner id. Send X-Investor-Session or X-Session-Id header.',
+      });
+    }
+    const startupId = req.body?.startup_id || req.body?.startupId;
+    if (!startupId) {
+      return res.status(400).json({ ok: false, error: 'Missing startup_id in body' });
+    }
+    const supabase = getSupabaseClient();
+    const listId = await getOrCreateVirtualPortfolioListId(supabase, ownerId);
+    if (!listId) {
+      return res.status(500).json({ ok: false, error: 'Failed to get portfolio list' });
+    }
+    const { data, error } = await supabase
+      .from('investor_curated_list_items')
+      .insert({ list_id: listId, startup_id: startupId, notes: req.body?.notes || null })
+      .select('id, startup_id, added_at')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({ ok: false, error: 'Already in your portfolio' });
+      }
+      throw error;
+    }
+    res.status(201).json({ ok: true, data });
+  } catch (err) {
+    console.error('[investor-lookup] add to portfolio error:', err);
+    res.status(500).json({ ok: false, error: err.message || 'Failed to add to portfolio' });
   }
 });
 

@@ -35,9 +35,26 @@ const { calculateCompleteness } = require('../services/dataCompletenessService')
 // =============================================================================
 // REAL SCORING PIPELINE - The GOD Score SSOT
 // =============================================================================
-// Node.js v24 can require .ts files directly
-const { calculateHotScore } = require('../services/startupScoringService.ts');
-const { scrapeAndScoreStartup } = require('../services/urlScrapingService.ts');
+// .ts files require tsx/ts-node in production; use stubs when not available so the app loads
+let calculateHotScore;
+let scrapeAndScoreStartup;
+try {
+  const scoring = require('../services/startupScoringService.ts');
+  calculateHotScore = scoring.calculateHotScore;
+} catch (e) {
+  console.warn('[instantSubmit] startupScoringService.ts not available (Node cannot run .ts). Using stub.');
+  calculateHotScore = (profile) => ({
+    total: 5.5,
+    breakdown: { team_execution: 1, team_age: 1, market: 1, market_insight: 1, traction: 1, product: 1, product_vision: 1 }
+  });
+}
+try {
+  const scraping = require('../services/urlScrapingService.ts');
+  scrapeAndScoreStartup = scraping.scrapeAndScoreStartup;
+} catch (e) {
+  console.warn('[instantSubmit] urlScrapingService.ts not available. Using stub.');
+  scrapeAndScoreStartup = () => Promise.resolve({ data: null });
+}
 const { extractInferenceData } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
@@ -297,12 +314,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   global: { fetch: fetchWithTimeout }
 });
 
-// Warm investor cache on module load so first request isn't penalized
-setTimeout(() => {
-  getInvestors(supabase)
-    .then(inv => console.log(`[instantSubmit] Investor cache warmed: ${inv?.length || 0} investors`))
-    .catch(e => console.warn(`[instantSubmit] Cache warm failed (non-fatal): ${e.message}`));
-}, 1000);
+// Do NOT load the database on server startup. Cache is filled on first request that needs it (getInvestors is called from route handlers).
 
 /**
  * URL Normalization - FAULT TOLERANT

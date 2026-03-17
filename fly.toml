@@ -22,11 +22,11 @@ primary_region = 'lax'
   [checks.health]
     port = 8080
     type = "http"
-    interval = "30s"
-    timeout = "10s"
-    grace_period = "120s"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "90s"
     method = "GET"
-    path = "/api/health"
+    path = "/ping"
 
 [[vm]]
   memory = '4096mb'

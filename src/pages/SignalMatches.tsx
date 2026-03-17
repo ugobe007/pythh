@@ -582,11 +582,13 @@ export default function SignalMatches() {
           />
         </div>
 
-        <p className="text-sm text-zinc-400 leading-relaxed mb-8">
+        <p className="text-sm text-zinc-400 leading-relaxed mb-2">
           <span className="text-cyan-400">Signal</span> = timing.
           <span className="text-zinc-300 ml-1">GOD</span> = your position.
           <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
-          Start with the top rows — those are your fastest outreach wins.
+        </p>
+        <p className="text-sm text-cyan-300/90 mb-8">
+          Get the meeting: use <strong>Copy intro</strong> on each row to grab a ready-made outreach line.
         </p>
 
         {reportData && !reportLoading && reportOnlyMode ? (
@@ -1011,6 +1013,9 @@ function RadarMatchTable({
         onUnlock={onUnlock}
         unlocksRemaining={unlocksRemaining}
         mode={mode}
+        startupName={context?.startup?.name}
+        startupTagline={context?.startup?.tagline}
+        startupSectors={context?.startup?.sectors}
       />
     </div>
   );

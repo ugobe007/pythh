@@ -170,6 +170,26 @@ module.exports = {
     },
 
     // ========================================
+    // ENFORCE SPARSE 30-DAY POLICY
+    // Reject approved data-sparse startups that couldn't be enriched after 30d
+    // (catches holding 30d+ and waiting/null 30d+ that never entered holding)
+    // ========================================
+    {
+      name: 'enforce-sparse-30day-policy',
+      script: 'node',
+      args: 'scripts/enforce-sparse-30day-policy.js --limit=500',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '200M',
+      cron_restart: '30 3 * * *',  // Daily at 3:30am (after holding-review-worker)
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
+    // ========================================
     // ORACLE SIGNAL BACKFILL
     // Populates signals[] and focus_areas for all investors
     // Powers the Oracle "where are they investing now/next" prediction
@@ -269,6 +289,25 @@ module.exports = {
       // Phase B: Conditionally create graph joins (when graph_safe=true)
     },
     
+    // ========================================
+    // ENRICH FROM RSS NEWS - Match startup_events to startups, merge press/funding
+    // Runs after RSS scrapers (every 4h at :25) so events are in DB
+    // ========================================
+    {
+      name: 'enrich-from-rss-news',
+      script: 'node',
+      args: 'scripts/enrich-from-rss-news.js --limit=500',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      cron_restart: '25 */4 * * *',
+      env: {
+        NODE_ENV: 'production'
+      }
+    },
+
     // ========================================
     // SIMPLE RSS SCRAPER (writes to discovered_startups)
     // Tuned for throughput: 1s delay, 75 items per feed

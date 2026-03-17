@@ -27,9 +27,17 @@ golden/
 docs/
 database/
 pipeline/
+# Supabase: migrations run separately (supabase db push), not from the app image
+supabase/
 # Loose data files
 airtable-*.json
 mercury-*.json
 cleanup-*.json
 industry-*.json
 goldilocks-*.json
+# Dev/test
+.cursor
+.vscode
+*.test.js
+*.spec.js
+__tests__

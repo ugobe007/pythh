@@ -139,10 +139,10 @@ const ELITE_SCHOOLS = [
 // At 1.10-1.15x: a 72 with perfect excellence → 79, a 78 → 86, an 82 → 94.
 const TIER_MULTIPLIERS: { min: number; max: number; multiplier: number }[] = [
   { min: 0,  max: 59, multiplier: 1.00 },  // No boost for Freshman/Sophomore
-  { min: 60, max: 69, multiplier: 1.02 },  // Junior: reduced from 1.05 to 1.02 (Feb 2026) - less aggressive
-  { min: 70, max: 79, multiplier: 1.05 },  // Senior: reduced from 1.10 to 1.05 (Feb 2026) - less aggressive
-  { min: 80, max: 89, multiplier: 1.08 },  // Dean's List: reduced from 1.15 to 1.08 (Feb 2026) - less aggressive
-  { min: 90, max: 100, multiplier: 1.10 }, // PhD: reduced from 1.18 to 1.10 (Feb 2026) - less aggressive
+  { min: 60, max: 69, multiplier: 1.05 },  // Junior: +3 to +3.5 pts
+  { min: 70, max: 79, multiplier: 1.10 },  // Senior: +7 to +7.9 pts (lifts strong → excellent)
+  { min: 80, max: 89, multiplier: 1.15 },  // Dean's List: +12 to +13.3 pts (elite range)
+  { min: 90, max: 100, multiplier: 1.18 }, // PhD: +16.2 to +18 pts (approach 100)
 ];
 
 function getTierMultiplier(score: number): number {
@@ -328,7 +328,7 @@ export function calculateEliteBoost(startup: any, intermediateScore: number): El
     const baseMultiplier = getTierMultiplier(intermediateScore);
     const excellenceRatio = Math.min((excellenceScore - EXCELLENCE_THRESHOLD) / EXCELLENCE_RANGE, 1.0);
     effectiveMultiplier = 1.0 + (baseMultiplier - 1.0) * excellenceRatio;
-    boost = Math.min(Math.round(intermediateScore * (effectiveMultiplier - 1.0)), 8); // Cap: +8 max (reduced Feb 2026 from +15 to lower average scores toward target 58-62)
+    boost = Math.min(Math.round(intermediateScore * (effectiveMultiplier - 1.0)), 15); // Cap: +15 max (Admin recalibrated Feb 20, 2026)
     
     // Assign tier label
     if (intermediateScore >= 90) tier = 'PhD';

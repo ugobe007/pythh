@@ -531,11 +531,11 @@ async function scrapeRssFeeds() {
               //                      (events, follow-on funding, new articles) before a
               //                      final approve/reject decision is made. NOT shown to
               //                      investors until it clears the 40-point floor.
-              // DB trigger enforces the 40-point floor as a hard minimum on total_god_score.
               // ─────────────────────────────────────────────────────────────────────
               const AUTO_APPROVE_THRESHOLD = 70;
               const FLOOR = 40;
-              const score = godScores.total_god_score || 0;
+              godScores.total_god_score = Math.max(FLOOR, godScores.total_god_score || 0);
+              const score = godScores.total_god_score;
               const startupStatus = score >= AUTO_APPROVE_THRESHOLD ? 'approved'
                                   : score >= FLOOR               ? 'pending'
                                   :                                 'holding';

@@ -164,35 +164,41 @@ async function checkScraperHealth() {
       .select('*', { count: 'exact', head: true })
       .gte('created_at', last24h);
 
-    // Check discovered startups (recent)
+    // Check discovered startups (recent) — simple-rss-scraper
     const { count: recentDiscovered } = await supabase
       .from('discovered_startups')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', last24h);
+
+    // Check startup_events (last 24h) — ssot-rss-scraper writes here (primary RSS pipeline)
+    const { count: recentEvents } = await supabase
+      .from('startup_events')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', last24h);
 
     let status = HEALTH_STATUS.HEALTHY;
     const issues = [];
 
-    if ((recentLogs || 0) === 0) {
+    // Primary signal: ssot-rss-scraper writes to startup_events; simple-rss writes to discovered_startups
+    const hasRssActivity = (recentEvents || 0) > 0 || (recentDiscovered || 0) > 0;
+    if (!hasRssActivity) {
       status = HEALTH_STATUS.WARNING;
-      issues.push('No scraper logs in last 24 hours');
+      issues.push('No RSS activity in last 24h (startup_events or discovered_startups)');
     }
-
-    if ((recentArticles || 0) === 0) {
-      status = HEALTH_STATUS.WARNING;
-      issues.push('No RSS articles scraped in last 24 hours');
+    // Legacy tables — warn only if we have no activity anywhere
+    if ((recentLogs || 0) === 0 && !hasRssActivity) {
+      issues.push('No scraper_logs in last 24 hours (optional — main scrapers use startup_events/discovered_startups)');
     }
-
-    if ((recentDiscovered || 0) === 0) {
-      status = HEALTH_STATUS.WARNING;
-      issues.push('No new startups discovered in last 24 hours');
+    if ((recentArticles || 0) === 0 && !hasRssActivity) {
+      issues.push('No rss_articles in last 24 hours (optional — ssot/simple-rss use other tables)');
     }
 
     console.log(`Status: ${status}`);
     console.log(`\n📈 Last 24 Hours:`);
+    console.log(`  Startup Events (ssot-rss): ${recentEvents || 0}`);
+    console.log(`  Discovered Startups (simple-rss): ${recentDiscovered || 0}`);
     console.log(`  Scraper Logs: ${recentLogs || 0}`);
     console.log(`  RSS Articles: ${recentArticles || 0}`);
-    console.log(`  Discovered Startups: ${recentDiscovered || 0}`);
     console.log(`  Scraper Jobs: ${recentJobs?.length || 0}`);
 
     if (recentJobs && recentJobs.length > 0) {
@@ -209,7 +215,7 @@ async function checkScraperHealth() {
       issues.forEach(issue => console.log(`  - ${issue}`));
     }
 
-    return { status, recentLogs, recentArticles, recentDiscovered, issues };
+    return { status, recentEvents, recentLogs, recentArticles, recentDiscovered, issues };
 
   } catch (error) {
     console.error(`\n❌ Error checking scraper health:`, error.message);

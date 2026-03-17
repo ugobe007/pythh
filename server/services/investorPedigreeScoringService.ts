@@ -15,13 +15,20 @@
  *   Tier 3 — Any recognised VC / notable angel (Lightspeed, Khosla, Naval, Sam Altman …)
  *   Advisor tier — FAANG execs, unicorn founders, domain authorities
  *
- * Max bonus: +8 pts (avoids dominating the +10 total cap but still meaningfully lifts)
- * Stacking: tiers stack additively up to the cap, so T1 + notable angels > T1 alone
+ * Points (before cap):
+ *   Tier 1 (1 hit):  raw +6   e.g. YC, Sequoia, a16z alone
+ *   Tier 1 (2+ hit): raw +8   e.g. YC + Sequoia
+ *   Tier 2 (1 hit):  raw +4   Tier 2 alone
+ *   Tier 2 (2+ hit): raw +5   multiple T2
+ *   Tier 3 / angels: raw +1–3
+ *   Advisors:        raw +0.5–2
+ * Final bonus is capped (Tier 1 = up to 10 pts; other = up to 5 pts). T1 backing is strong validation.
+ * Stacking: tiers stack additively up to the cap.
  */
 
 export interface PedigreeResult {
   applied: boolean;
-  bonus: number;                     // 0 – 8, integer
+  bonus: number;                     // 0–10 when Tier 1 (prominent VC), 0–5 otherwise
   tier: 'elite' | 'top' | 'notable' | 'advisor_only' | 'none';
   matchedInvestors: string[];        // which names triggered the score
   matchedAdvisors: string[];
@@ -211,10 +218,45 @@ function extractAdvisorStrings(startup: any): string[] {
 }
 
 // ============================================================================
+// NAME QUALITY GATE — don't award pedigree to headline/non-startup names
+// ============================================================================
+
+/** Patterns that indicate the "startup" name is an article headline or fragment, not a company. */
+const HEADLINE_NAME_PATTERNS = [
+  /\b(inc said|is said|via its| as part of|taps |sets new |backed .* is said)\b/i,
+  /\b(india arm|sequoia india|index ventures['’]|sequoia capital india arm)\b/i,
+  /\b(ex-top|billion-dollar idea|principal scientist |shaun maguire after|phonepe via its)\b/i,
+  /^(wall street|justice dept|pentagon|ferrari sets|firefox \d+|using sec edgar|sec edgar)\b/i,
+  /\b(sec edgar|edgar data|moroccan founder)\b/i,
+  /(million fund iii|valuation after|months after|kids holdings|connected infra group)\b/i,
+  /(disco ediscovery|website security|emergent triples|blue j legal|eighthclouds|blue jay|check:)\b/i,
+  // Full name looks like "Fund Name" or "VC Name Arm" (article about the fund, not a startup)
+  /^[\w\s]+(ventures['’]|capital india arm|venture\s*:)\s*$/i,
+];
+
+function isPlausibleStartupName(name: string | null | undefined): boolean {
+  const n = (name || '').trim();
+  if (n.length < 2 || n.length > 120) return false;
+  if (HEADLINE_NAME_PATTERNS.some((p) => p.test(n))) return false;
+  return true;
+}
+
+// ============================================================================
 // MAIN EXPORT
 // ============================================================================
 
 export function calculateInvestorPedigreeBonus(startup: any): PedigreeResult {
+  if (!isPlausibleStartupName(startup?.name)) {
+    return {
+      applied: false,
+      bonus: 0,
+      tier: 'none',
+      matchedInvestors: [],
+      matchedAdvisors: [],
+      explanation: 'Name appears to be article headline or non-startup; pedigree not applied',
+    };
+  }
+
   const investorTexts = extractInvestorStrings(startup);
   const advisorTexts = extractAdvisorStrings(startup);
 
@@ -250,8 +292,9 @@ export function calculateInvestorPedigreeBonus(startup: any): PedigreeResult {
   if (advisorHits.length >= 3) rawBonus += Math.min(rawBonus > 0 ? 1 : 2, 2);
   else if (advisorHits.length >= 1) rawBonus += Math.min(rawBonus > 0 ? 0.5 : 1, 1);
 
-  // Hard cap at 5 (reduced Feb 2026 from 8 to lower average GOD scores toward target 58-62 range)
-  const bonus = Math.min(Math.round(rawBonus), 5);
+  // Cap: Tier 1 (prominent VC) gets full weight — up to 10 pts; others up to 5 (Mar 2026: T1 = strong validation)
+  const pedigreeCap = t1Hits.length >= 1 ? 10 : 5;
+  const bonus = Math.min(Math.round(rawBonus), pedigreeCap);
 
   if (bonus === 0 && matchedInvestors.length === 0 && matchedAdvisors.length === 0) {
     return {

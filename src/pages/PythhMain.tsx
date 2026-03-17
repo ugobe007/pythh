@@ -363,6 +363,9 @@ export default function PythhHome() {
             <p className="text-zinc-400 text-lg sm:text-xl max-w-3xl">
               We align your startup with investor signals. No guessing. Just math.
             </p>
+            <p className="text-cyan-300/90 text-base max-w-2xl">
+              Get the meeting: see your top matches and copy intro lines for each investor.
+            </p>
 
             <p className="text-sm text-zinc-500">
               <Link to="/lookup" className="text-amber-400/90 hover:text-amber-400 transition-colors">
