@@ -757,10 +757,10 @@ const SignalTrends: React.FC = () => {
                     {startup.rank}
                   </div>
 
-                  {/* Startup Name — Links to Startup Intelligence */}
+                  {/* Startup Name — Links to startup summary and report (signal-matches) */}
                   <Link 
-                    to={`/app/startup/${startup.id}`}
-                    className="text-white font-medium text-sm truncate hover:underline"
+                    to={`/signal-matches?startup=${startup.id}`}
+                    className="text-white font-medium text-sm truncate hover:text-cyan-400 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {startup.name}

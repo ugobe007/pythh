@@ -338,9 +338,9 @@ export default function ExplorePage() {
                       {rank}
                     </div>
 
-                    {/* Name + tagline + signals */}
-                    <div className="min-w-0">
-                      <div className="text-sm text-white truncate">{startup.name || 'Unnamed'}</div>
+                    {/* Name + tagline + signals — clickable to startup summary and report */}
+                    <Link to={`/signal-matches?startup=${startup.id}`} className="min-w-0 hover:bg-zinc-800/30 -m-3 p-3 rounded transition-colors">
+                      <div className="text-sm text-white truncate hover:text-cyan-400">{startup.name || 'Unnamed'}</div>
                       {startup.tagline && (
                         <div className="text-[11px] text-zinc-600 truncate mt-0.5">{startup.tagline}</div>
                       )}
@@ -354,7 +354,7 @@ export default function ExplorePage() {
                           {startup.is_repeat_founder && <span className="text-[9px] px-1.5 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded" title="Repeat Founder">🔁</span>}
                         </div>
                       )}
-                    </div>
+                    </Link>
 
                     {/* Sector */}
                     <div className="text-xs text-zinc-500 truncate self-center">{sectorDisplay}</div>

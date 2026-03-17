@@ -128,10 +128,29 @@ function ShareStoryButton({
   const shareUrl = url || `${SITE}/newsletter`;
 
   const copyText = text.includes(shareUrl) ? text : `${text}\n${shareUrl}`;
+
+  const copyToClipboardFallback = (str: string): boolean => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = str;
+      el.setAttribute('readonly', '');
+      el.style.position = 'absolute';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(el);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   const handleShare = useCallback(
     async (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      let done = false;
       try {
         if (navigator.share && navigator.canShare?.({ text, url: shareUrl, title: title || 'The Daily Signal' })) {
           await navigator.share({
@@ -139,16 +158,23 @@ function ShareStoryButton({
             text,
             url: shareUrl,
           });
-          setCopied(true);
-        } else {
-          await navigator.clipboard.writeText(copyText);
-          setCopied(true);
+          done = true;
         }
       } catch {
-        await navigator.clipboard.writeText(copyText);
-        setCopied(true);
+        /* fall through to clipboard */
       }
-      setTimeout(() => setCopied(false), 2000);
+      if (!done) {
+        try {
+          await navigator.clipboard.writeText(copyText);
+          done = true;
+        } catch {
+          done = copyToClipboardFallback(copyText);
+        }
+      }
+      if (done) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     },
     [text, shareUrl, title]
   );
@@ -353,7 +379,7 @@ export default function NewsletterPage() {
                   {data.leaderboard.map((s, i) => (
                     <div key={s.id} className={`flex items-center gap-4 px-4 py-3.5 ${i < data.leaderboard.length - 1 ? 'border-b border-zinc-800/40' : ''} hover:bg-zinc-800/20 transition group`}>
                       <span className="text-zinc-700 font-mono text-sm w-5 text-right">{i + 1}</span>
-                      <Link to={`/signal-matches?startup=${s.id}`} className="flex-1 min-w-0">
+                      <Link to={`/signal-matches?startup=${s.id}`} className="flex-1 min-w-0 hover:underline underline-offset-2">
                         <div className="flex items-center gap-2">
                           <span className="text-white font-medium truncate group-hover:text-cyan-400 transition">{s.name}</span>
                           {(s.sectors || []).slice(0, 1).map(sec => <SectorTag key={sec} sector={sec} />)}
