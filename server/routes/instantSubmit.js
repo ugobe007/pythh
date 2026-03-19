@@ -1484,16 +1484,18 @@ router.post('/submit', async (req, res) => {
       const { data: found } = await supabase
         .from('startup_uploads')
         .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
-        .or(`website.ilike.%${domain}%`)
+        .ilike('website', `%${domain}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
       
       if (found) {
         startupId = found.id;
         startup = found;
         isNew = false;
       } else {
-        safeJson(500, { error: 'Failed to create startup' });
+        const errMsg = insertErr?.message || insertErr?.code || 'Unknown database error';
+        console.error(`  ✗ Insert failed (no fallback):`, errMsg);
+        safeJson(500, { error: 'Failed to create startup', reason: errMsg });
         return;
       }
     } else {
@@ -1502,17 +1504,28 @@ router.post('/submit', async (req, res) => {
       console.log(`  ✓ Created minimal startup: ${insertName} (${startupId})`);
     }
     
-    // Acquire lock + fire background
+    // Acquire lock + fire background (non-blocking; don't fail response if RPC errors)
     const genSource = isNew ? 'new' : 'rpc';
-    const { data: runId } = await supabase.rpc('try_start_match_gen', {
-      p_startup_id: startupId,
-      p_cooldown_minutes: 5,
-    });
-    
-    // Defer so HTTP response flushes first
-    setTimeout(() => startBackgroundPipeline({
-      startupId, domain, inputRaw, genSource, runId, startTime
-    }), 50);
+    let runId = null;
+    try {
+      const r = await supabase.rpc('try_start_match_gen', {
+        p_startup_id: startupId,
+        p_cooldown_minutes: 5,
+      });
+      runId = r?.data ?? null;
+      if (r?.error) console.warn('[INSTANT] try_start_match_gen RPC error:', r.error);
+    } catch (rpcErr) {
+      console.warn('[INSTANT] try_start_match_gen failed (continuing):', rpcErr?.message);
+    }
+    setTimeout(() => {
+      try {
+        startBackgroundPipeline({
+          startupId, domain, inputRaw, genSource, runId, startTime
+        });
+      } catch (pipeErr) {
+        console.error('[INSTANT] startBackgroundPipeline failed:', pipeErr);
+      }
+    }, 50);
     
     // Save session pointer
     const sessionId = req.body?.session_id || req.headers['x-session-id'];
@@ -1548,8 +1561,10 @@ router.post('/submit', async (req, res) => {
     
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
+    const reason = err?.message || (typeof err === 'string' ? err : 'Unknown error');
     safeJson(500, {
-      error: 'Processing failed'
+      error: 'Processing failed',
+      reason
     });
     return;
   } finally {

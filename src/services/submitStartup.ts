@@ -454,6 +454,13 @@ export async function submitStartup(
 
     const errText = response ? await response.text().catch(() => '') : '';
     const statusCode = response?.status ?? 0;
+    let backendReason = '';
+    try {
+      const errJson = errText ? JSON.parse(errText) : {};
+      backendReason = errJson?.reason || errJson?.error || '';
+    } catch {
+      /* ignore */
+    }
 
     console.error('[FindSignals] submit failed', statusCode, errText);
 
@@ -465,7 +472,10 @@ export async function submitStartup(
       }
     }
 
-    const notFoundResult = { status: 'not_found' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: statusCode ? `Backend returned ${statusCode}` : 'Backend request failed' };
+    const errorMsg = backendReason
+      ? (statusCode ? `Backend error (${statusCode}): ${backendReason}` : backendReason)
+      : (statusCode ? `Backend returned ${statusCode}` : 'Backend request failed');
+    const notFoundResult = { status: 'not_found' as const, startup_id: null, name: null, website: null, match_count: 0, searched, error: errorMsg };
     console.log('[FindSignals] return', { status: notFoundResult.status, startup_id: notFoundResult.startup_id, searched: notFoundResult.searched });
     return notFoundResult;
   } catch (error: unknown) {
