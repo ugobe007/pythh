@@ -381,6 +381,10 @@ async function scrapeRssFeeds() {
         let insertedEvent = null;
         try {
           // Upsert event (no pre-existence check needed — onConflict handles dedup)
+          // P1: news_stream for funding | investor | startup separation
+          const newsStream = event.event_type === 'EXEC_CHANGE' ? 'investor'
+            : ['FUNDING', 'INVESTMENT', 'ACQUISITION', 'MERGER', 'IPO_FILING', 'VALUATION'].includes(event.event_type) ? 'funding'
+            : 'startup';
           const { data: eventData, error: eventError } = await supabase
             .from('startup_events')
             .upsert({
@@ -402,6 +406,7 @@ async function scrapeRssFeeds() {
               entities: event.entities,
               extraction_meta: event.extraction,
               notes: event.notes,
+              ...(typeof newsStream === 'string' && { news_stream: newsStream }),
             }, { onConflict: 'event_id', ignoreDuplicates: false })
             .select('id, event_id')
             .single();

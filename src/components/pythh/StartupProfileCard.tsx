@@ -10,6 +10,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { StartupContext } from '@/lib/pythh-types';
+import { GODScoreExplainer } from './GODScoreExplainer';
 
 // Stage label mapping
 const STAGE_LABELS: Record<number, string> = {
@@ -465,7 +466,10 @@ export default function StartupProfileCard({
 
           {/* GOD Breakdown - Compact */}
           <div className="bg-zinc-800/20 rounded-lg px-3 py-2 space-y-1.5">
-            <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1">GOD Breakdown</p>
+            <p className="text-[9px] text-zinc-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+              GOD Breakdown
+              <GODScoreExplainer variant="icon" />
+            </p>
             <GODBar label="Team" value={god.team} max={25} color="bg-blue-500" />
             <GODBar label="Traction" value={god.traction} max={25} color="bg-emerald-500" />
             <GODBar label="Market" value={god.market} max={20} color="bg-purple-500" />

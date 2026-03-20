@@ -177,6 +177,7 @@ const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const MLDashboard = lazy(() => import("./pages/MLDashboard"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
 const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
+const LPTargetsPage = lazy(() => import("./pages/LPTargetsPage"));
 
 // -----------------------------------------------------------------------------
 // APP
@@ -357,6 +358,7 @@ const App = () => {
               <Route path="review-queue" element={<ReviewQueue />} />
               <Route path="ml-dashboard" element={<MLDashboard />} />
               <Route path="portfolio" element={<AdminPortfolioPage />} />
+              <Route path="lp-targets" element={<LPTargetsPage />} />
             </Route>
 
             {/* 404 */}

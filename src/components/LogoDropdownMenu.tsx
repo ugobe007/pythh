@@ -178,15 +178,12 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
         <div className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/5">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
             {/* Logo (left side) */}
-            <Link to="/" className="group flex items-center gap-2">
+            <Link to="/" className="group flex items-center gap-2" aria-label="pythh.ai home">
               <img
-                src="/images/delphi-pythia-icon-glyph-dark.jpg"
+                src="/images/pythh_oracle.png"
                 alt=""
-                className="h-6 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
+                className="h-9 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
               />
-              <span className="text-sm font-semibold tracking-wide text-white/90 group-hover:text-white">
-                pythh.ai
-              </span>
               <span className="text-xs tracking-[0.25em] text-white/40 group-hover:text-white/60 hidden sm:inline">
                 SIGNAL SCIENCE
               </span>

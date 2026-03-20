@@ -258,10 +258,10 @@ function parseAmount(title: string): CapitalEvent['amounts'] | undefined {
 
 /**
  * Parse funding round from title text (Tier 1 addon)
- * Detects: Seed, Pre-Seed, Angel, Series A/B/C/D/E, Growth, Debt
+ * Detects: Seed, Pre-Seed, Angel, Series A/B/C/D/E, Growth, Debt, Bridge
  */
 function parseRound(title: string): string | null {
-  const roundMatch = title.match(/\b(Pre-Seed|Seed|Angel|Series\s+[A-E]|Growth|Debt|Convertible\s+note)\b/i);
+  const roundMatch = title.match(/\b(Pre-Seed|Seed|Angel|Series\s+[A-E]|Growth|Debt|Bridge|Convertible\s+note)\b/i);
   if (!roundMatch) return null;
   
   return roundMatch[1];

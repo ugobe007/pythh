@@ -21,7 +21,7 @@ const SEO: React.FC<SEOProps> = ({
   title = 'pythh.ai — Signal Science for Venture',
   description = 'Match with the right investors using the GOD Algorithm™. 12,600+ startups analyzed, 841,915+ live matches, trusted by 500+ YC founders.',
   keywords = 'startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score',
-  ogImage = 'https://pythh.ai/images/delphi-pythia-icon-glyph-dark.jpg',
+  ogImage = 'https://pythh.ai/images/pythh_oracle.png',
   ogType = 'website',
   twitterCard = 'summary_large_image',
   canonical,

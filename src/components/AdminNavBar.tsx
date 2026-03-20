@@ -4,7 +4,7 @@
  */
 
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck, Briefcase } from 'lucide-react';
+import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck, Briefcase, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AdminNavBarProps {
@@ -123,6 +123,18 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         >
           <Briefcase className="w-4 h-4" />
           <span>Portfolio</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
+          to="/admin/lp-targets" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/lp-targets')
+              ? 'bg-amber-500/20 text-amber-300 font-semibold' 
+              : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>LP Targets</span>
         </Link>
       </div>
     </nav>

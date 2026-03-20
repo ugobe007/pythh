@@ -60,5 +60,5 @@ ENV LOG_LEVEL=warn
 
 EXPOSE 8080
 
-# Run API server directly so it binds immediately; use PM2 only if you need cron workers
-CMD ["node", "server/index.js"]
+# Run API server with tsx so .ts services (startupScoringService, urlScrapingService) load correctly
+CMD ["npx", "tsx", "server/index.js"]

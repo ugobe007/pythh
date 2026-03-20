@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
-import PythhExplainerBlock from '../components/PythhExplainerBlock';
-import LiveTeaser from '../components/LiveTeaser';
+import HeroFeatureList from '../components/HeroFeatureList';
 import PaywallModal from '../components/PaywallModal';
+import PythhHowItWorksModal, { hasSeenHowItWorks } from '../components/PythhHowItWorksModal';
 import SEO from '../components/SEO';
 import NewsletterWidget from '../components/NewsletterWidget';
+import { GODScoreExplainer } from '../components/pythh/GODScoreExplainer';
 import { supabase } from '../lib/supabase';
 import { normalizeStartupUrl, canonicalizeStartupUrl } from '../utils/normalizeUrl';
 import { useUsageTracking } from '../hooks/useUsageTracking';
@@ -58,13 +59,7 @@ export default function PythhHome() {
     return { startups: 0, investors: 0, matches: 0 };
   });
   const [showPaywall, setShowPaywall] = useState(false);
-  const [topStartups, setTopStartups] = useState<Array<{
-    id: string;
-    name: string;
-    total_god_score: number;
-    stage: string | null;
-    sectors: string[] | null;
-  }>>([]);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [sectorHeatLive, setSectorHeatLive] = useState<Array<{
     sector: string;
     startup_count: number;
@@ -76,6 +71,14 @@ export default function PythhHome() {
   const { profile } = useAuth();
   const isPro = profile?.plan !== 'free';
   
+  // First-visit: show How it works modal
+  useEffect(() => {
+    if (!hasSeenHowItWorks()) {
+      const t = setTimeout(() => setShowHowItWorks(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   // Usage tracking for freemium limits
   const { 
     analysisCount, 
@@ -216,27 +219,6 @@ export default function PythhHome() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Fetch top startups for leaderboard (refetches on window focus) ──────────
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchTop() {
-      try {
-        const { data } = await supabase
-          .from('startup_uploads')
-          .select('id, name, total_god_score, stage, sectors')
-          .eq('status', 'approved')
-          .not('total_god_score', 'is', null)
-          .order('total_god_score', { ascending: false })
-          .limit(5);
-        if (data && data.length > 0 && !cancelled) setTopStartups(data as any);
-      } catch { /* fails silently */ }
-    }
-    fetchTop();
-    const onFocus = () => fetchTop();
-    window.addEventListener('focus', onFocus);
-    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
-  }, []);
-
   // ═══════════════════════════════════════════════════════════════════════════
   // FIND SIGNALS — Navigate only. SignalMatches page calls submitStartup().
   // Single orchestration in submitStartup.ts — no duplicate workflow here.
@@ -327,92 +309,46 @@ export default function PythhHome() {
       <PythhUnifiedNav />
 
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO - Bold headline + URL submit + Rankings CTA + Hot Matches
+          HERO - Large CTA + URL submit + Feature list (Supabase-style)
           ═══════════════════════════════════════════════════════════════════ */}
       <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 pb-0">
-        {/* Flexible grid: Left column = content flow, Right column = Hot Matches */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-12 items-start">
           
-          {/* LEFT COLUMN: All hero content flows naturally */}
+          {/* LEFT COLUMN: Large CTA + explanation */}
           <div className="space-y-8">
-            {/* Pre-headline */}
-            <p 
-              className="text-base sm:text-lg tracking-wide text-cyan-100"
-              style={{ 
-                textShadow: '0 0 6px rgba(0, 210, 255, 0.4), 0 0 16px rgba(0, 210, 255, 0.15)'
-              }}
-            >
-              Investor signals. Live.
-            </p>
-            
-            {/* Main headline */}
+            {/* Main CTA — large fonts */}
             <h1 
-              className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-white leading-[1.08]"
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight text-white leading-[1.05]"
               style={{ 
                 textShadow: [
                   '0 0 3px rgba(0, 220, 255, 0.5)',
-                  '0 0 12px rgba(0, 200, 255, 0.3)',
-                  '0 0 24px rgba(0, 200, 255, 0.15)',
-                  '0 0 48px rgba(0, 200, 255, 0.07)',
+                  '0 0 12px rgba(0, 200, 255, 0.25)',
+                  '0 0 24px rgba(0, 200, 255, 0.12)',
                 ].join(', ')
               }}
             >
-              Find your investors. Now.
+              Find the investors who want to fund you.
             </h1>
             
-            <p className="text-zinc-400 text-lg sm:text-xl max-w-3xl">
-              We align your startup with investor signals. No guessing. Just math.
-            </p>
-            <p className="text-cyan-300/90 text-base max-w-2xl">
-              Get the meeting: see your top matches and copy intro lines for each investor.
+            <p className="text-cyan-300/95 text-xl sm:text-2xl max-w-2xl leading-relaxed">
+              Enter your startup URL. We'll analyze it and show your top investor matches in ~30 seconds.
             </p>
 
-            <p className="text-sm text-zinc-500">
-              <Link to="/lookup" className="text-amber-400/90 hover:text-amber-400 transition-colors">
-                For investors: Build your portfolio →
-              </Link>
+            <p className="text-zinc-500 text-base max-w-xl">
+              You'll get signal scores, top matches, and intro lines for each investor.
             </p>
 
-            {/* Social Proof & Stats */}
-            <div className="flex flex-wrap items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center min-w-[4rem] h-10 px-3 rounded-md border border-cyan-500/50 bg-transparent">
-                  <span className="text-cyan-400 font-bold text-lg">
-                    {stats.startups > 0 ? `${(stats.startups / 1000).toFixed(1)}K+` : <span className="text-cyan-400/40 text-sm">…</span>}
-                  </span>
-                </div>
-                <span className="text-zinc-400">
-                  startups analyzed <span className="text-cyan-400/80">this week</span>
-                </span>
-              </div>
-              <span className="text-zinc-700">•</span>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 border border-emerald-400 rounded-sm animate-pulse" />
-                <span className="text-zinc-400">
-                  <span className="text-white font-medium">{stats.matches > 0 ? stats.matches.toLocaleString() : <span className="text-white/40 text-sm">…</span>}</span> live matches
-                </span>
-              </div>
-              <span className="text-zinc-700">•</span>
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-                <span className="text-zinc-400">
-                  Trusted by <span className="text-white font-medium">500+</span> YC founders
-                </span>
-              </div>
-            </div>
-
-            {/* URL input section */}
-            <div className="max-w-3xl">
-              {/* Submit bar */}
-              <div 
-                className="flex flex-col sm:flex-row"
-                style={{ boxShadow: '0 0 40px rgba(34, 211, 238, 0.1), 0 0 80px rgba(34, 211, 238, 0.05)' }}
-              >
+            {/* URL input — Supabase: stroke + font only, no fill */}
+            <div className="max-w-2xl">
+              <div className="flex flex-col sm:flex-row border border-cyan-500/60 rounded-lg overflow-hidden">
                 <input
                   data-testid="home-url-input"
                   type="text"
+                  inputMode="url"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   value={url}
                   onChange={e => {
                     setUrl(e.target.value);
@@ -421,13 +357,13 @@ export default function PythhHome() {
                   }}
                   onKeyDown={e => e.key === 'Enter' && submit()}
                   placeholder="https://yourstartup.com"
-                  className="flex-1 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none px-5 py-4 text-white text-base placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+                  className="flex-1 bg-transparent border-0 px-5 py-4 text-white text-base placeholder-zinc-500 outline-none focus:ring-0"
                 />
                 <button
                   data-testid="home-analyze-button"
                   onClick={submit}
                   disabled={submitting}
-                  className="px-8 sm:px-10 py-4 bg-transparent border border-cyan-500 text-cyan-400 text-base font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+                  className="px-8 sm:px-12 py-4 bg-transparent border-t sm:border-t-0 sm:border-l border-cyan-500/60 text-cyan-400 text-base font-semibold hover:text-cyan-300 hover:border-cyan-400/80 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
                 >
                   {submitting ? 'Finding...' : 'Find Signals →'}
                 </button>
@@ -454,7 +390,10 @@ export default function PythhHome() {
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-amber-400">{urlError}</span>
                     {suggestion && (
-                      <button onClick={applySuggestion} className="text-xs text-cyan-400 hover:text-cyan-300 underline">
+                      <button
+                        onClick={applySuggestion}
+                        className="text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-500/50 rounded px-2 py-1 bg-transparent hover:border-cyan-400/60 transition-colors"
+                      >
                         Use "{suggestion}"
                       </button>
                     )}
@@ -464,12 +403,10 @@ export default function PythhHome() {
                     Will search: <span className="text-cyan-400 font-mono">{canonicalizeStartupUrl(url)?.domain || url.trim()}</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-4 text-[13px] text-zinc-500">
+                  <div className="flex flex-wrap items-center gap-3 text-[13px] text-zinc-500">
                     <span><span className="text-zinc-300 tabular-nums">{stats.startups > 0 ? stats.startups.toLocaleString() : '…'}</span> startups</span>
                     <span className="text-zinc-700">·</span>
-                    <span><span className="text-zinc-300 tabular-nums">{stats.investors > 0 ? stats.investors.toLocaleString() : '…'}</span> investors</span>
-                    <span className="text-zinc-700">·</span>
-                    <span><span className="text-cyan-400/80 tabular-nums">{stats.matches > 0 ? stats.matches.toLocaleString() : '…'}</span> matches</span>
+                    <span><span className="text-zinc-300 tabular-nums">{stats.matches > 0 ? stats.matches.toLocaleString() : '…'}</span> matches</span>
                     <span className="text-zinc-700">·</span>
                     <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 border border-emerald-400 rounded-sm animate-pulse" /><span className="text-emerald-400/60">live</span></span>
                   </div>
@@ -477,122 +414,37 @@ export default function PythhHome() {
               </div>
             </div>
 
-            {/* Secondary CTAs */}
-            <div className="flex flex-wrap items-center gap-6">
+            {/* Secondary CTAs — Rule of 3, Supabase style: stroke only */}
+            <div className="flex flex-wrap items-center gap-4">
               <Link
                 to="/rankings"
-                className="group inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-cyan-400 transition-colors"
+                className="inline-flex items-center gap-2 text-sm border border-cyan-500/50 text-cyan-400 rounded-md px-4 py-2 bg-transparent hover:border-cyan-400/70 hover:text-cyan-300 transition-colors"
               >
-                <span className="w-1.5 h-1.5 border border-cyan-400 rounded-sm group-hover:animate-pulse" />
-                See how Sequoia, a16z &amp; YC rank your sector
-                <span className="text-cyan-500 group-hover:translate-x-0.5 transition-transform">→</span>
+                Signal rankings by sector
+                <span>→</span>
               </Link>
               <Link
                 to="/explore"
-                className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="inline-flex items-center gap-2 text-sm border border-zinc-600 text-zinc-400 rounded-md px-4 py-2 bg-transparent hover:border-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                Browse {stats.startups > 0 ? `${stats.startups.toLocaleString()} ` : ''}startups
+                Browse startups
               </Link>
-            </div>
-
-            {/* Mobile: explainer + live teaser below CTAs */}
-            <div className="lg:hidden mt-8 space-y-6">
-              <PythhExplainerBlock />
-              <LiveTeaser />
+              <Link
+                to="/lookup"
+                className="text-sm text-zinc-500 hover:text-cyan-400/80 transition-colors"
+              >
+                For investors →
+              </Link>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: explainer + live teaser */}
-          <div className="hidden lg:block mt-28 space-y-6">
-            <PythhExplainerBlock />
-            <LiveTeaser />
+          {/* RIGHT COLUMN: feature list */}
+          <div className="lg:mt-24">
+            <HeroFeatureList onHowItWorksClick={() => setShowHowItWorks(true)} />
           </div>
           
         </div>
       </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          LIVE STARTUP LEADERBOARD — FOMO hook
-          ═══════════════════════════════════════════════════════════════════ */}
-      {topStartups.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🏆</span>
-              <span className="text-xs uppercase tracking-widest text-white/30 font-semibold">Top Startups Right Now</span>
-            </div>
-            <Link to="/rankings" className="text-xs text-zinc-500 hover:text-cyan-400 transition-colors">
-              Full rankings →
-            </Link>
-          </div>
-
-          <div className="relative">
-            <div className="space-y-1">
-              {topStartups.map((startup, i) => (
-                <div
-                  key={startup.id}
-                  className={`relative flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors ${
-                    i < 3
-                      ? 'border-zinc-800/50 bg-zinc-900/40 hover:bg-zinc-800/30 cursor-pointer'
-                      : 'border-zinc-800/30 bg-zinc-900/20'
-                  }`}
-                  onClick={() => i < 3 && navigate(`/startup/${startup.id}`)}
-                >
-                  {/* Rank number */}
-                  <span className="flex-shrink-0 w-5 text-center text-xs font-mono text-zinc-600">{i + 1}</span>
-
-                  {/* GOD score badge */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center bg-black/40 ${
-                    startup.total_god_score >= 80 ? 'border-emerald-500/60' :
-                    startup.total_god_score >= 70 ? 'border-cyan-500/50' : 'border-zinc-600/40'
-                  }`}>
-                    <span className={`text-[9px] font-black font-mono leading-none ${
-                      startup.total_god_score >= 80 ? 'text-emerald-400' :
-                      startup.total_god_score >= 70 ? 'text-cyan-400' : 'text-zinc-400'
-                    }`}>{startup.total_god_score}</span>
-                  </div>
-
-                  {/* Name + stage/sector */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-white/90 truncate">{startup.name}</div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {startup.stage && (
-                        <span className="text-[10px] text-zinc-500">{startup.stage}</span>
-                      )}
-                      {(startup.sectors || [])[0] && (
-                        <span className="text-[10px] text-cyan-400/50">{startup.sectors![0]}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Arrow for clickable rows */}
-                  {i < 3 && <span className="flex-shrink-0 text-white/20 text-xs">›</span>}
-
-                  {/* Blur overlay for rows 3-4 */}
-                  {i >= 3 && (
-                    <div
-                      className="absolute inset-0 rounded-lg"
-                      style={{ backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', background: 'rgba(10,14,19,0.65)' }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Sign-up CTA float over blurred rows */}
-            {topStartups.length >= 4 && (
-              <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center pb-3 pt-12 bg-gradient-to-t from-[#0a0e13] via-[#0a0e13]/70 to-transparent rounded-b-lg pointer-events-none">
-                <Link
-                  to="/submit"
-                  className="pointer-events-auto px-5 py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-sm font-medium hover:bg-orange-500/20 hover:border-orange-500/50 transition-all shadow-lg"
-                >
-                  Get my investor matches →
-                </Link>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           INVESTOR SIGNALS TABLE
@@ -652,8 +504,15 @@ export default function PythhHome() {
           ))}
 
           {/* Footer legend */}
-          <div className="px-4 py-3 text-center text-xs text-zinc-600">
-            Signal = timing · GOD = position · VC++ = investor optics
+          <div className="px-4 py-3 text-center text-xs text-zinc-600 flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
+            <span>Signal = timing</span>
+            <span>·</span>
+            <span className="inline-flex items-center gap-0.5">
+              GOD = investment readiness
+              <GODScoreExplainer variant="icon" />
+            </span>
+            <span>·</span>
+            <span>VC++ = investor optics</span>
           </div>
         </div>
       </section>
@@ -738,6 +597,12 @@ export default function PythhHome() {
         </div>
       </footer>
       
+      {/* How it works — first-visit + manual trigger */}
+      <PythhHowItWorksModal
+        isOpen={showHowItWorks}
+        onClose={() => setShowHowItWorks(false)}
+      />
+
       {/* Paywall Modal */}
       <PaywallModal
         isOpen={showPaywall}

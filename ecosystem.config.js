@@ -290,6 +290,29 @@ module.exports = {
     },
     
     // ========================================
+    // P1 SIGNAL PIPELINE - RSS → Enrich → Recalc (full chain, every 4h at :00)
+    // Use for manual runs: npm run signal-pipeline
+    // ========================================
+    {
+      name: 'signal-pipeline',
+      script: 'node',
+      args: 'scripts/cron/signal-pipeline.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '400M',
+      cron_restart: '0 */4 * * *',
+      env: {
+        NODE_ENV: 'production',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY
+      }
+    },
+
+    // ========================================
     // ENRICH FROM RSS NEWS - Match startup_events to startups, merge press/funding
     // Runs after RSS scrapers (every 4h at :25) so events are in DB
     // ========================================
@@ -347,6 +370,42 @@ module.exports = {
         NODE_ENV: 'production'
       },
       // Scrapes: YC, Princeton, Bristol, Waterloo, Stanford SPARK, VentureRadar
+    },
+
+    // ========================================
+    // P3 ONTOLOGICAL — Phrase extraction + Cohort scrape
+    // ========================================
+    {
+      name: 'extract-phrase-ontology',
+      script: 'node',
+      args: 'scripts/extract-phrase-ontology.js --limit=500',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      cron_restart: '30 */6 * * *',  // Every 6h at :30
+      env: {
+        NODE_ENV: 'production',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY
+      }
+    },
+    {
+      name: 'cohort-scraper',
+      script: 'node',
+      args: 'scripts/scrapers/cohort-scraper.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      cron_restart: '0 0 * * *',  // Daily at midnight
+      env: {
+        NODE_ENV: 'production',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY
+      }
     },
     
     // ========================================

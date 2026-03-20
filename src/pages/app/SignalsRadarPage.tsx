@@ -50,6 +50,7 @@ import { RefreshCw, AlertCircle, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
+import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
 import {
   useResolveStartup,
   useStartupContext,
@@ -388,7 +389,13 @@ export default function SignalsRadarPage() {
 
         {/* Guidance line - per spec: one line, always visible */}
         <div className="mb-4 text-sm text-gray-500">
-          <strong className="text-gray-400">Signal</strong> shows timing. <strong className="text-gray-400">GOD</strong> shows position. <strong className="text-gray-400">YC++</strong> shows how each investor is likely to perceive you.
+          <strong className="text-gray-400">Signal</strong> shows timing.{' '}
+          <strong className="text-gray-400">
+            GOD
+            <GODScoreExplainer variant="icon" className="ml-1 align-middle" />
+          </strong>{' '}
+          shows investment readiness (what tier 1 VCs evaluate).{' '}
+          <strong className="text-gray-400">YC++</strong> shows how each investor is likely to perceive you.
         </div>
 
         {/* Match Table - using canonical view model */}

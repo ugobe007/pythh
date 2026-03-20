@@ -35,6 +35,7 @@ export function AdminRouteWrapper() {
       'diagnostic': 'Diagnostic',
       'database-check': 'Database Check',
       'portfolio': 'Virtual Portfolio',
+      'lp-targets': 'LP Targets',
     };
     return pageNames[path] || path.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };

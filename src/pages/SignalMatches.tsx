@@ -26,6 +26,7 @@ import InvestorReadinessReport, { type ReportData } from '@/components/pythh/Inv
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
+import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
 
 import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
@@ -499,7 +500,7 @@ export default function SignalMatches() {
               Submit your company URL on the{' '}
               <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">home page</Link>{' '}
               to generate matches. Pythh will scrape your site, build a signal profile, calculate
-              your GOD score, and rank every investor in the network against your company.
+              your investment readiness (GOD) score, and rank every investor in the network against your company.
               It takes about 30 seconds.
             </p>
           </div>
@@ -584,7 +585,11 @@ export default function SignalMatches() {
 
         <p className="text-sm text-zinc-400 leading-relaxed mb-2">
           <span className="text-cyan-400">Signal</span> = timing.
-          <span className="text-zinc-300 ml-1">GOD</span> = your position.
+          <span className="text-zinc-300 ml-1">
+            GOD
+            <GODScoreExplainer variant="icon" className="ml-1 align-middle" />
+          </span>
+          {' '}= your investment readiness (what tier 1 VCs evaluate).
           <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
         </p>
         <p className="text-sm text-cyan-300/90 mb-8">
@@ -1032,18 +1037,17 @@ const BENCHMARK_TOOLTIPS = {
     subline: 'Signal reflects movement, not quality.',
   },
   god: {
-    title: 'GOD Score',
-    description: 'A composite position score derived from 22+ weighted algorithms, trained on historical startup outcomes and continuously re-weighted via ML.',
-    subline: 'Evaluates company strength independent of hype, timing, or investor taste.',
+    title: 'GOD Score — Investment Readiness',
+    description: 'Your score reflects how strong your startup looks on the same criteria tier 1 VCs use: team, traction, market, product, and vision.',
+    subline: "It's not a prediction—it's a snapshot of your current investment readiness.",
     details: [
-      'Team construction analysis',
-      'Traction integrity models',
-      'Market structure evaluation',
-      'Execution velocity signals',
-      'Capital efficiency heuristics',
-      'Founder outcome priors',
+      'Team — founder fit, experience, cohesion',
+      'Traction — growth, revenue, milestones',
+      'Market — size, timing, dynamics',
+      'Product — differentiation, execution',
+      'Vision — strategy, roadmap, storytelling',
     ],
-    footer: 'Individual components are not equally weighted — weights adapt based on historical signal reliability in current market conditions.',
+    footer: 'Higher scores indicate stronger fundamentals. Think of it as "how would a top fund assess us today?"',
   },
   yc_plus: {
     title: 'YC++ Score',

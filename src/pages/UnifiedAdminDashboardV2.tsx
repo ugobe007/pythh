@@ -185,6 +185,7 @@ export default function UnifiedAdminDashboard() {
               <QuickLink icon={Settings} label="Algorithm Settings" route="/admin/god-settings" color="amber" />
               <QuickLink icon={BarChart3} label="Industry Rankings" route="/admin/industry-rankings" color="amber" />
               <QuickLink icon={Briefcase} label="Virtual Portfolio" route="/admin/portfolio" color="amber" />
+              <QuickLink icon={Users} label="LP Targets" route="/admin/lp-targets" color="amber" />
             </div>
           </div>
 

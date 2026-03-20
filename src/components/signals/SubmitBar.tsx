@@ -36,6 +36,12 @@ export default function SubmitBar(props: {
       }}
     >
       <input
+        type="text"
+        inputMode="url"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}

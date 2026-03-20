@@ -22,20 +22,28 @@ async function main() {
   console.log(`   Startups: ${startupCount?.toLocaleString()}`);
   console.log(`   Investors: ${investorCount?.toLocaleString()}\n`);
 
-  // 2. Test resolve_startup_by_url
+  // 2. Test resolve_startup_by_url (returns array of rows)
   console.log('🔍 Testing URL Resolution (nowports.com)...');
-  const { data: resolved, error: resolveErr } = await supabase.rpc('resolve_startup_by_url', { p_url: 'nowports.com' });
+  const { data: resolvedData, error: resolveErr } = await supabase.rpc('resolve_startup_by_url', { p_url: 'nowports.com' });
+  const resolved = Array.isArray(resolvedData) ? resolvedData[0] : resolvedData;
   if (resolveErr) {
     console.log('   ❌ ERROR:', resolveErr.message);
-  } else if (resolved) {
-    console.log('   ✅ Resolved startup:', resolved.name || resolved.startup_name);
-    console.log('   ID:', resolved.startup_id || resolved.id);
+  } else if (resolved?.resolved && resolved?.startup_id) {
+    console.log('   ✅ Resolved startup:', resolved.startup_name || resolved.name);
+    console.log('   ID:', resolved.startup_id);
+  } else if (resolved && !resolved.resolved) {
+    console.log('   ⚠️ URL not found (reason:', resolved.reason || 'unknown', ')');
   } else {
     console.log('   ⚠️ No result returned');
   }
 
-  // 3. Test get_live_match_table
-  const testStartupId = resolved?.startup_id || resolved?.id;
+  // 3. Test get_live_match_table (use resolved startup or pick one with matches)
+  let testStartupId = resolved?.startup_id || resolved?.id;
+  if (!testStartupId) {
+    const { data: sampleMatch } = await supabase.from('startup_investor_matches').select('startup_id').limit(1).single();
+    testStartupId = sampleMatch?.startup_id;
+    if (testStartupId) console.log('   📌 Using sample startup_id for match table test:', testStartupId);
+  }
   if (testStartupId) {
     console.log('\n📋 Testing get_live_match_table...');
     const { data: matches, error: matchErr } = await supabase.rpc('get_live_match_table', {
