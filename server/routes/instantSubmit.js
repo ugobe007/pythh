@@ -751,6 +751,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     
     // ── Fetch website content (2s hard timeout, reduced for speed) ──
     let websiteContent = null;
+    let inferenceMeta = null;  // meta description / og:description from raw HTML
     if (!checkTimeout()) {
       try {
         const fetchTimeout = Math.min(2000, pipelineDeadline - Date.now());
@@ -768,7 +769,15 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), fetchTimeout + 500))
           ]);
-          websiteContent = response.data
+          const rawHtml = response.data;
+          // Extract meta description before stripping (most sites have og:description or meta description)
+          const metaDesc = (rawHtml.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) || rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i))?.[1];
+          const ogDesc = (rawHtml.match(/<meta\s+[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) || rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i))?.[1];
+          const metaDescription = (ogDesc || metaDesc || '').trim().replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').substring(0, 500);
+          if (metaDescription) {
+            inferenceMeta = { product_description: metaDescription, tagline: metaDescription.length <= 120 ? metaDescription : metaDescription.substring(0, 117) + '...' };
+          }
+          websiteContent = rawHtml
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
             .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
@@ -778,7 +787,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             .replace(/\s+/g, ' ')
             .trim()
             .substring(0, 15000);
-          console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars`);
+          console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars${metaDescription ? ' + meta description' : ''}`);
         }
       } catch (fetchErr) {
         console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);
@@ -880,8 +889,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     const bestName = aiData?.name || inferredName || displayName;
     const merged = {
       name: bestName,
-      tagline: aiData?.tagline || inferenceData?.tagline || null,
-      description: aiData?.description || aiData?.pitch || inferenceData?.product_description || null,
+      tagline: aiData?.tagline || inferenceData?.tagline || inferenceMeta?.tagline || null,
+      description: aiData?.description || aiData?.pitch || inferenceData?.product_description || inferenceMeta?.product_description || null,
       pitch: aiData?.pitch || inferenceData?.value_proposition || null,
       sectors: inferenceData?.sectors?.length > 0 ? inferenceData.sectors : (aiData?.sectors || ['Technology']),
       stage: aiData?.stage || (inferenceData?.funding_stage ?
@@ -1266,23 +1275,45 @@ router.post('/submit', async (req, res) => {
       });
     }
     
-    // ── Resolve existing startup (fuzzy match) ──
+    // ── Resolve existing startup (fast path first, then fuzzy) ──
     let startupId = null;
     let startup = null;
     let isNew = false;
     
-    const searchPatterns = [
-      `website.ilike.%${domain}%`,
-      `website.ilike.%${companyName}.%`,
-      `name.ilike.%${companyName}%`
+    // Fast path: exact/prefix match (uses index, ~10–50ms vs full table scan)
+    const baseUrl = `https://${domain}`;
+    const wwwUrl = `https://www.${domain}`;
+    const exactPatterns = [
+      `website.eq.${baseUrl}`,
+      `website.eq.${baseUrl}/`,
+      `website.eq.${wwwUrl}`,
+      `website.eq.${wwwUrl}/`,
+      `website.ilike.${baseUrl}%`,
+      `website.ilike.${wwwUrl}%`,
     ];
-    
-    const { data: candidates, error: searchErr } = await supabase
+    let { data: candidates, error: searchErr } = await supabase
       .from('startup_uploads')
       .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
-      .or(searchPatterns.join(','))
+      .or(exactPatterns.join(','))
       .eq('status', 'approved')
-      .limit(100);
+      .limit(20);
+    
+    // Fallback: broad fuzzy search (slower, only if fast path found nothing)
+    if ((!candidates || candidates.length === 0) && !searchErr) {
+      const searchPatterns = [
+        `website.ilike.%${domain}%`,
+        `website.ilike.%${companyName}.%`,
+        `name.ilike.%${companyName}%`
+      ];
+      const fallback = await supabase
+        .from('startup_uploads')
+        .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
+        .or(searchPatterns.join(','))
+        .eq('status', 'approved')
+        .limit(100);
+      candidates = fallback.data;
+      searchErr = fallback.error;
+    }
     
     if (searchErr) console.error(`  ✗ Search error:`, searchErr);
     
@@ -1430,6 +1461,7 @@ router.post('/submit', async (req, res) => {
       .insert({
         name: insertName,
         website: `https://${domain}`,
+        company_domain: domain,
         tagline: null,
         sectors: ['Technology'],
         stage: 1,
@@ -1457,6 +1489,7 @@ router.post('/submit', async (req, res) => {
         .insert({
           name: insertName,
           website: `https://${domain}`,
+          company_domain: domain,
           tagline: null,
           sectors: ['Technology'],
           stage: 1,
