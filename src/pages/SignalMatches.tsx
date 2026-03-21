@@ -27,6 +27,7 @@ import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
 import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
+import ImproveScoreModal from '@/components/ImproveScoreModal';
 
 import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
@@ -651,10 +652,12 @@ export default function SignalMatches() {
             startupId={resolvedStartupId}
             url={urlToResolve}
             displayName={displayName}
+            godScore={context?.god?.total}
             onSaveMatches={handleSaveMatches}
             savedAt={savedMatchesAt}
             unlocksRemaining={unlocksRemaining}
             isInApp={isInApp}
+            onDeckUploadSuccess={handleRefresh}
           />
         )}
 
@@ -680,19 +683,24 @@ function NextStepsBlock({
   startupId,
   url,
   displayName,
+  godScore,
   onSaveMatches,
   savedAt,
   unlocksRemaining,
   isInApp,
+  onDeckUploadSuccess,
 }: {
   startupId: string;
   url: string | null;
   displayName: string;
+  godScore?: number;
   onSaveMatches: (id: string, u: string | null, name: string) => void;
   savedAt: number | null;
   unlocksRemaining: number;
   isInApp: boolean;
+  onDeckUploadSuccess?: () => void;
 }) {
+  const [showImproveModal, setShowImproveModal] = useState(false);
   const basePath = isInApp ? '/app' : '';
   const wasSaved = savedAt !== null;
   const justSaved = wasSaved && savedAt > Date.now() - 3000;
@@ -705,6 +713,17 @@ function NextStepsBlock({
     <section className="mt-10 mb-8 rounded-xl border border-zinc-700/50 bg-zinc-900/30 p-6">
       <h3 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">Your next steps</h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => setShowImproveModal(true)}
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition text-left w-full"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">0</span>
+          <div>
+            <p className="font-medium text-white group-hover:text-cyan-400 transition">Improve your score</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Upload deck · Sign up first</p>
+          </div>
+        </button>
         <Link
           to={`${basePath}/signal-matches?startup=${startupId}`}
           className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-emerald-500/40 hover:bg-zinc-800/60 transition"
@@ -763,6 +782,14 @@ function NextStepsBlock({
           </span>
         )}
       </div>
+      <ImproveScoreModal
+        isOpen={showImproveModal}
+        onClose={() => setShowImproveModal(false)}
+        startupId={startupId}
+        displayName={displayName}
+        godScore={godScore}
+        onSuccess={onDeckUploadSuccess}
+      />
     </section>
   );
 }

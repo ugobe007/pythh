@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff, Github } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,10 +21,15 @@ export default function Login() {
     setSocialLoading(true);
     setError('');
     try {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect') || (location.state as { redirectTo?: string })?.redirectTo || '/profile';
+      const redirectTo = redirect.startsWith('/')
+        ? `${window.location.origin}${redirect}`
+        : `${window.location.origin}/profile`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo,
         },
       });
       if (error) throw error;
@@ -116,18 +122,20 @@ export default function Login() {
       // Also update localStorage auth for backward compatibility
       login(email, password);
       
-      // Check if admin and redirect accordingly
+      // Check redirect: URL param, route-guard state, then sensible default
       const isAdmin = email.includes('admin') || email.includes('ugobe');
       const params = new URLSearchParams(window.location.search);
-      const redirect = params.get('redirect');
-      
-      if (redirect) {
-        // Always honor explicit redirect (e.g. from pricing page)
-        navigate(redirect);
+      const redirectFromUrl = params.get('redirect');
+      const redirectFromState = (location.state as { redirectTo?: string })?.redirectTo;
+
+      if (redirectFromUrl) {
+        navigate(redirectFromUrl);
+      } else if (redirectFromState) {
+        navigate(redirectFromState);
       } else if (isAdmin) {
         navigate('/admin');
       } else {
-        navigate('/');
+        navigate('/profile');
       }
     } catch (err: any) {
       console.error('[Login] Error:', err);

@@ -51,7 +51,12 @@ export default function PythhTopNav({ showSignup = true }: TopNavProps) {
               Sign up
             </Link>
           )}
-          <Link to="/login" className={linkClass('/login')}>Sign in</Link>
+          <Link
+            to={`/login${location.pathname !== '/' && location.pathname !== '/login' ? `?redirect=${encodeURIComponent(location.pathname + location.search)}` : ''}`}
+            className={linkClass('/login')}
+          >
+            Sign in
+          </Link>
         </nav>
       </div>
     </header>

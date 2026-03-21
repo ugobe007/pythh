@@ -106,6 +106,7 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.11",
     "openai": "^6.7.0",
+    "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.4.296",
     "pg": "^8.16.3",
     "pino": "^10.3.1",

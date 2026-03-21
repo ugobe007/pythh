@@ -5729,6 +5729,10 @@ app.use('/api', resolveRouter);
 const instantSubmit = require('./routes/instantSubmit');
 app.use('/api/instant', instantSubmit);
 
+// Deck upload - Pitch deck scoring and profile save
+const deckUploadRouter = require('./routes/deckUpload');
+app.use('/api/deck', deckUploadRouter);
+
 // Enrichment API - Founder self-service data completion
 const enrichRouter = require('./routes/enrich');
 app.use('/api/enrich', enrichRouter);

@@ -25,6 +25,7 @@ import { useOracleStartupId } from '../hooks/useOracleStartupId';
 import { pythhRpc } from '../services/pythh-rpc';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
 import ShareDashboardButton from '../components/ShareDashboardButton';
+import DeckUploadCard from '../components/DeckUploadCard';
 import type { StartupContext, MatchRow } from '../lib/pythh-types';
 import { GOD_MAX_SCORES, SIGNAL_WEIGHTS, MOMENTUM_DISPLAY } from '../lib/pythh-types';
 
@@ -257,6 +258,7 @@ export default function FounderProfileDashboard() {
   const [context, setContext] = useState<StartupContext | null>(null);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [startupName, setStartupName] = useState('');
+  const [deckFilename, setDeckFilename] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
@@ -271,16 +273,17 @@ export default function FounderProfileDashboard() {
         pythhRpc.getMatchTable(startupId, 5, 20),
       ]);
 
-      // Get startup name
+      // Get startup name and deck info
       const { data: su } = await supabase
         .from('startup_uploads')
-        .select('name')
+        .select('name, deck_filename')
         .eq('id', startupId)
         .single();
 
       setContext(ctx);
       setMatches(matchRows || []);
       setStartupName(su?.name || 'Your Startup');
+      setDeckFilename(su?.deck_filename || null);
     } catch (err) {
       console.error('[FounderProfile] Load error:', err);
     } finally {
@@ -547,6 +550,15 @@ export default function FounderProfileDashboard() {
               <p className="text-zinc-600 text-sm">GOD score pending. Scores are calculated after startup data is enriched.</p>
             </div>
           )}
+
+          {/* Pitch deck upload */}
+          <div className="mt-4">
+            <DeckUploadCard
+              startupId={startupId!}
+              deckFilename={deckFilename}
+              onSuccess={loadData}
+            />
+          </div>
         </section>
 
 

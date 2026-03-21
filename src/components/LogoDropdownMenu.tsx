@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   User,
   Settings,
@@ -43,7 +43,11 @@ interface Props {
  * - Admin section not in DOM unless admin
  */
 export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChange, mode = 'app' }: Props) {
+  const location = useLocation();
   const [internalOpen, setInternalOpen] = useState(false);
+  const loginTo = location.pathname !== '/' && location.pathname !== '/login'
+    ? `/login?redirect=${encodeURIComponent(location.pathname + location.search)}`
+    : '/login';
   
   // Oracle mode = drawer content only, no floating trigger/pills
   const isOracleMode = mode === 'oracle';
@@ -192,7 +196,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
             {/* Right side: Sign in + Hamburger */}
             <div className="flex items-center gap-3">
               <Link
-                to="/login"
+                to={loginTo}
                 className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/5 hover:text-white transition"
               >
                 Sign in
@@ -260,7 +264,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
                   <MenuItem to="/matches" label="Saved Matches" sub="Your signal map" onClose={handleClose} />
                 </>
               ) : (
-                <MenuItem to="/login" label="Sign in" sub="Access saved matches + outreach" onClose={handleClose} />
+                <MenuItem to={loginTo} label="Sign in" sub="Access saved matches + outreach" onClose={handleClose} />
               )}
 
               {/* What is Pythh - special button */}
