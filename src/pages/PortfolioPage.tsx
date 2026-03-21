@@ -300,7 +300,12 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
       <div className="flex flex-col gap-2">
         {/* Name row */}
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-lg font-semibold">{entry.startup_name}</span>
+          <Link
+            to={`/signal-matches?startup=${entry.startup_id}`}
+            className="text-lg font-semibold hover:text-cyan-400 transition-colors"
+          >
+            {entry.startup_name}
+          </Link>
 
           {/* Status chip */}
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${chip.color} ${chip.border}`}>

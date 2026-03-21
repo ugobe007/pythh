@@ -327,7 +327,7 @@ export default function PythhHome() {
                 ].join(', ')
               }}
             >
-              Find the investors who want to fund you.
+              Find the <span className="text-cyan-400">investors</span> who want to fund you.
             </h1>
             
             <p className="text-cyan-300/95 text-xl sm:text-2xl max-w-2xl leading-relaxed">
