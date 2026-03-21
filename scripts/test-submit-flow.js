@@ -26,7 +26,7 @@
 const TEST_URL = 'stripe.com'; // Well-known test URL
 
 const BASE = process.argv.includes('--production')
-  ? process.env.API_URL || 'https://your-production-url.com'
+  ? process.env.API_URL || 'https://hot-honey.fly.dev'
   : 'http://localhost:3002';
 
 // Required columns that the submit flow depends on
@@ -101,6 +101,17 @@ async function main() {
         ok(`${body.match_count} existing matches returned`);
       } else {
         fail('No matches returned');
+      }
+      // GOD score: new startups must not have placeholder 50; any returned score must be valid
+      const score = body.startup?.total_god_score;
+      if (score !== undefined && score !== null) {
+        if (body.is_new && score === 50) {
+          fail('New startup has placeholder GOD score 50 (sync scoring failed)');
+        } else if (score < 0 || score > 100) {
+          fail(`GOD score out of range: ${score}`);
+        } else {
+          ok(`GOD score valid: ${score}`);
+        }
       }
     } else {
       const text = await r.text();

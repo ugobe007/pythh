@@ -578,6 +578,220 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
 }
 
 /**
+ * Run fetch → inference → GOD score → persist on startup_uploads + signal seed.
+ * Called synchronously in POST /submit (before BG pipeline) so founders see real scores
+ * and Phase 1 matches use real GOD, not placeholder 50.
+ */
+async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl, domain, displayName, maxMs }) {
+  const syncStart = Date.now();
+  const deadline = Date.now() + maxMs;
+  const checkTimeout = () => Date.now() >= deadline;
+
+  try {
+    let websiteContent = null;
+    let inferenceMeta = null;
+
+    if (!checkTimeout()) {
+      try {
+        const fetchTimeout = Math.min(2500, deadline - Date.now());
+        if (fetchTimeout > 300) {
+          const response = await Promise.race([
+            axios.get(fullUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              },
+              timeout: fetchTimeout,
+              maxRedirects: 3,
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), fetchTimeout + 400)),
+          ]);
+          const rawHtml = response.data;
+          const metaDesc =
+            (rawHtml.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+              rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i))?.[1];
+          const ogDesc =
+            (rawHtml.match(/<meta\s+[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
+              rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i))?.[1];
+          const metaDescription = (ogDesc || metaDesc || '')
+            .trim()
+            .replace(/&amp;/g, '&')
+            .replace(/&#39;/g, "'")
+            .replace(/&quot;/g, '"')
+            .substring(0, 500);
+          if (metaDescription) {
+            inferenceMeta = {
+              product_description: metaDescription,
+              tagline: metaDescription.length <= 120 ? metaDescription : metaDescription.substring(0, 117) + '...',
+            };
+          }
+          websiteContent = rawHtml
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .substring(0, 15000);
+        }
+      } catch (fetchErr) {
+        console.warn(`  [SYNC] Fetch failed: ${fetchErr.message}`);
+      }
+    }
+
+    let inferenceData = null;
+    let dataTier = 'C';
+    if (websiteContent && websiteContent.length >= 50) {
+      inferenceData = extractInferenceData(websiteContent, fullUrl);
+      if (inferenceData) {
+        dataTier = inferenceData.confidence?.tier || 'C';
+      }
+    }
+
+    if (!checkTimeout() && (dataTier === 'C' || !inferenceData || isDataSparse({ extracted_data: inferenceData }))) {
+      try {
+        const enrichTimeout = Math.min(1800, deadline - Date.now());
+        if (enrichTimeout > 400) {
+          const newsEnrichment = await Promise.race([
+            quickEnrich(displayName, inferenceData || {}, fullUrl, enrichTimeout),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('enrich timeout')), enrichTimeout + 400)),
+          ]);
+          if (newsEnrichment.enrichmentCount > 0) {
+            inferenceData = { ...(inferenceData || {}), ...newsEnrichment.enrichedData };
+            dataTier = 'B';
+          }
+        }
+      } catch (newsErr) {
+        console.warn(`  [SYNC] News enrichment: ${newsErr.message}`);
+      }
+    }
+
+    let aiData = null;
+    if (!checkTimeout() && dataTier === 'C') {
+      try {
+        const scrapeTimeout = Math.min(2500, deadline - Date.now());
+        if (scrapeTimeout > 800) {
+          const scrapeResult = await Promise.race([
+            scrapeAndScoreStartup(fullUrl),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('AI scraper timeout')), scrapeTimeout)),
+          ]);
+          aiData = scrapeResult?.data;
+          const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
+          dataTier = hasSomeAI ? 'B' : 'C';
+        }
+      } catch (aiErr) {
+        console.warn(`  [SYNC] AI scraper: ${aiErr.message}`);
+      }
+    }
+
+    const inferredName = inferenceData?.name;
+    const bestName = aiData?.name || inferredName || displayName;
+    const merged = {
+      name: bestName,
+      tagline: aiData?.tagline || inferenceData?.tagline || inferenceMeta?.tagline || null,
+      description:
+        aiData?.description || aiData?.pitch || inferenceData?.product_description || inferenceMeta?.product_description || null,
+      pitch: aiData?.pitch || inferenceData?.value_proposition || null,
+      sectors: inferenceData?.sectors?.length > 0 ? inferenceData.sectors : aiData?.sectors || ['Technology'],
+      stage: aiData?.stage ||
+        (inferenceData?.funding_stage
+          ? {
+              'pre-seed': 1,
+              'pre seed': 1,
+              seed: 2,
+              'series a': 3,
+              'series b': 4,
+            }[String(inferenceData.funding_stage).toLowerCase()] || 1
+          : 1),
+      is_launched: inferenceData?.is_launched || aiData?.is_launched || false,
+      has_demo: inferenceData?.has_demo || aiData?.has_demo || false,
+      has_technical_cofounder: inferenceData?.has_technical_cofounder || aiData?.has_technical_cofounder || false,
+      team_size: inferenceData?.team_size || aiData?.founders_count || null,
+      mrr: aiData?.mrr || null,
+      arr: aiData?.arr || null,
+      customer_count: inferenceData?.customer_count || aiData?.customer_count || null,
+      growth_rate_monthly: inferenceData?.growth_rate || aiData?.growth_rate || null,
+    };
+
+    const enrichedRow = {
+      ...merged,
+      name: merged.name || displayName,
+      website: `https://${domain}`,
+      extracted_data: {
+        ...(inferenceData || {}),
+        ...(aiData || {}),
+        data_tier: dataTier,
+        enrichment_method: aiData ? 'inference+ai' : 'inference_only',
+        sync_scored_at: new Date().toISOString(),
+        scraped_at: new Date().toISOString(),
+      },
+    };
+
+    const scores = calculateGODScore(enrichedRow);
+    const completenessResult = calculateCompleteness(enrichedRow);
+
+    await supabase
+      .from('startup_uploads')
+      .update({
+        name: enrichedRow.name,
+        website: `https://${domain}`,
+        tagline: enrichedRow.tagline || null,
+        description: enrichedRow.description,
+        pitch: enrichedRow.pitch,
+        sectors: enrichedRow.sectors,
+        stage: enrichedRow.stage,
+        is_launched: enrichedRow.is_launched,
+        has_demo: enrichedRow.has_demo,
+        has_technical_cofounder: enrichedRow.has_technical_cofounder,
+        team_size: enrichedRow.team_size,
+        mrr: enrichedRow.mrr,
+        arr: enrichedRow.arr,
+        customer_count: enrichedRow.customer_count,
+        growth_rate_monthly: enrichedRow.growth_rate_monthly,
+        extracted_data: enrichedRow.extracted_data,
+        data_completeness: completenessResult.percentage,
+        total_god_score: scores.total_god_score,
+        team_score: scores.team_score,
+        traction_score: scores.traction_score,
+        market_score: scores.market_score,
+        product_score: scores.product_score,
+        vision_score: scores.vision_score,
+      })
+      .eq('id', startupId);
+
+    const godScore = scores.total_god_score || 50;
+    const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
+    const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+    const factor = signalTotal / 7.0;
+    try {
+      await supabase.from('startup_signal_scores').upsert(
+        {
+          startup_id: startupId,
+          signals_total: signalTotal,
+          founder_language_shift: parseFloat((1.0 * factor).toFixed(1)),
+          investor_receptivity: parseFloat((1.2 * factor).toFixed(1)),
+          news_momentum: parseFloat((1.1 * factor).toFixed(1)),
+          capital_convergence: parseFloat((1.1 * factor).toFixed(1)),
+          execution_velocity: parseFloat((1.1 * factor).toFixed(1)),
+          as_of: new Date().toISOString(),
+        },
+        { onConflict: 'startup_id' }
+      );
+    } catch (e) {
+      console.warn(`  [SYNC] Signal seed failed: ${e.message}`);
+    }
+
+    console.log(`  ✅ [SYNC] GOD ${scores.total_god_score} in ${Date.now() - syncStart}ms for ${domain}`);
+    return { ok: true, scores, enrichedRow, completenessResult, dataTier, signalTotal, normalized, godScore };
+  } catch (err) {
+    console.warn(`  [SYNC] syncEnrichmentAndGodScoreForSubmit failed: ${err.message}`);
+    return { ok: false };
+  }
+}
+
+/**
  * POST /api/instant/submit
  * 
  * Body: { url: string }
@@ -610,9 +824,11 @@ function startBackgroundPipeline(args) {
     });
 }
 
-async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, runId, startTime }) {
+async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, runId, startTime, syncScoringDone = false }) {
   const fullUrl = inputRaw.startsWith('http') ? inputRaw : `https://${domain}`;
   const displayName = domainToName(domain);
+  let skipPhase2Fetch = syncScoringDone;
+  let dataTier = 'C';
   
   // CRITICAL: Hard timeout for entire pipeline (30 seconds max)
   const PIPELINE_TIMEOUT = 30000;
@@ -645,13 +861,18 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       return;
     }
     
-    // Quick match with placeholder data (sectors=['Technology'], god_score=50)
+    // Prefer real GOD from DB (set by syncEnrichmentAndGodScoreForSubmit before BG runs)
+    const { data: suPh } = await supabase
+      .from('startup_uploads')
+      .select('name, sectors, stage, total_god_score')
+      .eq('id', startupId)
+      .single();
     const placeholderStartup = {
       id: startupId,
-      name: displayName,
-      sectors: ['Technology'],
-      stage: 1,
-      total_god_score: 50,
+      name: suPh?.name || displayName,
+      sectors: Array.isArray(suPh?.sectors) && suPh.sectors.length ? suPh.sectors : ['Technology'],
+      stage: suPh?.stage ?? 1,
+      total_god_score: typeof suPh?.total_god_score === 'number' ? suPh.total_god_score : 50,
     };
     
     // Tier A: cheap prefilter → max 300 candidates, then expensive scoring on shortlist only
@@ -746,9 +967,58 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     
     // =========================================================================
     // PHASE 2: ENRICHMENT (~5-15s) — Scrape, infer, score, re-match
-    // Matches are already visible; this refines them with real data
+    // Skipped when syncEnrichmentAndGodScoreForSubmit already ran in POST /submit
     // =========================================================================
-    
+    let scores;
+    let enrichedRow;
+    let completenessResult;
+    let signalTotal;
+    let normalized;
+    let godScore;
+
+    if (skipPhase2Fetch) {
+      const { data: row, error: rowErr } = await supabase.from('startup_uploads').select('*').eq('id', startupId).single();
+      if (rowErr || !row) {
+        console.warn(`  ⚠️ [BG] sync path: row missing — running full Phase 2`);
+        skipPhase2Fetch = false;
+      } else {
+        enrichedRow = {
+          name: row.name,
+          website: row.website || fullUrl,
+          tagline: row.tagline,
+          description: row.description,
+          pitch: row.pitch,
+          sectors: row.sectors,
+          stage: row.stage,
+          is_launched: row.is_launched,
+          has_demo: row.has_demo,
+          has_technical_cofounder: row.has_technical_cofounder,
+          team_size: row.team_size,
+          mrr: row.mrr,
+          arr: row.arr,
+          customer_count: row.customer_count,
+          growth_rate_monthly: row.growth_rate_monthly,
+          extracted_data: row.extracted_data || {},
+          last_news_check: row.last_news_check,
+        };
+        scores = {
+          team_score: row.team_score,
+          traction_score: row.traction_score,
+          market_score: row.market_score,
+          product_score: row.product_score,
+          vision_score: row.vision_score,
+          total_god_score: row.total_god_score,
+        };
+        completenessResult = { percentage: row.data_completeness ?? 0 };
+        dataTier = row.extracted_data?.data_tier || 'B';
+        godScore = row.total_god_score ?? 50;
+        normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
+        signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+        console.log(`  ⚡ [BG] Phase 2 skipped (request sync) — GOD ${scores.total_god_score}`);
+      }
+    }
+
+    if (!skipPhase2Fetch) {
     // ── Fetch website content (2s hard timeout, reduced for speed) ──
     let websiteContent = null;
     let inferenceMeta = null;  // meta description / og:description from raw HTML
@@ -796,7 +1066,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 
     // ── Inference engine (free, instant) ──
     let inferenceData = null;
-    let dataTier = 'C';
+    dataTier = 'C';
     if (websiteContent && websiteContent.length >= 50) {
       inferenceData = extractInferenceData(websiteContent, fullUrl);
       if (inferenceData) {
@@ -905,7 +1175,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       growth_rate_monthly: inferenceData?.growth_rate || aiData?.growth_rate || null,
     };
     
-    const enrichedRow = {
+    enrichedRow = {
       ...merged,
       name: merged.name || displayName,
       website: `https://${domain}`,
@@ -918,11 +1188,11 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       },
     };
 
-    const scores = calculateGODScore(enrichedRow);
+    scores = calculateGODScore(enrichedRow);
     console.log(`  🔄 [BG] GOD Score: ${scores.total_god_score} (T${scores.team_score} Tr${scores.traction_score} M${scores.market_score} P${scores.product_score} V${scores.vision_score})`);
 
     // Calculate data completeness after enrichment
-    const completenessResult = calculateCompleteness(enrichedRow);
+    completenessResult = calculateCompleteness(enrichedRow);
     console.log(`  🔄 [BG] Data completeness: ${completenessResult.percentage}%`);
 
     // ── Update startup row with enriched data ──
@@ -956,9 +1226,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       .eq('id', startupId);
 
     // ── Seed signal score (awaited — ensures score is readable before match gen) ──
-    const godScore = scores.total_god_score || 50;
-    const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-    const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+    godScore = scores.total_god_score || 50;
+    normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
+    signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
     const factor = signalTotal / 7.0;
     try {
       await supabase
@@ -977,6 +1247,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     } catch (e) {
       console.warn(`  ⚠️  Signal seed failed: ${e.message}`);
     }
+    } // end if (!skipPhase2Fetch)
+
+    const factor = (typeof signalTotal === 'number' ? signalTotal : 5.5) / 7.0;
 
     // ── Write signal_events (Layer 1 raw evidence) ──
     // Create signal events from enrichment evidence: execution_velocity (always),
@@ -1232,7 +1505,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
 router.post('/submit', async (req, res) => {
   console.error(`🔥 [DEBUG] POST /submit HIT at ${new Date().toISOString()}`); // FORCE DEBUG OUTPUT
   const startTime = Date.now();
-  const HARD_RESPONSE_TIMEOUT_MS = 12000;
+  const HARD_RESPONSE_TIMEOUT_MS = 14000; // room for sync GOD scoring before response
   const originalStatus = res.status.bind(res);
   const originalJson = res.json.bind(res);
   // Guard all downstream status/json calls after timeout sends a response.
@@ -1537,6 +1810,39 @@ router.post('/submit', async (req, res) => {
       console.log(`  ✓ Created minimal startup: ${insertName} (${startupId})`);
     }
     
+    // Real GOD score + DB update before background matches (fixes stuck-at-50 for new URL submits)
+    let syncScoringDone = false;
+    if (isNew && startupId) {
+      // Preserve path when user submits e.g. "httpbin.org/html" (domain strips path)
+      const fullUrlForSync = inputRaw.startsWith('http') ? inputRaw : `https://${inputRaw}`;
+      const syncBudget = Math.max(
+        2500,
+        Math.min(10_000, HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime) - 900)
+      );
+      try {
+        const sr = await syncEnrichmentAndGodScoreForSubmit(supabase, {
+          startupId,
+          fullUrl: fullUrlForSync,
+          domain,
+          displayName: domainToName(domain),
+          maxMs: syncBudget,
+        });
+        syncScoringDone = !!sr.ok;
+        if (sr.ok) {
+          const { data: fresh } = await supabase
+            .from('startup_uploads')
+            .select(
+              'id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, team_score, traction_score, market_score, product_score, vision_score'
+            )
+            .eq('id', startupId)
+            .single();
+          if (fresh) startup = fresh;
+        }
+      } catch (syncErr) {
+        console.warn('[INSTANT] sync GOD score failed (background will compute):', syncErr?.message);
+      }
+    }
+
     // Acquire lock + fire background (non-blocking; don't fail response if RPC errors)
     const genSource = isNew ? 'new' : 'rpc';
     let runId = null;
@@ -1553,7 +1859,13 @@ router.post('/submit', async (req, res) => {
     setTimeout(() => {
       try {
         startBackgroundPipeline({
-          startupId, domain, inputRaw, genSource, runId, startTime
+          startupId,
+          domain,
+          inputRaw,
+          genSource,
+          runId,
+          startTime,
+          syncScoringDone,
         });
       } catch (pipeErr) {
         console.error('[INSTANT] startBackgroundPipeline failed:', pipeErr);
