@@ -242,7 +242,7 @@ function getEmptyPayload(url) {
     },
     improve_actions: [
       {
-        title: 'Get Started with Hot Honey',
+        title: 'Get Started with Pythh',
         impact_pct: 100,
         steps: [
           'Submit your startup URL',

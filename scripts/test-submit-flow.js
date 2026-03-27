@@ -26,7 +26,7 @@
 const TEST_URL = 'stripe.com'; // Well-known test URL
 
 const BASE = process.argv.includes('--production')
-  ? process.env.API_URL || 'https://hot-honey.fly.dev'
+  ? process.env.API_URL || 'https://pythh.ai'
   : 'http://localhost:3002';
 
 // Required columns that the submit flow depends on

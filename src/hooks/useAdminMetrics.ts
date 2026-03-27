@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 // API base URL
-const API_BASE = import.meta.env.VITE_API_URL || 'https://hot-honey.fly.dev';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://pythh.ai';
 
 // Types
 export interface FunnelMetrics {

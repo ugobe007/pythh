@@ -7,9 +7,12 @@
  * ai_logs schema has varied across environments (type/operation vs log_type/action_type vs action).
  * This script tries several query shapes until one works, then counts events.
  *
- * Usage:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/lookup-funnel-report.js
+ * Loads `.env` from repo root (same vars as .env.example: VITE_SUPABASE_URL, SUPABASE_SERVICE_KEY).
+ * Usage: `npm run lookup:funnel:weekly` from project root, or pass env explicitly.
  */
+
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { createClient } = require('@supabase/supabase-js');
 

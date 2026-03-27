@@ -86,7 +86,7 @@ const HealthTechInvestorsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       <SEO
-        title="Top HealthTech Investors - Find Your Perfect Digital Health Investor | Hot Honey"
+        title="Top HealthTech Investors - Find Your Perfect Digital Health Investor | Pythh"
         description="Discover leading healthtech investors. Connect with VCs and angels investing in digital health, medical technology, and healthcare innovation. 200+ healthtech investors."
         keywords="healthtech investors, digital health VC, medical technology funding, healthcare startup investors, healthtech venture capital, medtech investors"
         canonical="/healthtech-investors"

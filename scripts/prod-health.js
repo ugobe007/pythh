@@ -5,7 +5,7 @@
  * Tests the live production app end-to-end: API endpoints + DB stats.
  *
  * Usage:
- *   node scripts/prod-health.js                         # defaults to hot-honey.fly.dev
+ *   node scripts/prod-health.js                         # defaults to https://pythh.ai
  *   node scripts/prod-health.js --url https://pythh.ai  # custom URL
  *   node scripts/prod-health.js --verbose               # show response bodies
  *
@@ -23,7 +23,7 @@ const urlArg = args.find(a => a.startsWith('--url='))?.split('=')[1]
              || (args.includes('--url') ? args[args.indexOf('--url') + 1] : null);
 const VERBOSE = args.includes('--verbose') || args.includes('-v');
 
-const BASE_URL = (urlArg || 'https://hot-honey.fly.dev').replace(/\/$/, '');
+const BASE_URL = (urlArg || 'https://pythh.ai').replace(/\/$/, '');
 const TIMEOUT  = 10_000; // ms per request
 
 // ── Colors ───────────────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@
  */
 
 const BASE = process.argv.includes('--production')
-  ? process.env.API_URL || 'https://hot-honey.fly.dev'
+  ? process.env.API_URL || 'https://pythh.ai'
   : 'http://localhost:3002';
 
 // Use a real URL that returns HTML - path ensures unique lookup, unlikely in DB

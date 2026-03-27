@@ -86,7 +86,7 @@ const FintechInvestorsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       <SEO
-        title="Top Fintech Investors - Find Your Perfect Fintech Startup Investor | Hot Honey"
+        title="Top Fintech Investors - Find Your Perfect Fintech Startup Investor | Pythh"
         description="Connect with leading fintech investors. Discover VCs and angels investing in payments, banking, and financial technology startups. 250+ fintech-focused investors."
         keywords="fintech investors, payments VC, banking investors, financial technology funding, fintech startup investors, fintech venture capital"
         canonical="/fintech-investors"

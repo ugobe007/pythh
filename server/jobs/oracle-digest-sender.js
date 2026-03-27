@@ -504,14 +504,14 @@ function buildEmailHtml(content) {
     ` : ''}
 
     <div style="text-align: center;">
-      <a href="${process.env.APP_URL || 'https://hot-honey.fly.dev'}/app/oracle/dashboard" class="cta-button">
+      <a href="${process.env.APP_URL || 'https://pythh.ai'}/app/oracle/dashboard" class="cta-button">
         View Full Dashboard →
       </a>
     </div>
 
     <div class="footer">
       <p>You're receiving this because you completed the Oracle coaching wizard.</p>
-      <p><a href="${process.env.APP_URL || 'https://hot-honey.fly.dev'}/app/settings/notifications">Manage email preferences</a></p>
+      <p><a href="${process.env.APP_URL || 'https://pythh.ai'}/app/settings/notifications">Manage email preferences</a></p>
     </div>
   </div>
 </body>

@@ -251,7 +251,7 @@ router.get('/email/a-b-test/:campaign_id/results', async (req, res) => {
  * Generate trackable link for email
  */
 function generateTrackableLink(emailSendId, destinationUrl, linkType, linkLabel) {
-  const baseUrl = process.env.APP_URL || 'https://hot-honey.fly.dev';
+  const baseUrl = process.env.APP_URL || 'https://pythh.ai';
   const trackingUrl = `${baseUrl}/api/oracle/email/track/click/${emailSendId}`;
   const params = new URLSearchParams({
     url: destinationUrl,
@@ -265,7 +265,7 @@ function generateTrackableLink(emailSendId, destinationUrl, linkType, linkLabel)
  * Generate tracking pixel for email
  */
 function generateTrackingPixel(emailSendId) {
-  const baseUrl = process.env.APP_URL || 'https://hot-honey.fly.dev';
+  const baseUrl = process.env.APP_URL || 'https://pythh.ai';
   return `${baseUrl}/api/oracle/email/track/open/${emailSendId}`;
 }
 
@@ -276,7 +276,7 @@ function buildEmailWithTracking(emailSendId, content) {
   const trackingPixelUrl = generateTrackingPixel(emailSendId);
   const dashboardUrl = generateTrackableLink(
     emailSendId,
-    'https://hot-honey.fly.dev/app/oracle/dashboard',
+    'https://pythh.ai/app/oracle/dashboard',
     'cta',
     'View Oracle Dashboard'
   );

@@ -7,7 +7,7 @@ module.exports = {
     extend: {
       colors: {
         // ════════════════════════════════════════════════════════════════
-        // 🔥 HOT HONEY - BLACK & GOLD ELEGANCE PALETTE
+        // Pythh UI palette (hh-* tokens; legacy naming preserved for class names)
         // ════════════════════════════════════════════════════════════════
         
         // ── PRIMARY: Flame Orange (70% - Headlines, CTAs, Main Actions) ──
@@ -60,7 +60,7 @@ module.exports = {
         'hh-info': '#06B6D4',         // Info states (cyan)
         
         // ════════════════════════════════════════════════════════════════
-        // 🎨 LEGACY: Hot Money Spectrum (Keep for compatibility)
+        // Legacy warm spectrum (keep for existing class names)
         // ════════════════════════════════════════════════════════════════
         'hot-yellow': '#FEF301',
         'hot-turbo': '#FFE102',

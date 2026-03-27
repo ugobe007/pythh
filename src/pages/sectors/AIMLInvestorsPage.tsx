@@ -44,7 +44,7 @@ export default function AIMLInvestorsPage() {
   return (
     <div className="min-h-screen bg-[#0a0e13]">
       <SEO
-        title="Top AI/ML Investors - Find Your Perfect AI Startup Investor | Hot Honey"
+        title="Top AI/ML Investors - Find Your Perfect AI Startup Investor | Pythh"
         description="Discover the most active AI/ML investors. Connect with VCs and angels investing in artificial intelligence and machine learning startups. 300+ AI-focused investors."
         keywords="AI investors, ML investors, artificial intelligence VC, machine learning funding, AI startup investors, AI/ML venture capital"
         canonical="/ai-ml-investors"
