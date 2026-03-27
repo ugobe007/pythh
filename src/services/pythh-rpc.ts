@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { isUuidString } from '@/lib/isUuid';
 import { submitStartup as unifiedSubmit, getSessionId as unifiedGetSessionId } from '@/services/submitStartup';
 import type {
   MatchRow,
@@ -161,6 +162,12 @@ export const pythhRpc = {
 
   // Get startup context (GOD, signals, comparison, entitlements)
   async getStartupContext(startupId: string): Promise<StartupContext | null> {
+    if (!isUuidString(startupId)) {
+      if (import.meta.env.DEV) {
+        console.warn('[pythhRpc] getStartupContext skipped: not a valid UUID', startupId);
+      }
+      return null;
+    }
     const { data, error } = await supabase.rpc('get_startup_context', {
       p_startup_id: startupId,
     });
@@ -330,7 +337,13 @@ export function useStartupContext(startupId: string | null) {
 
   const fetchContext = useCallback(async (force = false) => {
     if (!startupId) return;
-    
+    if (!isUuidString(startupId)) {
+      setContext(null);
+      setError(new Error('Invalid startup id'));
+      setLoading(false);
+      return;
+    }
+
     // Check cache first — skip if it contains placeholder/stub data
     if (!force) {
       const cached = getCached(cache.startupContext, startupId, CONTEXT_TTL);
@@ -370,12 +383,13 @@ export function useStartupContext(startupId: string | null) {
     } else {
       setContext(null);
       setLoading(false);
+      setError(null);
     }
   }, [startupId, fetchContext]);
 
   // Refresh on window focus
   useEffect(() => {
-    if (!startupId) return;
+    if (!startupId || !isUuidString(startupId)) return;
     const onFocus = () => fetchContext(true);
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);

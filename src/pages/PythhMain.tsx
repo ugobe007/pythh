@@ -4,7 +4,6 @@ import LiveWhisperLine from '../components/LiveWhisperLine';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import HeroFeatureList from '../components/HeroFeatureList';
 import PaywallModal from '../components/PaywallModal';
-import PythhHowItWorksModal, { hasSeenHowItWorks } from '../components/PythhHowItWorksModal';
 import SEO from '../components/SEO';
 import NewsletterWidget from '../components/NewsletterWidget';
 import { GODScoreExplainer } from '../components/pythh/GODScoreExplainer';
@@ -59,7 +58,6 @@ export default function PythhHome() {
     return { startups: 0, investors: 0, matches: 0 };
   });
   const [showPaywall, setShowPaywall] = useState(false);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [sectorHeatLive, setSectorHeatLive] = useState<Array<{
     sector: string;
     startup_count: number;
@@ -71,14 +69,6 @@ export default function PythhHome() {
   const { profile } = useAuth();
   const isPro = profile?.plan !== 'free';
   
-  // First-visit: show How it works modal
-  useEffect(() => {
-    if (!hasSeenHowItWorks()) {
-      const t = setTimeout(() => setShowHowItWorks(true), 600);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
   // Usage tracking for freemium limits
   const { 
     analysisCount, 
@@ -408,6 +398,8 @@ export default function PythhHome() {
                     <span className="text-zinc-700">·</span>
                     <span><span className="text-zinc-300 tabular-nums">{stats.matches > 0 ? stats.matches.toLocaleString() : '…'}</span> matches</span>
                     <span className="text-zinc-700">·</span>
+                    <span><span className="text-zinc-300 tabular-nums">{stats.investors > 0 ? stats.investors.toLocaleString() : '…'}</span> investors</span>
+                    <span className="text-zinc-700">·</span>
                     <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 border border-emerald-400 rounded-sm animate-pulse" /><span className="text-emerald-400/60">live</span></span>
                   </div>
                 )}
@@ -440,7 +432,7 @@ export default function PythhHome() {
 
           {/* RIGHT COLUMN: feature list */}
           <div className="lg:mt-24">
-            <HeroFeatureList onHowItWorksClick={() => setShowHowItWorks(true)} />
+            <HeroFeatureList />
           </div>
           
         </div>
@@ -597,12 +589,6 @@ export default function PythhHome() {
         </div>
       </footer>
       
-      {/* How it works — first-visit + manual trigger */}
-      <PythhHowItWorksModal
-        isOpen={showHowItWorks}
-        onClose={() => setShowHowItWorks(false)}
-      />
-
       {/* Paywall Modal */}
       <PaywallModal
         isOpen={showPaywall}

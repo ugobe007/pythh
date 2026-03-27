@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Brain, Zap, TrendingUp, Target, Sparkles, CheckCircle2, ArrowRight, Play, Rocket, Briefcase, Flame, DollarSign, Users, MapPin, Building2 } from 'lucide-react';
+import { PYTHH_ICON_GLYPH } from '@/lib/brandAssets';
 
 interface Props {
   isOpen: boolean;
@@ -505,8 +506,8 @@ export default function GODScoreDemo({ isOpen, onClose }: Props) {
                       
                       <div className="relative">
                         <img 
-                          src="/images/brain-icon.png" 
-                          alt="AI Brain"
+                          src={PYTHH_ICON_GLYPH} 
+                          alt=""
                           className={`w-32 h-32 md:w-40 md:h-40 object-contain transition-all duration-500 ${
                             phase === 'brain-pulse' || phase === 'matching-engine' || phase === 'algorithms-running'
                               ? 'filter drop-shadow-[0_0_30px_rgba(6,182,212,0.8)]'
@@ -593,8 +594,8 @@ export default function GODScoreDemo({ isOpen, onClose }: Props) {
                       : 'scale-100'
                   }`}>
                     <img 
-                      src="/images/brain-icon.png" 
-                      alt="AI Brain"
+                      src={PYTHH_ICON_GLYPH} 
+                      alt=""
                       className={`w-48 h-48 md:w-64 md:h-64 object-contain transition-all duration-500 ${
                         phase === 'brain-pulse'
                           ? 'filter drop-shadow-[0_0_30px_rgba(6,182,212,0.8)]'

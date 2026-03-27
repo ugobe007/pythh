@@ -104,14 +104,17 @@ export interface StartupContext {
     name: string;
     website: string;
     /** Verified company homepage (not a publisher/scraped URL) */
-    company_website: string | null;
+    company_website?: string | null;
     /** Original scraped/publisher URL when website was not the company homepage */
-    source_url: string | null;
+    source_url?: string | null;
     tagline: string | null;
     description: string | null;
     stage: number | null;
     sectors: string[];
     extracted_data: any | null;
+    /** Set when founder uploads pitch deck — used for accomplishment bonus */
+    deck_filename?: string | null;
+    deck_url?: string | null;
   };
   god: {
     total: number;
@@ -186,6 +189,7 @@ export function shouldUpdateRow(update: MatchRowUpdate): boolean {
 // Typed Supabase RPC calls
 
 import { supabase } from './supabase';
+import { isUuidString } from './isUuid';
 
 export const pythhApi = {
   // /app/matches
@@ -222,6 +226,9 @@ export const pythhApi = {
 
   // /app/startup
   async getStartupContext(startupId: string): Promise<StartupContext> {
+    if (!isUuidString(startupId)) {
+      throw new Error('Invalid startup id');
+    }
     const { data, error } = await supabase.rpc('get_startup_context', {
       p_startup_id: startupId,
     });

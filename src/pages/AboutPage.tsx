@@ -99,6 +99,61 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* ── How Pythh works (linked from home) ── */}
+      <section
+        id="how-pythh-works"
+        className="border-t border-white/5 scroll-mt-24"
+      >
+        <div className="max-w-3xl mx-auto px-6 py-10">
+          <h2 className="text-2xl font-semibold tracking-tight mb-2">How Pythh works</h2>
+          <p className="text-zinc-500 text-sm mb-8">
+            Three steps from URL to investor-ready signals.
+          </p>
+          <ol className="space-y-8">
+            <li className="flex gap-4">
+              <span className="flex-shrink-0 w-8 h-8 rounded-lg border border-white/15 flex items-center justify-center text-zinc-400 text-sm font-mono">
+                1
+              </span>
+              <div>
+                <h3 className="text-white font-medium">Enter your URL</h3>
+                <p className="mt-2 text-zinc-400 leading-relaxed">
+                  Drop your startup website (for example, yourstartup.com). We read your public page and build your profile.
+                </p>
+              </div>
+            </li>
+            <li className="flex gap-4">
+              <span className="flex-shrink-0 w-8 h-8 rounded-lg border border-white/15 flex items-center justify-center text-zinc-400 text-sm font-mono">
+                2
+              </span>
+              <div>
+                <h3 className="text-white font-medium">Get matched</h3>
+                <p className="mt-2 text-zinc-400 leading-relaxed">
+                  The GOD score (0–100) ranks fundamentals; the matching engine surfaces investors by fit, thesis, and stage — not spray-and-pray.
+                </p>
+              </div>
+            </li>
+            <li className="flex gap-4">
+              <span className="flex-shrink-0 w-8 h-8 rounded-lg border border-white/15 flex items-center justify-center text-zinc-400 text-sm font-mono">
+                3
+              </span>
+              <div>
+                <h3 className="text-white font-medium">See signals and intro lines</h3>
+                <p className="mt-2 text-zinc-400 leading-relaxed">
+                  Signal scores reflect investor timing and intent. Use copy-ready intro lines to start real conversations.
+                </p>
+              </div>
+            </li>
+          </ol>
+          <p className="mt-10 text-sm text-zinc-500">
+            Try it on the{' '}
+            <Link to="/" className="text-cyan-400/90 hover:text-cyan-300 underline-offset-2 hover:underline">
+              home page
+            </Link>
+            .
+          </p>
+        </div>
+      </section>
+
       {/* ── The Name ── */}
       <section className="border-t border-white/5">
         <div className="max-w-3xl mx-auto px-6 py-10">

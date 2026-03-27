@@ -18,6 +18,8 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { trackEvent } from '../lib/analytics';
 import { getSession } from '../lib/routeGuards';
+import { isAdminEmail } from '../lib/adminConfig';
+import { PYTHH_ICON_GLYPH } from '../lib/brandAssets';
 
 interface Props {
   onPythClick?: () => void;
@@ -72,12 +74,6 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
   // Single source of truth: logged in = user exists
   const isLoggedIn = !!user;
 
-  const ADMIN_EMAILS = [
-    'aabramson@comunicano.com',
-    'ugobe07@gmail.com',
-    'ugobe1@mac.com'
-  ];
-
   useEffect(() => {
     const checkAuth = () => {
       // Get session state (scan status)
@@ -94,7 +90,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
       if (user) {
         adminStatus =
           Boolean(user.isAdmin) ||
-          (user.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false);
+          (user.email ? isAdminEmail(user.email) : false);
       }
 
       setIsAdmin(adminStatus);
@@ -184,7 +180,7 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
             {/* Logo (left side) */}
             <Link to="/" className="group flex items-center gap-2" aria-label="pythh.ai home">
               <img
-                src="/images/pythh_oracle.png"
+                src={PYTHH_ICON_GLYPH}
                 alt=""
                 className="h-9 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
               />

@@ -8,6 +8,7 @@ import { fetchConvergenceData } from '../lib/convergenceAPI';
 import PageShell, { ContentContainer, GlassPanel } from '../components/layout/PageShell';
 import TopBar, { TopBarBrand } from '../components/layout/TopBar';
 import { PythhTokens } from '../lib/designTokens';
+import { PYTHH_ICON_GLYPH } from '../lib/brandAssets';
 import type { StartupComponent } from '../types';
 
 // ============================================================================
@@ -557,9 +558,9 @@ export default function PythhMatchingEngine() {
 
               <div className="flex flex-col items-end gap-2">
                 <img 
-                  src="/images/brain-icon.png" 
-                  alt="Signal Science" 
-                  className="w-14 h-14 opacity-90"
+                  src={PYTHH_ICON_GLYPH} 
+                  alt="" 
+                  className="w-14 h-14 object-contain opacity-90"
                 />
                 <div className="text-[11px] text-white/55 flex items-center gap-2">
                   <Sparkles size={14} />

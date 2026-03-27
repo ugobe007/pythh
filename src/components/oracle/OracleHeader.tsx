@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import { PYTHH_ICON_GLYPH } from '@/lib/brandAssets';
 
 type OracleHeaderProps = {
   onOpenMenu: () => void;
@@ -13,7 +14,7 @@ export default function OracleHeader({ onOpenMenu }: OracleHeaderProps) {
         {/* Brand lockup (always visible) */}
         <Link to="/" className="group flex items-center gap-2" aria-label="pythh.ai home">
           <img
-            src="/images/pythh_oracle.png"
+            src={PYTHH_ICON_GLYPH}
             alt=""
             className="h-9 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
           />

@@ -5,10 +5,6 @@
 
 import { Link } from "react-router-dom";
 
-interface HeroFeatureListProps {
-  onHowItWorksClick?: () => void;
-}
-
 const FEATURES = [
   {
     title: "Signal scores",
@@ -24,7 +20,7 @@ const FEATURES = [
   },
 ];
 
-export default function HeroFeatureList({ onHowItWorksClick }: HeroFeatureListProps) {
+export default function HeroFeatureList() {
   return (
     <div className="space-y-6">
       <p className="text-xs uppercase tracking-widest text-cyan-400/80 font-semibold">
@@ -43,24 +39,13 @@ export default function HeroFeatureList({ onHowItWorksClick }: HeroFeatureListPr
           </li>
         ))}
       </ul>
-      {onHowItWorksClick ? (
-        <button
-          type="button"
-          onClick={onHowItWorksClick}
-          className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-500/50 rounded-md px-3 py-2 hover:border-cyan-400/60 transition-colors"
-        >
-          How it works
-          <span className="text-cyan-500">→</span>
-        </button>
-      ) : (
-        <Link
-          to="/platform"
-          className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-500/50 rounded-md px-3 py-2 hover:border-cyan-400/60 transition-colors"
-        >
-          How it works
-          <span className="text-cyan-500">→</span>
-        </Link>
-      )}
+      <Link
+        to="/about#how-pythh-works"
+        className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 border border-cyan-500/50 rounded-md px-3 py-2 hover:border-cyan-400/60 transition-colors"
+      >
+        How it works
+        <span className="text-cyan-500">→</span>
+      </Link>
     </div>
   );
 }

@@ -34,21 +34,27 @@ function savePostHistory(history) {
 
 const fs = require('fs');
 
-// ─── Tweet Image ──────────────────────────────────────────────────────────────────
-// The Pythia breathing GIF is attached to every tweet.
-const GIF_PATH = path.join(__dirname, '..', 'public', 'pythia-breathing.gif');
+// ─── Tweet / X media ───────────────────────────────────────────────────────────────
+// Brand glyph (reads clearly at thumbnail size). Path: public/images/...
+const SOCIAL_POST_IMAGE_PATH = path.join(
+  __dirname,
+  '..',
+  'public',
+  'images',
+  'delphi-pythia-icon-glyph-dark.jpg'
+);
 
 function loadTweetImage() {
   try {
-    if (fs.existsSync(GIF_PATH)) {
-      const buf = fs.readFileSync(GIF_PATH);
-      console.log(`[social-poster] Tweet image loaded (${(buf.length / 1024).toFixed(0)} KB)`);
+    if (fs.existsSync(SOCIAL_POST_IMAGE_PATH)) {
+      const buf = fs.readFileSync(SOCIAL_POST_IMAGE_PATH);
+      console.log(`[social-poster] Social image loaded (${(buf.length / 1024).toFixed(0)} KB)`);
       return buf;
     }
-    console.warn('[social-poster] pythia-breathing.gif not found — posting without image');
+    console.warn('[social-poster] delphi-pythia-icon-glyph-dark.jpg not found — posting without image');
     return null;
   } catch (err) {
-    console.error('[social-poster] Could not load tweet image:', err.message);
+    console.error('[social-poster] Could not load social image:', err.message);
     return null;
   }
 }

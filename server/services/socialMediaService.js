@@ -7,6 +7,15 @@
 
 const { getSupabaseClient } = require('../lib/supabaseClient');
 
+/** Magic-byte detection for Twitter v1 media upload */
+function detectImageMimeType(buf) {
+  if (!buf || buf.length < 4) return 'image/png';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
+  return 'image/png';
+}
+
 // ============================================================
 // PLATFORM: TWITTER / X
 // Requires: TWITTER_API_KEY, TWITTER_API_SECRET,
@@ -26,9 +35,7 @@ async function postToTwitter(text, imageBuffer) {
 
     if (imageBuffer) {
       // Upload via v1 (media upload) then attach to v2 tweet
-      // Detect GIF vs PNG by magic bytes
-      const isGif = imageBuffer[0] === 0x47 && imageBuffer[1] === 0x49 && imageBuffer[2] === 0x46;
-      const mimeType = isGif ? 'image/gif' : 'image/png';
+      const mimeType = detectImageMimeType(imageBuffer);
       const mediaId = await rwClient.v1.uploadMedia(imageBuffer, { mimeType });
       tweetParams.media = { media_ids: [mediaId] };
       console.log('[twitter] Media uploaded:', mediaId);

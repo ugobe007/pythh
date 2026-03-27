@@ -15,6 +15,7 @@ import {
   Zap, ExternalLink, Star, ArrowUpRight, Activity
 } from 'lucide-react';
 import { apiUrl } from '../lib/apiConfig';
+import { PYTHH_ICON_GLYPH } from '../lib/brandAssets';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -151,7 +152,7 @@ export default function PortfolioPage() {
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
           <Link to="/" className="group flex items-center gap-2" aria-label="pythh.ai home">
             <img
-              src="/images/pythh_oracle.png"
+              src={PYTHH_ICON_GLYPH}
               alt=""
               className="h-9 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
             />
