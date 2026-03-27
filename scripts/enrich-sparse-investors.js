@@ -9,7 +9,7 @@
  * Targets investors missing: sectors, stage, check_size, portfolio_companies
  * 
  * Run: node scripts/enrich-sparse-investors.js [--limit=50]
- * Run all: node scripts/enrich-sparse-investors.js --limit=5000
+ * Run all: node scripts/enrich-sparse-investors.js --run-all [--limit=200]
  * Test mode: node scripts/enrich-sparse-investors.js --limit=5 --dry-run
  * ============================================================================
  */
@@ -27,6 +27,8 @@ const args = process.argv.slice(2);
 const limitArg = args.find(a => a.startsWith('--limit='));
 const LIMIT = limitArg ? parseInt(limitArg.split('=')[1]) : 50;
 const DRY_RUN = args.includes('--dry-run');
+const RUN_ALL = args.includes('--run-all');
+const EFFECTIVE_LIMIT = RUN_ALL && !limitArg ? 200 : LIMIT;
 
 // ── Sparseness classifier ──
 function isInvestorSparse(investor) {
@@ -39,34 +41,22 @@ function isInvestorSparse(investor) {
   return missingCount >= 2; // Sparse if 2+ key fields missing
 }
 
-async function enrichSparseInvestors() {
-  console.log('=== INVESTOR ENRICHMENT — News Inference Engine ===\n');
-  console.log(`Strategy: Search news for investor/firm name to fill sparse profiles`);
-  if (DRY_RUN) console.log('DRY RUN MODE — no database writes\n');
-  console.log(`Processing up to ${LIMIT} investors\n`);
-
-  // ── Load sparse investors — filter in SQL to avoid scanning well-populated records ──
-  console.log('Loading sparse investors...');
+async function runOneChunk(opts) {
+  const { limit, dryRun } = opts;
   const { data: allInvestors, error } = await supabase
     .from('investors')
     .select('id, name, firm, sectors, stage, check_size_min, check_size_max, portfolio_companies, investment_thesis, bio, geography_focus, linkedin_url, last_enrichment_date')
-    // Target investors missing at least one of: check_size, bio/thesis, sectors
     .or('check_size_min.is.null,investment_thesis.is.null,bio.is.null')
-    .order('created_at', { ascending: false })  // Newest first — these tend to be less complete
-    .limit(LIMIT * 5);  // Cast wider net since we filter client-side
+    .order('created_at', { ascending: false })
+    .limit(limit * 5);
 
   if (error) {
     console.error('Failed to load investors:', error.message);
-    process.exit(1);
+    throw new Error(error.message);
   }
 
-  const sparse = (allInvestors || []).filter(isInvestorSparse).slice(0, LIMIT);
-  console.log(`Found ${sparse.length} sparse investors (missing 2+ key fields)\n`);
-
-  if (sparse.length === 0) {
-    console.log('All investors have sufficient data!');
-    return;
-  }
+  const sparse = (allInvestors || []).filter(isInvestorSparse).slice(0, limit);
+  if (sparse.length === 0) return { processed: 0, enriched: 0, noData: 0, errors: 0 };
 
   let enriched = 0;
   let noData = 0;
@@ -77,7 +67,6 @@ async function enrichSparseInvestors() {
     const label = `${investor.name}${investor.firm ? ` (${investor.firm})` : ''}`;
     console.log(`\n[${i + 1}/${sparse.length}] ${label}`);
 
-    // Show what's missing
     const missing = [];
     if (!investor.sectors?.length) missing.push('sectors');
     if (!investor.stage?.length) missing.push('stage');
@@ -104,7 +93,6 @@ async function enrichSparseInvestors() {
         continue;
       }
 
-      // Build update payload — only override empty fields
       const update = {};
       if (enrichedData.sectors?.length && (!investor.sectors?.length)) {
         update.sectors = enrichedData.sectors;
@@ -128,19 +116,17 @@ async function enrichSparseInvestors() {
         console.log(`  Geography: ${enrichedData.geography_focus.join(', ')}`);
       }
       if (enrichedData.inferred_bio && !investor.bio && !investor.investment_thesis) {
-        // Store inferred bio in investment_thesis field (closest match) with a marker
         update.investment_thesis = `[Inferred from news] ${enrichedData.inferred_bio}`;
         console.log('  Inferred thesis from news');
       }
       update.last_enrichment_date = new Date().toISOString();
 
       if (Object.keys(update).length <= 1) {
-        // Only the date field — nothing actually enriched
         noData++;
         continue;
       }
 
-      if (!DRY_RUN) {
+      if (!dryRun) {
         const { error: updateError } = await supabase
           .from('investors')
           .update(update)
@@ -158,7 +144,6 @@ async function enrichSparseInvestors() {
         enriched++;
       }
 
-      // Rate limit — be gentle with Google News
       await new Promise(r => setTimeout(r, 2000));
 
     } catch (e) {
@@ -167,13 +152,64 @@ async function enrichSparseInvestors() {
     }
   }
 
+  return { processed: sparse.length, enriched, noData, errors };
+}
+
+async function enrichSparseInvestors() {
+  console.log('=== INVESTOR ENRICHMENT — News Inference Engine ===\n');
+  console.log(`Strategy: Search news for investor/firm name to fill sparse profiles`);
+  if (DRY_RUN) console.log('DRY RUN MODE — no database writes\n');
+  if (RUN_ALL) console.log(`♻️  RUN-ALL mode — processing in chunks of ${EFFECTIVE_LIMIT} until pool is empty\n`);
+  else console.log(`Processing up to ${EFFECTIVE_LIMIT} investors\n`);
+
+  const opts = { limit: EFFECTIVE_LIMIT, dryRun: DRY_RUN };
+  let totalProcessed = 0;
+  let totalEnriched = 0;
+  let totalNoData = 0;
+  let totalErrors = 0;
+  let chunkNum = 0;
+
+  while (true) {
+    chunkNum++;
+    if (RUN_ALL && chunkNum > 1) {
+      console.log(`\n📦 CHUNK ${chunkNum} — loading next batch...\n`);
+    }
+
+    console.log('Loading sparse investors...');
+    const result = await runOneChunk(opts);
+    totalProcessed += result.processed;
+    totalEnriched += result.enriched;
+    totalNoData += result.noData;
+    totalErrors += result.errors;
+
+    if (result.processed === 0) break;
+
+    console.log('\n' + '═'.repeat(60));
+    console.log('CHUNK SUMMARY');
+    console.log('═'.repeat(60));
+    console.log(`  Processed:  ${result.processed}`);
+    console.log(`  Enriched:   ${result.enriched}`);
+    console.log(`  No Data:    ${result.noData}`);
+    console.log(`  Errors:     ${result.errors}`);
+    console.log('═'.repeat(60));
+
+    if (RUN_ALL && result.processed > 0) {
+      const pauseSec = 3;
+      console.log(`\n⏳ Pausing ${pauseSec}s before next chunk...\n`);
+      await new Promise(r => setTimeout(r, pauseSec * 1000));
+    } else {
+      break;
+    }
+  }
+
   console.log('\n' + '═'.repeat(60));
   console.log('INVESTOR ENRICHMENT SUMMARY');
   console.log('═'.repeat(60));
-  console.log(`  Processed:  ${sparse.length}`);
-  console.log(`  Enriched:   ${enriched} (${((enriched / sparse.length) * 100).toFixed(1)}%)`);
-  console.log(`  No Data:    ${noData}`);
-  console.log(`  Errors:     ${errors}`);
+  console.log(`  Chunks:     ${chunkNum}`);
+  console.log(`  Processed:  ${totalProcessed}`);
+  console.log(`  Enriched:   ${totalEnriched}${totalProcessed ? ` (${((totalEnriched / totalProcessed) * 100).toFixed(1)}%)` : ''}`);
+  console.log(`  No Data:    ${totalNoData}`);
+  console.log(`  Errors:     ${totalErrors}`);
   if (DRY_RUN) console.log('\n  Re-run without --dry-run to apply changes');
   console.log('═'.repeat(60) + '\n');
 }

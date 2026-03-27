@@ -1,6 +1,10 @@
 // server/routes/adminImportDiscovered.js
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { insertStartupUpload, setSupabase } = require('../../lib/startupInsertGate');
 
 const router = express.Router();
 
@@ -18,6 +22,7 @@ if (!OPENAI_API_KEY) {
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
+setSupabase(supabaseAdmin);
 
 /**
  * Strip common article-headline prefixes to recover a clean company name.
@@ -122,27 +127,31 @@ router.post('/import-discovered', async (req, res) => {
         }
         const enriched = await enrichStartup({ ...row, name: cleanedName });
 
-        // Insert startup_uploads
-        const { data: inserted, error: iErr } = await supabaseAdmin
-          .from('startup_uploads')
-          .insert({
-            name: cleanedName,
-            tagline: (enriched.pitch || row.name || '').slice(0, 200),
-            pitch: row.description || '',
-            status: 'pending',
-            source_type: 'rss_discovery',
-            extracted_data: {
-              fivePoints: enriched.fivePoints || [],
-              industry: enriched.industry || 'Unknown',
-              stage: enriched.stage || 'Unknown',
-              funding: enriched.funding || row.funding_amount || 'Unknown',
-              website: row.website || null,
-            },
-          })
-          .select('id')
-          .single();
+        const record = {
+          name: cleanedName,
+          tagline: (enriched.pitch || row.name || '').slice(0, 200),
+          pitch: row.description || '',
+          status: 'pending',
+          source_type: 'rss_discovery',
+          extracted_data: {
+            fivePoints: enriched.fivePoints || [],
+            industry: enriched.industry || 'Unknown',
+            stage: enriched.stage || 'Unknown',
+            funding: enriched.funding || row.funding_amount || 'Unknown',
+            website: row.website || null,
+          },
+        };
 
-        if (iErr) throw iErr;
+        const insertResult = await insertStartupUpload(record, { skipDuplicateCheck: false });
+        if (!insertResult.ok) {
+          results.push({ ok: false, discovered_id: row.id, error: insertResult.error });
+          continue;
+        }
+        if (insertResult.skipped) {
+          results.push({ ok: true, discovered_id: row.id, error: 'duplicate_skipped' });
+          continue;
+        }
+        const inserted = { id: insertResult.id };
 
         // Mark discovered imported
         const { error: uErr } = await supabaseAdmin

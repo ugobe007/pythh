@@ -48,6 +48,9 @@ import AdminRouteWrapper from "./components/AdminRouteWrapper";
 
 // Critical-path homepage kept eager
 import PythhMain from "./pages/PythhMain";
+// /lookup is a growth surface — eager-load so we never depend on a lazy chunk fetch
+// (stale caches + hashed filenames → "Importing a module script failed").
+import InvestorLookupPage from "./pages/InvestorLookupPage";
 
 // -----------------------------------------------------------------------------
 // ROUTE HELPERS
@@ -111,7 +114,6 @@ const DeepTechInvestorsPage = lazy(() => import("./pages/sectors/DeepTechInvesto
 const DemoPageDoctrine = lazy(() => import("./pages/DemoPageDoctrine"));
 const Live = lazy(() => import("./pages/public/Live"));
 const HotMatchesPage = lazy(() => import("./pages/HotMatchesPage"));
-const InvestorLookupPage = lazy(() => import("./pages/InvestorLookupPage"));
 const InvestorStartupDetailPage = lazy(() => import("./pages/InvestorStartupDetailPage"));
 const InvestorPortfolioPage = lazy(() => import("./pages/InvestorPortfolioPage"));
 const InvestorProfile = lazy(() => import("./pages/InvestorProfile"));
@@ -264,6 +266,8 @@ const App = () => {
             </Route>
 
             <Route path="/startup/:startupId" element={<StartupIdRedirect />} />
+            {/* Static paths must come before /investor/:id or "dashboard" is parsed as an id (invalid UUID → 400). */}
+            <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
             <Route path="/investor/:id" element={<InvestorProfile />} />
 
             <Route path="/signup" element={<SignupLanding />} />
@@ -279,7 +283,6 @@ const App = () => {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<FounderProfileDashboard />} />
             <Route path="/profile/account" element={<ProfilePage />} />
-            <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
             <Route path="/settings" element={<Settings />} />
 
             <Route path="/pricing" element={<PricingPage />} />

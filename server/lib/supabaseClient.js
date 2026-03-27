@@ -32,6 +32,34 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+/** PostgREST returns at most 1000 rows per request — paginate for correct aggregates. */
+const STARTUP_UPLOAD_PAGE = 1000;
+
+/**
+ * @param {ReturnType<typeof createClient>} supabase
+ * @param {string} selectColumns
+ * @param {(q: import('@supabase/supabase-js').PostgrestFilterBuilder) => import('@supabase/supabase-js').PostgrestFilterBuilder} applyFilters
+ */
+async function paginateStartupUploads(supabase, selectColumns, applyFilters) {
+  const all = [];
+  let from = 0;
+  for (;;) {
+    let q = supabase
+      .from('startup_uploads')
+      .select(selectColumns)
+      .order('id', { ascending: true })
+      .range(from, from + STARTUP_UPLOAD_PAGE - 1);
+    q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data?.length) break;
+    all.push(...data);
+    if (data.length < STARTUP_UPLOAD_PAGE) break;
+    from += STARTUP_UPLOAD_PAGE;
+  }
+  return all;
+}
+
 // Create singleton instance
 let supabaseInstance = null;
 
@@ -42,5 +70,6 @@ module.exports = {
     }
     return supabaseInstance;
   },
-  getSupabaseClient
+  getSupabaseClient,
+  paginateStartupUploads,
 };

@@ -11,11 +11,17 @@
  * holding-review-worker didn't run or hit limit).
  *
  * Run: node scripts/enforce-sparse-30day-policy.js [--dry-run] [--limit=500]
- * Cron: daily after holding-review-worker (e.g. 3:30am)
+ *      node scripts/enforce-sparse-30day-policy.js [--dry-run] --enrich-first
+ * Cron: daily after holding-review-worker AND after enrich-from-rss-news (e.g. 3:30am)
+ *
+ * RECOMMENDED: Run scripts/diagnose-sparse-gaps.js first to see salvage opportunities.
+ *              Run enrich-with-inference (text-only, minimal) and enrich-from-rss-news
+ *              before this script so we don't reject startups we could have enriched.
  */
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { extractInferenceDataSparse } = require('../lib/inference-extractor.js');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -23,6 +29,7 @@ const supabase = createClient(
 );
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const ENRICH_FIRST = process.argv.includes('--enrich-first');
 const limitArg = process.argv.find(a => a.startsWith('--limit='));
 const LIMIT = limitArg ? parseInt(limitArg.split('=')[1]) : 500;
 const RICHNESS_FLOOR = 2;
@@ -131,6 +138,36 @@ async function main() {
   if (total === 0) {
     console.log('Nothing to do.');
     return;
+  }
+
+  // Last-chance enrichment: run sparse inference on at-risk with pitch/desc/tagline
+  if (ENRICH_FIRST && !DRY_RUN) {
+    console.log('Last-chance enrichment (sparse inference)...');
+    let rescued = 0;
+    for (const s of batch) {
+      const text = [s.name, s.pitch, s.description, s.tagline].filter(Boolean).join(' ');
+      if (text.length < 15) continue;
+      const inferred = extractInferenceDataSparse(text, s.website || s.company_website || '');
+      if (!inferred || (!inferred.sectors?.length && !inferred.funding_amount)) continue;
+      const ext = s.extracted_data || {};
+      const merged = { ...ext };
+      if (inferred.sectors?.length && !ext.sectors?.length) merged.sectors = inferred.sectors;
+      if (inferred.funding_amount && !ext.funding_amount) merged.funding_amount = inferred.funding_amount;
+      if (inferred.funding_stage && !ext.funding_stage) merged.funding_stage = inferred.funding_stage;
+      if (JSON.stringify(merged) === JSON.stringify(ext)) continue;
+      const updatePayload = { extracted_data: merged, updated_at: new Date().toISOString() };
+      if (inferred.sectors?.length && !s.sectors?.length) updatePayload.sectors = inferred.sectors;
+      const { error } = await supabase.from('startup_uploads').update(updatePayload).eq('id', s.id);
+      if (!error) {
+        rescued++;
+        if (rescued <= 5) console.log(`   Rescued: ${s.name} (sectors: ${inferred.sectors?.join(', ') || 'n/a'})`);
+      }
+    }
+    if (rescued > 0) {
+      console.log(`   Rescued ${rescued} startups via sparse inference. Re-run without --enrich-first to reject remainder.\n`);
+      return;
+    }
+    console.log('   No additional rescues from sparse inference.\n');
   }
 
   if (DRY_RUN) {

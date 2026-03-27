@@ -63,8 +63,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const logger = require('./logger');
-const { pool } = require('./db');
-const { getSupabaseClient } = require('./lib/supabaseClient');
+const { getSupabaseClient, paginateStartupUploads } = require('./lib/supabaseClient');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
 // Supabase outage guard: avoid hammering upstream during 522/timeout windows.
@@ -823,6 +822,64 @@ app.post('/api/events', async (req, res) => {
   } catch (error) {
     console.error('[POST /api/events] Error:', error);
     res.status(500).json({ error: 'Failed to track event' });
+  }
+});
+
+// ============================================================
+// POST /api/analytics/flush — batch insert ai_logs (service role; bypasses browser RLS)
+// ============================================================
+const ANALYTICS_FLUSH_MAX_ROWS = 50;
+const ANALYTICS_OP_RE = /^[a-zA-Z0-9_.:-]+$/;
+
+app.post('/api/analytics/flush', async (req, res) => {
+  try {
+    const rows = req.body?.rows;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'rows must be a non-empty array' });
+    }
+    if (rows.length > ANALYTICS_FLUSH_MAX_ROWS) {
+      return res.status(413).json({ error: `at most ${ANALYTICS_FLUSH_MAX_ROWS} rows per request` });
+    }
+
+    const sanitized = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || typeof r !== 'object') {
+        return res.status(400).json({ error: `invalid row at index ${i}` });
+      }
+      const op = r.operation;
+      if (typeof op !== 'string' || op.length > 200 || !ANALYTICS_OP_RE.test(op)) {
+        return res.status(400).json({ error: `invalid operation at index ${i}` });
+      }
+      const status = typeof r.status === 'string' && r.status.length <= 64 ? r.status : 'tracked';
+      let output = r.output;
+      if (output !== undefined && output !== null && typeof output !== 'object') {
+        return res.status(400).json({ error: `invalid output at index ${i}` });
+      }
+      if (output === undefined || output === null) {
+        output = {};
+      }
+      const row = {
+        operation: op,
+        status,
+        output,
+      };
+      if (typeof r.created_at === 'string' && r.created_at.length <= 40) {
+        row.created_at = r.created_at;
+      }
+      sanitized.push(row);
+    }
+
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('ai_logs').insert(sanitized);
+    if (error) {
+      console.error('[POST /api/analytics/flush] Supabase error:', error.message);
+      return res.status(500).json({ error: 'Failed to persist analytics' });
+    }
+    return res.json({ ok: true, inserted: sanitized.length });
+  } catch (error) {
+    console.error('[POST /api/analytics/flush] Error:', error);
+    return res.status(500).json({ error: 'Failed to persist analytics' });
   }
 });
 
@@ -6217,14 +6274,15 @@ app.get('/api/admin/kpis', async (req, res) => {
       ttlMs: 30_000,
       fetcher: async () => {
         const supabase = getSupabaseClient();
-        const [approved, pending, investors, matches, avgScore] = await Promise.all([
+        const [approved, pending, investors, matches] = await Promise.all([
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabase.from('investors').select('*', { count: 'exact', head: true }),
           supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-          supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
         ]);
-        const scores = avgScore.data || [];
+        const scores = await paginateStartupUploads(supabase, 'total_god_score', (q) =>
+          q.eq('status', 'approved').not('total_god_score', 'is', null)
+        );
         const avg = scores.length > 0
           ? scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / scores.length
           : 0;
@@ -6249,11 +6307,7 @@ app.get('/api/admin/kpis', async (req, res) => {
 app.get('/api/admin/score-health', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { data: scores, error } = await supabase
-      .from('startup_uploads')
-      .select('total_god_score')
-      .eq('status', 'approved');
-    if (error) throw error;
+    const scores = await paginateStartupUploads(supabase, 'total_god_score', (q) => q.eq('status', 'approved'));
     if (!scores || scores.length === 0) {
       return res.json({ status: 'warning', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['No approved startups found'] });
     }
@@ -6297,7 +6351,7 @@ app.get('/api/admin/system-health', async (req, res) => {
         const supabase = getSupabaseClient();
         const checks = [];
         // GOD Score distribution check
-        const { data: scores } = await supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved');
+        const scores = await paginateStartupUploads(supabase, 'total_god_score', (q) => q.eq('status', 'approved'));
         if (scores && scores.length > 0) {
           const total = scores.length;
           const lowBandCount = scores.filter(s => s.total_god_score >= 40 && s.total_god_score < 50).length;
@@ -6564,7 +6618,6 @@ app.get('/api/admin/system-stats', async (req, res) => {
           { count: totalStartups },
           { count: approvedStartups },
           { count: pendingStartups },
-          { data: avgScoreData },
           { count: totalInvestors },
           { count: investorsWithEmbedding },
           { count: matchCount },
@@ -6574,16 +6627,13 @@ app.get('/api/admin/system-stats', async (req, res) => {
           { count: startups24h },
           { count: investors24h },
           { count: matches24h },
-          { data: god7dData },
           { data: match7dData },
-          { data: scoreDistData },
           { data: recentLogs },
           { data: lastActivity }
         ] = await Promise.all([
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
           supabase.from('investors').select('*', { count: 'exact', head: true }),
           supabase.from('investors').select('*', { count: 'exact', head: true }).not('embedding', 'is', null),
           supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
@@ -6593,12 +6643,20 @@ app.get('/api/admin/system-stats', async (req, res) => {
           supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
           supabase.from('investors').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
           supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', oneDayAgo),
-          supabase.from('startup_uploads').select('total_god_score, created_at').eq('status', 'approved').not('total_god_score', 'is', null).lte('created_at', sevenDaysAgo),
           supabase.from('startup_investor_matches').select('match_score').lte('created_at', sevenDaysAgo).limit(500),
-          supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null),
           supabase.from('ai_logs').select('*').order('created_at', { ascending: false }).limit(5),
           supabase.from('startup_uploads').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle()
         ]);
+
+        const [scoreDistData, god7dData] = await Promise.all([
+          paginateStartupUploads(supabase, 'total_god_score', (q) =>
+            q.eq('status', 'approved').not('total_god_score', 'is', null)
+          ),
+          paginateStartupUploads(supabase, 'total_god_score, created_at', (q) =>
+            q.eq('status', 'approved').not('total_god_score', 'is', null).lte('created_at', sevenDaysAgo)
+          ),
+        ]);
+        const avgScoreData = scoreDistData;
 
         const avgGodScore = avgScoreData?.length ? avgScoreData.reduce((a, s) => a + (s.total_god_score || 0), 0) / avgScoreData.length : 0;
         const avgMatchScore = matchAvgData?.length ? matchAvgData.reduce((a, m) => a + (m.match_score || 0), 0) / matchAvgData.length : 0;

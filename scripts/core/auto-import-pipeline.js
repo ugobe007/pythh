@@ -14,6 +14,8 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 const { extractInferenceData } = require('../../lib/inference-extractor.js');
+const { isValidStartupName } = require('../../lib/startupNameValidator');
+const { insertStartupUpload, setSupabase } = require('../../lib/startupInsertGate');
 
 // Validate environment variables
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -38,48 +40,6 @@ try {
   console.warn('⚠️  Resilient scraper unavailable (will use basic import):', error.message);
 }
 
-// Quality filters - reject junk names
-const JUNK_PATTERNS = [
-  /^[A-Z][a-z]+ [A-Z][a-z]+$/, // Personal names like "Kate Winslet"
-  /^(The|A|An|In|On|At|For|With|About|This|That|These|Those)\s/i, // Articles at start
-  /^(North|South|East|West)\s(Korea|America|Africa)/i, // Countries
-  /^(State|Federal|Government|Department)/i, // Government entities
-  /\b(ago|month|week|year|today|yesterday)\b/i, // Time references
-  /^(CTO|CEO|CFO|COO|VP|Director|Manager)\s/i, // Job titles
-  /^[A-Z]{2,3}$/,  // Just acronyms like "AI" or "ML"
-  /^\d+/, // Starts with number
-  /^\d+\+/, // Starts with number and plus (e.g., "100+")
-  /^(http|www\.)/i, // URLs
-  // Generic single words
-  /^(Building|Modern|Inside|Outside|Show|Clicks|Click|Wellbeing|Healthcare|Fintech|Tech|AI|ML|SaaS|Data|Digital|Benefits|Tips|MVPs|MVP|Resource|Constraints|Leadership|Transit|Equity|Fusion|Dropout|Moved|Out|In|On|At|For|With|About|From|To)$/i,
-  // Possessive forms of generic words
-  /^(Healthcare's|Nvidia's|Obsidian's|Equity's|Sweden's|Finland's)$/i,
-  // Phrases that aren't company names
-  /^(MVPs out|Resource Constraints|Leadership Tips|I've Moved|Transit Tech|Nvidia's AI|Equity's 2026|Show HN:|build Givefront|College dropout|Every fusion)$/i,
-  // Single generic words with punctuation
-  /^(Building|Modern|Inside|Show|Clicks|Wellbeing|Healthcare|Fintech),?$/i,
-];
-
-const MIN_NAME_LENGTH = 3;
-const MAX_NAME_LENGTH = 50;
-
-function isQualityStartupName(name) {
-  if (!name) return false;
-  
-  // Length check
-  if (name.length < MIN_NAME_LENGTH || name.length > MAX_NAME_LENGTH) return false;
-  
-  // Check against junk patterns
-  for (const pattern of JUNK_PATTERNS) {
-    if (pattern.test(name)) return false;
-  }
-  
-  // Must have at least one letter
-  if (!/[a-zA-Z]/.test(name)) return false;
-  
-  return true;
-}
-
 async function importDiscoveredStartups(limit = 50) {
   console.log(`\n📥 Importing up to ${limit} quality startups...`);
   
@@ -101,8 +61,8 @@ async function importDiscoveredStartups(limit = 50) {
     return [];
   }
   
-  // Filter for quality names
-  const quality = discovered.filter(s => isQualityStartupName(s.name));
+  // Filter for quality names (shared validator)
+  const quality = discovered.filter(s => isValidStartupName(s.name).isValid);
   const toImport = quality.slice(0, limit);
   
   console.log(`   Found ${discovered.length} unimported, ${quality.length} quality names`);
@@ -240,26 +200,25 @@ async function importDiscoveredStartups(limit = 50) {
       console.log(`   ⚠️  Signal extraction skipped for ${startup.name}`);
     }
     
-    // Insert into startup_uploads with psychological signals
-    const { data: inserted, error: insertError } = await supabase
-      .from('startup_uploads')
-      .insert({
-        ...enrichedData,
-        ...psychologicalSignals,
-        total_god_score: godScore,
-        team_score: 50 + Math.floor(Math.random() * 20),
-        traction_score: 45 + Math.floor(Math.random() * 25),
-        market_score: 50 + Math.floor(Math.random() * 20),
-        product_score: 50 + Math.floor(Math.random() * 20),
-        vision_score: 50 + Math.floor(Math.random() * 20),
-      })
-      .select('id, name, total_god_score')
-      .single();
-    
-    if (insertError) {
-      console.error(`   ❌ Failed to import ${startup.name}:`, insertError.message);
+    // Insert via gate (validates name)
+    setSupabase(supabase);
+    const record = {
+      ...enrichedData,
+      ...psychologicalSignals,
+      total_god_score: godScore,
+      team_score: 50 + Math.floor(Math.random() * 20),
+      traction_score: 45 + Math.floor(Math.random() * 25),
+      market_score: 50 + Math.floor(Math.random() * 20),
+      product_score: 50 + Math.floor(Math.random() * 20),
+      vision_score: 50 + Math.floor(Math.random() * 20),
+    };
+    const insertResult = await insertStartupUpload(record, { skipDuplicateCheck: true });
+
+    if (!insertResult.ok || !insertResult.id) {
+      console.error(`   ❌ Failed to import ${startup.name}:`, insertResult.error || 'Unknown error');
       continue;
     }
+    const inserted = { id: insertResult.id, name: record.name, total_god_score: record.total_god_score };
     
     // Log psychological signals detected
     const detectedSignals = [];

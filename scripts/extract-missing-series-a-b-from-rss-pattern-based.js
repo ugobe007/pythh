@@ -10,6 +10,8 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { extractCompanyName } = require('../lib/headlineExtractor');
+const { insertDiscoveredBatch, setSupabase } = require('../lib/startupInsertGate');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,26 +22,8 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+setSupabase(supabase);
 const BATCH_SIZE = 50; // Larger batches since no API rate limits
-
-/**
- * Extract company name from article title/content using patterns
- */
-function extractCompanyName(title, content) {
-  // Pattern 1: "Company Name raises $X in Series A"
-  let match = title.match(/^([^:]+?)\s+(?:raises|raised|closes|secured|bags|gets)/i);
-  if (match) return match[1].trim();
-  
-  // Pattern 2: "Company Name: Raises $X"
-  match = title.match(/^([^:]+?):/i);
-  if (match) return match[1].trim();
-  
-  // Pattern 3: Look for capitalized words at start
-  match = title.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
-  if (match) return match[1].trim();
-  
-  return null;
-}
 
 /**
  * Extract funding amount using patterns
@@ -143,8 +127,8 @@ function extractStartupInfo(article) {
     return null; // Skip if not Series A/B
   }
   
-  // Extract company name
-  const companyName = extractCompanyName(title, content);
+  // Extract company name (shared headline extractor)
+  const companyName = extractCompanyName(title) || extractCompanyName(content || '');
   if (!companyName || companyName.length < 2) {
     return null; // Skip if can't extract company name
   }
@@ -337,34 +321,31 @@ async function extractMissingSeriesAB() {
 
       console.log(`📦 Saving batch ${batchNum}/${totalBatches} (${batch.length} startups)...`);
 
-      const records = batch.map(({ startup, article }) => ({
-        name: startup.name.trim(),
-        website: startup.website,
-        description: startup.description,
-        funding_amount: startup.funding_amount,
-        funding_stage: startup.funding_stage,
-        investors_mentioned: startup.investors.length > 0 ? startup.investors : null,
-        article_url: article.url,
-        article_title: article.title,
-        article_date: article.published_at || article.created_at,
-        rss_source: 'pattern_based_extraction',
-        imported_to_startups: false,
-        discovered_at: new Date().toISOString()
-      }));
+      const items = batch
+        .filter(({ startup }) => startup.name?.trim())
+        .map(({ startup, article }) => ({
+          name: startup.name.trim(),
+          website: startup.website,
+          description: startup.description,
+          funding_amount: startup.funding_amount,
+          funding_stage: startup.funding_stage,
+          investors_mentioned: startup.investors.length > 0 ? startup.investors : null,
+          article_url: article.url,
+          article_title: article.title,
+          article_date: article.published_at || article.created_at,
+          rss_source: 'pattern_based_extraction',
+          discovered_at: new Date().toISOString(),
+        }));
 
-      // Insert new records (duplicates already filtered)
-      const { data: inserted, error: insertError } = await supabase
-        .from('discovered_startups')
-        .insert(records)
-        .select();
+      if (items.length === 0) continue;
 
-      if (insertError) {
-        console.error(`  ❌ Error saving batch ${batchNum}:`, insertError.message);
-        errors += batch.length;
-      } else {
-        const savedCount = inserted ? inserted.length : batch.length;
-        totalSaved += savedCount;
-        console.log(`  ✅ Saved ${savedCount} startups from batch ${batchNum}`);
+      const r = await insertDiscoveredBatch(items, { checkDuplicates: true });
+      totalSaved += r.saved;
+      errors += r.errors;
+      if (r.saved > 0) {
+        console.log(`  ✅ Saved ${r.saved} startups from batch ${batchNum} (${r.skipped} skipped, ${r.errors} errors)`);
+      } else if (r.errors > 0) {
+        console.error(`  ❌ Batch ${batchNum}: ${r.errors} errors`);
       }
     }
 

@@ -233,6 +233,32 @@ async function getMatchingEngineStatus(): Promise<ServiceStatus> {
   };
 }
 
+/** PostgREST returns max 1000 rows — paginate so dashboard avg GOD matches full approved set. */
+const GOD_SCORE_PAGE = 1000;
+
+async function fetchAllApprovedGodScoresForAvg(): Promise<{ total_god_score: number | null }[]> {
+  const all: { total_god_score: number | null }[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select('total_god_score')
+      .eq('status', 'approved')
+      .not('total_god_score', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, from + GOD_SCORE_PAGE - 1);
+    if (error) {
+      console.warn('fetchAllApprovedGodScoresForAvg:', error.message);
+      break;
+    }
+    if (!data?.length) break;
+    all.push(...data);
+    if (data.length < GOD_SCORE_PAGE) break;
+    from += GOD_SCORE_PAGE;
+  }
+  return all;
+}
+
 // Get system metrics
 async function getMetrics(): Promise<SystemStatus['metrics']> {
   const todayISO = getTodayStart();
@@ -244,7 +270,6 @@ async function getMetrics(): Promise<SystemStatus['metrics']> {
     newStartupsRes,
     newInvestorsRes,
     newMatchesRes,
-    scoresRes
   ] = await Promise.all([
     supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
     supabase.from('investors').select('*', { count: 'exact', head: true }),
@@ -252,10 +277,9 @@ async function getMetrics(): Promise<SystemStatus['metrics']> {
     supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
     supabase.from('investors').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
     supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
-    supabase.from('startup_uploads').select('total_god_score').eq('status', 'approved').not('total_god_score', 'is', null)
   ]);
 
-  const scores = scoresRes.data || [];
+  const scores = await fetchAllApprovedGodScoresForAvg();
   const avgGODScore = scores.length > 0
     ? scores.reduce((sum, s) => sum + ((s.total_god_score as number) || 0), 0) / scores.length
     : 0;

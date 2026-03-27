@@ -27,7 +27,7 @@ import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
 import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
-import ImproveScoreModal from '@/components/ImproveScoreModal';
+import ImproveScoreWizard from '@/components/ImproveScoreWizard';
 
 import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
@@ -653,6 +653,7 @@ export default function SignalMatches() {
             url={urlToResolve}
             displayName={displayName}
             godScore={context?.god?.total}
+            hasDeck={!!(context?.startup?.deck_filename || context?.startup?.deck_url)}
             onSaveMatches={handleSaveMatches}
             savedAt={savedMatchesAt}
             unlocksRemaining={unlocksRemaining}
@@ -684,6 +685,7 @@ function NextStepsBlock({
   url,
   displayName,
   godScore,
+  hasDeck = false,
   onSaveMatches,
   savedAt,
   unlocksRemaining,
@@ -694,13 +696,14 @@ function NextStepsBlock({
   url: string | null;
   displayName: string;
   godScore?: number;
+  hasDeck?: boolean;
   onSaveMatches: (id: string, u: string | null, name: string) => void;
   savedAt: number | null;
   unlocksRemaining: number;
   isInApp: boolean;
   onDeckUploadSuccess?: () => void;
 }) {
-  const [showImproveModal, setShowImproveModal] = useState(false);
+  const [showImproveWizard, setShowImproveWizard] = useState(false);
   const basePath = isInApp ? '/app' : '';
   const wasSaved = savedAt !== null;
   const justSaved = wasSaved && savedAt > Date.now() - 3000;
@@ -715,13 +718,13 @@ function NextStepsBlock({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <button
           type="button"
-          onClick={() => setShowImproveModal(true)}
+          onClick={() => setShowImproveWizard(true)}
           className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition text-left w-full"
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">0</span>
           <div>
             <p className="font-medium text-white group-hover:text-cyan-400 transition">Improve your score</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Upload deck · Sign up first</p>
+            <p className="text-xs text-zinc-500 mt-0.5">3 steps: know score → add evidence → see impact</p>
           </div>
         </button>
         <Link
@@ -782,12 +785,13 @@ function NextStepsBlock({
           </span>
         )}
       </div>
-      <ImproveScoreModal
-        isOpen={showImproveModal}
-        onClose={() => setShowImproveModal(false)}
+      <ImproveScoreWizard
+        isOpen={showImproveWizard}
+        onClose={() => setShowImproveWizard(false)}
         startupId={startupId}
         displayName={displayName}
         godScore={godScore}
+        hasDeck={hasDeck}
         onSuccess={onDeckUploadSuccess}
       />
     </section>

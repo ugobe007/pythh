@@ -262,11 +262,18 @@ export default function InvestorLookupPage() {
         p_limit: 10,
       });
 
-      const rpcResult = await withTimeout(rpcPromise, LOOKUP_QUERY_MS, 'Investor lookup');
+      const rpcResult = await withTimeout(Promise.resolve(rpcPromise), LOOKUP_QUERY_MS, 'Investor lookup');
 
-      if (!rpcResult.error && rpcResult.data && Array.isArray(rpcResult.data)) {
-        data = rpcResult.data as InvestorRow[];
+      const rpcRows = rpcResult.data;
+      const rpcOk =
+        !rpcResult.error &&
+        Array.isArray(rpcRows) &&
+        rpcRows.length > 0;
+
+      if (rpcOk) {
+        data = rpcRows as InvestorRow[];
       } else {
+        // RPC missing in DB, error, OR success with [] (sector tag mismatch) — use PostgREST overlap.
         const fallback = await withTimeout(
           supabase
             .from('investors')
@@ -280,7 +287,35 @@ export default function InvestorLookupPage() {
           'Investor lookup (fallback)'
         );
         if (fallback.error) throw fallback.error;
-        data = (fallback.data || []) as InvestorRow[];
+        let rows = (fallback.data || []) as InvestorRow[];
+        // Still empty: loose ilike on thesis/name/firm (sector tags in DB often != UI chip strings).
+        if (rows.length === 0) {
+          const safe = selectedIndustry.replace(/[%_]/g, '').trim();
+          if (safe.length >= 2) {
+            try {
+              const loose = await withTimeout(
+                supabase
+                  .from('investors')
+                  .select(
+                    'id, name, firm, sectors, stage, investor_score, investment_pace_per_year, total_investments, linkedin_url, investment_thesis, updated_at'
+                  )
+                  .or(
+                    `investment_thesis.ilike.%${safe}%,name.ilike.%${safe}%,firm.ilike.%${safe}%`
+                  )
+                  .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
+                  .limit(10),
+                LOOKUP_QUERY_MS,
+                'Investor lookup (loose)'
+              );
+              if (!loose.error && loose.data?.length) {
+                rows = loose.data as InvestorRow[];
+              }
+            } catch (e) {
+              console.warn('[lookup] loose investor search skipped:', e);
+            }
+          }
+        }
+        data = rows;
       }
 
       const rows = ((data || []) as InvestorRow[]).map((r) => {

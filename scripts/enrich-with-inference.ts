@@ -21,7 +21,7 @@ import 'dotenv/config';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 // @ts-ignore - JS module
-import { extractInferenceData } from '../lib/inference-extractor.js';
+import { extractInferenceData, extractInferenceDataSparse } from '../lib/inference-extractor.js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
@@ -115,30 +115,67 @@ async function main() {
   const limitIndex = args.indexOf('--limit');
   const limit = limitIndex !== -1 ? parseInt(args[limitIndex + 1]) : 20;
   const useAI = args.includes('--ai');
+  const textOnly = args.includes('--text-only');
+  const minimal = args.includes('--minimal'); // name-only: catch startups with no description/tagline/pitch
 
   console.log('═'.repeat(70));
   console.log('    🔥 PYTH INFERENCE ENGINE ENRICHMENT');
   console.log('═'.repeat(70));
   console.log(`\n📊 Configuration:`);
   console.log(`   Limit: ${limit}`);
+  console.log(`   Mode: ${minimal ? 'Minimal (name-only, no fetch)' : textOnly ? 'Text-only (pitch/tagline/description, no fetch)' : 'Website fetch + inference'}`);
   console.log(`   Method: Inference Engine (pattern matching, NO AI)`);
   console.log(`   AI Fallback: ${useAI ? '✅ Enabled' : '❌ Disabled'}`);
   console.log('');
 
-  // Find startups with placeholder GOD scores
+  // Find startups to enrich
   console.log('🔍 Finding startups to enrich...\n');
 
-  const { data: startups, error } = await supabase
-    .from('startup_uploads')
-    .select('id, name, website, total_god_score, description, tagline, extracted_data')
-    .or('total_god_score.eq.60,total_god_score.lte.55')
-    .not('website', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error('❌ Error fetching startups:', error);
-    process.exit(1);
+  let startups: any[];
+  if (minimal) {
+    // Minimal: startups with NO description/tagline/pitch — use name + domain hints only
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, total_god_score, description, tagline, pitch, extracted_data')
+      .eq('status', 'approved')
+      .is('description', null)
+      .is('tagline', null)
+      .is('pitch', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.error('❌ Error fetching startups:', error);
+      process.exit(1);
+    }
+    startups = data || [];
+  } else if (textOnly) {
+    // Text-only: startups with any text but potentially sparse traction
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, total_god_score, description, tagline, pitch, extracted_data')
+      .eq('status', 'approved')
+      .or('description.not.is.null,tagline.not.is.null,pitch.not.is.null')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.error('❌ Error fetching startups:', error);
+      process.exit(1);
+    }
+    startups = data || [];
+  } else {
+    // Website mode: startups with low GOD scores
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, total_god_score, description, tagline, pitch, extracted_data')
+      .or('total_god_score.eq.60,total_god_score.lte.55')
+      .not('website', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.error('❌ Error fetching startups:', error);
+      process.exit(1);
+    }
+    startups = data || [];
   }
 
   if (!startups || startups.length === 0) {
@@ -146,39 +183,60 @@ async function main() {
     return;
   }
 
-  console.log(`📋 Found ${startups.length} startups to enrich:\n`);
+  console.log(`📋 Found ${startups.length} startups to enrich (${minimal ? 'minimal (name-only)' : textOnly ? 'text-only, no fetch' : 'with website fetch'})\n`);
 
   let enriched = 0;
   let failed = 0;
   const results: { name: string; before: number; after: number; tier: string; signals: string[] }[] = [];
 
   for (const startup of startups) {
-    if (!startup.website) continue;
+    // Build text: always include DB fields; add website content only if fetching; minimal adds domain hints
+    let fullText = [
+      startup.name || '',
+      startup.tagline || '',
+      startup.description || '',
+      startup.pitch || '',
+    ].join(' ');
+    if (minimal && startup.website) {
+      const domain = (startup.website || '').replace(/^https?:\/\//, '').split('/')[0].toLowerCase();
+      const tld = domain.split('.').pop();
+      if (tld && ['ai', 'io', 'dev', 'tech', 'health', 'bio', 'fin', 'bank'].includes(tld)) {
+        fullText += ` ${tld}`;
+      }
+      if (domain.includes('health')) fullText += ' healthtech';
+      if (domain.includes('fin') || domain.includes('pay')) fullText += ' fintech';
+      if (domain.includes('ai') || domain.includes('ml')) fullText += ' AI/ML';
+    }
 
-    console.log(`\n${'─'.repeat(50)}`);
-    console.log(`📊 ${startup.name} (${startup.website})`);
-    console.log(`   Current GOD Score: ${startup.total_god_score}`);
+    if (!textOnly && !minimal && startup.website) {
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`📊 ${startup.name} (${startup.website})`);
+      console.log(`   Current GOD Score: ${startup.total_god_score}`);
 
-    // Fetch website content
-    const content = await fetchWebsiteContent(startup.website);
-    
-    if (!content || content.length < 100) {
-      console.log(`   ⚠️  Could not fetch content`);
+      const content = await fetchWebsiteContent(startup.website);
+      if (content && content.length >= 100) {
+        fullText += ' ' + content;
+      } else if (fullText.length < 100) {
+        console.log(`   ⚠️  Could not fetch content and DB text too short`);
+        failed++;
+        continue;
+      }
+    } else {
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`📊 ${startup.name} (${minimal ? 'minimal' : 'text-only'})`);
+    }
+
+    if (fullText.length < 30) {
+      console.log(`   ⚠️  Insufficient text for inference`);
       failed++;
       continue;
     }
 
-    // Combine all text for inference
-    const fullText = [
-      startup.name || '',
-      startup.tagline || '',
-      startup.description || '',
-      content
-    ].join(' ');
-
-    // Run inference engine (NO AI!)
+    // Run inference engine (NO AI!) — use sparse extractor for minimal/short text
     console.log(`   🧠 Running inference engine...`);
-    const inference: any = extractInferenceData(fullText, startup.website);
+    const inference: any = (minimal && fullText.length < 50)
+      ? extractInferenceDataSparse(fullText, startup.website || '')
+      : extractInferenceData(fullText, startup.website || '', minimal ? { sparse: true } : {});
 
     if (!inference) {
       console.log(`   ⚠️  Inference extraction failed`);
@@ -205,21 +263,25 @@ async function main() {
     console.log(`   🎯 Data Tier: ${dataTier} - run recalculate-scores.ts to update GOD score`);
 
     // Update database with inference data ONLY (not scores)
+    // Merge: only overwrite when inference has new data (fill gaps)
+    const existingExt = startup.extracted_data || {};
+    const merged = {
+      ...existingExt,
+      ...inference,
+      data_tier: dataTier,
+      inference_method: minimal ? 'pyth_inference_minimal' : textOnly ? 'pyth_inference_text_only' : 'pyth_inference_engine',
+      enriched_at: new Date().toISOString(),
+    };
     const { error: updateError } = await supabase
       .from('startup_uploads')
       .update({
-        sectors: inference.sectors || startup.extracted_data?.sectors || ['Technology'],
-        is_launched: inference.is_launched || false,
-        has_demo: inference.has_demo || false,
-        has_technical_cofounder: inference.has_technical_cofounder || false,
-        // ⛔ DO NOT SET GOD SCORES HERE - use recalculate-scores.ts
-        extracted_data: {
-          ...(startup.extracted_data || {}),
-          ...inference,
-          data_tier: dataTier,
-          inference_method: 'pyth_inference_engine',
-          enriched_at: new Date().toISOString(),
-        },
+        sectors: inference.sectors?.length ? inference.sectors : (startup.extracted_data?.sectors || startup.sectors || ['Technology']),
+        is_launched: inference.is_launched ?? startup.is_launched ?? false,
+        has_demo: inference.has_demo ?? startup.has_demo ?? false,
+        has_technical_cofounder: inference.has_technical_cofounder ?? startup.has_technical_cofounder ?? false,
+        has_revenue: inference.has_revenue ?? startup.has_revenue ?? false,
+        has_customers: inference.has_customers ?? startup.has_customers ?? false,
+        extracted_data: merged,
       })
       .eq('id', startup.id);
 
@@ -238,8 +300,8 @@ async function main() {
       console.log(`   ✅ Enriched! Run recalculate-scores.ts to update GOD score`);
     }
 
-    // Small delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Small delay only when fetching websites
+    if (!textOnly && !minimal) await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   // Summary

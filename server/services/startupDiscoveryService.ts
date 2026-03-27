@@ -1,11 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import Parser from 'rss-parser';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { insertDiscovered, setSupabase } = require('../../lib/startupInsertGate');
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
+setSupabase(supabase);
 
 // Using Anthropic Claude instead of OpenAI for market intelligence extraction
 const anthropic = new Anthropic({
@@ -288,65 +293,38 @@ RESPONSE FORMAT (JSON only, no markdown):
 
     for (const startup of startups) {
       try {
-        // Validate startup name to prevent junk entries
-        const { isValidStartupName } = await import('../utils/startupNameValidator');
-        const nameValidation = isValidStartupName(startup.name);
-        if (!nameValidation.isValid) {
-          console.warn(`   ⚠️  Skipping invalid startup name: "${startup.name}" (reason: ${nameValidation.reason})`);
-          skipped++;
-          continue;
-        }
-        
-        // Check if already exists (by name)
-        const { data: existing } = await supabase
-          .from('discovered_startups')
-          .select('id')
-          .ilike('name', startup.name)
-          .limit(1)
-          .single();
+        const r = await insertDiscovered({
+          name: startup.name,
+          website: startup.website,
+          description: startup.description,
+          value_proposition: startup.value_proposition,
+          problem: startup.problem,
+          solution: startup.solution,
+          market_size: startup.market_size,
+          team_companies: startup.team_companies,
+          sectors: startup.sectors,
+          funding_amount: startup.funding_amount,
+          funding_stage: startup.funding_stage,
+          investors_mentioned: startup.investors_mentioned,
+          article_url: startup.article_url,
+          article_title: startup.article_title,
+          article_date: startup.article_date,
+          rss_source: startup.rss_source,
+        }, { checkDuplicates: true });
 
-        if (existing) {
-          skipped++;
-          continue;
-        }
-
-        // Insert new startup with 5-point format
-        const { error } = await supabase
-          .from('discovered_startups')
-          .insert({
-            name: startup.name,
-            website: startup.website,
-            description: startup.description,
-            // 🔥 PYTH AI 5-POINT FORMAT
-            value_proposition: startup.value_proposition,
-            problem: startup.problem,
-            solution: startup.solution,
-            market_size: startup.market_size,
-            team_companies: startup.team_companies,
-            sectors: startup.sectors,
-            funding_amount: startup.funding_amount,
-            funding_stage: startup.funding_stage,
-            investors_mentioned: startup.investors_mentioned,
-            article_url: startup.article_url,
-            article_title: startup.article_title,
-            article_date: startup.article_date,
-            rss_source: startup.rss_source,
-            website_verified: false,
-            website_status: startup.website ? 'not_checked' : null,
-          });
-
-        if (error) {
-          console.error(`   ❌ Error saving ${startup.name}:`, error.message);
+        if (r.ok) {
+          if (r.skipped) skipped++;
+          else saved++;
         } else {
-          saved++;
+          console.warn(`   ⚠️  Skipped "${startup.name}": ${r.error}`);
+          skipped++;
         }
-
       } catch (error: any) {
         console.error(`   ❌ Error processing ${startup.name}:`, error.message);
       }
     }
 
-    console.log(`\n✅ Saved: ${saved} | Skipped (duplicates): ${skipped}`);
+    console.log(`\n✅ Saved: ${saved} | Skipped (duplicates/invalid): ${skipped}`);
   }
 
   /**

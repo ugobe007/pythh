@@ -242,4 +242,65 @@ router.post('/upload', upload.single('deck'), async (req, res) => {
   }
 });
 
+/**
+ * POST /api/deck/press-url
+ * Add founder-submitted press URL to startup evidence (improves GOD score)
+ * Body: { startupId, url }
+ */
+router.post('/press-url', express.json(), async (req, res) => {
+  try {
+    const { startupId, url } = req.body || {};
+    if (!startupId || !url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Missing startupId or url' });
+    }
+    const trimmed = url.trim();
+    if (!trimmed) return res.status(400).json({ error: 'URL cannot be empty' });
+    try {
+      new URL(trimmed);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const entry = {
+      url: trimmed,
+      source: 'founder',
+      snippet: null,
+      captured_at: new Date().toISOString()
+    };
+
+    const { data: startup, error: fetchErr } = await supabase
+      .from('startup_uploads')
+      .select('evidence')
+      .eq('id', startupId)
+      .single();
+
+    if (fetchErr || !startup) {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+
+    const current = Array.isArray(startup.evidence) ? startup.evidence : [];
+    const updated = [...current, entry];
+
+    const { error: updateErr } = await supabase
+      .from('startup_uploads')
+      .update({
+        evidence: updated,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', startupId);
+
+    if (updateErr) {
+      console.error('[deck] press-url update failed:', updateErr);
+      return res.status(500).json({ error: 'Failed to save press URL' });
+    }
+
+    res.status(200).json({ success: true, url: trimmed });
+  } catch (err) {
+    console.error('[deck] press-url error:', err);
+    res.status(500).json({ error: err.message || 'Failed to add press URL' });
+  }
+});
+
 module.exports = router;

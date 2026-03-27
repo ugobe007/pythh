@@ -481,7 +481,7 @@ async function scrapeRssFeeds() {
             if (existingError) {
               // NAME QUALITY CHECK — reject garbage before DB insert
               const nameCheck = isValidStartupName(primaryEntity.name);
-              if (!nameCheck.valid) {
+              if (!nameCheck.isValid) {
                 console.log(`   🚫 Name rejected: "${primaryEntity.name}" — ${nameCheck.reason}`);
                 recordMetric('reject_reasons', `bad_name_${nameCheck.reason}`);
                 continue;

@@ -410,6 +410,7 @@ async function recalculateScores(): Promise<void> {
   let spikyApplied = 0;
   let hotApplied = 0;
   let pedigreeApplied = 0;
+  let accomplishmentApplied = 0;
 
   // Process each phase sequentially
   for (const phaseNum of [1, 2, 3, 4]) {
@@ -541,7 +542,21 @@ async function recalculateScores(): Promise<void> {
       // Pedigree scoring is optional, continue if it fails
     }
 
-    const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;
+    // T8: Accomplishment Evidence — rewards startups that submit proof (deck, press)
+    // Rationale: founders who add evidence demonstrate transparency and seriousness
+    let accomplishmentBonus = 0;
+    const hasDeck = !!(startup.deck_url || startup.deck_filename);
+    if (hasDeck) accomplishmentBonus += 2;
+    const evidenceArr = Array.isArray(startup.evidence) ? startup.evidence : [];
+    const founderEvidenceCount = evidenceArr.filter((e: any) => e?.source === 'founder').length;
+    if (founderEvidenceCount > 0) {
+      accomplishmentBonus += Math.min(founderEvidenceCount, 2); // +1 per press URL, max +2
+    }
+    if (accomplishmentBonus > 0) {
+      console.log(`  📄 ${startup.name}: +${accomplishmentBonus} accomplishment evidence (deck: ${hasDeck}, press: ${founderEvidenceCount})`);
+    }
+
+    const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus + accomplishmentBonus;
     const cappedBonuses = Math.min(rawBonuses, 10); // Cap: bonuses ≤ +10 total — reduced Feb 28 2026 from +15 to prevent scores from being pushed out of 50-59 range into 60+
     const GOD_SCORE_FLOOR = 40; // Approved startups never below 40 — enforced for consistency with monitor/tiers
     const raw = Math.round(Number(scores.total_god_score) + cappedBonuses);
@@ -607,6 +622,7 @@ async function recalculateScores(): Promise<void> {
             if (eliteSpikyBonus > 0) boostParts.push(`${eliteSpikyBonus.toFixed(1)} elite+spiky`);
           }
           if (psychBonusGOD !== 0) boostParts.push(`${psychBonusGOD > 0 ? '+' : ''}${psychBonusGOD.toFixed(1)} psych`);
+          if (accomplishmentBonus > 0) boostParts.push(`${accomplishmentBonus.toFixed(1)} evidence`);
           const boostNote = boostParts.length > 0 ? ` (+${boostParts.join(', ')})` : '';
           console.log(`  ✅ ${startup.name}: ${oldScore} → ${finalScore}${boostNote}`);
         }
@@ -945,6 +961,7 @@ async function recalculateScores(): Promise<void> {
   console.log(`  Spiky Bachelor recognized: ${spikyApplied}`);
   console.log(`  Hot startup bonus: ${hotApplied}`);
   console.log(`  Investor pedigree bonus: ${pedigreeApplied}`);
+  console.log(`  Accomplishment evidence bonus: ${accomplishmentApplied}`);
   console.log(`  Total: ${startups.length}`);
   console.log('✅ Score recalculation complete');
 }

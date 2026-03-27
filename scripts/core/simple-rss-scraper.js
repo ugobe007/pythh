@@ -12,6 +12,8 @@ const Parser = require('rss-parser');
 const path = require('path');
 // Shared URL validation — prevents article URLs being stored as startup websites
 const { sanitiseWebsiteUrl } = require('../../lib/junk-url-config');
+const { isValidStartupName } = require('../../server/utils/startupNameValidator');
+const { insertDiscovered, setSupabase } = require('../../lib/startupInsertGate');
 
 // Import Phase-Change frame parser for entity extraction fallback
 let frameParser;
@@ -162,6 +164,13 @@ function extractCompanyName(title) {
   // STAGE 1: CANDIDATE GENERATION (Loose)
   // ======================================
   const candidates = [];
+
+  // Pattern 0: Law firm "X Advises Y On" → company is Y (e.g. "Shellworks")
+  const adviseMatch = title.match(/\bAdvises\s+([A-Z][A-Za-z0-9\s&.'-]{2,40}?)(?:\s+On\s|\s*$|\s+[A-Z])/i);
+  if (adviseMatch) {
+    const y = adviseMatch[1].trim().replace(/\s+On\s*$/i, '').trim();
+    if (y.length >= 2) candidates.push({ text: y, source: 'law_firm', confidence: 0.85 });
+  }
   
   // Pattern 1: Funding/raise patterns (highest confidence)
   const fundingPatterns = [
@@ -570,6 +579,13 @@ async function scrapeRssFeeds() {
           skipped++;
           continue;
         }
+
+        // Reject garbage names (headline fragments, law firm phrases, article titles)
+        const nameCheck = isValidStartupName(companyName);
+        if (!nameCheck.isValid) {
+          skipped++;
+          continue;
+        }
         
         // Check if already exists in discovered_startups
         const { data: existingDiscovered } = await supabase
@@ -607,44 +623,32 @@ async function scrapeRssFeeds() {
           } catch (e) { /* silent */ }
         }
         
-        // Insert - using correct column names (with timeout handling)
+        // Insert via gate (validates name; script already checked duplicates)
         try {
-          const insertPromise = supabase.from('discovered_startups').insert({
+          setSupabase(supabase);
+          const r = await insertDiscovered({
             name: companyName,
             description: (item.contentSnippet || item.title || '').slice(0, 500),
-            // sanitiseWebsiteUrl returns null for news/article/social URLs so we
-            // don't store the TechCrunch article link as the startup's website.
             website: sanitiseWebsiteUrl(item.link),
-            source: 'rss',            // ✅ For tracking discovery source
-            rss_source: source.name,  // ✅ CORRECT - not "source"
-            article_url: item.link,   // ✅ CORRECT - not "source_url"
+            rss_source: source.name,
+            article_url: item.link,
             article_title: item.title || '',
             article_date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
             sectors: sectors,
             discovered_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            // v2 inference enrichment
             funding_amount: inferenceData.funding_amount || null,
             funding_stage: inferenceData.funding_stage || null,
             value_proposition: inferenceData.value_proposition || null,
             team_signals: inferenceData.team_signals || null,
             execution_signals: inferenceData.execution_signals || null,
             metadata: Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : null,
-          });
-          
-          // Add 10-second timeout for database operations
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database timeout after 10s')), 10000)
-          );
-          
-          const { error } = await Promise.race([insertPromise, timeoutPromise]);
-          
-          if (!error) {
+          }, { checkDuplicates: false });
+
+          if (r.ok && !r.skipped) {
             console.log(`   ✅ ${companyName} (${sectors.join(', ')})`);
             added++;
             totalAdded++;
           } else {
-            console.log(`   ⚠️  ${companyName}: ${error.message}`);
             skipped++;
           }
         } catch (dbError) {

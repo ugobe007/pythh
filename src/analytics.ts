@@ -1,24 +1,8 @@
 /**
- * Frontend Analytics Helper (Prompt 18)
- * Lightweight client-side event tracking
+ * Legacy analytics entrypoint.
+ * This file now proxies to src/lib/analytics so the app uses one pipeline.
  */
-
-import { supabase } from './lib/supabase';
-
-// Generate or retrieve persistent session ID
-function getSessionId(): string {
-  const key = 'pythh_session_id';
-  let sessionId = localStorage.getItem(key);
-  if (!sessionId) {
-    sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-    localStorage.setItem(key, sessionId);
-  }
-  return sessionId;
-}
-
-// Debounce map: prevents same event firing twice within 10 seconds
-const lastEventTime = new Map<string, number>();
-const DEBOUNCE_MS = 10_000;
+import { trackEvent } from './lib/analytics';
 
 interface EventProps {
   page?: string;
@@ -34,47 +18,8 @@ interface EventProps {
  * @param props - Additional properties
  */
 export async function logEvent(name: string, props: EventProps = {}): Promise<void> {
-  try {
-    // Debounce: skip if same event fired recently
-    const debounceKey = `${name}:${props.entity_id || ''}`;
-    const lastTime = lastEventTime.get(debounceKey);
-    if (lastTime && Date.now() - lastTime < DEBOUNCE_MS) {
-      return;
-    }
-    lastEventTime.set(debounceKey, Date.now());
-    
-    // Get auth token if available
-    const { data: { session } } = await supabase.auth.getSession();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (session?.access_token) {
-      headers['Authorization'] = `Bearer ${session.access_token}`;
-    }
-    
-    const { page, referrer, entity_type, entity_id, ...properties } = props;
-    
-    const body = {
-      event_name: name,
-      session_id: getSessionId(),
-      page: page || window.location.pathname,
-      referrer: referrer || document.referrer || null,
-      entity_type,
-      entity_id,
-      properties,
-    };
-    
-    // Fire and forget (don't await)
-    fetch('/api/events', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    }).catch(() => {
-      // Silently ignore failures
-    });
-  } catch {
-    // Silently ignore
-  }
+  const safeName = (name || 'page_viewed') as Parameters<typeof trackEvent>[0];
+  trackEvent(safeName, props);
 }
 
 /**

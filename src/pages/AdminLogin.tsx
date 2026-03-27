@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { isAdminEmail } from '../lib/adminConfig';
 import { Shield, Mail, Lock, Key, Eye, EyeOff, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export default function AdminLogin() {
@@ -37,14 +38,11 @@ export default function AdminLogin() {
 
       if (authError) throw authError;
 
-      // Check if admin
-      const isAdmin = email.toLowerCase().includes('admin') || 
-                     email.toLowerCase().includes('ugobe') ||
-                     ['aabramson@comunicano.com', 'ugobe07@gmail.com', 'ugobe1@mac.com'].includes(email.toLowerCase());
+      const isAdmin = isAdminEmail(email);
 
       if (!isAdmin) {
         await supabase.auth.signOut();
-        throw new Error('Not an admin account. Admin emails must contain "admin" or "ugobe".');
+        throw new Error('Not an admin account. Use an authorized admin email.');
       }
 
       // Create admin session

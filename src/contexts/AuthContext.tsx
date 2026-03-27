@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { isAdminEmail } from '../lib/adminConfig';
 
 interface User {
   id?: string;  // Supabase user ID
@@ -32,13 +33,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Admin emails list
-const ADMIN_EMAILS = [
-  'aabramson@comunicano.com',
-  'ugobe07@gmail.com',
-  'ugobe1@mac.com'
-];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -115,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Fallback to email check if profile doesn't exist yet
     const isAdminFromDb = profile?.is_admin === true;
-    const isAdminFromEmail = ADMIN_EMAILS.includes(email.toLowerCase()) || email.includes('admin');
+    const isAdminFromEmail = isAdminEmail(email);
     
     const newUser: User = {
       id: supabaseUser.id,
@@ -157,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const newUser: User = {
       email,
       name: email.split('@')[0],
-      isAdmin: ADMIN_EMAILS.includes(email.toLowerCase()) || email.includes('admin'),
+      isAdmin: isAdminEmail(email),
     };
     
     setUser(newUser);

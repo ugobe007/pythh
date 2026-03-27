@@ -15,6 +15,9 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
+const { extractCompanyName } = require('../lib/headlineExtractor');
+const { extractCompanyNameFromHeadline, extractInferenceData, extractSectors } = require('../lib/inference-extractor');
+const { insertDiscovered, setSupabase } = require('../lib/startupInsertGate');
 
 // Get Supabase credentials with validation
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -53,51 +56,6 @@ const SERIES_B_KEYWORDS = ['series b', 'series-b', 'seriesb', 'series b round'];
 const SERIES_C_KEYWORDS = ['series c', 'series-c', 'seriesc', 'series c round'];
 const SEED_KEYWORDS = ['seed', 'seed round', 'seed funding'];
 const SERIES_ANY = [...SERIES_A_KEYWORDS, ...SERIES_B_KEYWORDS, ...SERIES_C_KEYWORDS, ...SEED_KEYWORDS];
-
-/**
- * Extract company name from text using patterns
- */
-function extractCompanyName(text) {
-  if (!text) return null;
-  
-  // Pattern 1: "Company Name raises $X"
-  let match = text.match(/^([^:]+?)\s+(?:raises|raised|closes|secured|bags|gets|nabs|pulls in|pulls|pulls in|receives|announces|completes|collects|snags|scores|gains|earns|takes in|brings in|attracts|confirms|finalizes|obtains|procures|secures|wins|grabs|captures|gathers|amasses|accrues|acquires|achieves|attains|claims|collects|derives|draws|earns|fetches|gains|generates|gets|gleans|harvests|makes|nets|obtains|picks up|pockets|procures|reaps|realizes|recovers|retrieves|secures|snags|takes|wins|wrings|yields)\s+\$/i);
-  if (match) {
-    const name = match[1].trim();
-    // Clean up common prefixes/suffixes
-    return name.replace(/^(the|a|an)\s+/i, '').replace(/\s*\(.*?\)\s*$/, '').trim();
-  }
-  
-  // Pattern 2: "Company Name: Raises $X" (with validation)
-  match = text.match(/^([^:]+?):/i);
-  if (match) {
-    let name = match[1].trim();
-    // Clean common prefixes
-    name = name.replace(/^(the|a|an)\s+/i, '').trim();
-    // Reject if name looks like a phrase (too many common English words)
-    const REJECT_WORDS = new Set([
-      'merge', 'merges', 'merged', 'in', 'announces', 'announced', 'launches',
-      'new', 'big', 'top', 'why', 'how', 'what', 'when', 'market', 'markets',
-      'nasdaq', 'report', 'update', 'news', 'challenger', 'global', 'major',
-      'european', 'asian', 'enters', 'reveals', 'targets', 'joins', 'startup',
-      'first', 'next', 'last', 'this', 'these', 'those', 'could', 'should',
-      'would', 'will', 'may', 'might', 'must', 'breaking', 'exclusive'
-    ]);
-    const words = name.split(/\s+/);
-    const rejectCount = words.filter(w => REJECT_WORDS.has(w.toLowerCase())).length;
-    // Only use colon-split if it doesn't look like a phrase
-    if (name.length > 3 && name.length < 60 && words.length <= 5 && rejectCount < 2) return name;
-  }
-  
-  // Pattern 3: "Company Name Closes Series A"
-  match = text.match(/^([A-Z][a-zA-Z0-9\s&'-]+?)(?:\s+(?:closes|raises|secures|completes|announces)\s+(?:a|an|the)\s+(?:seed|series\s+[a-z]|round))/i);
-  if (match) {
-    const name = match[1].trim();
-    if (name.length > 3 && name.length < 60) return name;
-  }
-  
-  return null;
-}
 
 /**
  * Extract funding amount
@@ -183,7 +141,10 @@ function extractStartupInfo(article) {
     }
   }
   
-  const companyName = extractCompanyName(title) || extractCompanyName(combined);
+  let companyName = extractCompanyName(title) || extractCompanyName(combined);
+  if (!companyName || companyName.length < 3) {
+    companyName = extractCompanyNameFromHeadline(title) || extractCompanyNameFromHeadline(combined);
+  }
   if (!companyName || companyName.length < 3) return null;
   
   // Skip obvious non-companies
@@ -198,23 +159,57 @@ function extractStartupInfo(article) {
     return null;
   }
   
-  const fundingAmount = extractFundingAmount(combined);
+  let fundingAmount = extractFundingAmount(combined);
   const fundingStage = extractFundingStage(combined);
   const investors = extractInvestors(combined);
-  
+
+  // Inference parsing: extract sectors, funding, investors from article content
+  let sectors = null;
+  let inferenceData = null;
+  try {
+    inferenceData = extractInferenceData(combined, article.link || '');
+    if (inferenceData && inferenceData.sectors && inferenceData.sectors.length > 0) {
+      sectors = inferenceData.sectors;
+    }
+    if (inferenceData && inferenceData.funding_amount && !fundingAmount) {
+      const amt = inferenceData.funding_amount;
+      fundingAmount = amt >= 1000000000
+        ? `$${(amt / 1000000000).toFixed(1)}B`
+        : amt >= 1000000
+          ? `$${(amt / 1000000).toFixed(1)}M`
+          : amt >= 1000
+            ? `$${(amt / 1000).toFixed(0)}K`
+            : `$${amt}`;
+    }
+    if (inferenceData && inferenceData.investors_mentioned && inferenceData.investors_mentioned.length > 0) {
+      for (const inv of inferenceData.investors_mentioned) {
+        if (inv && !investors.some(i => String(i).toLowerCase() === String(inv).toLowerCase())) {
+          investors.push(inv);
+        }
+      }
+    }
+  } catch (_) { /* inference optional */ }
+  if (!sectors) {
+    try {
+      const inferred = extractSectors(combined);
+      if (inferred && inferred.length > 0) sectors = inferred;
+    } catch (_) { /* optional */ }
+  }
+
   // Extract description (first sentence or snippet)
   let description = content.substring(0, 500);
   if (title.length > 20) {
     description = `${title}. ${description}`;
   }
   description = description.substring(0, 500);
-  
+
   return {
     name: companyName,
     description: description,
     funding_amount: fundingAmount,
     funding_stage: fundingStage,
-    investors_mentioned: investors.length > 0 ? investors : null,
+    investors_mentioned: investors.length > 0 ? investors.slice(0, 10) : null,
+    sectors,
     article_url: article.link,
     article_title: title
   };
@@ -330,57 +325,41 @@ async function discoverStartups() {
   
   console.log(`\n📊 Total new startups found: ${allStartups.length}\n`);
   
-  // Save to database in batches using upsert to handle duplicates gracefully
+  // Save via insert gate (validates names, handles duplicates)
   console.log('💾 Saving to database...');
+  setSupabase(supabase);
   const BATCH_SIZE = 50;
   let saved = 0;
   let skipped = 0;
-  
+
   for (let i = 0; i < allStartups.length; i += BATCH_SIZE) {
     const batch = allStartups.slice(i, i + BATCH_SIZE);
-    
-    // Use upsert with onConflict to handle duplicates gracefully
-    // The unique constraint is on (LOWER(name), COALESCE(LOWER(website), ''))
-    // So we need to match on both name and website
-    const batchData = batch.map(s => ({
-      name: s.name,
-      website: s.website || null,
-      description: s.description,
-      funding_amount: s.funding_amount,
-      funding_stage: s.funding_stage,
-      investors_mentioned: s.investors_mentioned,
-      article_url: s.article_url,
-      article_title: s.article_title,
-      rss_source: s.rss_source,
-      discovered_at: s.discovered_at,
-      imported_to_startups: false
-    }));
-    
-    // Since Supabase doesn't support upsert on composite unique indexes directly,
-    // we'll insert one by one and catch duplicates
     let batchSaved = 0;
     let batchSkipped = 0;
-    
-    for (const item of batchData) {
-      const { error } = await supabase
-        .from('discovered_startups')
-        .insert(item)
-        .select('id')
-        .single();
-      
-      if (error) {
-        if (error.code === '23505' || error.message.includes('duplicate key')) {
-          // Duplicate - skip it
-          batchSkipped++;
-        } else {
-          console.error(`  ⚠️  Error saving ${item.name}:`, error.message);
-          batchSkipped++;
-        }
+
+    for (const s of batch) {
+      const r = await insertDiscovered({
+        name: s.name,
+        website: s.website || null,
+        description: s.description,
+        funding_amount: s.funding_amount,
+        funding_stage: s.funding_stage,
+        investors_mentioned: s.investors_mentioned,
+        sectors: s.sectors || null,
+        article_url: s.article_url,
+        article_title: s.article_title,
+        rss_source: s.rss_source,
+        discovered_at: s.discovered_at,
+      });
+
+      if (r.ok) {
+        if (r.skipped) batchSkipped++;
+        else batchSaved++;
       } else {
-        batchSaved++;
+        batchSkipped++;
       }
     }
-    
+
     saved += batchSaved;
     skipped += batchSkipped;
     console.log(`  ✅ Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allStartups.length / BATCH_SIZE)}: ${batchSaved} saved, ${batchSkipped} skipped (${saved}/${allStartups.length} total saved)`);

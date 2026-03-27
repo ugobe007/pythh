@@ -8,6 +8,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { isValidStartupName } = require('../lib/startupNameValidator');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -53,21 +54,73 @@ const GARBAGE_PATTERNS = [
   /^['\u2018\u2019"\u201C\u201D\(]/,   // starts with any quote or paren — broken text fragments
   /^\d+-year-old/i,        // "49-year-old" type fragments
   /^42San Francisco/i,     // concatenated YC batch data
+  // Financial institutions (not startups)
+  /^Morgan Stanley$/i,
+  /^Seligman Investments$/i,
+  /^Arrow Financial$/i,
+  /^Goldman Sachs$/i,
+  /^J[.\s]?P\.?\s*Morgan$/i,
+  /^CNBC\b/i,
+  // Framework/library names (often mistaken for startups)
+  /^Next\.js$/i,
+  /^React$/i,
+  // Headline fragments from terminal output
+  /^Can\s+Bpifrance/i,
+  /^Is\s+Latest\s+Clean\s+Energy/i,
+  /^FAST42\s+Conclave/i,
+  /^Flagship\s+Dubai\s*$/i,
+  /^LinkedIn\.\s+Now\s+/i,
+  /^It\s+Cleafy\s*$/i,    // "It" + typo
+  /^Gets\s+Prison\s+Time/i,
+  /^Huge\s+Money\s+For\s+AI/i,
+  /^Red\s+Team\s+Your\s+AI/i,
+  /^State\s+Of\s+Venture/i,
+  /^Majority\s+Stake\s+In/i,
+  /^Wealthy\s+Runs\s+Into\s+AI/i,
+  /^Learnt\s+Studying/i,
+  /^Seek\s+Labs\s+Awarded/i,
+  /^Edhat\s+Padilla\s*$/i,  // person name fragment
+  /^CNBC\s+Daily\s+Open/i,
+  /^Opening$/i,
+  /^Michael\s+Seibel$/i,   // YC partner, not a startup
+  /^Bybit\s+Pay\s*$/i,     // product, often headline fragment
+  /^Post\s+[A-Z]/,         // "Post Robotera", "Post Jaaq" — headline fragments
 ];
 
-// Additional check: names that are clearly not startup names
+// Known-good startups — never treat as garbage (short names, number-prefixed, etc.)
+const KNOWN_GOOD_STARTUPS = new Set([
+  '1password', 'deel', 'mews', 'wise', 'stripe', 'notion', 'linear',
+  'vercel', 'supabase', 'airtable', 'figma', 'lattice', 'rippling',
+  'ramp', 'brex', 'mercury', 'replit', 'rsc', 'mode', 'webflow', 'run labs',
+  'gusto', 'ripple',   'opensea', 'dune', 'etherscan', 'foundry',
+  'opyn', 'compound', 'aave', 'uniswap', 'dydx',
+  // YC-backed / YC alum (descriptor prefix but legitimate startups)
+  'yc-backed denki', 'yc-backed diligent ai', 'yc-backed escape', 'yc-backed mandel ai',
+  'yc alum mendel', 'yc alum pasito',
+].map(s => s.toLowerCase()));
+
+// Check: legacy patterns OR shared validator (headline fragments, law firm phrases, etc.)
 function isGarbage(name) {
   if (!name || name.trim().length === 0) return true;
   const n = name.trim();
-  
-  // Match any garbage pattern
+
+  // Never flag known-good startups
+  if (KNOWN_GOOD_STARTUPS.has(n.toLowerCase())) return false;
+
+  // Legacy garbage patterns
   if (GARBAGE_PATTERNS.some(p => p.test(n))) return true;
-  
-  // Very short names (1 char only — 2-char names like "Ro" could be real)
+
+  // Very short names (1 char only)
   if (n.length <= 1) return true;
-  
+
+  // Shared validator: catches "Man Pleads Guilty", "Goodwin Advises Shellworks On", etc.
+  const check = isValidStartupName(n);
+  if (!check.isValid) return true;
+
   return false;
 }
+
+module.exports = { isGarbage };
 
 async function run() {
   console.log('═══════════════════════════════════════════════════════════════');
@@ -102,21 +155,6 @@ async function run() {
 
   console.log(`🗑️  GARBAGE ENTRIES FOUND: ${garbage.length}\n`);
   garbage.forEach(s => {
-    console.log(`  GOD ${String(s.total_god_score).padStart(3)} | ${s.name}`);
-  });
-
-  // Also find suspicious entries that might be garbage
-  console.log('\n📋 SUSPICIOUS (not auto-deleted, review manually):');
-  const suspicious = allData.filter(s => {
-    if (isGarbage(s.name)) return false;
-    const n = (s.name || '').trim();
-    // Generic/non-startup names
-    return n.length <= 4 || 
-           /^[A-Z]{2,4}$/.test(n) || // All-caps abbreviations like "AI", "SaaS"
-           /^\d/.test(n);             // starts with number
-  });
-  suspicious.sort((a, b) => a.name.localeCompare(b.name));
-  suspicious.forEach(s => {
     console.log(`  GOD ${String(s.total_god_score).padStart(3)} | ${s.name}`);
   });
 
@@ -161,6 +199,18 @@ async function run() {
       console.log('  ✅ Removed match gen logs');
     }
 
+    // Delete social_signals (FK: social_signals_startup_id_fkey)
+    const { error: socialError } = await supabase
+      .from('social_signals')
+      .delete()
+      .in('startup_id', ids);
+    
+    if (socialError && socialError.code !== '42P01') {
+      console.error('Error deleting social signals:', socialError);
+    } else {
+      console.log('  ✅ Removed social signals');
+    }
+
     // Now delete the startups themselves
     const { error: deleteError, count } = await supabase
       .from('startup_uploads')
@@ -181,4 +231,6 @@ async function run() {
   console.log('═══════════════════════════════════════════════════════════════');
 }
 
-run().catch(console.error);
+if (require.main === module) {
+  run().catch(console.error);
+}

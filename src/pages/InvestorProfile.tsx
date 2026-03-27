@@ -24,6 +24,7 @@ import { supabase } from '../lib/supabase';
 import { withErrorMonitoring } from '../lib/dbErrorMonitor';
 import { useAuth } from '../contexts/AuthContext';
 import { useOracleStartupId } from '../hooks/useOracleStartupId';
+import { isUuidString } from '../lib/isUuid';
 import { Briefcase, TrendingUp, Clock, DollarSign, Award, Users, Target, Zap } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
@@ -220,6 +221,16 @@ export default function InvestorProfile() {
         return;
       }
 
+      if (!isUuidString(id)) {
+        setInvestor({
+          ...defaultInvestor,
+          name: 'Invalid link',
+          quietGuidance: 'This URL does not look like a valid investor profile. Use a link from search or lookup.',
+        });
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         
@@ -251,9 +262,9 @@ export default function InvestorProfile() {
           return;
         }
 
-        // Load match data if founder is logged in
+        // Load match data if founder is logged in (startup_id must be a UUID or PostgREST returns 400)
         let matchData: { score: number; reasons: string[] } | undefined;
-        if (startupId && isLoggedIn) {
+        if (startupId && isLoggedIn && isUuidString(startupId)) {
           try {
             const { data: match } = await supabase
               .from('startup_investor_matches')

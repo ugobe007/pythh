@@ -364,7 +364,8 @@ async function processStartup(startupId) {
 }
 
 async function processQueue() {
-  console.log('🚀 Queue Processor v16 started\n');
+  const runOnce = process.argv.includes('--run-once');
+  console.log('🚀 Queue Processor v16 started' + (runOnce ? ' (run-once mode)' : '') + '\n');
   
   while (true) {
     // Get next pending job - FIXED: Use 'matching_queue' not 'startup_matching_queue'
@@ -375,6 +376,10 @@ async function processQueue() {
       .limit(1);
     
     if (!jobs || jobs.length === 0) {
+      if (runOnce) {
+        console.log('✅ No pending jobs — exiting');
+        process.exit(0);
+      }
       console.log('💤 No pending jobs, waiting 30s...');
       await new Promise(r => setTimeout(r, 30000));
       continue;

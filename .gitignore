@@ -47,6 +47,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Manual VC portfolio CSVs (local curation; README in folder is tracked)
+VC_Portfolio_Companies/*
+!VC_Portfolio_Companies/README.md
+
+# TextEdit scratch at repo root (often mistaken for the folder)
+VC_Portfolio_Companies.rtf
+
 # Temporary files
 tmp/
 temp/

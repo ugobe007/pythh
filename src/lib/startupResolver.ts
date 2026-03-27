@@ -7,6 +7,7 @@
 
 import { supabase } from './supabase';
 import { normalizeUrl, NormalizedUrl } from '../utils/normalizeUrl';
+import { isValidStartupName } from '../../lib/startupNameValidator';
 
 export type ResolvedStartup = {
   id: string;
@@ -105,6 +106,11 @@ export async function resolveStartupFromUrl(input: string, options: ResolveOptio
   // 5) Prepare startup data
   const companyName = n.domain.split('.')[0];
   const formattedName = companyName.charAt(0).toUpperCase() + companyName.slice(1);
+  const nameCheck = isValidStartupName(formattedName);
+  if (!nameCheck.isValid) {
+    console.error('[startupResolver] Rejected domain-derived name:', formattedName, nameCheck.reason);
+    return null;
+  }
   const websiteUrl = `https://${n.domain}`;
   
   // Backend URL: 

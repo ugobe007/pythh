@@ -16,20 +16,59 @@ const {
 } = require('../../lib/inference-extractor');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 
+// Google News RSS often needs >4s; short timeouts yield 0 articles everywhere.
 const parser = new Parser({
-  timeout: 4000,
+  timeout: 20000,
   headers: {
     'User-Agent': 'Mozilla/5.0 (compatible; PythhBot/1.0; +https://pythh.ai)'
   }
 });
 
-// Hard-deadline wrapper — parser.timeout is unreliable on TCP stalls;
-// this enforces a real cutoff via Promise.race so fallback loops don't hang
-function parseWithDeadline(feedUrl, ms = 2500) {
+// Hard-deadline wrapper — must be >= parser.timeout or rss-parser aborts first
+function parseWithDeadline(feedUrl, ms = 20000) {
   return Promise.race([
     parser.parseURL(feedUrl),
     new Promise((_, reject) => setTimeout(() => reject(new Error(`RSS timeout after ${ms}ms`)), ms))
   ]);
+}
+
+const DEBUG_INFERENCE = process.env.DEBUG_INFERENCE === '1' || process.env.DEBUG_INFERENCE === 'true';
+
+/**
+ * Normalize garbage/fragment names for search — extract the most likely company token.
+ * E.g. "Anthropic Introduced" → "Anthropic", "Startup Cloaked" → "Cloaked", "Y-backed X" → "X"
+ * Returns null if we shouldn't override (use original name).
+ */
+function normalizeNameForSearch(name) {
+  if (!name || typeof name !== 'string') return null;
+  const t = name.trim();
+  if (t.length < 4) return null;
+
+  // "Startup X" / "Privacy Startup X" / "The Startup X" → X
+  let m = t.match(/^(?:the\s+)?(?:privacy\s+)?startup\s+([A-Za-z0-9]+)/i);
+  if (m) return m[1].length >= 4 ? m[1] : null;
+
+  // "X Introduced" / "X Has" / "X Gets" / "X To" / "X Revenue" → X (company did the action)
+  m = t.match(/^([A-Za-z0-9]+)\s+(?:introduced|has|gets?|to|revenue|secures?|raises?|earns?|moves?)/i);
+  if (m) return m[1].length >= 4 ? m[1] : null;
+
+  // "Y-backed X" / "Sequoia-backed X" → X (company being backed)
+  m = t.match(/\b(?:backed|backing)\s+([A-Za-z0-9-]+)$/i);
+  if (m) return m[1].length >= 3 ? m[1] : null;
+
+  // "X, a [sector] startup" → X (often in headlines)
+  m = t.match(/^([A-Za-z0-9]+),\s*a\s+/i);
+  if (m) return m[1].length >= 4 ? m[1] : null;
+
+  // "Visa Processing Start-Up X" / "Start-Up X" → X
+  m = t.match(/(?:start[- ]?up|start[- ]?up)\s+([A-Za-z0-9]+)$/i);
+  if (m) return m[1].length >= 4 ? m[1] : null;
+
+  // "Mexican edtech Mattilda" / "Spanish edtech BCAS" / "Bladder cancer innovator Combat" → last proper noun
+  m = t.match(/^(?:mexican|spanish|us-backed|yc\s+alum|bladder\s+cancer\s+innovator)\s+(?:edtech|fintech|healthtech)?\s*([A-Za-z0-9]+)$/i);
+  if (m) return m[1].length >= 3 ? m[1] : null;
+
+  return null;
 }
 
 /**
@@ -87,47 +126,68 @@ const FAST_SOURCES = {
  */
 async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 6, extraSearchTerms = null) {
   const articles = [];
+  const searchToken = normalizeNameForSearch(startupName) || startupName.trim();
+  const useNormalized = searchToken !== startupName.trim();
 
   // Detect "ambiguous" names: single word, ≤7 chars (Branch, Arc, Bolt, Vibe, etc.)
-  // These produce noisy results against unrelated companies — prefer domain queries.
-  const nameWords = startupName.trim().split(/\s+/);
-  const isAmbiguousName = nameWords.length === 1 && startupName.trim().length <= 7;
+  const nameWords = searchToken.split(/\s+/);
+  const isAmbiguousName = nameWords.length === 1 && searchToken.length <= 7;
 
   let domain = null;
   if (startupWebsite) {
     try { domain = new URL(startupWebsite).hostname.replace('www.', ''); } catch (e) {}
   }
 
-  // When VC name provided (sparse startups with T1 backing), lead with "StartupName VCName funding"
+  // When VC name provided, lead with "StartupName VCName funding"
   const vcQuery = extraSearchTerms && extraSearchTerms.trim()
-    ? [`"${startupName}" ${extraSearchTerms.trim()} funding`, `"${startupName}" ${extraSearchTerms.trim()} seed series`]
+    ? [`"${searchToken}" ${extraSearchTerms.trim()} funding`, `"${searchToken}" ${extraSearchTerms.trim()} seed series`]
     : [];
 
-  // Build contextual queries — VC-first when provided, else domain-first for ambiguous names
+  // Build contextual queries
   const queries = vcQuery.length > 0
-    ? [...vcQuery, `"${startupName}" startup funding`, `"${startupName}" raises series`]
+    ? [...vcQuery, `"${searchToken}" startup funding`, `"${searchToken}" raises series`]
     : isAmbiguousName && domain
       ? [
           `"${domain}" funding`,
           `"${domain}" startup`,
-          `"${startupName}" raises series funding`,
-          `"${startupName}" customers revenue`,
+          `"${searchToken}" raises series funding`,
+          `"${searchToken}" customers revenue`,
         ]
       : [
-          `"${startupName}" startup funding`,
-          `"${startupName}" raises series`,
-          `"${startupName}" customers revenue growth`,
-          `"${startupName}" launches product`,
+          `"${searchToken}" startup funding`,
+          `"${searchToken}" raises series`,
+          `"${searchToken}" customers revenue growth`,
+          `"${searchToken}" launches product`,
           ...(domain ? [`"${domain}" startup`] : []),
         ];
 
-  // Primary query
+  if (useNormalized && DEBUG_INFERENCE) {
+    console.log(`[inference] Normalized "${startupName}" → "${searchToken}" for search`);
+  }
+
   const query = queries[0];
   const feedUrl = FAST_SOURCES.googleNews(query);
 
+  const fetchFeed = async (retries = 2) => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await parseWithDeadline(feedUrl);
+      } catch (e) {
+        if (attempt < retries && /timeout|timed out|ETIMEDOUT|ECONNRESET|503|502|429/i.test(String(e.message || ''))) {
+          const backoff = /503|502|429/.test(String(e.message || '')) ? 5000 : 1000; // 5s for rate limits
+          if (DEBUG_INFERENCE) console.log(`[inference] Retry in ${backoff / 1000}s after ${e.message}`);
+          await new Promise(r => setTimeout(r, backoff));
+          continue;
+        }
+        throw e;
+      }
+    }
+  };
+
   try {
-    const feed = await parseWithDeadline(feedUrl);
+    const feed = await fetchFeed();
     const rawItems = feed.items.slice(0, maxArticles);
+    const rawCount = rawItems.length;
 
     const rawArticles = rawItems.map(item => ({
       title: item.title || '',
@@ -137,9 +197,16 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
       source: 'Google News'
     }));
 
-    // Name-correlation filter: only keep articles that actually mention this startup
-    const filtered = filterArticlesByName(rawArticles, startupName);
+    // Name-correlation filter: accept articles matching startupName OR searchToken
+    let filtered = filterArticlesByName(rawArticles, startupName);
+    if (filtered.length === 0 && useNormalized) {
+      filtered = filterArticlesByName(rawArticles, searchToken);
+    }
     articles.push(...filtered);
+
+    if (DEBUG_INFERENCE) {
+      console.log(`[inference] Search "${query}" → raw: ${rawCount}, after filter: ${filtered.length}`);
+    }
 
     // Fallback: try broader queries if primary returned few relevant results
     if (articles.length < 3) {
@@ -153,7 +220,10 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
             pubDate: item.pubDate || new Date().toISOString(),
             source: `Google News (${i === 1 ? 'series' : i === 2 ? 'product' : 'domain'})`
           }));
-          const fallbackFiltered = filterArticlesByName(fallbackRaw, startupName);
+          let fallbackFiltered = filterArticlesByName(fallbackRaw, startupName);
+          if (fallbackFiltered.length === 0 && useNormalized) {
+            fallbackFiltered = filterArticlesByName(fallbackRaw, searchToken);
+          }
           articles.push(...fallbackFiltered);
         } catch (e) {
           // Skip failed fallback
@@ -506,7 +576,8 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
 
       // Step 3: If still no company URL found in articles, try name→domain inference
       if (!result.enrichedData.company_url && !currentData.website && !currentData.company_url) {
-        const inferred = await inferDomainFromName(startupName, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
+        const nameForInference = normalizeNameForSearch(startupName) || startupName;
+        const inferred = await inferDomainFromName(nameForInference, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
         if (inferred) {
           result.enrichedData.company_url = inferred;
           result.enrichedData.company_url_source = 'name_inference';
@@ -535,7 +606,11 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
     
     const elapsed = Date.now() - startTime;
     console.log(`[inference] Quick enrichment for "${startupName}": ${result.enrichmentCount} fields in ${elapsed}ms` +
-                (result.timedOut ? ' (timed out)' : ''));
+                (result.timedOut ? ' (timed out)' : '') +
+                (result.articlesFound !== undefined ? ` (${result.articlesFound} articles)` : ''));
+    if (DEBUG_INFERENCE && result.enrichmentCount === 0 && result.articlesFound > 0) {
+      console.log(`[inference] DEBUG: 0 fields from ${result.articlesFound} articles — extraction patterns may not match`);
+    }
     
     return result;
   } catch (error) {
@@ -576,4 +651,5 @@ module.exports = {
   quickEnrichWithVC,
   isDataSparse,
   inferDomainFromName,
+  normalizeNameForSearch,
 };

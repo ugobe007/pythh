@@ -103,8 +103,8 @@
  */
 const GOD_SCORE_ACCEPTABLE_RANGES = {
   normalizationDivisor: {
-    min: 19.0,   // Below 19: avg > 65 (rawTotal ~12.7 / 19 * 100 = 66.8 — measured Mar 2026)
-    max: 23.0,   // Above 23: avg < 55 (rawTotal ~12.7 / 23 * 100 = 55.2) — currently at max to create more 50-59 scores
+    min: 17.0,   // Below 17: avg > 70. Extended Mar 2026 to allow 18 for stronger bump (60% stuck in 40-49)
+    max: 23.0,   // Above 23: avg < 55 (rawTotal ~12.7 / 23 * 100 = 55.2)
     target: 22.0, // Optimal: rawTotal ~14.66 / 22 * 100 = 66.6 — adjusted Jan 2026 to fix inflation (avg was 69.8)
     explanation: 'Controls overall score scaling. Currently at max (23.0) to lower scores after data enrichment filled gaps. Data enrichment increased raw scores, so higher divisor needed to maintain target distribution.'
   },
@@ -189,18 +189,18 @@ function validateGodScoreConfig(config: typeof GOD_SCORE_CONFIG): void {
 
 const GOD_SCORE_CONFIG = {
   // Normalization divisor - controls overall score scaling
-  // ACCEPTABLE RANGE: 19.0 - 22.0 (enforced by validation)
-  // Math: rawTotal (avg ~12, max ~17) / 20.5 * 10 → 0-10 scale → * 10 = 0-100
-  // Maps: sparse(~6)→29, average(~12)→58, good(~14)→68, exceptional(~17)→83
-  normalizationDivisor: 20.0,  // Mar 2026: 20 to land avg ~55 after sparse purge. (21 was 48.5 avg; lower divisor = higher scores.)
+  // ACCEPTABLE RANGE: 19.0 - 23.0 (enforced by validation)
+  // Math: rawTotal (avg ~12, max ~17) / divisor * 10 → 0-10 scale → * 10 = 0-100
+  // Lower divisor = higher scores. 19 → ~63 avg; 20 → ~60 avg.
+  normalizationDivisor: 18.0,  // Mar 2026: 18 for stronger bump (divisor 19 had no visible effect; 60% still in 40-49)
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 0.5 - 3.0 (enforced by validation)
-  baseBoostMinimum: 2.5,  // Keeps floor at 40 for approved startups
+  baseBoostMinimum: 3.0,  // Raised from 2.5 to lift sparse-data floor
   
   // Vibe bonus cap - qualitative signal boost
   // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)
-  vibeBonusCap: 0.6,  // Mar 2026: reduced from 0.8 to bring average down toward target 55-65
+  vibeBonusCap: 0.8,  // Raised from 0.6 to allow more qualitative bonus
   
   // Final score multiplier (converts 0-10 to 0-100)
   finalScoreMultiplier: 10,

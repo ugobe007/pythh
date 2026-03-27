@@ -2,11 +2,16 @@ import Parser from 'rss-parser';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { insertStartupUpload, setSupabase } = require('../../lib/startupInsertGate');
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
+setSupabase(supabase);
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -605,8 +610,8 @@ URL:`;
           continue;
         }
 
-        // Step 4: Insert new startup with canonical_key
-        const { error } = await supabase.from('startup_uploads').insert({
+        // Step 4: Insert via gate (validates name; rejects garbage)
+        const record = {
           name: company.name,
           tagline: company.tagline,
           website: company.website,
@@ -614,17 +619,19 @@ URL:`;
           stage: this.parseStage(company.funding_stage),
           raise_amount: company.funding_amount,
           raise_type: company.funding_stage,
-          status: 'approved', // Auto-approve RSS scraped startups
+          status: 'approved' as const,
           source_type: 'rss_scraper',
           source_url: company.source_url,
           extracted_data: company,
           submitted_by: 'RSS Scraper',
           submitted_email: 'scraper@hotmoneyhoney.com',
-          canonical_key: canonicalKey, // Store canonical key for deduplication
-        });
+          canonical_key: canonicalKey,
+        };
 
-        if (error) {
-          console.error(`❌ Error saving ${company.name}:`, error.message);
+        const result = await insertStartupUpload(record, { skipDuplicateCheck: true });
+        if (!result.ok) {
+          console.error(`❌ Rejected ${company.name}:`, result.error);
+          rejected++;
         } else {
           console.log(`✅ Saved ${company.name} (canonical_key=${canonicalKey})`);
           saved++;

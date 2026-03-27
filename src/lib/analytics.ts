@@ -8,6 +8,8 @@
  * - Stable anon_id + session_id for funnel stitching
  */
 
+import { apiUrl } from './apiConfig';
+
 type EventName =
   | 'page_viewed'
   | 'oracle_viewed'
@@ -48,11 +50,6 @@ const eventQueue: QueuedEvent[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | null = null;
 let isFlushing = false;
 
-// Circuit breaker state
-let consecutiveFailures = 0;
-let analyticsDisabled = false;
-const MAX_CONSECUTIVE_FAILURES = 2; // Disable after 2 consecutive failures
-
 // Throttle state - prevent same event firing twice in 10s
 const lastEventTimes: Map<EventName, number> = new Map();
 const THROTTLE_MS = 10000; // 10 seconds
@@ -88,11 +85,6 @@ function getSessionId(): string {
  * Track an analytics event
  */
 export function trackEvent(name: EventName, data: EventData = {}): void {
-  // Circuit breaker: don't track if disabled
-  if (analyticsDisabled) {
-    return;
-  }
-
   // Throttle: don't fire same event twice in 10s (lookup funnel must never be dropped)
   const now = Date.now();
   if (!name.startsWith('lookup_')) {
@@ -150,13 +142,9 @@ async function flushEvents(): Promise<void> {
     return;
   }
 
-  // Copy but DO NOT clear yet (avoid event loss)
   const events = eventQueue.slice();
 
   try {
-    const { supabase } = await import('./supabase');
-
-    // Production ai_logs often has operation/status/output but no `type` column — omit type.
     const rows = events.map((event) => ({
       operation: event.name,
       status: 'tracked',
@@ -164,39 +152,51 @@ async function flushEvents(): Promise<void> {
       created_at: new Date(event.timestamp).toISOString(),
     }));
 
-    const { error } = await (supabase as any).from('ai_logs').insert(rows);
+    let persisted = false;
 
-    if (error) throw error;
-
-    // Success: remove flushed events and reset failure count
-    eventQueue.splice(0, events.length);
-    consecutiveFailures = 0;
-  } catch (error) {
-    // Circuit breaker: track consecutive failures
-    consecutiveFailures++;
-    
-    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      // Disable analytics to prevent spam
-      analyticsDisabled = true;
-      // Clear queue to free memory
-      eventQueue.length = 0;
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.warn('[pyth.analytics] Circuit breaker tripped - analytics disabled after', consecutiveFailures, 'failures');
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch(apiUrl('/api/analytics/flush'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows }),
+        });
+        if (res.ok) {
+          persisted = true;
+        }
+      } catch {
+        // Network / CORS — try direct insert below
       }
-      return; // Don't retry
     }
 
-    // Keep queue (don't drop events). Try again soon with backoff.
+    if (!persisted) {
+      const { supabase } = await import('./supabase');
+      const { error } = await (supabase as any).from('ai_logs').insert(rows);
+      if (!error) {
+        persisted = true;
+      } else if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[pyth.analytics] Direct ai_logs insert failed:', error.message);
+      }
+    }
+
+    if (persisted) {
+      eventQueue.splice(0, events.length);
+    } else if (!flushTimeout) {
+      // Retry later; do not disable tracking or clear the queue (except bounded queue elsewhere)
+      flushTimeout = setTimeout(() => {
+        void flushEvents();
+      }, 8000);
+    }
+  } catch (e) {
     if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
-      console.warn('[pyth.analytics] Failed to flush events (attempt', consecutiveFailures + '):', error);
+      console.warn('[pyth.analytics] flush error (non-fatal):', e);
     }
-    // Backoff retry (5s * failure count)
     if (!flushTimeout) {
       flushTimeout = setTimeout(() => {
         void flushEvents();
-      }, 5000 * consecutiveFailures);
+      }, 8000);
     }
   } finally {
     isFlushing = false;
@@ -224,6 +224,6 @@ export function getAnalyticsSummary(): { pending: number; lastEvent: EventName |
   };
 }
 
-export function setAnalyticsDisabled(disabled: boolean): void {
-  analyticsDisabled = disabled;
+export function setAnalyticsDisabled(_disabled: boolean): void {
+  /* no-op: legacy hook — circuit breaker removed so prod failures never silence tracking */
 }

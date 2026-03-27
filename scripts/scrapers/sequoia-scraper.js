@@ -14,6 +14,7 @@ require('dotenv').config();
 const { chromium } = require('playwright');
 const { createClient } = require('@supabase/supabase-js');
 const Anthropic = require('@anthropic-ai/sdk').default;
+const { insertDiscovered, setSupabase } = require('../../lib/startupInsertGate');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -155,7 +156,8 @@ async function saveCompanies(companies) {
         continue;
       }
       
-      const record = {
+      setSupabase(supabase);
+      const r = await insertDiscovered({
         name: company.name,
         description: company.description || '',
         website: company.website || null,
@@ -164,19 +166,19 @@ async function saveCompanies(companies) {
         rss_source: 'Sequoia Capital',
         article_url: company.source_url,
         article_title: `Sequoia Portfolio: ${company.name}`,
-        discovered_at: new Date().toISOString()
-      };
-      
-      const { error } = await supabase
-        .from('discovered_startups')
-        .insert(record);
-      
-      if (error) {
-        console.error(`   ❌ ${company.name}: ${error.message}`);
-        errors++;
-      } else {
+        discovered_at: new Date().toISOString(),
+      });
+
+      if (r.ok && !r.skipped) {
         console.log(`   ✅ ${company.name}`);
         saved++;
+      } else if (r.ok && r.skipped) {
+        skipped++;
+      } else {
+        if (!r.error?.startsWith('invalid_name:')) {
+          console.error(`   ❌ ${company.name}: ${r.error}`);
+        }
+        errors++;
       }
       
     } catch (err) {

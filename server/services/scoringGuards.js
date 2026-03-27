@@ -143,29 +143,38 @@ async function detectMassChanges(supabase, timeWindow = 60) {
 }
 
 /**
- * Check score distribution health
+ * Check score distribution health (uses full dataset)
  */
 async function checkDistributionHealth(supabase) {
-  const {data} = await supabase
-    .from('startup_uploads')
-    .select('total_god_score')
-    .eq('status', 'approved')
-    .limit(1000);
-  
-  if (!data || data.length === 0) {
-    return { healthy: false, reason: 'No approved startups found' };
+  const PAGE = 1000;
+  const allScores = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('startup_uploads')
+      .select('total_god_score')
+      .eq('status', 'approved')
+      .not('total_god_score', 'is', null)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    allScores.push(...data.map((s) => s.total_god_score));
+    if (data.length < PAGE) break;
   }
-  
-  const avg = data.reduce((sum, s) => sum + s.total_god_score, 0) / data.length;
-  
-  const healthy = (
+
+  if (allScores.length === 0) {
+    return { healthy: false, reason: 'No approved startups with GOD scores found' };
+  }
+
+  const sum = allScores.reduce((a, b) => a + b, 0);
+  const avg = sum / allScores.length;
+
+  const healthy =
     avg >= GOD_SCORE_GUARDS.EXPECTED_AVG_MIN &&
-    avg <= GOD_SCORE_GUARDS.EXPECTED_AVG_MAX
-  );
-  
+    avg <= GOD_SCORE_GUARDS.EXPECTED_AVG_MAX;
+
   return {
     healthy,
     average: avg.toFixed(2),
+    count: allScores.length,
     expected: `${GOD_SCORE_GUARDS.EXPECTED_AVG_MIN}-${GOD_SCORE_GUARDS.EXPECTED_AVG_MAX}`,
     status: healthy ? '✅ Healthy' : '⚠️ Out of range',
   };
