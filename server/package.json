@@ -6,7 +6,10 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "echo \"Server build complete - no compilation needed\""
+    "build": "echo \"Server build complete - no compilation needed\"",
+    "lookup:funnel:weekly": "node ../scripts/lookup-funnel-report.js",
+    "deploy:postcheck": "node ../scripts/post-deploy-health-check.js",
+    "freshness:audit": "node ../scripts/data-freshness-audit.js"
   },
   "keywords": [],
   "author": "",
