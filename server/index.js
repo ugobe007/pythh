@@ -5848,6 +5848,10 @@ app.use('/api/v1', apiV1Router);
 const investorLookupRouter = require('./routes/investorLookup');
 app.use('/api/investor-lookup', investorLookupRouter);
 
+// Founder /lookup page — top investors by sector (cached server-side)
+const founderLookupRouter = require('./routes/founderLookup');
+app.use('/api/lookup', founderLookupRouter);
+
 // Canonical Verification API routes (locked surface)
 const canonicalRouter = require('./routes/canonical');
 app.use('/api', canonicalRouter);

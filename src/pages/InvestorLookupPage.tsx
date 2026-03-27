@@ -11,6 +11,7 @@ import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { trackEvent } from '../lib/analytics';
+import { apiUrl } from '../lib/apiConfig';
 
 const SESSION_QUERY_KEY = 'pythh_top10_industry_queries_v1';
 const FREE_QUERY_LIMIT = 2;
@@ -101,12 +102,19 @@ function getAbVariant(): 'A' | 'B' {
   }
 }
 
-const LOOKUP_QUERY_MS = 25000;
+const LOOKUP_QUERY_MS = 60000;
+
+const INVESTOR_LOOKUP_SELECT =
+  'id, name, firm, sectors, stage, investor_score, investment_pace_per_year, total_investments, linkedin_url, investment_thesis, updated_at';
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const id = window.setTimeout(() => {
-      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s. Try again or pick another industry.`));
+      reject(
+        new Error(
+          `${label} timed out after ${Math.round(ms / 1000)}s. Try again in a moment — the list is built on the server and can be slow on first load.`
+        )
+      );
     }, ms);
     promise
       .then((v) => {
@@ -118,6 +126,61 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         reject(e);
       });
   });
+}
+
+type SupabaseBrowser = typeof supabase;
+
+/** If /api/lookup is missing or errors, use Supabase from the browser (RPC → overlap → loose). */
+async function fetchTopInvestorsDirect(
+  supabaseClient: SupabaseBrowser,
+  industry: string,
+  timeoutMs: number
+): Promise<InvestorRow[]> {
+  const rpcPromise = supabaseClient.rpc('get_lookup_top_investors', {
+    p_sector: industry,
+    p_limit: 10,
+  });
+  const rpcResult = await withTimeout(Promise.resolve(rpcPromise), timeoutMs, 'Investor lookup (direct RPC)');
+  const rpcRows = rpcResult.data;
+  if (!rpcResult.error && Array.isArray(rpcRows) && rpcRows.length > 0) {
+    return rpcRows as InvestorRow[];
+  }
+
+  const fallback = await withTimeout(
+    supabaseClient
+      .from('investors')
+      .select(INVESTOR_LOOKUP_SELECT)
+      .overlaps('sectors', [industry])
+      .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
+      .limit(10),
+    timeoutMs,
+    'Investor lookup (direct overlap)'
+  );
+  if (fallback.error) throw fallback.error;
+  let rows = (fallback.data || []) as InvestorRow[];
+  if (rows.length === 0) {
+    const safe = industry.replace(/[%_]/g, '').trim();
+    if (safe.length >= 2) {
+      try {
+        const loose = await withTimeout(
+          supabaseClient
+            .from('investors')
+            .select(INVESTOR_LOOKUP_SELECT)
+            .or(`investment_thesis.ilike.%${safe}%,name.ilike.%${safe}%,firm.ilike.%${safe}%`)
+            .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
+            .limit(10),
+          Math.min(12000, timeoutMs),
+          'Investor lookup (direct loose)'
+        );
+        if (!loose.error && loose.data?.length) {
+          rows = loose.data as InvestorRow[];
+        }
+      } catch (e) {
+        console.warn('[lookup] loose investor search skipped:', e);
+      }
+    }
+  }
+  return rows;
 }
 
 function freshnessLabel(updatedAt?: string | null): { label: string; stale: boolean } {
@@ -255,70 +318,37 @@ export default function InvestorLookupPage() {
     setLoading(true);
     setSearchError(null);
     try {
-      let data: InvestorRow[] | null = null;
-
-      const rpcPromise = supabase.rpc('get_lookup_top_investors', {
-        p_sector: selectedIndustry,
-        p_limit: 10,
-      });
-
-      const rpcResult = await withTimeout(Promise.resolve(rpcPromise), LOOKUP_QUERY_MS, 'Investor lookup');
-
-      const rpcRows = rpcResult.data;
-      const rpcOk =
-        !rpcResult.error &&
-        Array.isArray(rpcRows) &&
-        rpcRows.length > 0;
-
-      if (rpcOk) {
-        data = rpcRows as InvestorRow[];
-      } else {
-        // RPC missing in DB, error, OR success with [] (sector tag mismatch) — use PostgREST overlap.
-        const fallback = await withTimeout(
-          supabase
-            .from('investors')
-            .select(
-              'id, name, firm, sectors, stage, investor_score, investment_pace_per_year, total_investments, linkedin_url, investment_thesis, updated_at'
-            )
-            .overlaps('sectors', [selectedIndustry])
-            .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
-            .limit(10),
-          LOOKUP_QUERY_MS,
-          'Investor lookup (fallback)'
-        );
-        if (fallback.error) throw fallback.error;
-        let rows = (fallback.data || []) as InvestorRow[];
-        // Still empty: loose ilike on thesis/name/firm (sector tags in DB often != UI chip strings).
-        if (rows.length === 0) {
-          const safe = selectedIndustry.replace(/[%_]/g, '').trim();
-          if (safe.length >= 2) {
+      let data: InvestorRow[] = [];
+      const qs = new URLSearchParams({ sector: selectedIndustry, limit: '10' });
+      try {
+        const payload = await withTimeout(
+          (async () => {
+            const r = await fetch(apiUrl(`/api/lookup/top-investors?${qs.toString()}`), {
+              method: 'GET',
+              headers: { Accept: 'application/json' },
+            });
+            const text = await r.text();
+            let body: { investors?: InvestorRow[]; error?: string };
             try {
-              const loose = await withTimeout(
-                supabase
-                  .from('investors')
-                  .select(
-                    'id, name, firm, sectors, stage, investor_score, investment_pace_per_year, total_investments, linkedin_url, investment_thesis, updated_at'
-                  )
-                  .or(
-                    `investment_thesis.ilike.%${safe}%,name.ilike.%${safe}%,firm.ilike.%${safe}%`
-                  )
-                  .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
-                  .limit(10),
-                LOOKUP_QUERY_MS,
-                'Investor lookup (loose)'
-              );
-              if (!loose.error && loose.data?.length) {
-                rows = loose.data as InvestorRow[];
-              }
-            } catch (e) {
-              console.warn('[lookup] loose investor search skipped:', e);
+              body = text ? (JSON.parse(text) as { investors?: InvestorRow[]; error?: string }) : {};
+            } catch {
+              throw new Error('Invalid response from lookup service');
             }
-          }
-        }
-        data = rows;
+            if (!r.ok) {
+              throw new Error(body.error || `Lookup failed (${r.status})`);
+            }
+            return body;
+          })(),
+          LOOKUP_QUERY_MS,
+          'Investor lookup'
+        );
+        data = (payload.investors || []) as InvestorRow[];
+      } catch (apiErr) {
+        console.warn('[lookup] API route failed, falling back to Supabase client:', apiErr);
+        data = await fetchTopInvestorsDirect(supabase, selectedIndustry, LOOKUP_QUERY_MS);
       }
 
-      const rows = ((data || []) as InvestorRow[]).map((r) => {
+      const rows = (data as InvestorRow[]).map((r) => {
         const boost = feedback[r.id] === 'useful' ? 0.25 : feedback[r.id] === 'not_useful' ? -0.25 : 0;
         return {
           ...r,
