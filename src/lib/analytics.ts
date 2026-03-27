@@ -25,7 +25,14 @@ type EventName =
   | 'guard_blocked'
   | 'phase_advanced'
   | 'drawer_opened'
-  | 'drawer_closed';
+  | 'drawer_closed'
+  | 'lookup_industry_selected'
+  | 'lookup_top10_generated'
+  | 'lookup_signup_cta_clicked'
+  | 'lookup_signup_completed'
+  | 'lookup_first_outreach_started'
+  | 'lookup_save_list_clicked'
+  | 'lookup_feedback_submitted';
 
 interface EventData {
   [key: string]: string | number | boolean | null | undefined;
@@ -43,7 +50,7 @@ let isFlushing = false;
 
 // Circuit breaker state
 let consecutiveFailures = 0;
-let analyticsDisabled = true; // TEMPORARILY DISABLED FOR DEBUGGING
+let analyticsDisabled = false;
 const MAX_CONSECUTIVE_FAILURES = 2; // Disable after 2 consecutive failures
 
 // Throttle state - prevent same event firing twice in 10s
@@ -86,13 +93,15 @@ export function trackEvent(name: EventName, data: EventData = {}): void {
     return;
   }
 
-  // Throttle: don't fire same event twice in 10s
+  // Throttle: don't fire same event twice in 10s (lookup funnel must never be dropped)
   const now = Date.now();
-  const lastTime = lastEventTimes.get(name) || 0;
-  if (now - lastTime < THROTTLE_MS) {
-    return; // Skip duplicate event within throttle window
+  if (!name.startsWith('lookup_')) {
+    const lastTime = lastEventTimes.get(name) || 0;
+    if (now - lastTime < THROTTLE_MS) {
+      return; // Skip duplicate event within throttle window
+    }
+    lastEventTimes.set(name, now);
   }
-  lastEventTimes.set(name, now);
 
   const anon_id = getAnonId();
   const session_id = getSessionId();
@@ -214,4 +223,8 @@ export function getAnalyticsSummary(): { pending: number; lastEvent: EventName |
     pending: eventQueue.length,
     lastEvent: eventQueue.length > 0 ? eventQueue[eventQueue.length - 1].name : null,
   };
+}
+
+export function setAnalyticsDisabled(disabled: boolean): void {
+  analyticsDisabled = disabled;
 }
