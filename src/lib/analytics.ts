@@ -157,10 +157,10 @@ async function flushEvents(): Promise<void> {
     const { supabase } = await import('./supabase');
 
     const rows = events.map((event) => ({
-      type: 'analytics',
-      action: event.name,
-      input: JSON.stringify(event.data),
-      output: null,
+      log_type: 'analytics',
+      action_type: event.name,
+      input_data: JSON.stringify(event.data),
+      output_data: null,
       status: 'tracked',
       created_at: new Date(event.timestamp).toISOString(),
     }));
