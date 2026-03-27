@@ -425,8 +425,17 @@ export default function PythhHome() {
                 to="/lookup"
                 className="text-sm text-zinc-500 hover:text-cyan-400/80 transition-colors"
               >
-                For investors →
+                Find investors →
               </Link>
+            </div>
+
+            {/* Sector quick links */}
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-zinc-600 mr-1">Popular sectors:</span>
+              <Link to="/ai-ml-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">AI/ML</Link>
+              <Link to="/robotics-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">Robotics</Link>
+              <Link to="/spacetech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">SpaceTech</Link>
+              <Link to="/deeptech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">DeepTech</Link>
             </div>
           </div>
 

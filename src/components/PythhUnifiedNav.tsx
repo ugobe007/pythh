@@ -2,7 +2,7 @@
  * PythhUnifiedNav — Single navigation component for ALL public marketing pages
  *
  * Primary links: Platform, Explore, Submit, Pricing
- * More dropdown:  Rankings, Newsletter, About
+ * More dropdown: Rankings, sector investor pages, Newsletter, About
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -24,9 +24,13 @@ const PRIMARY_LINKS: NavLink[] = [
 
 // Secondary links tucked into "More" dropdown
 const MORE_LINKS: NavLink[] = [
-  { label: "Investor Lookup", to: "/lookup" },
+  { label: "Find Investors", to: "/lookup" },
   { label: "Hot Matches", to: "/hot-matches" },
   { label: "Rankings", to: "/rankings" },
+  { label: "AI/ML Investors", to: "/ai-ml-investors" },
+  { label: "Robotics Investors", to: "/robotics-investors" },
+  { label: "SpaceTech Investors", to: "/spacetech-investors" },
+  { label: "DeepTech Investors", to: "/deeptech-investors" },
   { label: "Portfolio", to: "/portfolio" },
   { label: "Newsletter", to: "/newsletter" },
   { label: "About", to: "/about" },
@@ -128,7 +132,7 @@ export default function PythhUnifiedNav() {
             </button>
 
             {moreOpen && (
-              <div className="absolute top-full left-0 mt-2 w-44 bg-zinc-900/95 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden backdrop-blur-md">
+              <div className="absolute top-full left-0 mt-2 w-56 bg-zinc-900/95 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden backdrop-blur-md max-h-[70vh] overflow-y-auto">
                 {MORE_LINKS.map((link) => (
                   <Link
                     key={link.to}

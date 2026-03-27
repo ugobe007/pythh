@@ -175,6 +175,15 @@ export default function PlatformPage() {
             <span>·</span>
             <a href="#why" className="hover:text-cyan-400 transition">Why Pythh ↓</a>
           </div>
+
+          {/* Sector hubs */}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <span className="text-zinc-600 mr-1">Investor sector hubs:</span>
+            <Link to="/ai-ml-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">AI/ML</Link>
+            <Link to="/robotics-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">Robotics</Link>
+            <Link to="/spacetech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">SpaceTech</Link>
+            <Link to="/deeptech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">DeepTech</Link>
+          </div>
         </div>
       </section>
 

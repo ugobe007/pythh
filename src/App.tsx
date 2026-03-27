@@ -105,6 +105,8 @@ const DevToolsInvestorsPage = lazy(() => import("./pages/sectors/DevToolsInvesto
 const B2BSaaSInvestorsPage = lazy(() => import("./pages/sectors/B2BSaaSInvestorsPage"));
 const RoboticsInvestorsPage = lazy(() => import("./pages/sectors/RoboticsInvestorsPage"));
 const DefenseInvestorsPage = lazy(() => import("./pages/sectors/DefenseInvestorsPage"));
+const SpaceTechInvestorsPage = lazy(() => import("./pages/sectors/SpaceTechInvestorsPage"));
+const DeepTechInvestorsPage = lazy(() => import("./pages/sectors/DeepTechInvestorsPage"));
 
 const DemoPageDoctrine = lazy(() => import("./pages/DemoPageDoctrine"));
 const Live = lazy(() => import("./pages/public/Live"));
@@ -253,6 +255,8 @@ const App = () => {
             <Route path="/b2b-saas-investors" element={<B2BSaaSInvestorsPage />} />
             <Route path="/robotics-investors" element={<RoboticsInvestorsPage />} />
             <Route path="/defense-investors" element={<DefenseInvestorsPage />} />
+            <Route path="/spacetech-investors" element={<SpaceTechInvestorsPage />} />
+            <Route path="/deeptech-investors" element={<DeepTechInvestorsPage />} />
 
             <Route element={<PublicLayout />}>
               <Route path="/live" element={<Live />} />
