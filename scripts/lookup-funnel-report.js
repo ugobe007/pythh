@@ -38,6 +38,18 @@ const FUNNEL_EVENTS = [
  */
 async function fetchFunnelRows() {
   const strategies = [
+    // Prefer ai_logs.operation — matches browser analytics when `type` column is absent
+    {
+      label: 'ai_logs.operation (lookup funnel)',
+      run: () =>
+        supabase
+          .from('ai_logs')
+          .select('operation, created_at')
+          .in('operation', FUNNEL_EVENTS)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true }),
+      getName: (row) => row.operation,
+    },
     {
       label: 'ai_logs type=analytics + operation',
       run: () =>
@@ -51,17 +63,6 @@ async function fetchFunnelRows() {
       getName: (row) => row.operation,
     },
     {
-      label: 'events.event_name',
-      run: () =>
-        supabase
-          .from('events')
-          .select('event_name, created_at')
-          .in('event_name', FUNNEL_EVENTS)
-          .gte('created_at', sinceIso)
-          .order('created_at', { ascending: true }),
-      getName: (row) => row.event_name,
-    },
-    {
       label: 'ai_logs log_type=analytics + action_type',
       run: () =>
         supabase
@@ -72,6 +73,17 @@ async function fetchFunnelRows() {
           .gte('created_at', sinceIso)
           .order('created_at', { ascending: true }),
       getName: (row) => row.action_type,
+    },
+    {
+      label: 'events.event_name',
+      run: () =>
+        supabase
+          .from('events')
+          .select('event_name, created_at')
+          .in('event_name', FUNNEL_EVENTS)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true }),
+      getName: (row) => row.event_name,
     },
     {
       label: 'ai_logs type=analytics + action',
@@ -125,7 +137,13 @@ async function main() {
   console.log(`Signup CTA clicked:      ${cta} (${pct(cta, top10)}% of generated)`);
   console.log(`Signup completed:        ${signup} (${pct(signup, cta)}% of CTA clicks)`);
   console.log(`First outreach started:  ${outreach} (${pct(outreach, signup)}% of signups)`);
-  console.log('');
+  if ((rows || []).length === 0) {
+    console.log(
+      'Note: zero rows in the chosen source. After deploying the latest frontend (analytics uses ai_logs.operation), generate traffic on /lookup and re-run, or increase LOOKBACK_DAYS.\n'
+    );
+  } else {
+    console.log('');
+  }
 }
 
 main().catch((err) => {
