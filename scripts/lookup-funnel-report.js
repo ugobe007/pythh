@@ -2,7 +2,10 @@
 'use strict';
 
 /**
- * Weekly lookup funnel report from ai_logs analytics events.
+ * Weekly lookup funnel report.
+ *
+ * ai_logs schema has varied across environments (type/operation vs log_type/action_type vs action).
+ * This script tries several query shapes until one works, then counts events.
  *
  * Usage:
  *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/lookup-funnel-report.js
@@ -30,22 +33,82 @@ const FUNNEL_EVENTS = [
   'lookup_first_outreach_started',
 ];
 
-async function main() {
-  // Production schema: log_type, action_type, input_data (see match_queue_trigger etc.)
-  const { data, error } = await supabase
-    .from('ai_logs')
-    .select('action_type, created_at')
-    .eq('log_type', 'analytics')
-    .in('action_type', FUNNEL_EVENTS)
-    .gte('created_at', sinceIso)
-    .order('created_at', { ascending: true });
+/**
+ * Try strategies in order. Returns { rows, eventKey } or throws last error.
+ */
+async function fetchFunnelRows() {
+  const strategies = [
+    {
+      label: 'ai_logs type=analytics + operation',
+      run: () =>
+        supabase
+          .from('ai_logs')
+          .select('operation, created_at')
+          .eq('type', 'analytics')
+          .in('operation', FUNNEL_EVENTS)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true }),
+      getName: (row) => row.operation,
+    },
+    {
+      label: 'events.event_name',
+      run: () =>
+        supabase
+          .from('events')
+          .select('event_name, created_at')
+          .in('event_name', FUNNEL_EVENTS)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true }),
+      getName: (row) => row.event_name,
+    },
+    {
+      label: 'ai_logs log_type=analytics + action_type',
+      run: () =>
+        supabase
+          .from('ai_logs')
+          .select('action_type, created_at')
+          .eq('log_type', 'analytics')
+          .in('action_type', FUNNEL_EVENTS)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true }),
+      getName: (row) => row.action_type,
+    },
+    {
+      label: 'ai_logs type=analytics + action',
+      run: () =>
+        supabase
+          .from('ai_logs')
+          .select('action, created_at')
+          .eq('type', 'analytics')
+          .in('action', FUNNEL_EVENTS)
+          .gte('created_at', sinceIso)
+          .order('created_at', { ascending: true }),
+      getName: (row) => row.action,
+    },
+  ];
 
-  if (error) throw error;
+  let lastErr = null;
+  for (const s of strategies) {
+    const { data, error } = await s.run();
+    if (!error && data != null) {
+      console.log(`[lookup-funnel-report] using ${s.label}`);
+      return { rows: data, getName: s.getName };
+    }
+    lastErr = error;
+    if (error?.message) {
+      console.warn(`[lookup-funnel-report] skip (${s.label}): ${error.message}`);
+    }
+  }
+  throw lastErr || new Error('No working query strategy for funnel data');
+}
+
+async function main() {
+  const { rows, getName } = await fetchFunnelRows();
 
   const counts = Object.fromEntries(FUNNEL_EVENTS.map((e) => [e, 0]));
-  for (const row of data || []) {
-    const key = row.action_type;
-    if (key && counts[key] !== undefined) counts[key] += 1;
+  for (const row of rows || []) {
+    const key = getName(row);
+    if (key && Object.prototype.hasOwnProperty.call(counts, key)) counts[key] += 1;
   }
 
   const selected = counts.lookup_industry_selected || 0;

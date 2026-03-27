@@ -156,12 +156,12 @@ async function flushEvents(): Promise<void> {
   try {
     const { supabase } = await import('./supabase');
 
+    // Match server-side ai_logs shape used elsewhere (type + operation + output); some DBs lack log_type/action_type/action.
     const rows = events.map((event) => ({
-      log_type: 'analytics',
-      action_type: event.name,
-      input_data: JSON.stringify(event.data),
-      output_data: null,
+      type: 'analytics',
+      operation: event.name,
       status: 'tracked',
+      output: { ...event.data, event: event.name },
       created_at: new Date(event.timestamp).toISOString(),
     }));
 
