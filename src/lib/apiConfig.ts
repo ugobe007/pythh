@@ -34,6 +34,45 @@ export function apiUrl(path: string): string {
   return `${base}${p}`;
 }
 
+/**
+ * Human-readable API root for error messages.
+ * When VITE_API_URL is unset, requests use same-origin relative URLs — never show an empty label.
+ */
+export function getApiOriginLabel(): string {
+  const base = getApiBase();
+  if (base) return base;
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin} (same-origin)`;
+  }
+  return 'same-origin';
+}
+
+/** Base URL for curl/docs (no trailing slash). Empty VITE_API_URL → current browser origin. */
+export function getApiOriginForCurl(): string {
+  const raw = getApiBase();
+  if (raw) return raw.replace(/\/$/, '');
+  if (typeof window !== 'undefined') return window.location.origin;
+  return '';
+}
+
+/**
+ * AbortSignal for fetch timeouts. AbortSignal.timeout() is missing in Safari < 16.4 and some embedded browsers.
+ */
+export function fetchTimeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof (AbortSignal as any).timeout === 'function') {
+    return (AbortSignal as any).timeout(ms);
+  }
+  const c = new AbortController();
+  setTimeout(() => {
+    try {
+      c.abort();
+    } catch {
+      /* ignore */
+    }
+  }, ms);
+  return c.signal;
+}
+
 // Legacy export for backwards compatibility
 export const API_BASE = getApiBase();
 

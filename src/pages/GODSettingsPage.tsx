@@ -5,7 +5,12 @@ import {
   TrendingUp, TrendingDown, ArrowRight, RefreshCw, Settings,
   Brain, Info, BarChart3, Eye, CheckCircle2
 } from 'lucide-react';
-import { API_BASE } from '../lib/apiConfig';
+import {
+  apiUrl,
+  getApiOriginLabel,
+  getApiOriginForCurl,
+  fetchTimeoutSignal,
+} from '../lib/apiConfig';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
 
 interface GODWeights {
@@ -120,7 +125,7 @@ export default function GODSettingsPage() {
 
   const loadHistory = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/god-weight-history`);
+      const res = await fetch(apiUrl('/api/admin/god-weight-history'));
       const data = await res.json();
       if (Array.isArray(data)) {
         setHistory(data.map((h: any) => ({
@@ -142,7 +147,7 @@ export default function GODSettingsPage() {
   const loadMLRecommendations = async () => {
     setRefreshingRecommendations(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/ml-recommendations`);
+      const res = await fetch(apiUrl('/api/admin/ml-recommendations'));
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const mappedRecs = data.map((rec: any) => ({
@@ -175,7 +180,7 @@ export default function GODSettingsPage() {
   };
 
   const runMLTraining = async () => {
-    console.log('🚀 runMLTraining called, API_BASE:', API_BASE);
+    console.log('🚀 runMLTraining called, API:', getApiOriginLabel());
     
     if (!confirm('Run ML Training?\n\nThis will analyze match data and deviations to generate optimization recommendations.\n\nTraining runs in the background and may take a few minutes.')) {
       console.log('❌ User cancelled ML training');
@@ -189,13 +194,16 @@ export default function GODSettingsPage() {
       
       // First check if server is running
       try {
-        console.log(`🔍 Checking server health at: ${API_BASE}/api/health`);
-        const healthCheck = await fetch(`${API_BASE}/api/health`, {
+        const curlBase = getApiOriginForCurl();
+        console.log(`🔍 Checking server health at: ${apiUrl('/api/health')}`);
+        const healthCheck = await fetch(apiUrl('/api/health'), {
           method: 'GET',
-          signal: AbortSignal.timeout(5000) // 5 second timeout
+          signal: fetchTimeoutSignal(5000),
         }).catch((healthFetchError) => {
           console.error('❌ Health check fetch error:', healthFetchError);
-          throw new Error(`Cannot connect to server at ${API_BASE}.\n\nError: ${healthFetchError.message}\n\nPlease check:\n1. Server is running: curl ${API_BASE}/api/health\n2. CORS is enabled in server/index.js\n3. Server is accessible from browser`);
+          throw new Error(
+            `Cannot connect to API at ${getApiOriginLabel()}.\n\nError: ${healthFetchError.message}\n\nCheck: curl ${curlBase}/api/health\nCORS: enabled on server for allowed origins.`
+          );
         });
         
         if (!healthCheck.ok) {
@@ -210,37 +218,42 @@ export default function GODSettingsPage() {
         throw healthError;
       }
       
-      console.log(`🔍 Calling ML training API: ${API_BASE}/api/ml/training/run`);
+      console.log(`🔍 Calling ML training API: ${apiUrl('/api/ml/training/run')}`);
       console.log(`📍 Current URL: ${window.location.href}`);
-      console.log(`🌐 API Base: ${API_BASE}`);
+      console.log(`🌐 API: ${getApiOriginLabel()}`);
       
       // Test with a simple fetch first to see what error we get
       try {
-        const testResponse = await fetch(`${API_BASE}/api/health`, {
+        const testResponse = await fetch(apiUrl('/api/health'), {
           method: 'GET',
           mode: 'cors',
         });
         console.log('✅ Health check from browser:', await testResponse.json());
       } catch (testError: any) {
         console.error('❌ Health check failed from browser:', testError);
-        throw new Error(`Cannot connect to server from browser.\n\nServer URL: ${API_BASE}\n\nError: ${testError.message}\n\nPossible causes:\n1. CORS not properly configured\n2. Browser blocking the request\n3. Network/firewall issue\n\nTry: curl ${API_BASE}/api/health (if this works, it's a browser/CORS issue)`);
+        const curl = getApiOriginForCurl();
+        throw new Error(
+          `Cannot connect to API from browser.\n\nAPI: ${getApiOriginLabel()}\n\nError: ${testError.message}\n\nPossible causes:\n1. CORS (if API is on another origin, set VITE_API_URL at build time)\n2. Browser blocking the request\n3. Network/firewall\n\nTry: curl ${curl}/api/health`
+        );
       }
-      
-      const response = await fetch(`${API_BASE}/api/ml/training/run`, {
+
+      const response = await fetch(apiUrl('/api/ml/training/run'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         mode: 'cors',
-        signal: AbortSignal.timeout(30000) // 30 second timeout for the request
+        signal: fetchTimeoutSignal(30000),
       }).catch((fetchError) => {
         console.error('❌ Fetch error details:', fetchError);
         console.error('❌ Error name:', fetchError.name);
         console.error('❌ Error message:', fetchError.message);
         console.error('❌ Error stack:', fetchError.stack);
-        // Network error or CORS issue
+        const curl = getApiOriginForCurl();
         if (fetchError.name === 'TypeError' || fetchError.message.includes('fetch') || fetchError.message.includes('Load failed')) {
-          throw new Error(`Network/CORS error: Cannot connect to ${API_BASE}.\n\nThis usually means:\n1. CORS is blocking the request\n2. Browser security is blocking it\n3. Server is not accessible\n\nTest with: curl ${API_BASE}/api/health`);
+          throw new Error(
+            `Network/CORS error: cannot reach ${getApiOriginLabel()}.\n\nTry: curl ${curl}/api/health`
+          );
         }
         throw fetchError;
       });
@@ -288,7 +301,10 @@ export default function GODSettingsPage() {
       
       // Check if it's a network/connection error
       if (error.name === 'AbortError' || error.message.includes('fetch') || error.message.includes('Failed to fetch') || errorMessage.includes('Load failed') || errorMessage.includes('network') || errorMessage.includes('Cannot connect')) {
-        errorMessage = `⚠️ Server Not Running\n\nThe API server at ${API_BASE} is not responding.\n\nPlease start the server first:\n\n  1. Open a new terminal\n  2. Run: cd server && node index.js\n  3. Wait for: "✅ Server is running on http://localhost:3002"\n  4. Then try again\n\nAlternatively, run training manually:\n  node run-ml-training.js`;
+        const devHint = import.meta.env.DEV
+          ? '\n\nLocal dev: run the API (e.g. cd server && node index.js on :3002) so Vite can proxy /api.'
+          : '\n\nProduction: confirm the Fly app is healthy (fly logs) and /api/health returns JSON.';
+        errorMessage = `⚠️ API not reachable\n\nTarget: ${getApiOriginLabel()}${devHint}\n\nManual training: node run-ml-training.js`;
       }
       
       alert(`❌ Failed to start ML training\n\n${errorMessage}`);
@@ -303,27 +319,30 @@ export default function GODSettingsPage() {
     try {
       // First check if server is reachable
       try {
-        const healthCheck = await fetch(`${API_BASE}/api/health`, { 
+        const healthCheck = await fetch(apiUrl('/api/health'), {
           method: 'GET',
-          signal: AbortSignal.timeout(5000) // 5 second timeout
+          signal: fetchTimeoutSignal(5000),
         });
         if (!healthCheck.ok) {
           throw new Error(`Server health check failed: ${healthCheck.status} ${healthCheck.statusText}`);
         }
       } catch (healthError: any) {
         if (healthError.name === 'AbortError' || healthError.message.includes('Failed to fetch') || healthError.message.includes('Load failed')) {
-          throw new Error(`Cannot connect to server at ${API_BASE}.\n\nPlease ensure the backend server is running:\n  cd server && node index.js\n\nIf the server is running, check:\n  1. Server is on port 3002\n  2. CORS is enabled\n  3. No firewall blocking the connection`);
+          const curl = getApiOriginForCurl();
+          throw new Error(
+            `Cannot connect to API at ${getApiOriginLabel()}.\n\nCheck: curl ${curl}/api/health\n\nLocal dev: run backend (cd server && node index.js) so /api is available. Production: verify Fly app and same-origin API (or set VITE_API_URL).`
+          );
         }
         throw healthError;
       }
-      
-      const response = await fetch(`${API_BASE}/api/ml/recommendations/${rec.id}/apply`, {
+
+      const response = await fetch(apiUrl(`/api/ml/recommendations/${rec.id}/apply`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: 'admin' // TODO: Get from auth context
         }),
-        signal: AbortSignal.timeout(30000) // 30 second timeout for the actual request
+        signal: fetchTimeoutSignal(30000),
       });
 
       if (!response.ok) {
@@ -366,7 +385,7 @@ export default function GODSettingsPage() {
   const calculateImpactPrediction = async () => {
     try {
       // Get sample startups to predict impact
-      const sampRes = await fetch(`${API_BASE}/api/admin/startups?status=approved&pageSize=100`);
+      const sampRes = await fetch(apiUrl('/api/admin/startups?status=approved&pageSize=100'));
       const { rows: startups } = await sampRes.json();
 
       if (!startups || startups.length === 0) {
@@ -450,7 +469,7 @@ export default function GODSettingsPage() {
       // Save to Supabase first (algorithm_weight_history table)
       let dbError: string | null = null;
       try {
-        const dbRes = await fetch(`${API_BASE}/api/admin/god-weight-history`, {
+        const dbRes = await fetch(apiUrl('/api/admin/god-weight-history'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
