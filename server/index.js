@@ -8622,8 +8622,8 @@ function schedulePostStartTasks() {
       try {
         const supabase = getSupabaseClient();
         await supabase.from('ai_logs').insert({
-          type: 'scraper', action: 'scheduled_rss_run', status: 'success',
-          output: { elapsed_s: elapsed, timestamp: new Date().toISOString() }
+          log_type: 'scraper', action_type: 'scheduled_rss_run', status: 'success',
+          output_data: { elapsed_s: elapsed, timestamp: new Date().toISOString() }
         });
       } catch (_) {}
     } catch (err) {
@@ -8631,8 +8631,8 @@ function schedulePostStartTasks() {
       try {
         const supabase = getSupabaseClient();
         await supabase.from('ai_logs').insert({
-          type: 'scraper', action: 'scheduled_rss_run', status: 'error',
-          output: { error: err.message, timestamp: new Date().toISOString() }
+          log_type: 'scraper', action_type: 'scheduled_rss_run', status: 'error',
+          output_data: { error: err.message, timestamp: new Date().toISOString() }
         });
       } catch (_) {}
     } finally {
