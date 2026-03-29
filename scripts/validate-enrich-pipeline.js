@@ -159,6 +159,11 @@ const CATEGORY_NOUNS = new Set([
   'former', 'unicorn', 'decacorn', 'soonicorn',
   'subsidiary', 'division', 'portfolio', 'portfolio-company', 'wholly-owned',
   'affiliate', 'joint-venture', 'wholly', 'owned',
+  // single-word descriptor prefixes seen in pipeline output
+  'brand', 'consultancy', 'realty', 'pharma', 'commerce', 'manager',
+  'transportation', 'insurers', 'insurer', 'quantitative', 'aesthetic',
+  'reporter', 'correspondent', 'analyst', 'graduate', 'grad', 'parent',
+  'antibody', 'star', 'solo', 'investor', 'outlook',
 ]);
 
 // ─── STOP WORDS ───────────────────────────────────────────────────────────────
@@ -212,21 +217,57 @@ const STOP_WORDS = new Set([
 // ─── KNOWN MEDIA / DATA AGGREGATOR SITE PREFIXES ─────────────────────────────
 // When these appear as the first word of a multi-word name, the second part
 // is likely the real startup name scraped with the source site prepended.
+// NOTE: classifyEntityType() strips domain extensions (.com/.eu/.be etc.)
+// before checking this set, so add bare names only (e.g. "finsmes" not "finsmes.com").
 const KNOWN_MEDIA_PREFIXES = new Set([
   // African / emerging market tech media
   'ventureburn', 'entrackr', 'disruptafrica', 'techcabal', 'techpoint',
   'innovationvillage', 'watchdoq', 'techinasia', 'technode', 'krasia',
-  // Global tech media
+  'techcabal', 'disruptafrica', 'techinar', 'techafrique', 'techinnovation',
+  'dabafinance', 'wamda', 'techinafrica', 'ventureburn', 'techeconomy',
+  // Global tech media (majors)
   'techcrunch', 'venturebeat', 'thenextweb', 'sifted', 'techeu',
   'restofworld', 'wired', 'fastcompany', 'businessinsider', 'axios',
   'theverge', 'mashable', 'startupnation', 'startupblink', 'startups',
-  // Data / research platforms (often prepended as source)
+  'bloomberg', 'reuters', 'forbes', 'fortune', 'cnbc', 'economist',
+  'wsj', 'ft', 'businesswire', 'prnewswire', 'globenewswire', 'newswire',
+  'apnews', 'afp', 'ubs', 'hnews', 'newsweek', 'theatlantic',
+  // Regional tech / startup media
+  'sifted', 'eustarups', 'siliconcanals', 'techeu', 'startupticker',
+  'arcticstartup', 'ctech', 'silicon', 'koreatechdesk', 'krstartup',
+  'pandaily', 'gasgoo', 'tnglobal', 'technode', 'kr', 'techasia',
+  'latamlist', 'contxto', 'braziljournal', 'techinlatam',
+  'yourstory', 'inc42', 'entrackr', 'the-ken', 'thebridge',
+  'techcrunch', 'techrepublic', 'zdnet', 'arstechnica', 'infoq',
+  'solarquarter', 'energymonitor', 'rechargenews', 'cleantechnica',
+  'spacenews', 'aviation24', 'flyingmag', 'avweb',
+  'fashionunited', 'modaes', 'businessoffashion', 'wwdindia',
+  'citybiz', 'alleywatch', 'builtinboston', 'builtinnyc', 'builtinla',
+  // Financial / investing media
+  'tipranks', 'seekingalpha', 'marketwatch', 'barrons', 'thestreet',
+  'motleyfool', 'investopedia', 'benzinga', 'zacks', 'tradingview',
+  'finsmes', 'finsmescom', 'fintech', 'fintechnews', 'pymnts',
+  'finextra', 'fintechfutures', 'thefinancialtimes', 'finews',
+  'hubbis', 'wealthmanagement', 'familywealthreport',
+  // Crypto / blockchain media
+  'blockonomi', 'cointelegraph', 'coindesk', 'theblock', 'decrypt',
+  'cryptonews', 'bitcoinmagazine', 'cryptoslate', 'cryptobriefing',
+  // PR / wire services (often prepend their name to releases)
+  'wire', 'businesswire', 'globenewswire', 'prnewswire', 'accesswire',
+  'einpresswire', 'mynewsdesk', 'pressrelease', 'prlog',
+  // Aggregators / directories / newsletters
   'crunchbase', 'pitchbook', 'dealroom', 'cbinsights', 'tracxn',
-  'angellist', 'producthunt', 'ycombinator',
-  // Newsletters / aggregators
+  'angellist', 'producthunt', 'ycombinator', 'a16z',
   'geekwire', 'pymnts', 'finsmes', 'eu-startups', 'failory',
+  'onevest', 'mattermark', 'strictlyvc', 'newcomer', 'axios',
+  'techfundingnews', 'techfunding', 'startupbeat', 'pulse',
+  'zeitgeist', 'meyka', 'wowtale', 'latentmoe', 'devdiscourse',
+  'koreatechdesk', 'digitalpulse', 'travelwires',
+  'travelandtourworld', 'marcamoney', 'moneywiz',
+  'thewire', 'thecitizen', 'thestreet', 'alleywatch',
+  'onevest', 'citybiz', 'fintechnexus', 'finews',
   // Generic news aggregator artifacts
-  'notepad', 'summary', 'digest', 'roundup', 'recap', 'daily', 'weekly',
+  'notepad', 'summary', 'digest', 'roundup', 'recap',
 ]);
 
 // ─── VERB-INITIAL SENTENCE FRAGMENT DETECTION ────────────────────────────────
@@ -475,8 +516,17 @@ function classifyEntityType(name) {
   }
 
   // ── MEDIA SITE CONCATENATION ──────────────────────────────────────────────
-  // "Ventureburn Overmatch", "Entrackr Kidbea" — source site + startup name
-  if (words.length >= 2 && KNOWN_MEDIA_PREFIXES.has(firstLow)) {
+  // "Ventureburn Overmatch", "Finsmes.com Steno", "Tech.eu Giraffe360"
+  // Three normalizations of the first word for domain-format source names:
+  //   "finsmes.com"    → SLD "finsmes"      (strip TLD)
+  //   "tech.eu"        → no-dots "techeu"   (collapse all dots)
+  //   "aviation24.be"  → SLD "aviation24"   (strip TLD)
+  const firstLowNoDots  = firstLow.replace(/\./g, '');                             // "tech.eu" → "techeu"
+  const firstLowSLD     = firstLow.includes('.') ? firstLow.split('.').slice(0, -1).join('') : firstLow; // "finsmes.com" → "finsmes"
+  const isMediaPrefix   = KNOWN_MEDIA_PREFIXES.has(firstLow)
+                       || KNOWN_MEDIA_PREFIXES.has(firstLowNoDots)
+                       || KNOWN_MEDIA_PREFIXES.has(firstLowSLD);
+  if (words.length >= 2 && isMediaPrefix) {
     const candidate = words.slice(1).join(' ');
     return { type: 'MEDIA_CONCAT', confidence: 0.90,
       reason: `media prefix ("${words[0]}")`, extractedName: candidate };
