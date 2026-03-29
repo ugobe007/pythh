@@ -1180,7 +1180,7 @@ export default function GODSettingsPage() {
                   Industry Rankings
                 </button>
                 <button
-                  onClick={() => navigate('/admin/matching-engine')}
+                  onClick={() => navigate('/admin/ai-intelligence')}
                   className="flex items-center gap-2 text-sm px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-lg text-cyan-400 transition-colors"
                 >
                   <BarChart3 className="w-4 h-4" />

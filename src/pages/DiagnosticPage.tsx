@@ -65,10 +65,10 @@ export default function DiagnosticPage() {
             <p className="text-slate-400 text-lg">Database health check and system monitoring</p>
           </div>
           <button
-            onClick={() => navigate('/admin/control')}
+            onClick={() => navigate('/admin')}
             className="px-6 py-3 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-cyan-500/20"
           >
-            ← Back to Control Center
+            ← Back to Dashboard
           </button>
         </div>
 
@@ -87,10 +87,10 @@ export default function DiagnosticPage() {
             🗑️ Clear localStorage
           </button>
           <button
-            onClick={() => navigate('/admin/migrate')}
+            onClick={() => navigate('/admin/database-check')}
             className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-cyan-500/30"
           >
-            🔄 Migrate localStorage → Supabase
+            🔄 Database Check
           </button>
         </div>
 
@@ -238,22 +238,22 @@ export default function DiagnosticPage() {
             <h2 className="text-3xl font-bold text-cyan-400 mb-4">🔗 Admin Tools</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
-                onClick={() => navigate('/admin/control')}
+                onClick={() => navigate('/admin')}
                 className="py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-purple-500/30"
               >
-                🎛️ Control Center
+                🎛️ Admin Home
               </button>
               <button
-                onClick={() => navigate('/admin/control')}
+                onClick={() => navigate('/admin')}
                 className="py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-blue-500/30"
               >
                 📊 Dashboard
               </button>
               <button
-                onClick={() => navigate('/admin/control')}
+                onClick={() => navigate('/admin/health')}
                 className="py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-green-500/30"
               >
-                ⚙️ Operations
+                ⚙️ Health
               </button>
               <button
                 onClick={() => navigate('/admin/ai-intelligence')}
@@ -280,10 +280,10 @@ export default function DiagnosticPage() {
                 ✏️ Edit Startups
               </button>
               <button
-                onClick={() => navigate('/admin/bulk-import')}
+                onClick={() => navigate('/admin/bulk-upload')}
                 className="py-3 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-500 hover:to-teal-600 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-teal-500/30"
               >
-                🚀 Bulk Import
+                🚀 Bulk Upload
               </button>
             </div>
           </div>

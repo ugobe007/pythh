@@ -91,7 +91,7 @@ export default function AILogsPage() {
               Refresh
             </button>
             <button
-              onClick={() => navigate('/admin/dashboard')}
+              onClick={() => navigate('/admin')}
               className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
             >
               Back to Workflow

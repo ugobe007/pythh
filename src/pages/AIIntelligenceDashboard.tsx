@@ -473,7 +473,7 @@ export default function AIIntelligenceDashboard() {
               </div>
               <div className="mt-6 flex gap-3">
                 <button onClick={() => navigate('/admin/edit-startups')} className="px-4 py-2 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-lg text-sm hover:bg-cyan-500/20 transition-colors">View Startups →</button>
-                <button onClick={() => navigate('/admin/investor-enrichment')} className="px-4 py-2 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/20 transition-colors">View Investors →</button>
+                <button onClick={() => navigate('/admin/discovered-investors')} className="px-4 py-2 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-lg text-sm hover:bg-purple-500/20 transition-colors">View Investors →</button>
               </div>
             </div>
           </div>
