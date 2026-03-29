@@ -58,6 +58,14 @@ ENV FLY_APP_NAME=hot-honey
 # Reduce log volume in production (pino: warn only; set LOG_LEVEL=info for more)
 ENV LOG_LEVEL=warn
 
+# Runtime Supabase defaults (final image has no .env). Fly [env] / secrets override these.
+# Prevents crash when machine config omits env; publishable URL/key match fly.toml [env].
+ARG RUNTIME_SUPABASE_URL=https://unkpogyhhjbvxxjvmxlt.supabase.co
+ARG RUNTIME_VITE_SUPABASE_ANON_KEY=sb_publishable_Ii6LaEBqdDaBkPfNl_lsXg_kiUGPiD2
+ENV SUPABASE_URL=${RUNTIME_SUPABASE_URL}
+ENV VITE_SUPABASE_URL=${RUNTIME_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${RUNTIME_VITE_SUPABASE_ANON_KEY}
+
 EXPOSE 8080
 
 # Run API server with tsx so .ts services (startupScoringService, urlScrapingService) load correctly

@@ -4,6 +4,13 @@
 app = 'hot-honey'
 primary_region = 'lax'
 
+# Runtime env (Docker final stage has no .env). Public Supabase URL + publishable key — required so
+# server/config/supabase.ts and routes do not call createClient("", ...). Service role: `fly secrets set SUPABASE_SERVICE_KEY=...`
+[env]
+  SUPABASE_URL = "https://unkpogyhhjbvxxjvmxlt.supabase.co"
+  VITE_SUPABASE_URL = "https://unkpogyhhjbvxxjvmxlt.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "sb_publishable_Ii6LaEBqdDaBkPfNl_lsXg_kiUGPiD2"
+
 [build]
   dockerfile = 'Dockerfile'
 

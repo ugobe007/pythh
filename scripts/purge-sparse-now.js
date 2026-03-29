@@ -56,6 +56,9 @@ async function main() {
 
   const selectCols = 'id, name, website, company_website, pitch, description, sectors, stage, raise_amount, last_round_amount_usd, total_funding_usd, customer_count, parsed_customers, mrr, arr, arr_usd, revenue_usd, team_size, team_size_estimate, parsed_headcount, location, tagline, has_revenue, has_customers, founders, growth_rate, arr_growth_rate, extracted_data, total_god_score';
 
+  // Supabase PostgREST caps at 1000 rows per request regardless of range size.
+  // Use PAGE=1000 and break when the page comes back short.
+  const PAGE = 1000;
   let all = [];
   let from = 0;
   while (true) {
@@ -65,13 +68,14 @@ async function main() {
       .eq('status', 'approved')
       .is('website', null)
       .is('company_website', null)
-      .range(from, from + 1999);
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
 
     if (error) { console.error('Fetch error:', error.message); process.exit(1); }
     if (!data?.length) break;
     all = all.concat(data);
-    if (data.length < 2000) break;
-    from += 2000;
+    if (data.length < PAGE) break;
+    from += PAGE;
   }
 
   const toReject = all.filter(s => scoreDataRichness(s) <= RICHNESS_FLOOR);

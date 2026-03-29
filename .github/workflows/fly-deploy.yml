@@ -14,45 +14,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Setup Node.js
+      # Setup Node.js (22+ avoids GitHub deprecation warnings for Node 20 runners)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       
       # Install dependencies
       - name: Install dependencies
         run: npm ci
       
-      # Guard: abort immediately if Supabase secrets are not set.
-      # Without them, Vite bakes "placeholder.supabase.co" into the bundle
-      # and the site silently breaks. Never deploy a broken build.
+      # Guard: GitHub Actions secrets (repo Settings → Secrets → Actions).
+      # Accept either SUPABASE_* or VITE_SUPABASE_* names; Vite still sees VITE_* at build time.
       - name: Check required secrets
         run: |
           if [ -z "$VITE_SUPABASE_URL" ] || [ "$VITE_SUPABASE_URL" = "" ]; then
-            echo "❌ ERROR: VITE_SUPABASE_URL secret is not set in this repository."
-            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
-            echo "Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before deployments will work."
-            echo "See: https://github.com/ugobe007/pythh/settings/secrets/actions"
+            echo "❌ ERROR: Set repository secrets SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)."
             exit 1
           fi
           if [ -z "$VITE_SUPABASE_ANON_KEY" ] || [ "$VITE_SUPABASE_ANON_KEY" = "" ]; then
-            echo "❌ ERROR: VITE_SUPABASE_ANON_KEY secret is not set in this repository."
-            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+            echo "❌ ERROR: Set SUPABASE_ANON_KEY (publishable key) or VITE_SUPABASE_ANON_KEY."
             exit 1
           fi
           echo "✅ Secrets verified — proceeding with build."
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       
       # Build the app with real Supabase credentials baked in
       - name: Build
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       
       # Deploy to Fly.io using local Docker build so the pre-built dist/ is used
       # --local-only builds Docker on this runner (where dist/ already exists)

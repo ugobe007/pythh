@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * GARBAGE CLEANUP — Identify and remove test/fake/nonsense startups
+ * GARBAGE CLEANUP — Identify and remove test/fake/nonsense startup names (approved rows)
+ * Uses lib/startupNameValidator + legacy patterns (see isGarbage).
+ *
  * Usage:
- *   node scripts/cleanup-garbage.js            # Dry run (list garbage)
- *   node scripts/cleanup-garbage.js --delete   # Actually delete them
+ *   node scripts/cleanup-garbage.js              # Dry run: list matches (sample + count)
+ *   node scripts/cleanup-garbage.js --reject     # Set status=rejected (recommended; reversible)
+ *   node scripts/cleanup-garbage.js --delete     # Hard delete rows + related matches (destructive)
  */
 
 require('dotenv').config();
@@ -15,6 +18,11 @@ const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANO
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const DELETE_MODE = process.argv.includes('--delete');
+const REJECT_MODE = process.argv.includes('--reject');
+
+const LIST_LIMIT = 200;
+const REJECT_BATCH = 100;
+const NOTE_PREFIX = 'auto-rejected: invalid startup name (cleanup-garbage.js --reject)';
 
 // Patterns that indicate garbage/test entries
 const GARBAGE_PATTERNS = [
@@ -53,6 +61,7 @@ const GARBAGE_PATTERNS = [
   /^push$/i,
   /^['\u2018\u2019"\u201C\u201D\(]/,   // starts with any quote or paren — broken text fragments
   /^\d+-year-old/i,        // "49-year-old" type fragments
+  /month-old/i,            // "Eight-month-old", etc. (headline fragments)
   /^42San Francisco/i,     // concatenated YC batch data
   // Financial institutions (not startups)
   /^Morgan Stanley$/i,
@@ -85,6 +94,36 @@ const GARBAGE_PATTERNS = [
   /^Michael\s+Seibel$/i,   // YC partner, not a startup
   /^Bybit\s+Pay\s*$/i,     // product, often headline fragment
   /^Post\s+[A-Z]/,         // "Post Robotera", "Post Jaaq" — headline fragments
+  // Auxiliary verb suffix — "Aetherflux Has", "Startup Is" — truncated headlines
+  /\s+(Has|Had|Have|Is|Are|Was|Were|Will|Can|Did|Does)\s*$/i,
+  // Headline-verb phrase fragments — "Tom Brady Just Took", "Why Merck Is Buying"
+  /^Why\s+[A-Z]/i,
+  /\bJust\s+(Took|Did|Made|Got|Raised|Said|Closed|Bought|Sold)\b/i,
+  // Prepositional acquisition/deal fragments — "Acquisition Of HealthTech Solutions"
+  /^Acquisition\s+Of\b/i,
+  /^Investment\s+In\b/i,
+  /^(Million|Billion)\s+(Dollar|Investment|Funding)\b/i,
+  // Site-name concatenations — "Techcrunch.com Granola"
+  /^[a-z]+\.(com|co|io|net|org)\s+[A-Z]/i,
+  // Government/utility/regulatory entities — never startups
+  /\b(Commission|Department|Bureau|Authority|Agency|Ministry|Council|Municipality|Prefecture)\s*$/i,
+  // PR/law firms acting as subjects in news headlines
+  /^Ruder\s+Finn\b/i,
+  // Pure descriptor fragments — "student debt and", "near-millionaires and"
+  /\s+and\s*$/i,                    // trailing "and"
+  /^near-/i,                        // "near-millionaires", "near-unicorn" fragments
+  // "Biggest Off", "Biggest X" — superlative headline fragments
+  /^Biggest\s+(Off|On|In|Out|Up|Down)\b/i,
+  // "Subscription Churn Early-Warning System" — product description, not a name
+  /Early-Warning\s+System/i,
+  // Local/generic investment group descriptors
+  /^Local\s+(Investment|Investor|Venture)\s+Group\b/i,
+  // Pure generic category words — "Streetwear", "Oral Health", etc.
+  /^Oral\s+Health\s*$/i,
+  /^Streetwear\s*$/i,
+  // "Sony Said Near" / "[Name] Said [word]" — headline attribution fragments
+  /\bSaid\s+Near\b/i,
+  /^[A-Z][a-z]+\s+Said\s+[A-Z]/,
 ];
 
 // Known-good startups — never treat as garbage (short names, number-prefixed, etc.)
@@ -123,28 +162,39 @@ function isGarbage(name) {
 module.exports = { isGarbage };
 
 async function run() {
+  if (DELETE_MODE && REJECT_MODE) {
+    console.error('Use either --reject or --delete, not both.');
+    process.exit(1);
+  }
+
+  const modeLabel = DELETE_MODE
+    ? '🗑️  DELETE MODE'
+    : REJECT_MODE
+      ? '📛 REJECT MODE (status=rejected)'
+      : '🔍 DRY RUN';
   console.log('═══════════════════════════════════════════════════════════════');
-  console.log(`  GARBAGE CLEANUP — ${DELETE_MODE ? '🗑️  DELETE MODE' : '🔍 DRY RUN (add --delete to remove)'}`);
+  console.log(`  GARBAGE CLEANUP — ${modeLabel}`);
   console.log('═══════════════════════════════════════════════════════════════\n');
 
-  // Fetch all approved startups (paginated to get all 7000+)
+  // Fetch all approved startups (paginated; stable order so no row is skipped/duplicated)
   let allData = [];
   const PAGE_SIZE = 1000;
-  let page = 0;
+  let from = 0;
   while (true) {
     const { data, error } = await supabase
       .from('startup_uploads')
       .select('id, name, total_god_score, status, created_at')
       .eq('status', 'approved')
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
 
     if (error) {
       console.error('Error fetching startups:', error);
       return;
     }
-    allData = allData.concat(data);
-    if (data.length < PAGE_SIZE) break;
-    page++;
+    allData = allData.concat(data || []);
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
   }
 
   console.log(`📊 Total approved startups: ${allData.length}\n`);
@@ -154,11 +204,41 @@ async function run() {
   garbage.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   console.log(`🗑️  GARBAGE ENTRIES FOUND: ${garbage.length}\n`);
-  garbage.forEach(s => {
+  garbage.slice(0, LIST_LIMIT).forEach(s => {
     console.log(`  GOD ${String(s.total_god_score).padStart(3)} | ${s.name}`);
   });
+  if (garbage.length > LIST_LIMIT) {
+    console.log(`  ... and ${garbage.length - LIST_LIMIT} more (not listed)\n`);
+  }
 
-  if (DELETE_MODE && garbage.length > 0) {
+  if (REJECT_MODE && garbage.length > 0) {
+    const now = new Date().toISOString();
+    const ids = garbage.map(s => s.id);
+    let updated = 0;
+    let failed = 0;
+    console.log(`\n📛 Rejecting ${ids.length} rows (batch size ${REJECT_BATCH})...`);
+    for (let i = 0; i < ids.length; i += REJECT_BATCH) {
+      const batch = ids.slice(i, i + REJECT_BATCH);
+      const { error } = await supabase
+        .from('startup_uploads')
+        .update({
+          status: 'rejected',
+          admin_notes: `auto-rejected: invalid startup name (cleanup-garbage.js) — ${NOTE_PREFIX}`,
+          reviewed_at: now,
+        })
+        .in('id', batch)
+        .eq('status', 'approved');
+      if (error) {
+        console.error(`Batch error at ${i}:`, error.message);
+        failed += batch.length;
+      } else {
+        updated += batch.length;
+      }
+      process.stdout.write(`  ${Math.min(i + REJECT_BATCH, ids.length)}/${ids.length}\r`);
+    }
+    console.log(`\n✅ Rejected ${updated} rows.${failed ? ` Failed batches: ${failed}.` : ''}`);
+    console.log('   Re-run: npm run recalc if you need GOD stats / matches refreshed.\n');
+  } else if (DELETE_MODE && garbage.length > 0) {
     console.log(`\n🗑️  Deleting ${garbage.length} garbage entries...`);
     
     const ids = garbage.map(s => s.id);
@@ -222,12 +302,15 @@ async function run() {
     } else {
       console.log(`  ✅ Deleted ${garbage.length} garbage startups`);
     }
-  } else if (!DELETE_MODE && garbage.length > 0) {
-    console.log(`\n💡 To delete these ${garbage.length} entries: node scripts/cleanup-garbage.js --delete`);
+  } else if (!DELETE_MODE && !REJECT_MODE && garbage.length > 0) {
+    console.log(`\n💡 To remove from the active pool (recommended): node scripts/cleanup-garbage.js --reject`);
+    console.log(`   To hard-delete rows: node scripts/cleanup-garbage.js --delete`);
   }
 
   console.log('\n═══════════════════════════════════════════════════════════════');
-  console.log(`  ${DELETE_MODE ? 'CLEANUP COMPLETE' : 'DRY RUN COMPLETE — No changes made.'}`);
+  const doneMsg =
+    DELETE_MODE || REJECT_MODE ? 'CLEANUP COMPLETE' : 'DRY RUN COMPLETE — No changes made.';
+  console.log(`  ${doneMsg}`);
   console.log('═══════════════════════════════════════════════════════════════');
 }
 

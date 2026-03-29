@@ -5,26 +5,35 @@
  * in Node.js scripts, background workers, and API routes.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Load environment variables - support both server and Vite prefixed versions
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+// Same resolution order as server/lib/supabaseClient.js. Runtime (Fly) has no .env file — use [env] + secrets.
+const supabaseUrl =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  '';
+const supabaseServiceKey =
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  '';
 
-if (!supabaseUrl) {
-  console.warn('⚠️ SUPABASE_URL not found in environment variables');
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error(
+    '[server/config/supabase] Missing Supabase env. Need a valid HTTPS URL and a key. ' +
+      'Set SUPABASE_URL + SUPABASE_SERVICE_KEY (Fly: `fly secrets set`), ' +
+      'or VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY in fly.toml [env] / dashboard. ' +
+      `Got url=${supabaseUrl ? 'set' : 'MISSING'}, key=${supabaseServiceKey ? 'set' : 'MISSING'}.`
+  );
 }
 
-if (!supabaseServiceKey) {
-  console.warn('⚠️ SUPABASE_SERVICE_KEY not found in environment variables');
-}
-
-// Create the Supabase client
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
-    persistSession: false
-  }
+    persistSession: false,
+  },
 });
 
 // Export for CommonJS compatibility

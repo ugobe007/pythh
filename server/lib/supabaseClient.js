@@ -10,25 +10,43 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
 function getSupabaseClient() {
-  // Check for all possible environment variable names
-  const supabaseUrl = process.env.VITE_SUPABASE_URL ||
-                      process.env.SUPABASE_URL || 
-                      process.env.NEXT_PUBLIC_SUPABASE_URL;
-  
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY || 
-                      process.env.SUPABASE_SERVICE_ROLE_KEY || 
-                      process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-                      process.env.VITE_SUPABASE_ANON_KEY ||
-                      process.env.SUPABASE_ANON_KEY;
-  
+  // Check for all possible environment variable names (trim — Fly/secret typos may leave whitespace,
+  // which is truthy in JS but fails validateSupabaseUrl inside createClient).
+  const rawUrl = process.env.VITE_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = typeof rawUrl === 'string' ? rawUrl.trim() : '';
+
+  const rawKey = process.env.SUPABASE_SERVICE_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY;
+  const supabaseKey = typeof rawKey === 'string' ? rawKey.trim() : '';
+
   if (!supabaseUrl) {
-    throw new Error('SUPABASE_URL environment variable is required. Check .env file in project root.');
+    throw new Error(
+      'SUPABASE_URL environment variable is required. On Fly: set [env] in fly.toml or `fly secrets set SUPABASE_URL=...`; empty secrets override fly.toml.',
+    );
   }
-  
+
+  try {
+    const u = new URL(supabaseUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new Error('not http(s)');
+    }
+  } catch {
+    throw new Error(
+      `SUPABASE_URL is not a valid HTTP(S) URL (got ${JSON.stringify(supabaseUrl.slice(0, 48))}…). Check Fly secrets do not override with a bad value.`,
+    );
+  }
+
   if (!supabaseKey) {
-    throw new Error('SUPABASE_KEY environment variable is required. Check .env file in project root.');
+    throw new Error(
+      'SUPABASE_SERVICE_KEY or VITE_SUPABASE_ANON_KEY is required. On Fly: `fly secrets set SUPABASE_SERVICE_KEY=...` or set VITE_SUPABASE_ANON_KEY in [env].',
+    );
   }
-  
+
   return createClient(supabaseUrl, supabaseKey);
 }
 

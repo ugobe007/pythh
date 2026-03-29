@@ -15,6 +15,7 @@ const {
   extractTeamSignals
 } = require('../../lib/inference-extractor');
 const { isJunkUrl } = require('../../lib/junk-url-config');
+const { detectSignals } = require('./signalDetector');
 
 // Google News RSS often needs >4s; short timeouts yield 0 articles everywhere.
 const parser = new Parser({
@@ -93,21 +94,151 @@ function normalizeNameForMatch(name) {
  * Returns the filtered array. If ALL articles get filtered out, returns the
  * original array unchanged (fallback — better some data than none).
  */
-function filterArticlesByName(articles, startupName) {
+/**
+ * NARRATIVE DISAGGREGATION INFERENCE
+ *
+ * Language model: words tell a story, and stories position entities in roles.
+ * A startup name appearing as a *subject*, *possessive object*, or *comparative
+ * reference* in a narrative is strong evidence the article is actually about
+ * that startup. A bare mention surrounded by category-noun context is weak.
+ *
+ * Story frames (in confidence order):
+ *   SUBJECT     — "NAME raised $10M", "NAME launched today"     → 0.90
+ *   POSSESSIVE  — "at NAME", "from NAME", "NAME's CEO"          → 0.85
+ *   ATTRIBUTION — "CEO of NAME", "NAME team", "NAME platform"   → 0.80
+ *   ANAPHORIC   — NAME appears then "they/it/the company" follow → 0.55
+ *   COMPARATIVE — "like NAME", "next NAME", "similar to NAME"   → 0.65
+ *   BARE        — name in text, no contextual frame              → 0.15
+ *   PENALISED   — name surrounded by category/sector nouns, no frame → 0.05
+ *
+ * @param {string} text       — raw article text (title + content)
+ * @param {string} startupName — company name to score
+ * @returns {{ score: number, frames: string[] }}
+ */
+function scoreNarrativeRole(text, startupName) {
+  if (!text || !startupName) return { score: 0, frames: [] };
+
+  const escaped = startupName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const nameRe  = new RegExp(`\\b${escaped}\\b`, 'i');
+
+  if (!nameRe.test(text)) return { score: 0, frames: [] };
+
+  const frames = [];
+  let score = 0.15; // base: name is present
+
+  // ── SUBJECT frame ─────────────────────────────────────────────────────────
+  // "NAME <verb>" — name is the grammatical subject of an action
+  const SUBJECT_VERBS = /\b(?:raised?|closed?|secured?|announced?|launched?|released?|unveiled?|is|was|will|has|have|had|expands?|pivots?|acquires?|partners?|joins?|exits?|files?|goes?|lists?|shuts?|merged?|completed?|signed?|drops?|hired?|named?|appoints?|opens?|enters?|hits?|crosses?|reaches?)\b/i;
+  if (new RegExp(`\\b${escaped}\\b\\s+` + SUBJECT_VERBS.source, 'i').test(text)) {
+    frames.push('subject');
+    score = Math.max(score, 0.90);
+  }
+
+  // ── POSSESSIVE frame ──────────────────────────────────────────────────────
+  // "at NAME", "from NAME", "invested in NAME", "NAME's ..."
+  const POSSESSIVE_PRE = /\b(?:at|from|for|joining?|left|quit|building|built|working at|partnered with|invested in|backed by|funded by|acquired by|spun out of|coming from|coming to|heading to|headed to)\s+/i;
+  if (new RegExp(POSSESSIVE_PRE.source + escaped, 'i').test(text) ||
+      new RegExp(`\\b${escaped}'s\\b`, 'i').test(text)) {
+    frames.push('possessive');
+    score = Math.max(score, 0.85);
+  }
+
+  // ── ATTRIBUTION frame ─────────────────────────────────────────────────────
+  // "NAME CEO/team/product" or "CEO/founder of NAME"
+  const ROLE_NOUNS = /\b(?:CEO|CTO|COO|CPO|CFO|VP|founder|co-founder|team|platform|product|app|service|technology|system|API|engineer|investors?)\b/i;
+  if (new RegExp(`\\b${escaped}\\b\\s+` + ROLE_NOUNS.source, 'i').test(text) ||
+      new RegExp(ROLE_NOUNS.source + `\\s+(?:of|at)\\s+\\b${escaped}\\b`, 'i').test(text)) {
+    frames.push('attribution');
+    score = Math.max(score, 0.80);
+  }
+
+  // ── COMPARATIVE frame ─────────────────────────────────────────────────────
+  // "like NAME", "the next NAME", "similar to NAME", "think of NAME"
+  if (new RegExp(`\\b(?:like|next|unlike|similar to|think of|reminds? (?:me )?of|version of|competitor(?:s)? (?:of|to)|alternative to)\\s+\\b${escaped}\\b`, 'i').test(text)) {
+    frames.push('comparative');
+    score = Math.max(score, 0.65);
+  }
+
+  // ── ANAPHORIC anchor ──────────────────────────────────────────────────────
+  // NAME appears in text, then "they/it/the company/the startup" follows within
+  // 200 chars — weak but real discourse signal
+  const nameIdx = text.search(nameRe);
+  if (nameIdx > -1) {
+    const afterName = text.slice(nameIdx + startupName.length, nameIdx + startupName.length + 250);
+    if (/\b(?:they|it|the company|the startup|the team|the platform|their|its)\b/i.test(afterName)) {
+      frames.push('anaphoric');
+      score = Math.max(score, 0.55);
+    }
+  }
+
+  // ── PENALTY: category-noun neighbourhood, no strong frame ─────────────────
+  // "Bankers and investors" — 'Bankers' is a category noun, not an actor
+  // Only penalise when no strong frame was detected (score still at base 0.15)
+  if (frames.length === 0) {
+    const SECTOR_SOUP = /\b(?:investors?|banks?|financiers?|firms?|funds?|companies|corporations?|industry|sector|market|players?|competitors?|brands?|analysts?|experts?)\b/i;
+    const neighbourhood = text.slice(
+      Math.max(0, nameIdx - 120),
+      nameIdx + startupName.length + 120
+    );
+    if (SECTOR_SOUP.test(neighbourhood)) {
+      score = 0.05; // heavy penalty — almost certainly a category reference
+    }
+  }
+
+  if (DEBUG_INFERENCE && frames.length > 0) {
+    console.log(`[narrative] "${startupName}" → frames: [${frames.join(', ')}] score: ${score.toFixed(2)}`);
+  }
+
+  return { score: Math.min(score, 1), frames };
+}
+
+/**
+ * Filter articles by startup name presence, upgraded with narrative role scoring.
+ *
+ * Confidence thresholds:
+ *   strict mode  (extended sources: Reddit, HN, Substack, PRNewswire)
+ *     → require score ≥ 0.50 — must have at least one narrative frame
+ *   standard mode (primary Google News)
+ *     → require score ≥ 0.10 — bare mention is enough (existing behaviour)
+ *     → fallback to all articles if nothing passes (existing behaviour)
+ *
+ * This eliminates the "Bankers = banking industry" class of false positives
+ * while preserving backward-compatible behaviour for the primary source.
+ *
+ * @param {Array} articles
+ * @param {string} startupName
+ * @param {object} [opts]
+ * @param {boolean} [opts.strict=false]
+ */
+function filterArticlesByName(articles, startupName, { strict = false } = {}) {
   if (!articles || articles.length === 0) return articles;
   const { full, short } = normalizeNameForMatch(startupName);
-  // We need at least 3 chars to avoid false-positive single-char names
   if (full.length < 3) return articles;
 
-  const matches = articles.filter(a => {
-    const text = `${a.title} ${a.content}`.toLowerCase();
-    if (text.includes(full)) return true;
-    // Only use short name match if it's at least 4 chars (avoids "go", "ai", etc.)
-    if (short.length >= 4 && text.includes(short)) return true;
-    return false;
+  const STRICT_THRESHOLD   = 0.50; // must have a narrative frame
+  const STANDARD_THRESHOLD = 0.10; // bare mention is fine
+
+  const scored = articles.map(a => {
+    const text = `${a.title || ''} ${a.content || ''}`;
+    const { score, frames } = scoreNarrativeRole(text, startupName);
+
+    // Also accept short-name match (existing behaviour, gated by length)
+    let effectiveScore = score;
+    if (score < STANDARD_THRESHOLD) {
+      const lower = text.toLowerCase();
+      if (lower.includes(full) || (short.length >= 4 && lower.includes(short))) {
+        effectiveScore = STANDARD_THRESHOLD;
+      }
+    }
+    return { article: a, score: effectiveScore, frames };
   });
 
-  // Only apply filter if it kept at least 1 article
+  const threshold = strict ? STRICT_THRESHOLD : STANDARD_THRESHOLD;
+  const matches   = scored.filter(s => s.score >= threshold).map(s => s.article);
+
+  if (strict) return matches;
+
+  // non-strict: fall back to all articles if filter removed everything
   return matches.length > 0 ? matches : articles;
 }
 
@@ -115,6 +246,10 @@ function filterArticlesByName(articles, startupName) {
 const FAST_SOURCES = {
   googleNews: (query) => `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`
 };
+
+// Load the full news source registry (Tier 1 + Tier 2 = standard enrichment)
+const { getStandardSources } = require('./dataSources/newsSources');
+const EXTENDED_SOURCES_LIST = getStandardSources();
 
 /**
  * Search for startup news articles
@@ -208,7 +343,7 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
       console.log(`[inference] Search "${query}" → raw: ${rawCount}, after filter: ${filtered.length}`);
     }
 
-    // Fallback: try broader queries if primary returned few relevant results
+    // Fallback: try broader Google News queries if primary returned few results
     if (articles.length < 3) {
       for (let i = 1; i < queries.length && articles.length < 3; i++) {
         try {
@@ -230,6 +365,59 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
         }
       }
     }
+
+    // Extended sources: run in parallel alongside whatever Google News returned.
+    // Sources are drawn from the news source registry (Tier 1 + Tier 2 = ~30 sources).
+    // — Each source has an independent timeout so slow feeds don't block others.
+    // — Strict name filter applied: no unrelated articles for supplementary sources.
+    // — Results deduplicated by URL across all sources.
+    const extendedJobs = EXTENDED_SOURCES_LIST.map(source => ({
+      key:     source.key,
+      label:   source.label,
+      url:     source.url(searchToken),
+      timeout: source.timeout,
+      strict:  source.strict !== false,
+    }));
+
+    const seenUrls = new Set(articles.map(a => a.link));
+
+    const extendedResults = await Promise.allSettled(
+      extendedJobs.map(async ({ url, label, timeout }) => {
+        const feed = await parseWithDeadline(url, timeout);
+        return feed.items.slice(0, 5).map(item => ({
+          title: item.title || '',
+          content: item.contentSnippet || item.content || item.summary || '',
+          link: item.link || '',
+          pubDate: item.pubDate || new Date().toISOString(),
+          source: label,
+        }));
+      })
+    );
+
+    for (let i = 0; i < extendedResults.length; i++) {
+      const result = extendedResults[i];
+      if (result.status !== 'fulfilled') {
+        if (DEBUG_INFERENCE) {
+          console.log(`[inference] ${extendedJobs[i].label} failed: ${result.reason?.message || result.reason}`);
+        }
+        continue;
+      }
+      const raw = result.value;
+      // strict=true: never fall back to unrelated articles for supplementary sources
+      let filtered = filterArticlesByName(raw, startupName, { strict: true });
+      if (filtered.length === 0 && useNormalized) {
+        filtered = filterArticlesByName(raw, searchToken, { strict: true });
+      }
+      // Deduplicate by URL across all sources
+      const deduplicated = filtered.filter(a => !seenUrls.has(a.link));
+      deduplicated.forEach(a => seenUrls.add(a.link));
+      articles.push(...deduplicated);
+
+      if (DEBUG_INFERENCE && deduplicated.length > 0) {
+        console.log(`[inference] ${extendedJobs[i].label}: +${deduplicated.length} articles`);
+      }
+    }
+
   } catch (error) {
     console.log(`[inference] Search failed for "${query}": ${error.message}`);
   }
@@ -302,14 +490,75 @@ function extractUrlByWordProximity(text, startupName) {
  *
  * @param {string} startupName - Company name
  * @param {number} timeoutMs - Per-candidate HEAD request timeout
- * @returns {Promise<string|null>} Verified domain or null
+ * @returns {Promise<{domain: string, correctedSlug: string|null}|null>}
+ *   domain = verified domain string
+ *   correctedSlug = non-null when a typo variant was used (caller should update the startup name)
  */
+
+/**
+ * Generate plausible typo/corruption variants of a startup name slug.
+ *
+ * Linguistic model: verbs (and consonant clusters) are anchors.
+ * Scrapers most commonly drop:
+ *   1. Nasals (m, n) before bilabial/velar stops — "aplibotics" → "amplibotics"
+ *   2. Liquids (l, r) after consonants — "antics" → "analytics" type drops
+ *   3. Adjacent consonant transpositions — "recieve" → "receive"
+ *   4. Accidental character doubling — "planninng" → "planning"
+ *   5. Missing initial letter when the word starts with a rare cluster
+ *
+ * Deliberately small output (≤20 variants) — we only want high-confidence
+ * corrections, not a brute-force search. False positives (wrong domain resolving)
+ * are worse than missing the correction.
+ */
+function generateNameVariants(slug) {
+  if (!slug || slug.length < 4) return [];
+  const variants = new Set();
+
+  // ── Strategy 1 (HIGH CONFIDENCE ONLY): Insert 'm' before bilabial stops p/b
+  // when preceded by a vowel — the strongest and most specific corruption pattern.
+  //
+  // Target pattern: vowel + (p|b) + consonant  →  vowel + m + (p|b) + consonant
+  // "aplibotics" → 'a' + 'p' + 'l' → insert 'm' → "amplibotics"  ✓
+  //
+  // Intentionally excluded:
+  //   • 'n' before alveolar/velar stops (d, t, g, k) — too broad, many false positives
+  //     e.g. "adlink" → "andlink" (different company)
+  //   • Liquid insertion (l/r) — generates too many speculative paths
+  //   • Transpositions — generate too many unrelated words
+  //   • Initial vowel prepend — catches real one-letter drops but also many non-starts
+  //
+  // This single strategy catches the canonical scraper-corruption pattern:
+  // a nasal consonant dropped immediately before a bilabial stop by an OCR/scraper.
+  const BILABIAL_STOPS = new Set(['p', 'b']);
+  const VOWELS = new Set(['a', 'e', 'i', 'o', 'u']);
+  for (let i = 1; i < slug.length; i++) {
+    if (BILABIAL_STOPS.has(slug[i]) && VOWELS.has(slug[i - 1])) {
+      variants.add(slug.slice(0, i) + 'm' + slug.slice(i));
+    }
+  }
+
+  // ── Strategy 2: Drop accidental doubled letters ───────────────────────────
+  // "planninng" → "planning", "companny" → "company"
+  // Low false-positive rate: the original slug must have an identical adjacent pair.
+  for (let i = 0; i < slug.length - 1; i++) {
+    if (slug[i] === slug[i + 1]) {
+      variants.add(slug.slice(0, i + 1) + slug.slice(i + 2));
+    }
+  }
+
+  variants.delete(slug);
+  return [...variants].slice(0, 10); // tight cap — fewer, higher-confidence candidates
+}
+
 async function inferDomainFromName(startupName, timeoutMs = 2000) {
   if (!startupName) return null;
 
-  // Normalize: strip legal/generic suffixes, lowercase, collapse to slug
+  // Normalize: strip legal/generic suffixes from the END of the name only.
+  // Anchored to end-of-string ($) to prevent stripping embedded words:
+  // "Ventures Today" must NOT become "Today" (ventures? was removing mid-word).
+  // "Acme Technologies" → "Acme", "Stripe Inc" → "Stripe" (correct).
   const cleaned = startupName
-    .replace(/\b(inc\.?|llc\.?|corp\.?|ltd\.?|technologies|technology|solutions|labs?|group|ventures?|capital|systems?|networks?|platform|platforms?|software|services?|ai|app)\b\.?/gi, '')
+    .replace(/\s*\b(inc\.?|llc\.?|corp\.?|ltd\.?|technologies?|technology|solutions?|labs?|group|ventures?|capital|systems?|networks?|platform|platforms?|software|services?|ai|app)\b\.?\s*$/gi, '')
     .trim();
 
   const slug = cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -317,40 +566,68 @@ async function inferDomainFromName(startupName, timeoutMs = 2000) {
 
   if (slug.length < 3) return null;
 
-  // Candidate list — ordered by real-world startup domain likelihood
-  // .com first (most established companies), then .ai/.io (modern startups)
-  const candidates = [
-    `${slug}.com`,
-    `${slug}.ai`,
-    `${slug}.io`,
-    `${slug}.app`,
-    `${slug}.co`,
-    `${hyphenSlug}.com`,
-    `${hyphenSlug}.ai`,
-    `${hyphenSlug}.io`,
-    `try${slug}.com`,
-    `get${slug}.com`,
-    `use${slug}.com`,
-    `${slug}.dev`,
-    `${slug}.xyz`,
-  ].filter((d, i, a) => a.indexOf(d) === i); // dedupe
-
-  // Verify candidates in sequence — return first that resolves
-  for (const domain of candidates) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(`https://${domain}`, {
-        method: 'HEAD',
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PythhBot/1.0; +https://pythh.ai)' }
-      });
-      clearTimeout(timer);
-      // Any non-error response (even 4xx) means the domain resolves
-      if (res.status < 500) return domain;
-    } catch { /* domain doesn't resolve — try next */ }
+  /**
+   * Probe a domain slug against the standard TLD list.
+   * Returns the first domain that resolves (status < 500), or null.
+   */
+  async function probeSlugs(s, h = null) {
+    const tlds = ['.com', '.ai', '.io', '.app', '.co', '.dev', '.xyz'];
+    const prefixes = ['', 'try', 'get', 'use'];
+    const candidates = [];
+    for (const pre of prefixes) {
+      for (const tld of tlds) {
+        const d = `${pre}${s}${tld}`;
+        if (!candidates.includes(d)) candidates.push(d);
+      }
+    }
+    if (h && h !== s) {
+      for (const tld of ['.com', '.ai', '.io']) {
+        const d = `${h}${tld}`;
+        if (!candidates.includes(d)) candidates.push(d);
+      }
+    }
+    for (const domain of candidates) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(`https://${domain}`, {
+          method: 'HEAD',
+          redirect: 'follow',
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PythhBot/1.0; +https://pythh.ai)' }
+        });
+        clearTimeout(timer);
+        if (res.status < 500) return domain;
+      } catch { /* try next */ }
+    }
+    return null;
   }
+
+  // ── Pass A: try original name slug ────────────────────────────────────────
+  const primary = await probeSlugs(slug, hyphenSlug);
+  if (primary) return { domain: primary, correctedSlug: null };
+
+  // ── Pass B: try typo/corruption variants ─────────────────────────────────
+  // Guard: only run for single-word names. Multi-word names whose words
+  // concatenate into a new slug (e.g. "Micron To" → "micronto") are a
+  // scraper-concatenation class problem, not a letter-drop. Variants on those
+  // slugs produce semantically unrelated words ("micronot") that happen to
+  // resolve as domains.
+  const wordCount = startupName.trim().split(/\s+/).length;
+  if (wordCount > 1) return null;
+
+  const variants = generateNameVariants(slug);
+  for (const variant of variants) {
+    const variantHyphen = variant.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const found = await probeSlugs(variant, variantHyphen);
+    if (found) {
+      if (DEBUG_INFERENCE) {
+        console.log(`[inference] Name variant matched: "${slug}" → "${variant}" (domain: ${found})`);
+      }
+      return { domain: found, correctedSlug: variant };
+    }
+  }
+
   return null;
 }
 
@@ -499,7 +776,35 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
     }));
     enrichedData.last_enrichment_date = new Date().toISOString();
   }
-  
+
+  // ── Signal Ontology Detection ─────────────────────────────────────────────
+  // Scan articles for colloquial signal phrases (fundraising, traction,
+  // trouble, investor interest, hype, founder psychology).
+  // Results stored in market_signals for downstream scoring.
+  const signalReport = detectSignals(articles, startupName);
+  if (signalReport.signals.length > 0) {
+    enrichedData.market_signals = {
+      primarySignal:  signalReport.primarySignal?.signal || null,
+      primaryCategory: signalReport.primarySignal?.category || null,
+      primaryMeaning: signalReport.primarySignal?.meaning || null,
+      signals:        signalReport.signals.map(s => ({
+        signal:   s.signal,
+        category: s.category,
+        meaning:  s.meaning,
+        score:    parseFloat(s.score.toFixed(3)),
+        count:    s.count,
+        snippet:  s.snippets[0] || null,
+      })),
+      scores: signalReport.scores,
+      detectedAt: new Date().toISOString(),
+    };
+    fieldsEnriched.push('market_signals');
+
+    if (DEBUG_INFERENCE) {
+      console.log(`[signals] "${startupName}": ${signalReport.signals.length} signals — primary: ${signalReport.primarySignal?.signal}`);
+    }
+  }
+
   return {
     enrichedData,
     enrichmentCount: fieldsEnriched.length,
@@ -532,10 +837,11 @@ async function quickEnrichWithVC(startupName, vcName, currentData = {}, startupW
       }
       const result = extractDataFromArticles(articles, currentData, startupName);
       if (!result.enrichedData.company_url && !currentData.website && !currentData.company_url) {
-        const inferred = await inferDomainFromName(startupName, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
-        if (inferred) {
-          result.enrichedData.company_url = inferred;
-          result.enrichedData.company_url_source = 'name_inference';
+        const inferResult = await inferDomainFromName(startupName, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
+        if (inferResult) {
+          result.enrichedData.company_url = inferResult.domain;
+          result.enrichedData.company_url_source = inferResult.correctedSlug ? 'name_variant_inference' : 'name_inference';
+          if (inferResult.correctedSlug) result.enrichedData.corrected_name_slug = inferResult.correctedSlug;
           result.fieldsEnriched.push('company_url');
           result.enrichmentCount++;
         }
@@ -557,9 +863,8 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
   const startTime = Date.now();
 
   try {
-    // Race against timeout
     const enrichmentPromise = (async () => {
-      // Step 1: Search news (2-3 seconds typical)
+      // Step 1: Search news — now queries Google News + PRNewswire + Substack + HN + Reddit
       const articles = await searchStartupNews(startupName, startupWebsite, 5);
       
       if (articles.length === 0) {
@@ -571,16 +876,17 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
         };
       }
       
-      // Step 2: Extract data (< 100ms typical)
+      // Step 2: Extract data from articles
       const result = extractDataFromArticles(articles, currentData, startupName);
 
-      // Step 3: If still no company URL found in articles, try name→domain inference
+      // Step 3: If no URL found in articles, try name→domain inference (with variant fallback)
       if (!result.enrichedData.company_url && !currentData.website && !currentData.company_url) {
         const nameForInference = normalizeNameForSearch(startupName) || startupName;
-        const inferred = await inferDomainFromName(nameForInference, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
-        if (inferred) {
-          result.enrichedData.company_url = inferred;
-          result.enrichedData.company_url_source = 'name_inference';
+        const inferResult = await inferDomainFromName(nameForInference, Math.max(200, timeoutMs - (Date.now() - startTime) - 500));
+        if (inferResult) {
+          result.enrichedData.company_url = inferResult.domain;
+          result.enrichedData.company_url_source = inferResult.correctedSlug ? 'name_variant_inference' : 'name_inference';
+          if (inferResult.correctedSlug) result.enrichedData.corrected_name_slug = inferResult.correctedSlug;
           result.fieldsEnriched.push('company_url');
           result.enrichmentCount++;
         }
@@ -652,4 +958,6 @@ module.exports = {
   isDataSparse,
   inferDomainFromName,
   normalizeNameForSearch,
+  generateNameVariants,
+  scoreNarrativeRole,
 };
