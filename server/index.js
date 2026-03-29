@@ -8581,6 +8581,68 @@ function schedulePostStartTasks() {
   };
   setTimeout(PRUNE_TELEMETRY, 5 * 60 * 1000);
   setInterval(PRUNE_TELEMETRY, 24 * 60 * 60 * 1000);
+
+  // ── RSS News Scraper ─────────────────────────────────────────────────────────
+  // Runs the RSS scraper every 4 hours. First run is delayed 3 minutes to let
+  // the server fully boot before making outbound network requests.
+  const RSS_SCRAPE_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+  let rssScraperRunning = false;
+
+  const runRssScraper = async () => {
+    if (rssScraperRunning) {
+      console.log('[rss-scraper] Skipping — previous run still in progress');
+      return;
+    }
+    rssScraperRunning = true;
+    console.log('[rss-scraper] Starting scheduled RSS scrape...');
+    const start = Date.now();
+    try {
+      await new Promise((resolve, reject) => {
+        const { spawn } = require('child_process');
+        const path = require('path');
+        const rootDir = path.join(__dirname, '..');
+        const proc = spawn('node', [path.join(rootDir, 'scripts/core/simple-rss-scraper.js')], {
+          cwd: rootDir,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: { ...process.env }
+        });
+        let stdout = '';
+        let stderr = '';
+        proc.stdout.on('data', d => { stdout += d; });
+        proc.stderr.on('data', d => { stderr += d; });
+        proc.on('close', code => {
+          if (code === 0) resolve(stdout);
+          else reject(new Error(`exit ${code}: ${stderr.slice(-500)}`));
+        });
+        // Hard timeout: kill after 30 minutes
+        setTimeout(() => { proc.kill(); reject(new Error('timeout after 30min')); }, 30 * 60 * 1000);
+      });
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      console.log(`[rss-scraper] Completed in ${elapsed}s`);
+      try {
+        const supabase = getSupabaseClient();
+        await supabase.from('ai_logs').insert({
+          type: 'scraper', action: 'scheduled_rss_run', status: 'success',
+          output: { elapsed_s: elapsed, timestamp: new Date().toISOString() }
+        });
+      } catch (_) {}
+    } catch (err) {
+      console.error('[rss-scraper] Failed:', err.message);
+      try {
+        const supabase = getSupabaseClient();
+        await supabase.from('ai_logs').insert({
+          type: 'scraper', action: 'scheduled_rss_run', status: 'error',
+          output: { error: err.message, timestamp: new Date().toISOString() }
+        });
+      } catch (_) {}
+    } finally {
+      rssScraperRunning = false;
+    }
+  };
+
+  setTimeout(runRssScraper, 3 * 60 * 1000); // first run: 3 min after boot
+  setInterval(runRssScraper, RSS_SCRAPE_INTERVAL_MS);
+  console.log(`📡 RSS scraper scheduled every ${RSS_SCRAPE_INTERVAL_MS / 1000 / 60 / 60}h (first run in 3 min)`);
 }
 
 // Handle server errors (these are fine outside app.listen)
