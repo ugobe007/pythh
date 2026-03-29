@@ -26,6 +26,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   isLoggedIn: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -37,25 +38,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load user from localStorage AND Supabase on mount
   useEffect(() => {
     // Check Supabase session FIRST (this is the source of truth)
-    // Session persistence is now enabled, so this should work
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) {
-        // Just warn and return — client remains usable for anon queries
         console.warn('[AuthContext] getSession error (ignored):', error.message);
-        // Clear stale localStorage if session is invalid
         if (error.message.includes('expired') || error.message.includes('invalid')) {
           localStorage.removeItem('currentUser');
           localStorage.removeItem('isLoggedIn');
         }
+        setIsLoading(false);
         return;
       }
       
       if (session?.user) {
-        // Supabase session exists - use it (source of truth)
         await syncUserFromSupabase(session.user);
         loadProfile(session.user.id);
       } else {
@@ -65,8 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const parsed = JSON.parse(savedUser);
             setUser(parsed);
-            // Try to restore session if we have email/password (not recommended, but for backward compat)
-            console.log('[AuthContext] No Supabase session, using localStorage user');
           } catch (err) {
             console.warn('[AuthContext] Failed to parse saved user:', err);
             localStorage.removeItem('currentUser');
@@ -74,8 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      setIsLoading(false);
     }).catch((err) => {
       console.warn('[AuthContext] getSession threw (ignored):', err);
+      setIsLoading(false);
     });
     
     // Listen for auth changes (this will fire when session is restored or created)
@@ -189,7 +188,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{ 
       user, 
       profile,
-      isLoggedIn: !!user, 
+      isLoggedIn: !!user,
+      isLoading,
       login, 
       logout,
       updateUser,

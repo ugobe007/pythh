@@ -8,14 +8,23 @@
  * - Supabase auth integration
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { isAdminEmail } from '../lib/adminConfig';
+import { useAuth } from '../contexts/AuthContext';
 import { Shield, Mail, Lock, Key, Eye, EyeOff, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
+
+  // Already authenticated as admin — skip the login form
+  useEffect(() => {
+    if (!isLoading && user?.isAdmin) {
+      navigate('/admin', { replace: true });
+    }
+  }, [isLoading, user, navigate]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

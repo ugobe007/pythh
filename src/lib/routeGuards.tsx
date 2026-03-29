@@ -212,7 +212,7 @@ export function L4Guard({ children }: GuardProps): React.ReactElement {
  * For: /admin/*
  */
 export function L5Guard({ children }: GuardProps): React.ReactElement {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
   
   const isAdmin =
@@ -220,14 +220,33 @@ export function L5Guard({ children }: GuardProps): React.ReactElement {
     (user?.email && isAdminEmail(user.email));
   
   useEffect(() => {
-    if (!isAdmin) {
+    if (!isLoading && !isAdmin) {
       trackEvent('guard_blocked', { level: 'L5', path: location.pathname });
     }
-  }, [isAdmin, location.pathname]);
+  }, [isLoading, isAdmin, location.pathname]);
+
+  // Wait for session to resolve before making any auth decision
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: '#0a0a0a',
+      }}>
+        <div style={{
+          width: 28, height: 28,
+          border: '3px solid rgba(168,85,247,0.3)',
+          borderTopColor: '#a855f7',
+          borderRadius: '50%',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
   
   if (!isAdmin) {
     showToast('Admin access required.');
-    return <Navigate to="/" replace />;
+    return <Navigate to="/admin-login" replace />;
   }
   
   return <>{children}</>;

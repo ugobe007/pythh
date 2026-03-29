@@ -36,6 +36,7 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         <Link 
           to="/" 
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition-all"
+          title="Return to site (you stay logged in)"
         >
           <Home className="w-4 h-4" />
           <span className="hidden sm:inline">Home</span>
