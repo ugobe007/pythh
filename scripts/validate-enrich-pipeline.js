@@ -103,18 +103,23 @@ const GEO_TERMS = new Set([
   'oxford', 'cambridge', 'edinburgh', 'dublin', 'munich', 'zurich', 'geneva',
   'brussels', 'rome', 'madrid', 'bangalore', 'mumbai', 'delhi', 'chennai',
   'nairobi', 'lagos', 'cairo', 'johannesburg', 'cape town',
+  'africa', 'europe', 'asia', 'america', 'latin america', 'southeast asia',
+  'middle east', 'apac', 'emea', 'latam',
   'uk', 'us', 'eu', 'usa',
 ]);
 
 // ─── CATEGORY NOUNS (descriptor prefixes, never brand names) ─────────────────
 const CATEGORY_NOUNS = new Set([
   'startup', 'company', 'firm', 'venture', 'enterprise', 'platform',
-  'app', 'tool', 'software', 'service', 'solution', 'product', 'system',
+  'app', 'tool', 'software', 'service', 'solution', 'product', 'system', 'systems',
+  'technology', 'technologies',
   'marketplace', 'exchange', 'protocol', 'infrastructure',
   'tech', 'fintech', 'healthtech', 'edtech', 'proptech', 'insurtech',
   'legaltech', 'cleantech', 'deeptech', 'biotech', 'regtech', 'martech',
   'adtech', 'wealthtech', 'govtech', 'agritech', 'retailtech', 'hrtech',
-  'saas', 'paas', 'iaas', 'b2b', 'b2c', 'd2c', 'api', 'sdk',
+  'saas', 'paas', 'iaas', 'b2b', 'b2c', 'd2c', 'api', 'sdk', 'vc',
+  // common generic words that appear mid-chain after stripping a prefix
+  'gaming', 'type', 'cooling', 'storage', 'memory', 'bandwidth', 'compute',
   'ai', 'ml', 'llm', 'nlp', 'iot', 'ar', 'vr', 'blockchain',
   'crypto', 'defi', 'web3',
   'chip', 'chips', 'agent', 'agents', 'bot', 'bots', 'copilot',
@@ -176,6 +181,11 @@ const STOP_WORDS = new Set([
   'catalyst', 'facility', 'holdings', 'showcase', 'everyone',
   'finance', 'everyone writes', 'taught', 'seeks', 'corner',
   'cargo aircraft', 'prepared foods', 'farmer centric',
+  // financial/market terms extracted as names
+  'billion', 'trillion', 'million', 'investment', 'investments',
+  'accelerate', 'leads', 'gaming', 'type', 'cooling',
+  // well-known protocols/platforms not to be treated as startups
+  'ethereum', 'bitcoin', 'solana', 'claude',
   // funding stage labels — never a company name
   'seed', 'series', 'pre-seed', 'bridge', 'round', 'raise',
   // common generic two-word phrases that produce false positive domains
@@ -367,10 +377,10 @@ function classifyEntityType(name) {
     return { type: 'SENTENCE_FRAGMENT', confidence: 0.92,
       reason: `stock market headline ("[shares/stock] + market verb")` };
   }
-  // "[X] To", "[X] Also", "[X] And" as 2-word headline tail — always a fragment.
-  // These are article headline snippets like "Databricks To", "Salesforce Also", etc.
-  // The trailing word is a conjunction/particle with no predicate, never a brand.
-  if (words.length === 2 && /^(?:to|also|and|or|but|now|next|soon|yet|in|on|at|up|out|off|vs)$/i.test(words[1])) {
+  // "[X] To/Also/Targets/Hits/…" as 2-word headline tail — always a fragment.
+  // Covers conjunctions/particles AND trailing headline verbs (3ps forms).
+  // "Databricks To", "Alibaba Targets", "Nvidia Joins", "Ethereum Hits" → all fragments.
+  if (words.length === 2 && /^(?:to|also|and|or|but|now|next|soon|yet|in|on|at|up|out|off|vs|targets?|launches?|raises?|closes?|secures?|acquires?|expands?|enters?|debuts?|exits?|lists?|hits?|beats?|wins?|gains?|loses?|drops?|falls?|rises?|slides?|surges?|emerges?|unveils?|reaches?|crosses?|completes?|joins?|triples?|doubles?|tumbles?|receives?|plunges?|attracts?|reports?|posts?|achieves?|exceeds?|announces?|partners?|signs?|appoints?|hires?|names?|introduces?)$/i.test(words[1])) {
     return { type: 'SENTENCE_FRAGMENT', confidence: 0.93,
       reason: `2-word headline tail "[X] ${words[1]}"` };
   }
@@ -553,14 +563,26 @@ function dissociate(name, depth = 0) {
   if (p3b) {
     const right = p3b[1].trim();
     const rightClean = dissociate(right, depth + 1) || pickFirstTitlecaseChunk(right) || right;
-    if (rightClean && !isDescriptorToken(rightClean) && !isStopWordCandidate(rightClean)) return rightClean;
+    if (rightClean && !isDescriptorToken(rightClean) && !isStopWordCandidate(rightClean)) {
+      // Block if the first word of the extracted right-side is itself a verb or stop word
+      // e.g. "Accelerate AI" — "accelerate" is in STOP_WORDS so not a startup name
+      const firstWordLc = rightClean.split(/\s+/)[0].toLowerCase();
+      if (!STOP_WORDS.has(firstWordLc) && !CATEGORY_NOUNS.has(firstWordLc)) return rightClean;
+    }
   }
 
   // P3 — capital event verb: actor is to the LEFT
   const p3 = trimmed.match(CAPITAL_EVENT_VERB_RE);
   if (p3) {
     const left = pickLastTitlecaseChunk(p3[1]);
-    if (left && !isDescriptorToken(left) && !isStopWordCandidate(left)) return left;
+    if (left && !isDescriptorToken(left) && !isStopWordCandidate(left)) {
+      // Also reject if any individual word in a multi-word left side is a
+      // stop/category word — "VC Funds", "Alpha Fund", "Revenue Adonis" etc.
+      const leftWords = left.split(/\s+/);
+      const hasGenericWord = leftWords.length > 1 &&
+        leftWords.some(w => STOP_WORDS.has(w.toLowerCase()) || CATEGORY_NOUNS.has(w.toLowerCase()));
+      if (!hasGenericWord) return left;
+    }
   }
 
   // P4 — descriptor prefix chain (geo/sector/media/corporate)
@@ -572,7 +594,11 @@ function dissociate(name, depth = 0) {
   while (prefixEnd < words.length - 1 && isDescriptorToken(words[prefixEnd])) prefixEnd++;
   if (prefixEnd > 0) {
     const remainder = words.slice(prefixEnd).join(' ');
-    const candidate = dissociate(remainder, depth + 1) || pickFirstTitlecaseChunk(remainder);
+    const dissociated = dissociate(remainder, depth + 1);
+    const pick = pickFirstTitlecaseChunk(remainder);
+    // Only fall back to raw pick if it's a single word — multi-word picks like
+    // "Gaming Technology" are usually descriptor-pair noise, not startup brands.
+    const candidate = dissociated || (pick && pick.split(/\s+/).length === 1 ? pick : null);
     if (candidate && !isDescriptorToken(candidate) && !isStopWordCandidate(candidate)) return candidate;
   }
 
