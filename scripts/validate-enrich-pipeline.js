@@ -100,6 +100,9 @@ const GEO_TERMS = new Set([
   'tel aviv', 'singapore', 'australia', 'toronto', 'sydney', 'melbourne',
   'hong kong', 'new york', 'los angeles', 'san francisco', 'chicago', 'boston',
   'austin', 'seattle', 'denver', 'miami', 'atlanta', 'dallas', 'houston',
+  'oxford', 'cambridge', 'edinburgh', 'dublin', 'munich', 'zurich', 'geneva',
+  'brussels', 'rome', 'madrid', 'bangalore', 'mumbai', 'delhi', 'chennai',
+  'nairobi', 'lagos', 'cairo', 'johannesburg', 'cape town',
   'uk', 'us', 'eu', 'usa',
 ]);
 
@@ -128,6 +131,15 @@ const CATEGORY_NOUNS = new Set([
   'defense', 'security', 'cyber', 'enterprise', 'commercial', 'residential',
   'lithography', 'semiconductor', 'materials', 'hardware', 'embedded',
   'space', 'satellite', 'drone', 'aerial', 'marine', 'energy', 'solar', 'nuclear',
+  'funding', 'round', 'rounds', 'raise', 'raised',
+  'profit', 'revenue', 'valuation', 'record',
+  // occupational / role words used as descriptor prefixes
+  'researcher', 'scientists', 'scientist', 'engineer', 'engineers', 'advisor',
+  'adviser', 'enabler', 'provider', 'creator', 'builder', 'operator', 'analyst',
+  'specialist', 'expert', 'veteran', 'pioneer', 'leader', 'innovator',
+  // adjective descriptors that prefix category nouns
+  'quick', 'fast', 'smart', 'next', 'next-gen', 'next-generation',
+  'cutting-edge', 'advanced', 'innovative', 'emerging', 'leading', 'top',
   'early-stage', 'seed-stage', 'growth-stage', 'pre-seed', 'stealth',
   'spinout', 'spinoff', 'spin-off', 'incubated',
   'former', 'unicorn', 'decacorn', 'soonicorn',
@@ -159,11 +171,19 @@ const STOP_WORDS = new Set([
   'operating', 'operation', 'endpoint', 'nanotech', 'deeptech',
   'prepaid', 'simple', 'advance', 'advanced',
   'validate', 'replace', 'shift', 'generate', 'manage', 'connect',
+  // generic nouns that resolve to real domains but are not startup brands
+  'investors', 'funding', 'statistics', 'ecosystems', 'nonprofit',
+  'catalyst', 'facility', 'holdings', 'showcase', 'everyone',
+  'finance', 'everyone writes', 'taught', 'seeks', 'corner',
+  'cargo aircraft', 'prepared foods', 'farmer centric',
   // funding stage labels — never a company name
   'seed', 'series', 'pre-seed', 'bridge', 'round', 'raise',
   // common generic two-word phrases that produce false positive domains
   'series a', 'series b', 'series c', 'series d',
   'skill ecosystem', 'oral peptide',
+  'funding round', 'funding rounds', 'seed round', 'growth round',
+  'revolut profit', 'uncomfortable truths', 'everyone writes',
+  'cargo aircraft', 'prepared foods',
 ]);
 
 // ─── KNOWN MEDIA / DATA AGGREGATOR SITE PREFIXES ─────────────────────────────
@@ -196,7 +216,7 @@ const KNOWN_MEDIA_PREFIXES = new Set([
 // "raising a new fund" → gerund "raising" anchors an ongoing-action clause.
 // Verb-initial sentence fragment detector.
 // Covers past tense, present tense, gerunds, prepositions, demonstratives as first word.
-const VERB_INITIAL_RE = /^(?:led|said|told|found|made|built|launched?|raised?|closed?|secured?|announced?|acquired?|merged?|partnered?|joined?|exited?|filed?|listed?|pivoted?|grew|expanded?|entered?|opened?|dropped?|hit|crossed?|reached?|signed?|completed?|selected?|won|beat|set|broke|hired?|named?|came|went|got|did|has|is|are|was|were|will|would|could|should|must|does|do|had|embeds?|fuels?|adds?|slides?|gains?|loses?|attracts?|enables?|powers?|backs?|leads?|drives?|cuts?|beats?|takes?|makes?|runs?|sees?|shows?|helps?|uses?|brings?|keeps?|gets?|sets?|lets?|gives?|puts?|sends?|raising|building|launching|growing|scaling|pivoting|merging|acquiring|introducing|featuring|presenting|announcing|joining|closing|securing|keeping|bringing|embedding|fuell?ing|adding|sliding|gaining|losing|enabling|powering|helping|using|taking|running|showing|telling|making|a\s|an\s|the\s|to\s|of\s|in\s|at\s|by\s|from\s|with\s|for\s|this\s|these\s|those\s|their\s|its\s|our\s|my\s|your\s|\d+)\b/i;
+const VERB_INITIAL_RE = /^(?:led|said|told|found|made|built|launched?|raised?|closed?|secured?|announced?|acquired?|merged?|partnered?|joined?|exited?|filed?|listed?|pivoted?|grew|expanded?|entered?|opened?|dropped?|hit|crossed?|reached?|signed?|completed?|selected?|won|beat|set|broke|hired?|named?|came|went|got|did|has|is|are|was|were|will|would|could|should|must|does|do|had|embeds?|fuels?|adds?|slides?|gains?|loses?|attracts?|enables?|powers?|backs?|leads?|drives?|cuts?|beats?|takes?|makes?|runs?|sees?|shows?|helps?|uses?|brings?|keeps?|gets?|sets?|lets?|gives?|puts?|sends?|seeks?|reshapes?|targets?|emerges?|reveals?|explores?|tackles?|disrupts?|transforms?|accelerates?|activates?|deploys?|leverages?|unveils?|raising|building|launching|growing|scaling|pivoting|merging|acquiring|introducing|featuring|presenting|announcing|joining|closing|securing|keeping|bringing|embedding|fuell?ing|adding|sliding|gaining|losing|enabling|powering|helping|using|taking|running|showing|telling|making|seeking|reshaping|targeting|emerging|a\s|an\s|the\s|to\s|of\s|in\s|at\s|by\s|from\s|with\s|for\s|this\s|these\s|those\s|their\s|its\s|our\s|my\s|your\s|\d+)\b/i;
 
   // Internal preposition chains — signals the string is a mid-sentence fragment
   // "led to a startup idea", "of the largest biotech"
@@ -240,7 +260,7 @@ const PARTICIPIAL_ANCHOR_RE = /^(.+?)[-–](based|backed|funded|founded|led|buil
 const PRESENTATIONAL_VERB_RE = /^(?:introducing|meet|presenting|welcoming?|announcing|debuting|here(?:'s| is))\s+(.+)$/i;
 
 // P3 — Capital event verb: "BigHat Launches Service" → left=BigHat
-const CAPITAL_EVENT_VERB_RE = /^(.+?)\s+(?:launches?|acquires?|raises?|closes?|secures?|announces?|expands?|pivots?|merges?|partners?\s+with|joins?|exits?|spins?\s+off|shuts?\s+down|files?\s+for|goes?\s+public|lists?|ipo|debuts?|unveils?|introduces?|releases?|drops?|embeds?|fuels?|adds?|gains?|loses?|attracts?|receives?|accepts?|adopts?|integrates?|enables?|powers?|backs?|invests?\s+in|cuts?|beats?|wins?|hits?|crosses?|reaches?|signs?|completes?|appoints?|hires?|names?|promotes?|selects?|taps?|earns?|nets?|generates?|posts?|reports?|records?|achieves?|surpasses?|exceeds?|tops?|doubles?|triples?|slides?|falls?|dips?|tumbles?|plunges?|prepares?\s+to|plans?\s+to|aims?\s+to|seeks?\s+to|moves?\s+to)\s+.+$/i;
+const CAPITAL_EVENT_VERB_RE = /^(.+?)\s+(?:launches?|acquires?|raises?|closes?|secures?|announces?|expands?|pivots?|merges?|partners?\s+with|joins?|exits?|spins?\s+off|shuts?\s+down|files?\s+for|goes?\s+public|lists?|ipo|debuts?|unveils?|introduces?|releases?|drops?|embeds?|fuels?|adds?|gains?|loses?|attracts?|receives?|accepts?|adopts?|integrates?|enables?|powers?|backs?|invests?\s+in|cuts?|beats?|wins?|hits?|crosses?|reaches?|signs?|completes?|appoints?|hires?|names?|promotes?|selects?|taps?|earns?|nets?|generates?|posts?|reports?|records?|achieves?|surpasses?|exceeds?|tops?|doubles?|triples?|slides?|falls?|dips?|tumbles?|plunges?|targets?|reshapes?|emerges?\s+from|reveals?|explores?|tackles?|disrupts?|transforms?|accelerates?|prepares?\s+to|plans?\s+to|aims?\s+to|seeks?\s+to|moves?\s+to)\s+.+$/i;
 
 // P5 — Multi-clause subordinate conjunction split
 const SUBORDINATE_CONJ_RE = /\s+(?:while|as|after|before|since|when|although|though|because|if|unless|until|despite|even\s+though)\s+/i;
@@ -275,6 +295,16 @@ const TRAILING_PREPS = new Set([
   'for', 'with', 'by', 'of', 'to', 'in', 'on', 'at', 'from',
   'about', 'into', 'through', 'within', 'between', 'among',
   'and', 'or', 'but', 'nor', 'yet', 'so',
+  // Trailing headline verbs — appear at END of a phrase (no object following them),
+  // always signal that the preceding words are the company name, not the verb itself.
+  // These are 3ps/bare forms that CAPITAL_EVENT_VERB_RE can't catch (it needs content after them).
+  'targets', 'launches', 'raises', 'closes', 'secures', 'acquires', 'expands',
+  'enters', 'pivots', 'debuts', 'exits', 'lists', 'files', 'hits', 'beats',
+  'wins', 'gains', 'loses', 'drops', 'falls', 'rises', 'slides', 'surges',
+  'emerges', 'unveils', 'introduces', 'announces', 'partners', 'joins',
+  'reaches', 'crosses', 'completes', 'signs', 'appoints', 'hires', 'names',
+  'posts', 'reports', 'achieves', 'exceeds', 'doubles', 'triples', 'tumbles',
+  'plunges', 'attracts', 'receives', 'disrupts', 'transforms', 'accelerates',
 ]);
 
 function isDescriptorToken(token) {
@@ -336,6 +366,13 @@ function classifyEntityType(name) {
   if (STOCK_HEADLINE_RE.test(trimmed)) {
     return { type: 'SENTENCE_FRAGMENT', confidence: 0.92,
       reason: `stock market headline ("[shares/stock] + market verb")` };
+  }
+  // "[X] To", "[X] Also", "[X] And" as 2-word headline tail — always a fragment.
+  // These are article headline snippets like "Databricks To", "Salesforce Also", etc.
+  // The trailing word is a conjunction/particle with no predicate, never a brand.
+  if (words.length === 2 && /^(?:to|also|and|or|but|now|next|soon|yet|in|on|at|up|out|off|vs)$/i.test(words[1])) {
+    return { type: 'SENTENCE_FRAGMENT', confidence: 0.93,
+      reason: `2-word headline tail "[X] ${words[1]}"` };
   }
   // Internal preposition chain signals mid-sentence fragment
   if (INTERNAL_PREP_CHAIN_RE.test(trimmed) && words.length > 3) {
@@ -505,6 +542,20 @@ function dissociate(name, depth = 0) {
     if (right && !isDescriptorToken(right) && !isStopWordCandidate(right)) return right;
   }
 
+  // P3b — investment verb: "[Investor] backs/funds/invests in [Startup]"
+  // Must run BEFORE P3 (capital event verb) because "backs?" is also in that regex,
+  // but there the extractor grabs the LEFT side (actor), while here we want the RIGHT
+  // side (the startup being backed/funded).
+  // "Tether Backs Ark Labs" → "Ark Labs"
+  // "Futureplay Backs AMI Labs" → "AMI Labs"
+  const P3B_INVESTMENT_RE = /^.+?\s+(?:backs?|funds?|invests?\s+in|leads?\s+round\s+for|co-?invests?\s+in)\s+(.+)$/i;
+  const p3b = trimmed.match(P3B_INVESTMENT_RE);
+  if (p3b) {
+    const right = p3b[1].trim();
+    const rightClean = dissociate(right, depth + 1) || pickFirstTitlecaseChunk(right) || right;
+    if (rightClean && !isDescriptorToken(rightClean) && !isStopWordCandidate(rightClean)) return rightClean;
+  }
+
   // P3 — capital event verb: actor is to the LEFT
   const p3 = trimmed.match(CAPITAL_EVENT_VERB_RE);
   if (p3) {
@@ -558,7 +609,10 @@ function dissociate(name, depth = 0) {
     if (suffixStart < words.length && suffixStart >= 1) {
       const core = words.slice(0, suffixStart).join(' ');
       if (core !== trimmed && /^[A-Z]/.test(words[0]) && !isDescriptorToken(words[0])) {
-        const candidate = dissociate(core, depth + 1) || core;
+        // Only fall back to bare `core` string if it's a single word — multi-word
+      // fallbacks produce too many false positives (e.g. "Revolut Profit Hits").
+      const dissociated = dissociate(core, depth + 1);
+      const candidate = dissociated || (core.split(/\s+/).length === 1 ? core : null);
         if (candidate && !isDescriptorToken(candidate) && !isStopWordCandidate(candidate)) return candidate;
       }
     }
