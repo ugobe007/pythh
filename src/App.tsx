@@ -178,6 +178,7 @@ const DiagnosticPage = lazy(() => import("./pages/DiagnosticPage"));
 const DatabaseDiagnostic = lazy(() => import("./pages/DatabaseDiagnostic"));
 const ScraperManagementPage = lazy(() => import("./pages/ScraperManagementPage"));
 const AIIntelligenceDashboard = lazy(() => import("./pages/AIIntelligenceDashboard"));
+const SignalFeedPage = lazy(() => import("./pages/SignalFeedPage"));
 const AdminActions = lazy(() => import("./pages/AdminActions"));
 const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const MLDashboard = lazy(() => import("./pages/MLDashboard"));
@@ -365,6 +366,7 @@ const App = () => {
               <Route path="control" element={<Navigate to="/admin" replace />} />
               <Route path="scrapers" element={<ScraperManagementPage />} />
               <Route path="ai-intelligence" element={<AIIntelligenceDashboard />} />
+              <Route path="signal-feed" element={<SignalFeedPage />} />
               <Route path="actions" element={<AdminActions />} />
               <Route path="review-queue" element={<ReviewQueue />} />
               <Route path="ml-dashboard" element={<MLDashboard />} />
