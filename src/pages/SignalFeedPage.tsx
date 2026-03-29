@@ -138,16 +138,47 @@ const SIGNAL_TYPE_ICONS: Record<string, React.ReactNode> = {
   market:         <Globe className="w-3 h-3" />,
 };
 
+// ─── Evidence quality display ─────────────────────────────────────────────────
+const EQ_CONFIG: Record<string, { label: string; color: string; dot: string; desc: string }> = {
+  confirmed:        { label: 'Confirmed',    color: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10', dot: 'bg-emerald-400', desc: 'Direct, explicit, high-confidence signal' },
+  inferred:         { label: 'Inferred',     color: 'text-amber-400  border-amber-500/40  bg-amber-500/10',    dot: 'bg-amber-400',   desc: 'Reasonable interpretation with context support' },
+  speculative:      { label: 'Speculative',  color: 'text-zinc-400   border-zinc-500/30   bg-zinc-500/10',     dot: 'bg-zinc-500',    desc: 'Weak, hedged, or insufficiently supported' },
+  negated:          { label: 'Negated',      color: 'text-red-400    border-red-500/30     bg-red-500/10',      dot: 'bg-red-400',     desc: 'Signal was explicitly denied' },
+  'low-information':{ label: 'Low Info',     color: 'text-zinc-600   border-zinc-700       bg-zinc-900',        dot: 'bg-zinc-700',    desc: 'Promotional or boilerplate content' },
+};
+
+const AMBIGUITY_LABELS: Record<string, string> = {
+  hedged_language:         'hedged',
+  vague_object:            'vague',
+  unclear_actor:           'actor?',
+  missing_time:            'no time',
+  promotional_only:        'promo',
+  multi_signal_sentence:   'multi-signal',
+  conflicting_signals:     'tension',
+  negated_signal:          'negated',
+  reported_speech:         'reported',
+  rumor_language:          'rumor',
+  industry_term_ambiguous: 'ambiguous term',
+  boilerplate_content:     'boilerplate',
+  insufficient_context:    'needs context',
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface StoredSignal {
-  primary:    string;
-  classes:    string[];
-  confidence: number;
-  certainty?: number;
-  posture?:   string;
-  actor?:     string;
-  intent?:    string;
-  meanings?:  string[];
+  primary:           string;
+  classes:           string[];
+  confidence:        number;
+  certainty?:        number;
+  posture?:          string;
+  actor?:            string;
+  intent?:           string;
+  meanings?:         string[];
+  // Ambiguity layer
+  evidence_quality?: string;
+  ambiguity_flags?:  string[];
+  signal_tension?:   boolean;
+  negation_detected?:boolean;
+  alternate_signals?: { class: string; confidence: number; meaning?: string }[];
 }
 
 interface StartupRow {
@@ -263,6 +294,43 @@ function WhoCaresDots({ wc }: { wc: { investors: boolean; vendors: boolean; acqu
   );
 }
 
+function EvidenceBadge({ quality }: { quality: string }) {
+  const cfg = EQ_CONFIG[quality] ?? EQ_CONFIG.speculative;
+  return (
+    <span title={cfg.desc} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  );
+}
+
+function AmbiguityFlags({ flags }: { flags: string[] }) {
+  if (!flags || flags.length === 0) return null;
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {flags.slice(0, 4).map(f => (
+        <span key={f} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-zinc-700">
+          {AMBIGUITY_LABELS[f] ?? f}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AlternateSignals({ alts }: { alts: { class: string; confidence: number }[] }) {
+  if (!alts || alts.length === 0) return null;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="text-[9px] text-zinc-600 uppercase tracking-wider">might be:</span>
+      {alts.slice(0, 2).map(a => (
+        <span key={a.class} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 border border-white/5">
+          {SIGNAL_LABELS[a.class] ?? a.class} {Math.round(a.confidence * 100)}%
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SignalCard({ card }: { card: SignalCard }) {
   const primary    = card.signal.primary;
   const colors     = SIGNAL_COLORS[primary] ?? SIGNAL_COLORS.unclassified_signal;
@@ -270,20 +338,34 @@ function SignalCard({ card }: { card: SignalCard }) {
   const urgColor   = URGENCY_COLORS[card.inference.urgency] ?? URGENCY_COLORS.unknown;
   const meanings   = card.signal.meanings?.slice(0, 2) ?? [];
   const typeIcon   = SIGNAL_TYPE_ICONS[sigType];
+  const eq         = card.signal.evidence_quality ?? 'inferred';
+  const flags      = card.signal.ambiguity_flags  ?? [];
+  const alts       = card.signal.alternate_signals ?? [];
+  const hasTension = card.signal.signal_tension;
+
+  // Cards that are negated or low-info get visually dimmed
+  const isDimmed = eq === 'negated' || eq === 'low-information';
 
   return (
-    <div className={`group relative bg-white/[0.03] border rounded-xl p-5 hover:bg-white/[0.05] transition-all ${colors.border}`}>
+    <div className={`group relative bg-white/[0.03] border rounded-xl p-5 transition-all
+      ${isDimmed ? 'opacity-40 hover:opacity-60' : 'hover:bg-white/[0.05]'}
+      ${colors.border}`}>
       {/* Colored left accent */}
       <div className={`absolute left-0 top-4 bottom-4 w-0.5 rounded-full ${colors.text.replace('text-', 'bg-')}`} />
 
       {/* Top row */}
       <div className="flex items-start justify-between gap-3 mb-3 pl-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-white font-bold text-base truncate">{card.name}</span>
             {card.sectors[0] && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 hidden sm:inline">
                 {card.sectors[0]}
+              </span>
+            )}
+            {hasTension && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                ⚡ tension
               </span>
             )}
           </div>
@@ -293,6 +375,7 @@ function SignalCard({ card }: { card: SignalCard }) {
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1.5">
           <SignalBadge primary={primary} />
+          <EvidenceBadge quality={eq} />
           <span className="text-[10px] text-zinc-600">{relativeDate(card.date)}</span>
         </div>
       </div>
@@ -303,7 +386,7 @@ function SignalCard({ card }: { card: SignalCard }) {
       </div>
 
       {/* Middle row — type + urgency + direction */}
-      <div className="pl-2 flex items-center gap-3 mb-3 flex-wrap">
+      <div className="pl-2 flex items-center gap-3 mb-2 flex-wrap">
         {typeIcon && (
           <span className="flex items-center gap-1 text-[11px] text-zinc-500">
             {typeIcon}
@@ -318,8 +401,22 @@ function SignalCard({ card }: { card: SignalCard }) {
         </span>
       </div>
 
+      {/* Alternate signals (might mean Y) */}
+      {alts.length > 0 && (
+        <div className="pl-2 mb-2">
+          <AlternateSignals alts={alts} />
+        </div>
+      )}
+
+      {/* Ambiguity flags */}
+      {flags.length > 0 && (
+        <div className="pl-2 mb-3">
+          <AmbiguityFlags flags={flags} />
+        </div>
+      )}
+
       {/* Inferred meanings */}
-      {meanings.length > 0 && (
+      {meanings.length > 0 && !isDimmed && (
         <div className="pl-2 flex gap-1.5 flex-wrap mb-3">
           {meanings.map(m => (
             <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-zinc-400 border border-white/5">
@@ -423,6 +520,13 @@ const SORT_OPTIONS = [
   { value: 'urgency',  label: 'Most urgent' },
 ];
 
+const EQ_FILTER_OPTIONS = [
+  { value: 'all',       label: 'All tiers' },
+  { value: 'confirmed', label: '✅ Confirmed' },
+  { value: 'inferred',  label: '🔶 Inferred' },
+  { value: 'speculative',label: '⬜ Speculative' },
+];
+
 const URGENCY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, unknown: 0 };
 
 export default function SignalFeedPage() {
@@ -432,6 +536,7 @@ export default function SignalFeedPage() {
   const [loading, setLoading]         = useState(true);
   const [perspective, setPerspective] = useState<Perspective>('all');
   const [signalClass, setSignalClass] = useState('all');
+  const [eqFilter, setEqFilter]       = useState('all');
   const [sort, setSort]               = useState('strength');
   const [search, setSearch]           = useState('');
   const [page, setPage]               = useState(0);
@@ -463,13 +568,14 @@ export default function SignalFeedPage() {
   }, []);
 
   useEffect(() => { loadSignals(); }, [loadSignals]);
-  useEffect(() => { setPage(0); }, [perspective, signalClass, sort, search]);
+  useEffect(() => { setPage(0); }, [perspective, signalClass, eqFilter, sort, search]);
 
   // ── Filter & sort ──────────────────────────────────────────────────────────
   const filtered = allCards
     .filter(c => {
       if (perspective !== 'all' && !c.who_cares[perspective]) return false;
       if (signalClass !== 'all' && c.signal.primary !== signalClass) return false;
+      if (eqFilter !== 'all' && (c.signal.evidence_quality ?? 'inferred') !== eqFilter) return false;
       if (search) {
         const q = search.toLowerCase();
         return c.name.toLowerCase().includes(q) || c.headline.toLowerCase().includes(q);
@@ -566,6 +672,13 @@ export default function SignalFeedPage() {
             </p>
             <PillFilter value={signalClass} onChange={setSignalClass} options={SIGNAL_CLASS_OPTIONS as { value: string; label: string }[]} />
           </div>
+          {/* Evidence quality tier */}
+          <div>
+            <p className="text-xs text-zinc-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <Activity className="w-3 h-3" /> Evidence Tier
+            </p>
+            <PillFilter value={eqFilter} onChange={setEqFilter} options={EQ_FILTER_OPTIONS as { value: string; label: string }[]} />
+          </div>
           {/* Sort + Search */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div>
@@ -642,29 +755,60 @@ export default function SignalFeedPage() {
         )}
 
         {/* ── Legend ───────────────────────────────────────────────────────── */}
-        <div className="mt-12 p-5 bg-white/[0.02] border border-white/10 rounded-xl">
-          <p className="text-xs text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-1.5">
-            <Briefcase className="w-3 h-3" /> Signal → Who Cares
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            {[
-              { icon: <DollarSign className="w-3.5 h-3.5 text-emerald-400" />, label: 'Investors',  desc: 'Fundraising, exit, distress, revenue' },
-              { icon: <ShoppingCart className="w-3.5 h-3.5 text-cyan-400" />,  label: 'Vendors',    desc: 'Buyer pain, RFP, budget, product' },
-              { icon: <Building className="w-3.5 h-3.5 text-violet-400" />,    label: 'Acquirers',  desc: 'Acquisition, exit, distress' },
-              { icon: <Users className="w-3.5 h-3.5 text-indigo-400" />,       label: 'Recruiters', desc: 'Hiring, GTM build, team signals' },
-            ].map(({ icon, label, desc }) => (
-              <div key={label} className="flex items-start gap-2 p-2 rounded-lg bg-white/[0.02]">
-                {icon}
-                <div>
-                  <div className="text-zinc-300 font-medium">{label}</div>
-                  <div className="text-zinc-600 mt-0.5">{desc}</div>
-                </div>
-              </div>
-            ))}
+        <div className="mt-12 space-y-4">
+          {/* Evidence tier legend */}
+          <div className="p-5 bg-white/[0.02] border border-white/10 rounded-xl">
+            <p className="text-xs text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+              <Activity className="w-3 h-3" /> Evidence Quality Tiers
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              {[
+                { eq: 'confirmed',   desc: 'Direct, explicit, high certainty. "We closed our $12M Series A."' },
+                { eq: 'inferred',    desc: 'Reasonable interpretation with context support. "We are scaling the team."' },
+                { eq: 'speculative', desc: 'Weak, hedged, or insufficiently supported. "We may expand next year."' },
+              ].map(({ eq, desc }) => {
+                const cfg = EQ_CONFIG[eq];
+                return (
+                  <div key={eq} className="flex items-start gap-2 p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold shrink-0 mt-0.5 ${cfg.color}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                      {cfg.label}
+                    </span>
+                    <span className="text-zinc-600">{desc}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-zinc-700 text-xs mt-3 pt-3 border-t border-white/5">
+              Core rule: Pythh never forces a sentence into a single hard meaning when language is hedged, vague, promotional, or negated.
+              Every signal carries a primary interpretation, alternates, confidence, and ambiguity flags.
+            </p>
           </div>
-          <p className="text-zinc-700 text-xs mt-3 pt-3 border-t border-white/5">
-            Signal strength = confidence × base certainty. Early intent signals (6–18 months pre-event) are weighted equally to confirmed events.
-          </p>
+          {/* Who cares legend */}
+          <div className="p-5 bg-white/[0.02] border border-white/10 rounded-xl">
+            <p className="text-xs text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+              <Briefcase className="w-3 h-3" /> Signal → Who Cares
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {[
+                { icon: <DollarSign className="w-3.5 h-3.5 text-emerald-400" />, label: 'Investors',  desc: 'Fundraising, exit, distress, revenue' },
+                { icon: <ShoppingCart className="w-3.5 h-3.5 text-cyan-400" />,  label: 'Vendors',    desc: 'Buyer pain, RFP, budget, product' },
+                { icon: <Building className="w-3.5 h-3.5 text-violet-400" />,    label: 'Acquirers',  desc: 'Acquisition, exit, distress' },
+                { icon: <Users className="w-3.5 h-3.5 text-indigo-400" />,       label: 'Recruiters', desc: 'Hiring, GTM build, team signals' },
+              ].map(({ icon, label, desc }) => (
+                <div key={label} className="flex items-start gap-2 p-2 rounded-lg bg-white/[0.02]">
+                  {icon}
+                  <div>
+                    <div className="text-zinc-300 font-medium">{label}</div>
+                    <div className="text-zinc-600 mt-0.5">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-zinc-700 text-xs mt-3 pt-3 border-t border-white/5">
+              Signal strength = confidence × base certainty. Early intent signals (6–18 months pre-event) are equally weighted to confirmed events — ambiguous early data is often the most valuable data.
+            </p>
+          </div>
         </div>
       </div>
     </div>
