@@ -16,6 +16,8 @@ const { isValidStartupName } = require('../../server/utils/startupNameValidator'
 const { insertDiscovered, setSupabase } = require('../../lib/startupInsertGate');
 // Sentence-mode multi-name extractor (handles full sentences, multi-name patterns)
 const { extractNames: extractNamesFromSentence } = require('../../lib/sentenceExtractor');
+// Pythh Signal Intelligence — extracts structured business signals from article text
+const { parseSignal } = require('../../lib/signalParser');
 
 // Import Phase-Change frame parser for entity extraction fallback
 let frameParser;
@@ -586,6 +588,21 @@ async function scrapeRssFeeds() {
           try { inferenceData = extractInferenceData(articleText, item.link); } catch (e) { /* silent */ }
         }
 
+        // ── Pythh Signal Parse — structured business signal from article text ──
+        // Extracts: actor / action / modality / posture / intent / signal_class
+        // Non-blocking — stored in metadata.signals for downstream scoring.
+        let pythh_signal = null;
+        try { pythh_signal = parseSignal(articleText); } catch (e) { /* silent */ }
+
+        // Map inferred meanings → existing boolean flags
+        const signalMeanings = pythh_signal?.inferred_meanings || [];
+        const signalIsLaunched   = signalMeanings.includes('product_live')
+                                || pythh_signal?.primary_signal === 'product_signal';
+        const signalIsFundraised = pythh_signal?.primary_signal === 'fundraising_signal';
+
+        // Merge signal_classes into execution_signals (existing text[] column)
+        const signalTags = pythh_signal?.signal_classes || [];
+
         // ── Insert each name as a separate discovered entry ───────────────────
         setSupabase(supabase);
         let itemAdded = 0;
@@ -613,8 +630,27 @@ async function scrapeRssFeeds() {
               funding_stage: inferenceData.funding_stage || null,
               value_proposition: inferenceData.value_proposition || null,
               team_signals: inferenceData.team_signals || null,
-              execution_signals: inferenceData.execution_signals || null,
-              metadata: Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : null,
+              execution_signals: [
+                ...(inferenceData.execution_signals || []),
+                ...signalTags,
+              ].filter(Boolean).slice(0, 10) || null,
+              is_launched:  signalIsLaunched  || inferenceData.is_launched  || false,
+              has_revenue:  signalIsFundraised || inferenceData.has_revenue  || false,
+              metadata: {
+                ...(Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : {}),
+                ...(pythh_signal ? {
+                  signals: {
+                    primary:    pythh_signal.primary_signal,
+                    classes:    pythh_signal.signal_classes,
+                    confidence: pythh_signal.confidence,
+                    certainty:  pythh_signal.certainty,
+                    posture:    pythh_signal.posture,
+                    actor:      pythh_signal.actor,
+                    intent:     pythh_signal.intent,
+                    meanings:   pythh_signal.inferred_meanings,
+                  }
+                } : {}),
+              } || null,
             });
 
             if (r.ok && !r.skipped) {
