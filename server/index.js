@@ -8620,21 +8620,10 @@ function schedulePostStartTasks() {
       const elapsed = Math.round((Date.now() - start) / 1000);
       console.log(`[rss-scraper] Completed in ${elapsed}s`);
       try {
-        const supabase = getSupabaseClient();
-        await supabase.from('ai_logs').insert({
-          log_type: 'scraper', action_type: 'scheduled_rss_run', status: 'success',
-          output_data: { elapsed_s: elapsed, timestamp: new Date().toISOString() }
-        });
+        // rss_sources.last_scraped / total_discoveries updated by the script itself
       } catch (_) {}
     } catch (err) {
       console.error('[rss-scraper] Failed:', err.message);
-      try {
-        const supabase = getSupabaseClient();
-        await supabase.from('ai_logs').insert({
-          log_type: 'scraper', action_type: 'scheduled_rss_run', status: 'error',
-          output_data: { error: err.message, timestamp: new Date().toISOString() }
-        });
-      } catch (_) {}
     } finally {
       rssScraperRunning = false;
     }
