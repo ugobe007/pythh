@@ -106,6 +106,10 @@ const GEO_TERMS = new Set([
   'africa', 'europe', 'asia', 'america', 'latin america', 'southeast asia',
   'middle east', 'apac', 'emea', 'latam',
   'uk', 'us', 'eu', 'usa',
+  // African country names (often appear as geo prefixes in headlines)
+  'nigeria', 'niger', 'ghana', 'kenya', 'uganda', 'tanzania', 'ethiopia',
+  'senegal', 'rwanda', 'angola', 'zambia', 'zimbabwe', 'botswana', 'cameroon',
+  'mozambique', 'ivory coast', 'mali', 'chad', 'sudan', 'somalia',
 ]);
 
 // ─── CATEGORY NOUNS (descriptor prefixes, never brand names) ─────────────────
@@ -147,6 +151,11 @@ const CATEGORY_NOUNS = new Set([
   'cutting-edge', 'advanced', 'innovative', 'emerging', 'leading', 'top',
   'early-stage', 'seed-stage', 'growth-stage', 'pre-seed', 'stealth',
   'spinout', 'spinoff', 'spin-off', 'incubated',
+  // hyphenated format/style descriptors — never brand names
+  'short-form', 'long-form', 'open-source', 'real-time', 'end-to-end',
+  'full-stack', 'cross-platform', 'multi-platform', 'full-service',
+  'on-demand', 'all-in-one', 'ai-powered', 'ai-driven', 'ml-powered',
+  'cloud-native', 'mobile-first', 'api-first', 'data-driven',
   'former', 'unicorn', 'decacorn', 'soonicorn',
   'subsidiary', 'division', 'portfolio', 'portfolio-company', 'wholly-owned',
   'affiliate', 'joint-venture', 'wholly', 'owned',
@@ -181,6 +190,10 @@ const STOP_WORDS = new Set([
   'catalyst', 'facility', 'holdings', 'showcase', 'everyone',
   'finance', 'everyone writes', 'taught', 'seeks', 'corner',
   'cargo aircraft', 'prepared foods', 'farmer centric',
+  // legal entity suffixes — never a standalone brand name
+  'corporation', 'incorporated', 'limited', 'llc', 'ltd', 'plc', 'gmbh', 'inc',
+  // time/recency words that produce false-positive domains
+  'yesterday', 'today', 'tomorrow', 'now', 'recently', 'latest', 'current',
   // financial/market terms extracted as names
   'billion', 'trillion', 'million', 'investment', 'investments',
   'accelerate', 'leads', 'gaming', 'type', 'cooling',
@@ -504,6 +517,13 @@ function classifyEntityType(name) {
     while (i < words.length - 1 && isDescriptorToken(words[i])) i++;
     if (i > 0) {
       const candidate = words.slice(i).join(' ');
+      const candidateLow = candidate.toLowerCase();
+      // If the remaining candidate is itself a geo term, stop word, or category noun,
+      // there is no real brand here — e.g. "Africa Niger", "Technologies Corporation".
+      if (GEO_TERMS.has(candidateLow) || STOP_WORDS.has(candidateLow) || CATEGORY_NOUNS.has(candidateLow)) {
+        return { type: 'SENTENCE_FRAGMENT', confidence: 0.9,
+          reason: `descriptor+descriptor with no brand signal ("${words.join(' ')}")` };
+      }
       return { type: 'GEO_DESC_PREFIX', confidence: 0.85,
         reason: `descriptor prefix chain ("${words.slice(0, i).join(' ')}")`,
         extractedName: candidate };
