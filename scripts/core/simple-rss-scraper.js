@@ -14,6 +14,8 @@ const path = require('path');
 const { sanitiseWebsiteUrl } = require('../../lib/junk-url-config');
 const { isValidStartupName } = require('../../server/utils/startupNameValidator');
 const { insertDiscovered, setSupabase } = require('../../lib/startupInsertGate');
+// Sentence-mode multi-name extractor (handles full sentences, multi-name patterns)
+const { extractNames: extractNamesFromSentence } = require('../../lib/sentenceExtractor');
 
 // Import Phase-Change frame parser for entity extraction fallback
 let frameParser;
@@ -558,103 +560,75 @@ async function scrapeRssFeeds() {
           continue;
         }
         
-        // Try to extract company name (more lenient)
-        let companyName = extractCompanyName(item.title || '');
-        
-        // Debug: Log first few extraction attempts
-        if (!companyName && skipped < 3) {
-          console.log(`   🔍 Debug: Title: "${(item.title || '').substring(0, 70)}..."`);
-          console.log(`   🔍 Debug: No company name extracted`);
-        }
-        
-        if (!companyName || companyName.length < 2) {
-          skipped++;
-          continue;
-        }
-        
-        // Reject obvious article-title fragments that slipped through extraction
-        const isArticleFragment = /\b(based\s+startup|chipmaker|infrastructure\s+provider|funding\s+round|joins?\s+ai|ipo\s+plans?|agrees?\b)/i.test(companyName)
-          || /\s{2,}/.test(companyName); // double spaces = concatenation artifact
-        if (isArticleFragment) {
+        // ── Name extraction ───────────────────────────────────────────────────
+        // 1. Try headline-mode extractor on the title
+        const titleName = extractCompanyName(item.title || '');
+
+        // 2. Try sentence-mode extractor on title + snippet for additional names
+        const articleText = `${item.title || ''} ${item.contentSnippet || ''}`.trim();
+        const sentenceNames = extractNamesFromSentence(articleText);
+
+        // Merge: headline name first, then sentence names, deduplicated
+        const allNames = [...new Set([
+          ...(titleName ? [titleName] : []),
+          ...sentenceNames,
+        ])].filter(n => n && n.length >= 2);
+
+        if (allNames.length === 0) {
           skipped++;
           continue;
         }
 
-        // Reject garbage names (headline fragments, law firm phrases, article titles)
-        const nameCheck = isValidStartupName(companyName);
-        if (!nameCheck.isValid) {
-          skipped++;
-          continue;
-        }
-        
-        // Check if already exists in discovered_startups
-        const { data: existingDiscovered } = await supabase
-          .from('discovered_startups')
-          .select('id')
-          .ilike('name', companyName)
-          .limit(1);
-        
-        if (existingDiscovered && existingDiscovered.length > 0) {
-          skipped++;
-          continue;
-        }
-        
-        // Also check if already in startup_uploads
-        const { data: existingUploaded } = await supabase
-          .from('startup_uploads')
-          .select('id')
-          .ilike('name', companyName)
-          .limit(1);
-        
-        if (existingUploaded && existingUploaded.length > 0) {
-          skipped++;
-          continue;
-        }
-        
-        // Detect sectors + run inference extraction
-        const articleText = `${item.title} ${item.contentSnippet || ''}`;
+        // ── Detect sectors + inference once per article ───────────────────────
         const sectors = detectSectors(articleText);
-        
-        // Run v2 inference to enrich discovered startup data
         let inferenceData = {};
         if (extractInferenceData) {
-          try {
-            inferenceData = extractInferenceData(articleText, item.link);
-          } catch (e) { /* silent */ }
+          try { inferenceData = extractInferenceData(articleText, item.link); } catch (e) { /* silent */ }
         }
-        
-        // Insert via gate (validates name; script already checked duplicates)
-        try {
-          setSupabase(supabase);
-          const r = await insertDiscovered({
-            name: companyName,
-            description: (item.contentSnippet || item.title || '').slice(0, 500),
-            website: sanitiseWebsiteUrl(item.link),
-            rss_source: source.name,
-            article_url: item.link,
-            article_title: item.title || '',
-            article_date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
-            sectors: sectors,
-            discovered_at: new Date().toISOString(),
-            funding_amount: inferenceData.funding_amount || null,
-            funding_stage: inferenceData.funding_stage || null,
-            value_proposition: inferenceData.value_proposition || null,
-            team_signals: inferenceData.team_signals || null,
-            execution_signals: inferenceData.execution_signals || null,
-            metadata: Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : null,
-          }, { checkDuplicates: false });
 
-          if (r.ok && !r.skipped) {
-            console.log(`   ✅ ${companyName} (${sectors.join(', ')})`);
-            added++;
-            totalAdded++;
-          } else {
-            skipped++;
+        // ── Insert each name as a separate discovered entry ───────────────────
+        setSupabase(supabase);
+        let itemAdded = 0;
+        for (const companyName of allNames) {
+          // Reject obvious article-title fragments
+          const isArticleFragment = /\b(based\s+startup|chipmaker|infrastructure\s+provider|funding\s+round|joins?\s+ai|ipo\s+plans?|agrees?\b)/i.test(companyName)
+            || /\s{2,}/.test(companyName);
+          if (isArticleFragment) continue;
+
+          const nameCheck = isValidStartupName(companyName);
+          if (!nameCheck.isValid) continue;
+
+          try {
+            const r = await insertDiscovered({
+              name: companyName,
+              description: (item.contentSnippet || item.title || '').slice(0, 500),
+              website: sanitiseWebsiteUrl(item.link),
+              rss_source: source.name,
+              article_url: item.link,
+              article_title: item.title || '',
+              article_date: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+              sectors,
+              discovered_at: new Date().toISOString(),
+              funding_amount: inferenceData.funding_amount || null,
+              funding_stage: inferenceData.funding_stage || null,
+              value_proposition: inferenceData.value_proposition || null,
+              team_signals: inferenceData.team_signals || null,
+              execution_signals: inferenceData.execution_signals || null,
+              metadata: Object.keys(inferenceData).length > 0 ? { inference: inferenceData } : null,
+            });
+
+            if (r.ok && !r.skipped) {
+              const tag = allNames.length > 1 ? ` [+${allNames.length - 1} more]` : '';
+              console.log(`   ✅ ${companyName}${tag} (${sectors.join(', ')})`);
+              itemAdded++;
+              added++;
+              totalAdded++;
+            }
+          } catch (dbError) {
+            console.log(`   ⚠️  ${companyName}: ${dbError.message}`);
           }
-        } catch (dbError) {
-          console.log(`   ⚠️  ${companyName}: ${dbError.message}`);
-          skipped++;
         }
+        if (itemAdded === 0) skipped++;
       }
       
       if (skipped > 0 && added === 0) {
