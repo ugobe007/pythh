@@ -70,40 +70,38 @@ const VALID_CLASSES = [
 const SYSTEM_PROMPT = `You are a signal classification engine for Pythh, a startup intelligence platform.
 Your job is to analyze sentences from startup descriptions and news articles and extract structured business signals.
 
-For each sentence, output a JSON array of signals with this exact schema:
+Return a JSON OBJECT with a "signals" key containing an array of signal objects.
+Each signal object must follow this schema exactly:
 {
-  "sentence": "the original sentence",
+  "entity_index": <0-based int — which company in the batch>,
+  "sentence_index": <0-based int — which sentence for that company>,
+  "sentence": "the original sentence text",
   "primary_signal": "<one of the valid signal classes>",
   "signal_type": "event | intent | posture | demand | distress | investor | buyer | talent | market",
-  "signal_strength": <0.0-1.0 number>,
-  "confidence": <0.0-1.0 number>,
+  "signal_strength": <number 0.0-1.0>,
+  "confidence": <number 0.0-1.0>,
   "evidence_quality": "confirmed | inferred | stated | speculative",
   "modality": "active | passive | conditional | hedged | stated",
   "posture": "confident | cautious | optimistic | neutral | uncertain",
-  "action_tag": "<short snake_case action label>",
-  "meaning": "<1 sentence interpretation>",
-  "is_ambiguous": <true/false>,
-  "has_negation": <true/false>,
-  "intensity": ["aggressively" | "rapidly" | etc — only if present],
-  "who_cares": {
-    "investors": <true/false>,
-    "vendors": <true/false>,
-    "acquirers": <true/false>,
-    "recruiters": <true/false>
-  }
+  "action_tag": "<short snake_case label e.g. raise_funding, hire_engineers, launch_product>",
+  "meaning": "<1 sentence plain-English interpretation>",
+  "is_ambiguous": false,
+  "has_negation": false,
+  "intensity": [],
+  "who_cares": { "investors": false, "vendors": false, "acquirers": false, "recruiters": false }
 }
 
-Valid signal classes: ${VALID_CLASSES.join(', ')}
+Valid primary_signal values: ${VALID_CLASSES.join(', ')}
 
 Rules:
-- Only classify sentences that contain a real, extractable business signal
-- Return empty array [] for generic, irrelevant, or purely descriptive sentences with no action
-- Confidence should reflect how certain you are of the classification (not the business outcome)
-- For fundraising: "raised $5M" = 1.0 confidence, "thinking about raising" = 0.45
-- Be conservative: it is better to return fewer high-confidence signals than many uncertain ones
-- Do NOT classify sentences that are just company bios, taglines, or category descriptions
+- Include a signal for ANY sentence mentioning growth, hiring, fundraising, product launches, partnerships, expansion, revenue, customers, or strategic moves
+- Be generous: a startup describing what it does implies a product_signal or market_signal
+- Confidence reflects certainty of classification (not business outcome)
+- fundraising: "raised $5M" → 0.95, "seeking investment" → 0.70, "building for growth" → 0.55
+- Return {"signals": []} ONLY for sentences that are pure noise, legal boilerplate, or HTML artifacts
+- Every signal object MUST include entity_index and sentence_index
 
-Return ONLY valid JSON. No markdown, no explanations.`;
+Return ONLY valid JSON. No markdown, no text outside the JSON object.`;
 
 // ── Text extraction (mirrors ingest-pythh-signals.js) ─────────────────────
 function toStr(v) {
@@ -116,14 +114,14 @@ function toStr(v) {
 
 function extractSentences(row) {
   const ed = row.extracted_data || {};
-  const TEXT_FIELDS = ['description','pitch','problem','solution','value_proposition','market'];
-  const text = TEXT_FIELDS.map(f => toStr(ed[f])).filter(Boolean).join('. ');
+  const TEXT_FIELDS = ['description','pitch','problem','solution','value_proposition','market','tagline'];
+  const text = TEXT_FIELDS.map(f => toStr(ed[f])).filter(s => s && s.length > 2).join('. ');
   if (text.length < 20) return [];
   return text
     .replace(/([.!?])\s+(?=[A-Z])/g, '$1\n')
     .split('\n')
     .map(s => s.trim())
-    .filter(s => s.length >= 20 && s.length <= 600)
+    .filter(s => s.length >= 40 && s.length <= 600)
     .slice(0, 20); // max sentences per entity to control cost
 }
 
@@ -134,7 +132,11 @@ async function classifyWithLLM(entityBatch) {
     return `Company: ${entity.name}\nSentences:\n${sentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
   }).join('\n\n---\n\n');
 
-  const prompt = `Classify the business signals in these startup sentences.\n\n${userContent}\n\nReturn a JSON array of signal objects (across all companies). Include "entity_index" (0-based, which company) and "sentence_index" (0-based, which sentence) on each object.`;
+  const prompt = `Classify the business signals in these startup sentences.\n\n${userContent}\n\nReturn a JSON object with a "signals" key containing an array of signal objects. Include "entity_index" (0-based, which company) and "sentence_index" (0-based, which sentence) on each object.`;
+
+  if (process.env.LLM_DEBUG) {
+    console.log('\n[LLM PROMPT PREVIEW]', userContent.slice(0, 400));
+  }
 
   let raw;
   try {
@@ -155,11 +157,15 @@ async function classifyWithLLM(entityBatch) {
 
   let parsed;
   try {
-    // Handle both {"signals":[...]} and direct [...] responses
     const obj = JSON.parse(raw);
     parsed = Array.isArray(obj) ? obj : (obj.signals || obj.results || obj.data || []);
   } catch {
     return { error: 'JSON parse failed', results: [] };
+  }
+
+  if (process.env.LLM_DEBUG) {
+    console.log('\n[LLM RAW]', raw?.slice(0, 500));
+    console.log('[LLM PARSED count]', parsed?.length);
   }
 
   return { results: parsed };
@@ -184,16 +190,20 @@ async function main() {
     .limit(20000);
   const hasSignals = new Set((entWithSig || []).map(e => e.entity_id));
 
-  // Load entities that have startup_upload_id (so we can get their text)
+  // Load entities — prioritize those with startup_upload_id (richer text)
   const PAGE = 500;
   let entities = [];
   let offset = 0;
+
+  // Pass 1: discovered_startups entities, newest first (RSS-enriched articles land here)
   while (entities.length < LIMIT) {
     const { data: page } = await supabase
       .from('pythh_entities')
-      .select('id, name, startup_upload_id')
+      .select('id, name, startup_upload_id, discovered_startup_id, created_at')
       .eq('is_active', true)
-      .not('startup_upload_id', 'is', null)
+      .is('startup_upload_id', null)
+      .not('discovered_startup_id', 'is', null)
+      .order('created_at', { ascending: false })
       .range(offset, offset + PAGE - 1);
     if (!page?.length) break;
     for (const e of page) {
@@ -203,6 +213,28 @@ async function main() {
     offset += PAGE;
     if (entities.length >= LIMIT) break;
   }
+
+  // Pass 2: startup_upload entities, newest first (fill remaining slots)
+  if (entities.length < LIMIT) {
+    offset = 0;
+    while (entities.length < LIMIT) {
+      const { data: page } = await supabase
+        .from('pythh_entities')
+        .select('id, name, startup_upload_id, discovered_startup_id, created_at')
+        .eq('is_active', true)
+        .not('startup_upload_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (!page?.length) break;
+      for (const e of page) {
+        if (!hasSignals.has(e.id)) entities.push(e);
+      }
+      if (page.length < PAGE) break;
+      offset += PAGE;
+      if (entities.length >= LIMIT) break;
+    }
+  }
+
   entities = entities.slice(0, LIMIT);
   console.log(`   Entities with 0 signals: ${entities.length.toLocaleString()}\n`);
 
@@ -211,9 +243,11 @@ async function main() {
     return;
   }
 
-  // ── Load the corresponding startup_uploads text ─────────────────────────
+  // ── Load text from BOTH startup_uploads and discovered_startups ────────
   console.log('📝 Loading startup text...');
-  const uploadIds = entities.map(e => e.startup_upload_id);
+
+  // From startup_uploads (via extracted_data)
+  const uploadIds = entities.map(e => e.startup_upload_id).filter(Boolean);
   const uploadMap = {};
   const UPAGE = 500;
   for (let i = 0; i < uploadIds.length; i += UPAGE) {
@@ -224,13 +258,44 @@ async function main() {
     for (const r of (rows || [])) uploadMap[r.id] = r;
   }
 
-  // Build entity+sentences list (only those with parseable text)
+  // From discovered_startups (via description + article_title + problem/solution)
+  const discoveredIds = entities.map(e => e.discovered_startup_id).filter(Boolean);
+  const discoveredMap = {};
+  for (let i = 0; i < discoveredIds.length; i += UPAGE) {
+    const { data: rows } = await supabase
+      .from('discovered_startups')
+      .select('id, description, article_title, problem, solution, value_proposition')
+      .in('id', discoveredIds.slice(i, i + UPAGE));
+    for (const r of (rows || [])) discoveredMap[r.id] = r;
+  }
+
+  // Build entity+sentences list — check both sources
   const workItems = [];
   for (const entity of entities) {
-    const upload = uploadMap[entity.startup_upload_id];
-    if (!upload) continue;
-    const sentences = extractSentences(upload);
-    if (sentences.length > 0) workItems.push({ entity, sentences });
+    let sentences = [];
+
+    if (entity.startup_upload_id && uploadMap[entity.startup_upload_id]) {
+      sentences = extractSentences(uploadMap[entity.startup_upload_id]);
+    }
+
+    if (!sentences.length && entity.discovered_startup_id && discoveredMap[entity.discovered_startup_id]) {
+      const ds = discoveredMap[entity.discovered_startup_id];
+      // Build a pseudo extracted_data from discovered_startups fields
+      const pseudoUpload = {
+        extracted_data: {
+          description:       ds.description,
+          problem:           ds.problem,
+          solution:          ds.solution,
+          value_proposition: ds.value_proposition,
+          tagline:           ds.article_title,
+        }
+      };
+      sentences = extractSentences(pseudoUpload);
+    }
+
+    // Skip entities with no real text — the fallback "X is a startup." is useless
+    const totalChars = sentences.reduce((n, s) => n + s.length, 0);
+    if (sentences.length >= 1 && totalChars >= 60) workItems.push({ entity, sentences });
   }
   console.log(`   Entities with parseable text: ${workItems.length.toLocaleString()}\n`);
 
@@ -265,7 +330,9 @@ async function main() {
         if (error) { stats.errors++; }
         else stats.signals_written += s.length;
       }
-      if (t.length) await supabase.from('pythh_signal_timeline').insert(t).catch(() => {});
+      if (t.length) {
+        try { await supabase.from('pythh_signal_timeline').insert(t); } catch { /* optional table */ }
+      }
     }
   }
 

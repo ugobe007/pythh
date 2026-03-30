@@ -94,6 +94,28 @@ function topN(freqMap, n = 50) {
     .slice(0, n);
 }
 
+// ── Junk phrase detector — filter before adding to ontology ──────────────
+// These patterns produce false positives and should never enter the ontology.
+const JUNK_PHRASE_PATTERNS = [
+  // HTML artifacts
+  /charset|meta\s+http|script\s+var|gform|iframe|doctype|stylesheet/i,
+  // Location / geo strings
+  /\b(san francisco|new york|los angeles|london|berlin|singapore|bangalore|tel aviv|chicago|boston|austin|seattle|toronto|paris|amsterdam|dubai)\b/i,
+  /\bunited states\b|\busa\b|\bu\.s\./i,
+  // Article footer boilerplate
+  /appeared first|read more|subscribe|newsletter|sign up|click here|learn more|view all/i,
+  // Pure category descriptors with no action
+  /^(saas|fintech|biotech|insurtech|cleantech|healthtech|edtech|proptech|legaltech|regtech)\s+(company|platform|startup|firm|solution)$/i,
+  // News/media boilerplate
+  /high-quality journalism|practical guides|expert analysis|navigate thrive|enthusiasts/i,
+  // Vague mission statements with no signal
+  /empower entrepreneurs|mission empower|our mission is/i,
+];
+
+function isJunkPhrase(phrase) {
+  return JUNK_PHRASE_PATTERNS.some(re => re.test(phrase));
+}
+
 // ── Map candidate phrase to likely signal class ────────────────────────────
 const CLASS_HINTS = [
   [/(rais|funding|invest|round|series|capital|seed|valuat)/i,           'fundraising_signal'],
@@ -252,9 +274,12 @@ async function main() {
   sample.forEach((s, i) => console.log(`  ${String(i+1).padStart(2)}. ${s.slice(0, 120)}`));
 
   // ── Build expansion candidates ────────────────────────────────────────────
-  // Use trigrams with high frequency as candidate patterns
+  // Use trigrams with high frequency as candidate patterns.
+  // Apply junk filter first — locations, HTML artifacts, and boilerplate should
+  // never be added to the ontology since they corrupt signal classification.
   const expansionCandidates = topTrigrams
     .filter(([g, freq]) => freq >= Math.max(MIN_FREQ, 4))
+    .filter(([phrase]) => !isJunkPhrase(phrase))
     .map(([phrase, freq]) => ({
       phrase,
       freq,
