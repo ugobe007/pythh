@@ -99,7 +99,7 @@ async function main() {
       .select('id, name, website, sectors, description, problem, solution, value_proposition, article_title, article_url, rss_source, article_date, created_at, updated_at')
       .is('startup_id', null)
       .not('name', 'is', null)
-      .not('article_title', 'is', null)
+      .or('article_title.not.is.null,description.not.is.null')
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_FETCH - 1);
     if (error) { console.error('❌ Fetch failed:', error.message); process.exit(1); }
@@ -158,17 +158,18 @@ async function main() {
 
     for (let ei = 0; ei < rows.length; ei += ENTITY_BATCH) {
       const eb = rows.slice(ei, ei + ENTITY_BATCH).map(row => ({
-        name:                 row.name,
-        entity_type:          'startup',
-        sectors:              Array.isArray(row.sectors) ? row.sectors : [],
-        geographies:          [],
-        stage:                null,
-        website:              row.website || null,
-        startup_upload_id:    null,
-        is_active:            true,
-        last_signal_date:     today,
-        updated_at:           now,
-        metadata:             { source: 'discovered', discovered_startup_id: row.id },
+        name:                   row.name,
+        entity_type:            'startup',
+        sectors:                Array.isArray(row.sectors) ? row.sectors : [],
+        geographies:            [],
+        stage:                  row.funding_stage || null,
+        website:                row.website || null,
+        startup_upload_id:      null,
+        discovered_startup_id:  row.id,
+        is_active:              true,
+        last_signal_date:       today,
+        updated_at:             now,
+        metadata:               { source: 'discovered' },
       }));
       const { data: inserted, error: entErr } = await supabase
         .from('pythh_entities')
