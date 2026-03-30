@@ -24,6 +24,8 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData, extractCompanyNameFromHeadline } = require('../lib/inference-extractor.js');
+// Canonical shared validator — replaces local JUNK_ENTITY_WORDS / JUNK_ENTITY_PATTERNS
+const { isValidStartupName } = require('../lib/startupNameValidator');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -41,25 +43,10 @@ const PR_WIRE_DOMAINS = [
   'einpresswire', 'prweb', 'newswire', 'send2press',
 ];
 
-// Reject entity names that look like article fragments (common words, headlines, news outlets)
-const JUNK_ENTITY_WORDS = new Set([
-  'the', 'a', 'an', 'into', 'from', 'with', 'for', 'safe', 'direct', 'longer', 'commercial',
-  'americans', 'ashley', 'base', 'predict', 'daily', 'human', 'joins', 'cr',
-  'wall street journal', 'wsj', 'finland', 'jennifer',
-]);
-// Patterns that indicate article headline fragments, not company names
-const JUNK_ENTITY_PATTERNS = [
-  /^(ai-powered|ai infrastructure|ai founder|voice ai|every ai|healthtech)/i,
-  /(raises?|boosts?|makes?|looking|deployed|recently|yesterday)\s*$/i,
-  /^(complete system|technologies yesterday|the daily|d2c brand|nvidia boosts)/i,
-  /^(with amazon|metamask crypto|billion for|predict human|debt isn)/i,
-  /^(anthropic recently|february while|shift towards|waymo looking)/i,
-  /^(techcrunch trace|techcrunch fundamental|moneycontrol\.com|marketscreener\.com)/i,
-  /^(latvian deep|european investment bank|dutch payments|sports-focused prediction)/i,
-  /^(food waste|muscle-computer|qa test your|goodbye cloud)/i,
-  /^(tether investments|google spinout startup|agentic ai firm)/i,
-  /^gen-\d/i,
-];
+// Local entity junk patterns kept for publisher/outlet names that isValidStartupName
+// doesn't cover (known RSS source names embedded in event subjects).
+// The main name-quality gate is now isValidStartupName() from lib/startupNameValidator.
+const KNOWN_PUBLISHER_FRAGMENTS = /^(techcrunch|moneycontrol\.com|marketscreener\.com|wall street journal|wsj|bloomberg|reuters|forbes|ft\.com|crunchbase)/i;
 
 const DAYS_LOOKBACK = 180; // 6 months of events
 
@@ -99,9 +86,10 @@ function entityNamesFromEvent(event) {
     if (!n || typeof n !== 'string') return;
     const t = n.trim();
     if (t.length < 3 || t.length > 60) return;
-    const norm = normalizeName(t);
-    if (JUNK_ENTITY_WORDS.has(norm)) return;
-    if (JUNK_ENTITY_PATTERNS.some(p => p.test(t))) return;
+    // Canonical quality gate (replaces JUNK_ENTITY_WORDS + JUNK_ENTITY_PATTERNS)
+    if (!isValidStartupName(t).isValid) return;
+    // Extra: known publisher names that embed in event subjects
+    if (KNOWN_PUBLISHER_FRAGMENTS.test(t)) return;
     names.add(t);
   };
   if (event.subject) add(event.subject);
@@ -165,7 +153,7 @@ async function fetchRecentEvents() {
     process.stdout.write(`\r  Fetching events... ${all.length} so far`);
     const { data, error } = await supabase
       .from('startup_events')
-      .select('id, event_id, event_type, subject, object, entities, amounts, round, source_publisher, source_title, source_url, source_published_at, occurred_at')
+      .select('id, event_id, event_type, subject, object, entities, amounts, round, source_publisher, source_title, source_url, source_published_at, occurred_at, semantic_context')
       .gte('occurred_at', since)
       .in('event_type', ['FUNDING', 'INVESTMENT', 'ACQUISITION', 'MERGER', 'LAUNCH', 'PARTNERSHIP', 'OTHER'])
       .order('occurred_at', { ascending: false })
@@ -251,7 +239,7 @@ async function main() {
     if (base && !startupByName.has(base)) startupByName.set(base, s);
     // Index by first token for efficient fuzzy matching (avoids O(n) scan over 12k startups)
     const first = key.split(/\s+/)[0];
-    if (first && first.length >= 2 && !JUNK_ENTITY_WORDS.has(first)) {
+    if (first && first.length >= 2) {
       const list = startupByFirstToken.get(first) || [];
       if (!list.includes(s)) list.push(s);
       startupByFirstToken.set(first, list);
@@ -289,10 +277,8 @@ async function main() {
     if (!matchedStartup) continue;
 
     // Skip startups whose names look like article fragments or news outlets
-    const startupNorm = normalizeName(matchedStartup.name);
-    if (JUNK_ENTITY_WORDS.has(startupNorm)) continue;
-    if (JUNK_ENTITY_PATTERNS.some(p => p.test(matchedStartup.name))) continue;
-    if (/^(wall street|techcrunch|forbes|bloomberg|reuters)\b/i.test(matchedStartup.name)) continue;
+    if (!isValidStartupName(matchedStartup.name).isValid) continue;
+    if (KNOWN_PUBLISHER_FRAGMENTS.test(matchedStartup.name)) continue;
 
     const tid = matchedStartup.id;
     if (!startupSignals.has(tid)) {
@@ -302,6 +288,7 @@ async function main() {
         funding_events: [], // { amounts, round, source_*, occurred_at, event_id } — for funding_outcomes
         exit_events: [],    // { event_type, amounts, object, source_*, occurred_at } — for startup_exits
         articles: [],
+        pythh_signals: [],  // Pythh signal blocks from semantic_context — pick highest confidence at write time
       });
     }
     const sig = startupSignals.get(tid);
@@ -350,6 +337,12 @@ async function main() {
       tier,
       published_at: event.source_published_at,
     });
+
+    // Accumulate Pythh signal blocks — stored by ssot-rss-scraper in semantic_context.signal
+    const signalBlock = event.semantic_context?.signal;
+    if (signalBlock && signalBlock.primary && signalBlock.primary !== 'unclassified_signal') {
+      sig.pythh_signals.push(signalBlock);
+    }
   }
   process.stdout.write('\r');
 
@@ -358,7 +351,7 @@ async function main() {
   const sparseStartups = startups.filter(s => {
     if (matchedIds.has(s.id)) return false;
     const name = (s.name || '').trim();
-    if (name.length < 4 || JUNK_ENTITY_PATTERNS.some(p => p.test(name))) return false;
+    if (name.length < 4 || !isValidStartupName(name).isValid) return false;
     const ext = s.extracted_data || {};
     const hasFunding = ext.funding_amount != null;
     const hasSectors = Array.isArray(ext.sectors) && ext.sectors.length > 0;
@@ -376,12 +369,14 @@ async function main() {
         if (!title.includes(needle)) continue;
         const tid = startup.id;
         if (!startupSignals.has(tid)) {
+          const revSignalBlock = ev.semantic_context?.signal;
           startupSignals.set(tid, {
             startup,
             tier1: 0, tier2: 0, tier3: 0, total: 1,
             funding_events: [],
             exit_events: [],
             articles: [{ title: ev.source_title, url: ev.source_url, publisher: ev.source_publisher, tier: classifyTier(ev.source_publisher), published_at: ev.source_published_at }],
+            pythh_signals: (revSignalBlock && revSignalBlock.primary !== 'unclassified_signal') ? [revSignalBlock] : [],
           });
           reverseMatches++;
         } else {
@@ -504,6 +499,32 @@ async function main() {
     }
     if (sig.funding_stage && !existing.funding_stage) {
       mergedExtracted.funding_stage = sig.funding_stage;
+    }
+
+    // ── Pythh Signal Intelligence — merge best signal from matched events ──────
+    // Pick the signal with the highest confidence across all events for this startup.
+    // Only overwrite if we have a stronger signal than what's already stored.
+    if (sig.pythh_signals && sig.pythh_signals.length > 0) {
+      const best = sig.pythh_signals.reduce((top, s) =>
+        (s.confidence ?? 0) > (top.confidence ?? 0) ? s : top
+      , sig.pythh_signals[0]);
+
+      const existingSignal = existing.pythh_signal;
+      const existingConf = existingSignal?.confidence ?? 0;
+      if (!existingSignal || best.confidence > existingConf) {
+        mergedExtracted.pythh_signal = {
+          primary:    best.primary,
+          classes:    best.classes,
+          confidence: best.confidence,
+          evidence:   best.evidence,
+          strength:   best.strength,
+          ambiguity:  best.ambiguity,
+          who_cares:  best.who_cares,
+          inference:  best.inference,
+          updated_at: new Date().toISOString(),
+          source:     'rss_event',
+        };
+      }
     }
 
     // Inference from news: run pattern matching on event titles to fill missing traction/product/funding

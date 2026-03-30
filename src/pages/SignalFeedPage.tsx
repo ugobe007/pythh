@@ -522,23 +522,49 @@ function TrajectoryCard({ row }: { row: TrajectoryRow }) {
 }
 
 // ─── Match Card ───────────────────────────────────────────────────────────────
+const ACT_LABEL: Record<string, string> = {
+  'reach out now':                        'Reach Out Now',
+  'monitor for diligence escalation':     'Monitor',
+  'wait for more traction confirmation':  'Watch',
+  'prioritize outreach this quarter':     'Reach Out',
+  'enter during pilot stage':             'Engage at Pilot',
+  'wait until procurement language appears': 'Watch',
+  'monitor warm intro via advisor':       'Find Warm Intro',
+  'not yet actionable':                   'Monitor',
+};
+
 function MatchCard({ row }: { row: MatchRow }) {
-  const mtype  = row.match_type || 'capital_match';
-  const meta   = MATCH_TYPE_META[mtype] ?? MATCH_TYPE_META.capital_match;
-  const urgColor = URGENCY_COLORS[row.urgency] ?? URGENCY_COLORS.unknown;
+  const mtype    = row.match_type || 'capital_match';
+  const meta     = MATCH_TYPE_META[mtype] ?? MATCH_TYPE_META.capital_match;
+  const urgColor = URGENCY_COLORS[row.urgency ?? 'unknown'] ?? URGENCY_COLORS.unknown;
   const scorePct = Math.round((row.match_score || 0) * 100);
   const scoreColor = scorePct >= 75 ? 'bg-emerald-500' : scorePct >= 55 ? 'bg-amber-500' : 'bg-orange-500';
+  const isHighUrgency = row.urgency === 'high' || row.urgency === 'critical';
+  const actLabel = ACT_LABEL[row.recommended_action?.toLowerCase() ?? ''] || row.recommended_action || 'Act Now';
 
   return (
-    <div className={`relative bg-white/[0.03] border rounded-xl p-5 hover:bg-white/[0.05] transition-all ${meta.color.split(' ')[1]}`}>
+    <div className={`relative bg-white/[0.03] border rounded-xl p-5 hover:bg-white/[0.05] transition-all ${meta.color.split(' ')[1]} ${isHighUrgency ? 'ring-1 ring-orange-500/20' : ''}`}>
       <div className={`absolute left-0 top-4 bottom-4 w-0.5 rounded-full ${meta.color.split(' ')[0].replace('text-', 'bg-')}`} />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3 pl-2">
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] text-zinc-600 mb-0.5">{row.entity_name || 'Unknown Company'}</div>
+          {/* Entity context */}
+          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+            <span className="text-[10px] text-zinc-500 font-medium truncate">{row.entity_name || 'Unknown Company'}</span>
+            {row.entity_stage && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-600 border border-white/5 shrink-0">
+                {row.entity_stage}
+              </span>
+            )}
+            {(row.entity_sectors || []).slice(0, 1).map(s => (
+              <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-600 border border-white/5 shrink-0 hidden sm:inline">
+                {s}
+              </span>
+            ))}
+          </div>
           <div className="text-white font-bold text-sm truncate">{row.candidate_name || 'Unknown Candidate'}</div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${meta.color}`}>
               {meta.icon} {meta.label}
             </span>
@@ -548,6 +574,9 @@ function MatchCard({ row }: { row: MatchRow }) {
         <div className="shrink-0 text-right">
           <div className="text-2xl font-bold text-white">{scorePct}<span className="text-sm text-zinc-500">%</span></div>
           <div className="text-[10px] text-zinc-600">match score</div>
+          {row.timing_score != null && (
+            <div className="text-[10px] text-zinc-700 mt-0.5">timing {Math.round(row.timing_score * 100)}%</div>
+          )}
         </div>
       </div>
 
@@ -560,11 +589,11 @@ function MatchCard({ row }: { row: MatchRow }) {
 
       {/* Dimension scores */}
       {row.dimension_scores && Object.keys(row.dimension_scores).length > 0 && (
-        <div className="pl-2 mb-3 grid grid-cols-3 gap-2">
+        <div className="pl-2 mb-3 grid grid-cols-3 gap-x-3 gap-y-1.5">
           {Object.entries(row.dimension_scores).slice(0, 6).map(([key, val]) => (
-            <div key={key} className="text-center">
-              <div className="text-[11px] text-white font-medium">{Math.round((val as number) * 100)}%</div>
-              <div className="text-[9px] text-zinc-600 capitalize">{key.replace(/_/g, ' ')}</div>
+            <div key={key} className="flex items-center justify-between">
+              <span className="text-[9px] text-zinc-600 capitalize">{key.replace(/_fit|_/g, ' ').trim()}</span>
+              <span className="text-[10px] text-white font-medium">{Math.round((val as number) * 100)}%</span>
             </div>
           ))}
         </div>
@@ -573,7 +602,7 @@ function MatchCard({ row }: { row: MatchRow }) {
       {/* Explanation */}
       {(row.explanation || []).length > 0 && (
         <div className="pl-2 mb-3 space-y-1">
-          {row.explanation.slice(0, 3).map((r, i) => (
+          {(row.explanation || []).slice(0, 2).map((r, i) => (
             <div key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-400">
               <CheckCircle2 className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
               {r}
@@ -582,17 +611,27 @@ function MatchCard({ row }: { row: MatchRow }) {
         </div>
       )}
 
-      {/* Predicted needs + action */}
+      {/* Predicted needs + Act button */}
       <div className="pl-2 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1 min-w-0">
-          {(row.predicted_need || []).slice(0, 3).map(n => (
-            <span key={n} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 border border-white/5">
+          {(row.predicted_need || []).slice(0, 2).map(n => (
+            <span key={n} className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-600 border border-white/5">
               {n.replace(/_/g, ' ')}
             </span>
           ))}
         </div>
         {row.recommended_action && (
-          <span className="text-[10px] text-amber-400 shrink-0 text-right">{row.recommended_action}</span>
+          <button
+            className={`shrink-0 text-[10px] px-2.5 py-1.5 rounded-lg border font-medium transition-all ${
+              isHighUrgency
+                ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20'
+                : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white'
+            }`}
+            onClick={() => navigator.clipboard?.writeText(`${row.candidate_name} — ${row.recommended_action}`)}
+            title="Copy action to clipboard"
+          >
+            {actLabel} →
+          </button>
         )}
       </div>
     </div>
@@ -811,8 +850,15 @@ export default function SignalFeedPage() {
   const [sort, setSort]               = useState('strength');
   const [search, setSearch]           = useState('');
   const [page, setPage]               = useState(0);
+  // Trajectory tab filters
   const [trajSearch, setTrajSearch]   = useState('');
+  const [trajType, setTrajType]       = useState('all');
+  // Match tab filters
+  const [matchSearch, setMatchSearch] = useState('');
   const [matchType, setMatchType]     = useState('all');
+  const [matchUrgency, setMatchUrgency] = useState('all');
+  const [matchSort, setMatchSort]     = useState('score');
+  const [matchPage, setMatchPage]     = useState(0);
 
   const PAGE_SIZE = 30;
 
@@ -859,7 +905,8 @@ export default function SignalFeedPage() {
       const { data, error } = await sb
         .from('pythh_top_matches')
         .select('*')
-        .limit(300);
+        .order('match_score', { ascending: false })
+        .limit(500);
       if (error) throw error;
       setMatches((data || []) as MatchRow[]);
     } catch (err) {
@@ -869,6 +916,7 @@ export default function SignalFeedPage() {
 
   useEffect(() => { loadSignals(); loadTrajectories(); loadMatches(); }, [loadSignals, loadTrajectories, loadMatches]);
   useEffect(() => { setPage(0); }, [perspective, signalClass, eqFilter, sort, search, activeTab]);
+  useEffect(() => { setMatchPage(0); }, [matchSearch, matchType, matchUrgency, matchSort]);
 
   // ── Filter & sort ──────────────────────────────────────────────────────────
   const filtered = allCards
@@ -893,16 +941,35 @@ export default function SignalFeedPage() {
   const totalPages   = Math.ceil(filtered.length / PAGE_SIZE);
 
   // ── Trajectory filter ──────────────────────────────────────────────────────
-  const filteredTrajs = trajectories.filter(t =>
-    !trajSearch || (t.entity_name || '').toLowerCase().includes(trajSearch.toLowerCase())
-  );
+  const filteredTrajs = trajectories.filter(t => {
+    if (trajSearch && !(t.entity_name || '').toLowerCase().includes(trajSearch.toLowerCase())) return false;
+    if (trajType !== 'all') {
+      const tt = t.trajectory_type || t.dominant_trajectory || '';
+      if (tt !== trajType) return false;
+    }
+    return true;
+  });
 
-  // ── Match filter ───────────────────────────────────────────────────────────
-  const filteredMatches = matches.filter(m =>
-    (matchType === 'all' || m.match_type === matchType) &&
-    (!trajSearch || (m.entity_name || '').toLowerCase().includes(trajSearch.toLowerCase()) ||
-      (m.candidate_name || '').toLowerCase().includes(trajSearch.toLowerCase()))
-  );
+  // ── Match filter + sort ────────────────────────────────────────────────────
+  const MATCH_PAGE_SIZE = 40;
+  const filteredMatches = matches
+    .filter(m => {
+      if (matchType !== 'all' && m.match_type !== matchType) return false;
+      if (matchUrgency !== 'all' && m.urgency !== matchUrgency) return false;
+      if (matchSearch) {
+        const q = matchSearch.toLowerCase();
+        if (!(m.entity_name || '').toLowerCase().includes(q) &&
+            !(m.candidate_name || '').toLowerCase().includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (matchSort === 'urgency') return (URGENCY_RANK[b.urgency ?? 'unknown'] ?? 0) - (URGENCY_RANK[a.urgency ?? 'unknown'] ?? 0);
+      if (matchSort === 'confidence') return (b.confidence ?? 0) - (a.confidence ?? 0);
+      return (b.match_score ?? 0) - (a.match_score ?? 0); // default: score
+    });
+  const matchTotalPages  = Math.ceil(filteredMatches.length / MATCH_PAGE_SIZE);
+  const matchPageSlice   = filteredMatches.slice(matchPage * MATCH_PAGE_SIZE, (matchPage + 1) * MATCH_PAGE_SIZE);
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const totalSignals   = allCards.length;
@@ -998,20 +1065,38 @@ export default function SignalFeedPage() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'trajectories' && (
           <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                <input
-                  type="text"
-                  value={trajSearch}
-                  onChange={e => setTrajSearch(e.target.value)}
-                  placeholder="Filter by company name…"
-                  className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 w-full"
-                />
+            <div className="flex flex-col gap-3 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                  <input
+                    type="text"
+                    value={trajSearch}
+                    onChange={e => setTrajSearch(e.target.value)}
+                    placeholder="Filter by company name…"
+                    className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 w-full"
+                  />
+                </div>
+                <p className="text-sm text-zinc-500 shrink-0">
+                  <span className="text-white font-medium">{filteredTrajs.length}</span> trajectories (90d)
+                </p>
               </div>
-              <p className="text-sm text-zinc-500">
-                <span className="text-white font-medium">{filteredTrajs.length}</span> trajectories (90-day window)
-              </p>
+              <PillFilter
+                value={trajType}
+                onChange={setTrajType}
+                options={[
+                  { value: 'all',                label: 'All Types' },
+                  { value: 'fundraising_active', label: '$ Fundraising' },
+                  { value: 'growth',             label: '↑ Growth' },
+                  { value: 'gtm_expansion',      label: '→ GTM' },
+                  { value: 'product_maturation', label: '⚡ Product' },
+                  { value: 'exit_preparation',   label: '⬆ Exit' },
+                  { value: 'distress_survival',  label: '⚠ Distress' },
+                  { value: 'repositioning',      label: '↺ Repositioning' },
+                  { value: 'expansion',          label: '🌐 Expansion' },
+                  { value: 'unknown',            label: '? Unknown' },
+                ] as { value: string; label: string }[]}
+              />
             </div>
             {filteredTrajs.length === 0 ? (
               <div className="text-center py-24 text-zinc-600">
@@ -1032,39 +1117,85 @@ export default function SignalFeedPage() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {activeTab === 'matches' && (
           <div>
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-                <input
-                  type="text"
-                  value={trajSearch}
-                  onChange={e => setTrajSearch(e.target.value)}
-                  placeholder="Filter company or candidate…"
-                  className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 w-full"
+            {/* Filters */}
+            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 mb-5 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                  <input
+                    type="text"
+                    value={matchSearch}
+                    onChange={e => setMatchSearch(e.target.value)}
+                    placeholder="Search company or candidate…"
+                    className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 w-full"
+                  />
+                </div>
+                <PillFilter
+                  value={matchSort}
+                  onChange={setMatchSort}
+                  options={[
+                    { value: 'score',      label: 'By Score' },
+                    { value: 'urgency',    label: 'By Urgency' },
+                    { value: 'confidence', label: 'By Confidence' },
+                  ] as { value: string; label: string }[]}
                 />
               </div>
-              <PillFilter
-                value={matchType}
-                onChange={setMatchType}
-                options={[
-                  { value: 'all',           label: 'All Types' },
-                  { value: 'capital_match', label: '$ Investor' },
-                  { value: 'vendor_match',  label: 'Vendor' },
-                  { value: 'partner_match', label: 'Partner' },
-                  { value: 'talent_match',  label: 'Talent' },
-                  { value: 'advisor_match', label: 'Advisor' },
-                  { value: 'acquirer_match',label: 'Acquirer' },
-                ] as { value: string; label: string }[]}
-              />
-            </div>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-zinc-500">
-                <span className="text-white font-medium">{filteredMatches.length}</span> matches · sorted by score + urgency
-              </p>
-              <div className="flex gap-2 text-[11px] text-zinc-600">
-                <span className="flex items-center gap-1"><Flame className="w-3 h-3 text-orange-400" /> High urgency: {highUrgencyMatches}</span>
+              <div>
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Flame className="w-3 h-3" /> Match Type
+                </p>
+                <PillFilter
+                  value={matchType}
+                  onChange={setMatchType}
+                  options={[
+                    { value: 'all',           label: 'All' },
+                    { value: 'capital_match', label: '$ Investor' },
+                    { value: 'vendor_match',  label: 'Vendor' },
+                    { value: 'partner_match', label: 'Partner' },
+                    { value: 'talent_match',  label: 'Talent' },
+                    { value: 'advisor_match', label: 'Advisor' },
+                    { value: 'acquirer_match',label: 'Acquirer' },
+                  ] as { value: string; label: string }[]}
+                />
+              </div>
+              <div>
+                <p className="text-[10px] text-zinc-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3 h-3" /> Urgency
+                </p>
+                <PillFilter
+                  value={matchUrgency}
+                  onChange={setMatchUrgency}
+                  options={[
+                    { value: 'all',    label: 'All' },
+                    { value: 'high',   label: '🔴 High' },
+                    { value: 'medium', label: '🟡 Medium' },
+                    { value: 'low',    label: '⚪ Low' },
+                  ] as { value: string; label: string }[]}
+                />
               </div>
             </div>
+
+            {/* Results header */}
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-zinc-500">
+                <span className="text-white font-medium">{filteredMatches.length.toLocaleString()}</span> matches
+                {matchUrgency === 'all' && (
+                  <span className="ml-2 text-zinc-600">
+                    · <span className="text-orange-400 font-medium">{highUrgencyMatches}</span> high urgency
+                  </span>
+                )}
+              </p>
+              {matchTotalPages > 1 && (
+                <div className="flex items-center gap-2 text-sm text-zinc-500">
+                  <button disabled={matchPage === 0} onClick={() => setMatchPage(p => p - 1)}
+                    className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">←</button>
+                  <span>{matchPage + 1} / {matchTotalPages}</span>
+                  <button disabled={matchPage >= matchTotalPages - 1} onClick={() => setMatchPage(p => p + 1)}
+                    className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">→</button>
+                </div>
+              )}
+            </div>
+
             {filteredMatches.length === 0 ? (
               <div className="text-center py-24 text-zinc-600">
                 <Target className="w-12 h-12 mx-auto mb-4 opacity-30" />
@@ -1072,9 +1203,20 @@ export default function SignalFeedPage() {
                 <p className="text-sm mt-1">Run <code className="bg-white/5 px-1 rounded">node scripts/compute-matches.js --apply</code> to populate.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredMatches.slice(0, 60).map(m => <MatchCard key={m.id} row={m} />)}
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {matchPageSlice.map(m => <MatchCard key={m.id} row={m} />)}
+                </div>
+                {matchTotalPages > 1 && (
+                  <div className="flex justify-center items-center gap-3 mt-8 text-sm text-zinc-500">
+                    <button disabled={matchPage === 0} onClick={() => { setMatchPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">← Prev</button>
+                    <span className="text-zinc-600">{matchPage + 1} of {matchTotalPages}</span>
+                    <button disabled={matchPage >= matchTotalPages - 1} onClick={() => { setMatchPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">Next →</button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

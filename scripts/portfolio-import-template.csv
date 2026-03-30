@@ -1,0 +1,4 @@
+investor,company_name,company_website,round,amount,source_url
+Sequoia,Stripe,https://stripe.com,Seed,2000000,https://www.sequoiacap.com/companies/
+Sequoia,Airbnb,https://airbnb.com,Seed,600000,https://www.sequoiacap.com/companies/
+a16z,Coinbase,https://coinbase.com,Series A,5000000,https://a16z.com/portfolio/

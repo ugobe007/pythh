@@ -28,9 +28,13 @@ const { parseFrameFromTitle, toCapitalEvent, setOntologyEntities } = require('..
 
 // Import v2 Inference Extractor + REAL GOD Scoring
 const { extractInferenceData, extractSectors: v2ExtractSectors, assessConfidence } = require('../../lib/inference-extractor');
+// Pythh Signal Intelligence — extracts structured business signals from article text
+const { parseSignal } = require('../../lib/signalParser');
 const { calculateHotScore } = require('../../server/services/startupScoringService.ts');
 // Shared URL validation — import as PUBLISHER_DOMAINS to keep existing usages unchanged
 const { JUNK_DOMAINS: PUBLISHER_DOMAINS, isJunkUrl } = require('../../lib/junk-url-config');
+// Canonical shared validator (single source of truth for name quality)
+const { isValidStartupName } = require('../../lib/startupNameValidator');
 
 /**
  * Transform a startup row into a scoring profile (matches recalculate-scores.ts SSOT).
@@ -376,6 +380,27 @@ async function scrapeRssFeeds() {
           recordMetric('reject_reasons', event.extraction.reject_reason || 'unknown');
           continue;
         }
+
+        // ── Pythh Signal Intelligence ───────────────────────────────────────────
+        // Parse structured business signals from the article title + snippet.
+        // Non-blocking — failures are silently ignored so a bad parse never
+        // breaks the scrape. Results are merged into event semantic_context and
+        // startup extracted_data for the Signal Feed and scoring engine.
+        const articleText = `${item.title} ${item.contentSnippet || item.content || ''}`.slice(0, 2000);
+        let pythhSignal = null;
+        try { pythhSignal = parseSignal(articleText); } catch (_e) { /* silent */ }
+
+        // Build compact signal block for storage (avoid bloating JSONB with full output)
+        const signalBlock = pythhSignal ? {
+          primary:    pythhSignal.primary_signal,
+          classes:    pythhSignal.signal_classes,
+          confidence: pythhSignal.confidence,
+          evidence:   pythhSignal.evidence_quality,
+          strength:   pythhSignal.signal_strength,
+          ambiguity:  pythhSignal.ambiguity_flags,
+          who_cares:  pythhSignal.who_cares,
+          inference:  pythhSignal.inference,
+        } : null;
         
         // Store in startup_events table with UPSERT on event_id (100% coverage)
         let insertedEvent = null;
@@ -402,7 +427,10 @@ async function scrapeRssFeeds() {
               source_published_at: event.source.published_at,
               amounts: event.amounts,
               round: event.round,
-              semantic_context: event.semantic_context,
+              semantic_context: {
+                ...event.semantic_context,
+                ...(signalBlock ? { signal: signalBlock } : {}),
+              },
               entities: event.entities,
               extraction_meta: event.extraction,
               notes: event.notes,
@@ -488,7 +516,7 @@ async function scrapeRssFeeds() {
               }
               
               // === V2 INFERENCE + REAL GOD SCORING ===
-              const articleText = `${primaryEntity.name} ${event.source.title} ${item.contentSnippet || item.content || ''}`;
+              const articleText = `${primaryEntity.name} ${event.source.title} ${item.contentSnippet || item.content || ''}`; // eslint-disable-line no-shadow
               let extractedData = {};
               let inferredSectors = detectSectors(event.source.title);
               let godScores = {};
@@ -545,19 +573,30 @@ async function scrapeRssFeeds() {
                                   : score >= FLOOR               ? 'pending'
                                   :                                 'holding';
               
-              // Create new startup with v2 inference data + real GOD score
+              // Create new startup with v2 inference data + real GOD score + Pythh signals
               const { data: newRow, error: err } = await supabase
                 .from('startup_uploads')
                 .insert({
                   name: primaryEntity.name,
                   description: event.source.title.slice(0, 500),
-                  website: website || null, // Use null instead of '' to avoid unique constraint on empty strings
+                  website: website || null,
                   status: startupStatus,
                   sectors: inferredSectors,
                   source_type: 'rss',
                   source_url: event.source.url,
                   discovery_event_id: insertedEvent.id,
-                  extracted_data: Object.keys(extractedData).length > 0 ? extractedData : null,
+                  extracted_data: {
+                    ...(Object.keys(extractedData).length > 0 ? extractedData : {}),
+                    ...(signalBlock ? {
+                      signal_primary:    signalBlock.primary,
+                      signal_classes:    signalBlock.classes,
+                      signal_confidence: signalBlock.confidence,
+                      signal_evidence:   signalBlock.evidence,
+                      signal_strength:   signalBlock.strength,
+                      signal_who_cares:  signalBlock.who_cares,
+                      signal_inference:  signalBlock.inference,
+                    } : {}),
+                  } || null,
                   tagline: extractedData.tagline || null,
                   ...godScores,
                 })
@@ -743,114 +782,7 @@ function sanitizeStartupName(name) {
   return n.length >= 2 ? n : name.trim();
 }
 
-// ============================================================================
-// NAME QUALITY VALIDATION
-// Catches concatenated/garbage names before they enter the database
-// ============================================================================
-const COMMON_CITIES = new Set([
-  'san francisco', 'new york', 'london', 'berlin', 'tokyo', 'paris', 'boston',
-  'seattle', 'austin', 'chicago', 'los angeles', 'miami', 'denver', 'toronto',
-  'singapore', 'bangalore', 'tel aviv', 'amsterdam', 'stockholm', 'dublin',
-  'mountain view', 'palo alto', 'menlo park', 'redwood city', 'sunnyvale',
-]);
-
-const BATCH_SEASONS = /\b(W|S|F|Winter|Summer|Fall|Spring)\s*\d{2,4}\b/i;
-
-// Single generic dictionary words that are never company names
-const GENERIC_SINGLE_WORDS = new Set([
-  'refinance','refinancing','nutrition','natural','organic','renewable','sustainable',
-  'digital','virtual','mobile','wireless','broadband','cloud','cyber','smart',
-  'banking','insurance','lending','mortgage','investing','trading','crypto','bitcoin',
-  'healthcare','wellness','fitness','nutrition','therapy','medical','pharma',
-  'logistics','transport','shipping','delivery','commerce','retail','marketing',
-  'analytics','automation','optimization','infrastructure','platform','solution',
-  'enterprise','startup','venture','capital','equity','fund','portfolio',
-  'innovation','disruption','transformation','acceleration',
-  'software','hardware','firmware','semiconductor','microchip',
-  'engineering','manufacturing','processing',
-  'education','learning','training','coaching',
-  'media','content','streaming','broadcasting','publishing',
-  'energy','solar','wind','nuclear','hydrogen','battery',
-  'agriculture','farming','livestock','aquaculture',
-  'construction','architecture','interior','exterior',
-  'cybersecurity','blockchain','metaverse','nft','defi','dao',
-]);
-
-// Well-known political figures and celebrities (not companies)
-const POLITICAL_FIGURE_PATTERN = /^(ocasio|ocasio-cortez|aoc|biden|trump|harris|obama|pelosi|bernie|sanders|warren|desantis|musk|bezos|zuckerberg|gates|buffett|soros|koch|thiel|andreessen|york|macron|merkel|zelenskyy|putin|xi|modi|scholz|starmer|netanyahu)/i;
-
-// Article verb chains: "X drives Y", "Enterprises Raise Round", "Company Acquires Z"
-const ARTICLE_VERB_CHAIN = /\b(raises?|raised|drive|drives|drove|acquires?|acquired|launches?|launched|partnered|secures?|secured|announces?|announced|expands?|expanded|closes?|closed|wins?|won|names?|named|hires?|hired|cuts?|cut|lays?\s+off|layoffs?|files?\s+for|ipo|spac|goes?\s+public)\b/i;
-
-function isValidStartupName(name) {
-  if (!name || typeof name !== 'string') return { valid: false, reason: 'empty' };
-  const trimmed = name.trim();
-  
-  // Too long (likely article title or concatenated data)
-  if (trimmed.length > 60) return { valid: false, reason: `too_long (${trimmed.length} chars)` };
-  
-  // Too short
-  if (trimmed.length < 2) return { valid: false, reason: 'too_short' };
-  
-  // Contains batch/season indicators (YC bad name pattern)
-  if (BATCH_SEASONS.test(trimmed)) return { valid: false, reason: 'contains_batch_season' };
-  
-  const lower = trimmed.toLowerCase();
-
-  // Single generic dictionary word — ONLY when name is exactly that word (lowercase match)
-  // "Pharma" → flagged, but "35Pharma", "Pharma Inc" → passes
-  if (!trimmed.includes(' ') && GENERIC_SINGLE_WORDS.has(lower)) {
-    return { valid: false, reason: `generic_single_word (${trimmed})` };
-  }
-
-  // Political figures / celebrities
-  if (POLITICAL_FIGURE_PATTERN.test(trimmed)) {
-    return { valid: false, reason: 'political_figure_or_celebrity' };
-  }
-
-  // Article verb chain: reads like a news headline (only flag 3+ word names to avoid
-  // false positives on legitimate names like "Drive Health", "Launch Pad", etc.)
-  const words = trimmed.split(/\s+/);
-  if (words.length >= 3 && ARTICLE_VERB_CHAIN.test(trimmed)) {
-    return { valid: false, reason: 'article_headline_verb_chain' };
-  }
-
-  // Starts with a number followed by a noun (e.g. "5 Ways", "10 Startups")
-  if (/^\d+\s+\w+/.test(trimmed)) {
-    return { valid: false, reason: 'starts_with_number_noun' };
-  }
-
-  // Contains city name (concatenation artifact)
-  for (const city of COMMON_CITIES) {
-    // Only flag if city appears as a suffix (not the whole name or prefix of a real name)
-    if (lower.length > city.length + 3 && lower.endsWith(city)) {
-      return { valid: false, reason: `city_suffix (${city})` };
-    }
-  }
-  
-  // Multiple capital words without spaces (CamelCase concatenation)
-  const camelBoundaries = trimmed.match(/[a-z][A-Z]/g);
-  if (camelBoundaries && camelBoundaries.length >= 3) {
-    return { valid: false, reason: 'excessive_camelcase' };
-  }
-  
-  // Contains common description fragments
-  if (/\b(platform for|helps? |enables?|automates?|provides?|delivers?)\b/i.test(trimmed) && trimmed.length > 30) {
-    return { valid: false, reason: 'contains_description' };
-  }
-  
-  // Looks like an article title fragment (contains action verbs in the middle/end)
-  if (/\b(agrees?|joins?\s+ai|chipmaker|infrastructure\s+provider|funding\s+round|ipo\s+plans?)\b/i.test(trimmed)) {
-    return { valid: false, reason: 'article_title_fragment' };
-  }
-
-  // Still has "based" in it (location prefix not fully stripped)
-  if (/\bbased\b/i.test(trimmed) && trimmed.length > 10) {
-    return { valid: false, reason: 'contains_based_prefix' };
-  }
-  
-  return { valid: true };
-}
+// isValidStartupName is imported from lib/startupNameValidator.js (canonical SSOT)
 
 // PUBLISHER DOMAINS TO BLOCK (these are article sources, not company websites)
 // Also used by name validation below
