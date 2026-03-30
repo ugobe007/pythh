@@ -5,7 +5,8 @@ import {
   ArrowLeft, Radio, TrendingUp, DollarSign, Users, Building,
   ShoppingCart, AlertTriangle, Zap, Target, Clock, RefreshCw,
   ChevronRight, Eye, Filter, BarChart3, Globe, Activity,
-  Briefcase, Rocket, Shield, Search,
+  Briefcase, Rocket, Shield, Search, GitBranch, Layers,
+  ArrowRight, Gauge, CheckCircle2, XCircle, Flame,
 } from 'lucide-react';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
 
@@ -209,6 +210,84 @@ interface SignalCard {
 }
 
 type Perspective = 'all' | 'investors' | 'vendors' | 'acquirers' | 'recruiters';
+type ActiveTab   = 'signals' | 'trajectories' | 'matches';
+
+// ── Trajectory row from pythh_active_trajectories view ───────────────────────
+interface TrajectoryRow {
+  id:                       string;
+  computed_at:              string;
+  entity_name?:             string;
+  entity_type?:             string;
+  entity_stage?:            string;
+  time_window_days?:        number;
+  dominant_trajectory?:     string;
+  trajectory_type?:         string;
+  trajectory_label?:        string;
+  trajectory_confidence?:   number;
+  velocity_score?:          number;
+  momentum?:                string;
+  acceleration?:            string;
+  consistency_score?:       number;
+  current_stage?:           string;
+  stage_transition_detected?: boolean;
+  dominant_signal?:         string;
+  predicted_next_moves?:    string[];
+  prediction?:              unknown;
+  anomalies?:               unknown[];
+  total_signals?:           number;
+  last_signal_date?:        string;
+  // from join (not in view but added for backward compat)
+  stage_from?:              string;
+  stage_to?:                string;
+  supporting_signals?:      string[];
+}
+
+// ── Match row from pythh_top_matches ──────────────────────────────────────────
+interface MatchRow {
+  id:                 string;
+  entity_name?:       string;
+  entity_stage?:      string;
+  entity_sectors?:    string[];
+  candidate_name?:    string;
+  candidate_type?:    string;
+  match_type:         string;
+  match_score:        number;
+  timing_score?:      number;
+  confidence?:        number;
+  urgency?:           string;
+  trajectory_used?:   string;
+  predicted_need?:    string[];
+  supporting_signals?:string[];
+  explanation?:       string[];
+  recommended_action?:string;
+  dimension_scores?:  Record<string, number>;
+  matched_at:         string;
+}
+
+// ── Trajectory type label map ─────────────────────────────────────────────────
+const TRAJ_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  fundraising_active:    { label: 'Fundraising',      color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', icon: <DollarSign className="w-4 h-4" /> },
+  gtm_expansion:         { label: 'GTM Expansion',    color: 'text-amber-400   border-amber-500/30   bg-amber-500/10',   icon: <Rocket className="w-4 h-4" /> },
+  product_maturation:    { label: 'Product Build',    color: 'text-sky-400     border-sky-500/30     bg-sky-500/10',     icon: <Zap className="w-4 h-4" /> },
+  buyer_procurement:     { label: 'Buyer Intent',     color: 'text-cyan-400    border-cyan-500/30    bg-cyan-500/10',    icon: <ShoppingCart className="w-4 h-4" /> },
+  distress_survival:     { label: 'Distress',         color: 'text-red-400     border-red-500/30     bg-red-500/10',     icon: <AlertTriangle className="w-4 h-4" /> },
+  exit_preparation:      { label: 'Exit Prep',        color: 'text-violet-400  border-violet-500/30  bg-violet-500/10',  icon: <Target className="w-4 h-4" /> },
+  repositioning:         { label: 'Repositioning',    color: 'text-orange-400  border-orange-500/30  bg-orange-500/10',  icon: <GitBranch className="w-4 h-4" /> },
+  regulatory_enterprise: { label: 'Enterprise Push',  color: 'text-indigo-400  border-indigo-500/30  bg-indigo-500/10',  icon: <Shield className="w-4 h-4" /> },
+  growth:                { label: 'Growth',           color: 'text-teal-400    border-teal-500/30    bg-teal-500/10',    icon: <TrendingUp className="w-4 h-4" /> },
+  expansion:             { label: 'Expansion',        color: 'text-teal-400    border-teal-500/30    bg-teal-500/10',    icon: <Globe className="w-4 h-4" /> },
+  unknown:               { label: 'Unknown',          color: 'text-zinc-400    border-zinc-600       bg-zinc-800',       icon: <Activity className="w-4 h-4" /> },
+};
+
+const MATCH_TYPE_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  capital_match:   { label: 'Investor Match',  color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', icon: <DollarSign className="w-3.5 h-3.5" /> },
+  vendor_match:    { label: 'Vendor Match',    color: 'text-cyan-400    border-cyan-500/30    bg-cyan-500/10',    icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+  partner_match:   { label: 'Partner Match',   color: 'text-purple-400  border-purple-500/30  bg-purple-500/10',  icon: <Layers className="w-3.5 h-3.5" /> },
+  talent_match:    { label: 'Talent Match',    color: 'text-indigo-400  border-indigo-500/30  bg-indigo-500/10',  icon: <Users className="w-3.5 h-3.5" /> },
+  acquirer_match:  { label: 'Acquirer Match',  color: 'text-violet-400  border-violet-500/30  bg-violet-500/10',  icon: <Building className="w-3.5 h-3.5" /> },
+  advisor_match:   { label: 'Advisor Match',   color: 'text-amber-400   border-amber-500/30   bg-amber-500/10',   icon: <Briefcase className="w-3.5 h-3.5" /> },
+  buyer_match:     { label: 'Buyer Match',     color: 'text-orange-400  border-orange-500/30  bg-orange-500/10',  icon: <Target className="w-3.5 h-3.5" /> },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toSignalCard(row: StartupRow): SignalCard | null {
@@ -327,6 +406,195 @@ function AlternateSignals({ alts }: { alts: { class: string; confidence: number 
           {SIGNAL_LABELS[a.class] ?? a.class} {Math.round(a.confidence * 100)}%
         </span>
       ))}
+    </div>
+  );
+}
+
+// ─── Trajectory Card ──────────────────────────────────────────────────────────
+function ScoreRing({ value, label, color }: { value: number; label: string; color: string }) {
+  const pct = Math.round(value * 100);
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="relative w-12 h-12">
+        <svg className="w-12 h-12 -rotate-90" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3" />
+          <circle
+            cx="18" cy="18" r="15.9" fill="none"
+            stroke="currentColor" strokeWidth="3"
+            strokeDasharray={`${pct} ${100 - pct}`}
+            strokeLinecap="round"
+            className={color}
+          />
+        </svg>
+        <span className={`absolute inset-0 flex items-center justify-center text-[11px] font-bold ${color}`}>{pct}</span>
+      </div>
+      <span className="text-[10px] text-zinc-500 text-center leading-tight">{label}</span>
+    </div>
+  );
+}
+
+function TrajectoryCard({ row }: { row: TrajectoryRow }) {
+  const ttype = row.trajectory_type || row.dominant_trajectory || 'unknown';
+  const meta  = TRAJ_LABELS[ttype] ?? TRAJ_LABELS.unknown;
+  const anomalyCount  = (row.anomalies || []).length;
+  const nextMoves     = row.predicted_next_moves || [];
+  const suppSignals   = row.supporting_signals   || [];
+  const momentum      = row.momentum;
+  const accel         = row.acceleration;
+
+  return (
+    <div className={`relative bg-white/[0.03] border rounded-xl p-5 hover:bg-white/[0.05] transition-all ${meta.color.split(' ')[1]}`}>
+      <div className={`absolute left-0 top-4 bottom-4 w-0.5 rounded-full ${meta.color.split(' ')[0].replace('text-', 'bg-')}`} />
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-4 pl-2">
+        <div>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-white font-bold text-base">{row.entity_name || 'Unknown'}</span>
+            {anomalyCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                ⚡ {anomalyCount} anomal{anomalyCount === 1 ? 'y' : 'ies'}
+              </span>
+            )}
+          </div>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${meta.color}`}>
+            {meta.icon}
+            {meta.label}
+          </span>
+        </div>
+        <div className="text-right shrink-0">
+          {momentum && <div className="text-[10px] text-zinc-500 capitalize">{momentum}</div>}
+          {accel    && <div className="text-[10px] text-zinc-600 capitalize">{accel}</div>}
+          <div className="text-[10px] text-zinc-600 mt-1">
+            {row.total_signals ?? 0} signal{(row.total_signals ?? 0) !== 1 ? 's' : ''}
+          </div>
+        </div>
+      </div>
+
+      {/* Score rings */}
+      <div className="pl-2 flex items-center gap-4 mb-4">
+        <ScoreRing value={row.trajectory_confidence ?? 0} label="Confidence" color="text-amber-400" />
+        <ScoreRing value={row.velocity_score ?? 0}        label="Velocity"   color="text-emerald-400" />
+        <ScoreRing value={row.consistency_score ?? 0}     label="Consistency" color="text-cyan-400" />
+        <div className="flex-1 ml-2">
+          {row.current_stage && (
+            <div className="text-[11px] text-zinc-400 mb-1">
+              Stage: <span className="text-white font-medium">{row.current_stage.replace(/_/g, ' ')}</span>
+            </div>
+          )}
+          {row.dominant_signal && (
+            <div className="text-[11px] text-zinc-500 mt-1">
+              Dominant: <span className="text-zinc-300">{SIGNAL_LABELS[row.dominant_signal] ?? row.dominant_signal.replace(/_/g,' ')}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Predicted next moves */}
+      {nextMoves.length > 0 && (
+        <div className="pl-2 mb-3">
+          <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1.5">Predicted Next</p>
+          <div className="flex flex-wrap gap-1.5">
+            {nextMoves.slice(0, 4).map(m => (
+              <span key={m} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-zinc-400 border border-white/5">
+                {m.replace(/_/g, ' ')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Supporting signals */}
+      {suppSignals.length > 0 && (
+        <div className="pl-2 pt-3 border-t border-white/5 flex flex-wrap gap-1">
+          {suppSignals.slice(0, 5).map(s => {
+            const c = SIGNAL_COLORS[s] ?? SIGNAL_COLORS.unclassified_signal;
+            return (
+              <span key={s} className={`text-[10px] px-1.5 py-0.5 rounded border ${c.bg} ${c.text} ${c.border}`}>
+                {SIGNAL_LABELS[s] ?? s.replace(/_/g,' ')}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Match Card ───────────────────────────────────────────────────────────────
+function MatchCard({ row }: { row: MatchRow }) {
+  const mtype  = row.match_type || 'capital_match';
+  const meta   = MATCH_TYPE_META[mtype] ?? MATCH_TYPE_META.capital_match;
+  const urgColor = URGENCY_COLORS[row.urgency] ?? URGENCY_COLORS.unknown;
+  const scorePct = Math.round((row.match_score || 0) * 100);
+  const scoreColor = scorePct >= 75 ? 'bg-emerald-500' : scorePct >= 55 ? 'bg-amber-500' : 'bg-orange-500';
+
+  return (
+    <div className={`relative bg-white/[0.03] border rounded-xl p-5 hover:bg-white/[0.05] transition-all ${meta.color.split(' ')[1]}`}>
+      <div className={`absolute left-0 top-4 bottom-4 w-0.5 rounded-full ${meta.color.split(' ')[0].replace('text-', 'bg-')}`} />
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 mb-3 pl-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] text-zinc-600 mb-0.5">{row.entity_name || 'Unknown Company'}</div>
+          <div className="text-white font-bold text-sm truncate">{row.candidate_name || 'Unknown Candidate'}</div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${meta.color}`}>
+              {meta.icon} {meta.label}
+            </span>
+            <span className={`text-[11px] font-medium ${urgColor}`}>{row.urgency} urgency</span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-2xl font-bold text-white">{scorePct}<span className="text-sm text-zinc-500">%</span></div>
+          <div className="text-[10px] text-zinc-600">match score</div>
+        </div>
+      </div>
+
+      {/* Score bar */}
+      <div className="pl-2 mb-3">
+        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full ${scoreColor} transition-all`} style={{ width: `${scorePct}%` }} />
+        </div>
+      </div>
+
+      {/* Dimension scores */}
+      {row.dimension_scores && Object.keys(row.dimension_scores).length > 0 && (
+        <div className="pl-2 mb-3 grid grid-cols-3 gap-2">
+          {Object.entries(row.dimension_scores).slice(0, 6).map(([key, val]) => (
+            <div key={key} className="text-center">
+              <div className="text-[11px] text-white font-medium">{Math.round((val as number) * 100)}%</div>
+              <div className="text-[9px] text-zinc-600 capitalize">{key.replace(/_/g, ' ')}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Explanation */}
+      {(row.explanation || []).length > 0 && (
+        <div className="pl-2 mb-3 space-y-1">
+          {row.explanation.slice(0, 3).map((r, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[11px] text-zinc-400">
+              <CheckCircle2 className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
+              {r}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Predicted needs + action */}
+      <div className="pl-2 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1 min-w-0">
+          {(row.predicted_need || []).slice(0, 3).map(n => (
+            <span key={n} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 border border-white/5">
+              {n.replace(/_/g, ' ')}
+            </span>
+          ))}
+        </div>
+        {row.recommended_action && (
+          <span className="text-[10px] text-amber-400 shrink-0 text-right">{row.recommended_action}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -532,7 +800,10 @@ const URGENCY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, 
 export default function SignalFeedPage() {
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab]     = useState<ActiveTab>('signals');
   const [allCards, setAllCards]       = useState<SignalCard[]>([]);
+  const [trajectories, setTrajectories] = useState<TrajectoryRow[]>([]);
+  const [matches, setMatches]         = useState<MatchRow[]>([]);
   const [loading, setLoading]         = useState(true);
   const [perspective, setPerspective] = useState<Perspective>('all');
   const [signalClass, setSignalClass] = useState('all');
@@ -540,6 +811,8 @@ export default function SignalFeedPage() {
   const [sort, setSort]               = useState('strength');
   const [search, setSearch]           = useState('');
   const [page, setPage]               = useState(0);
+  const [trajSearch, setTrajSearch]   = useState('');
+  const [matchType, setMatchType]     = useState('all');
 
   const PAGE_SIZE = 30;
 
@@ -567,8 +840,35 @@ export default function SignalFeedPage() {
     }
   }, []);
 
-  useEffect(() => { loadSignals(); }, [loadSignals]);
-  useEffect(() => { setPage(0); }, [perspective, signalClass, eqFilter, sort, search]);
+  const loadTrajectories = useCallback(async () => {
+    try {
+      const { data, error } = await sb
+        .from('pythh_active_trajectories')
+        .select('*')
+        .order('velocity_score', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      setTrajectories((data || []) as TrajectoryRow[]);
+    } catch (err) {
+      console.error('Trajectory load error:', err);
+    }
+  }, []);
+
+  const loadMatches = useCallback(async () => {
+    try {
+      const { data, error } = await sb
+        .from('pythh_top_matches')
+        .select('*')
+        .limit(300);
+      if (error) throw error;
+      setMatches((data || []) as MatchRow[]);
+    } catch (err) {
+      console.error('Matches load error:', err);
+    }
+  }, []);
+
+  useEffect(() => { loadSignals(); loadTrajectories(); loadMatches(); }, [loadSignals, loadTrajectories, loadMatches]);
+  useEffect(() => { setPage(0); }, [perspective, signalClass, eqFilter, sort, search, activeTab]);
 
   // ── Filter & sort ──────────────────────────────────────────────────────────
   const filtered = allCards
@@ -592,21 +892,33 @@ export default function SignalFeedPage() {
   const pageSlice    = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages   = Math.ceil(filtered.length / PAGE_SIZE);
 
+  // ── Trajectory filter ──────────────────────────────────────────────────────
+  const filteredTrajs = trajectories.filter(t =>
+    !trajSearch || (t.entity_name || '').toLowerCase().includes(trajSearch.toLowerCase())
+  );
+
+  // ── Match filter ───────────────────────────────────────────────────────────
+  const filteredMatches = matches.filter(m =>
+    (matchType === 'all' || m.match_type === matchType) &&
+    (!trajSearch || (m.entity_name || '').toLowerCase().includes(trajSearch.toLowerCase()) ||
+      (m.candidate_name || '').toLowerCase().includes(trajSearch.toLowerCase()))
+  );
+
   // ── Stats ──────────────────────────────────────────────────────────────────
   const totalSignals   = allCards.length;
   const highUrgency    = allCards.filter(c => c.inference.urgency === 'high' || c.inference.urgency === 'critical').length;
   const investorCards  = allCards.filter(c => c.who_cares.investors).length;
-  const vendorCards    = allCards.filter(c => c.who_cares.vendors).length;
   const avgStrength    = totalSignals > 0
     ? Math.round(allCards.reduce((s, c) => s + c.signal_strength, 0) / totalSignals * 100)
     : 0;
+  const highUrgencyMatches = matches.filter(m => m.urgency === 'high').length;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="flex items-center gap-3">
           <Radio className="w-8 h-8 text-amber-400 animate-pulse" />
-          <span className="text-white text-xl">Loading Signal Feed…</span>
+          <span className="text-white text-xl">Loading Signal Intelligence…</span>
         </div>
       </div>
     );
@@ -619,7 +931,7 @@ export default function SignalFeedPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-20">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between mb-8 gap-4">
+        <div className="flex items-start justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
@@ -631,16 +943,16 @@ export default function SignalFeedPage() {
               <h1 className="text-3xl font-bold flex items-center gap-2">
                 <span className="text-amber-400">[pyth]</span>
                 <span className="text-cyan-400">signal</span>
-                <span>Feed</span>
+                <span>Intelligence</span>
               </h1>
               <p className="text-zinc-500 mt-1 text-sm">
-                Ranked strategic signals from {totalSignals.toLocaleString()} discovered companies.
-                <span className="text-zinc-600 ml-1">Language → Intent → Action.</span>
+                Language → Intent → Action.
+                <span className="text-zinc-600 ml-1">{totalSignals.toLocaleString()} signals · {trajectories.length} trajectories · {matches.length} matches</span>
               </p>
             </div>
           </div>
           <button
-            onClick={loadSignals}
+            onClick={() => { loadSignals(); loadTrajectories(); loadMatches(); }}
             className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-zinc-400 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
@@ -649,12 +961,128 @@ export default function SignalFeedPage() {
         </div>
 
         {/* ── Stats row ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          <StatPill label="Total Signals"   value={totalSignals.toLocaleString()} color="text-amber-400" />
-          <StatPill label="High Urgency"    value={highUrgency.toLocaleString()}  color="text-orange-400" />
-          <StatPill label="For Investors"   value={investorCards.toLocaleString()} color="text-emerald-400" />
-          <StatPill label="Avg Strength"    value={`${avgStrength}%`}             color="text-cyan-400" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <StatPill label="Signals"           value={totalSignals.toLocaleString()}     color="text-amber-400" />
+          <StatPill label="Active Trajectories" value={trajectories.length.toLocaleString()} color="text-cyan-400" />
+          <StatPill label="Matches"           value={matches.length.toLocaleString()}   color="text-emerald-400" />
+          <StatPill label="High-Urgency"      value={highUrgencyMatches.toLocaleString()} color="text-orange-400" />
         </div>
+
+        {/* ── Tabs ────────────────────────────────────────────────────────── */}
+        <div className="flex gap-1 mb-6 bg-white/[0.03] border border-white/10 rounded-xl p-1 w-fit">
+          {([
+            { id: 'signals',      label: 'Signals',      icon: <Radio className="w-3.5 h-3.5" />,      count: totalSignals },
+            { id: 'trajectories', label: 'Trajectories', icon: <TrendingUp className="w-3.5 h-3.5" />, count: trajectories.length },
+            { id: 'matches',      label: 'Matches',      icon: <Target className="w-3.5 h-3.5" />,     count: matches.length },
+          ] as { id: ActiveTab; label: string; icon: React.ReactNode; count: number }[]).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === t.id
+                  ? 'bg-amber-500 text-black'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {t.icon}
+              {t.label}
+              <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${activeTab === t.id ? 'bg-black/20 text-black/70' : 'bg-white/10 text-zinc-500'}`}>
+                {t.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/*  TRAJECTORIES TAB                                                */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'trajectories' && (
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                <input
+                  type="text"
+                  value={trajSearch}
+                  onChange={e => setTrajSearch(e.target.value)}
+                  placeholder="Filter by company name…"
+                  className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 w-full"
+                />
+              </div>
+              <p className="text-sm text-zinc-500">
+                <span className="text-white font-medium">{filteredTrajs.length}</span> trajectories (90-day window)
+              </p>
+            </div>
+            {filteredTrajs.length === 0 ? (
+              <div className="text-center py-24 text-zinc-600">
+                <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p className="text-lg">No trajectories yet.</p>
+                <p className="text-sm mt-1">Run <code className="bg-white/5 px-1 rounded">node scripts/compute-trajectories.js --apply</code> to populate.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredTrajs.map(t => <TrajectoryCard key={t.id} row={t} />)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/*  MATCHES TAB                                                      */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'matches' && (
+          <div>
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                <input
+                  type="text"
+                  value={trajSearch}
+                  onChange={e => setTrajSearch(e.target.value)}
+                  placeholder="Filter company or candidate…"
+                  className="pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 w-full"
+                />
+              </div>
+              <PillFilter
+                value={matchType}
+                onChange={setMatchType}
+                options={[
+                  { value: 'all',           label: 'All Types' },
+                  { value: 'capital_match', label: '$ Investor' },
+                  { value: 'vendor_match',  label: 'Vendor' },
+                  { value: 'partner_match', label: 'Partner' },
+                  { value: 'talent_match',  label: 'Talent' },
+                  { value: 'advisor_match', label: 'Advisor' },
+                  { value: 'acquirer_match',label: 'Acquirer' },
+                ] as { value: string; label: string }[]}
+              />
+            </div>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-zinc-500">
+                <span className="text-white font-medium">{filteredMatches.length}</span> matches · sorted by score + urgency
+              </p>
+              <div className="flex gap-2 text-[11px] text-zinc-600">
+                <span className="flex items-center gap-1"><Flame className="w-3 h-3 text-orange-400" /> High urgency: {highUrgencyMatches}</span>
+              </div>
+            </div>
+            {filteredMatches.length === 0 ? (
+              <div className="text-center py-24 text-zinc-600">
+                <Target className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p className="text-lg">No matches found.</p>
+                <p className="text-sm mt-1">Run <code className="bg-white/5 px-1 rounded">node scripts/compute-matches.js --apply</code> to populate.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredMatches.slice(0, 60).map(m => <MatchCard key={m.id} row={m} />)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/*  SIGNALS TAB                                                      */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'signals' && (<>
 
         {/* ── Filters ─────────────────────────────────────────────────────── */}
         <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 mb-6 space-y-4">
@@ -810,6 +1238,7 @@ export default function SignalFeedPage() {
             </p>
           </div>
         </div>
+        </>)}
       </div>
     </div>
   );
