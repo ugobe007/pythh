@@ -73,6 +73,7 @@ interface StartupRanked {
   godScore: number;     // Original GOD score for reference
   delta: number;        // rank change from previous lens
   velocity: number;     // -3 to +3 scale
+  signalCount?: number; // Pythh signal events detected
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -332,6 +333,41 @@ const SignalTrends: React.FC = () => {
           setRawStartups(data);
           // Initial ranking with GOD score
           const ranked = rankStartupsForLens(data, VC_LENSES[0], new Map());
+
+          // Load signal counts for these startups (non-blocking, best-effort)
+          try {
+            const ids = data.map((s: StartupRaw) => s.id);
+            const { data: entities } = await supabase
+              .from('pythh_entities')
+              .select('id, startup_upload_id')
+              .in('startup_upload_id', ids);
+            if (entities && entities.length > 0) {
+              const entityIds = entities.map((e: { id: string }) => e.id);
+              const { data: sigCounts } = await supabase
+                .from('pythh_signal_events')
+                .select('entity_id')
+                .in('entity_id', entityIds);
+              // Build count map: startup_upload_id → signal count
+              const entityToUpload = new Map(
+                entities.map((e: { id: string; startup_upload_id: string }) => [e.id, e.startup_upload_id])
+              );
+              const countMap = new Map<string, number>();
+              (sigCounts || []).forEach((s: { entity_id: string }) => {
+                const uploadId = entityToUpload.get(s.entity_id);
+                if (uploadId) countMap.set(uploadId, (countMap.get(uploadId) || 0) + 1);
+              });
+              // Merge signal counts into ranked list
+              const rankedWithSig = ranked.map(s => ({
+                ...s,
+                signalCount: countMap.get(s.id) || 0,
+              }));
+              setRankedStartups(rankedWithSig);
+              const initialRanks = new Map(rankedWithSig.map(s => [s.id, s.rank]));
+              setPrevRanks(initialRanks);
+              return;
+            }
+          } catch { /* signal count is non-critical */ }
+
           setRankedStartups(ranked);
           // Store initial ranks
           const initialRanks = new Map(ranked.map(s => [s.id, s.rank]));
@@ -692,7 +728,7 @@ const SignalTrends: React.FC = () => {
         >
           {/* Table Header */}
           <div 
-            className="grid grid-cols-[60px_1fr_160px_100px_60px_60px_40px] gap-4 px-4 py-3 border-b border-zinc-800/60 text-xs font-medium uppercase tracking-wider transition-colors duration-300"
+            className="grid grid-cols-[60px_1fr_160px_100px_60px_60px_44px_40px] gap-4 px-4 py-3 border-b border-zinc-800/60 text-xs font-medium uppercase tracking-wider transition-colors duration-300"
             style={{ 
               color: 'rgba(255,255,255,0.4)',
               backgroundColor: (lensFlash && hasUserChangedLens) ? `${activeLens.accent}10` : 'transparent',
@@ -713,6 +749,7 @@ const SignalTrends: React.FC = () => {
             </div>
             <div className="text-center">Δ</div>
             <div className="text-center">Vel</div>
+            <div className="text-center" title="Pythh signal events detected">Sig</div>
             <div></div>
           </div>
 
@@ -734,7 +771,7 @@ const SignalTrends: React.FC = () => {
                   <div
                     key={startup.id}
                     className={`
-                      grid grid-cols-[60px_1fr_160px_100px_60px_60px_40px] gap-4 px-4 py-3
+                      grid grid-cols-[60px_1fr_160px_100px_60px_60px_44px_40px] gap-4 px-4 py-3
                       border-b border-zinc-800/30 
                       hover:bg-zinc-800/30 cursor-pointer
                       transition-all duration-300
@@ -791,6 +828,19 @@ const SignalTrends: React.FC = () => {
                   {/* Velocity */}
                   <div className="text-center font-mono text-sm">
                     <VelocityIndicator velocity={startup.velocity} accent={activeLens.accent} />
+                  </div>
+
+                  {/* Signal count */}
+                  <div className="text-center font-mono text-xs tabular-nums">
+                    {startup.signalCount !== undefined ? (
+                      startup.signalCount > 0 ? (
+                        <span className="text-amber-400/80">{startup.signalCount}</span>
+                      ) : (
+                        <span className="text-zinc-700">—</span>
+                      )
+                    ) : (
+                      <span className="text-zinc-800">·</span>
+                    )}
                   </div>
 
                   {/* Save to Signal Card */}

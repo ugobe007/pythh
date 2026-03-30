@@ -27,76 +27,161 @@ interface SectorSignal {
   strength: number;
   delta: number;
   age: string;
+  count: number;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DEMO DATA
-// ═══════════════════════════════════════════════════════════════════════════
+interface RecentMovement {
+  text: string;
+  time: string;
+  signalClass: string;
+}
 
-const DEMO_SECTORS: SectorSignal[] = [
-  { id: '1', sector: 'AI Infra', state: 'heating', strength: 0.81, delta: 0.12, age: '2h' },
-  { id: '2', sector: 'FinTech Infra', state: 'heating', strength: 0.73, delta: 0.05, age: '6h' },
-  { id: '3', sector: 'Security', state: 'heating', strength: 0.71, delta: 0.08, age: '4h' },
-  { id: '4', sector: 'Dev Tooling', state: 'stable', strength: 0.66, delta: 0.01, age: '3d' },
-  { id: '5', sector: 'HealthTech', state: 'heating', strength: 0.58, delta: 0.03, age: '8h' },
-  { id: '6', sector: 'Data Infra', state: 'stable', strength: 0.54, delta: 0, age: '2d' },
-  { id: '7', sector: 'Climate SaaS', state: 'cooling', strength: 0.42, delta: -0.15, age: '1d' },
-  { id: '8', sector: 'Commerce', state: 'cooling', strength: 0.39, delta: -0.09, age: '5d' },
+// ── Signal class → readable label ───────────────────────────────────────────
+const SIGNAL_CLASS_LABELS: Record<string, string> = {
+  product_signal: 'Product Launches',
+  fundraising_signal: 'Fundraising Activity',
+  acquisition_signal: 'M&A Signals',
+  growth_signal: 'Growth Velocity',
+  market_position_signal: 'Market Positioning',
+  revenue_signal: 'Revenue Traction',
+  partnership_signal: 'Partnerships',
+  hiring_signal: 'Talent Signals',
+  enterprise_signal: 'Enterprise GTM',
+  expansion_signal: 'Market Expansion',
+  exploratory_signal: 'Exploratory Intent',
+  distress_signal: 'Distress',
+  efficiency_signal: 'Efficiency Moves',
+  buyer_signal: 'Buyer Intent',
+  buyer_pain_signal: 'Buyer Pain',
+  exit_signal: 'Exit Signals',
+  demand_signal: 'Demand Signals',
+  gtm_signal: 'GTM Buildout',
+};
+
+const SIGNAL_CLASS_ORDER = [
+  'fundraising_signal', 'product_signal', 'hiring_signal', 'growth_signal',
+  'expansion_signal', 'enterprise_signal', 'revenue_signal', 'acquisition_signal',
+  'partnership_signal', 'market_position_signal', 'exit_signal', 'distress_signal',
 ];
 
-const RECENT_MOVEMENTS = [
-  { text: 'AI Infra crossed 0.80 threshold', time: '2h ago' },
-  { text: 'Security entered heating state', time: '4h ago' },
-  { text: 'Climate SaaS dropped below 0.50', time: '1d ago' },
-];
+function relativeAge(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(ms / 3_600_000);
+  if (h < 1) return '<1h';
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  return `${Math.floor(d / 7)}w`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
 export default function FounderSignalsPage() {
-  const [sectors, setSectors] = useState<SectorSignal[]>(DEMO_SECTORS);
-  const [timeWindow, setTimeWindow] = useState<'24h' | '7d' | '30d'>('24h');
-  const [url, setUrl] = useState('');
-  const [urlError, setUrlError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showExplainer, setShowExplainer] = useState(false);
+  const [sectors, setSectors]               = useState<SectorSignal[]>([]);
+  const [recentMovements, setRecentMovements] = useState<RecentMovement[]>([]);
+  const [timeWindow, setTimeWindow]         = useState<'24h' | '7d' | '30d'>('7d');
+  const [totalSignals, setTotalSignals]     = useState(0);
+  const [loading, setLoading]               = useState(true);
+  const [url, setUrl]                       = useState('');
+  const [urlError, setUrlError]             = useState('');
+  const [isSubmitting, setIsSubmitting]     = useState(false);
+  const [showExplainer, setShowExplainer]   = useState(false);
 
-  // Load real data
-  useEffect(() => {
-    loadSignals();
-  }, []);
+  useEffect(() => { loadSignals(timeWindow); }, [timeWindow]);
 
-  async function loadSignals() {
+  async function loadSignals(window: '24h' | '7d' | '30d') {
+    setLoading(true);
     try {
-      // Join with startup_uploads to get sector info
-      const { data } = await supabase
-        .from('startup_signal_scores')
-        .select(`
-          startup_id,
-          as_of,
-          signals_total,
-          startup_uploads!inner(
-            sectors
-          )
-        `)
-        .not('startup_uploads.sectors', 'is', null)
-        .order('as_of', { ascending: false })
-        .limit(50);
+      const windowMs: Record<string, number> = { '24h': 1, '7d': 7, '30d': 30 };
+      const days = windowMs[window];
+      const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+      const prevWindowStart = new Date(Date.now() - days * 2 * 24 * 60 * 60 * 1000).toISOString();
 
-      if (data && data.length > 0) {
-        const mapped: SectorSignal[] = data.slice(0, 8).map((s: any, i: number) => ({
-          id: s.startup_id,
-          sector: s.startup_uploads?.sectors || 'Unknown',
-          state: (s.signals_total || 0) > 6 ? 'heating' : (s.signals_total || 0) < 4 ? 'cooling' : 'stable',
-          strength: s.signals_total ? s.signals_total / 10 : (0.9 - i * 0.07),
-          delta: ((s.signals_total || 5) - 5) * 0.04, // +/- from baseline 5
-          age: '—',
-        }));
-        setSectors(mapped);
-      }
+      // Fetch signals for current window
+      const [{ data: current }, { data: previous }, { data: latest }] = await Promise.all([
+        supabase
+          .from('pythh_signal_events')
+          .select('primary_signal, detected_at')
+          .gte('detected_at', windowStart)
+          .limit(5000),
+        supabase
+          .from('pythh_signal_events')
+          .select('primary_signal')
+          .gte('detected_at', prevWindowStart)
+          .lt('detected_at', windowStart)
+          .limit(5000),
+        // Latest 5 signal events for "recent movements"
+        supabase
+          .from('pythh_signal_events')
+          .select('primary_signal, detected_at, raw_sentence')
+          .not('primary_signal', 'is', null)
+          .order('detected_at', { ascending: false })
+          .limit(5),
+      ]);
+
+      // Aggregate current window counts per class
+      const currCounts: Record<string, { count: number; latest: string }> = {};
+      (current || []).forEach(s => {
+        if (!s.primary_signal) return;
+        if (!currCounts[s.primary_signal]) currCounts[s.primary_signal] = { count: 0, latest: s.detected_at };
+        currCounts[s.primary_signal].count++;
+        if (s.detected_at > currCounts[s.primary_signal].latest)
+          currCounts[s.primary_signal].latest = s.detected_at;
+      });
+
+      // Aggregate previous window counts
+      const prevCounts: Record<string, number> = {};
+      (previous || []).forEach(s => {
+        if (!s.primary_signal) return;
+        prevCounts[s.primary_signal] = (prevCounts[s.primary_signal] || 0) + 1;
+      });
+
+      const total = Object.values(currCounts).reduce((s, v) => s + v.count, 0);
+      setTotalSignals(total || 0);
+      const maxCount = Math.max(...Object.values(currCounts).map(v => v.count), 1);
+
+      // Build sector rows ordered by priority list then by count
+      const allClasses = [...new Set([
+        ...SIGNAL_CLASS_ORDER,
+        ...Object.keys(currCounts),
+      ])].filter(cls => currCounts[cls]?.count);
+
+      const rows: SectorSignal[] = allClasses.slice(0, 10).map((cls, i) => {
+        const curr = currCounts[cls]?.count || 0;
+        const prev = prevCounts[cls] || 0;
+        const strength = curr / maxCount;
+        // Delta = normalized change from previous window
+        const delta = prev > 0 ? (curr - prev) / maxCount : curr > 0 ? 0.05 : 0;
+        const state: SectorSignal['state'] =
+          delta > 0.05 ? 'heating' : delta < -0.05 ? 'cooling' : 'stable';
+        return {
+          id: cls,
+          sector: SIGNAL_CLASS_LABELS[cls] ?? cls.replace(/_/g, ' '),
+          state,
+          strength: Math.min(strength, 1),
+          delta: parseFloat(delta.toFixed(3)),
+          age: currCounts[cls]?.latest ? relativeAge(currCounts[cls].latest) : '—',
+          count: curr,
+        };
+      });
+
+      setSectors(rows);
+
+      // Real recent movements from latest signal events
+      const movements: RecentMovement[] = (latest || []).map(s => ({
+        text: s.raw_sentence
+          ? s.raw_sentence.slice(0, 80) + (s.raw_sentence.length > 80 ? '…' : '')
+          : `${SIGNAL_CLASS_LABELS[s.primary_signal ?? ''] ?? s.primary_signal} signal detected`,
+        time: s.detected_at ? relativeAge(s.detected_at) : '—',
+        signalClass: s.primary_signal ?? '',
+      }));
+      setRecentMovements(movements);
     } catch {
-      // Use demo data
+      // Keep whatever data we have
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -116,9 +201,8 @@ export default function FounderSignalsPage() {
     }
   }
 
-  // Stats
   const heating = sectors.filter(s => s.state === 'heating').length;
-  const stable = sectors.filter(s => s.state === 'stable').length;
+  const stable  = sectors.filter(s => s.state === 'stable').length;
   const cooling = sectors.filter(s => s.state === 'cooling').length;
 
   return (
@@ -208,11 +292,19 @@ export default function FounderSignalsPage() {
         {/* STATS + TIME WINDOW */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4 text-xs">
-            <span className="text-emerald-400">{heating} heating</span>
-            <span className="text-zinc-500">·</span>
-            <span className="text-zinc-400">{stable} stable</span>
-            <span className="text-zinc-500">·</span>
-            <span className="text-red-400">{cooling} cooling</span>
+            {loading ? (
+              <span className="text-zinc-600 animate-pulse">Loading signal data…</span>
+            ) : (
+              <>
+                <span className="text-zinc-400 tabular-nums">{totalSignals.toLocaleString()} signals</span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-emerald-400">{heating} heating</span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-400">{stable} stable</span>
+                <span className="text-zinc-600">·</span>
+                <span className="text-red-400">{cooling} cooling</span>
+              </>
+            )}
           </div>
           
           <div className="flex items-center gap-1">
@@ -232,30 +324,41 @@ export default function FounderSignalsPage() {
           </div>
         </div>
 
-        {/* SECTOR TABLE */}
+        {/* SIGNAL TYPE TABLE */}
         <section className="mb-6">
           <div className="border border-zinc-800 rounded-lg overflow-hidden">
             {/* Header — desktop */}
-            <div className="hidden sm:grid grid-cols-[1fr_80px_70px_70px_60px_100px] gap-2 px-4 py-2 bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-              <span>Sector</span>
-              <span className="text-center">State</span>
-              <span className="text-right">Strength</span>
+            <div className="hidden sm:grid grid-cols-[1fr_80px_60px_60px_60px_100px] gap-2 px-4 py-2 bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
+              <span>Signal Type</span>
+              <span className="text-center">Trend</span>
+              <span className="text-right">Score</span>
               <span className="text-right">Δ</span>
               <span className="text-right">Age</span>
               <span className="text-center">Activity</span>
             </div>
             {/* Header — mobile */}
             <div className="grid sm:hidden grid-cols-[1fr_auto_3.5rem] gap-2 px-4 py-2 bg-zinc-900/50 text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-              <span>Sector</span>
-              <span className="text-center">State</span>
+              <span>Signal Type</span>
+              <span className="text-center">Trend</span>
               <span className="text-right">Str</span>
             </div>
+
+            {/* Loading skeleton */}
+            {loading && [1,2,3,4,5].map(i => (
+              <div key={i} className="hidden sm:grid grid-cols-[1fr_80px_60px_60px_60px_100px] gap-2 px-4 py-2.5 border-b border-zinc-800/50">
+                <div className="h-3 bg-zinc-800 rounded w-32 animate-pulse" />
+                <div className="h-3 bg-zinc-800 rounded w-16 mx-auto animate-pulse" />
+                <div className="h-3 bg-zinc-800 rounded w-10 ml-auto animate-pulse" />
+                <div className="h-3 bg-zinc-800 rounded w-10 ml-auto animate-pulse" />
+                <div className="h-3 bg-zinc-800 rounded w-8 ml-auto animate-pulse" />
+              </div>
+            ))}
             
             {/* Rows */}
-            {sectors.map(s => (
+            {!loading && sectors.map(s => (
               <div key={s.id}>
                 {/* Desktop row */}
-                <div className="hidden sm:grid grid-cols-[1fr_80px_70px_70px_60px_100px] gap-2 px-4 py-2.5 border-b border-zinc-800/50 hover:bg-zinc-900/30 transition items-center">
+                <div className="hidden sm:grid grid-cols-[1fr_80px_60px_60px_60px_100px] gap-2 px-4 py-2.5 border-b border-zinc-800/50 hover:bg-zinc-900/30 transition items-center">
                   <span className="text-white font-medium text-xs">{s.sector}</span>
                   <span className="text-center">
                     <StateTag state={s.state} />
@@ -285,22 +388,43 @@ export default function FounderSignalsPage() {
                 </div>
               </div>
             ))}
+
+            {!loading && sectors.length === 0 && (
+              <div className="px-4 py-8 text-center text-zinc-600 text-xs">
+                No signal data for this window yet.
+              </div>
+            )}
           </div>
         </section>
 
-        {/* RECENT MOVEMENTS */}
+        {/* RECENT SIGNAL EVENTS */}
         <section>
-          <h3 className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Recent movements</h3>
+          <h3 className="text-xs text-zinc-500 uppercase tracking-wider mb-3">Latest signals detected</h3>
           <div className="space-y-2">
-            {RECENT_MOVEMENTS.map((m, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <span className="text-zinc-400">
-                  <span className="text-cyan-400 mr-2">●</span>
-                  {m.text}
-                </span>
-                <span className="text-zinc-600">{m.time}</span>
+            {loading && [1,2,3].map(i => (
+              <div key={i} className="flex items-center justify-between text-xs gap-4">
+                <div className="h-3 bg-zinc-800 rounded flex-1 animate-pulse" />
+                <div className="h-3 bg-zinc-800 rounded w-8 animate-pulse" />
               </div>
             ))}
+            {!loading && recentMovements.map((m, i) => (
+              <div key={i} className="flex items-start justify-between gap-3 text-xs">
+                <span className="text-zinc-400 flex-1 leading-relaxed">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 mb-0.5 align-middle ${
+                    m.signalClass.includes('fundrais') ? 'bg-emerald-400' :
+                    m.signalClass.includes('product') ? 'bg-blue-400' :
+                    m.signalClass.includes('hiring') ? 'bg-sky-400' :
+                    m.signalClass.includes('distress') ? 'bg-red-400' :
+                    m.signalClass.includes('acqui') ? 'bg-amber-400' : 'bg-cyan-400'
+                  }`} />
+                  {m.text}
+                </span>
+                <span className="text-zinc-600 shrink-0">{m.time}</span>
+              </div>
+            ))}
+            {!loading && recentMovements.length === 0 && (
+              <div className="text-zinc-600 text-xs">No recent signals.</div>
+            )}
           </div>
         </section>
       </main>

@@ -128,6 +128,14 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
             </div>
           </div>
 
+          {/* Signal intelligence CTA */}
+          <a
+            href={`/investor/signal-matches?q=${encodeURIComponent(match.startup_name)}`}
+            className="block w-full text-center text-[11px] px-3 py-2 bg-amber-500/8 border border-amber-500/20 text-amber-400/70 rounded-lg hover:bg-amber-500/15 hover:text-amber-400 transition-colors"
+          >
+            ⚡ View Signal Intelligence →
+          </a>
+
           {/* Connector */}
           <div className="flex items-center gap-2 text-white/20 text-xs px-1">
             <div className="flex-1 h-px bg-white/10" />
