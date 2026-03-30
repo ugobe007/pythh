@@ -48,20 +48,36 @@ async function main() {
   console.log(`Min conf: ${MIN_CONF}`);
   console.log('═'.repeat(60) + '\n');
 
-  // ── Get the most recent 90-day trajectory per entity ─────────────────────
-  const { data: trajectories, error: trajErr } = await supabase
-    .from('pythh_trajectories')
-    .select('*')
-    .eq('time_window_days', 90)
-    .order('computed_at', { ascending: false, nullsFirst: false })
-    .limit(LIMIT);
+  // ── Paginated fetch of 90-day trajectories ───────────────────────────────
+  console.log('📥 Loading trajectories (paginated)…');
+  const PAGE_FETCH = 500;
+  let trajectories = [];
+  let offset = 0;
+  while (trajectories.length < LIMIT) {
+    const { data: page, error: trajErr } = await supabase
+      .from('pythh_trajectories')
+      .select('*')
+      .eq('time_window_days', 90)
+      .order('computed_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + PAGE_FETCH - 1);
+    if (trajErr) { console.error('❌ Trajectory fetch failed:', trajErr.message); process.exit(1); }
+    if (!page || page.length === 0) break;
+    // Keep only the most recent per entity
+    for (const t of page) {
+      if (!trajectories.find(x => x.entity_id === t.entity_id)) trajectories.push(t);
+    }
+    process.stdout.write(`\r   Loaded: ${trajectories.length}…`);
+    if (page.length < PAGE_FETCH) break;
+    offset += PAGE_FETCH;
+  }
+  trajectories = trajectories.slice(0, LIMIT);
+  console.log(`\r   Loaded: ${trajectories.length} trajectories.\n`);
 
-  if (trajErr) { console.error('❌ Trajectory fetch failed:', trajErr.message); process.exit(1); }
-  console.log(`📊 Trajectories to process: ${trajectories?.length ?? 0}\n`);
   if (!trajectories?.length) {
     console.log('No trajectories found. Run compute-trajectories.js --apply first.');
     return;
   }
+  console.log(`📊 Trajectories to process: ${trajectories.length}\n`);
 
   const stats = {
     entities: 0, needs_written: 0,
@@ -69,8 +85,52 @@ async function main() {
     by_need: {}, by_urgency: { high: 0, medium: 0, low: 0 },
   };
 
-  const validUntil = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]; // 30 days
+  const validUntil = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
   const validFrom  = new Date().toISOString().split('T')[0];
+  const since90    = new Date(Date.now() - 90 * 86400000).toISOString();
+
+  // ── Pre-load ALL 90-day signal events into memory ─────────────────────────
+  console.log('⚡ Pre-loading signal events into memory (90-day window)…');
+  const allSignals = [];
+  const SIG_PAGE = 1000;
+  let sigOffset = 0;
+  while (true) {
+    const { data: sigPage } = await supabase
+      .from('pythh_signal_events')
+      .select('entity_id, detected_at, primary_signal, signal_type, signal_strength, confidence, evidence_quality, is_costly_action, signal_object')
+      .gte('detected_at', since90)
+      .order('detected_at', { ascending: true })
+      .range(sigOffset, sigOffset + SIG_PAGE - 1);
+    if (!sigPage || sigPage.length === 0) break;
+    allSignals.push(...sigPage);
+    process.stdout.write(`\r   Signals loaded: ${allSignals.length}…`);
+    if (sigPage.length < SIG_PAGE) break;
+    sigOffset += SIG_PAGE;
+  }
+  console.log(`\r   Signals loaded: ${allSignals.length} (90-day window).\n`);
+
+  const signalsByEntity = {};
+  for (const ev of allSignals) {
+    if (!signalsByEntity[ev.entity_id]) signalsByEntity[ev.entity_id] = [];
+    signalsByEntity[ev.entity_id].push(ev);
+  }
+
+  // ── Accumulate needs for batch insert ────────────────────────────────────
+  const needsBuffer = [];
+  const FLUSH_SIZE  = 100;
+
+  async function flushNeeds(force = false) {
+    if (!DRY_RUN && (force || needsBuffer.length >= FLUSH_SIZE)) {
+      const slice = needsBuffer.splice(0, needsBuffer.length);
+      if (slice.length) {
+        const { error } = await supabase
+          .from('pythh_entity_needs')
+          .upsert(slice, { onConflict: 'entity_id,need_class,valid_from' });
+        if (error) stats.errors++;
+        else stats.needs_written += slice.length;
+      }
+    }
+  }
 
   for (let i = 0; i < trajectories.length; i += BATCH_SZ) {
     const batch = trajectories.slice(i, i + BATCH_SZ);
@@ -79,16 +139,8 @@ async function main() {
       stats.entities++;
       const entityId = traj.entity_id;
 
-      // Fetch signal events for this entity (90-day window)
-      const since90 = new Date(Date.now() - 90 * 86400000).toISOString();
-      const { data: events } = await supabase
-        .from('pythh_signal_events')
-        .select('detected_at, primary_signal, signal_type, signal_strength, confidence, evidence_quality, is_costly_action, signal_object')
-        .eq('entity_id', entityId)
-        .gte('detected_at', since90)
-        .order('detected_at', { ascending: true });
-
-      if (!events?.length) { stats.skipped_no_signals++; continue; }
+      const events = signalsByEntity[entityId] || [];
+      if (!events.length) { stats.skipped_no_signals++; continue; }
 
       // Reconstruct signal history
       const signalHistory = events.map(ev => ({
@@ -141,14 +193,9 @@ async function main() {
           continue;
         }
 
-        // Delete stale needs for this entity, then insert fresh
-        await supabase.from('pythh_entity_needs')
-          .delete()
-          .eq('entity_id', entityId)
-          .lt('valid_until', validFrom);
-
+        // Buffer all need rows for this entity
         for (const need of needs) {
-          const needRow = {
+          needsBuffer.push({
             entity_id:        entityId,
             trajectory_id:    traj.id,
             need_class:       need.need_class,
@@ -163,15 +210,11 @@ async function main() {
             evidence_count:   need.evidence_count  || 1,
             valid_from:       validFrom,
             valid_until:      validUntil,
-          };
-
-          // Upsert: (entity_id, need_class, valid_from) is unique
-          const { error: upsErr } = await supabase
-            .from('pythh_entity_needs')
-            .upsert(needRow, { onConflict: 'entity_id,need_class,valid_from' });
-
-          if (upsErr) { stats.errors++; }
-          else {
+          });
+          if (!DRY_RUN) {
+            stats.by_need[need.need_class]  = (stats.by_need[need.need_class] || 0) + 1;
+            stats.by_urgency[need.urgency]  = (stats.by_urgency[need.urgency] || 0) + 1;
+          } else {
             stats.needs_written++;
             stats.by_need[need.need_class]  = (stats.by_need[need.need_class] || 0) + 1;
             stats.by_urgency[need.urgency]  = (stats.by_urgency[need.urgency] || 0) + 1;
@@ -183,9 +226,12 @@ async function main() {
       }
     }
 
+    await flushNeeds();
     const pct = Math.round(((i + batch.length) / trajectories.length) * 100);
     process.stdout.write(`\r  Progress: ${i + batch.length}/${trajectories.length} entities (${pct}%)  `);
   }
+  await flushNeeds(true); // flush remainder
+  if (!DRY_RUN) stats.needs_written = Object.values(stats.by_need).reduce((a, b) => a + b, 0);
 
   // ── Report ────────────────────────────────────────────────────────────────
   console.log('\n\n' + '═'.repeat(60));

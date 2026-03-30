@@ -43,11 +43,12 @@ function argVal(flag, fallback = null) {
   const i = process.argv.indexOf(flag);
   return i !== -1 ? process.argv[i + 1] : fallback;
 }
-const DRY_RUN    = !process.argv.includes('--apply');
-const LIMIT      = +(argVal('--limit',          '3000'));
-const BATCH_SZ   = +(argVal('--batch',          '50'));
-const SINCE      =   argVal('--since',          null);
-const MIN_CONF   = +(argVal('--min-confidence', '0.38'));
+const DRY_RUN        = !process.argv.includes('--apply');
+const SKIP_EXISTING  =  process.argv.includes('--skip-existing');
+const LIMIT          = +(argVal('--limit',          '3000'));
+const BATCH_SZ       = +(argVal('--batch',          '50'));
+const SINCE          =   argVal('--since',          null);
+const MIN_CONF       = +(argVal('--min-confidence', '0.38'));
 
 // ── Text extraction ───────────────────────────────────────────────────────────
 /**
@@ -107,24 +108,63 @@ async function main() {
   console.log(`Mode:     ${DRY_RUN ? '🔍 DRY-RUN' : '✍️  APPLY'}`);
   console.log(`Limit:    ${LIMIT} startups`);
   console.log(`Min conf: ${MIN_CONF}`);
-  if (SINCE) console.log(`Since:    ${SINCE}`);
+  if (SINCE)          console.log(`Since:    ${SINCE}`);
+  if (SKIP_EXISTING)  console.log(`Skip:     already-ingested entities`);
   console.log('═'.repeat(60) + '\n');
 
-  // ── Query startup_uploads ─────────────────────────────────────────────────
-  let query = supabase
-    .from('startup_uploads')
-    .select('id, name, website, sectors, extracted_data, updated_at, created_at')
-    .eq('status', 'approved')
-    .not('extracted_data', 'is', null)
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .limit(LIMIT);
+  // ── Paginated fetch of startup_uploads ───────────────────────────────────
+  // PostgREST caps at 1,000 rows per request — paginate through all records.
+  console.log('📥 Fetching startup_uploads (paginated)…');
+  const PAGE_FETCH = 500;
+  let processRows = [];
+  let offset = 0;
 
-  if (SINCE) query = query.gte('updated_at', SINCE);
+  while (processRows.length < LIMIT) {
+    let q = supabase
+      .from('startup_uploads')
+      .select('id, name, website, sectors, extracted_data, updated_at, created_at')
+      .eq('status', 'approved')
+      .not('extracted_data', 'is', null)
+      .order('created_at', { ascending: true })
+      .range(offset, offset + PAGE_FETCH - 1);
 
-  const { data: rows, error } = await query;
-  if (error) { console.error('❌ Fetch failed:', error.message); process.exit(1); }
-  console.log(`📊 Startups to process: ${rows?.length ?? 0}\n`);
-  if (!rows?.length) { console.log('Nothing to process.'); return; }
+    if (SINCE) q = q.gte('updated_at', SINCE);
+
+    const { data: page, error } = await q;
+    if (error) { console.error('❌ Fetch failed:', error.message); process.exit(1); }
+    if (!page || page.length === 0) break;
+    processRows.push(...page);
+    process.stdout.write(`\r   Fetched: ${processRows.length}…`);
+    if (page.length < PAGE_FETCH) break;
+    offset += PAGE_FETCH;
+  }
+  console.log(`\r   Fetched: ${processRows.length} startups from DB.`);
+
+  // ── Filter out already-ingested startups (--skip-existing) ───────────────
+  if (SKIP_EXISTING && processRows.length > 0) {
+    console.log('🔎 Checking which startups are already ingested…');
+    // Fetch all startup_upload_ids already in pythh_entities
+    const PAGE = 1000;
+    const alreadyIngested = new Set();
+    let offset = 0;
+    while (true) {
+      const { data: eids } = await supabase
+        .from('pythh_entities')
+        .select('startup_upload_id')
+        .not('startup_upload_id', 'is', null)
+        .range(offset, offset + PAGE - 1);
+      if (!eids || eids.length === 0) break;
+      for (const e of eids) alreadyIngested.add(e.startup_upload_id);
+      if (eids.length < PAGE) break;
+      offset += PAGE;
+    }
+    const before = processRows.length;
+    processRows = processRows.filter(r => !alreadyIngested.has(r.id));
+    console.log(`   Already ingested: ${alreadyIngested.size} | Skipping: ${before - processRows.length} | To process: ${processRows.length}\n`);
+  }
+
+  console.log(`📊 Startups to process: ${processRows.length}\n`);
+  if (!processRows.length) { console.log('Nothing to process.'); return; }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = {
@@ -135,50 +175,83 @@ async function main() {
     by_class: {}, by_evidence: {},
   };
 
-  // ── Process in batches ────────────────────────────────────────────────────
-  for (let i = 0; i < rows.length; i += BATCH_SZ) {
-    const batch = rows.slice(i, i + BATCH_SZ);
+  // ── When --skip-existing is set, ALL rows are new → pre-bulk-insert entities
+  // This avoids N individual SELECT+INSERT pairs (major speedup for large batches)
+  const knownNewIds = SKIP_EXISTING ? new Set(processRows.map(r => r.id)) : null;
+  // entityIdMap: startup_upload_id → pythh_entity.id (populated on first batch insert)
+  const entityIdMap = {};
 
-    for (const row of batch) {
-      stats.startups++;
-
-      // 1. Upsert entity
-      const entityPayload = {
+  if (!DRY_RUN && knownNewIds) {
+    console.log(`\n⚡ Bulk-inserting ${processRows.length} entities (fast path)…`);
+    const ENTITY_BATCH = 200;
+    const today = new Date().toISOString().split('T')[0];
+    const now   = new Date().toISOString();
+    for (let ei = 0; ei < processRows.length; ei += ENTITY_BATCH) {
+      const eb = processRows.slice(ei, ei + ENTITY_BATCH).map(row => ({
         name:              row.name,
         entity_type:       'startup',
-        sectors:           Array.isArray(row.sectors)
-                             ? row.sectors
-                             : (row.extracted_data?.sectors || []),
+        sectors:           Array.isArray(row.sectors) ? row.sectors : (row.extracted_data?.sectors || []),
         geographies:       [],
         stage:             row.extracted_data?.funding_stage || null,
         website:           row.website || null,
         startup_upload_id: row.id,
         is_active:         true,
-        last_signal_date:  new Date().toISOString().split('T')[0],
-        updated_at:        new Date().toISOString(),
-      };
+        last_signal_date:  today,
+        updated_at:        now,
+      }));
+      const { data: inserted, error: entErr } = await supabase
+        .from('pythh_entities')
+        .insert(eb)
+        .select('id, startup_upload_id');
+      if (entErr) { console.error('\n  Entity batch error:', entErr.message); stats.errors++; }
+      else {
+        for (const e of (inserted || [])) entityIdMap[e.startup_upload_id] = e.id;
+        stats.entities_upserted += (inserted || []).length;
+      }
+      process.stdout.write(`\r   Entity inserts: ${Math.min(ei + ENTITY_BATCH, processRows.length)}/${processRows.length}  `);
+    }
+    console.log('\n');
+  }
 
+  // ── Process in batches (signals only) ────────────────────────────────────
+  for (let i = 0; i < processRows.length; i += BATCH_SZ) {
+    const batch = processRows.slice(i, i + BATCH_SZ);
+
+    for (const row of batch) {
+      stats.startups++;
+
+      // Entity ID: from fast-path map (skip-existing) or per-startup query
       let entityId = null;
       if (!DRY_RUN) {
-        const { data: existing } = await supabase
-          .from('pythh_entities')
-          .select('id')
-          .eq('startup_upload_id', row.id)
-          .maybeSingle();
-
-        if (existing) {
-          await supabase.from('pythh_entities')
-            .update({ ...entityPayload })
-            .eq('id', existing.id);
-          entityId = existing.id;
+        if (knownNewIds) {
+          entityId = entityIdMap[row.id] ?? null;
         } else {
-          const { data: inserted } = await supabase.from('pythh_entities')
-            .insert(entityPayload)
+          const entityPayload = {
+            name:              row.name,
+            entity_type:       'startup',
+            sectors:           Array.isArray(row.sectors) ? row.sectors : (row.extracted_data?.sectors || []),
+            geographies:       [],
+            stage:             row.extracted_data?.funding_stage || null,
+            website:           row.website || null,
+            startup_upload_id: row.id,
+            is_active:         true,
+            last_signal_date:  new Date().toISOString().split('T')[0],
+            updated_at:        new Date().toISOString(),
+          };
+          const { data: existing } = await supabase
+            .from('pythh_entities')
             .select('id')
-            .single();
-          entityId = inserted?.id;
+            .eq('startup_upload_id', row.id)
+            .maybeSingle();
+          if (existing) {
+            await supabase.from('pythh_entities').update(entityPayload).eq('id', existing.id);
+            entityId = existing.id;
+          } else {
+            const { data: ins } = await supabase.from('pythh_entities').insert(entityPayload).select('id').single();
+            entityId = ins?.id;
+          }
+          if (entityId) stats.entities_upserted++;
         }
-        if (entityId) stats.entities_upserted++;
       } else {
         entityId = `dry_${row.id}`;
       }
@@ -271,8 +344,8 @@ async function main() {
       }
     }
 
-    const pct = Math.round(((i + batch.length) / rows.length) * 100);
-    process.stdout.write(`\r  Progress: ${i + batch.length}/${rows.length} startups (${pct}%)  `);
+    const pct = Math.round(((i + batch.length) / processRows.length) * 100);
+    process.stdout.write(`\r  Progress: ${i + batch.length}/${processRows.length} startups (${pct}%)  `);
   }
 
   // ── Report ────────────────────────────────────────────────────────────────

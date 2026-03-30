@@ -48,20 +48,33 @@ async function main() {
   console.log(`Limit:    ${LIMIT} entities`);
   console.log('═'.repeat(60) + '\n');
 
-  // ── Get all distinct entity IDs that have signal events ──────────────────
-  const { data: entities, error: entErr } = await supabase
-    .from('pythh_entities')
-    .select('id, name, sectors, stage, website')
-    .eq('is_active', true)
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .limit(LIMIT);
+  // ── Paginated fetch of all entities ──────────────────────────────────────
+  console.log('📥 Loading entities (paginated)…');
+  const PAGE_FETCH = 500;
+  let entities = [];
+  let offset = 0;
+  while (entities.length < LIMIT) {
+    const { data: page, error: entErr } = await supabase
+      .from('pythh_entities')
+      .select('id, name, sectors, stage, website')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + PAGE_FETCH - 1);
+    if (entErr) { console.error('❌ Entity fetch failed:', entErr.message); process.exit(1); }
+    if (!page || page.length === 0) break;
+    entities.push(...page);
+    process.stdout.write(`\r   Loaded: ${entities.length}…`);
+    if (page.length < PAGE_FETCH) break;
+    offset += PAGE_FETCH;
+  }
+  entities = entities.slice(0, LIMIT);
+  console.log(`\r   Loaded: ${entities.length} entities.\n`);
 
-  if (entErr) { console.error('❌ Entity fetch failed:', entErr.message); process.exit(1); }
-  console.log(`📊 Entities to process: ${entities?.length ?? 0}\n`);
   if (!entities?.length) {
     console.log('No entities found. Run ingest-pythh-signals.js --apply first.');
     return;
   }
+  console.log(`📊 Entities to process: ${entities.length}\n`);
 
   const stats = {
     entities: 0, trajectories_written: 0,
@@ -69,20 +82,74 @@ async function main() {
     by_trajectory: {},
   };
 
-  for (let i = 0; i < entities.length; i += BATCH_SZ) {
-    const batch = entities.slice(i, i + BATCH_SZ);
+  // ── Pre-load ALL signal events into memory (much faster than per-entity queries)
+  console.log('⚡ Loading all signal events into memory…');
+  const allSignals = [];
+  const SIG_PAGE = 1000;
+  let sigOffset = 0;
+  while (true) {
+    const { data: sigPage, error: sigErr } = await supabase
+      .from('pythh_signal_events')
+      .select('entity_id, detected_at, primary_signal, signal_type, signal_strength, confidence, evidence_quality, is_costly_action, signal_object')
+      .order('detected_at', { ascending: true })
+      .range(sigOffset, sigOffset + SIG_PAGE - 1);
+    if (sigErr) { console.error('Signal fetch error:', sigErr.message); break; }
+    if (!sigPage || sigPage.length === 0) break;
+    allSignals.push(...sigPage);
+    process.stdout.write(`\r   Signal events loaded: ${allSignals.length}…`);
+    if (sigPage.length < SIG_PAGE) break;
+    sigOffset += SIG_PAGE;
+  }
+  console.log(`\r   Signal events loaded: ${allSignals.length} total.\n`);
+
+  // Group signals by entity_id
+  const signalsByEntity = {};
+  for (const ev of allSignals) {
+    if (!signalsByEntity[ev.entity_id]) signalsByEntity[ev.entity_id] = [];
+    signalsByEntity[ev.entity_id].push(ev);
+  }
+  const entitiesWithSignals = entities.filter(e => signalsByEntity[e.id]?.length > 0);
+  console.log(`   Entities with signals: ${entitiesWithSignals.length} / ${entities.length}\n`);
+
+  // Accumulate trajectory rows and entity updates for batch flushing
+  const trajBuffer   = [];
+  const entityBuffer = []; // { id, total_signals, signal_velocity, last_signal_date }
+  const FLUSH_SIZE   = 100;
+
+  async function flushBuffers(force = false) {
+    if (!DRY_RUN && (force || trajBuffer.length >= FLUSH_SIZE)) {
+      if (trajBuffer.length) {
+        const { error: upsErr } = await supabase
+          .from('pythh_trajectories')
+          .upsert(trajBuffer.splice(0, trajBuffer.length), { onConflict: 'entity_id,time_window_days,window_end' });
+        if (upsErr) { stats.errors++; }
+      }
+    }
+    if (!DRY_RUN && (force || entityBuffer.length >= 50)) {
+      // Batch entity updates: do them as individual updates since there's no upsert
+      // key other than id — do in parallel groups of 20
+      const slice = entityBuffer.splice(0, entityBuffer.length);
+      const PARA = 20;
+      for (let p = 0; p < slice.length; p += PARA) {
+        await Promise.all(slice.slice(p, p + PARA).map(eu =>
+          supabase.from('pythh_entities').update({
+            total_signals:    eu.total_signals,
+            signal_velocity:  eu.signal_velocity,
+            last_signal_date: eu.last_signal_date,
+          }).eq('id', eu.id)
+        ));
+      }
+    }
+  }
+
+  for (let i = 0; i < entitiesWithSignals.length; i += BATCH_SZ) {
+    const batch = entitiesWithSignals.slice(i, i + BATCH_SZ);
 
     for (const entity of batch) {
       stats.entities++;
 
-      // Fetch all signal events for this entity
-      const { data: events, error: evErr } = await supabase
-        .from('pythh_signal_events')
-        .select('detected_at, primary_signal, signal_type, signal_strength, confidence, evidence_quality, is_costly_action, signal_object')
-        .eq('entity_id', entity.id)
-        .order('detected_at', { ascending: true });
-
-      if (evErr || !events?.length) {
+      const events = signalsByEntity[entity.id] || [];
+      if (!events.length) {
         stats.skipped_no_signals++;
         continue;
       }
@@ -102,12 +169,14 @@ async function main() {
       }));
 
       // Compute trajectories at each time window
+      let report90 = null;
       for (const windowDays of SINGLE_WIN) {
         try {
           const report = buildTrajectory(signalHistory, {
             entity_id:   entity.id,
             window_days: windowDays,
           });
+          if (windowDays === 90) report90 = report;
 
           if (DRY_RUN) {
             if (windowDays === 90) {
@@ -163,38 +232,35 @@ async function main() {
                                         : null,
           };
 
-          // Upsert (entity_id, time_window_days, window_end) is unique
-          const { error: upsErr } = await supabase
-            .from('pythh_trajectories')
-            .upsert(trajRow, { onConflict: 'entity_id,time_window_days,window_end' });
-
-          if (upsErr) { stats.errors++; }
-          else {
-            stats.trajectories_written++;
-            const dt = report.dominant_trajectory || 'unknown';
-            stats.by_trajectory[dt] = (stats.by_trajectory[dt] || 0) + 1;
-          }
-
-          // Update total_signals on entity
-          await supabase.from('pythh_entities')
-            .update({
-              total_signals:    report.total_signals,
-              signal_velocity:  report.velocity_score,
-              last_signal_date: report.last_signal_date
-                                  ? new Date(report.last_signal_date).toISOString().split('T')[0]
-                                  : null,
-            })
-            .eq('id', entity.id);
+          // Buffer instead of individual upsert
+          trajBuffer.push(trajRow);
+          stats.trajectories_written++;
+          const dt = report.dominant_trajectory || 'unknown';
+          stats.by_trajectory[dt] = (stats.by_trajectory[dt] || 0) + 1;
 
         } catch (e) {
           stats.errors++;
         }
       }
+
+      // Buffer entity stats update using 90-day report
+      if (report90 && !DRY_RUN) {
+        entityBuffer.push({
+          id:               entity.id,
+          total_signals:    report90.total_signals,
+          signal_velocity:  report90.velocity_score,
+          last_signal_date: report90.last_signal_date
+                              ? new Date(report90.last_signal_date).toISOString().split('T')[0]
+                              : null,
+        });
+      }
     }
 
-    const pct = Math.round(((i + batch.length) / entities.length) * 100);
-    process.stdout.write(`\r  Progress: ${i + batch.length}/${entities.length} entities (${pct}%)  `);
+    await flushBuffers();
+    const pct = Math.round(((i + batch.length) / entitiesWithSignals.length) * 100);
+    process.stdout.write(`\r  Progress: ${i + batch.length}/${entitiesWithSignals.length} entities (${pct}%)  `);
   }
+  await flushBuffers(true); // flush remainder
 
   // ── Report ────────────────────────────────────────────────────────────────
   console.log('\n\n' + '═'.repeat(60));

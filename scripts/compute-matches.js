@@ -61,52 +61,75 @@ async function main() {
   console.log(`   Loaded ${candidates.length} candidates.\n`);
 
   // ── 2. Load entities ────────────────────────────────────────────────────────
-  console.log('🏢 Loading entities…');
-  let entityQuery = supabase
-    .from('pythh_entities')
-    .select('id, name, entity_type, sectors, stage, geographies, total_signals, signal_velocity')
-    .eq('is_active', true)
-    .gt('total_signals', 0);
-
-  if (ENTITY_ID) entityQuery = entityQuery.eq('id', ENTITY_ID);
-  else entityQuery = entityQuery.order('signal_velocity', { ascending: false }).limit(LIMIT);
-
-  const { data: entities, error: entErr } = await entityQuery;
-  if (entErr) { console.error('❌ Entity fetch failed:', entErr.message); process.exit(1); }
-  console.log(`   Loaded ${entities?.length ?? 0} entities.\n`);
+  console.log('🏢 Loading entities (paginated)…');
+  let entities = [];
+  if (ENTITY_ID) {
+    const { data: one, error: oneErr } = await supabase
+      .from('pythh_entities')
+      .select('id, name, entity_type, sectors, stage, geographies, total_signals, signal_velocity')
+      .eq('id', ENTITY_ID)
+      .eq('is_active', true);
+    if (oneErr) { console.error('❌ Entity fetch failed:', oneErr.message); process.exit(1); }
+    entities = one || [];
+  } else {
+    const PAGE_FETCH = 500;
+    let offset = 0;
+    while (entities.length < LIMIT) {
+      const { data: page, error: entErr } = await supabase
+        .from('pythh_entities')
+        .select('id, name, entity_type, sectors, stage, geographies, total_signals, signal_velocity')
+        .eq('is_active', true)
+        .gt('total_signals', 0)
+        .order('signal_velocity', { ascending: false, nullsFirst: false })
+        .range(offset, offset + PAGE_FETCH - 1);
+      if (entErr) { console.error('❌ Entity fetch failed:', entErr.message); process.exit(1); }
+      if (!page || page.length === 0) break;
+      entities.push(...page);
+      process.stdout.write(`\r   Loaded: ${entities.length}…`);
+      if (page.length < PAGE_FETCH) break;
+      offset += PAGE_FETCH;
+    }
+    entities = entities.slice(0, LIMIT);
+  }
+  console.log(`\r   Loaded ${entities.length} entities.\n`);
 
   // ── 3. Load trajectories (most recent 90-day window per entity) ─────────────
-  console.log('📈 Loading trajectories…');
+  console.log('📈 Loading trajectories (paginated)…');
   const entityIds = (entities || []).map(e => e.id);
-  const { data: trajs, error: trajErr } = await supabase
-    .from('pythh_trajectories')
-    .select('*')
-    .in('entity_id', entityIds)
-    .eq('time_window_days', 90)
-    .order('computed_at', { ascending: false });
-
-  if (trajErr) { console.error('⚠️  Trajectory fetch warn:', trajErr.message); }
-
+  // Batch entityIds queries in groups of 200 (Supabase IN clause limit)
   const trajByEntity = {};
-  for (const t of (trajs || [])) {
-    if (!trajByEntity[t.entity_id]) trajByEntity[t.entity_id] = t;
+  const ID_BATCH = 200;
+  for (let bi = 0; bi < entityIds.length; bi += ID_BATCH) {
+    const idSlice = entityIds.slice(bi, bi + ID_BATCH);
+    const { data: trajs, error: trajErr } = await supabase
+      .from('pythh_trajectories')
+      .select('*')
+      .in('entity_id', idSlice)
+      .eq('time_window_days', 90)
+      .order('computed_at', { ascending: false });
+    if (trajErr) { console.error('⚠️  Trajectory batch warn:', trajErr.message); }
+    for (const t of (trajs || [])) {
+      if (!trajByEntity[t.entity_id]) trajByEntity[t.entity_id] = t;
+    }
+    process.stdout.write(`\r   Trajectories loaded: ${Object.keys(trajByEntity).length}…`);
   }
-  console.log(`   Loaded ${Object.keys(trajByEntity).length} trajectory snapshots.\n`);
+  console.log(`\r   Loaded ${Object.keys(trajByEntity).length} trajectory snapshots.\n`);
 
   // ── 4. Load needs ───────────────────────────────────────────────────────────
-  console.log('🧠 Loading inferred needs…');
-  const { data: needsRows, error: needsErr } = await supabase
-    .from('pythh_entity_needs')
-    .select('*')
-    .in('entity_id', entityIds)
-    .gt('confidence', 0.3);
-
-  if (needsErr) { console.error('⚠️  Needs fetch warn:', needsErr.message); }
-
+  console.log('🧠 Loading inferred needs (paginated)…');
   const needsByEntity = {};
-  for (const n of (needsRows || [])) {
-    if (!needsByEntity[n.entity_id]) needsByEntity[n.entity_id] = [];
-    needsByEntity[n.entity_id].push(n);
+  for (let bi = 0; bi < entityIds.length; bi += ID_BATCH) {
+    const idSlice = entityIds.slice(bi, bi + ID_BATCH);
+    const { data: needsRows, error: needsErr } = await supabase
+      .from('pythh_entity_needs')
+      .select('*')
+      .in('entity_id', idSlice)
+      .gt('confidence', 0.3);
+    if (needsErr) { console.error('⚠️  Needs batch warn:', needsErr.message); }
+    for (const n of (needsRows || [])) {
+      if (!needsByEntity[n.entity_id]) needsByEntity[n.entity_id] = [];
+      needsByEntity[n.entity_id].push(n);
+    }
   }
   console.log(`   Loaded needs for ${Object.keys(needsByEntity).length} entities.\n`);
 
