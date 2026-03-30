@@ -11,12 +11,16 @@
 #   5. Compute matches against candidates
 #
 # Usage:
-#   ./scripts/run-pipeline.sh                  # dry-run (no DB writes)
-#   ./scripts/run-pipeline.sh --apply          # full apply
-#   ./scripts/run-pipeline.sh --apply --quick  # quick mode (smaller limits)
+#   ./scripts/run-pipeline.sh                         # dry-run (no DB writes)
+#   ./scripts/run-pipeline.sh --apply                 # full apply (all 5 steps)
+#   ./scripts/run-pipeline.sh --apply --quick         # smaller limits
+#   ./scripts/run-pipeline.sh --apply --signals-only  # steps 1+2 only (daily refresh)
 #
-# Cron example (every Sunday at 2am):
-#   0 2 * * 0 cd /Users/leguplabs/Desktop/hot-honey && ./scripts/run-pipeline.sh --apply >> logs/pipeline.log 2>&1
+# Recommended cron schedule:
+#   Daily 6am:   ingest new signals from freshly scraped articles
+#     0 6 * * * cd /path/to/hot-honey && ./scripts/run-pipeline.sh --apply --signals-only >> logs/pipeline.log 2>&1
+#   Weekly Sunday 2am: full intelligence recompute
+#     0 2 * * 0 cd /path/to/hot-honey && ./scripts/run-pipeline.sh --apply >> logs/pipeline.log 2>&1
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -29,10 +33,12 @@ mkdir -p "$LOG_DIR"
 # ── Parse args ───────────────────────────────────────────────────────────────
 APPLY=""
 QUICK=""
+SIGNALS_ONLY=""
 for arg in "$@"; do
   case "$arg" in
-    --apply) APPLY="--apply" ;;
-    --quick) QUICK="1" ;;
+    --apply)        APPLY="--apply" ;;
+    --quick)        QUICK="1" ;;
+    --signals-only) SIGNALS_ONLY="1" ;;
   esac
 done
 
@@ -58,6 +64,7 @@ echo "╔═══════════════════════�
 echo "║         PYTHH SIGNAL INTELLIGENCE PIPELINE RUNNER           ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo "  Mode:   $([ -n "$APPLY" ] && echo "✍  APPLY" || echo "🔍 DRY-RUN")"
+echo "  Scope:  $([ -n "$SIGNALS_ONLY" ] && echo "signals only (steps 1-2)" || echo "full pipeline (steps 1-5)")"
 echo "  Quick:  $([ -n "$QUICK" ] && echo "yes (smaller limits)" || echo "no (full run)")"
 echo "  Start:  $(date)"
 echo ""
@@ -85,17 +92,22 @@ run_step "1/5 — Ingest startup_uploads signals" \
 run_step "2/5 — Ingest discovered_startups headlines" \
   scripts/ingest-discovered-signals.js $APPLY --limit "$DISC_LIMIT" --skip-existing
 
-# ── Step 3: Compute trajectories ──────────────────────────────────────────────
-run_step "3/5 — Compute trajectories" \
-  scripts/compute-trajectories.js $APPLY --limit "$TRAJ_LIMIT"
+# ── Step 3-5: Intelligence recompute (skipped in --signals-only mode) ──────────
+if [[ -z "$SIGNALS_ONLY" ]]; then
+  run_step "3/5 — Compute trajectories" \
+    scripts/compute-trajectories.js $APPLY --limit "$TRAJ_LIMIT"
 
-# ── Step 4: Infer needs ───────────────────────────────────────────────────────
-run_step "4/5 — Infer entity needs" \
-  scripts/compute-needs.js $APPLY --limit "$NEEDS_LIMIT"
+  run_step "4/5 — Infer entity needs" \
+    scripts/compute-needs.js $APPLY --limit "$NEEDS_LIMIT"
 
-# ── Step 5: Compute matches ───────────────────────────────────────────────────
-run_step "5/5 — Compute matches" \
-  scripts/compute-matches.js $APPLY --limit "$MATCH_LIMIT" --top 15
+  run_step "5/5 — Compute matches" \
+    scripts/compute-matches.js $APPLY --limit "$MATCH_LIMIT" --top 15
+else
+  echo "───────────────────────────────────────────────────────────────"
+  echo "  Signals-only mode: skipping steps 3-5 (trajectories/needs/matches)"
+  echo "  Run without --signals-only on Sunday for full intelligence recompute."
+  echo "───────────────────────────────────────────────────────────────"
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 END_TIME=$(date +%s)

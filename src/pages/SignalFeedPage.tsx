@@ -844,6 +844,8 @@ export default function SignalFeedPage() {
   const [trajectories, setTrajectories] = useState<TrajectoryRow[]>([]);
   const [matches, setMatches]         = useState<MatchRow[]>([]);
   const [loading, setLoading]         = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshing, setRefreshing]   = useState(false);
   const [perspective, setPerspective] = useState<Perspective>('all');
   const [signalClass, setSignalClass] = useState('all');
   const [eqFilter, setEqFilter]       = useState('all');
@@ -883,6 +885,8 @@ export default function SignalFeedPage() {
       console.error('Signal feed load error:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setLastUpdated(new Date());
     }
   }, []);
 
@@ -1018,13 +1022,26 @@ export default function SignalFeedPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => { loadSignals(); loadTrajectories(); loadMatches(); }}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-zinc-400 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+          <div className="flex flex-col items-end gap-1.5">
+            {lastUpdated && (
+              <span className="text-[10px] text-zinc-600">
+                Updated {relativeDate(lastUpdated.toISOString())}
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setRefreshing(true);
+                loadSignals();
+                loadTrajectories();
+                loadMatches();
+              }}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-zinc-400 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* ── Stats row ───────────────────────────────────────────────────── */}

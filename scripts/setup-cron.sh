@@ -16,45 +16,66 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PIPELINE_SCRIPT="$ROOT/scripts/run-pipeline.sh"
 LOG_FILE="$ROOT/logs/pipeline.log"
-CRON_MARKER="# pythh-signal-pipeline"
+CRON_MARKER_DAILY="# pythh-signal-daily"
+CRON_MARKER_WEEKLY="# pythh-pipeline-weekly"
 
 # Make sure pipeline script is executable
 chmod +x "$PIPELINE_SCRIPT"
 
-# Build the cron entry (runs every Sunday at 2:00am)
-CRON_JOB="0 2 * * 0 cd \"$ROOT\" && PATH=\"/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:\$PATH\" $PIPELINE_SCRIPT --apply >> \"$LOG_FILE\" 2>&1 $CRON_MARKER"
+NODE_PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
+
+# Daily 6am: ingest new signals only (steps 1+2 — fast, ~2 min)
+CRON_DAILY="0 6 * * * cd \"$ROOT\" && PATH=\"$NODE_PATH:\$PATH\" $PIPELINE_SCRIPT --apply --signals-only >> \"$LOG_FILE\" 2>&1 $CRON_MARKER_DAILY"
+# Weekly Sunday 2am: full intelligence recompute (all 5 steps, ~20 min)
+CRON_WEEKLY="0 2 * * 0 cd \"$ROOT\" && PATH=\"$NODE_PATH:\$PATH\" $PIPELINE_SCRIPT --apply >> \"$LOG_FILE\" 2>&1 $CRON_MARKER_WEEKLY"
 
 case "${1:-install}" in
   --remove)
-    echo "🗑  Removing Pythh cron job..."
-    (crontab -l 2>/dev/null | grep -v "$CRON_MARKER") | crontab -
-    echo "✅ Cron job removed."
+    echo "🗑  Removing Pythh cron jobs..."
+    (crontab -l 2>/dev/null | grep -v "$CRON_MARKER_DAILY" | grep -v "$CRON_MARKER_WEEKLY") | crontab -
+    echo "✅ Cron jobs removed."
     ;;
   --check)
-    if crontab -l 2>/dev/null | grep -q "$CRON_MARKER"; then
-      echo "✅ Pythh cron job is installed:"
-      crontab -l 2>/dev/null | grep "$CRON_MARKER"
+    DAILY_OK=$(crontab -l 2>/dev/null | grep -c "$CRON_MARKER_DAILY" || true)
+    WEEKLY_OK=$(crontab -l 2>/dev/null | grep -c "$CRON_MARKER_WEEKLY" || true)
+    if [[ "$DAILY_OK" -gt 0 ]] && [[ "$WEEKLY_OK" -gt 0 ]]; then
+      echo "✅ Both Pythh cron jobs are installed:"
     else
-      echo "❌ Pythh cron job is NOT installed."
-      echo "   Run: ./scripts/setup-cron.sh to install."
+      echo "⚠️  Some Pythh cron jobs may be missing (daily=$DAILY_OK, weekly=$WEEKLY_OK):"
     fi
+    crontab -l 2>/dev/null | grep -E "$CRON_MARKER_DAILY|$CRON_MARKER_WEEKLY" || echo "  (none found)"
     ;;
   *)
-    echo "⚙️  Installing Pythh weekly pipeline cron job..."
+    echo "⚙️  Installing Pythh cron jobs..."
     mkdir -p "$ROOT/logs"
-    # Remove any existing entry then add fresh
-    (crontab -l 2>/dev/null | grep -v "$CRON_MARKER"; echo "$CRON_JOB") | crontab -
+    # Remove old entries and add both fresh
+    (crontab -l 2>/dev/null \
+      | grep -v "$CRON_MARKER_DAILY" \
+      | grep -v "$CRON_MARKER_WEEKLY"
+    echo "$CRON_DAILY"
+    echo "$CRON_WEEKLY") | crontab -
     echo ""
-    echo "✅ Cron job installed!"
-    echo "   Schedule: Every Sunday at 2:00am"
-    echo "   Command:  $PIPELINE_SCRIPT --apply"
-    echo "   Log:      $LOG_FILE"
+    echo "✅ Cron jobs installed!"
+    echo ""
+    echo "  📅 Daily   6:00am  — Signal ingestion only (steps 1+2, ~2 min)"
+    echo "  📅 Weekly  Sun 2am — Full intelligence recompute (all 5 steps, ~20 min)"
+    echo "  📋 Log:    $LOG_FILE"
     echo ""
     echo "Current crontab:"
-    crontab -l 2>/dev/null | grep "$CRON_MARKER" || true
+    crontab -l 2>/dev/null | grep -E "$CRON_MARKER_DAILY|$CRON_MARKER_WEEKLY" || true
     echo ""
     echo "To remove:  ./scripts/setup-cron.sh --remove"
     echo "To check:   ./scripts/setup-cron.sh --check"
-    echo "To run now: ./scripts/run-pipeline.sh --apply"
+    echo "To run now: ./scripts/run-pipeline.sh --apply --signals-only"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📧 Weekly Investor Email Digest (manual setup required):"
+    echo ""
+    echo "  Add this line to crontab for Monday 8am digest:"
+    echo "  0 8 * * 1 cd \"$ROOT\" && node scripts/send-weekly-signal-digest.js --to YOUR_EMAIL >> logs/digest.log 2>&1"
+    echo ""
+    echo "  Test with dry-run first:"
+    echo "  node scripts/send-weekly-signal-digest.js --dry-run --to you@firm.com"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     ;;
 esac

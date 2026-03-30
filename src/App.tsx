@@ -179,6 +179,7 @@ const DatabaseDiagnostic = lazy(() => import("./pages/DatabaseDiagnostic"));
 const ScraperManagementPage = lazy(() => import("./pages/ScraperManagementPage"));
 const AIIntelligenceDashboard = lazy(() => import("./pages/AIIntelligenceDashboard"));
 const SignalFeedPage = lazy(() => import("./pages/SignalFeedPage"));
+const InvestorMatchFeedPage = lazy(() => import("./pages/InvestorMatchFeedPage"));
 const AdminActions = lazy(() => import("./pages/AdminActions"));
 const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const MLDashboard = lazy(() => import("./pages/MLDashboard"));
@@ -269,6 +270,7 @@ const App = () => {
             <Route path="/startup/:startupId" element={<StartupIdRedirect />} />
             {/* Static paths must come before /investor/:id or "dashboard" is parsed as an id (invalid UUID → 400). */}
             <Route path="/investor/dashboard" element={<InvestorProfileDashboard />} />
+            <Route path="/investor/signal-matches" element={<InvestorMatchFeedPage />} />
             <Route path="/investor/:id" element={<InvestorProfile />} />
 
             <Route path="/signup" element={<SignupLanding />} />

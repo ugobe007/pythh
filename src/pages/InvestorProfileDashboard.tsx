@@ -351,6 +351,18 @@ export default function InvestorProfileDashboard() {
               {investor.investment_thesis}
             </p>
           )}
+
+          {/* Signal Intelligence CTA */}
+          <div className="mt-4 flex">
+            <Link
+              to="/investor/signal-matches"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-sm font-medium hover:bg-amber-500/20 transition-colors"
+            >
+              <span>⚡</span>
+              View Signal-Matched Startups
+              <span className="text-amber-500/60">→</span>
+            </Link>
+          </div>
         </header>
 
 
