@@ -25,8 +25,11 @@
 'use strict';
 require('dotenv').config();
 
-const { createClient } = require('@supabase/supabase-js');
-const OpenAI           = require('openai');
+const { createClient }    = require('@supabase/supabase-js');
+const OpenAI              = require('openai');
+const { insertInBatches,
+        getAlreadyIngestedToday,
+        fetchByIds }      = require('../lib/supabaseUtils');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -59,11 +62,41 @@ const BATCH_SIZE = +(argVal('--batch',     '5'));  // entities per LLM call
 
 // ── Pythh signal classes the LLM must use ─────────────────────────────────
 const VALID_CLASSES = [
-  'fundraising_signal', 'growth_signal', 'product_signal', 'expansion_signal',
-  'enterprise_signal', 'efficiency_signal', 'distress_signal', 'exit_signal',
-  'acquisition_signal', 'exploratory_signal', 'buyer_signal', 'buyer_pain_signal',
-  'investor_interest_signal', 'investor_rejection_signal', 'partnership_signal',
-  'hiring_signal', 'revenue_signal', 'market_signal',
+  // Core business lifecycle
+  'fundraising_signal', 'growth_signal', 'revenue_signal', 'product_signal',
+  'expansion_signal', 'enterprise_signal', 'efficiency_signal', 'distress_signal',
+  'exit_signal', 'acquisition_signal', 'partnership_signal', 'hiring_signal',
+  // Investor signals
+  'investor_interest_signal', 'investor_rejection_signal',
+  // Buyer signals
+  'buyer_signal', 'buyer_pain_signal', 'buyer_budget_signal',
+  // GTM / market
+  'gtm_signal', 'demand_signal', 'market_signal',
+  // Founder psychology (LinkedIn/X — precedes events by 3–12 months)
+  'founder_psychology_signal',
+  // Low certainty
+  'exploratory_signal',
+];
+
+// ── Valid postures (mirrors signalOntology.js POSTURE_MAP) ────────────────
+const VALID_POSTURES = [
+  'posture_confident',         // high conviction, positive momentum
+  'posture_euphoric',          // peak excitement — milestone or launch
+  'posture_disciplined',       // controlled growth, efficiency-minded
+  'posture_urgent',            // time-sensitive, high urgency
+  'posture_distressed',        // under pressure / survival mode
+  'posture_frustrated',        // friction / difficulty — pre-pivot warning
+  'posture_defensive',         // resilience framing, holding steady
+  'posture_combative',         // competitive aggression
+  'posture_cautious_optimism', // hedged positive
+  'posture_experimental',      // iterating / discovering
+  'posture_speed',             // bias for action, shipping fast
+  'posture_grateful',          // gratitude — often precedes fundraise/milestone
+  'posture_ambiguous',         // hedging, uncertain
+  'posture_reflective',        // looking back — milestone or wind-down
+  'posture_transparent',       // vulnerability / honesty — often precedes hard news
+  'posture_mission',           // values/purpose-driven narrative
+  'posture_neutral',           // no strong posture signal
 ];
 
 // ── System prompt for LLM ─────────────────────────────────────────────────
@@ -77,29 +110,64 @@ Each signal object must follow this schema exactly:
   "sentence_index": <0-based int — which sentence for that company>,
   "sentence": "the original sentence text",
   "primary_signal": "<one of the valid signal classes>",
-  "signal_type": "event | intent | posture | demand | distress | investor | buyer | talent | market",
+  "alternate_signal": "<second-best class if ambiguous, else null>",
+  "signal_type": "event | intent | posture | demand | distress | investor | buyer | talent | market | psychology | efficiency | exit",
   "signal_strength": <number 0.0-1.0>,
   "confidence": <number 0.0-1.0>,
   "evidence_quality": "confirmed | inferred | stated | speculative",
   "modality": "active | passive | conditional | hedged | stated",
-  "posture": "confident | cautious | optimistic | neutral | uncertain",
+  "posture": "<one of the valid posture values>",
   "action_tag": "<short snake_case label e.g. raise_funding, hire_engineers, launch_product>",
   "meaning": "<1 sentence plain-English interpretation>",
-  "is_ambiguous": false,
-  "has_negation": false,
+  "is_ambiguous": <true if language is hedged, weak, or mixed — else false>,
+  "has_negation": <true if sentence negates the signal — else false>,
   "intensity": [],
   "who_cares": { "investors": false, "vendors": false, "acquirers": false, "recruiters": false }
 }
 
 Valid primary_signal values: ${VALID_CLASSES.join(', ')}
+Valid posture values: ${VALID_POSTURES.join(', ')}
 
-Rules:
-- Include a signal for ANY sentence mentioning growth, hiring, fundraising, product launches, partnerships, expansion, revenue, customers, or strategic moves
-- Be generous: a startup describing what it does implies a product_signal or market_signal
-- Confidence reflects certainty of classification (not business outcome)
-- fundraising: "raised $5M" → 0.95, "seeking investment" → 0.70, "building for growth" → 0.55
-- Return {"signals": []} ONLY for sentences that are pure noise, legal boilerplate, or HTML artifacts
-- Every signal object MUST include entity_index and sentence_index
+## Signal classification rules:
+
+### Coverage — be generous:
+- ANY sentence mentioning growth, hiring, fundraising, product, partnerships, expansion, revenue, customers, or strategic moves → classify it
+- A startup describing what it does implies product_signal or market_signal at minimum
+- A founder describing emotions or journey → founder_psychology_signal
+
+### Confidence calibration:
+- Confirmed event ("raised $5M", "launched today"): strength 0.85–1.00, confidence 0.90–1.00
+- Active intent ("we are raising", "currently hiring"): strength 0.70–0.85, confidence 0.80–0.90
+- Stated intent ("we plan to", "we will launch"): strength 0.55–0.75, confidence 0.65–0.80
+- Hedged / speculative ("may raise", "considering expansion"): strength 0.30–0.55, confidence 0.40–0.65, is_ambiguous: true
+- Vague / aspirational ("we want to grow"): strength 0.25–0.45, confidence 0.35–0.55, is_ambiguous: true
+
+### Ambiguity rule:
+- Set is_ambiguous: true for: may, might, could, possibly, considering, exploring, hoping, planning, looking to, if all goes well
+- When is_ambiguous: true, always populate alternate_signal with the next-best classification
+
+### Founder psychology signals (founder_psychology_signal):
+- Gratitude + excitement ("couldn't be more excited", "humbled by support") → strength 0.70–0.80, likely precedes fundraise/launch
+- Reflective / farewell ("on to next adventure", "bittersweet", "stepping back") → strength 0.75–0.88, likely precedes shutdown/departure
+- Reconsideration ("revisiting roadmap", "customers kept asking for") → strength 0.70–0.80, pivot likely
+
+### Colloquial / informal language:
+- "snags $X", "bags funding", "scores round", "pockets $Xm" → fundraising_signal, confirmed (0.90)
+- "landed customer", "notched a win", "crushing it" → growth_signal (0.80–0.90)
+- "hockey-stick growth", "off the charts", "on fire" → growth_signal, posture_euphoric (0.80–0.90)
+- "running out of runway", "X months of runway" → distress_signal (0.85–0.95)
+- "sunsetting", "winding down", "shutting down" → distress_signal, confirmed (1.00)
+- "dogfooding", "build in public" → product_signal (0.65–0.70)
+- "first paying customer", "hit $XM ARR", "turned profitable" → revenue_signal (0.90–0.95)
+
+### who_cares matrix:
+- investors: fundraising, growth, revenue, exit, acquisition, founder_psychology
+- vendors: buyer_signal, buyer_pain, buyer_budget, gtm, demand_signal
+- acquirers: exit, acquisition, distress, growth at scale, efficiency
+- recruiters: hiring_signal, partnership_signal, expansion_signal
+
+### Exclude (return empty signals array):
+- Pure HTML artifacts, legal boilerplate, cookie notices, navigation text, or sentences with zero business content
 
 Return ONLY valid JSON. No markdown, no text outside the JSON object.`;
 
@@ -113,16 +181,36 @@ function toStr(v) {
 }
 
 function extractSentences(row) {
+  // Text lives in top-level columns (description, pitch, etc.) AND
+  // may also be nested in extracted_data for legacy rows.
   const ed = row.extracted_data || {};
-  const TEXT_FIELDS = ['description','pitch','problem','solution','value_proposition','market','tagline'];
-  const text = TEXT_FIELDS.map(f => toStr(ed[f])).filter(s => s && s.length > 2).join('. ');
+
+  // Priority: top-level columns first (richer, more specific)
+  const TOP_FIELDS = [
+    'description', 'pitch', 'execution_signals', 'grit_signals',
+    'team_signals', 'problem', 'solution', 'value_proposition',
+    'contrarian_belief', 'why_now', 'unfair_advantage', 'tagline',
+  ];
+  // Also check inside extracted_data as fallback
+  const ED_FIELDS = ['description','pitch','problem','solution','value_proposition','market','tagline'];
+
+  const parts = [
+    ...TOP_FIELDS.map(f => toStr(row[f])),
+    ...ED_FIELDS.map(f => toStr(ed[f])),
+  ].filter(s => s && s.length > 2);
+
+  // Deduplicate (extracted_data sometimes mirrors top-level columns)
+  const seen = new Set();
+  const unique = parts.filter(p => { if (seen.has(p)) return false; seen.add(p); return true; });
+
+  const text = unique.join('. ');
   if (text.length < 20) return [];
   return text
     .replace(/([.!?])\s+(?=[A-Z])/g, '$1\n')
     .split('\n')
     .map(s => s.trim())
     .filter(s => s.length >= 40 && s.length <= 600)
-    .slice(0, 20); // max sentences per entity to control cost
+    .slice(0, 20); // max 20 sentences per entity to control LLM cost
 }
 
 // ── Call LLM for a batch of entity+sentences ──────────────────────────────
@@ -246,14 +334,20 @@ async function main() {
   // ── Load text from BOTH startup_uploads and discovered_startups ────────
   console.log('📝 Loading startup text...');
 
-  // From startup_uploads (via extracted_data)
+  // From startup_uploads — select top-level text columns + extracted_data for fallback
+  // Chunk size kept small (100) to stay under PostgREST URL length limits.
+  // 500 UUIDs × 36 chars = ~18KB URL which PostgREST silently truncates to 0 results.
+  const UPAGE = 100;
+
   const uploadIds = entities.map(e => e.startup_upload_id).filter(Boolean);
   const uploadMap = {};
-  const UPAGE = 500;
   for (let i = 0; i < uploadIds.length; i += UPAGE) {
     const { data: rows } = await supabase
       .from('startup_uploads')
-      .select('id, extracted_data')
+      .select(`id, extracted_data,
+        description, pitch, execution_signals, grit_signals, team_signals,
+        problem, solution, value_proposition, contrarian_belief, why_now,
+        unfair_advantage, tagline`)
       .in('id', uploadIds.slice(i, i + UPAGE));
     for (const r of (rows || [])) uploadMap[r.id] = r;
   }
@@ -319,19 +413,18 @@ async function main() {
 
   const signalBuf   = [];
   const timelineBuf = [];
-  const FLUSH_SIZE  = 100;
 
   async function flush(force = false) {
-    if (!DRY_RUN && (force || signalBuf.length >= FLUSH_SIZE)) {
-      const s = signalBuf.splice(0, signalBuf.length);
-      const t = timelineBuf.splice(0, timelineBuf.length);
-      if (s.length) {
-        const { error } = await supabase.from('pythh_signal_events').insert(s);
-        if (error) { stats.errors++; }
-        else stats.signals_written += s.length;
+    if (!DRY_RUN && (force || signalBuf.length >= 200)) {
+      if (signalBuf.length) {
+        const { inserted, errors } = await insertInBatches(supabase, 'pythh_signal_events', signalBuf);
+        stats.signals_written += inserted;
+        stats.errors += errors;
+        signalBuf.length = 0;
       }
-      if (t.length) {
-        try { await supabase.from('pythh_signal_timeline').insert(t); } catch { /* optional table */ }
+      if (timelineBuf.length) {
+        await insertInBatches(supabase, 'pythh_signal_timeline', timelineBuf);
+        timelineBuf.length = 0;
       }
     }
   }
@@ -389,11 +482,15 @@ async function main() {
       signalBuf.push({
         entity_id:         entity.id,
         source:            'llm_enrichment',
-        source_type:       'description',
+        source_type:       'llm_enrichment',
         source_url:        null,
         detected_at:       now,
         raw_sentence:      sentence,
-        signal_object:     sig,
+        signal_object:     {
+          ...sig,
+          alternate_signal: VALID_CLASSES.includes(sig.alternate_signal) ? sig.alternate_signal : null,
+          posture:          VALID_POSTURES.includes(sig.posture) ? sig.posture : 'posture_neutral',
+        },
         primary_signal:    sig.primary_signal,
         signal_type:       sig.signal_type       || null,
         signal_strength:   parseFloat(sig.signal_strength) || null,
@@ -403,12 +500,14 @@ async function main() {
         action_tag:        sig.action_tag        || 'action_inferred',
         modality:          sig.modality          || null,
         intensity:         Array.isArray(sig.intensity) ? sig.intensity : [],
-        posture:           sig.posture           || null,
+        posture:           VALID_POSTURES.includes(sig.posture) ? sig.posture : null,
         is_costly_action:  false,
         is_ambiguous:      sig.is_ambiguous      || false,
         is_multi_signal:   false,
         has_negation:      sig.has_negation      || false,
-        sub_signals:       [],
+        sub_signals:       sig.alternate_signal && VALID_CLASSES.includes(sig.alternate_signal)
+                             ? [{ signal: sig.alternate_signal, confidence: +(conf * 0.7).toFixed(3) }]
+                             : [],
         who_cares:         sig.who_cares         || {},
         likely_stage:      null,
         likely_needs:      [],
@@ -426,7 +525,7 @@ async function main() {
         is_costly_action: false,
         summary:          sig.meaning          || sig.primary_signal,
         source:           'llm_enrichment',
-        source_type:      'description',
+        source_type:      'llm_enrichment',
         source_url:       null,
       });
     }
