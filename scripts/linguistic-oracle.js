@@ -94,15 +94,19 @@ function analyzeFounderLanguage(text, startupName) {
   };
 }
 
-async function scoreAllStartups() {
-  console.log('\n🔮 LINGUISTIC ORACLE - Pattern-Based Inference\n');
+async function scoreAllStartups({ limit = 100, dryRun = false } = {}) {
+  console.log('\n🔮 LINGUISTIC ORACLE — Founder Language Scoring');
+  console.log('═'.repeat(60));
+  console.log(`Mode:  ${dryRun ? '🔍 DRY-RUN' : '✍️  APPLY'}`);
+  console.log(`Limit: ${limit} startups`);
+  console.log('═'.repeat(60) + '\n');
   
   const { data: startups, error } = await supabase
     .from('startup_uploads')
     .select('id, name, description, pitch, tagline')
     .eq('status', 'approved')
     .not('description', 'is', null)
-    .limit(100);
+    .limit(limit);
   
   if (error) {
     console.error('❌ Error:', error);
@@ -122,19 +126,25 @@ async function scoreAllStartups() {
     const analysis = analyzeFounderLanguage(text, startup.name);
     
     if (analysis) {
-      await supabase
-        .from('startup_uploads')
-        .update({
-          founder_voice_score: analysis.overall_score,
-          language_analysis: analysis
-        })
-        .eq('id', startup.id);
-      
+      if (!dryRun) {
+        await supabase
+          .from('startup_uploads')
+          .update({
+            founder_voice_score: analysis.overall_score,
+            language_analysis: analysis,
+          })
+          .eq('id', startup.id);
+      } else {
+        console.log(`  [DRY] ${startup.name}: ${analysis.overall_score}/100`);
+      }
       scored++;
     }
   }
-  
-  console.log(`\n✅ Scored: ${scored}`);
+
+  console.log('\n' + '═'.repeat(60));
+  console.log(`✅ Scored: ${scored} / ${startups.length} startups`);
+  if (dryRun) console.log('💡 Run with --apply to write scores to the database.');
+  console.log('═'.repeat(60));
 }
 
 async function generateRegressionReport() {
@@ -158,7 +168,16 @@ async function generateRegressionReport() {
   });
 }
 
-const cmd = process.argv[2];
-if (cmd === 'score') scoreAllStartups();
+// ── CLI ───────────────────────────────────────────────────────────────────────
+const args  = process.argv.slice(2);
+const cmd   = args.find(a => !a.startsWith('-')) || 'score';
+const APPLY = args.includes('--apply');
+const DRY   = !APPLY;
+const LIMIT = (() => {
+  const i = args.indexOf('--limit');
+  return i !== -1 ? +(args[i + 1] || '100') : 200;
+})();
+
+if (cmd === 'score') scoreAllStartups({ limit: LIMIT, dryRun: DRY });
 else if (cmd === 'report') generateRegressionReport();
-else console.log('Usage: npm run oracle:score or npm run oracle:report');
+else console.log('Usage: node scripts/linguistic-oracle.js score [--apply] [--limit N]');

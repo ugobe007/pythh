@@ -21,6 +21,43 @@ require('dotenv').config();
 const { createClient }  = require('@supabase/supabase-js');
 const { buildTrajectory } = require('../lib/trajectoryEngine');
 
+// ── Signal decay half-lives (days until 50% signal strength) ─────────────────
+// Ported from server/services/signalDetector.js SIGNAL_HALF_LIVES.
+// Formula: decayed_strength = strength × 0.5^(age_days / half_life)
+const SIGNAL_HALF_LIVES = {
+  fundraising_signal:       45,   // round dynamics — stale fast, market moves
+  investor_interest_signal: 30,   // hype/FOMO — very short shelf life
+  investor_rejection_signal:30,
+  growth_signal:            90,   // growth metrics — durable
+  revenue_signal:           90,
+  product_signal:           60,   // product launches — relevant for a cycle
+  market_signal:            60,
+  hiring_signal:            45,   // headcount signals — refresh quarterly
+  distress_signal:          60,   // distress — resolves or worsens within 2 months
+  acquisition_signal:       90,   // M&A — long tail
+  exit_signal:              90,
+  expansion_signal:         90,
+  partnership_signal:       90,
+  enterprise_signal:        90,
+  efficiency_signal:        90,
+  buyer_signal:             45,
+  buyer_pain_signal:        45,
+  exploratory_signal:       60,
+  market_position_signal:   60,
+  // Long-lived signals that never meaningfully decay
+  patent_signal:            999,
+  grant_signal:             730,
+  university_signal:        999,
+};
+const DEFAULT_HALF_LIFE = 120;
+
+function applyDecay(strength, primarySignal, detectedAt) {
+  if (!detectedAt || strength == null) return strength;
+  const ageDays = Math.max(0, (Date.now() - new Date(detectedAt).getTime()) / 86400000);
+  const halfLife = SIGNAL_HALF_LIVES[primarySignal] || DEFAULT_HALF_LIFE;
+  return strength * Math.pow(0.5, ageDays / halfLife);
+}
+
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
   if (!process.env[k]) { console.error(`❌ Missing ${k}`); process.exit(1); }
@@ -154,19 +191,27 @@ async function main() {
         continue;
       }
 
-      // Build signal history array in the format buildTrajectory expects
-      const signalHistory = events.map(ev => ({
-        date:   ev.detected_at,
-        signal: {
-          primary_signal:  ev.primary_signal,
-          signal_type:     ev.signal_type,
-          signal_strength: ev.signal_strength,
-          confidence:      ev.confidence,
-          evidence_quality: ev.evidence_quality,
-          costly_action:   ev.is_costly_action,
-          ...(ev.signal_object || {}),
-        },
-      }));
+      // Build signal history array — apply time decay so old signals contribute less.
+      // A fundraising signal from 6 months ago (3× its 45-day half-life) carries
+      // only 12.5% of its original strength. Recent signals dominate.
+      const signalHistory = events.map(ev => {
+        const rawStrength = ev.signal_strength ?? 0.5;
+        const decayedStrength = applyDecay(rawStrength, ev.primary_signal, ev.detected_at);
+        return {
+          date:   ev.detected_at,
+          signal: {
+            primary_signal:   ev.primary_signal,
+            signal_type:      ev.signal_type,
+            signal_strength:  decayedStrength,
+            raw_strength:     rawStrength,
+            decay_factor:     rawStrength > 0 ? +(decayedStrength / rawStrength).toFixed(3) : 1,
+            confidence:       ev.confidence,
+            evidence_quality: ev.evidence_quality,
+            costly_action:    ev.is_costly_action,
+            ...(ev.signal_object || {}),
+          },
+        };
+      });
 
       // Compute trajectories at each time window
       let report90 = null;

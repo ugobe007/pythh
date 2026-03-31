@@ -31,7 +31,9 @@ dotenv.config({ path: join(__dirname, '..', '.env') });
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL  = process.env.SUPABASE_URL  || process.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY
+                   || process.env.SUPABASE_SERVICE_KEY       // .env standard key name
+                   || process.env.VITE_SUPABASE_ANON_KEY;
 const GITHUB_TOKEN  = process.env.GITHUB_TOKEN; // optional: bumps search to 30 req/min (vs 10 anon)
 const FETCH_VERSION = 3; // increment when signal definitions change
 const STALE_DAYS    = 30; // re-fetch after 30 days
@@ -44,7 +46,8 @@ const GITHUB_DELAY_MS = GITHUB_TOKEN ? 2000 : 6000;
 // ─── Args ────────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-const DRY_RUN   = args.includes('--dry-run');
+// Accept both --dry-run (native flag) and absence of --apply (pipeline convention)
+const DRY_RUN   = args.includes('--dry-run') || (!args.includes('--apply') && !args.includes('--all'));
 const FETCH_ALL = args.includes('--all');
 
 // Parse --limit N  or --limit=N

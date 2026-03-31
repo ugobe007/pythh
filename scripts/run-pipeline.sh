@@ -8,9 +8,11 @@
 #   1. Ingest signals from startup_uploads (skip already-ingested)
 #   2. Ingest signals from discovered_startups (new RSS articles)
 #   3. LLM second-pass (GPT-4o-mini) on entities with zero signals
-#   4. Compute trajectories for all entities
-#   5. Infer needs from trajectories
-#   6. Compute matches against candidates
+#   4. Social signals — Google News, GitHub, iTunes (skip recent fetches)
+#   5. Founder oracle — linguistic analysis → founder_voice_score
+#   6. Compute trajectories (with signal decay) for all entities
+#   7. Infer needs from trajectories
+#   8. Compute matches against candidates
 #
 # Usage:
 #   ./scripts/run-pipeline.sh                         # dry-run (no DB writes)
@@ -102,19 +104,29 @@ run_step "2 — Ingest discovered_startups headlines" \
 run_step "3 — LLM enrichment (GPT-4o-mini on 0-signal entities)" \
   scripts/enrich-signals-llm.js $APPLY --limit 500
 
-# ── Step 4-6: Intelligence recompute (skipped in --signals-only mode) ──────────
+# ── Step 4: Social signals — GitHub stars, Google News count, iTunes ratings ──
+# Skips startups fetched within the last 30 days automatically (built-in dedup).
+run_step "4 — Social signals (GitHub / Google News / iTunes)" \
+  scripts/social-signals-fetcher.mjs $APPLY --limit 300
+
+# ── Step 5: Founder oracle — score pitcher language quality ───────────────────
+# Writes founder_voice_score + language_analysis to startup_uploads.
+run_step "5 — Founder oracle (linguistic analysis)" \
+  scripts/linguistic-oracle.js score $APPLY --limit 500
+
+# ── Step 6-8: Intelligence recompute (skipped in --signals-only mode) ──────────
 if [[ -z "$SIGNALS_ONLY" ]]; then
-  run_step "4 — Compute trajectories" \
+  run_step "6 — Compute trajectories (with signal decay)" \
     scripts/compute-trajectories.js $APPLY --limit "$TRAJ_LIMIT"
 
-  run_step "5 — Infer entity needs" \
+  run_step "7 — Infer entity needs" \
     scripts/compute-needs.js $APPLY --limit "$NEEDS_LIMIT"
 
-  run_step "6 — Compute matches" \
+  run_step "8 — Compute matches" \
     scripts/compute-matches.js $APPLY --limit "$MATCH_LIMIT" --top 15
 else
   echo "───────────────────────────────────────────────────────────────"
-  echo "  Signals-only mode: skipping steps 4-6 (trajectories/needs/matches)"
+  echo "  Signals-only mode: skipping steps 6-8 (trajectories/needs/matches)"
   echo "  Run without --signals-only on Sunday for full intelligence recompute."
   echo "───────────────────────────────────────────────────────────────"
 fi
