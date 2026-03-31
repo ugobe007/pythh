@@ -4,11 +4,13 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # Runs the full signal intelligence pipeline end-to-end:
+#   0. Fetch fresh articles from 50 RSS sources → discovered_startups
 #   1. Ingest signals from startup_uploads (skip already-ingested)
-#   2. Ingest signals from discovered_startups (article headlines)
-#   3. Compute trajectories for all entities
-#   4. Infer needs from trajectories
-#   5. Compute matches against candidates
+#   2. Ingest signals from discovered_startups (new RSS articles)
+#   3. LLM second-pass (GPT-4o-mini) on entities with zero signals
+#   4. Compute trajectories for all entities
+#   5. Infer needs from trajectories
+#   6. Compute matches against candidates
 #
 # Usage:
 #   ./scripts/run-pipeline.sh                         # dry-run (no DB writes)
@@ -84,27 +86,35 @@ run_step() {
 
 cd "$ROOT"
 
+# ── Step 0: Fetch fresh RSS articles into discovered_startups ─────────────────
+run_step "0 — Fetch RSS articles (50 sources, 15 articles each)" \
+  scripts/fetch-rss-articles.js $APPLY --sources 50 --articles 15
+
 # ── Step 1: Ingest signals from startup_uploads ───────────────────────────────
-run_step "1/5 — Ingest startup_uploads signals" \
+run_step "1 — Ingest startup_uploads signals" \
   scripts/ingest-pythh-signals.js $APPLY --limit "$INGEST_LIMIT" --skip-existing
 
-# ── Step 2: Ingest signals from discovered_startups (headlines) ───────────────
-run_step "2/5 — Ingest discovered_startups headlines" \
+# ── Step 2: Ingest signals from discovered_startups (new RSS articles) ─────────
+run_step "2 — Ingest discovered_startups headlines" \
   scripts/ingest-discovered-signals.js $APPLY --limit "$DISC_LIMIT" --skip-existing
 
-# ── Step 3-5: Intelligence recompute (skipped in --signals-only mode) ──────────
+# ── Step 3: LLM second-pass on entities with zero signals ─────────────────────
+run_step "3 — LLM enrichment (GPT-4o-mini on 0-signal entities)" \
+  scripts/enrich-signals-llm.js $APPLY --limit 500
+
+# ── Step 4-6: Intelligence recompute (skipped in --signals-only mode) ──────────
 if [[ -z "$SIGNALS_ONLY" ]]; then
-  run_step "3/5 — Compute trajectories" \
+  run_step "4 — Compute trajectories" \
     scripts/compute-trajectories.js $APPLY --limit "$TRAJ_LIMIT"
 
-  run_step "4/5 — Infer entity needs" \
+  run_step "5 — Infer entity needs" \
     scripts/compute-needs.js $APPLY --limit "$NEEDS_LIMIT"
 
-  run_step "5/5 — Compute matches" \
+  run_step "6 — Compute matches" \
     scripts/compute-matches.js $APPLY --limit "$MATCH_LIMIT" --top 15
 else
   echo "───────────────────────────────────────────────────────────────"
-  echo "  Signals-only mode: skipping steps 3-5 (trajectories/needs/matches)"
+  echo "  Signals-only mode: skipping steps 4-6 (trajectories/needs/matches)"
   echo "  Run without --signals-only on Sunday for full intelligence recompute."
   echo "───────────────────────────────────────────────────────────────"
 fi
