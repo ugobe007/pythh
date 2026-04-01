@@ -5844,6 +5844,184 @@ app.use('/api/god', godRouter);
 const apiV1Router = require('./routes/apiV1');
 app.use('/api/v1', apiV1Router);
 
+// ============================================================
+// PYTHH MCP SERVER — Model Context Protocol
+// Allows AI agents to call Pythh tools directly.
+// Docs: https://pythh.ai/.well-known/mcp/server-card.json
+// ============================================================
+const mcpRouter  = require('./routes/mcp');
+const mcpKeysRouter = require('./routes/mcpKeys');
+
+// Main MCP endpoint (Streamable HTTP transport — stateless)
+app.use('/mcp', mcpRouter);
+
+// MCP API key management (founders generate/revoke keys)
+app.use('/api/mcp-keys', mcpKeysRouter);
+
+// MCP discovery: server-card for Smithery, mcp.so, and MCP auto-discovery clients
+app.get('/.well-known/mcp/server-card.json', (req, res) => {
+  const SERVER_VERSION = '1.0.0';
+  res.json({
+    serverInfo: {
+      name:        'Pythh',
+      version:     SERVER_VERSION,
+      description: 'Pythh Signal Intelligence — investor matching, GOD scoring, and Oracle coaching for startups.',
+      homepage:    'https://pythh.ai',
+    },
+    authentication: {
+      required: true,
+      schemes:  ['bearer'],
+      notes:    'Generate a pythh_... API key at https://pythh.ai/mcp-keys or via POST /api/mcp-keys/generate (requires Supabase session token).',
+    },
+    tools: [
+      {
+        name:        'submit_startup',
+        description: 'Submit a startup website URL to Pythh. Returns the startup profile, GOD score (0–100), and begins investor match generation. Use this as the first step for any founder analysis.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            url:         { type: 'string', format: 'uri', description: 'The startup website URL' },
+            force_regen: { type: 'boolean', description: 'Force regeneration of matches even if cached' },
+          },
+          required: ['url'],
+        },
+      },
+      {
+        name:        'get_matches',
+        description: 'Get the top investor matches for a startup. Returns a ranked list of investors with match scores, reasoning, and fit explanations.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            startup_id: { type: 'string', description: 'The startup UUID' },
+            limit:      { type: 'integer', minimum: 1, maximum: 50, description: 'Number of matches to return' },
+            page:       { type: 'integer', minimum: 1, description: 'Page number' },
+          },
+          required: ['startup_id'],
+        },
+      },
+      {
+        name:        'get_match_insights',
+        description: 'Get pattern analysis and portfolio fit insights for a startup\'s investor matches.',
+        inputSchema: {
+          type: 'object',
+          properties: { startup_id: { type: 'string', description: 'The startup UUID' } },
+          required: ['startup_id'],
+        },
+      },
+      {
+        name:        'get_investor_alignment',
+        description: 'Get the detailed alignment differential between a specific startup and investor. Returns reflection, tension, direction, and next_proof.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            startup_id:  { type: 'string', description: 'The startup UUID' },
+            investor_id: { type: 'string', description: 'The investor UUID' },
+          },
+          required: ['startup_id', 'investor_id'],
+        },
+      },
+      {
+        name:        'get_founder_profile',
+        description: 'Get the 5-dimension founder intelligence profile: narrative_coherence, obsession_density, conviction_evidence_ratio, fragility_index, trajectory_momentum.',
+        inputSchema: {
+          type: 'object',
+          properties: { startup_id: { type: 'string', description: 'The startup UUID' } },
+          required: ['startup_id'],
+        },
+      },
+      {
+        name:        'get_god_score',
+        description: 'Get the full GOD Score breakdown for a startup. Evaluates 23 VC criteria across team, traction, market, product, and vision.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            startup_id:      { type: 'string', description: 'The startup UUID' },
+            weights_version: { type: 'string', description: 'Optional weights version override' },
+          },
+          required: ['startup_id'],
+        },
+      },
+      {
+        name:        'get_oracle_insights',
+        description: 'Get coaching insights and recommended actions for a startup from the Pythh Oracle intelligence engine.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            startup_id: { type: 'string', description: 'The startup UUID' },
+            limit:      { type: 'integer', minimum: 1, maximum: 20, description: 'Max insights to return' },
+          },
+          required: ['startup_id'],
+        },
+      },
+      {
+        name:        'get_investor_predictions',
+        description: 'Get what sectors and themes investors are actively funding right now, based on live signal data.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sector: { type: 'string', description: 'Filter by sector' },
+            theme:  { type: 'string', description: 'Filter by theme keyword' },
+            limit:  { type: 'integer', minimum: 1, maximum: 100, description: 'Number of results' },
+          },
+        },
+      },
+      {
+        name:        'get_live_signals',
+        description: 'Get real-time signal activity from recent investor-startup matches and market events.',
+        inputSchema: {
+          type: 'object',
+          properties: { limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Number of signals' } },
+        },
+      },
+    ],
+    resources: [
+      {
+        uri:         'pythh://signals/live',
+        name:        'Live Signal Feed',
+        description: 'Current real-time signal activity from investor-startup matches.',
+        mimeType:    'application/json',
+      },
+      {
+        uri:         'pythh://investors/predictions',
+        name:        'Investor Predictions',
+        description: 'Current snapshot of what sectors and themes investors are actively funding.',
+        mimeType:    'application/json',
+      },
+      {
+        uri:         'pythh://platform/status',
+        name:        'Platform Status',
+        description: 'Pythh platform health — active investor count, signal counts, scoring system status.',
+        mimeType:    'application/json',
+      },
+    ],
+    prompts: [
+      {
+        name:        'fundraising_readiness',
+        description: 'End-to-end fundraising readiness workflow: submit startup → score → matches → oracle coaching → full report.',
+        arguments:   [
+          { name: 'url',   description: 'The startup website URL', required: true },
+          { name: 'top_n', description: 'Number of investor matches to include', required: false },
+        ],
+      },
+      {
+        name:        'investor_research',
+        description: 'Research which investors are active in a sector and analyze their alignment with a startup.',
+        arguments:   [
+          { name: 'sector',     description: 'The sector to research', required: true },
+          { name: 'startup_id', description: 'Optional startup UUID for alignment analysis', required: false },
+        ],
+      },
+      {
+        name:        'pitch_coaching',
+        description: 'GOD score breakdown + fragility analysis + oracle actions + prioritized pitch improvement plan.',
+        arguments:   [
+          { name: 'startup_id', description: 'The startup UUID', required: true },
+        ],
+      },
+    ],
+  });
+});
+
 // Investor lookup: search startups + curated lists (VC portfolio building)
 const investorLookupRouter = require('./routes/investorLookup');
 app.use('/api/investor-lookup', investorLookupRouter);
