@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, ChevronDown, ChevronUp } from 'lucide-react';
 import SignalFlowBars from '../components/SignalFlowBars';
+import { SignalLeaderboard } from '../components/pythh/SignalLeaderboard';
 import { supabase } from '../lib/supabase';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -453,6 +454,17 @@ export default function FounderSignalsPage() {
             </button>
           </div>
           {urlError && <p className="text-red-400 text-sm mt-2">{urlError}</p>}
+        </div>
+      </div>
+
+      {/* SIGNAL VELOCITY LEADERBOARD */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-16 mt-8">
+        <div className="border border-zinc-800 rounded-xl bg-zinc-900/30 p-6">
+          <SignalLeaderboard
+            limit={15}
+            hoursAgo={168}
+            showViewAll={false}
+          />
         </div>
       </div>
     </div>

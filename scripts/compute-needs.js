@@ -52,8 +52,10 @@ async function main() {
   console.log('📥 Loading trajectories (paginated)…');
   const PAGE_FETCH = 500;
   let trajectories = [];
+  // Use a Map for O(1) per-entity dedup instead of O(n²) .find() over the growing array.
+  const trajMap = new Map();
   let offset = 0;
-  while (trajectories.length < LIMIT) {
+  while (trajMap.size < LIMIT) {
     const { data: page, error: trajErr } = await supabase
       .from('pythh_trajectories')
       .select('*')
@@ -62,15 +64,15 @@ async function main() {
       .range(offset, offset + PAGE_FETCH - 1);
     if (trajErr) { console.error('❌ Trajectory fetch failed:', trajErr.message); process.exit(1); }
     if (!page || page.length === 0) break;
-    // Keep only the most recent per entity
+    // Results are ordered newest-first, so the first occurrence per entity_id is the most recent.
     for (const t of page) {
-      if (!trajectories.find(x => x.entity_id === t.entity_id)) trajectories.push(t);
+      if (!trajMap.has(t.entity_id)) trajMap.set(t.entity_id, t);
     }
-    process.stdout.write(`\r   Loaded: ${trajectories.length}…`);
+    process.stdout.write(`\r   Loaded: ${trajMap.size}…`);
     if (page.length < PAGE_FETCH) break;
     offset += PAGE_FETCH;
   }
-  trajectories = trajectories.slice(0, LIMIT);
+  trajectories = [...trajMap.values()].slice(0, LIMIT);
   console.log(`\r   Loaded: ${trajectories.length} trajectories.\n`);
 
   if (!trajectories?.length) {

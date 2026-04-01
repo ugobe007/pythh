@@ -15,8 +15,10 @@
  */
 'use strict';
 require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
-const { rankMatches } = require('../lib/matchEngine');
+const { createClient }   = require('@supabase/supabase-js');
+const { rankMatches }    = require('../lib/matchEngine');
+const { deleteByIds,
+        fetchByIds }     = require('../lib/supabaseUtils');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -95,53 +97,31 @@ async function main() {
 
   // ── 3. Load trajectories (most recent 90-day window per entity) ─────────────
   console.log('📈 Loading trajectories (paginated)…');
-  const entityIds = (entities || []).map(e => e.id);
-  // Batch entityIds queries in groups of 200 (Supabase IN clause limit)
+  const entityIds  = (entities || []).map(e => e.id);
+  const trajRows   = await fetchByIds(supabase, 'pythh_trajectories', 'entity_id', entityIds, '*',
+    q => q.eq('time_window_days', 90).order('computed_at', { ascending: false }));
   const trajByEntity = {};
-  const ID_BATCH = 200;
-  for (let bi = 0; bi < entityIds.length; bi += ID_BATCH) {
-    const idSlice = entityIds.slice(bi, bi + ID_BATCH);
-    const { data: trajs, error: trajErr } = await supabase
-      .from('pythh_trajectories')
-      .select('*')
-      .in('entity_id', idSlice)
-      .eq('time_window_days', 90)
-      .order('computed_at', { ascending: false });
-    if (trajErr) { console.error('⚠️  Trajectory batch warn:', trajErr.message); }
-    for (const t of (trajs || [])) {
-      if (!trajByEntity[t.entity_id]) trajByEntity[t.entity_id] = t;
-    }
-    process.stdout.write(`\r   Trajectories loaded: ${Object.keys(trajByEntity).length}…`);
+  for (const t of trajRows) {
+    if (!trajByEntity[t.entity_id]) trajByEntity[t.entity_id] = t;
   }
-  console.log(`\r   Loaded ${Object.keys(trajByEntity).length} trajectory snapshots.\n`);
+  console.log(`   Loaded ${Object.keys(trajByEntity).length} trajectory snapshots.\n`);
 
   // ── 4. Load needs ───────────────────────────────────────────────────────────
   console.log('🧠 Loading inferred needs (paginated)…');
+  const needsRows    = await fetchByIds(supabase, 'pythh_entity_needs', 'entity_id', entityIds, '*',
+    q => q.gt('confidence', 0.3));
   const needsByEntity = {};
-  for (let bi = 0; bi < entityIds.length; bi += ID_BATCH) {
-    const idSlice = entityIds.slice(bi, bi + ID_BATCH);
-    const { data: needsRows, error: needsErr } = await supabase
-      .from('pythh_entity_needs')
-      .select('*')
-      .in('entity_id', idSlice)
-      .gt('confidence', 0.3);
-    if (needsErr) { console.error('⚠️  Needs batch warn:', needsErr.message); }
-    for (const n of (needsRows || [])) {
-      if (!needsByEntity[n.entity_id]) needsByEntity[n.entity_id] = [];
-      needsByEntity[n.entity_id].push(n);
-    }
+  for (const n of needsRows) {
+    if (!needsByEntity[n.entity_id]) needsByEntity[n.entity_id] = [];
+    needsByEntity[n.entity_id].push(n);
   }
   console.log(`   Loaded needs for ${Object.keys(needsByEntity).length} entities.\n`);
 
   // ── 5. Delete stale matches if applying ─────────────────────────────────────
   if (!DRY_RUN && entityIds.length) {
     console.log('🗑️  Clearing stale matches for these entities…');
-    const { error: delErr } = await supabase
-      .from('pythh_matches')
-      .delete()
-      .in('entity_id', entityIds);
-    if (delErr) console.error('  Delete warn:', delErr.message);
-    else console.log('  Cleared.\n');
+    const ok = await deleteByIds(supabase, 'pythh_matches', 'entity_id', entityIds);
+    if (ok) console.log('  Cleared.\n');
   }
 
   // ── 6. Process each entity ──────────────────────────────────────────────────

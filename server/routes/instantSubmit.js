@@ -619,10 +619,25 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
             .replace(/&#39;/g, "'")
             .replace(/&quot;/g, '"')
             .substring(0, 500);
-          if (metaDescription) {
+
+          // Fallback: extract first meaningful paragraph of visible text if no meta description
+          let bodyFallback = '';
+          if (!metaDescription) {
+            bodyFallback = rawHtml
+              .replace(/<(script|style|noscript|nav|header|footer|aside)[^>]*>[\s\S]*?<\/\1>/gi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'")
+              .replace(/\s+/g, ' ')
+              .trim()
+              .split(/(?<=[.!?])\s+/)
+              .find(s => s.length > 60 && s.length < 400 && !/cookie|privacy|terms|copyright|©/i.test(s)) || '';
+          }
+
+          const bestDescription = metaDescription || bodyFallback.trim().substring(0, 400);
+          if (bestDescription) {
             inferenceMeta = {
-              product_description: metaDescription,
-              tagline: metaDescription.length <= 120 ? metaDescription : metaDescription.substring(0, 117) + '...',
+              product_description: bestDescription,
+              tagline: bestDescription.length <= 120 ? bestDescription : bestDescription.substring(0, 117) + '...',
             };
           }
           websiteContent = rawHtml
@@ -1451,6 +1466,125 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     } else {
       console.log(`  🔄 [BG] PHASE 3: Skipped — no enrichment data changed`);
     }
+
+    // ── Phase 4: Fire-and-forget LLM signal enrichment for new submissions ──
+    // Only runs when the startup has description text — enriches pythh_signal_events
+    // for this startup so the Signal Health display shows real intelligence.
+    void (async () => {
+      try {
+        // Step 1: Ensure entity exists in pythh_entities
+        const { data: existingEntity } = await supabase
+          .from('pythh_entities')
+          .select('id')
+          .eq('startup_upload_id', startupId)
+          .maybeSingle();
+
+        let entityId = existingEntity?.id;
+        if (!entityId) {
+          const { data: newEnt } = await supabase
+            .from('pythh_entities')
+            .insert({
+              name: enrichedRow.name || displayName,
+              startup_upload_id: startupId,
+              website: `https://${domain}`,
+              sectors: enrichedRow.sectors || [],
+              is_active: true,
+              entity_type: 'startup',
+            })
+            .select('id')
+            .single();
+          entityId = newEnt?.id;
+          if (entityId) console.log(`  🔄 [BG] Created pythh_entity ${entityId} for ${displayName}`);
+        }
+
+        if (!entityId) return;
+
+        // Step 2: Check for existing LLM signals to avoid re-running
+        const { count: existingLLMSigs } = await supabase
+          .from('pythh_signal_events')
+          .select('*', { count: 'exact', head: true })
+          .eq('entity_id', entityId)
+          .eq('source_type', 'llm_enrichment');
+
+        if (existingLLMSigs > 0) {
+          console.log(`  🔄 [BG] Phase 4: entity already has ${existingLLMSigs} LLM signals, skipping`);
+          return;
+        }
+
+        // Step 3: Extract text for signal classification
+        const descText = enrichedRow.description || enrichedRow.tagline || '';
+        const pitchText = enrichedRow.pitch || '';
+        const combinedText = [descText, pitchText].filter(Boolean).join('. ');
+        if (combinedText.length < 40) {
+          console.log(`  ⏭️  [BG] Phase 4: no text for ${displayName}, LLM signals skipped`);
+          return;
+        }
+
+        // Step 4: Quick LLM classification (reuse OPENAI_API_KEY)
+        const openaiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+        if (!openaiKey) return;
+
+        const sentences = combinedText
+          .replace(/([.!?])\s+(?=[A-Z])/g, '$1\n')
+          .split('\n')
+          .map(s => s.trim())
+          .filter(s => s.length >= 40 && s.length <= 600)
+          .slice(0, 8);
+
+        if (!sentences.length) return;
+
+        const userContent = `Company: ${enrichedRow.name || displayName}\nSentences:\n${sentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+        const llmRes = await axios.post(
+          'https://api.openai.com/v1/chat/completions',
+          {
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: 'You are a startup signal classifier. For each sentence, return a JSON object with key "signals" containing an array of {sentence_index, primary_signal, signal_strength, confidence, posture, action_tag}. primary_signal must be one of: fundraising_signal, growth_signal, revenue_signal, product_signal, hiring_signal, expansion_signal, enterprise_signal, efficiency_signal, distress_signal, exit_signal, buyer_pain_signal, demand_signal, market_signal, founder_psychology_signal, exploratory_signal.' },
+              { role: 'user', content: `Classify signals in these sentences from a startup:\n\n${userContent}\n\nReturn ONLY valid JSON with a "signals" key.` },
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.1,
+            max_tokens: 1500,
+          },
+          { headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, timeout: 8000 }
+        );
+
+        const raw = llmRes.data?.choices?.[0]?.message?.content;
+        if (!raw) return;
+        const cleanedRaw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+        const parsed = JSON.parse(cleanedRaw);
+        const sigs = Array.isArray(parsed) ? parsed : (parsed.signals || []);
+
+        const VALID = ['fundraising_signal','growth_signal','revenue_signal','product_signal','hiring_signal',
+          'expansion_signal','enterprise_signal','efficiency_signal','distress_signal','exit_signal',
+          'buyer_pain_signal','demand_signal','market_signal','founder_psychology_signal','exploratory_signal',
+          'acquisition_signal','partnership_signal','gtm_signal','buyer_signal'];
+
+        const toInsert = sigs
+          .filter(s => VALID.includes(s.primary_signal) && (parseFloat(s.confidence) || 0) >= 0.5)
+          .map(s => ({
+            entity_id: entityId,
+            source_type: 'llm_enrichment',
+            // source = category label (consistent with enrich-signals-llm.js)
+            source: 'llm_enrichment',
+            // raw_sentence = the actual evidence text the signal was extracted from
+            raw_sentence: sentences[s.sentence_index ?? 0] || '',
+            primary_signal: s.primary_signal,
+            signal_strength: Math.min(1, Math.max(0, parseFloat(s.signal_strength) || 0.6)),
+            confidence: Math.min(1, Math.max(0, parseFloat(s.confidence) || 0.6)),
+            posture: s.posture || 'posture_neutral',
+            action_tag: s.action_tag || null,
+            detected_at: new Date().toISOString(),
+          }));
+
+        if (toInsert.length > 0) {
+          await supabase.from('pythh_signal_events').insert(toInsert);
+          console.log(`  ✅ [BG] Phase 4: ${toInsert.length} LLM signals written for ${displayName}`);
+        }
+      } catch (e) {
+        console.warn(`  ⚠️  [BG] Phase 4 signal enrichment failed: ${e.message}`);
+      }
+    })();
 
     // ── Complete lock + log ──
     await supabase.rpc('complete_match_gen', { p_startup_id: startupId, p_status: 'done', p_run_id: runId }).then(() => {}).catch(() => {});

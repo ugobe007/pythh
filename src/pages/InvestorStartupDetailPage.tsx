@@ -288,19 +288,50 @@ export default function InvestorStartupDetailPage() {
 
               {/* Signal events */}
               {signals.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {signals.map((sig) => (
-                    <div key={sig.id} className="flex items-start gap-2.5 text-sm">
-                      <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium ${signalBadgeClass(sig.primary_signal)}`}>
-                        {SIGNAL_LABELS[sig.primary_signal ?? ''] ?? (sig.primary_signal ?? '—').replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-zinc-400 text-xs leading-relaxed line-clamp-2 flex-1">
-                        {sig.raw_sentence ?? '—'}
-                      </span>
-                      {sig.signal_strength != null && (
-                        <span className="shrink-0 text-[10px] text-zinc-600 font-mono tabular-nums">
-                          {Math.round(sig.signal_strength * 100)}%
+                    <div key={sig.id} className="rounded-lg bg-white/[0.02] border border-white/[0.06] p-3 space-y-1.5">
+                      {/* Row 1: badge + strength + urgency dot */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium ${signalBadgeClass(sig.primary_signal)}`}>
+                          {SIGNAL_LABELS[sig.primary_signal ?? ''] ?? (sig.primary_signal ?? '—').replace(/_/g, ' ')}
                         </span>
+                        {sig.urgency && (
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                            sig.urgency === 'high'
+                              ? 'bg-red-500/15 text-red-400'
+                              : sig.urgency === 'medium'
+                                ? 'bg-amber-500/15 text-amber-400'
+                                : 'bg-zinc-500/15 text-zinc-500'
+                          }`}>
+                            {sig.urgency}
+                          </span>
+                        )}
+                        <div className="flex-1" />
+                        {sig.confidence != null && (
+                          <span className="text-[10px] text-zinc-500 font-mono tabular-nums" title="Signal confidence">
+                            {Math.round(sig.confidence * 100)}% conf
+                          </span>
+                        )}
+                        {sig.signal_strength != null && (
+                          <span className="text-[10px] text-zinc-600 font-mono tabular-nums" title="Signal strength">
+                            {Math.round(sig.signal_strength * 100)}% str
+                          </span>
+                        )}
+                      </div>
+                      {/* Row 2: raw sentence */}
+                      <p className="text-zinc-400 text-xs leading-relaxed line-clamp-2">
+                        {sig.raw_sentence ?? '—'}
+                      </p>
+                      {/* Row 3: likely_needs chips */}
+                      {sig.likely_needs && sig.likely_needs.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {sig.likely_needs.slice(0, 4).map((need) => (
+                            <span key={need} className="text-[9px] px-1.5 py-0.5 bg-cyan-500/10 text-cyan-500 rounded border border-cyan-500/20">
+                              {need.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
                   ))}

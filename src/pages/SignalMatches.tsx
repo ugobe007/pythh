@@ -26,6 +26,8 @@ import InvestorReadinessReport, { type ReportData } from '@/components/pythh/Inv
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
 import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import StartupProfileCard from '@/components/pythh/StartupProfileCard';
+import SignalEventTimeline from '@/components/pythh/SignalEventTimeline';
+import SignalHealthHexagon from '@/components/pythh/SignalHealthHexagon';
 import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
 import ImproveScoreWizard from '@/components/ImproveScoreWizard';
 
@@ -618,6 +620,15 @@ export default function SignalMatches() {
               startupName={displayName}
               loading={contextLoading || tableLoading}
             />
+
+            <SignalHealthHexagon
+              signals={context?.signals}
+              loading={contextLoading}
+            />
+
+            {resolvedStartupId && (
+              <SignalEventTimeline startupId={resolvedStartupId} limit={12} />
+            )}
 
             {rows.some((r) => r.is_locked) && (
               <div className="mt-6">

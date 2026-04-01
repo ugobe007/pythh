@@ -12,18 +12,22 @@
 1. [What Pythh Is](#1-what-pythh-is)
 2. [The Core Insight](#2-the-core-insight)
 3. [Full Architecture Stack](#3-full-architecture-stack)
-4. [Layer 1 — Data Ingestion & Name Validation](#4-layer-1--data-ingestion--name-validation)
-5. [Layer 2 — Signal Parsing](#5-layer-2--signal-parsing)
-6. [Layer 3 — Trajectory Engine](#6-layer-3--trajectory-engine)
-7. [Layer 4 — Needs Inference Engine](#7-layer-4--needs-inference-engine)
-8. [Layer 5 — Match Engine](#8-layer-5--match-engine)
-9. [Scoring Model Reference](#9-scoring-model-reference)
-10. [Database Schema](#10-database-schema)
-11. [Signal Grammar Reference](#11-signal-grammar-reference)
-12. [Canonical Trajectory Types](#12-canonical-trajectory-types)
-13. [Canonical Need Classes](#13-canonical-need-classes)
-14. [Platform Applications](#14-platform-applications)
-15. [Key Files Reference](#15-key-files-reference)
+4. [Pipeline Execution Layer](#4-pipeline-execution-layer)
+5. [Layer 1 — Data Ingestion & Name Validation](#5-layer-1--data-ingestion--name-validation)
+6. [Layer 2 — Signal Parsing](#6-layer-2--signal-parsing)
+7. [Shared Library Contracts](#7-shared-library-contracts)
+8. [Signal Reconciliation Engine](#8-signal-reconciliation-engine)
+9. [Layer 3 — Trajectory Engine](#9-layer-3--trajectory-engine)
+10. [Layer 4 — Needs Inference Engine](#10-layer-4--needs-inference-engine)
+11. [Layer 5 — Match Engine](#11-layer-5--match-engine)
+12. [Scoring Model Reference](#12-scoring-model-reference)
+13. [Database Schema](#13-database-schema)
+14. [Signal Grammar Reference](#14-signal-grammar-reference)
+15. [Canonical Trajectory Types](#15-canonical-trajectory-types)
+16. [Canonical Need Classes](#16-canonical-need-classes)
+17. [Platform Applications](#17-platform-applications)
+18. [Known Silent Failure Modes & Defenses](#18-known-silent-failure-modes--defenses)
+19. [Key Files Reference](#19-key-files-reference)
 
 ---
 
@@ -150,7 +154,78 @@ Internet (news, LinkedIn, press releases, job posts, podcasts)
 
 ---
 
-## 4. Layer 1 — Data Ingestion & Name Validation
+## 4. Pipeline Execution Layer
+
+**File:** `scripts/run-pipeline.sh`
+
+The pipeline is a 10-step shell script run on a cron schedule. Each step depends on the previous. Running steps out of order will produce inconsistent results.
+
+### The 10 Steps
+
+| Step | Script | What it does |
+|------|--------|--------------|
+| 0 | `scripts/fetch-rss-signals.js` | Scrape RSS feeds → `discovered_startups` |
+| 1a | `scripts/ingest-pythh-signals.js` | Parse `startup_uploads` text → `pythh_signal_events` |
+| 1b | `scripts/ingest-metrics-signals.js` | Convert numeric fields (ARR, MRR, headcount) → `pythh_signal_events` |
+| 2 | `scripts/ingest-discovered-signals.js` | Parse `discovered_startups` text → `pythh_signal_events` |
+| 2b | `scripts/fetch-sec-signals.js` | Fetch SEC EDGAR Atom feeds → `pythh_signal_events` |
+| 3 | `scripts/enrich-signals-llm.js` | GPT-4o-mini enrichment for sparse entity descriptions |
+| 4 | `scripts/fetch-realtime-signals.js` | Premium API hooks (Crunchbase, PitchBook, LinkedIn) |
+| 5 | `scripts/reconcile-signals.js` | 6-phase reconciliation: stamp → dedup → conflict → orphan → timeline → metadata |
+| 6 | `scripts/compute-trajectories.js` | Build trajectory snapshots per entity per time window |
+| 7 | `scripts/compute-needs.js` | Infer canonical need classes from trajectories |
+| 8 | `scripts/compute-matches.js` | Score entities against candidates → ranked match objects |
+
+### Signal Flow
+
+```
+startup_uploads (text fields)     ─────► ingest-pythh-signals.js  ──┐
+startup_uploads (numeric fields)  ─────► ingest-metrics-signals.js ──┤
+discovered_startups               ─────► ingest-discovered-signals.js►├──► pythh_signal_events
+SEC EDGAR feeds                   ─────► fetch-sec-signals.js      ──┤
+Premium APIs                      ─────► fetch-realtime-signals.js ──┘
+                                                                      │
+                                              reconcile-signals.js ◄──┘
+                                                        │
+                                                        ▼
+                                            pythh_signal_events (clean)
+                                                        │
+                                          ┌─────────────┼─────────────┐
+                                          ▼             ▼             ▼
+                               compute-trajectories  compute-needs  compute-matches
+                                          │             │             │
+                                          ▼             ▼             ▼
+                               pythh_trajectories  pythh_entity_needs  pythh_matches
+```
+
+### Dependency Rules
+
+- Steps 1–4 can all run before step 5 (reconciliation requires complete ingestion)
+- Step 5 (reconcile) must complete before step 6 (trajectories are built on clean signals)
+- Step 6 must complete before steps 7 and 8 (needs and matches depend on trajectories)
+- All 10 steps must complete before any product surfaces re-query
+
+### Source Type Taxonomy
+
+Every signal event has a `source_type` that maps to a reliability score in `lib/signalOntology.js`. This determines how signals are weighted in confidence scoring and reconciliation.
+
+| source_type | Reliability | Origin |
+|-------------|-------------|--------|
+| `sec_filing` | 1.00 | SEC EDGAR |
+| `structured_metrics` | 0.95 | `startup_uploads` numeric fields (ARR, MRR, headcount) |
+| `earnings_call` | 0.95 | Earnings call transcripts |
+| `execution_signals` | 0.88 | Founder-reported milestones in submission form |
+| `press_release` | 0.90 | Official press releases |
+| `llm_enrichment` | 0.72 | GPT-4o-mini interpretation of sparse descriptions |
+| `rss_scrape` | 0.65 | RSS feed article text |
+| `description` | 0.60 | Unstructured startup submission text |
+| `linkedin` | 0.70 | LinkedIn posts (founder-attributed) |
+| `social_media` | 0.40 | Twitter / general social |
+| `rumor_site` | 0.30 | Unverified sources |
+
+---
+
+## 5. Layer 1 — Data Ingestion & Name Validation
 
 **File:** `lib/startupNameValidator.js`
 
@@ -202,7 +277,7 @@ GOD scoring handles a different failure mode: names that ARE structurally valid 
 
 ---
 
-## 5. Layer 2 — Signal Parsing
+## 6. Layer 2 — Signal Parsing
 
 **Files:** `lib/signalParser.js`, `lib/signalOntology.js`
 
@@ -355,9 +430,158 @@ Ambiguous signals get: `is_ambiguous: true` + a lower confidence score + an alte
 | `exploratory_signal` | Early, low-conviction exploration |
 | `unclassified_signal` | Did not match any known class |
 
+### Signal Class Priority
+
+When multiple patterns match the same sentence, the class with the highest priority wins as `primary_signal`. Current order (highest → lowest):
+
+```
+acquisition_signal → exit_signal → distress_signal → exploratory_signal
+→ fundraising_signal → revenue_signal → buyer_budget_signal → buyer_signal
+→ buyer_pain_signal → investor_interest_signal → investor_rejection_signal
+→ regulatory_signal → market_position_signal → product_signal → hiring_signal
+→ enterprise_signal → expansion_signal → gtm_signal → demand_signal
+→ growth_signal → partnership_signal → efficiency_signal → infrastructure_signal
+```
+
+**`exploratory_signal` is ranked above `fundraising_signal`.** This is intentional. Modal-past language ("had planned to raise", "was hoping to launch") is more specific and must take priority over a generic raise/hire pattern.
+
+### Gate Semantics
+
+Gate semantics prevent suppressed patterns from leaking into `alternate_signals`.
+
+When a **modal-past** pattern fires, it carries a `gates` array. `detectActions()` removes all gated classes from the result set entirely — not just from the primary position.
+
+```
+"We had planned to raise a Series B last year."
+  ✓ exploratory_signal fires
+  ✗ fundraising_signal suppressed (gated)
+
+Without gates: primary=exploratory_signal, alts=[fundraising_signal]  ← wrong
+With gates:    primary=exploratory_signal, alts=[]                    ← correct
+```
+
+Currently gated by modal-past patterns: `fundraising_signal`, `hiring_signal`, `acquisition_signal`, `expansion_signal`, `product_signal`. Negated signals additionally produce empty `alternate_signals`.
+
 ---
 
-## 6. Layer 3 — Trajectory Engine
+## 7. Shared Library Contracts
+
+These two files are the architectural foundation that prevents silent drift between scripts.
+
+### `lib/signalEventBuilder.js`
+
+**Problem it solves:** Multiple ingest scripts each had their own `parseSignal()` → DB row translation. Each was wrong in a different way (`sig._intensity` vs `sig.intensity`, `sig.is_ambiguous` vs `sig.ambiguity_flags.length > 0`). Schema changes required updating every script independently.
+
+**What it does:** Single function `buildSignalEvent(sig, meta)` — the canonical translator from `parseSignal()` output to a `pythh_signal_events` row.
+
+```js
+const row = buildSignalEvent(sig, {
+  entityId:    'uuid',
+  rawSentence: 'original text',
+  sourceType:  'rss_scrape',            // controls source_reliability lookup
+  source:      'TechCrunch',
+  sourceUrl:   'https://...',
+  detectedAt:  '2026-03-30T12:00:00Z',
+});
+```
+
+**The canonical field mapping — source of truth:**
+
+| DB Column | Maps from | Common wrong name (now banned) |
+|-----------|-----------|-------------------------------|
+| `is_ambiguous` | `sig.ambiguity_flags.length > 0` | `sig.is_ambiguous` |
+| `has_negation` | `sig.negation_detected` | `sig.has_negation` |
+| `intensity` | `sig.intensity` | `sig._intensity` |
+| `sub_signals` | `sig.alternate_signals` | `sig._sub_signals` |
+| `is_multi_signal` | `sig.alternate_signals.length > 0` | — |
+| `action_tag` | `sig._actions[0].action_tag` | — |
+| `modality` | `sig.modality.class` (string) | `sig.modality` (object) |
+| `posture` | `sig.posture[0].posture` (string) | `sig.posture` (array) |
+
+Also exports `buildTimelineEvent(sig, meta)` for `pythh_signal_timeline` rows.
+
+**Rule:** All ingest scripts that call `parseSignal()` must use `buildSignalEvent()`. Manual field mapping is prohibited. When the schema changes, update only this file.
+
+---
+
+### `lib/supabaseUtils.js`
+
+**Problem it solves:** Every script independently implemented batching, pagination, and chunked `.in()` queries with different (often wrong) constants. The PostgREST URL length limit was independently re-discovered and re-patched in 6+ places over multiple sessions.
+
+**What it does:** Shared Supabase infrastructure with documented, enforced constants.
+
+```js
+const {
+  fetchAll,               // paginate through all rows — bypasses Supabase 1,000-row cap
+  fetchByIds,             // safe chunked .in() queries (100 IDs per request)
+  deleteByIds,            // safe chunked .delete() (100 IDs per request)
+  insertInBatches,        // batched inserts (200 rows per request)
+  upsertInBatches,        // batched upserts with conflict resolution (50 rows)
+  getAlreadyIngestedToday // idempotency check: entity + source_type + today
+} = require('../lib/supabaseUtils');
+```
+
+**The enforced constants:**
+
+| Constant | Value | Why |
+|----------|-------|-----|
+| `IN_CHUNK_SIZE` | `100` | 100 UUIDs ≈ 3.6KB URL. 200 ≈ 7.2KB — intermittently fails. 500 — reliably fails silently. |
+| `INSERT_BATCH` | `200` | Optimal insert throughput against Supabase |
+| `UPSERT_BATCH` | `50` | Smaller — each upsert row is a full read+write |
+
+**Rule:** No script should pass more than `IN_CHUNK_SIZE` IDs to a `.in()` clause directly. Use `fetchByIds` or `deleteByIds` from this file instead.
+
+---
+
+## 8. Signal Reconciliation Engine
+
+**File:** `scripts/reconcile-signals.js`
+
+Runs after all ingestion (steps 1–4b), before intelligence recompute (steps 5–8). Cleans, deduplicates, and enriches signal data across all sources.
+
+### The 6 Phases
+
+| Phase | Scope | What it does |
+|-------|-------|-------------|
+| 1 — Reliability Stamping | **All-time** | Stamps `source_reliability` on any signal missing it, using `SOURCE_RELIABILITY` from `signalOntology.js` |
+| 3 — Orphan Cleanup | **All-time** | Removes signals whose `entity_id` no longer has an active entity in `pythh_entities` |
+| 4 — Deduplication | Windowed | Clusters signals by `(entity_id, primary_signal, 7-day bucket)`, merges duplicates, boosts confidence via ensemble: `1 - (1 - base)^N` |
+| 5 — Conflict Detection | 30-day window | Flags opposing signals (e.g., `fundraising_signal` + `distress_signal` within 30 days) as `is_ambiguous: true` |
+| 6 — Entity Metadata Refresh | **All-time** | Recomputes `total_signals`, `signal_velocity`, `decayed_signal_velocity` for all touched entities |
+
+### Phase Scoping Rules
+
+**Why some phases are all-time:** Applying a date filter to orphan cleanup or reliability stamping means historical problems are never fixed. The date filter is only appropriate for deduplication (where historical dedup was already done in prior runs).
+
+| Phase | Date Filter | Reason |
+|-------|------------|--------|
+| 1 (Reliability) | None | Signals ingested before reliability stamping was added need retroactive stamping |
+| 3 (Orphan Cleanup) | None | Orphans accumulate over all time |
+| 4 (Dedup) | `--days` window | New signals only; prior dedup already ran |
+| 5 (Conflict) | 30 days | Conflicts only meaningful in temporal proximity |
+| 6 (Metadata) | None | Velocity must reflect full signal history |
+
+### Signal Decay
+
+Signals lose influence over time via exponential half-life decay. This is calculated in Phase 6 and stored in entity metadata as `decayed_signal_velocity`.
+
+| Signal Class | Half-life (days) |
+|---|---|
+| `distress_signal` | 14 |
+| `exit_signal` | 30 |
+| `investor_interest_signal` | 30 |
+| `fundraising_signal` | 45 |
+| `hiring_signal` | 60 |
+| `product_signal` | 60 |
+| `revenue_signal` | 90 |
+| `growth_signal` | 90 |
+| `expansion_signal` | 90 |
+| `partnership_signal` | 90 |
+| All others | 120 |
+
+---
+
+## 9. Layer 3 — Trajectory Engine
 
 **File:** `lib/trajectoryEngine.js`
 
@@ -490,7 +714,7 @@ A signal from 11 months ago should not dominate the current trajectory. Rolling 
 
 ---
 
-## 7. Layer 4 — Needs Inference Engine
+## 10. Layer 4 — Needs Inference Engine
 
 **File:** `lib/needsInference.js`
 
@@ -592,7 +816,7 @@ urgency_score = base_hint × velocity × acceleration_bonus × confidence
 
 ---
 
-## 8. Layer 5 — Match Engine
+## 11. Layer 5 — Match Engine
 
 **File:** `lib/matchEngine.js`
 
@@ -689,7 +913,7 @@ timing_score = (stage_fit × 0.60) + (velocity × 0.20) + accel_bonus + urgency_
 
 ---
 
-## 9. Scoring Model Reference
+## 12. Scoring Model Reference
 
 ### Three Different Scores — Not Interchangeable
 
@@ -739,7 +963,7 @@ The GOD score penalizes records that fail quality gates after entering the syste
 
 ---
 
-## 10. Database Schema
+## 13. Database Schema
 
 **Migration:** `supabase/migrations/20260327120000_signal_intelligence_schema.sql`
 
@@ -766,7 +990,7 @@ The GOD score penalizes records that fail quality gates after entering the syste
 
 ---
 
-## 11. Signal Grammar Reference
+## 14. Signal Grammar Reference
 
 Every sentence follows a pattern. Pythh decomposes it into:
 
@@ -812,7 +1036,7 @@ The platform understands that different actors speak differently:
 
 ---
 
-## 12. Canonical Trajectory Types
+## 15. Canonical Trajectory Types
 
 | ID | Label | Description | Who Cares |
 |---|---|---|---|
@@ -830,7 +1054,7 @@ The platform understands that different actors speak differently:
 
 ---
 
-## 13. Canonical Need Classes
+## 16. Canonical Need Classes
 
 ### Signal → Need Mapping (abbreviated)
 
@@ -860,7 +1084,7 @@ The platform understands that different actors speak differently:
 
 ---
 
-## 14. Platform Applications
+## 17. Platform Applications
 
 The same signal engine powers three distinct product surfaces:
 
@@ -883,28 +1107,253 @@ The same signal engine powers three distinct product surfaces:
 
 ---
 
-## 15. Key Files Reference
+## 18. Known Silent Failure Modes & Defenses
+
+This section documents every class of failure that has recurred in this system — failures that do not raise exceptions, produce no error output, and silently corrupt data or return wrong results. The pattern is: fix gets applied → works for a while → something changes → breaks silently again.
+
+**The root cause of recurrence is always the same: the fix was local (one script) and the constraint was not enforced globally.**
+
+---
+
+### Failure Mode 1: PostgREST URL Length Limit
+
+**What happens:** Supabase's PostgREST API silently truncates or returns empty results when a `.in()` filter contains too many IDs. The URL becomes too long (>8KB). No error is raised. Queries return empty data, which is treated as "no results found" — causing valid signals to be deleted as orphans, or valid entities to be skipped.
+
+**Observed history:**
+- Chunk size 500 → failure
+- Chunk size 200 → intermittent failure
+- Chunk size 100 → safe
+
+**Current defense:** All `.in()` queries use `fetchByIds()` or `deleteByIds()` from `lib/supabaseUtils.js`. `IN_CHUNK_SIZE = 100` is documented with the reason in the constant definition.
+
+**How it silently breaks again:** A new script is written that directly calls `.in()` with a large list of IDs, bypassing `supabaseUtils.js`. The fix is architectural enforcement, not documentation: **all DB access must go through `supabaseUtils.js`**.
+
+---
+
+### Failure Mode 2: Field Name Drift Between Parser and DB Schema
+
+**What happens:** `signalParser.js` returns fields with one set of names. Ingest scripts map them to DB columns with different names. The wrong field is written (usually `false` or `[]`) to the DB. No error. Signals are stored with `is_ambiguous: false` even when they are genuinely ambiguous.
+
+**Observed history:**
+- `sig.is_ambiguous` (doesn't exist) → DB column `is_ambiguous` always `false`
+- `sig.has_negation` (doesn't exist) → DB column `has_negation` always `false`
+- `sig._intensity` (doesn't exist) → DB column `intensity` always `[]`
+- `sig._sub_signals` (doesn't exist) → DB column `sub_signals` always `[]`
+
+**Current defense:** `lib/signalEventBuilder.js` owns the sole field mapping. All ingest scripts call `buildSignalEvent()`. Manual field mapping is prohibited.
+
+**How it silently breaks again:** A new ingest script is added that builds the event row manually. Or `signalParser.js` renames an output field without updating `signalEventBuilder.js`. The fix is: **`signalEventBuilder.js` must be the only place this mapping exists, and any rename to `signalParser.js` output must be reflected here first.**
+
+---
+
+### Failure Mode 3: Supabase 1,000-Row `max_rows` Cap
+
+**What happens:** Supabase PostgREST enforces a server-side `max_rows` limit (often 1,000). Scripts that read all signals without pagination silently receive only the first 1,000 rows. The reconciler processed 1,000 signals when the table had 13,000+. Deduplication and orphan cleanup appeared to complete successfully but only ran on a fraction of the data.
+
+**Current defense:** All paginated queries use `fetchAll()` from `lib/supabaseUtils.js`, which loops until `data.length < pageSize`.
+
+**How it silently breaks again:** A new script reads from a large table with `.select()` and no pagination. Always use `fetchAll()` for any table that could exceed 1,000 rows. As a rule of thumb: `pythh_signal_events`, `startup_uploads`, `discovered_startups`, `pythh_entities`, `pythh_trajectories` all require pagination.
+
+---
+
+### Failure Mode 4: Modal-Past Language Misclassified as Active Intent
+
+**What happens:** "We had planned to raise a Series B" is classified as `fundraising_signal` (active) instead of `exploratory_signal` (abandoned/deferred intent). The company is shown to investors as actively fundraising when it explicitly said it is not.
+
+**Current defense:** Modal-past patterns carry a `gates` array in `signalOntology.js`. `detectActions()` removes gated classes entirely from results. `exploratory_signal` is ranked above `fundraising_signal` in `SIGNAL_CLASS_PRIORITY`.
+
+**How it silently breaks again:** A new pattern is added to `ACTION_MAP` for a raise/hire/launch verb without checking whether a modal-past guard covers it. Or `SIGNAL_CLASS_PRIORITY` is reordered and `exploratory_signal` drops below `fundraising_signal`. The fix: **before adding any action pattern for a major signal class, check whether it could co-fire with a modal-past pattern and add it to the `gates` array if needed.**
+
+---
+
+### Failure Mode 5: Reconciler Phase 3 Deleting Valid Signals as Orphans
+
+**What happens:** Phase 3 queries `pythh_entities` with `.in('id', entityIds).eq('is_active', true)`. When `entityIds` exceeds the PostgREST URL limit, the query returns 0 rows. All signals are treated as orphaned and deleted. This silently destroyed 11,000+ valid signals in one run.
+
+**Current defense:** Phase 3 uses `fetchByIds()` with chunks of 100 IDs. Phase 3 now scans all signals (no date filter) to catch historical orphans.
+
+**How it silently breaks again:** The chunk size in `fetchByIds()` is changed, or Phase 3 is refactored to use a direct `.in()` call. **Never bypass `supabaseUtils` functions for entity validation lookups in the reconciler.**
+
+---
+
+### Failure Mode 6: Idempotency — Duplicate Metric Signals on Re-run
+
+**What happens:** `ingest-metrics-signals.js` inserts new metric signals every time it runs. Re-running the pipeline inserts duplicate `structured_metrics` signals for the same entity on the same day. The reconciler eventually deduplicates them, but between the ingest run and the reconciliation run, data is inflated.
+
+**Current defense:** `getAlreadyIngestedToday()` from `supabaseUtils.js` checks for existing `structured_metrics` signals per entity per UTC day before inserting.
+
+**How it silently breaks again:** The idempotency guard only checks `source_type = 'structured_metrics'`. Other ingest scripts (`ingest-pythh-signals.js`, `ingest-discovered-signals.js`) do not have per-day idempotency guards — they rely on `--skip-existing` flag and the reconciler. If `--skip-existing` is not passed on a re-run, duplicates accumulate. **The reconciler must always run after re-ingestion.**
+
+---
+
+### What Is Still Not Defended Against
+
+These are known gaps that do not yet have a programmatic defense:
+
+| Gap | Risk | Proposed fix |
+|-----|------|-------------|
+| No regression test suite | Any script change could break parsing silently | `scripts/test-signal-parsing.js` with ~50 canonical cases and expected outputs |
+| `decayed_signal_velocity` stored in JSONB metadata | Can't be indexed or queried efficiently; upsert overwrites entire metadata object | Add `decayed_signal_velocity FLOAT` column via Supabase migration |
+| No pipeline health check script | Can't tell if a run produced the expected number of signals without manual inspection | `scripts/check-pipeline-health.js` that asserts signal counts, orphan rates, and velocity distributions |
+| `enrich-signals-llm.js` timestamps all LLM signals as `now()` | Historical content gets a current timestamp, distorting velocity calculations | Pass original `detected_at` from source content where available |
+| `ingest-pythh-signals.js` has no per-entity idempotency guard | If `--skip-existing` is forgotten, every entity gets re-parsed and re-inserted | Add a daily idempotency check using `getAlreadyIngestedToday('startup_submission')` |
+
+---
+
+## 19. Key Files Reference
+
+### Core Libraries (never import DB logic directly — use these)
 
 | File | Purpose |
 |---|---|
-| `lib/startupNameValidator.js` | Name quality gate — 192 countries, person names, junk patterns |
-| `lib/signalOntology.js` | Lexicons, action maps, source reliability, costly actions |
-| `lib/signalParser.js` | Signal grammar extraction, 6D confidence model, multi-signal splitting |
-| `lib/trajectoryEngine.js` | Velocity, consistency, stage transitions, anomalies, rolling windows |
-| `lib/needsInference.js` | Signal + trajectory → canonical need classes |
-| `lib/matchEngine.js` | Fit scoring, timing score, explanation layer, recommended actions |
-| `lib/inferenceExtractor.js` | Inference layer for enrichment pipeline |
+| `lib/supabaseUtils.js` | **Shared DB infrastructure.** `fetchAll`, `fetchByIds`, `deleteByIds`, `insertInBatches`, `upsertInBatches`, `getAlreadyIngestedToday`. All scripts use this. No script should implement its own batching or chunking. |
+| `lib/signalEventBuilder.js` | **Canonical field mapper.** `buildSignalEvent(sig, meta)` and `buildTimelineEvent(sig, meta)`. The only place the `parseSignal() output → DB column` mapping exists. |
+| `lib/signalOntology.js` | Lexicons, `ACTION_MAP` (with `gates` arrays), `SIGNAL_CLASS_PRIORITY`, `SOURCE_RELIABILITY`, `INTENSITY_MAP`, `POSTURE_MAP`, costly actions |
+| `lib/signalParser.js` | Signal grammar extraction, 6D confidence model, multi-signal splitting, gate enforcement in `detectActions()` |
+| `lib/startupNameValidator.js` | Name quality gate — 192 countries, person names, junk patterns, safe overrides |
+| `lib/trajectoryEngine.js` | Velocity, consistency, stage transitions, anomaly detection, rolling windows |
+| `lib/needsInference.js` | Signal + trajectory → 27 canonical need classes |
+| `lib/matchEngine.js` | 6-dimension fit scoring, timing score, explanation layer, recommended actions |
 | `lib/sentenceExtractor.js` | Extract candidate sentences from article body text |
 | `lib/headlineExtractor.js` | Extract startup names from headlines |
-| `scripts/backfill-pythh-signals.js` | Backfill signal data on existing discovered_startups records |
-| `scripts/enrich-from-rss-news.js` | Enrich startup_uploads from RSS signal data |
+
+### Pipeline Scripts (execution order matters)
+
+| File | Step | Purpose |
+|---|---|---|
+| `scripts/fetch-rss-signals.js` | 0 | Scrape RSS feeds → `discovered_startups` |
+| `scripts/ingest-pythh-signals.js` | 1a | Parse `startup_uploads` text → signals |
+| `scripts/ingest-metrics-signals.js` | 1b | Convert ARR/MRR/headcount → signals |
+| `scripts/ingest-discovered-signals.js` | 2 | Parse `discovered_startups` text → signals |
+| `scripts/fetch-sec-signals.js` | 2b | SEC EDGAR Atom feed → signals |
+| `scripts/enrich-signals-llm.js` | 3 | GPT-4o-mini enrichment for sparse descriptions |
+| `scripts/fetch-realtime-signals.js` | 4 | Premium API hooks (Crunchbase, PitchBook, LinkedIn) |
+| `scripts/reconcile-signals.js` | 5 | 6-phase reconciliation: stamp → dedup → conflict → orphan → timeline → metadata |
+| `scripts/compute-trajectories.js` | 6 | Build trajectory snapshots per entity per window |
+| `scripts/compute-needs.js` | 7 | Infer canonical need classes from trajectories |
+| `scripts/compute-matches.js` | 8 | Score entities against candidates → ranked matches |
+| `scripts/sync-signal-scores.js` | 9 | Bridge pythh_signal_events → startup_signal_scores (5 dimensions) |
+| `scripts/run-pipeline.sh` | — | Master orchestration script (cron-scheduled) |
+
+### Other Scripts
+
+| File | Purpose |
+|---|---|
 | `scripts/purge-junk-names.js` | Clean junk entries from startup_uploads using validator |
-| `scripts/validate-enrich-pipeline.js` | Three-pass validation pipeline (P1→P2→P3) |
 | `scripts/recalculate-scores.ts` | Recompute GOD scores across all startup_uploads |
 | `scripts/check-signal-data.js` | Verify signal capture in database |
+| `scripts/setup-cron.sh` | Install daily (6am) + weekly (Sun 2am) pipeline cron jobs |
 | `supabase/migrations/20260327120000_signal_intelligence_schema.sql` | Full signal intelligence DB schema |
 
 ---
 
-*Last updated: March 2026*  
-*Version: Platform v2 — Signal Intelligence Stack*
+## Signal Score Bridge: sync-signal-scores.js
+
+**Problem (discovered March 31 2026):**
+`get_startup_context` RPC reads `startup_signal_scores` table for the 5 signal dimension scores
+shown in `SignalHealthHexagon`. This table was populated only at submission time by the old backend
+scoring system. The new `pythh_signal_events` pipeline (steps 1–8) **never wrote back to it**,
+meaning every founder saw 0 on their Signal Health chart.
+
+**Fix:**
+`scripts/sync-signal-scores.js` (step 9 in pipeline) aggregates `pythh_signal_events` per entity
+and maps signal classes to the 5 dimensions:
+
+| Dimension | Max | Contributing Signal Classes |
+|---|---|---|
+| `founder_language_shift` | 2.0 | exploratory, product, market_position, gtm, expansion |
+| `investor_receptivity` | 2.5 | fundraising, revenue, growth, acquisition, enterprise, demand |
+| `news_momentum` | 1.5 | source_type = rss_scrape / execution_signals / web_signals (recency-weighted) |
+| `capital_convergence` | 2.0 | fundraising, acquisition, exit, revenue, growth (recency-weighted) |
+| `execution_velocity` | 2.0 | product, hiring, growth, expansion, partnership, gtm (recency-weighted) |
+
+Score formula per dimension: `Σ(confidence × signal_strength × class_weight × recency_mult)`, clamped to cap.
+
+**Result:** 2,605 `startup_signal_scores` rows upserted. SignalHealthHexagon now shows real data.
+
+**Recency multiplier:**
+- < 7 days old → 1.5×
+- < 30 days → 1.0×
+- < 90 days → 0.7×
+- older → 0.4×
+
+**Cron:** Runs as step 9 after matches. Scheduled daily (signals-only mode) at 6am + weekly full run Sunday 2am via `setup-cron.sh`.
+
+---
+
+## Trajectory Engine: TYPE_MAP Expansion (March 31 2026)
+
+**Problem:** `getDominantType()` in `lib/trajectoryEngine.js` had an incomplete TYPE_MAP.
+Any entity whose dominant signal was `revenue_signal`, `market_position_signal`,
+`demand_signal`, `partnership_signal`, `exploratory_signal`, `regulatory_signal`, etc.
+would receive trajectory = `'unknown'` even when there was a clear story.
+
+**Fix:** Expanded TYPE_MAP to cover all signal classes:
+- `revenue_signal`, `demand_signal` → `growth`
+- `market_position_signal`, `partnership_signal` → `expansion`
+- `exploratory_signal` → `fundraising`
+- `regulatory_signal`, `infrastructure_signal`, `grant_signal`, `patent_signal`, `university_signal` → `product`
+- `investor_rejection_signal` → `fundraising`
+
+**Result:** Unknown trajectories reduced from 1,939 → 1,243 (36% reduction).
+Remaining unknowns are genuinely ambiguous: signals fully decayed past the 90-day window,
+or entities whose dominant signal is `negated_signal` / `unclassified_signal`.
+
+---
+
+---
+
+---
+
+## Canonical Column Deduplication (March 31 2026)
+
+### Problem
+Scrapers and enrichment scripts wrote financial data to three separate locations:
+- `extracted_data.funding_amount` (JSONB object `{raw, value, currency, magnitude}`)
+- `startup_metrics.best_mentions.last_round_amount.amount_usd` (text-mined JSONB)
+- Root numeric columns (`latest_funding_amount`, `arr_usd`, etc.)
+
+`ingest-metrics-signals.js` only reads root columns. Result: data existed in the database but was invisible to the signal pipeline. `latest_funding_amount` appeared to have ~411 rows populated; it actually had 11,728 — just stranded in JSONB.
+
+### Design Rule (enforced from this point forward)
+**No aliases. No bridge tables. Scrapers write directly to the canonical root column.**
+JSONB blobs (`extracted_data`, `startup_metrics`) are for raw provenance/audit only.
+
+### What Was Promoted (`scripts/promote-extracted-fields.js`)
+
+| Source | Target Root Column | Rows Promoted |
+|---|---|---|
+| `startup_metrics.best_mentions.last_round_amount.amount_usd` | `latest_funding_amount` | 943 |
+| `extracted_data.funding_amount` (JSONB object) | `latest_funding_amount` | 2,961 |
+| `extracted_data.growth_rate` | `growth_rate` | 184 |
+| `extracted_data.customer_count` | `customer_count` | 25 |
+| `revenue_annual` (legacy dup) | `revenue_usd` | 6 |
+| **Total** | | **4,119** |
+
+### Deprecated Columns (still present, do not write to)
+
+| Deprecated | Canonical | Status |
+|---|---|---|
+| `arr` | `arr_usd` | Stop writing to `arr`; future migration will DROP |
+| `revenue_annual` | `revenue_usd` | Stop writing; future migration will DROP |
+
+### Impact
+- `latest_funding_amount > 0`: 411 → **11,728** rows (+2,753%)
+- `growth_rate > 0`: 0 → **184** rows
+- `fundraising_signal` events: 465 → **625** (+34%)
+- `startup_signal_scores` upserted: 2,605 → **2,756**
+
+### Migration
+`supabase/migrations/20260331300000_canonical_column_dedup.sql` — applies `arr → arr_usd`
+and `revenue_annual → revenue_usd` promotions at the DB level and creates covering indexes
+on all metric columns used by the signal pipeline.
+
+### Idempotency
+`promote-extracted-fields.js` is safe to re-run: it never overwrites a non-null root value.
+On the next daily cron run, `ingest-metrics-signals.js` will see all newly promoted data
+and generate fresh metric signals for the newly populated rows.
+
+---
+
+*Last updated: March 31 2026*  
+*Version: Platform v5 — Canonical Column Deduplication + Field Promotion Pipeline*

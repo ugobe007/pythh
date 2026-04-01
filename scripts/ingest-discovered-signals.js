@@ -24,8 +24,11 @@
 'use strict';
 require('dotenv').config();
 
-const { createClient } = require('@supabase/supabase-js');
-const { parseSignal }  = require('../lib/signalParser');
+const { createClient }         = require('@supabase/supabase-js');
+const { parseSignal }          = require('../lib/signalParser');
+const { buildSignalEvent,
+        buildTimelineEvent }   = require('../lib/signalEventBuilder');
+const { insertInBatches }      = require('../lib/supabaseUtils');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -200,22 +203,24 @@ async function main() {
     }
 
     // ── Signal parsing loop ───────────────────────────────────────────────
-    const signalBuf  = [];
+    // Rows are buffered in memory and flushed via insertInBatches —
+    // one DB round trip per 200 rows, not one per signal.
+    const signalBuf   = [];
     const timelineBuf = [];
-    const FLUSH_SIZE  = 100;
 
-    async function flushSignals(force = false) {
-      if (force || signalBuf.length >= FLUSH_SIZE) {
-        const s = signalBuf.splice(0, signalBuf.length);
-        const t = timelineBuf.splice(0, timelineBuf.length);
-        if (s.length) {
-          const { error } = await supabase.from('pythh_signal_events').insert(s);
-          if (error) { stats.errors++; }
-          else stats.signals_written += s.length;
-        }
-        if (t.length) await supabase.from('pythh_signal_timeline').insert(t);
+    const flushSignals = async (force = false) => {
+      if (!force && signalBuf.length < 200) return;
+      if (signalBuf.length) {
+        const { inserted, errors } = await insertInBatches(supabase, 'pythh_signal_events', signalBuf);
+        stats.signals_written += inserted;
+        stats.errors += errors;
+        signalBuf.length = 0;
       }
-    }
+      if (timelineBuf.length) {
+        await insertInBatches(supabase, 'pythh_signal_timeline', timelineBuf);
+        timelineBuf.length = 0;
+      }
+    };
 
     for (let i = 0; i < rows.length; i += BATCH_SZ) {
       const batch = rows.slice(i, i + BATCH_SZ);
@@ -230,10 +235,10 @@ async function main() {
 
         const detectedAt = row.article_date || row.created_at || new Date().toISOString();
         const signalDate = detectedAt.split('T')[0];
+        const sourceUrl  = row.article_url || null;
 
         for (const { text, source_type } of blocks) {
-          const sentences = splitSentences(text);
-          for (const sentence of sentences) {
+          for (const sentence of splitSentences(text)) {
             try {
               const sig = parseSignal(sentence, { source_type, actor_context: row.name });
               if (!sig) continue;
@@ -244,54 +249,16 @@ async function main() {
               if (cls === 'unclassified_signal') { stats.skipped_unclassified++; continue; }
               if (conf < MIN_CONF)               { stats.skipped_low_conf++;     continue; }
 
-              stats.by_class[cls]   = (stats.by_class[cls]   || 0) + 1;
-              const eq = sig.evidence_quality || 'inferred';
-              stats.by_evidence[eq] = (stats.by_evidence[eq] || 0) + 1;
+              stats.by_class[cls]               = (stats.by_class[cls]               || 0) + 1;
+              stats.by_evidence[sig.evidence_quality] = (stats.by_evidence[sig.evidence_quality] || 0) + 1;
 
-              signalBuf.push({
-                entity_id:         entityId,
-                source:            source_type,
-                source_type,
-                source_url:        row.article_url || null,
-                detected_at:       detectedAt,
-                raw_sentence:      sentence,
-                signal_object:     sig,
-                primary_signal:    cls,
-                signal_type:       sig.signal_type      || null,
-                signal_strength:   sig.signal_strength  ?? null,
-                confidence:        conf,
-                evidence_quality:  eq,
-                actor_type:        sig.actor            || null,
-                action_tag:        sig._actions?.[0]?.action_tag || null,
-                modality:          sig.modality         || null,
-                intensity:         sig._intensity       || [],
-                posture:           sig.posture          || null,
-                is_costly_action:  sig.costly_action    || false,
-                is_ambiguous:      sig.is_ambiguous     || false,
-                is_multi_signal:   (sig._sub_signals?.length > 0) || false,
-                has_negation:      sig.has_negation     || false,
-                sub_signals:       sig._sub_signals     || [],
-                who_cares:         sig.who_cares        || {},
-                likely_stage:      sig.inference?.likely_stage || null,
-                likely_needs:      sig.inference?.likely_need  || [],
-                urgency:           sig.inference?.urgency      || null,
-              });
-
-              timelineBuf.push({
-                entity_id:      entityId,
-                event_date:     signalDate,
-                signal_class:   cls,
-                signal_type:    sig.signal_type    || null,
-                signal_strength: sig.signal_strength ?? null,
-                confidence:     conf,
-                evidence_quality: eq,
-                is_costly_action: sig.costly_action || false,
-                summary:        sig._actions?.[0]?.meaning || cls,
-                source:         source_type,
-                source_type,
-                source_url:     row.article_url || null,
-              });
-
+              // ── Canonical field mapping via signalEventBuilder ──────────────
+              const meta = { entityId, rawSentence: sentence, sourceType: source_type,
+                             source: source_type, sourceUrl, detectedAt };
+              signalBuf.push(buildSignalEvent(sig, meta));
+              timelineBuf.push(buildTimelineEvent(sig, { entityId, sourceType: source_type,
+                                                         source: source_type, sourceUrl,
+                                                         eventDate: signalDate }));
             } catch { /* skip bad sentences */ }
           }
         }

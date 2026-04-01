@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import { InvestorSignalAlertStrip } from '../components/pythh/InvestorSignalAlertStrip';
 import {
   DollarSign, TrendingUp, Target, AlertTriangle, Activity,
   Filter, Search, RefreshCw, ArrowLeft, Zap, Users, Globe,
@@ -472,6 +473,16 @@ export default function InvestorMatchFeedPage() {
             </div>
           </div>
         )}
+
+        {/* Signal Alert Strip — high-velocity startups in investor's thesis */}
+        <div className="mb-8">
+          <InvestorSignalAlertStrip
+            sectors={prefs.sectors}
+            stages={prefs.stages}
+            maxAlerts={4}
+            onSelectStartup={(id) => navigate(`/lookup/startup/${id}`)}
+          />
+        </div>
 
         {/* Stats bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

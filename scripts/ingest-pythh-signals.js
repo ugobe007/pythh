@@ -25,8 +25,11 @@
 'use strict';
 require('dotenv').config();
 
-const { createClient }    = require('@supabase/supabase-js');
-const { parseSignal }     = require('../lib/signalParser');
+const { createClient }         = require('@supabase/supabase-js');
+const { parseSignal }          = require('../lib/signalParser');
+const { buildSignalEvent,
+        buildTimelineEvent }   = require('../lib/signalEventBuilder');
+const { insertInBatches }      = require('../lib/supabaseUtils');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -213,14 +216,27 @@ async function main() {
     console.log('\n');
   }
 
-  // ── Process in batches (signals only) ────────────────────────────────────
+  // ── Process in batches ───────────────────────────────────────────────────
+  // Signal rows are buffered and flushed in batches — not one insert per signal.
+  const eventBuf    = [];
+  const timelineBuf = [];
+
+  const flush = async () => {
+    if (!DRY_RUN && eventBuf.length > 0) {
+      await insertInBatches(supabase, 'pythh_signal_events',   eventBuf);
+      await insertInBatches(supabase, 'pythh_signal_timeline', timelineBuf);
+      eventBuf.length    = 0;
+      timelineBuf.length = 0;
+    }
+  };
+
   for (let i = 0; i < processRows.length; i += BATCH_SZ) {
     const batch = processRows.slice(i, i + BATCH_SZ);
 
     for (const row of batch) {
       stats.startups++;
 
-      // Entity ID: from fast-path map (skip-existing) or per-startup query
+      // ── Entity resolution ──────────────────────────────────────────────────
       let entityId = null;
       if (!DRY_RUN) {
         if (knownNewIds) {
@@ -256,87 +272,40 @@ async function main() {
         entityId = `dry_${row.id}`;
       }
 
-      // 2. Extract text blocks and parse sentence-level signals
+      // ── Extract text + parse signals ───────────────────────────────────────
       const blocks = extractTextBlocks(row);
       if (blocks.length === 0) continue;
 
       const detectedAt = row.updated_at || row.created_at || new Date().toISOString();
       const signalDate = detectedAt.split('T')[0];
+      const sourceUrl  = row.extracted_data?.source_url || row.website || null;
 
       for (const { text, source_type } of blocks) {
-        const sentences = splitSentences(text);
-
-        for (const sentence of sentences) {
+        for (const sentence of splitSentences(text)) {
           try {
-            const sig = parseSignal(sentence, {
-              source_type,
-              actor_context: row.name,
-            });
+            const sig = parseSignal(sentence, { source_type, actor_context: row.name });
             if (!sig) continue;
             stats.sentences_parsed++;
 
-            const cls = sig.primary_signal || 'unclassified_signal';
+            const cls  = sig.primary_signal || 'unclassified_signal';
             const conf = sig.confidence ?? 0;
 
-            // Filter weak / unclassified signals
             if (cls === 'unclassified_signal') { stats.skipped_unclassified++; continue; }
             if (conf < MIN_CONF)               { stats.skipped_low_conf++;     continue; }
 
             stats.signals_written++;
-            stats.by_class[cls]                    = (stats.by_class[cls] || 0) + 1;
-            const ev = sig.evidence_quality || 'unknown';
-            stats.by_evidence[ev]                  = (stats.by_evidence[ev] || 0) + 1;
+            stats.by_class[cls]                = (stats.by_class[cls] || 0) + 1;
+            stats.by_evidence[sig.evidence_quality] = (stats.by_evidence[sig.evidence_quality] || 0) + 1;
 
             if (DRY_RUN) continue;
 
-            // 3. Write to pythh_signal_events
-            const eventRow = {
-              entity_id:         entityId,
-              source:            source_type,
-              source_type,
-              source_url:        row.extracted_data?.source_url || row.website || null,
-              detected_at:       detectedAt,
-              raw_sentence:      sentence,
-              signal_object:     sig,
-              primary_signal:    cls,
-              signal_type:       sig.signal_type     || null,
-              signal_strength:   sig.signal_strength ?? null,
-              confidence:        conf,
-              evidence_quality:  ev,
-              actor_type:        sig.actor           || null,
-              action_tag:        sig._actions?.[0]?.action_tag || null,
-              modality:          sig.modality         || null,
-              intensity:         sig._intensity       || [],
-              posture:           sig.posture          || null,
-              is_costly_action:  sig.costly_action    || false,
-              is_ambiguous:      sig.is_ambiguous     || false,
-              is_multi_signal:   (sig._sub_signals?.length > 0) || false,
-              has_negation:      sig.has_negation     || false,
-              sub_signals:       sig._sub_signals     || [],
-              who_cares:         sig.who_cares        || {},
-              likely_stage:      sig.inference?.likely_stage  || null,
-              likely_needs:      sig.inference?.likely_need   || [],
-              urgency:           sig.inference?.urgency       || null,
-            };
-
-            await supabase.from('pythh_signal_events').insert(eventRow);
-
-            // 4. Write to pythh_signal_timeline (lightweight)
-            await supabase.from('pythh_signal_timeline').insert({
-              entity_id:         entityId,
-              event_date:        signalDate,
-              signal_class:      cls,
-              signal_type:       sig.signal_type     || null,
-              signal_strength:   sig.signal_strength ?? null,
-              confidence:        conf,
-              evidence_quality:  ev,
-              is_costly_action:  sig.costly_action   || false,
-              summary:           sig._actions?.[0]?.meaning || cls,
-              source:            source_type,
-              source_type,
-              source_url:        row.extracted_data?.source_url || row.website || null,
-            });
-
+            // ── Use canonical builder — field mapping lives in signalEventBuilder.js ──
+            const meta = { entityId, rawSentence: sentence, sourceType: source_type,
+                           source: source_type, sourceUrl, detectedAt };
+            eventBuf.push(buildSignalEvent(sig, meta));
+            timelineBuf.push(buildTimelineEvent(sig, { entityId, sourceType: source_type,
+                                                       source: source_type, sourceUrl,
+                                                       eventDate: signalDate }));
           } catch (e) {
             stats.errors++;
           }
@@ -344,9 +313,14 @@ async function main() {
       }
     }
 
+    // Flush after each startup batch
+    await flush();
     const pct = Math.round(((i + batch.length) / processRows.length) * 100);
     process.stdout.write(`\r  Progress: ${i + batch.length}/${processRows.length} startups (${pct}%)  `);
   }
+
+  // Final flush for any remaining rows
+  await flush();
 
   // ── Report ────────────────────────────────────────────────────────────────
   console.log('\n\n' + '═'.repeat(60));

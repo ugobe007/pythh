@@ -58,7 +58,8 @@ const DRY_RUN    = !process.argv.includes('--apply');
 const LIMIT      = +(argVal('--limit',     '500'));
 const MIN_CONF   = +(argVal('--min-conf',  '0.50'));
 const MODEL      =   argVal('--model',     'gpt-4o-mini');
-const BATCH_SIZE = +(argVal('--batch',     '5'));  // entities per LLM call
+const BATCH_SIZE = +(argVal('--batch',     '3'));  // entities per LLM call (3 keeps JSON under token limit)
+const URL_ONLY   = process.argv.includes('--url-only');  // only process URL-submitted startups
 
 // ── Pythh signal classes the LLM must use ─────────────────────────────────
 const VALID_CLASSES = [
@@ -236,19 +237,26 @@ async function classifyWithLLM(entityBatch) {
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
     raw = response.choices[0]?.message?.content;
   } catch (err) {
     return { error: err.message, results: [] };
   }
 
+  if (!raw) {
+    return { error: 'empty response from LLM', results: [] };
+  }
+
   let parsed;
   try {
-    const obj = JSON.parse(raw);
+    // Strip markdown fences if present (some models wrap even with json_object format)
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const obj = JSON.parse(cleaned);
     parsed = Array.isArray(obj) ? obj : (obj.signals || obj.results || obj.data || []);
-  } catch {
-    return { error: 'JSON parse failed', results: [] };
+  } catch (e) {
+    console.warn(`  [LLM] JSON parse failed (${e.message}). Raw snippet: ${raw?.slice(0, 120)}`);
+    return { error: `JSON parse failed: ${e.message}`, results: [] };
   }
 
   if (process.env.LLM_DEBUG) {
@@ -268,6 +276,7 @@ async function main() {
   console.log(`Limit:      ${LIMIT} entities`);
   console.log(`Min conf:   ${MIN_CONF}`);
   console.log(`Batch size: ${BATCH_SIZE} entities/call`);
+  console.log(`Source:     ${URL_ONLY ? 'URL-submitted only' : 'all sources'}`);
   console.log('═'.repeat(60) + '\n');
 
   // ── Load entities with zero signals ────────────────────────────────────
@@ -283,26 +292,41 @@ async function main() {
   let entities = [];
   let offset = 0;
 
-  // Pass 1: discovered_startups entities, newest first (RSS-enriched articles land here)
-  while (entities.length < LIMIT) {
-    const { data: page } = await supabase
-      .from('pythh_entities')
-      .select('id, name, startup_upload_id, discovered_startup_id, created_at')
-      .eq('is_active', true)
-      .is('startup_upload_id', null)
-      .not('discovered_startup_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + PAGE - 1);
-    if (!page?.length) break;
-    for (const e of page) {
-      if (!hasSignals.has(e.id)) entities.push(e);
-    }
-    if (page.length < PAGE) break;
-    offset += PAGE;
-    if (entities.length >= LIMIT) break;
+  // When --url-only, load source_type='url' startup IDs first so we can filter
+  let urlUploadIdSet = null;
+  if (URL_ONLY) {
+    console.log('🔎 Loading URL-submitted startup IDs...');
+    const { data: urlRows } = await supabase
+      .from('startup_uploads')
+      .select('id')
+      .eq('source_type', 'url')
+      .limit(50000);
+    urlUploadIdSet = new Set((urlRows || []).map(r => r.id));
+    console.log(`   Found ${urlUploadIdSet.size.toLocaleString()} URL-submitted startups\n`);
   }
 
-  // Pass 2: startup_upload entities, newest first (fill remaining slots)
+  // Pass 1: discovered_startups entities (RSS-enriched articles) — skip when --url-only
+  if (!URL_ONLY) {
+    while (entities.length < LIMIT) {
+      const { data: page } = await supabase
+        .from('pythh_entities')
+        .select('id, name, startup_upload_id, discovered_startup_id, created_at')
+        .eq('is_active', true)
+        .is('startup_upload_id', null)
+        .not('discovered_startup_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      if (!page?.length) break;
+      for (const e of page) {
+        if (!hasSignals.has(e.id)) entities.push(e);
+      }
+      if (page.length < PAGE) break;
+      offset += PAGE;
+      if (entities.length >= LIMIT) break;
+    }
+  }
+
+  // Pass 2: startup_upload entities, newest first
   if (entities.length < LIMIT) {
     offset = 0;
     while (entities.length < LIMIT) {
@@ -315,7 +339,10 @@ async function main() {
         .range(offset, offset + PAGE - 1);
       if (!page?.length) break;
       for (const e of page) {
-        if (!hasSignals.has(e.id)) entities.push(e);
+        if (hasSignals.has(e.id)) continue;
+        // When --url-only, skip entities not linked to a URL-submitted startup
+        if (urlUploadIdSet && !urlUploadIdSet.has(e.startup_upload_id)) continue;
+        entities.push(e);
       }
       if (page.length < PAGE) break;
       offset += PAGE;

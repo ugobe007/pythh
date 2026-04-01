@@ -220,3 +220,192 @@ nav, [class*="fixed"] {
     transform: translateX(100%);
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PYTHH SIGNAL INTELLIGENCE — Design System
+   Emerald (#10b981) = live signal / action / positive
+   Amber   (#f59e0b) = score value / data highlight
+   Plus Jakarta Sans (display) · Geist Mono (data) · Inter (body)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.pythh-label-caps {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #52616e;
+}
+
+.pythh-score-number {
+  font-family: 'Geist Mono', monospace;
+  font-weight: 600;
+}
+
+.pythh-amber-glow {
+  text-shadow: 0 0 24px rgba(245, 158, 11, 0.45);
+}
+
+.pythh-emerald-glow {
+  text-shadow: 0 0 24px rgba(16, 185, 129, 0.45);
+}
+
+.pythh-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  flex-shrink: 0;
+  animation: pythh-pulse-live 2s ease-in-out infinite;
+}
+
+@keyframes pythh-pulse-live {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  50%       { opacity: 0.75; box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+}
+
+.pythh-signal-bar-bg {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pythh-signal-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #10b981, rgba(16, 185, 129, 0.25));
+  transition: width 1.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pythh-score-blocks { display: flex; gap: 2px; align-items: center; }
+
+.pythh-score-block {
+  width: 5px;
+  height: 14px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.3s ease;
+}
+
+.pythh-score-block.active { background: #10b981; }
+
+.pythh-btn-primary {
+  background: #10b981;
+  color: #071510;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  border: none;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+
+.pythh-btn-primary:hover {
+  background: #0ecf8e;
+  box-shadow: 0 0 28px rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+}
+
+.pythh-btn-primary:active { transform: translateY(0); }
+
+.pythh-btn-outline {
+  background: transparent;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10b981;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+
+.pythh-btn-outline:hover {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.65);
+}
+
+.pythh-btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #52616e;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+
+.pythh-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.pythh-table-row {
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.pythh-table-row:hover { background: rgba(16, 185, 129, 0.04); }
+.pythh-table-row:hover .pythh-investor-name { color: #0ecf8e; }
+
+.pythh-investor-name {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: #10b981;
+  transition: color 0.15s ease;
+}
+
+.pythh-sector-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #52616e;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  cursor: pointer;
+}
+
+.pythh-sector-chip:hover,
+.pythh-sector-chip.active {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
+.pythh-heat-card {
+  background: #141a1f;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.pythh-heat-card:hover {
+  border-color: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 22px rgba(16, 185, 129, 0.06);
+}
+
+.pythh-number-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #f59e0b;
+  flex-shrink: 0;
+}
+
+@keyframes pythh-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

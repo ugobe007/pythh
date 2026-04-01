@@ -864,6 +864,61 @@ module.exports = {
     },
 
     // ========================================
+    // DAILY LLM ENRICHMENT PIPELINE
+    // LLM signal enrichment (GPT-4o-mini) + sync + recalculate
+    // Runs at 2 AM daily — off-peak, before morning health check
+    // Kept separate from signal-pipeline because it makes OpenAI calls
+    // ========================================
+    {
+      name: 'daily-enrichment',
+      script: 'node',
+      args: 'scripts/cron/daily-enrichment.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '400M',
+      max_restarts: 2,
+      cron_restart: '0 2 * * *',  // Daily at 2:00 AM
+      env: {
+        NODE_ENV: 'production',
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
+      }
+      // Steps: LLM signals (url-first) → sync signal scores → recalculate scores
+      // Cost: ~$0.10/day at 100 entities/day
+    },
+
+    // ========================================
+    // DATA INTEGRITY CHECK — Nightly standalone pass
+    // Validates all canonical columns for plausible bounds.
+    // Catches anything the 4h signal-pipeline missed (e.g. manual imports).
+    // Runs at 6 AM — after all overnight jobs, before the 8 AM health report.
+    // ========================================
+    {
+      name: 'data-integrity-check',
+      script: 'node',
+      args: 'scripts/data-integrity-check.js --fix',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      max_restarts: 2,
+      cron_restart: '0 6 * * *',  // Daily at 6:00 AM
+      env: {
+        NODE_ENV: 'production',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
+      }
+      // Checks: customer_count, arr_usd, revenue_usd, growth_rate bounds
+      //         hash taglines, definite-junk names, article-fragment names
+      // Auto-nulls bad numeric values, auto-rejects junk names
+      // PM2 exit code 1 = issues found (visible in pm2 status / logs)
+    },
+
+    // ========================================
     // ENRICHMENT HEALTH CHECK - Daily pipeline monitor
     // Detects silent regressions in enrichment/GOD score quality
     // ========================================
@@ -877,7 +932,7 @@ module.exports = {
       watch: false,
       max_memory_restart: '256M',
       max_restarts: 2,
-      cron_restart: '0 8 * * *',  // Daily at 8:00 AM
+      cron_restart: '0 8 * * *',  // Daily at 8:00 AM (after integrity check at 6 AM)
       env: {
         NODE_ENV: 'production'
       }

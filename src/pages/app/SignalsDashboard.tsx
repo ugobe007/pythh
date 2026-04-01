@@ -2,6 +2,9 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ActionIntakeModalV2 from "@/components/ActionIntakeModalV2";
 import useStartupScorecardV2 from "@/hooks/useStartupScorecardV2";
+import { useSignalIntelligence } from "@/hooks/useSignalIntelligence";
+import { SignalIntelligencePanels } from "@/components/pythh/SignalIntelligencePanel";
+import { SignalLeaderboard } from "@/components/pythh/SignalLeaderboard";
 import HotMatchesFeed from "@/components/HotMatchesFeed";
 
 // Ensure the dashboard styles are loaded (safe even if also loaded globally)
@@ -129,6 +132,9 @@ export default function Dashboard() {
   }, [data]);
 
   const hasStartup = !!startupId;
+
+  // Signal intelligence layer — cohort, gaps, velocity, narrative
+  const signalIntel = useSignalIntelligence(startupId);
 
   // ── Onboarding / Getting Started (no startup linked yet) ──
   if (!hasStartup) {
@@ -412,23 +418,12 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* LIVE MATCH SNAPSHOT (compact strip) */}
-            <div className="py-panel">
-              <div className="py-panel-inner">
-                <div className="py-kicker">live match snapshot</div>
-                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 13, color: "rgba(255,255,255,.74)" }}>
-                  <span>Investor A <span style={{ fontWeight: 700 }}>91</span> <span style={{ color: "rgba(52,211,153,.95)" }}>↑</span></span>
-                  <span style={{ color: "rgba(255,255,255,.28)" }}>|</span>
-                  <span>Investor B <span style={{ fontWeight: 700 }}>88</span> <span style={{ color: "rgba(255,255,255,.55)" }}>→</span></span>
-                  <span style={{ color: "rgba(255,255,255,.28)" }}>|</span>
-                  <span>Investor C <span style={{ fontWeight: 700 }}>84</span> <span style={{ color: "rgba(52,211,153,.95)" }}>↑</span></span>
-                  <span style={{ color: "rgba(255,255,255,.28)" }}>|</span>
-                  <Link to="/app/matches" style={{ color: "rgba(219,234,254,.9)" }}>
-                    Open matchbook →
-                  </Link>
-                </div>
-              </div>
-            </div>
+            {/* SIGNAL INTELLIGENCE — cohort percentile, gaps, velocity, narrative */}
+            <SignalIntelligencePanels
+              data={signalIntel.data}
+              loading={signalIntel.loading}
+              error={signalIntel.error}
+            />
           </section>
 
           {/* RIGHT RAIL */}
@@ -436,10 +431,27 @@ export default function Dashboard() {
             <div className="py-panel">
               <div className="py-panel-inner">
                 <div className="py-kicker">next actions</div>
-                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "rgba(255,255,255,.74)" }}>
-                  <div><span style={{ color: "rgba(255,255,255,.32)", marginRight: 8 }}>—</span>Report one meaningful action</div>
-                  <div><span style={{ color: "rgba(255,255,255,.32)", marginRight: 8 }}>—</span>Attach one proof artifact</div>
-                  <div><span style={{ color: "rgba(255,255,255,.32)", marginRight: 8 }}>—</span>Pick 5 rising matches</div>
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10, fontSize: 13 }}>
+                  {signalIntel.data?.signalGaps.slice(0, 3).map((gap) => (
+                    <div key={gap.signalClass} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                      <div>
+                        <div style={{ color: "rgba(255,255,255,.82)", fontWeight: 600, marginBottom: 2 }}>
+                          Add {gap.label.toLowerCase()}
+                        </div>
+                        <div style={{ fontSize: 11, color: "rgba(255,255,255,.38)", lineHeight: 1.4 }}>
+                          {gap.description}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(52,211,153,.85)", whiteSpace: "nowrap" }}>
+                        +{gap.projectedMatchLift}pt
+                      </span>
+                    </div>
+                  )) ?? (
+                    <>
+                      <div style={{ color: "rgba(255,255,255,.74)" }}><span style={{ color: "rgba(255,255,255,.32)", marginRight: 8 }}>—</span>Report one meaningful action</div>
+                      <div style={{ color: "rgba(255,255,255,.74)" }}><span style={{ color: "rgba(255,255,255,.32)", marginRight: 8 }}>—</span>Attach one proof artifact</div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -476,6 +488,19 @@ export default function Dashboard() {
                   <Link to="/app/signal-matches" style={{ color: "rgba(219,234,254,.9)", fontSize: 13 }}>Matchbook →</Link>
                   <Link to="/app/oracle/coaching" style={{ color: "#FFB402", fontSize: 13, fontWeight: 600 }}>Oracle — Signal Coaching →</Link>
                 </div>
+              </div>
+            </div>
+
+            {/* Signal Velocity Leaderboard — compact, founder-highlighted */}
+            <div className="py-panel" style={{ marginTop: 8 }}>
+              <div className="py-panel-inner">
+                <SignalLeaderboard
+                  limit={8}
+                  hoursAgo={168}
+                  compact={true}
+                  showViewAll={true}
+                  highlightStartupId={startupId ?? undefined}
+                />
               </div>
             </div>
 

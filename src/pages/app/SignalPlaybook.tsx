@@ -4,7 +4,7 @@
 // Per-investor approach strategies — pure inline text, Supabase style.
 // ============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -96,6 +96,189 @@ function generatePlaybooks(matches: any[]): InvestorPlaybook[] {
       ],
     };
   });
+}
+
+/* ──────────────────────────── Signal Needs Types ──────────────────────────── */
+
+interface EntityNeed {
+  id: string;
+  need_class: string;
+  label: string | null;
+  category: string | null;
+  description: string | null;
+  confidence: number | null;
+  urgency: string | null;
+  who_provides: string[] | null;
+  signal_sources: string[] | null;
+  trajectory_boost: boolean | null;
+  evidence_count: number | null;
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+  capital:    '💰',
+  gtm:        '🚀',
+  product:    '🔧',
+  buying:     '🛒',
+  strategic:  '♟',
+  talent:     '👥',
+};
+
+const CATEGORY_HOW_TO: Record<string, string> = {
+  capital:   'Share ARR, MRR, or burn-rate milestones. Announce rounds closed. Publish traction metrics.',
+  gtm:       'Announce partnerships, customer logos, and pipeline wins. Reference revenue growth in press.',
+  product:   'Publish product launches, feature announcements, and technical blog posts.',
+  buying:    'Publish case studies, enterprise customer wins, and procurement milestones.',
+  strategic: 'Announce board additions, strategic partnerships, and market positioning moves.',
+  talent:    'Post job openings, announce executive hires, and highlight team growth milestones.',
+};
+
+/* ──────────────────────────── Signal Needs Panel ──────────────────────────── */
+
+function SignalNeedsPanel({ startupId }: { startupId: string | null }) {
+  const [needs, setNeeds]         = useState<EntityNeed[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [expandedNeed, setExpandedNeed] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!startupId) { setLoading(false); return; }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Resolve entity
+        const { data: entities } = await supabase
+          .from('pythh_entities')
+          .select('id')
+          .eq('startup_upload_id', startupId)
+          .limit(1);
+
+        const entityId = entities?.[0]?.id;
+        if (!entityId || cancelled) { setLoading(false); return; }
+
+        // Fetch needs ordered by urgency then confidence
+        const { data } = await supabase
+          .from('pythh_entity_needs')
+          .select('id, need_class, label, category, description, confidence, urgency, who_provides, signal_sources, trajectory_boost, evidence_count')
+          .eq('entity_id', entityId)
+          .order('urgency', { ascending: false })
+          .order('confidence', { ascending: false })
+          .limit(6);
+
+        if (!cancelled) setNeeds((data || []) as EntityNeed[]);
+      } catch { /* non-blocking */ } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [startupId]);
+
+  if (!loading && needs.length === 0) return null;
+
+  return (
+    <div className="mb-8 p-4 rounded-lg border border-zinc-800 bg-zinc-900/20">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+        <h3 className="text-[11px] uppercase tracking-[1.5px] text-zinc-400">Signal Gaps — What Investors Are Looking For</h3>
+      </div>
+
+      {loading && (
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-14 bg-zinc-800/50 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {!loading && (
+        <div className="space-y-2">
+          {needs.map(need => {
+            const isOpen = expandedNeed === need.id;
+            const icon = CATEGORY_ICONS[need.category ?? ''] ?? '◇';
+            const howTo = CATEGORY_HOW_TO[need.category ?? ''] ?? 'Publish relevant milestones and announcements publicly.';
+            const urgencyStyle =
+              need.urgency === 'high'
+                ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                : need.urgency === 'medium'
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                  : 'bg-zinc-700/30 text-zinc-500 border-zinc-700/40';
+
+            return (
+              <div
+                key={need.id}
+                className="border border-zinc-800/60 rounded-lg overflow-hidden cursor-pointer hover:border-zinc-700/60 transition-colors"
+                onClick={() => setExpandedNeed(isOpen ? null : need.id)}
+              >
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="text-base shrink-0">{icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-zinc-200">
+                        {need.label ?? need.need_class.replace(/_/g, ' ')}
+                      </span>
+                      {need.urgency && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium ${urgencyStyle}`}>
+                          {need.urgency}
+                        </span>
+                      )}
+                      {need.trajectory_boost && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                          trajectory signal
+                        </span>
+                      )}
+                    </div>
+                    {!isOpen && need.description && (
+                      <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-1">{need.description}</p>
+                    )}
+                  </div>
+                  {need.confidence != null && (
+                    <span className="shrink-0 text-[10px] text-zinc-600 font-mono tabular-nums">
+                      {Math.round(need.confidence * 100)}%
+                    </span>
+                  )}
+                  <span className="shrink-0 text-zinc-600 text-xs">{isOpen ? '▲' : '▼'}</span>
+                </div>
+
+                {isOpen && (
+                  <div className="px-3 pb-3 pt-1 border-t border-zinc-800/50 bg-zinc-900/30 space-y-2.5">
+                    {need.description && (
+                      <p className="text-xs text-zinc-400 leading-relaxed">{need.description}</p>
+                    )}
+                    <div className="rounded bg-cyan-950/30 border border-cyan-900/30 px-3 py-2">
+                      <div className="text-[10px] text-cyan-400 uppercase tracking-wider mb-1">How to generate this signal</div>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{howTo}</p>
+                    </div>
+                    {need.who_provides && need.who_provides.length > 0 && (
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Relevant investor types</div>
+                        <div className="flex flex-wrap gap-1">
+                          {need.who_provides.map(w => (
+                            <span key={w} className="text-[9px] px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">
+                              {w.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {need.signal_sources && need.signal_sources.length > 0 && (
+                      <div>
+                        <div className="text-[10px] text-zinc-500 mb-1">Evidence from</div>
+                        <div className="flex flex-wrap gap-1">
+                          {need.signal_sources.map(s => (
+                            <span key={s} className="text-[9px] px-1.5 py-0.5 bg-zinc-800 text-zinc-500 rounded">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ──────────────────────────── Component ──────────────────────────── */
@@ -332,6 +515,9 @@ export default function SignalPlaybook() {
 
   return (
     <div>
+
+        {/* Signal Needs Panel — real data from pythh_entity_needs */}
+        <SignalNeedsPanel startupId={startupId} />
 
         {/* Intro */}
         <p className="text-sm text-zinc-400 leading-relaxed mb-8">

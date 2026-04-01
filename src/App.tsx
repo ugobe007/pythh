@@ -37,7 +37,7 @@ import "./App.css";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import { L5Guard } from "./lib/routeGuards";
+import { L5Guard, AuthGuard } from "./lib/routeGuards";
 import { trackEvent } from "./lib/analytics";
 import { useStore } from "./store";
 
@@ -140,6 +140,8 @@ const MatchPreviewPage = lazy(() => import("./pages/MatchPreviewPage"));
 // -----------------------------------------------------------------------------
 // LAZY PAGES — APP
 // -----------------------------------------------------------------------------
+
+const FounderSignalsPage = lazy(() => import("./pages/FounderSignalsPage"));
 
 const SignalsDashboard = lazy(() => import("./pages/app/SignalsDashboard"));
 const InSignalMatches = lazy(() => import("./pages/inSignalMatches"));
@@ -244,6 +246,7 @@ const App = () => {
             <Route path="/match" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
             <Route path="/signal-results" element={<Navigate to={toWithQuery("/signal-matches")} replace />} />
 
+            <Route path="/signal-activity" element={<FounderSignalsPage />} />
             <Route path="/rankings" element={<SignalTrends />} />
             <Route path="/signal-trends" element={<Navigate to="/rankings" replace />} />
             <Route path="/explore" element={<ExplorePage />} />
@@ -310,7 +313,7 @@ const App = () => {
             {/* -----------------------------------------------------------------
                 APP (instrument mode)
             ----------------------------------------------------------------- */}
-            <Route path="/app" element={<AppLayout />}>
+            <Route path="/app" element={<AuthGuard><AppLayout /></AuthGuard>}>
               <Route index element={<Navigate to="signals-dashboard" replace />} />
               <Route path="signals-dashboard" element={<SignalsDashboard />} />
 
