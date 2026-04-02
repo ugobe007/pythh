@@ -10,7 +10,7 @@
  * Falls back to hardcoded data if live data isn't ready yet.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -69,24 +69,63 @@ const SECTOR_STRIP = [
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Mini SVG sparkline — 80×28 */
+/** Upsample 7 points → ~28 for a smoother polyline (less “jagged” steps). */
+function upsampleLinear(values: number[], targetLen: number): number[] {
+  if (values.length < 2) return values;
+  const out: number[] = [];
+  const n = values.length;
+  for (let i = 0; i < targetLen; i++) {
+    const t = (i / (targetLen - 1)) * (n - 1);
+    const j = Math.floor(t);
+    const f = t - j;
+    const a = values[j];
+    const b = values[Math.min(j + 1, n - 1)];
+    out.push(a * (1 - f) + b * f);
+  }
+  return out;
+}
+
+/** Mini SVG sparkline — dense interpolated line + soft area fill. Down = amber (matches score accent), not red. */
 function Sparkline({ values, positive }: { values: number[]; positive: boolean }) {
-  const W = 80, H = 28;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const gradId = useId().replace(/:/g, '');
+  const W = 88;
+  const H = 32;
+  const pad = 2;
+  const smooth = upsampleLinear(values, 36);
+  const min = Math.min(...smooth);
+  const max = Math.max(...smooth);
   const range = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * W;
-    const y = H - ((v - min) / range) * (H - 4) - 2;
-    return `${x},${y}`;
+  const coords = smooth.map((v, i) => {
+    const x = pad + (i / (smooth.length - 1)) * (W - pad * 2);
+    const y = pad + (1 - (v - min) / range) * (H - pad * 2);
+    return { x, y };
   });
-  const color = positive ? '#10b981' : '#ef4444';
-  const lastY = H - ((values[values.length - 1] - min) / range) * (H - 4) - 2;
+  const lineD = coords.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+  const last = coords[coords.length - 1];
+  const first = coords[0];
+  const areaD = `${lineD} L ${last.x} ${H - pad} L ${first.x} ${H - pad} Z`;
+
+  const line = positive ? '#34d399' : '#fbbf24';
+  const fillTop = positive ? 'rgba(52,211,153,0.2)' : 'rgba(251,191,36,0.14)';
+
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} fill="none">
-      <polyline points={pts.join(' ')} stroke={color} strokeWidth="1.5"
-        strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
-      <circle cx={W} cy={lastY} r="2.5" fill={color} />
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} fill="none" aria-hidden>
+      <defs>
+        <linearGradient id={`spark-grad-${gradId}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={fillTop} />
+          <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill={`url(#spark-grad-${gradId})`} />
+      <path
+        d={lineD}
+        stroke={line}
+        strokeWidth={1.65}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx={last.x} cy={last.y} r={2.75} fill={line} />
     </svg>
   );
 }

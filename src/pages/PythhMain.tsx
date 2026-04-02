@@ -7,7 +7,7 @@
  * Plus Jakarta Sans (display) · Geist Mono (data) · Inter (body)
  *
  * Sections:
- *   1. Hero      — provocative headline + cycling investor panel
+ *   1. Hero      — straight CTA headline + cycling investor panel
  *   2. Signals   — investor table with sector chip filters
  *   3. Explained — "Every investor leaves a trail"
  *   4. Heat      — sector heat cards + daily signal
@@ -131,9 +131,13 @@ export default function PythhHome() {
   const [showPaywall, setShowPaywall]         = useState(false);
 
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const isPro = profile?.plan !== 'free';
-  const { analysisCount, hasHitLimit, remainingAnalyses, trackAnalysis, FREE_ANALYSIS_LIMIT } = useUsageTracking();
+  const { profile, refreshProfile } = useAuth();
+  const { analysisCount, hasHitLimit, remainingAnalyses, trackAnalysis, FREE_ANALYSIS_LIMIT, isProFromServer } = useUsageTracking();
+  // isProFromServer takes priority when server has responded; falls back to profile
+  const isPro = isProFromServer !== null ? isProFromServer : (profile?.plan !== 'free');
+
+  // Refresh profile on mount to pick up any plan changes made since last session
+  useEffect(() => { refreshProfile(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sector heat scroll trigger ────────────────────────────────────────────
   useEffect(() => {
@@ -336,7 +340,7 @@ export default function PythhHome() {
     <div style={{ minHeight: '100vh', background: '#080b10', fontFamily: "'Inter', sans-serif" }}>
       <SEO
         title="pythh.ai - Signal Science for Venture | 12.6K+ Startups Analyzed"
-        description="Get matched with the right investors using our proprietary GOD Algorithm. 12,600+ startups analyzed, 841,915+ live matches. Find your perfect investor match."
+        description="Find your investors using signal intelligence. Get funded. 12,600+ startups analyzed, 841,915+ live matches. Enter your URL—ranked matches in seconds."
         keywords="startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score, venture capital matching"
         canonical="/"
       />
@@ -391,11 +395,10 @@ export default function PythhHome() {
                 color: '#f0f6fc',
                 marginBottom: '1.5rem',
               }}>
-                The investors who will fund your next round
-                <br />are already moving.
+                Find your investors using signal intelligence.
                 <br />
                 <span style={{ color: '#10b981' }}>
-                  Pythh shows you the signals.
+                  Get funded.
                 </span>
               </h1>
 
