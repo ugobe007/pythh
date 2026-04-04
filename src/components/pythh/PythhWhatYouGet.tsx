@@ -400,10 +400,13 @@ export default function PythhWhatYouGet({
         >
           <Link
             to={ctaTo}
-            className={ctaVariant === 'amber' ? 'pythh-btn-amber-outline' : 'pythh-btn-outline'}
-            style={ctaVariant === 'amber' ? undefined : { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.65rem 1.35rem', borderRadius: 6, textDecoration: 'none' }}
+            className={
+              ctaVariant === 'amber'
+                ? 'pythh-btn-amber-outline'
+                : 'pythh-btn-outline-sm'
+            }
           >
-            {ctaLabel} <ArrowRight size={14} strokeWidth={2} />
+            {ctaLabel} <ArrowRight size={13} strokeWidth={2} />
           </Link>
         </motion.div>
       </div>

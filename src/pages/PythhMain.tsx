@@ -223,7 +223,7 @@ export default function PythhHome() {
         variant="hero"
         ctaTo="/signal-matches"
         ctaLabel="Get your matches →"
-        ctaVariant="amber"
+        ctaVariant="emerald"
       />
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -376,7 +376,7 @@ export default function PythhHome() {
       {/* ══════════════════════════════════════════════════════════════════════
           4. SECTOR HEAT
           ══════════════════════════════════════════════════════════════════════ */}
-      <section ref={heatRef} style={{ background: '#0b0e13', padding: '3.5rem 0' }}>
+      <section ref={heatRef} style={{ background: '#0b0e13', padding: '2.5rem 0 3rem' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 2rem' }}>
 
           {/* Header */}
@@ -384,7 +384,7 @@ export default function PythhHome() {
             initial={{ opacity: 0, y: 12 }}
             animate={heatVisible ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5 }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}
           >
             <span className="pythh-label-caps">Sector Heat</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -394,7 +394,7 @@ export default function PythhHome() {
           </motion.div>
 
           {/* 6-card grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 10, marginBottom: 16 }}>
             {sectorHeat.map((sector, i) => {
               const isPos = sector.delta > 0;
               return (
@@ -404,23 +404,23 @@ export default function PythhHome() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={heatVisible ? { opacity: 1, y: 0 } : {}}
                   transition={{ duration: 0.45, delay: i * 0.08 }}
-                  style={{ padding: '1rem 1.1rem' }}
+                  style={{ padding: '0.65rem 0.75rem' }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span className="pythh-score-number" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#52616e', textTransform: 'uppercase' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span className="pythh-score-number" style={{ fontSize: '0.62rem', letterSpacing: '0.08em', color: '#52616e', textTransform: 'uppercase' }}>
                       {sector.name}
                     </span>
-                    <span className="pythh-score-number" style={{ fontSize: '0.875rem', color: isPos ? '#10b981' : '#ef4444' }}>
+                    <span className="pythh-score-number" style={{ fontSize: '0.72rem', color: isPos ? '#10b981' : '#ef4444' }}>
                       {isPos ? '+' : ''}{sector.delta.toFixed(1)}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span className="pythh-score-number pythh-amber-glow" style={{ fontSize: '2.5rem', fontWeight: 600, color: '#f59e0b', lineHeight: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span className="pythh-score-number pythh-amber-glow" style={{ fontSize: '1.65rem', fontWeight: 600, color: '#f59e0b', lineHeight: 1 }}>
                       {sector.signal.toFixed(1)}
                     </span>
-                    <span style={{ fontSize: '1.5rem' }}>{sector.emoji}</span>
+                    <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{sector.emoji}</span>
                   </div>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.72rem', color: '#2e3d4a', marginBottom: '0.875rem' }}>
+                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.65rem', color: '#2e3d4a', marginBottom: '0.55rem' }}>
                     {sector.vcCount} VCs active
                   </p>
                   <div className="pythh-signal-bar-bg">

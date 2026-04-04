@@ -54,7 +54,7 @@ export default function PythhSignalExplained() {
   }, []);
 
   return (
-    <section ref={ref} style={{ background: '#0b0e13', padding: '2.5rem 0 2.75rem' }}>
+    <section ref={ref} style={{ background: '#0b0e13', padding: '2rem 0 2.25rem' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 2rem' }}>
 
         {/* Headline + body inline when wide; stacks on narrow */}
@@ -68,13 +68,13 @@ export default function PythhSignalExplained() {
             alignItems: 'baseline',
             columnGap: '1.25rem',
             rowGap: '0.5rem',
-            marginBottom: '1.25rem',
+            marginBottom: '1rem',
           }}
         >
           <h2 style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 800,
-            fontSize: 'clamp(1.35rem, 3vw, 2.35rem)',
+            fontSize: 'clamp(1.2rem, 2.6vw, 1.95rem)',
             letterSpacing: '-0.03em',
             lineHeight: 1.15,
             color: '#f0f6fc',
@@ -102,7 +102,7 @@ export default function PythhSignalExplained() {
         {/* 3-column data reveal */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
           gap: 1,
           background: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.05)',
@@ -117,7 +117,7 @@ export default function PythhSignalExplained() {
               transition={{ duration: 0.6, delay: 0.15 + i * 0.12 }}
               style={{
                 background: '#0f1318',
-                padding: '1.35rem 1.2rem 1.15rem',
+                padding: '0.95rem 0.95rem 0.85rem',
                 position: 'relative',
               }}
             >
@@ -127,7 +127,7 @@ export default function PythhSignalExplained() {
                 background: `linear-gradient(90deg, ${dim.color}66, transparent)`,
               }} />
 
-              <span className="pythh-label-caps" style={{ color: dim.color, marginBottom: '0.65rem', display: 'block' }}>
+              <span className="pythh-label-caps" style={{ color: dim.color, marginBottom: '0.45rem', display: 'block', fontSize: '0.65rem' }}>
                 {dim.key}
               </span>
 
@@ -135,40 +135,40 @@ export default function PythhSignalExplained() {
                 <span
                   className="pythh-score-number"
                   style={{
-                    fontSize: '2.65rem',
+                    fontSize: '1.85rem',
                     color: dim.color,
                     lineHeight: 1,
-                    textShadow: `0 0 24px ${dim.color}44`,
+                    textShadow: `0 0 18px ${dim.color}44`,
                   }}
                 >
                   {dim.value}
                 </span>
-                <span className="pythh-score-number" style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.2)' }}>
+                <span className="pythh-score-number" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.2)' }}>
                   {dim.unit}
                 </span>
               </div>
 
-              <p className="pythh-label-caps" style={{ marginBottom: '0.65rem', letterSpacing: '0.08em' }}>
+              <p className="pythh-label-caps" style={{ marginBottom: '0.45rem', letterSpacing: '0.08em', fontSize: '0.65rem' }}>
                 {dim.label}
               </p>
 
               <p style={{
                 fontFamily: "'Inter', sans-serif",
-                fontSize: '0.8125rem',
+                fontSize: '0.75rem',
                 color: '#52616e',
-                lineHeight: 1.55,
-                marginBottom: '0.85rem',
+                lineHeight: 1.5,
+                marginBottom: '0.65rem',
               }}>
                 {dim.desc}
               </p>
 
               <span style={{
                 fontFamily: "'Geist Mono', monospace",
-                fontSize: '0.65rem',
+                fontSize: '0.6rem',
                 color: '#2e3d4a',
                 letterSpacing: '0.06em',
                 borderTop: '1px solid rgba(255,255,255,0.04)',
-                paddingTop: '0.65rem',
+                paddingTop: '0.5rem',
                 display: 'block',
               }}>
                 {dim.detail}

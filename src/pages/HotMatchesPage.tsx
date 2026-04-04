@@ -31,7 +31,7 @@ export default function HotMatchesPage() {
         <p className="text-sm text-zinc-500 flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
           <Link
             to="/signal-matches"
-            className="font-semibold text-amber-200/95 hover:text-amber-100 underline-offset-4 decoration-amber-400/40 hover:decoration-amber-300/70 underline"
+            className="text-sm font-semibold text-emerald-400/95 hover:text-emerald-300 underline-offset-4 decoration-emerald-500/35 hover:decoration-emerald-400/60 underline"
           >
             Get your matches →
           </Link>
