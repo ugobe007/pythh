@@ -44,34 +44,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Check Supabase session FIRST (this is the source of truth)
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (error) {
-        console.warn('[AuthContext] getSession error (ignored):', error.message);
-        if (error.message.includes('expired') || error.message.includes('invalid')) {
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('isLoggedIn');
-        }
-        setIsLoading(false);
-        return;
-      }
-      
-      if (session?.user) {
-        await syncUserFromSupabase(session.user);
-        loadProfile(session.user.id);
-      } else {
-        // No Supabase session - check localStorage for backward compat
-        const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-          try {
-            const parsed = JSON.parse(savedUser);
-            setUser(parsed);
-          } catch (err) {
-            console.warn('[AuthContext] Failed to parse saved user:', err);
+      try {
+        if (error) {
+          console.warn('[AuthContext] getSession error (ignored):', error.message);
+          if (error.message.includes('expired') || error.message.includes('invalid')) {
             localStorage.removeItem('currentUser');
             localStorage.removeItem('isLoggedIn');
           }
+          return;
         }
+
+        if (session?.user) {
+          await syncUserFromSupabase(session.user);
+          loadProfile(session.user.id);
+        } else {
+          // No Supabase session - check localStorage for backward compat
+          const savedUser = localStorage.getItem('currentUser');
+          if (savedUser) {
+            try {
+              const parsed = JSON.parse(savedUser);
+              setUser(parsed);
+            } catch (err) {
+              console.warn('[AuthContext] Failed to parse saved user:', err);
+              localStorage.removeItem('currentUser');
+              localStorage.removeItem('isLoggedIn');
+            }
+          }
+        }
+      } finally {
+        // Always clear — if syncUserFromSupabase hung (fixed below) we previously never got here
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }).catch((err) => {
       console.warn('[AuthContext] getSession threw (ignored):', err);
       setIsLoading(false);
@@ -96,25 +99,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const PROFILE_LOOKUP_MS = 8000;
+
   const syncUserFromSupabase = async (supabaseUser: SupabaseUser) => {
     const email = supabaseUser.email || '';
-    
-    // Check database for admin flag (proper way)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', supabaseUser.id)
-      .maybeSingle();
-    
-    // Fallback to email check if profile doesn't exist yet
-    const isAdminFromDb = profile?.is_admin === true;
+
+    let isAdminFromDb = false;
+    try {
+      const query = supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', supabaseUser.id)
+        .maybeSingle();
+
+      const timeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('profiles lookup timeout')), PROFILE_LOOKUP_MS);
+      });
+
+      const { data: profile } = await Promise.race([query, timeout]);
+      isAdminFromDb = profile?.is_admin === true;
+    } catch (e) {
+      console.warn('[AuthContext] profiles is_admin lookup failed or timed out — using email fallback:', e);
+    }
+
     const isAdminFromEmail = isAdminEmail(email);
-    
+
     const newUser: User = {
       id: supabaseUser.id,
       email,
       name: supabaseUser.user_metadata?.name || email.split('@')[0],
-      isAdmin: isAdminFromDb || isAdminFromEmail  // Database first, fallback to email
+      isAdmin: isAdminFromDb || isAdminFromEmail,
     };
     setUser(newUser);
     localStorage.setItem('currentUser', JSON.stringify(newUser));

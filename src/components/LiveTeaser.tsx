@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { API_BASE } from "../lib/apiConfig";
+import { HotMatchLogo } from "./FlameIcon";
 
 interface HotMatch {
   startup_name: string;
@@ -53,7 +54,7 @@ export default function LiveTeaser() {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-orange-400">🔥</span>
+          <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
           <span className="uppercase tracking-widest font-semibold text-white/40">Live</span>
         </div>
         <div className="space-y-1.5">
@@ -75,7 +76,7 @@ export default function LiveTeaser() {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-orange-400">🔥</span>
+          <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
           <span className="uppercase tracking-widest font-semibold text-white/40">Live</span>
         </div>
         <p className="text-xs text-zinc-500 italic">Match engine warming up…</p>
@@ -94,10 +95,10 @@ export default function LiveTeaser() {
       to="/hot-matches"
       className="block space-y-2 group"
     >
-      <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-orange-400">🔥</span>
+          <span className="w-1.5 h-1.5 rounded-full border border-emerald-500/80 bg-transparent" />
+          <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
           <span className="uppercase tracking-widest font-semibold text-white/40 group-hover:text-white/60 transition-colors">
             Live
           </span>
@@ -112,7 +113,7 @@ export default function LiveTeaser() {
         {preview.map((m, i) => (
           <div
             key={`${m.startup_name}-${m.investor_name}-${i}`}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-transparent group-hover:border-zinc-700/40 group-hover:bg-white/[0.02] transition-all"
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-transparent group-hover:border-zinc-600/35 transition-all"
           >
             <span className="text-[10px] font-mono font-bold text-orange-400/90">
               {Math.round(m.match_score)}

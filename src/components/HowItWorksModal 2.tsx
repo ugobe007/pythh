@@ -252,7 +252,7 @@ const HowItWorksModal: React.FC<HowItWorksModalProps> = ({ isOpen, onClose, show
                         {/* Fire icon */}
                         <div className="relative mb-1">
                           <img 
-                            src="/images/fire_icon_01.jpg" 
+                            src="/images/fire_icon_01.png" 
                             alt="Match" 
                             className="w-10 h-10 md:w-12 md:h-12 object-contain animate-pulse"
                           />

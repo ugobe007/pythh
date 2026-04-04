@@ -96,9 +96,9 @@ const FintechInvestorsPage: React.FC = () => {
       <div className="container mx-auto px-4 pt-24 pb-16">
         {/* Hero Section */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-200/95 mb-6">
             <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span className="text-emerald-400 font-medium">Fintech Sector</span>
+            <span className="font-medium">Fintech Sector</span>
           </div>
           
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
@@ -111,17 +111,17 @@ const FintechInvestorsPage: React.FC = () => {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-16">
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]">
               <Users className="w-8 h-8 text-emerald-400 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">{stats.investors}+</div>
               <div className="text-slate-400">Active Investors</div>
             </div>
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]">
               <Target className="w-8 h-8 text-emerald-400 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">{stats.startups}+</div>
               <div className="text-slate-400">Funded Startups</div>
             </div>
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]">
               <TrendingUp className="w-8 h-8 text-emerald-400 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">${stats.totalRaised}B+</div>
               <div className="text-slate-400">Total Raised</div>
@@ -140,15 +140,15 @@ const FintechInvestorsPage: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {investors.map((investor) => (
-                <div key={investor.id} className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-emerald-500/50 transition-colors">
+                <div key={investor.id} className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]">
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-white mb-1">{investor.name}</h3>
                       <span className="text-sm text-emerald-400">{investor.type}</span>
                     </div>
                     {investor.total_score && (
-                      <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                        <span className="text-emerald-400 font-bold">{investor.total_score}</span>
+                      <div className="px-2 py-0.5 rounded-md bg-emerald-500/15">
+                        <span className="text-emerald-200 font-bold tabular-nums">{investor.total_score}</span>
                       </div>
                     )}
                   </div>
@@ -181,11 +181,11 @@ const FintechInvestorsPage: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {startups.map((startup) => (
-              <div key={startup.id} className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 hover:border-emerald-500/50 transition-colors">
+              <div key={startup.id} className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-bold text-white">{startup.name}</h3>
-                  <div className="px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    <span className="text-emerald-400 text-sm font-bold">{startup.total_god_score}</span>
+                  <div className="px-2 py-0.5 rounded-md bg-emerald-500/15">
+                    <span className="text-emerald-200 text-sm font-bold tabular-nums">{startup.total_god_score}</span>
                   </div>
                 </div>
                 <p className="text-sm text-slate-400 line-clamp-3">

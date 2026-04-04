@@ -12,14 +12,17 @@ export default function OracleHeader({ onOpenMenu }: OracleHeaderProps) {
     <header className="w-full">
       <div className="flex w-full items-center justify-between">
         {/* Brand lockup (always visible) */}
-        <Link to="/" className="group flex items-center gap-2" aria-label="pythh.ai home">
+        <Link to="/" className="group flex items-center gap-2 sm:gap-3" aria-label="pythh.ai home">
           <img
             src={PYTHH_ICON_GLYPH}
             alt=""
-            className="h-9 w-auto opacity-80 group-hover:opacity-100 transition-opacity"
+            className="h-9 w-auto opacity-80 group-hover:opacity-100 transition-opacity shrink-0"
           />
-          <span className="text-xs tracking-[0.25em] text-white/40 group-hover:text-white/60">
-            SIGNAL SCIENCE
+          <span className="text-white font-semibold text-base group-hover:text-cyan-400 transition">
+            pythh.ai
+          </span>
+          <span className="text-zinc-600 text-[10px] tracking-[2px] uppercase hidden sm:inline">
+            Signal Science
           </span>
         </Link>
 

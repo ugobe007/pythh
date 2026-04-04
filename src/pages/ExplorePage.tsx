@@ -14,6 +14,8 @@ import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { searchStartups, stageLabel, type StartupSearchResult, type StartupSearchFilters } from '../services/startupSearchService';
 import ScoreDrilldownDrawer from '../components/ScoreDrilldownDrawer';
 import { generateDrilldownData, type DrilldownPayload } from '../utils/scoreDrilldown';
+import { PYTHH_MARKETING_BG } from '../lib/pythhMarketingTheme';
+import { StartupSignalBadgeStrip } from '../components/SignalTableBadges';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -144,11 +146,11 @@ export default function ExplorePage() {
             className="h-full rounded-full transition-all duration-500"
             style={{
               width: `${pct}%`,
-              background: val >= 70 ? '#22d3ee' : val >= 50 ? '#a1a1aa' : '#52525b',
+              background: val >= 80 ? 'linear-gradient(90deg, #34d399, #22d3ee)' : val >= 60 ? '#a78bfa' : val >= 50 ? '#a1a1aa' : '#52525b',
             }}
           />
         </div>
-        <span className="text-xs tabular-nums" style={{ color: val >= 70 ? '#22d3ee' : '#a1a1aa' }}>
+        <span className="text-xs tabular-nums" style={{ color: val >= 80 ? '#6ee7b7' : val >= 60 ? '#c4b5fd' : '#a1a1aa' }}>
           {val.toFixed(0)}
         </span>
       </div>
@@ -157,9 +159,9 @@ export default function ExplorePage() {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen relative"
       style={{
-        background: 'linear-gradient(180deg, #0a0e13 0%, #0d1117 50%, #0a0e13 100%)',
+        ...PYTHH_MARKETING_BG,
         fontFamily: 'Inter, system-ui, sans-serif',
       }}
     >
@@ -169,16 +171,18 @@ export default function ExplorePage() {
         {/* ═══════════════════════════════════════════════════════════════
             TITLE
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="mb-6">
+        <div className="mb-8">
           <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2 flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             explore
           </div>
-          <h1 className="text-[32px] font-semibold leading-tight mb-2">
+          <h1 className="text-[32px] sm:text-[36px] font-semibold leading-tight mb-3">
             <span className="text-white">Search </span>
-            <span className="text-cyan-400" style={{ textShadow: '0 0 30px rgba(34,211,238,0.3)' }}>Startups</span>
+            <span className="text-emerald-400" style={{ textShadow: '0 0 28px rgba(52, 211, 153, 0.22)' }}>
+              Startups
+            </span>
           </h1>
-          <p className="text-sm text-zinc-500 max-w-xl leading-relaxed">
+          <p className="text-sm text-zinc-400 max-w-xl leading-relaxed border-l-2 border-violet-500/40 pl-4">
             Query the Pythh database by name, industry, or stage. Results ranked by GOD score — the same scoring system that powers investor matching.
           </p>
         </div>
@@ -283,8 +287,10 @@ export default function ExplorePage() {
             RESULTS TABLE
         ═══════════════════════════════════════════════════════════════ */}
         <div
-          className="bg-zinc-900/30 rounded-lg border border-cyan-800/20 overflow-hidden"
-          style={{ boxShadow: '0 0 15px rgba(34,211,238,0.05)' }}
+          className="bg-zinc-950/50 rounded-xl border border-white/[0.08] overflow-hidden backdrop-blur-sm"
+          style={{
+            boxShadow: '0 0 0 1px rgba(167, 139, 250, 0.06), 0 24px 48px -12px rgba(0,0,0,0.5)',
+          }}
         >
           {/* Table header */}
           <div className="grid grid-cols-[50px_1fr_140px_90px_90px_90px_90px_90px] gap-3 px-4 py-3 border-b border-zinc-800/60 text-[10px] font-medium uppercase tracking-wider text-white/40">
@@ -320,6 +326,10 @@ export default function ExplorePage() {
                 const rank = idx + 1;
                 const isTop3 = rank <= 3;
                 const godScore = startup.total_god_score ?? 0;
+                const bestGod = Math.max(
+                  startup.total_god_score ?? 0,
+                  startup.enhanced_god_score ?? 0
+                );
                 const sectorDisplay = startup.sectors?.slice(0, 2).join(', ') || '—';
 
                 return (
@@ -328,10 +338,10 @@ export default function ExplorePage() {
                     className={`
                       grid grid-cols-[50px_1fr_140px_90px_90px_90px_90px_90px] gap-3 px-4 py-3
                       border-b border-zinc-800/30 transition-colors duration-200
-                      hover:bg-zinc-800/20 cursor-default
-                      ${isTop3 ? 'bg-cyan-500/[0.02]' : ''}
+                      hover:bg-white/[0.03] cursor-default
+                      ${isTop3 ? 'bg-gradient-to-r from-amber-500/[0.06] via-transparent to-violet-500/[0.04]' : ''}
                     `}
-                    style={isTop3 ? { borderLeft: '2px solid rgba(34,211,238,0.3)' } : undefined}
+                    style={isTop3 ? { borderLeft: '3px solid rgba(251, 191, 36, 0.45)' } : undefined}
                   >
                     {/* Rank */}
                     <div className={`text-sm font-mono ${isTop3 ? 'text-cyan-400' : 'text-zinc-600'}`}>
@@ -339,20 +349,22 @@ export default function ExplorePage() {
                     </div>
 
                     {/* Name + tagline + signals — clickable to startup summary and report */}
-                    <Link to={`/signal-matches?startup=${startup.id}`} className="min-w-0 hover:bg-zinc-800/30 -m-3 p-3 rounded transition-colors">
-                      <div className="text-sm text-white truncate hover:text-cyan-400">{startup.name || 'Unnamed'}</div>
+                    <Link to={`/signal-matches?startup=${startup.id}`} className="min-w-0 hover:bg-zinc-800/30 -m-3 p-3 rounded transition-colors block">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm text-white truncate hover:text-cyan-400">{startup.name || 'Unnamed'}</span>
+                        <StartupSignalBadgeStrip
+                          flags={startup}
+                          hotScoreTier={bestGod >= 85}
+                          warmingScoreTier={bestGod >= 70 && bestGod < 85}
+                          psychBoost={
+                            typeof startup.psychological_multiplier === 'number' &&
+                            startup.psychological_multiplier >= 1.08
+                          }
+                          className="flex-shrink-0"
+                        />
+                      </div>
                       {startup.tagline && (
                         <div className="text-[11px] text-zinc-600 truncate mt-0.5">{startup.tagline}</div>
-                      )}
-                      {/* Psychological signals */}
-                      {(startup.is_oversubscribed || startup.has_followon || startup.has_social_proof_cascade || startup.is_repeat_founder) && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {startup.is_oversubscribed && <span className="text-[9px] px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded" title="Oversubscribed">🚀</span>}
-                          {startup.has_followon && <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded" title="Follow-on">💎</span>}
-                          {startup.is_competitive && <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded" title="Competitive">⚡</span>}
-                          {startup.has_social_proof_cascade && <span className="text-[9px] px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded" title="Social Proof">🌊</span>}
-                          {startup.is_repeat_founder && <span className="text-[9px] px-1.5 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded" title="Repeat Founder">🔁</span>}
-                        </div>
                       )}
                     </Link>
 

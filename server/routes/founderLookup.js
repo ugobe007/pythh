@@ -2,6 +2,9 @@
  * Founder /lookup teaser — Top investors by sector.
  * Browser → Fly → Supabase is typically faster and more reliable than browser → Supabase directly,
  * and we can cache hot sectors briefly.
+ *
+ * Data path: RPC get_lookup_top_investors (SECURITY DEFINER, works with JSONB sectors in DB).
+ * If that RPC regresses (e.g. text[]-only ANY()), the UI shows empty rows until the migration is fixed.
  */
 
 const express = require('express');

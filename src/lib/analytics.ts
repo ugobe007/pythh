@@ -10,6 +10,14 @@
 
 import { apiUrl } from './apiConfig';
 
+/**
+ * Persist events to API/Supabase. In DEV, off by default so `npm run dev` (Vite only) does not
+ * spam 404 (/api/analytics/flush) and 401 (ai_logs RLS). Enable with VITE_DEV_ANALYTICS=1 when
+ * the Node server is also running.
+ */
+const shouldPersistAnalytics =
+  import.meta.env.PROD || import.meta.env.VITE_DEV_ANALYTICS === '1';
+
 type EventName =
   | 'page_viewed'
   | 'oracle_viewed'
@@ -95,6 +103,14 @@ export function trackEvent(name: EventName, data: EventData = {}): void {
     lastEventTimes.set(name, now);
   }
 
+  if (!shouldPersistAnalytics) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.log(`[pyth.analytics] ${name}`, data);
+    }
+    return;
+  }
+
   const anon_id = getAnonId();
   const session_id = getSessionId();
 
@@ -129,6 +145,15 @@ export function trackEvent(name: EventName, data: EventData = {}): void {
  * Flush events to Supabase (bulk insert)
  */
 async function flushEvents(): Promise<void> {
+  if (!shouldPersistAnalytics) {
+    eventQueue.length = 0;
+    if (flushTimeout) {
+      clearTimeout(flushTimeout);
+      flushTimeout = null;
+    }
+    return;
+  }
+
   if (isFlushing) return;
   isFlushing = true;
 
@@ -153,6 +178,8 @@ async function flushEvents(): Promise<void> {
     }));
 
     let persisted = false;
+    /** 'ok' | 'missing' (404/502/connection refused) | 'other' */
+    let apiRouteOutcome: 'ok' | 'missing' | 'other' = 'other';
 
     if (typeof window !== 'undefined') {
       try {
@@ -163,13 +190,19 @@ async function flushEvents(): Promise<void> {
         });
         if (res.ok) {
           persisted = true;
+          apiRouteOutcome = 'ok';
+        } else if (res.status === 404 || res.status === 502) {
+          apiRouteOutcome = 'missing';
+        } else {
+          apiRouteOutcome = 'other';
         }
       } catch {
-        // Network / CORS — try direct insert below
+        apiRouteOutcome = 'missing';
       }
     }
 
-    if (!persisted) {
+    // Do not call Supabase when the API route is missing — anon insert hits RLS and spams 401 in the console.
+    if (!persisted && apiRouteOutcome !== 'missing') {
       const { supabase } = await import('./supabase');
       const { error } = await (supabase as any).from('ai_logs').insert(rows);
       if (!error) {
@@ -182,8 +215,9 @@ async function flushEvents(): Promise<void> {
 
     if (persisted) {
       eventQueue.splice(0, events.length);
+    } else if (apiRouteOutcome === 'missing') {
+      eventQueue.splice(0, events.length);
     } else if (!flushTimeout) {
-      // Retry later; do not disable tracking or clear the queue (except bounded queue elsewhere)
       flushTimeout = setTimeout(() => {
         void flushEvents();
       }, 8000);

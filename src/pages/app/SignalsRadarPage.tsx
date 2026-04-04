@@ -837,6 +837,12 @@ function RadarMatchTable({
         isPending={isPending}
         onUnlock={onUnlock}
         unlocksRemaining={unlocksRemaining}
+        startupName={context?.startup?.name}
+        startupTagline={context?.startup?.tagline}
+        startupSectors={context?.startup?.sectors}
+        maturityLevel={context?.startup?.maturity_level ?? null}
+        maturityScore={context?.startup?.maturity_score ?? null}
+        maturityGaps={context?.startup?.maturity_gaps}
       />
     </div>
   );

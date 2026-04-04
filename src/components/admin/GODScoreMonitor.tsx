@@ -18,12 +18,33 @@ interface ScoreDistribution {
   color: string;
 }
 
+interface GodComponentAverages {
+  n: number;
+  team: number | null;
+  traction: number | null;
+  market: number | null;
+  product: number | null;
+  vision: number | null;
+}
+
+interface EnrichmentSummary {
+  total: number;
+  by_tier: { A: number; B: number; C: number; unknown: number };
+  by_startup_status: Record<string, number>;
+  needs_enrichment: number;
+  criteria?: string;
+}
+
 interface GODScoreHealth {
   status: 'healthy' | 'warning' | 'error';
   avgScore: number;
   totalStartups: number;
   distribution: ScoreDistribution[];
   alerts: string[];
+  godComponentAverages?: GodComponentAverages;
+  enrichment?: EnrichmentSummary;
+  ontologyLibraries?: Record<string, unknown>;
+  oracleSummary?: Record<string, unknown>;
 }
 
 export default function GODScoreMonitor() {
@@ -35,7 +56,11 @@ export default function GODScoreMonitor() {
     avgScore: 0,
     totalStartups: 0,
     distribution: [],
-    alerts: []
+    alerts: [],
+    godComponentAverages: undefined,
+    enrichment: undefined,
+    ontologyLibraries: undefined,
+    oracleSummary: undefined,
   });
   const [lastRecalc, setLastRecalc] = useState<string | null>(null);
 
@@ -53,7 +78,13 @@ export default function GODScoreMonitor() {
       setHealth(data);
     } catch (error) {
       console.error('Error loading score health:', error);
-      setHealth({ status: 'error', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['Failed to load scores'] });
+      setHealth({
+        status: 'error',
+        avgScore: 0,
+        totalStartups: 0,
+        distribution: [],
+        alerts: ['Failed to load scores'],
+      });
     } finally {
       setLoading(false);
     }
@@ -159,6 +190,117 @@ export default function GODScoreMonitor() {
           <div className="text-xs text-slate-400 mt-1">Elite (80+)</div>
         </div>
       </div>
+
+      {/* GOD component breakdown (same sub-scores as startupScoringService) */}
+      {health.godComponentAverages && health.godComponentAverages.n > 0 && (
+        <div className="p-4 border-b border-slate-700">
+          <div className="text-sm font-medium text-slate-300 mb-2">GOD component averages (approved)</div>
+          <p className="text-xs text-slate-500 mb-3">
+            Based on {health.godComponentAverages.n} startups with all five sub-scores present — use to spot drift before changing weights in{' '}
+            <code className="text-slate-400">startupScoringService.ts</code>.
+          </p>
+          <div className="grid grid-cols-5 gap-2 text-center text-xs">
+            {[
+              ['Team', health.godComponentAverages.team],
+              ['Traction', health.godComponentAverages.traction],
+              ['Market', health.godComponentAverages.market],
+              ['Product', health.godComponentAverages.product],
+              ['Vision', health.godComponentAverages.vision],
+            ].map(([label, v]) => (
+              <div key={label as string} className="rounded-lg bg-slate-900/60 border border-slate-700/80 py-2">
+                <div className="text-slate-500">{label}</div>
+                <div className="text-lg font-semibold text-amber-300/90">{v != null ? v.toFixed(2) : '—'}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Enrichment queue */}
+      {health.enrichment && (
+        <div className="p-4 border-b border-slate-700">
+          <div className="text-sm font-medium text-slate-300 mb-2">Enrichment & data tier</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="rounded-lg bg-slate-900/50 p-2 border border-slate-700">
+              <div className="text-slate-500">Needs enrichment</div>
+              <div className="text-xl font-bold text-orange-300">{health.enrichment.needs_enrichment}</div>
+              <div className="text-slate-600 mt-1">/ {health.enrichment.total} rows</div>
+            </div>
+            <div className="rounded-lg bg-slate-900/50 p-2 border border-slate-700">
+              <div className="text-slate-500">Tier A / B / C</div>
+              <div className="text-slate-200">
+                {health.enrichment.by_tier.A} / {health.enrichment.by_tier.B} / {health.enrichment.by_tier.C}
+              </div>
+              <div className="text-slate-600 mt-1">unknown: {health.enrichment.by_tier.unknown}</div>
+            </div>
+            <div className="rounded-lg bg-slate-900/50 p-2 border border-slate-700 col-span-2">
+              <div className="text-slate-500 mb-1">By startup status</div>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(health.enrichment.by_startup_status).map(([k, v]) => (
+                  <span key={k} className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                    {k}: {v}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          {health.enrichment.criteria && (
+            <p className="text-[11px] text-slate-600 mt-2">{health.enrichment.criteria}</p>
+          )}
+        </div>
+      )}
+
+      {/* Ontology libraries (parser-linked) */}
+      {health.ontologyLibraries && !('error' in health.ontologyLibraries && health.ontologyLibraries.error) && (
+        <div className="p-4 border-b border-slate-700">
+          <div className="text-sm font-medium text-slate-300 mb-2">Ontology libraries</div>
+          <div className="text-xs text-slate-400 space-y-1 font-mono">
+            {'signalOntology_v1_regex' in health.ontologyLibraries && (
+              <div>
+                signalOntology.js — ACTION_MAP:{' '}
+                {(health.ontologyLibraries as { signalOntology_v1_regex?: { action_map_entries?: number } }).signalOntology_v1_regex?.action_map_entries ?? '—'}{' '}
+                entries; anchors (v2):{' '}
+                {(health.ontologyLibraries as { signal_ontology_v2_anchors?: { anchor_phrases_indexed?: number } }).signal_ontology_v2_anchors?.anchor_phrases_indexed ?? '—'}
+              </div>
+            )}
+            {'wiring' in health.ontologyLibraries && (
+              <div className="text-slate-500 mt-2 space-y-0.5">
+                {Object.entries((health.ontologyLibraries as { wiring: Record<string, string> }).wiring).map(([k, v]) => (
+                  <div key={k}>
+                    <span className="text-slate-600">{k}:</span> {v}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Oracle (signed-in product) */}
+      {health.oracleSummary && health.oracleSummary.ok !== false && 'counts' in health.oracleSummary && (
+        <div className="p-4 border-b border-slate-700">
+          <div className="text-sm font-medium text-slate-300 mb-2">Oracle service (DB)</div>
+          <div className="text-xs text-slate-400 flex flex-wrap gap-3">
+            <span>sessions: {(health.oracleSummary as { counts: { oracle_sessions: number } }).counts.oracle_sessions}</span>
+            <span>actions: {(health.oracleSummary as { counts: { oracle_actions: number } }).counts.oracle_actions}</span>
+            <span>insights: {(health.oracleSummary as { counts: { oracle_insights: number } }).counts.oracle_insights}</span>
+          </div>
+          {'oracle_sessions_by_status' in health.oracleSummary && (
+            <div className="text-xs text-slate-500 mt-2 flex flex-wrap gap-2">
+              {Object.entries((health.oracleSummary as { oracle_sessions_by_status: Record<string, number> }).oracle_sessions_by_status).map(
+                ([k, v]) => (
+                  <span key={k}>
+                    {k}: {v}
+                  </span>
+                ),
+              )}
+            </div>
+          )}
+          {'note' in health.oracleSummary && (
+            <p className="text-[11px] text-slate-600 mt-2">{(health.oracleSummary as { note?: string }).note}</p>
+          )}
+        </div>
+      )}
 
       {/* Distribution Chart */}
       <div className="p-4 border-b border-slate-700">

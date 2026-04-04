@@ -96,6 +96,7 @@ const AboutPage = lazy(() => import("./pages/AboutPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
+const BillingSuccess = lazy(() => import("./pages/BillingSuccess"));
 const NewsletterPage = lazy(() => import("./pages/NewsletterPage"));
 const WatchlistPage = lazy(() => import("./pages/WatchlistPage"));
 const SubmitStartupPage = lazy(() => import("./pages/SubmitStartupPage"));
@@ -293,6 +294,7 @@ const App = () => {
 
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/value" element={<Navigate to="/pricing" replace />} />
+            <Route path="/billing/success" element={<BillingSuccess />} />
 
             <Route path="/newsletter" element={<NewsletterPage />} />
             <Route path="/newsletter/:date" element={<NewsletterPage />} />

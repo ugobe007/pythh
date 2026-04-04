@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/apiConfig';
+import { HotMatchLogo } from './FlameIcon';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ interface HotMatchesFeedProps {
   hoursAgo?: number;
   showHeader?: boolean;
   autoRefresh?: boolean;
+  /** ticker = animated narrow feed; showcase = marketing grid of rich cards */
+  variant?: 'ticker' | 'showcase';
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -67,10 +70,10 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
 
   const tierBadge = (tier: string) => {
     switch (tier) {
-      case 'Elite':     return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
-      case 'Excellent': return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
-      case 'Strong':    return 'bg-emerald-500/15 text-emerald-400/80 border-emerald-500/20';
-      default:          return 'bg-white/10 text-white/60 border-white/10';
+      case 'Elite':     return 'text-emerald-300 border-emerald-500/40';
+      case 'Excellent': return 'text-cyan-300 border-cyan-500/40';
+      case 'Strong':    return 'text-emerald-400/90 border-emerald-500/35';
+      default:          return 'text-white/60 border-white/20';
     }
   };
 
@@ -79,8 +82,8 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={handleBackdrop}
     >
-      <div className="relative w-full max-w-sm bg-gray-900/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-slideInFromTop">
-        <div className="h-1 bg-gradient-to-r from-orange-500 via-emerald-500 to-cyan-500" />
+      <div className="relative w-full max-w-sm bg-transparent border border-white/15 rounded-xl overflow-hidden animate-slideInFromTop">
+        <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
         <button
           onClick={onClose}
@@ -109,19 +112,19 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
           </div>
 
           {/* Startup */}
-          <div className="border border-white/[0.08] rounded-xl p-3 space-y-2 bg-white/[0.02]">
+          <div className="border border-white/12 rounded-lg p-3 space-y-2 bg-transparent">
             <div className="flex items-center justify-between">
               <span className="text-white font-semibold text-base">{match.startup_name}</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${tierBadge(match.startup_tier)}`}>
+              <span className={`text-[11px] px-2 py-0.5 rounded-md border font-medium bg-transparent ${tierBadge(match.startup_tier)}`}>
                 {match.startup_tier}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <span className="text-[11px] bg-white/[0.08] text-white/50 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] text-white/45 border border-white/12 px-2 py-0.5 rounded-md bg-transparent">
                 {match.startup_stage}
               </span>
               {(match.startup_sectors || []).slice(0, 3).map(s => (
-                <span key={s} className="text-[11px] bg-white/[0.08] text-white/50 px-2 py-0.5 rounded-full">
+                <span key={s} className="text-[11px] text-white/45 border border-white/12 px-2 py-0.5 rounded-md bg-transparent">
                   {s}
                 </span>
               ))}
@@ -131,9 +134,9 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
           {/* Signal intelligence CTA */}
           <a
             href={`/investor/signal-matches?q=${encodeURIComponent(match.startup_name)}`}
-            className="block w-full text-center text-[11px] px-3 py-2 bg-amber-500/8 border border-amber-500/20 text-amber-400/70 rounded-lg hover:bg-amber-500/15 hover:text-amber-400 transition-colors"
+            className="block w-full text-center text-[11px] px-3 py-2 border border-amber-400/35 text-amber-300/90 rounded-lg bg-transparent hover:border-amber-400/60 transition-colors"
           >
-            ⚡ View Signal Intelligence →
+            View Signal Intelligence →
           </a>
 
           {/* Connector */}
@@ -144,7 +147,7 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
           </div>
 
           {/* Investor */}
-          <div className="border border-white/[0.08] rounded-xl p-3 space-y-1 bg-white/[0.02]">
+          <div className="border border-white/12 rounded-lg p-3 space-y-1 bg-transparent">
             <div className="flex items-center justify-between">
               <span className="text-white/90 font-medium">{match.investor_name}</span>
               <span className="text-[11px] text-white/30">Tier {match.investor_tier}</span>
@@ -158,15 +161,17 @@ function MatchModal({ match, onClose }: { match: HotMatch; onClose: () => void }
           <div className="flex gap-2 pt-1">
             {!match.is_anonymized && match.investor_id && (
               <button
+                type="button"
                 onClick={() => { navigate(`/investor/${match.investor_id}`); onClose(); }}
-                className="flex-1 py-2.5 text-xs font-semibold rounded-xl border border-white/15 text-white/70 hover:text-white hover:bg-white/[0.08] transition-all"
+                className="flex-1 py-2.5 text-xs font-semibold rounded-lg border border-white/20 text-white/80 bg-transparent hover:border-white/35 transition-colors"
               >
                 Investor Profile
               </button>
             )}
             <button
+              type="button"
               onClick={() => { navigate('/signal-matches'); onClose(); }}
-              className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-orange-600 to-emerald-600 hover:from-orange-500 hover:to-emerald-500 text-white transition-all shadow-lg shadow-emerald-900/30"
+              className="flex-1 py-2.5 text-xs font-bold rounded-lg border border-orange-400/45 text-orange-100 bg-transparent hover:border-orange-300/70 transition-colors"
             >
               Find My Matches →
             </button>
@@ -184,6 +189,7 @@ export default function HotMatchesFeed({
   hoursAgo = 720,
   showHeader = true,
   autoRefresh = true,
+  variant = 'ticker',
 }: HotMatchesFeedProps) {
   const [pool, setPool]                   = useState<HotMatch[]>([]);
   const [rows, setRows]                   = useState<RowItem[]>([]);
@@ -203,6 +209,7 @@ export default function HotMatchesFeed({
   const tickKeyRef   = useRef(0);
 
   const visibleCount = Math.max(1, limit);
+  const showcaseSlots = variant === 'showcase' ? Math.min(Math.max(visibleCount, 1), 12) : visibleCount;
 
   // ── Fetch pool ─────────────────────────────────────────────────────────────
 
@@ -314,6 +321,11 @@ export default function HotMatchesFeed({
     const safetyTimer = setTimeout(() => setLoading(false), 5000);
     fetchPool().finally(() => clearTimeout(safetyTimer));
 
+    if (variant === 'showcase') {
+      const slow = setInterval(() => { tickCountRef.current++; fetchPool(); }, 60000);
+      return () => { clearInterval(slow); clearTimeout(safetyTimer); };
+    }
+
     if (!autoRefresh) return () => clearTimeout(safetyTimer);
 
     const interval = setInterval(() => {
@@ -326,7 +338,7 @@ export default function HotMatchesFeed({
     }, TICK_MS);
 
     return () => { clearInterval(interval); clearTimeout(safetyTimer); };
-  }, [fetchPool, tick, autoRefresh]);
+  }, [fetchPool, tick, autoRefresh, variant]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -357,6 +369,15 @@ export default function HotMatchesFeed({
   // ── Skeleton ───────────────────────────────────────────────────────────────
 
   if (loading) {
+    if (variant === 'showcase') {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-40 rounded-lg border border-white/[0.06] bg-transparent animate-pulse" />
+          ))}
+        </div>
+      );
+    }
     return (
       <div className="space-y-0.5">
         {showHeader && <div className="h-2.5 bg-white/5 rounded w-1/2 animate-pulse mb-1.5" />}
@@ -367,14 +388,87 @@ export default function HotMatchesFeed({
     );
   }
 
-  // ── Empty ──────────────────────────────────────────────────────────────────
+  // ── Showcase grid (marketing) ─────────────────────────────────────────────
+  if (variant === 'showcase') {
+    const grid = pool.slice(0, showcaseSlots);
+    if (grid.length === 0) {
+      return (
+        <div className="rounded-lg border border-white/10 px-8 py-16 text-center bg-transparent">
+          <p className="text-zinc-500 text-sm">Match engine warming up — check back shortly.</p>
+          <Link
+            to="/signal-matches"
+            className="mt-4 inline-block text-sm font-semibold text-amber-200/90 border-b border-amber-400/40 hover:border-amber-300 pb-0.5"
+          >
+            Analyze your startup →
+          </Link>
+        </div>
+      );
+    }
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:gap-4">
+          {grid.map((match) => (
+            <button
+              key={match.match_id}
+              type="button"
+              onClick={() => setSelectedMatch(match)}
+              className="group text-left rounded-lg border border-white/12 bg-transparent p-4 sm:p-4 transition-all duration-300 hover:border-white/22 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400/35"
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-zinc-500 mb-0.5">Startup</p>
+                  <p className="text-base font-semibold text-white group-hover:text-amber-100/95 transition-colors leading-tight">
+                    {match.startup_name}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {(match.startup_sectors || []).slice(0, 2).map((s) => (
+                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded border border-cyan-500/30 text-cyan-300/90 bg-transparent">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end shrink-0">
+                  <span className="text-[9px] uppercase tracking-wider text-zinc-500">Match</span>
+                  <span className={`text-2xl font-black font-mono tabular-nums leading-none mt-0.5 ${matchColor(match.match_score)}`}>
+                    {Math.round(match.match_score)}
+                  </span>
+                </div>
+              </div>
+              <div className="h-px bg-gradient-to-r from-transparent via-white/12 to-transparent mb-3" />
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.12em] text-zinc-500 mb-0.5">Investor</p>
+                  <p className="text-[13px] font-medium text-white/90 leading-snug">{match.investor_name}</p>
+                  {match.investor_firm && (
+                    <p className="text-[11px] text-zinc-500 mt-0.5 truncate max-w-[200px]">{match.investor_firm}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className={`text-xs font-mono font-bold ${godColor(match.startup_god_score)}`}>
+                    GOD {match.startup_god_score}
+                  </span>
+                  <p className="text-[9px] text-zinc-600 mt-0.5 tabular-nums">{formatTimeAgo(match.created_at)}</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {selectedMatch && (
+          <MatchModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />
+        )}
+      </>
+    );
+  }
+
+  // ── Empty (ticker) ─────────────────────────────────────────────────────────
 
   if (rows.length === 0) {
     return (
       <div className="opacity-40 space-y-1">
         {showHeader && (
           <div className="flex items-center gap-2 text-white/30 text-xs mb-2">
-            <span>🔥</span>
+            <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
             <span className="uppercase tracking-wider">Recent Matches</span>
           </div>
         )}
@@ -390,7 +484,7 @@ export default function HotMatchesFeed({
       <div className="space-y-0.5">
         {showHeader && (
           <div className="flex items-center gap-1.5 text-xs mb-1.5">
-            <span className="text-orange-400">🔥</span>
+            <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
             <span className="uppercase tracking-widest font-semibold text-white/40 tracking-[0.12em]">Live Matches</span>
             {totalThisWeek != null && (
               <span className="text-white/25 ml-auto tabular-nums">
@@ -428,14 +522,14 @@ export default function HotMatchesFeed({
                     'w-full h-full text-left group',
                     'flex items-center gap-2 px-2',
                     'rounded-lg border transition-colors duration-200',
-                    'hover:bg-white/[0.05] hover:border-white/[0.10] active:scale-[0.99]',
+                    'hover:border-white/15 active:scale-[0.99]',
                     isNewest
-                      ? 'bg-white/[0.04] border-orange-500/50'
-                      : 'border-transparent',
+                      ? 'border-orange-400/35 bg-transparent'
+                      : 'border-transparent bg-transparent',
                   ].join(' ')}
                 >
-                  {/* Score badge */}
-                  <div className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center bg-black/40 ${matchRingColor(match.match_score)}`}>
+                  {/* Score ring — stroke only */}
+                  <div className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center bg-transparent ${matchRingColor(match.match_score)}`}>
                     <span className={`text-[9px] font-black font-mono leading-none ${matchColor(match.match_score)}`}>
                       {Math.round(match.match_score)}
                     </span>
@@ -482,7 +576,7 @@ export default function HotMatchesFeed({
 
         {/* Live pulse indicator */}
         <div className="flex items-center gap-1.5 pt-0.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full border border-emerald-500/80 bg-transparent" />
           <span className="text-[10px] text-white/20 uppercase tracking-wider">Live · refreshes every 5s</span>
         </div>
       </div>

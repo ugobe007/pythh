@@ -303,14 +303,15 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   const query = queries[0];
   const feedUrl = FAST_SOURCES.googleNews(query);
 
-  const fetchFeed = async (retries = 2) => {
+  const fetchFeed = async (retries = 4) => {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         return await parseWithDeadline(feedUrl);
       } catch (e) {
-        if (attempt < retries && /timeout|timed out|ETIMEDOUT|ECONNRESET|503|502|429/i.test(String(e.message || ''))) {
-          const backoff = /503|502|429/.test(String(e.message || '')) ? 5000 : 1000; // 5s for rate limits
-          if (DEBUG_INFERENCE) console.log(`[inference] Retry in ${backoff / 1000}s after ${e.message}`);
+        const msg = String(e.message || e || '');
+        if (attempt < retries && /timeout|timed out|ETIMEDOUT|ECONNRESET|503|502|429|Status code 5/i.test(msg)) {
+          const backoff = /503|502|429|Status code 5/.test(msg) ? 6000 + attempt * 2000 : 1200;
+          if (DEBUG_INFERENCE) console.log(`[inference] Retry in ${backoff / 1000}s after ${msg}`);
           await new Promise(r => setTimeout(r, backoff));
           continue;
         }
@@ -371,7 +372,11 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
     // — Each source has an independent timeout so slow feeds don't block others.
     // — Strict name filter applied: no unrelated articles for supplementary sources.
     // — Results deduplicated by URL across all sources.
-    const extendedJobs = EXTENDED_SOURCES_LIST.map(source => ({
+    const maxExtended = Math.min(
+      EXTENDED_SOURCES_LIST.length,
+      Math.max(4, parseInt(process.env.ENRICH_MAX_EXTENDED_SOURCES || '14', 10) || 14),
+    );
+    const extendedJobs = EXTENDED_SOURCES_LIST.slice(0, maxExtended).map(source => ({
       key:     source.key,
       label:   source.label,
       url:     source.url(searchToken),
@@ -381,18 +386,29 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
 
     const seenUrls = new Set(articles.map(a => a.link));
 
-    const extendedResults = await Promise.allSettled(
-      extendedJobs.map(async ({ url, label, timeout }) => {
-        const feed = await parseWithDeadline(url, timeout);
-        return feed.items.slice(0, 5).map(item => ({
-          title: item.title || '',
-          content: item.contentSnippet || item.content || item.summary || '',
-          link: item.link || '',
-          pubDate: item.pubDate || new Date().toISOString(),
-          source: label,
-        }));
-      })
-    );
+    // Google News RSS rate-limits hard if we fan out dozens of parallel feeds — batch + pause.
+    const EXT_CHUNK = Math.max(2, parseInt(process.env.ENRICH_EXTENDED_CHUNK || '4', 10) || 4);
+    const EXT_PAUSE_MS = Math.max(0, parseInt(process.env.ENRICH_EXTENDED_PAUSE_MS || '350', 10) || 350);
+    const extendedResults = [];
+    for (let j = 0; j < extendedJobs.length; j += EXT_CHUNK) {
+      const slice = extendedJobs.slice(j, j + EXT_CHUNK);
+      const chunkSettled = await Promise.allSettled(
+        slice.map(async ({ url, label, timeout }) => {
+          const feed = await parseWithDeadline(url, timeout);
+          return feed.items.slice(0, 5).map(item => ({
+            title: item.title || '',
+            content: item.contentSnippet || item.content || item.summary || '',
+            link: item.link || '',
+            pubDate: item.pubDate || new Date().toISOString(),
+            source: label,
+          }));
+        }),
+      );
+      extendedResults.push(...chunkSettled);
+      if (j + EXT_CHUNK < extendedJobs.length && EXT_PAUSE_MS > 0) {
+        await new Promise(r => setTimeout(r, EXT_PAUSE_MS));
+      }
+    }
 
     for (let i = 0; i < extendedResults.length; i++) {
       const result = extendedResults[i];

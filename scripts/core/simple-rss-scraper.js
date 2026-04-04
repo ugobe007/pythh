@@ -56,22 +56,29 @@ const parser = new Parser({
   }
 });
 
-// Rate limiting configuration — tuned for throughput (100-300 startups per 6-8h)
+// Rate limiting configuration
+// TIMEOUT CONTEXT: The Fly.io runner kills the scraper after 30 minutes.
+// With 200 sources × 1s delay + HN(30s)/Crunchbase(10s)/TechCrunch(5s) sources, the
+// run reliably hits the 30-min wall. Limits reduced to 60 sources per run to stay
+// well under 20 minutes. The oldest-first ordering means every source cycles through
+// across the 6 runs/day (6 × 60 = 360 source-slots for ~84+ active sources).
 const RATE_LIMIT_CONFIG = {
-  DEFAULT_DELAY: 1000,  // 1 second between sources (was 3s — too slow)
+  DEFAULT_DELAY: 800,   // 0.8s between sources
   RATE_LIMITED_SOURCES: {
-    'hacker news': 30000,      // 30 seconds for HN
-    'hackernews': 30000,
-    'hn': 30000,
-    'show hn': 30000,
-    'crunchbase': 10000,       // 10 seconds for Crunchbase
-    'techcrunch': 5000,        // 5 seconds for TechCrunch
+    'hacker news': 10000,      // 10s for HN (was 30s — too slow)
+    'hackernews': 10000,
+    'hn': 10000,
+    'show hn': 10000,
+    'crunchbase': 5000,        // 5s for Crunchbase
+    'techcrunch': 2000,        // 2s for TechCrunch
   },
   BACKOFF: {
     initial: 3000,
-    max: 120000,               // 2 minutes max (was 3 min)
-    multiplier: 1.5,           // Gentler backoff
-  }
+    max: 60000,                // 1 minute max backoff
+    multiplier: 1.5,
+  },
+  // Hard budget: stop after this many sources per run to avoid the 30-min kill
+  MAX_SOURCES_PER_RUN: 60,
 };
 
 // Track backoff state per source
@@ -186,10 +193,10 @@ async function scrapeRssFeeds() {
     .from('rss_sources')
     .select('id, name, url, category')
     .eq('active', true)
-    .order('last_scraped', { ascending: true, nullsFirst: true }) // Scrape oldest first
-    .limit(200); // Process up to 200 sources per run (covers all 84+ active sources)
+    .order('last_scraped', { ascending: true, nullsFirst: true }) // Scrape oldest first (fair rotation)
+    .limit(RATE_LIMIT_CONFIG.MAX_SOURCES_PER_RUN);
   
-  console.log(`Found ${sources?.length || 0} active RSS sources\n`);
+  console.log(`Found ${sources?.length || 0} active RSS sources (max ${RATE_LIMIT_CONFIG.MAX_SOURCES_PER_RUN}/run)\n`);
   
   let totalDiscovered = 0;
   let totalAdded = 0;

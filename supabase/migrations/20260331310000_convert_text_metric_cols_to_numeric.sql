@@ -28,86 +28,83 @@
 
 DROP VIEW IF EXISTS public.startup_intel_v1 CASCADE;
 
--- ── 2. Normalize dirty text values in latest_funding_amount ──────────────────
--- The column has mixed formats from scrapers: "$125M", "$1.35b", "$500K",
--- "INR 6,000 Cr", "16600000.000000002", "$NaNM", etc.
--- We normalise in passes — most specific first — then cast what remains.
+-- ── 2 & 3. Normalize + convert (idempotent — wraps TEXT-only ops in a type guard)
+-- If the column is already BIGINT/NUMERIC (migration ran previously), the DO block
+-- is a no-op. This prevents the `operator does not exist: bigint ~* unknown` error
+-- when supabase db push tries to re-run this file due to history drift.
 
--- 2a. Null out NaN placeholder strings (e.g. "$NaNM", "$NaNB")
-UPDATE public.startup_uploads
-SET latest_funding_amount = NULL
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount ~* 'NaN';
+DO $$
+DECLARE
+  funding_type text;
+  rate_type     text;
+BEGIN
+  SELECT data_type INTO funding_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'startup_uploads' AND column_name = 'latest_funding_amount';
 
--- 2b. Null out foreign-currency / unparseable strings
---     Keep only strings that look like: optional $, digits/commas/dots, optional K/M/B suffix
-UPDATE public.startup_uploads
-SET latest_funding_amount = NULL
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount !~ '^\$?[0-9][0-9,]*(\.[0-9]+)?[KkMmBb]?$';
+  SELECT data_type INTO rate_type
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'startup_uploads' AND column_name = 'growth_rate';
 
--- 2c. Expand B/b suffix → × 1,000,000,000
-UPDATE public.startup_uploads
-SET latest_funding_amount = (
-  ROUND(
-    REGEXP_REPLACE(REGEXP_REPLACE(latest_funding_amount, '[$,]', '', 'g'), '[Bb]$', '', 'g')::numeric
-    * 1000000000
-  )::bigint
-)::text
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount ~* '\$?[0-9][0-9,]*(\.[0-9]+)?[Bb]$';
+  -- ── latest_funding_amount: only clean + cast when still TEXT ──────────────
+  IF funding_type = 'text' THEN
 
--- 2d. Expand M/m suffix → × 1,000,000
-UPDATE public.startup_uploads
-SET latest_funding_amount = (
-  ROUND(
-    REGEXP_REPLACE(REGEXP_REPLACE(latest_funding_amount, '[$,]', '', 'g'), '[Mm]$', '', 'g')::numeric
-    * 1000000
-  )::bigint
-)::text
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount ~* '\$?[0-9][0-9,]*(\.[0-9]+)?[Mm]$';
+    -- 2a. Null out NaN placeholder strings (e.g. "$NaNM", "$NaNB")
+    UPDATE public.startup_uploads SET latest_funding_amount = NULL
+    WHERE latest_funding_amount IS NOT NULL AND latest_funding_amount ~* 'NaN';
 
--- 2e. Expand K/k suffix → × 1,000
-UPDATE public.startup_uploads
-SET latest_funding_amount = (
-  ROUND(
-    REGEXP_REPLACE(REGEXP_REPLACE(latest_funding_amount, '[$,]', '', 'g'), '[Kk]$', '', 'g')::numeric
-    * 1000
-  )::bigint
-)::text
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount ~* '\$?[0-9][0-9,]*(\.[0-9]+)?[Kk]$';
+    -- 2b. Null out foreign-currency / unparseable strings
+    UPDATE public.startup_uploads SET latest_funding_amount = NULL
+    WHERE latest_funding_amount IS NOT NULL
+      AND latest_funding_amount !~ '^\$?[0-9][0-9,]*(\.[0-9]+)?[KkMmBb]?$';
 
--- 2f. Strip leading $ and commas from plain numeric strings
-UPDATE public.startup_uploads
-SET latest_funding_amount = REGEXP_REPLACE(latest_funding_amount, '[$,]', '', 'g')
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount ~ '^\$?[0-9][0-9,]*(\.[0-9]+)?$';
+    -- 2c. Expand B/b suffix → × 1,000,000,000
+    UPDATE public.startup_uploads
+    SET latest_funding_amount = (ROUND(REGEXP_REPLACE(REGEXP_REPLACE(latest_funding_amount,'[$,]','','g'),'[Bb]$','','g')::numeric * 1000000000)::bigint)::text
+    WHERE latest_funding_amount IS NOT NULL AND latest_funding_amount ~* '\$?[0-9][0-9,]*(\.[0-9]+)?[Bb]$';
 
--- 2g. Round any remaining decimal strings (e.g. "16600000.000000002")
-UPDATE public.startup_uploads
-SET latest_funding_amount = ROUND(latest_funding_amount::numeric)::bigint::text
-WHERE latest_funding_amount IS NOT NULL
-  AND latest_funding_amount ~ '^[0-9]+\.[0-9]+$';
+    -- 2d. Expand M/m suffix → × 1,000,000
+    UPDATE public.startup_uploads
+    SET latest_funding_amount = (ROUND(REGEXP_REPLACE(REGEXP_REPLACE(latest_funding_amount,'[$,]','','g'),'[Mm]$','','g')::numeric * 1000000)::bigint)::text
+    WHERE latest_funding_amount IS NOT NULL AND latest_funding_amount ~* '\$?[0-9][0-9,]*(\.[0-9]+)?[Mm]$';
 
--- ── 3. Convert TEXT columns to proper numeric types ───────────────────────────
--- After normalization, every surviving latest_funding_amount value is a plain
--- integer string.  The USING clause casts safely; anything unexpected → NULL.
+    -- 2e. Expand K/k suffix → × 1,000
+    UPDATE public.startup_uploads
+    SET latest_funding_amount = (ROUND(REGEXP_REPLACE(REGEXP_REPLACE(latest_funding_amount,'[$,]','','g'),'[Kk]$','','g')::numeric * 1000)::bigint)::text
+    WHERE latest_funding_amount IS NOT NULL AND latest_funding_amount ~* '\$?[0-9][0-9,]*(\.[0-9]+)?[Kk]$';
 
-ALTER TABLE public.startup_uploads
-  ALTER COLUMN latest_funding_amount
-    TYPE bigint
-    USING CASE
-      WHEN NULLIF(TRIM(latest_funding_amount), '') ~ '^[0-9]+$'
-        THEN latest_funding_amount::bigint
-      ELSE NULL
-    END;
+    -- 2f. Strip leading $ and commas
+    UPDATE public.startup_uploads
+    SET latest_funding_amount = REGEXP_REPLACE(latest_funding_amount,'[$,]','','g')
+    WHERE latest_funding_amount IS NOT NULL AND latest_funding_amount ~ '^\$?[0-9][0-9,]*(\.[0-9]+)?$';
 
-ALTER TABLE public.startup_uploads
-  ALTER COLUMN growth_rate
-    TYPE numeric
-    USING NULLIF(TRIM(growth_rate), '')::numeric;
+    -- 2g. Round decimal strings
+    UPDATE public.startup_uploads
+    SET latest_funding_amount = ROUND(latest_funding_amount::numeric)::bigint::text
+    WHERE latest_funding_amount IS NOT NULL AND latest_funding_amount ~ '^[0-9]+\.[0-9]+$';
+
+    -- 3. Convert to BIGINT
+    ALTER TABLE public.startup_uploads
+      ALTER COLUMN latest_funding_amount TYPE bigint
+      USING CASE WHEN NULLIF(TRIM(latest_funding_amount),'') ~ '^[0-9]+$'
+                 THEN latest_funding_amount::bigint ELSE NULL END;
+
+    RAISE NOTICE 'latest_funding_amount: converted TEXT → BIGINT';
+  ELSE
+    RAISE NOTICE 'latest_funding_amount: already %, no-op', funding_type;
+  END IF;
+
+  -- ── growth_rate: only cast when still TEXT ────────────────────────────────
+  IF rate_type = 'text' THEN
+    ALTER TABLE public.startup_uploads
+      ALTER COLUMN growth_rate TYPE numeric
+      USING NULLIF(TRIM(growth_rate),'')::numeric;
+    RAISE NOTICE 'growth_rate: converted TEXT → NUMERIC';
+  ELSE
+    RAISE NOTICE 'growth_rate: already %, no-op', rate_type;
+  END IF;
+END
+$$;
 
 -- ── 4. Recreate startup_intel_v1 with corrected column references ─────────────
 -- Exact definition as returned by pg_get_viewdef() from the live database.

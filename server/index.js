@@ -1865,8 +1865,8 @@ app.post('/api/billing/create-checkout-session', async (req, res) => {
     const { plan } = req.body;
     
     // Validate plan
-    if (!['pro', 'elite'].includes(plan)) {
-      return res.status(400).json({ error: 'Invalid plan. Must be "pro" or "elite"' });
+    if (!['pro', 'proplus', 'elite'].includes(plan)) {
+      return res.status(400).json({ error: 'Invalid plan. Must be "pro", "proplus", or "elite"' });
     }
     
     const priceId = STRIPE_PRICES[plan];
@@ -2226,6 +2226,46 @@ app.get('/api/billing/status', async (req, res) => {
     console.error('[billing/status] Error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// ── Server-side usage tracking (prevents localStorage bypass) ────────────────
+// For logged-in free-tier users we track analyses in the DB so clearing
+// localStorage can't reset the counter.
+
+// GET /api/usage — returns current analysis_count for the authenticated user
+app.get('/api/usage', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) return res.json({ analysis_count: 0, plan: 'free' });
+    const token = authHeader.slice(7);
+    const supabase = getSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) return res.json({ analysis_count: 0, plan: 'free' });
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan, analysis_count')
+      .eq('id', user.id)
+      .maybeSingle();
+    res.json({
+      plan:           profile?.plan           || 'free',
+      analysis_count: profile?.analysis_count || 0,
+    });
+  } catch { res.json({ analysis_count: 0, plan: 'free' }); }
+});
+
+// POST /api/usage/increment — increments analysis_count for the authenticated user
+app.post('/api/usage/increment', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) return res.json({ ok: true, server_tracked: false });
+    const token = authHeader.slice(7);
+    const supabase = getSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) return res.json({ ok: true, server_tracked: false });
+    // Upsert — handles both first-time and subsequent increments
+    await supabase.rpc('increment_analysis_count', { user_id_param: user.id });
+    res.json({ ok: true, server_tracked: true });
+  } catch { res.json({ ok: true, server_tracked: false }); }
 });
 
 // POST /api/billing/create-guest-checkout
@@ -6368,6 +6408,119 @@ app.post('/api/startup/enrich-url', async (req, res) => {
   }
 });
 
+// ── Pythh ops helpers (GOD breakdown, enrichment, ontology metadata) ───────
+function computeGodComponentAverages(rows) {
+  const withAll = (rows || []).filter(
+    (r) =>
+      r.team_score != null &&
+      r.traction_score != null &&
+      r.market_score != null &&
+      r.product_score != null &&
+      r.vision_score != null,
+  );
+  const n = withAll.length;
+  if (!n) {
+    return { n: 0, team: null, traction: null, market: null, product: null, vision: null };
+  }
+  const sum = (k) => withAll.reduce((a, r) => a + (Number(r[k]) || 0), 0) / n;
+  const rnd = (x) => Math.round(x * 100) / 100;
+  return {
+    n,
+    team: rnd(sum('team_score')),
+    traction: rnd(sum('traction_score')),
+    market: rnd(sum('market_score')),
+    product: rnd(sum('product_score')),
+    vision: rnd(sum('vision_score')),
+  };
+}
+
+function startupRowNeedsEnrichment(r) {
+  if (!r || !r.extracted_data) return true;
+  const tier = r.extracted_data?.data_tier;
+  if (tier === 'C') return true;
+  if (tier !== 'A' && tier !== 'B') return true;
+  if (typeof r.data_completeness === 'number' && r.data_completeness < 35) return true;
+  return false;
+}
+
+function computeEnrichmentStats(rows) {
+  const byTier = { A: 0, B: 0, C: 0, unknown: 0 };
+  const byStatus = {};
+  let needsEnrichment = 0;
+  for (const r of rows || []) {
+    const st = r.status || 'unknown';
+    byStatus[st] = (byStatus[st] || 0) + 1;
+    const tier = r.extracted_data?.data_tier;
+    if (tier === 'A') byTier.A += 1;
+    else if (tier === 'B') byTier.B += 1;
+    else if (tier === 'C') byTier.C += 1;
+    else byTier.unknown += 1;
+    if (startupRowNeedsEnrichment(r)) needsEnrichment += 1;
+  }
+  return {
+    total: (rows || []).length,
+    by_tier: byTier,
+    by_startup_status: byStatus,
+    needs_enrichment: needsEnrichment,
+    criteria:
+      'needs_enrichment = missing extracted_data, tier C, unknown/missing tier, or data_completeness < 35',
+  };
+}
+
+function getOntologyLibraryStats() {
+  try {
+    const so = require('../lib/signalOntology');
+    const col = require('../lib/signal-ontology');
+    return {
+      signalOntology_v1_regex: {
+        action_map_entries: so.ACTION_MAP?.length ?? 0,
+        actor_patterns: so.ACTOR_PATTERNS?.length ?? 0,
+        negation_patterns: so.NEGATION_PATTERNS?.length ?? 0,
+        hedging_vocab_terms: so.HEDGING_VOCAB?.length ?? 0,
+        object_keyword_groups: so.OBJECT_KEYWORDS?.length ?? 0,
+      },
+      signal_ontology_v2_anchors: {
+        signal_definitions: col.SIGNALS?.length ?? 0,
+        anchor_phrases_indexed: col.ANCHOR_INDEX?.length ?? 0,
+      },
+      wiring: {
+        regex_parser: 'lib/signalParser.js ← lib/signalOntology.js (ACTION_MAP, gates)',
+        anchor_matching: 'server/services/signalDetector.js ← lib/signal-ontology.js (ANCHOR_INDEX)',
+        submit_inputs: 'lib/inference-extractor.js (internal SECTOR_KEYWORDS / patterns; not the ontology files)',
+        gap_audit: 'scripts/audit-signal-gaps.js suggests additions to signalOntology.js',
+      },
+    };
+  } catch (e) {
+    return { error: String(e.message || e) };
+  }
+}
+
+async function fetchOracleServiceSummary(supabase) {
+  const out = { ok: true };
+  try {
+    const { count: sessionsTotal } = await supabase.from('oracle_sessions').select('*', { count: 'exact', head: true });
+    const { count: actionsTotal } = await supabase.from('oracle_actions').select('*', { count: 'exact', head: true });
+    const { count: insightsTotal } = await supabase.from('oracle_insights').select('*', { count: 'exact', head: true });
+    out.counts = {
+      oracle_sessions: sessionsTotal ?? 0,
+      oracle_actions: actionsTotal ?? 0,
+      oracle_insights: insightsTotal ?? 0,
+    };
+    const statuses = ['in_progress', 'completed', 'abandoned'];
+    out.oracle_sessions_by_status = {};
+    for (const s of statuses) {
+      const { count } = await supabase.from('oracle_sessions').select('*', { count: 'exact', head: true }).eq('status', s);
+      out.oracle_sessions_by_status[s] = count ?? 0;
+    }
+    out.note =
+      'API: /api/oracle/* (Bearer). Frontend uses VITE_API_URL + Bearer; requires backend on 3002 in dev.';
+  } catch (e) {
+    out.ok = false;
+    out.error = String(e.message || e);
+  }
+  return out;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN: INFERENCE ENGINE STATUS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -6388,12 +6541,18 @@ app.get('/api/admin/inference-status', requireAdminToken, async (req, res) => {
       .from('startup_uploads')
       .select('*', { count: 'exact', head: true })
       .not('extracted_data->inference_method', 'is', null);
-    
-    const { count: pendingEnrichment } = await supabase
-      .from('startup_uploads')
-      .select('*', { count: 'exact', head: true })
-      .eq('total_god_score', 45)
-      .is('extracted_data', null);
+
+    let pendingEnrichment = 0;
+    try {
+      const enrichRows = await paginateStartupUploads(
+        supabase,
+        'extracted_data, data_completeness',
+        (q) => q,
+      );
+      pendingEnrichment = enrichRows.filter(startupRowNeedsEnrichment).length;
+    } catch (e) {
+      console.warn('[inference-status] pending enrichment count failed:', e.message);
+    }
     
     const { count: recentErrors } = await supabase
       .from('ai_logs')
@@ -6485,14 +6644,39 @@ app.get('/api/admin/kpis', async (req, res) => {
 });
 
 // GET /api/admin/score-health
-// Returns GOD score distribution + health status for GODScoreMonitor component
+// Returns GOD score distribution + component averages + enrichment + ontology + Oracle counts
 app.get('/api/admin/score-health', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const scores = await paginateStartupUploads(supabase, 'total_god_score', (q) => q.eq('status', 'approved'));
+    const [scores, enrichRows, ontologyLibraries, oracleSummary] = await Promise.all([
+      paginateStartupUploads(
+        supabase,
+        'total_god_score, team_score, traction_score, market_score, product_score, vision_score',
+        (q) => q.eq('status', 'approved'),
+      ),
+      paginateStartupUploads(supabase, 'extracted_data, data_completeness, status', (q) => q),
+      Promise.resolve(getOntologyLibraryStats()),
+      fetchOracleServiceSummary(supabase),
+    ]);
+
+    const godComponentAverages = computeGodComponentAverages(scores);
+    const enrichment = computeEnrichmentStats(enrichRows);
+
     if (!scores || scores.length === 0) {
-      return res.json({ status: 'warning', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['No approved startups found'] });
+      return res.json({
+        schemaVersion: 2,
+        status: 'warning',
+        avgScore: 0,
+        totalStartups: 0,
+        distribution: [],
+        alerts: ['No approved startups found'],
+        godComponentAverages,
+        enrichment,
+        ontologyLibraries,
+        oracleSummary,
+      });
     }
+
     const total = scores.length;
     const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
     const ranges = [
@@ -6500,25 +6684,61 @@ app.get('/api/admin/score-health', async (req, res) => {
       { range: '50-59', min: 50, max: 60, color: 'bg-orange-500' },
       { range: '60-69', min: 60, max: 70, color: 'bg-yellow-500' },
       { range: '70-79', min: 70, max: 80, color: 'bg-green-500' },
-      { range: '80+',   min: 80, max: 101, color: 'bg-emerald-500' },
+      { range: '80+', min: 80, max: 101, color: 'bg-emerald-500' },
     ];
-    const distribution = ranges.map(r => {
-      const count = scores.filter(s => s.total_god_score >= r.min && s.total_god_score < r.max).length;
+    const distribution = ranges.map((r) => {
+      const count = scores.filter((s) => s.total_god_score >= r.min && s.total_god_score < r.max).length;
       return { range: r.range, count, percent: Math.round((count / total) * 1000) / 10, color: r.color };
     });
     const alerts = [];
     let status = 'healthy';
     const lowBandPercent = distribution[0].percent;
-    if (lowBandPercent > 30) { alerts.push(`⚠️ ${lowBandPercent}% of startups in 40-49 band`); status = 'error'; }
-    else if (lowBandPercent > 10) { alerts.push(`Note: ${lowBandPercent}% in 40-49 band`); status = 'warning'; }
-    if (avg < 50) { alerts.push(`⚠️ Average score ${avg.toFixed(1)} is below 50`); status = 'error'; }
-    else if (avg < 55 && status === 'healthy') { alerts.push(`Average score ${avg.toFixed(1)} is slightly low`); status = 'warning'; }
+    if (lowBandPercent > 30) {
+      alerts.push(`⚠️ ${lowBandPercent}% of startups in 40-49 band`);
+      status = 'error';
+    } else if (lowBandPercent > 10) {
+      alerts.push(`Note: ${lowBandPercent}% in 40-49 band`);
+      status = 'warning';
+    }
+    if (avg < 50) {
+      alerts.push(`⚠️ Average score ${avg.toFixed(1)} is below 50`);
+      status = 'error';
+    } else if (avg < 55 && status === 'healthy') {
+      alerts.push(`Average score ${avg.toFixed(1)} is slightly low`);
+      status = 'warning';
+    }
     const elitePercent = distribution[4].percent;
-    if (elitePercent < 0.5 && status === 'healthy') { alerts.push(`Elite drought: Only ${elitePercent}% scoring 80+`); status = 'warning'; }
-    res.json({ status, avgScore: Math.round(avg * 10) / 10, totalStartups: total, distribution, alerts });
+    if (elitePercent < 0.5 && status === 'healthy') {
+      alerts.push(`Elite drought: Only ${elitePercent}% scoring 80+`);
+      status = 'warning';
+    }
+    res.json({
+      schemaVersion: 2,
+      status,
+      avgScore: Math.round(avg * 10) / 10,
+      totalStartups: total,
+      distribution,
+      alerts,
+      godComponentAverages,
+      enrichment,
+      ontologyLibraries,
+      oracleSummary,
+    });
   } catch (err) {
     console.error('[/api/admin/score-health] Error:', err);
-    res.status(500).json({ error: err.message, status: 'error', avgScore: 0, totalStartups: 0, distribution: [], alerts: ['Server error: ' + err.message] });
+    res.status(500).json({
+      schemaVersion: 2,
+      error: err.message,
+      status: 'error',
+      avgScore: 0,
+      totalStartups: 0,
+      distribution: [],
+      alerts: ['Server error: ' + err.message],
+      godComponentAverages: computeGodComponentAverages([]),
+      enrichment: computeEnrichmentStats([]),
+      ontologyLibraries: getOntologyLibraryStats(),
+      oracleSummary: { ok: false, error: err.message },
+    });
   }
 });
 
@@ -8810,6 +9030,157 @@ function schedulePostStartTasks() {
   setTimeout(runRssScraper, 3 * 60 * 1000); // first run: 3 min after boot
   setInterval(runRssScraper, RSS_SCRAPE_INTERVAL_MS);
   console.log(`📡 RSS scraper scheduled every ${RSS_SCRAPE_INTERVAL_MS / 1000 / 60 / 60}h (first run in 3 min)`);
+
+  // ── Signal Intelligence Pipeline ─────────────────────────────────────────────
+  // Runs six downstream stages sequentially (ingest → reconcile → trajectories →
+  // needs → matches → maturity). Each stage logs Starting / Done in Xs so Fly log
+  // buffers always show progress even when script stdout is truncated.
+  //
+  // Runs every 6 hours. First run is 30 minutes after boot, giving the RSS
+  // scraper time to complete its first pass and populate discovered_startups.
+  const SIGNAL_PIPELINE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+  let signalPipelineRunning = false;
+
+  /**
+   * @param {string} scriptRelPath - path under repo root
+   * @param {string[]} args
+   * @param {string} label - short stage id for logs
+   * @param {number} timeoutMs
+   * @param {{ logNamespace?: string }} [opts] - default 'pipeline'; enrichment uses 'enrichment'
+   */
+  const spawnPipelineStep = (scriptRelPath, args, label, timeoutMs, opts = {}) =>
+    new Promise((resolve, reject) => {
+      const { spawn } = require('child_process');
+      const path = require('path');
+      const ns = opts.logNamespace || 'pipeline';
+      const rootDir = path.join(__dirname, '..');
+      const scriptAbs = path.join(rootDir, scriptRelPath);
+      const argvPreview = [scriptRelPath, ...args].join(' ');
+      const t0 = Date.now();
+      console.log(`[${ns}:${label}] Starting → node ${argvPreview}`);
+      const proc = spawn('node', [scriptAbs, ...args], {
+        cwd: rootDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env },
+      });
+      let out = '', err = '';
+      proc.stdout.on('data', d => { out += d; });
+      proc.stderr.on('data', d => { err += d; });
+      proc.on('close', code => {
+        const sec = Math.round((Date.now() - t0) / 1000);
+        if (code === 0) {
+          const last = out.trim().split('\n').slice(-3).join(' | ');
+          console.log(`[${ns}:${label}] Done in ${sec}s — ${last}`);
+          resolve();
+        } else {
+          reject(new Error(`[${ns}:${label}] exit ${code}: ${err.slice(-400)}`));
+        }
+      });
+      const timer = setTimeout(() => {
+        proc.kill();
+        reject(new Error(`[${ns}:${label}] timeout after ${timeoutMs / 60000}min`));
+      }, timeoutMs);
+      proc.on('close', () => clearTimeout(timer));
+    });
+
+  const runSignalPipeline = async () => {
+    if (signalPipelineRunning) {
+      console.log('[pipeline] Skipping — previous run still in progress');
+      return;
+    }
+    signalPipelineRunning = true;
+    const pipelineStart = Date.now();
+    console.log('[pipeline] Starting signal intelligence pipeline (6 stages: ingest → reconcile → trajectories → needs → matches → maturity)');
+    try {
+      // Stage 1: Ingest new discovered signals from RSS-scraped headlines
+      await spawnPipelineStep(
+        'scripts/ingest-discovered-signals.js',
+        ['--apply', '--limit', '3000', '--skip-existing'],
+        'ingest-signals', 20 * 60 * 1000
+      );
+      // Stage 2: Reconcile — deduplicate, stamp source reliability, boost ensemble
+      // confidence, and clean up orphaned or future-dated signals.
+      await spawnPipelineStep(
+        'scripts/reconcile-signals.js',
+        ['--apply', '--days', '3'],
+        'reconcile', 10 * 60 * 1000
+      );
+      // Stage 3: Build / refresh trajectories from the reconciled signal history
+      await spawnPipelineStep(
+        'scripts/compute-trajectories.js',
+        ['--apply', '--limit', '1000'],
+        'trajectories', 15 * 60 * 1000
+      );
+      // Stage 4: Infer canonical needs from trajectories
+      await spawnPipelineStep(
+        'scripts/compute-needs.js',
+        ['--apply', '--limit', '1000', '--min-confidence', '0.35'],
+        'needs', 10 * 60 * 1000
+      );
+      // Stage 5: Rank and write matches from needs + candidate pool
+      await spawnPipelineStep(
+        'scripts/compute-matches.js',
+        ['--apply', '--limit', '500'],
+        'matches', 15 * 60 * 1000
+      );
+      // Stage 6: Trajectory band (Exploring → Apex) on startup_uploads
+      await spawnPipelineStep(
+        'scripts/compute-maturity.js',
+        ['--apply', '--limit', '500'],
+        'maturity', 8 * 60 * 1000
+      );
+      const elapsed = Math.round((Date.now() - pipelineStart) / 1000);
+      console.log(`[pipeline] Full pipeline completed in ${elapsed}s`);
+    } catch (err) {
+      console.error('[pipeline] Stage failed:', err.message);
+    } finally {
+      signalPipelineRunning = false;
+    }
+  };
+
+  setTimeout(runSignalPipeline, 30 * 60 * 1000); // first run: 30 min after boot
+  setInterval(runSignalPipeline, SIGNAL_PIPELINE_INTERVAL_MS);
+  console.log(`🔬 Signal pipeline scheduled every ${SIGNAL_PIPELINE_INTERVAL_MS / 1000 / 60 / 60}h (first run in 30 min)`);
+
+  // ── Enrichment Orchestrator ───────────────────────────────────────────────────
+  // Tiered enrichment pipeline: meta-tag inference (free) → browser crawl (~$0.01)
+  // → selective LLM enrichment (~$0.02). Gated by GOD score to control cost.
+  //   GOD < 30  → stop   |  30–59 → Tier 1 only
+  //   60–79     → Tier 2  |  80+  → full LLM
+  //
+  // Runs every 12 hours, first run 90 minutes after boot (after signal pipeline
+  // has had its first pass to produce fresh GOD-scored records to gate against).
+  const ENRICHMENT_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
+  let enrichmentRunning = false;
+
+  const runEnrichment = async () => {
+    if (enrichmentRunning) {
+      console.log('[enrichment] Skipping — previous run still in progress');
+      return;
+    }
+    enrichmentRunning = true;
+    console.log('[enrichment] Starting enrichment orchestrator...');
+    const start = Date.now();
+    try {
+      await spawnPipelineStep(
+        'scripts/core/enrichment-orchestrator.js',
+        ['--limit=200'],
+        'orchestrator',
+        45 * 60 * 1000, // 45-minute hard timeout
+        { logNamespace: 'enrichment' }
+      );
+      const elapsed = Math.round((Date.now() - start) / 1000);
+      console.log(`[enrichment] Completed in ${elapsed}s`);
+    } catch (err) {
+      console.error('[enrichment] Failed:', err.message);
+    } finally {
+      enrichmentRunning = false;
+    }
+  };
+
+  setTimeout(runEnrichment, 90 * 60 * 1000); // first run: 90 min after boot
+  setInterval(runEnrichment, ENRICHMENT_INTERVAL_MS);
+  console.log(`✨ Enrichment orchestrator scheduled every ${ENRICHMENT_INTERVAL_MS / 1000 / 60 / 60}h (first run in 90 min)`);
 }
 
 // Handle server errors (these are fine outside app.listen)

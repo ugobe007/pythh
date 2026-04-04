@@ -24,7 +24,22 @@ interface SignalComponents {
 }
 
 export interface ReportData {
-  startup: { id: string; name: string; tagline?: string; description?: string; website?: string; god_score: number; signal_score?: number; score_components: ScoreComponents; signal_components?: SignalComponents | null; percentile: number; };
+  startup: {
+    id: string;
+    name: string;
+    tagline?: string;
+    /** Coalesced for display: column + pitch + extracted_data narrative fields */
+    description?: string;
+    extracted_data?: Record<string, unknown> | null;
+    website?: string;
+    sectors?: string[];
+    stage?: number | string | null;
+    god_score: number;
+    signal_score?: number;
+    score_components: ScoreComponents;
+    signal_components?: SignalComponents | null;
+    percentile: number;
+  };
   total_matches: number;
   matches: Match[];
 }

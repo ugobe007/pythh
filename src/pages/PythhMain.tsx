@@ -7,42 +7,32 @@
  * Plus Jakarta Sans (display) · Geist Mono (data) · Inter (body)
  *
  * Sections:
- *   1. Hero      — straight CTA headline + cycling investor panel
+ *   1. Hero      — “What you get” (3 steps + outline CTA); full analyze UI on /signal-matches
  *   2. Signals   — investor table with sector chip filters
- *   3. Explained — "Every investor leaves a trail"
+ *   3. Explained — signal explainer strip
  *   4. Heat      — sector heat cards + daily signal
- *   5. Get       — 3-step mini UI flow
- *   6. Footer
+ *   5. Footer    — newsletter + links
  */
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 
 import PythhUnifiedNav      from '../components/PythhUnifiedNav';
-import PaywallModal         from '../components/PaywallModal';
 import SEO                  from '../components/SEO';
 import NewsletterWidget     from '../components/NewsletterWidget';
 import { GODScoreExplainer } from '../components/pythh/GODScoreExplainer';
-import HeroSignalPanel, { type FeaturedSignal } from '../components/pythh/HeroSignalPanel';
 import PythhSignalExplained from '../components/pythh/PythhSignalExplained';
 import PythhWhatYouGet      from '../components/pythh/PythhWhatYouGet';
+import PythhWordmark        from '../components/PythhWordmark';
+import { HotMatchLogo }     from '../components/FlameIcon';
 
 import { supabase }                               from '../lib/supabase';
-import { normalizeStartupUrl, canonicalizeStartupUrl } from '../utils/normalizeUrl';
-import { useUsageTracking }                        from '../hooks/useUsageTracking';
-import { useAuth }                                 from '../contexts/AuthContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-
-const COMMON_TLD_TYPOS: Record<string, string> = {
-  '.con': '.com', '.cmo': '.com', '.cpm': '.com', '.co m': '.com',
-  '.og': '.org', '.oi': '.io', '.bet': '.net', '.ent': '.net',
-  '.cm': '.com', '.om': '.com',
-};
 
 const STATIC_INVESTOR_SIGNALS = [
   { investor: 'Sequoia Capital',   signal: 8.7, delta: '+0.4', god: 76, vcp: 88, blocks: 5, sectors: ['AI/ML'] },
@@ -71,25 +61,6 @@ const STATIC_SECTOR_HEAT = [
 // HELPER COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Roll-up counter animation from 0 → target */
-function Counter({ target, duration = 2000 }: { target: number; duration?: number }) {
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    if (target === 0) return;
-    const start = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setVal(Math.floor(eased * target));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    const raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return <>{val > 0 ? val.toLocaleString() : '…'}</>;
-}
-
 /** 5-block score indicator for the Σ column */
 function ScoreBlocks({ count, total = 5 }: { count: number; total?: number }) {
   return (
@@ -107,38 +78,16 @@ function ScoreBlocks({ count, total = 5 }: { count: number; total?: number }) {
 
 export default function PythhHome() {
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [url, setUrl]               = useState('');
-  const [urlError, setUrlError]     = useState('');
-  const [suggestion, setSuggestion] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [focused, setFocused]       = useState(false);
   const [activeSector, setActiveSector] = useState('All');
-  const [heatVisible, setHeatVisible]   = useState(false);
+  // Default true so Sector Heat + Daily Signal (wordmark, flame) aren’t stuck at opacity 0
+  // before the intersection observer fires; observer still sets true when section is seen.
+  const [heatVisible, setHeatVisible]   = useState(true);
   const [barWidths, setBarWidths]       = useState<number[]>(STATIC_SECTOR_HEAT.map(() => 0));
   const heatRef = useRef<HTMLDivElement>(null);
 
   // ── Data state ────────────────────────────────────────────────────────────
-  const [stats, setStats] = useState<{ startups: number; investors: number; matches: number }>(() => {
-    try {
-      const cached = localStorage.getItem('platform_stats');
-      if (cached) return JSON.parse(cached);
-    } catch {}
-    return { startups: 0, investors: 0, matches: 0 };
-  });
-
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
   const [sectorHeatLive, setSectorHeatLive]   = useState<Array<{ sector: string; startup_count: number; avg_god: number }>>([]);
-  const [showPaywall, setShowPaywall]         = useState(false);
-
-  const navigate = useNavigate();
-  const { profile, refreshProfile } = useAuth();
-  const { analysisCount, hasHitLimit, remainingAnalyses, trackAnalysis, FREE_ANALYSIS_LIMIT, isProFromServer } = useUsageTracking();
-  // isProFromServer takes priority when server has responded; falls back to profile
-  const isPro = isProFromServer !== null ? isProFromServer : (profile?.plan !== 'free');
-
-  // Refresh profile on mount to pick up any plan changes made since last session
-  useEffect(() => { refreshProfile(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Sector heat scroll trigger ────────────────────────────────────────────
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -158,22 +107,6 @@ export default function PythhHome() {
     );
     return () => timers.forEach(clearTimeout);
   }, [heatVisible]);
-
-  // ── Platform stats ────────────────────────────────────────────────────────
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await supabase.rpc('get_platform_stats');
-        const p = res.data || { startups: 0, investors: 0, matches: 0 };
-        const s = { startups: p.startups || 0, investors: p.investors || 0, matches: p.matches || 0 };
-        setStats(s);
-        try { localStorage.setItem('platform_stats', JSON.stringify(s)); } catch {}
-      } catch {}
-    }
-    fetchStats();
-    const interval = setInterval(fetchStats, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   // ── Live investor signals ─────────────────────────────────────────────────
   useEffect(() => {
@@ -258,70 +191,6 @@ export default function PythhHome() {
     return [...liveSlice, ...remaining].slice(0, 6);
   }, [sectorHeatLive]);
 
-  // ── Computed: cycling hero panel signals from live investor data ───────────
-  const featuredSignals: FeaturedSignal[] = useMemo(() => {
-    const WHY: Record<string, string> = {
-      'AI/ML':    'Increased AI/ML deal activity +34% this quarter',
-      SaaS:       'Enterprise SaaS valuations recovering — Series B window open',
-      FinTech:    '3 new portfolio companies in payments infrastructure this month',
-      BioTech:    'FDA fast-track trends driving early-stage BioTech interest',
-      SpaceTech:  'Thesis shift detected: increasing hard tech, reducing consumer',
-      DeepTech:   'Deep tech infrastructure thesis accelerating — 6 new LPs active',
-      Climate:    'Climate tech fund cycle at deployment peak through Q3',
-      Default:    'Active deployment signals detected across portfolio companies',
-    };
-    const top3 = investorSignals.slice(0, 3);
-    return top3.map(inv => {
-      const sector = inv.sectors?.[0] ?? 'AI/ML';
-      const s = inv.signal;
-      // Generate a plausible sparkline trending to the current score
-      const base = Math.max(5, s - 2.5);
-      const sparkline = [0,1,2,3,4,5,6].map(i =>
-        +(base + (s - base) * (i / 6) + (Math.random() - 0.5) * 0.3).toFixed(1)
-      );
-      sparkline[6] = s; // anchor last point to actual score
-      return {
-        firm:      inv.investor,
-        signal:    s,
-        delta:     parseFloat(inv.delta) || 0,
-        sector,
-        why:       WHY[sector] ?? WHY.Default,
-        sparkline,
-      };
-    });
-  }, [investorSignals]);
-
-  // ── URL submission ────────────────────────────────────────────────────────
-  const submit = () => {
-    const raw = url.trim();
-    if (!raw || submitting) return;
-    if (!isPro && hasHitLimit) { setShowPaywall(true); return; }
-
-    setUrlError('');
-    setSuggestion('');
-
-    const normalized = normalizeStartupUrl(raw);
-    if (!normalized) { setUrlError('Please enter a valid domain (e.g., example.com)'); return; }
-
-    const host = normalized.split('/')[0] || normalized;
-    const lowerHost = host.toLowerCase();
-    for (const [typo, correct] of Object.entries(COMMON_TLD_TYPOS)) {
-      if (lowerHost.endsWith(typo)) {
-        setSuggestion(`https://${host.slice(0, -typo.length)}${correct}/`);
-        setUrlError(`Did you mean ${correct}?`);
-        return;
-      }
-    }
-    if (!host.includes('.')) { setUrlError('Please enter a valid domain (e.g., example.com)'); return; }
-
-    trackAnalysis();
-    navigate(`/signal-matches?url=${encodeURIComponent(raw)}`);
-  };
-
-  const applySuggestion = () => {
-    if (suggestion) { setUrl(suggestion); setSuggestion(''); setUrlError(''); }
-  };
-
   // ── Filtered investor table ───────────────────────────────────────────────
   const filteredInvestors = useMemo(() => {
     if (activeSector === 'All') return investorSignals;
@@ -348,238 +217,19 @@ export default function PythhHome() {
       <PythhUnifiedNav />
 
       {/* ══════════════════════════════════════════════════════════════════════
-          1. HERO
+          1. HERO — same design as former “What you get” block (now first screen)
           ══════════════════════════════════════════════════════════════════════ */}
-      <section style={{
-        position: 'relative',
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        overflow: 'hidden',
-      }}>
-        {/* Subtle emerald glow — right side */}
-        <div style={{
-          position: 'absolute', top: '30%', right: 0,
-          width: 600, height: 500,
-          background: 'radial-gradient(ellipse, rgba(16,185,129,0.05) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '5rem 2rem 4rem', width: '100%' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0,55fr) minmax(0,45fr)',
-            gap: '4rem',
-            alignItems: 'center',
-          }}>
-
-            {/* ── LEFT: Headline + CTA ──────────────────────────────────── */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7 }}
-            >
-              {/* Eyebrow */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 28 }}>
-                <span className="pythh-live-dot" />
-                <span className="pythh-label-caps">Live · Signal Intelligence</span>
-              </div>
-
-              {/* Headline */}
-              <h1 style={{
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-                fontWeight: 800,
-                fontSize: 'clamp(2.4rem, 5.5vw, 4.5rem)',
-                lineHeight: 1.05,
-                letterSpacing: '-0.035em',
-                color: '#f0f6fc',
-                marginBottom: '1.5rem',
-              }}>
-                Find your investors using signal intelligence.
-                <br />
-                <span style={{ color: '#10b981' }}>
-                  Get funded.
-                </span>
-              </h1>
-
-              {/* Sub-copy */}
-              <p style={{
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 'clamp(0.9375rem, 1.5vw, 1.0625rem)',
-                color: '#52616e',
-                lineHeight: 1.75,
-                maxWidth: 480,
-                marginBottom: '2.5rem',
-              }}>
-                Enter your startup URL. We analyze it and surface your top investor
-                matches in ≈30 seconds — ranked by signal, not guesswork.
-              </p>
-
-              {/* URL input */}
-              <div style={{ maxWidth: 520, marginBottom: '1rem' }}>
-                <div style={{
-                  display: 'flex',
-                  border: focused ? '1px solid rgba(16,185,129,0.55)' : '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  boxShadow: focused
-                    ? '0 0 0 3px rgba(16,185,129,0.1), 0 4px 24px rgba(0,0,0,0.4)'
-                    : '0 4px 24px rgba(0,0,0,0.3)',
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
-                  background: 'rgba(255,255,255,0.03)',
-                }}>
-                  <input
-                    data-testid="home-url-input"
-                    type="text"
-                    inputMode="url"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    value={url}
-                    onChange={e => { setUrl(e.target.value); setUrlError(''); setSuggestion(''); }}
-                    onKeyDown={e => e.key === 'Enter' && submit()}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
-                    placeholder="https://yourstartup.com"
-                    style={{
-                      flex: 1,
-                      padding: '0.875rem 1.125rem',
-                      background: 'transparent',
-                      border: 'none',
-                      outline: 'none',
-                      fontFamily: "'Geist Mono', monospace",
-                      fontSize: '0.875rem',
-                      color: '#e2e8f0',
-                    }}
-                  />
-                  <button
-                    data-testid="home-analyze-button"
-                    onClick={submit}
-                    disabled={submitting}
-                    className="pythh-btn-primary"
-                    style={{ padding: '0 1.5rem', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}
-                  >
-                    {submitting ? 'Finding…' : (<>Find Signals <ArrowRight size={14} /></>)}
-                  </button>
-                </div>
-
-                {/* Sub-bar: focused hint / error / stats */}
-                <div style={{ marginTop: 10, minHeight: 20 }}>
-                  {urlError ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: '0.72rem', color: '#ef4444' }}>
-                        {urlError}
-                      </span>
-                      {suggestion && (
-                        <button onClick={applySuggestion} style={{
-                          fontFamily: "'Geist Mono', monospace",
-                          fontSize: '0.68rem',
-                          color: '#10b981',
-                          background: 'rgba(16,185,129,0.08)',
-                          border: '1px solid rgba(16,185,129,0.3)',
-                          borderRadius: 4,
-                          padding: '0.15rem 0.5rem',
-                          cursor: 'pointer',
-                        }}>
-                          Use "{suggestion}"
-                        </button>
-                      )}
-                    </div>
-                  ) : url.trim() ? (
-                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: '0.72rem', color: '#2e3d4a' }}>
-                      Will search:{' '}
-                      <span style={{ color: '#94a3b8' }}>{canonicalizeStartupUrl(url)?.domain || url.trim()}</span>
-                    </span>
-                  ) : focused ? (
-                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: '0.72rem', color: '#10b981', letterSpacing: '0.04em' }}>
-                      We'll analyze this in ≈30 seconds
-                    </span>
-                  ) : isPro ? (
-                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: '0.72rem', color: '#10b981' }}>
-                      ✦ Pro: Unlimited analyses
-                    </span>
-                  ) : (
-                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: '0.72rem', color: '#2e3d4a', letterSpacing: '0.04em' }}>
-                      {!hasHitLimit
-                        ? `✦ Pro: Unlimited analyses`
-                        : `${remainingAnalyses} free ${remainingAnalyses === 1 ? 'analysis' : 'analyses'} remaining`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Stats line */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
-                {[
-                  { n: stats.startups,  label: 'startups'  },
-                  { n: stats.matches,   label: 'matches'   },
-                  { n: stats.investors, label: 'investors' },
-                ].map(({ n, label }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                    <span className="pythh-score-number" style={{ fontSize: '0.9375rem', color: '#e2e8f0' }}>
-                      <Counter target={n} />
-                    </span>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', color: '#2e3d4a' }}>
-                      {label}
-                    </span>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span className="pythh-live-dot" style={{ width: 6, height: 6 }} />
-                  <span className="pythh-score-number" style={{ fontSize: '0.7rem', color: '#22c55e', letterSpacing: '0.06em' }}>
-                    live
-                  </span>
-                </div>
-              </div>
-
-              {/* Secondary CTAs */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-                {[
-                  { label: 'Signal rankings by sector →', to: '/rankings',  primary: true },
-                  { label: 'Browse startups',             to: '/explore',   primary: false },
-                  { label: 'Find investors →',            to: '/lookup',    primary: false },
-                ].map(({ label, to, primary }) => (
-                  <Link
-                    key={label}
-                    to={to}
-                    style={{
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: '0.8125rem',
-                      color:      primary ? '#10b981' : '#2e3d4a',
-                      background: primary ? 'rgba(16,185,129,0.08)' : 'transparent',
-                      border:     primary ? '1px solid rgba(16,185,129,0.25)' : '1px solid rgba(255,255,255,0.07)',
-                      padding: '0.375rem 0.875rem',
-                      borderRadius: 5,
-                      textDecoration: 'none',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* ── RIGHT: Cycling investor signal panel ─────────────────── */}
-            <motion.div
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              style={{ display: 'none' }}
-              className="lg-hero-panel"
-            >
-              <div className="pythh-label-caps" style={{ marginBottom: 10 }}>Signals detected right now</div>
-              <HeroSignalPanel liveSignals={featuredSignals} />
-            </motion.div>
-          </div>
-        </div>
-      </section>
+      <PythhWhatYouGet
+        variant="hero"
+        ctaTo="/signal-matches"
+        ctaLabel="Get your matches →"
+        ctaVariant="amber"
+      />
 
       {/* ══════════════════════════════════════════════════════════════════════
           2. INVESTOR SIGNALS TABLE
           ══════════════════════════════════════════════════════════════════════ */}
-      <section style={{ background: '#080b10', padding: '5rem 0 4rem' }}>
+      <section style={{ background: '#080b10', padding: '1.5rem 0 3rem' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 2rem' }}>
 
           {/* Intro text */}
@@ -598,9 +248,11 @@ export default function PythhHome() {
             }}
           >
             Every investor leaves a trail — portfolio moves, thesis shifts, check-size changes.
-            We track these{' '}
-            <span style={{ color: '#10b981', fontWeight: 500 }}>signals</span>{' '}
-            in real time and score them against your startup.
+            We surface what they{' '}
+            <span style={{ color: '#22d3ee', fontWeight: 600 }}>can&apos;t hide</span>
+            {' — '}
+            <span style={{ color: '#10b981', fontWeight: 500 }}>signals</span>
+            {' '}in real time, scored against your startup.
           </motion.p>
 
           {/* Sector chips */}
@@ -619,10 +271,11 @@ export default function PythhHome() {
 
           {/* Table */}
           <div style={{
-            background: '#0f1318',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 8,
+            background: 'rgba(255,255,255,0.02)',
+            border: 'none',
+            borderRadius: 12,
             overflow: 'hidden',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
             {/* Table header bar */}
             <div style={{
@@ -706,11 +359,10 @@ export default function PythhHome() {
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
             <Link
               to="/rankings"
-              className="pythh-btn-ghost"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.625rem 1.25rem', borderRadius: 6, textDecoration: 'none' }}
+              className="pythh-btn-ghost inline-flex items-center gap-2 py-1 no-underline hover:underline underline-offset-4 decoration-white/20"
             >
               See full rankings by VC lens (Sequoia · a16z · YC · Founders Fund)
-              <ArrowRight size={13} />
+              <ArrowRight size={13} className="opacity-70" />
             </Link>
           </div>
         </div>
@@ -724,7 +376,7 @@ export default function PythhHome() {
       {/* ══════════════════════════════════════════════════════════════════════
           4. SECTOR HEAT
           ══════════════════════════════════════════════════════════════════════ */}
-      <section ref={heatRef} style={{ background: '#0b0e13', padding: '5rem 0' }}>
+      <section ref={heatRef} style={{ background: '#0b0e13', padding: '3.5rem 0' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 2rem' }}>
 
           {/* Header */}
@@ -752,7 +404,7 @@ export default function PythhHome() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={heatVisible ? { opacity: 1, y: 0 } : {}}
                   transition={{ duration: 0.45, delay: i * 0.08 }}
-                  style={{ padding: '1.25rem' }}
+                  style={{ padding: '1rem 1.1rem' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span className="pythh-score-number" style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#52616e', textTransform: 'uppercase' }}>
@@ -783,11 +435,10 @@ export default function PythhHome() {
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 48 }}>
             <Link
               to="/rankings"
-              className="pythh-btn-ghost"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0.625rem 1.25rem', borderRadius: 6, textDecoration: 'none' }}
+              className="pythh-btn-ghost inline-flex items-center gap-2 py-1 no-underline hover:underline underline-offset-4 decoration-white/20"
             >
               See full rankings by VC lens (Sequoia · a16z · YC · Founders Fund)
-              <ArrowRight size={13} />
+              <ArrowRight size={13} className="opacity-70" />
             </Link>
           </div>
 
@@ -797,57 +448,71 @@ export default function PythhHome() {
             animate={heatVisible ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.5, delay: 0.5 }}
             style={{
-              background: '#141a1f',
-              border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 8,
-              padding: '1.25rem',
+              marginTop: 8,
+              paddingTop: 28,
+              borderTop: '1px solid rgba(255,255,255,0.06)',
             }}
           >
             <div style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'space-between',
-              marginBottom: 20,
-              paddingBottom: 16,
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
+              marginBottom: 28,
+              gap: 16,
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="pythh-live-dot" />
-                <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#e2e8f0' }}>
-                  The Daily Signal
-                </span>
-                <span className="pythh-score-number" style={{ fontSize: '0.72rem', color: '#2e3d4a' }}>
-                  — {today}
-                </span>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <span className="pythh-live-dot" />
+                  <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#e2e8f0' }}>
+                    The Daily Signal
+                  </span>
+                  <span className="pythh-score-number" style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                    — {today}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <PythhWordmark size="sm" />
+                  <span
+                    className="pythh-label-caps"
+                    style={{ color: '#64748b', letterSpacing: '0.14em', fontSize: '0.65rem' }}
+                  >
+                    favorite picks
+                  </span>
+                </div>
               </div>
               <Link
                 to="/newsletter"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: '0.875rem', color: '#10b981', textDecoration: 'none' }}
+                className="inline-flex items-center gap-1.5 shrink-0 text-sm font-semibold text-emerald-400/95 hover:text-emerald-300 transition-colors no-underline hover:underline underline-offset-4 decoration-emerald-500/30"
               >
                 Read full digest <ArrowRight size={13} />
               </Link>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1.5rem 2rem',
+              }}
+            >
               {[
-                { icon: '🔥', label: 'Hot Matches',    title: 'Top startup × investor pairings', sub: 'Updated weekly' },
+                { flame: true as const, label: 'Hot Matches',    title: 'Top startup × investor matches', sub: 'Updated weekly' },
                 { icon: '⚡', label: '#1 This Week',   title: sectorHeat[0]?.name ?? 'AI / ML',  sub: `${sectorHeat[0]?.vcCount ?? 14} VCs active` },
                 { icon: '📊', label: 'Hottest Sector', title: sectorHeat[0]?.name ?? 'AI / ML',  sub: `Signal ${sectorHeat[0]?.signal?.toFixed(1) ?? '8.4'}` },
               ].map(item => (
-                <div key={item.label} style={{
-                  background: 'rgba(255,255,255,0.025)',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  borderRadius: 6,
-                  padding: '1rem',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span style={{ fontSize: '0.875rem' }}>{item.icon}</span>
+                <div key={item.label}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    {'flame' in item && item.flame ? (
+                      <HotMatchLogo size="sm" className="flex-shrink-0" />
+                    ) : (
+                      <span style={{ fontSize: '0.875rem', opacity: 0.85 }}>{'icon' in item ? item.icon : ''}</span>
+                    )}
                     <span className="pythh-label-caps">{item.label}</span>
                   </div>
-                  <p style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: '0.9375rem', color: '#e2e8f0', marginBottom: 4 }}>
+                  <p style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: '0.9375rem', color: '#e2e8f0', marginBottom: 6, lineHeight: 1.35 }}>
                     {item.title}
                   </p>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.72rem', color: '#2e3d4a' }}>
+                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.72rem', color: '#64748b' }}>
                     {item.sub}
                   </p>
                 </div>
@@ -858,19 +523,14 @@ export default function PythhHome() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          5. WHAT YOU GET
-          ══════════════════════════════════════════════════════════════════════ */}
-      <PythhWhatYouGet />
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          6. NEWSLETTER + FOOTER
+          5. NEWSLETTER + FOOTER
           ══════════════════════════════════════════════════════════════════════ */}
       <NewsletterWidget />
 
       <footer style={{
         maxWidth: 1280,
         margin: '0 auto',
-        padding: '2.5rem 2rem 3rem',
+        padding: '2rem 2rem 2.5rem',
         borderTop: '1px solid rgba(255,255,255,0.05)',
       }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 24, marginBottom: 12 }}>
@@ -907,19 +567,6 @@ export default function PythhHome() {
         </div>
       </footer>
 
-      {/* Hero panel responsive visibility fix */}
-      <style>{`
-        @media (min-width: 1024px) {
-          .lg-hero-panel { display: block !important; }
-        }
-      `}</style>
-
-      <PaywallModal
-        isOpen={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        analysisCount={analysisCount}
-        analysisLimit={FREE_ANALYSIS_LIMIT}
-      />
     </div>
   );
 }

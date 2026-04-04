@@ -137,30 +137,54 @@ export default function PlatformPage() {
           <h1
             className="text-3xl sm:text-5xl font-bold text-white mb-4"
             style={{
-              textShadow: "0 0 12px rgba(0, 200, 255, 0.3), 0 0 24px rgba(0, 200, 255, 0.15)",
+              textShadow: "0 0 12px rgba(255, 255, 255, 0.12), 0 0 28px rgba(255, 255, 255, 0.06)",
             }}
           >
-            See what investors can't hide.
+            See what investors{" "}
+            <span
+              className="text-cyan-400"
+              style={{
+                textShadow:
+                  "0 0 16px rgba(34, 211, 238, 0.45), 0 0 32px rgba(34, 211, 238, 0.2)",
+              }}
+            >
+              can&apos;t hide.
+            </span>
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto mb-5">
             Pythh tracks real investor behavior — portfolio moves, thesis shifts, check-size changes — 
             and matches you with the ones actively looking for companies like yours. No guessing. Just math.
           </p>
 
-          {/* Platform stats */}
+          {/* Platform stats — colored numerals (emerald / amber / cyan) */}
           <div className="flex items-center justify-center gap-8 sm:gap-12 text-sm mb-6">
             <div>
-              <span className="text-2xl font-bold text-white">{stats.startups.toLocaleString()}</span>
+              <span
+                className="text-2xl font-bold tabular-nums text-emerald-400"
+                style={{ textShadow: "0 0 18px rgba(52, 211, 153, 0.35)" }}
+              >
+                {stats.startups.toLocaleString()}
+              </span>
               <span className="text-zinc-500 ml-2">startups</span>
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div>
-              <span className="text-2xl font-bold text-white">{stats.investors.toLocaleString()}</span>
+              <span
+                className="text-2xl font-bold tabular-nums text-amber-400"
+                style={{ textShadow: "0 0 18px rgba(251, 191, 36, 0.3)" }}
+              >
+                {stats.investors.toLocaleString()}
+              </span>
               <span className="text-zinc-500 ml-2">investors</span>
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div>
-              <span className="text-2xl font-bold text-white">{stats.matches.toLocaleString()}</span>
+              <span
+                className="text-2xl font-bold tabular-nums text-cyan-400"
+                style={{ textShadow: "0 0 18px rgba(34, 211, 238, 0.35)" }}
+              >
+                {stats.matches.toLocaleString()}
+              </span>
               <span className="text-zinc-500 ml-2">matches</span>
             </div>
           </div>

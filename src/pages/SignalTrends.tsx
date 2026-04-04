@@ -17,8 +17,10 @@
  * FORBIDDEN:
  * - Explaining VC psychology on the page
  * - Adding charts "for clarity"
- * - Badges, emojis, gamification
+ * - Vanity gamification unrelated to stored signals
  * - Ranking by funding amount or vanity metrics
+ *
+ * Allowed: compact icons for DB-backed startup signals (same contract as Explore).
  * 
  * If these drift, the page dies.
  * ═══════════════════════════════════════════════════════════════════════════
@@ -46,6 +48,8 @@ import ScoreDrilldownDrawer from '../components/ScoreDrilldownDrawer';
 import { generateDrilldownData, type DrilldownPayload } from '../utils/scoreDrilldown';
 import SaveToSignalCard, { useSavedEntities } from '../components/SaveToSignalCard';
 import ShareButton from '../components/ShareButton';
+import { PYTHH_MARKETING_BG_ALT } from '../lib/pythhMarketingTheme';
+import { StartupSignalBadgeStrip, type StartupSignalFlags } from '../components/SignalTableBadges';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -61,6 +65,15 @@ interface StartupRaw {
   market_score: number | null;
   product_score: number | null;
   vision_score: number | null;
+  is_oversubscribed?: boolean | null;
+  has_followon?: boolean | null;
+  is_competitive?: boolean | null;
+  is_bridge_round?: boolean | null;
+  has_sector_pivot?: boolean | null;
+  has_social_proof_cascade?: boolean | null;
+  is_repeat_founder?: boolean | null;
+  has_cofounder_exit?: boolean | null;
+  psychological_multiplier?: number | null;
 }
 
 interface StartupRanked {
@@ -74,6 +87,10 @@ interface StartupRanked {
   delta: number;        // rank change from previous lens
   velocity: number;     // -3 to +3 scale
   signalCount?: number; // Pythh signal events detected
+  signalFlags: StartupSignalFlags;
+  hotScoreTier: boolean;
+  warmingScoreTier: boolean;
+  psychBoost: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -235,6 +252,21 @@ const rankStartupsForLens = (
       }
     }
     
+    const signalFlags: StartupSignalFlags = {
+      is_oversubscribed: s.raw.is_oversubscribed,
+      has_followon: s.raw.has_followon,
+      is_competitive: s.raw.is_competitive,
+      is_bridge_round: s.raw.is_bridge_round,
+      has_sector_pivot: s.raw.has_sector_pivot,
+      has_social_proof_cascade: s.raw.has_social_proof_cascade,
+      is_repeat_founder: s.raw.is_repeat_founder,
+      has_cofounder_exit: s.raw.has_cofounder_exit,
+    };
+    const god = s.raw.total_god_score ?? 0;
+    const psych = s.raw.psychological_multiplier;
+    const hotScoreTier = god >= 85;
+    const warmingScoreTier = !hotScoreTier && god >= 70 && god < 85;
+
     return {
       id: s.raw.id,
       rank,
@@ -245,6 +277,10 @@ const rankStartupsForLens = (
       godScore: s.godScore,
       delta,
       velocity,
+      signalFlags,
+      hotScoreTier,
+      warmingScoreTier,
+      psychBoost: typeof psych === 'number' && psych >= 1.08,
     };
   });
 };
@@ -320,7 +356,9 @@ const SignalTrends: React.FC = () => {
         // Now get top 50 for display - use real startup names
         const { data, error } = await supabase
           .from('startup_uploads')
-          .select('id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+          .select(
+            'id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit, psychological_multiplier'
+          )
           .eq('status', 'approved')
           .not('total_god_score', 'is', null)
           .not('name', 'is', null)
@@ -541,9 +579,9 @@ const SignalTrends: React.FC = () => {
 
   return (
     <div 
-      className={`min-h-screen transition-all duration-300 ${lensFlash ? 'brightness-110' : ''}`}
+      className={`min-h-screen relative transition-all duration-300 ${lensFlash ? 'brightness-110' : ''}`}
       style={{ 
-        background: 'linear-gradient(180deg, #0a0e13 0%, #0d1117 50%, #0a0e13 100%)',
+        ...PYTHH_MARKETING_BG_ALT,
         fontFamily: 'Inter, system-ui, sans-serif'
       }}
     >
@@ -556,12 +594,14 @@ const SignalTrends: React.FC = () => {
         <div className="mb-6 flex items-start justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2 flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
               rankings
             </div>
-            <h1 className="text-[32px] font-semibold leading-tight mb-2">
+            <h1 className="text-[32px] sm:text-[36px] font-semibold leading-tight mb-2">
               <span className="text-white">Live </span>
-              <span className="text-cyan-400" style={{ textShadow: '0 0 30px rgba(34,211,238,0.3)' }}>Rankings</span>
+              <span className="text-orange-400" style={{ textShadow: '0 0 28px rgba(251, 146, 60, 0.22)' }}>
+                Rankings
+              </span>
             </h1>
             <p className="text-base text-zinc-400">
               How different investors score the same market
@@ -601,7 +641,7 @@ const SignalTrends: React.FC = () => {
         {/* ═══════════════════════════════════════════════════════════════
             LIVE STATS STRIP — The POP
         ═══════════════════════════════════════════════════════════════ */}
-        <div className="flex items-center gap-4 mb-5 py-3 px-4 rounded-lg border border-zinc-800/50 bg-zinc-900/40">
+        <div className="flex flex-wrap items-center gap-4 mb-5 py-4 px-5 rounded-xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-sm shadow-[0_0_40px_-12px_rgba(34,211,238,0.12)]">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs text-zinc-500">Live</span>
@@ -797,10 +837,18 @@ const SignalTrends: React.FC = () => {
                   {/* Startup Name — Links to startup summary and report (signal-matches) */}
                   <Link 
                     to={`/signal-matches?startup=${startup.id}`}
-                    className="text-white font-medium text-sm truncate hover:text-cyan-400 hover:underline"
+                    className="flex items-center gap-2 min-w-0 font-medium text-sm text-white hover:text-cyan-400 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {startup.name}
+                    <span className="truncate min-w-0 flex-1">{startup.name}</span>
+                    <StartupSignalBadgeStrip
+                      flags={startup.signalFlags}
+                      hotScoreTier={startup.hotScoreTier}
+                      warmingScoreTier={startup.warmingScoreTier}
+                      psychBoost={startup.psychBoost}
+                      compact
+                      className="flex-shrink-0"
+                    />
                   </Link>
 
                   {/* Sector */}

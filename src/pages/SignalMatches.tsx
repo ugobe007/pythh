@@ -21,6 +21,7 @@ import { Loader2 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
 import type { MatchRow, StartupContext } from '@/lib/pythh-types';
+import { buildStartupContextFromPreview } from '@/lib/startupContextFromPreview';
 
 import InvestorReadinessReport, { type ReportData } from '@/components/pythh/InvestorReadinessReport';
 import SignalPathDashboard from '@/components/pythh/SignalPathDashboard';
@@ -30,6 +31,7 @@ import SignalEventTimeline from '@/components/pythh/SignalEventTimeline';
 import SignalHealthHexagon from '@/components/pythh/SignalHealthHexagon';
 import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
 import ImproveScoreWizard from '@/components/ImproveScoreWizard';
+import PythhAnalyzeEntryHero from '@/components/pythh/PythhAnalyzeEntryHero';
 
 import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
@@ -230,6 +232,7 @@ export default function SignalMatches() {
   const {
     context,
     loading: contextLoading,
+    error: contextError,
     refresh: refreshContext,
   } = useStartupContext(tableStartupId);
 
@@ -242,6 +245,12 @@ export default function SignalMatches() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [savedMatchesAt, setSavedMatchesAt] = useState<number | null>(null);
+
+  const previewAsContext = useMemo(
+    () => (reportData ? buildStartupContextFromPreview(reportData) : null),
+    [reportData]
+  );
+  const mergedContext = context ?? previewAsContext;
 
   useEffect(() => {
     if (!resolvedStartupId) {
@@ -266,8 +275,8 @@ export default function SignalMatches() {
         setReportData(data);
         setReportLoading(false);
 
-        if (data.startup.god_score === 50 && urlToResolve) {
-          console.log('[SignalMatches] GOD score is placeholder (50), polling for real score...');
+        if (data.startup.god_score === 50) {
+          console.log('[SignalMatches] GOD score is 50, polling for updated score...');
 
           pollInterval = window.setInterval(async () => {
             try {
@@ -311,7 +320,7 @@ export default function SignalMatches() {
       if (pollInterval) window.clearInterval(pollInterval);
       if (stopTimer) window.clearTimeout(stopTimer);
     };
-  }, [resolvedStartupId, urlToResolve]);
+  }, [resolvedStartupId]);
 
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null);
   const [busySince, setBusySince] = useState<number | null>(null);
@@ -478,7 +487,7 @@ export default function SignalMatches() {
           </div>
 
           <p className="text-sm text-zinc-400">
-            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
+            <Link to="/signal-matches" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
             <span className="text-zinc-700 mx-3">·</span>
             <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
           </p>
@@ -490,48 +499,10 @@ export default function SignalMatches() {
   if (uiState.mode === 'missing_context') {
     return (
       <PageShell isInApp={isInApp} onRefresh={handleRefresh} tableLoading={tableLoading}>
-        <main className="max-w-7xl mx-auto px-4 sm:px-8 py-12">
-          <p className="text-sm text-zinc-400 leading-relaxed mb-10">
-            This is where your <span className="text-cyan-400">investor matches</span> live — ranked by signal alignment,
-            thesis fit, and timing. Every investor in our network is scored against your startup. The best
-            fits surface here with a playbook for how to approach each one.
-          </p>
-
-          <div className="border-b border-zinc-800/50 pb-8 mb-8">
-            <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3">No startup connected</div>
-            <p className="text-sm text-zinc-300 leading-relaxed">
-              Submit your company URL on the{' '}
-              <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">home page</Link>{' '}
-              to generate matches. Pythh will scrape your site, build a signal profile, calculate
-              your investment readiness (GOD) score, and rank every investor in the network against your company.
-              It takes about 30 seconds.
-            </p>
-          </div>
-
-          <div className="text-[11px] text-zinc-500 uppercase tracking-wider mb-4">What you will see</div>
-
-          <div className="space-y-3 text-sm">
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Ranked matches</span>
-              Investors sorted by alignment score — strongest fits first.
-            </p>
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Signal scores</span>
-              Timing, thesis fit, and momentum indicators for each investor.
-            </p>
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Unlock system</span>
-              Top 5 investors free. Upgrade to unlock the full network.
-            </p>
-            <p className="text-zinc-400">
-              <span className="text-zinc-300 font-medium mr-2">Approach strategy</span>
-              For each match — talking points, warm paths, and timing windows.
-            </p>
-          </div>
-
-          <p className="text-xs text-zinc-600 mt-10 text-center">
-            <Link to="/" className="text-cyan-400 hover:text-cyan-300 transition">Submit your URL</Link>{' '}
-            to activate your investor matches
+        <PythhAnalyzeEntryHero />
+        <main className="mx-auto max-w-2xl px-4 py-10 text-center sm:px-8">
+          <p className="text-xs text-zinc-600">
+            Matches, GOD score, and unlocks appear here after you submit a URL above.
           </p>
         </main>
       </PageShell>
@@ -548,7 +519,7 @@ export default function SignalMatches() {
 
   const unlocksRemaining = context?.entitlements?.unlocks_remaining ?? 0;
   const displayName = (() => {
-    const raw = resolvedName || context?.startup?.name || '';
+    const raw = resolvedName || mergedContext?.startup?.name || '';
     if (!raw) return 'Loading...';
     return raw.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
   })();
@@ -568,12 +539,17 @@ export default function SignalMatches() {
             <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Your startup</span>
           </div>
           <StartupProfileCard
-            context={context}
+            context={mergedContext}
             displayName={displayName}
-            website={submitResult?.website ?? context?.startup?.company_website ?? context?.startup?.website}
-            loading={contextLoading}
+            website={
+              submitResult?.website ??
+              mergedContext?.startup?.company_website ??
+              mergedContext?.startup?.website
+            }
+            loading={contextLoading && !previewAsContext}
+            contextError={contextError}
             unlockedCount={unlockedCount}
-            totalMatches={rows.length}
+            totalMatches={reportData?.total_matches ?? rows.length}
           />
         </section>
 
@@ -605,7 +581,7 @@ export default function SignalMatches() {
           <>
             <RadarMatchTable
               rows={rows}
-              context={context}
+              context={mergedContext}
               loading={tableLoading && rows.length === 0}
               isPending={isPending}
               onUnlock={handleUnlock}
@@ -615,15 +591,15 @@ export default function SignalMatches() {
             />
 
             <SignalPathDashboard
-              context={context}
+              context={mergedContext}
               rows={rows}
               startupName={displayName}
-              loading={contextLoading || tableLoading}
+              loading={(contextLoading && !previewAsContext) || tableLoading}
             />
 
             <SignalHealthHexagon
-              signals={context?.signals}
-              loading={contextLoading}
+              signals={mergedContext?.signals}
+              loading={contextLoading && !previewAsContext}
             />
 
             {resolvedStartupId && (
@@ -639,7 +615,7 @@ export default function SignalMatches() {
 
                 <RadarMatchTable
                   rows={rows}
-                  context={context}
+                  context={mergedContext}
                   loading={tableLoading && rows.length === 0}
                   isPending={isPending}
                   onUnlock={handleUnlock}
@@ -663,7 +639,7 @@ export default function SignalMatches() {
             startupId={resolvedStartupId}
             url={urlToResolve}
             displayName={displayName}
-            godScore={context?.god?.total}
+            godScore={mergedContext?.god?.total}
             hasDeck={!!(context?.startup?.deck_filename || context?.startup?.deck_url)}
             onSaveMatches={handleSaveMatches}
             savedAt={savedMatchesAt}
@@ -1063,6 +1039,9 @@ function RadarMatchTable({
         startupName={context?.startup?.name}
         startupTagline={context?.startup?.tagline}
         startupSectors={context?.startup?.sectors}
+        maturityLevel={context?.startup?.maturity_level ?? null}
+        maturityScore={context?.startup?.maturity_score ?? null}
+        maturityGaps={context?.startup?.maturity_gaps}
       />
     </div>
   );

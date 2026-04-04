@@ -88,9 +88,9 @@ const SpaceTechInvestorsPage: React.FC = () => {
 
       <div className="container mx-auto px-4 pt-24 pb-16">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/25 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-indigo-500/10 text-indigo-200/95 mb-6">
             <Orbit className="w-4 h-4 text-indigo-300" />
-            <span className="text-indigo-300 font-medium">SpaceTech</span>
+            <span className="font-medium">SpaceTech</span>
           </div>
 
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-indigo-200 to-cyan-300 bg-clip-text text-transparent">
@@ -102,17 +102,17 @@ const SpaceTechInvestorsPage: React.FC = () => {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-16">
-            <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
               <Users className="w-8 h-8 text-indigo-300 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">{stats.investors}+</div>
               <div className="text-slate-400">Active SpaceTech Investors</div>
             </div>
-            <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
               <Satellite className="w-8 h-8 text-indigo-300 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">{stats.startups}+</div>
               <div className="text-slate-400">Space Startups Tracked</div>
             </div>
-            <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
               <Rocket className="w-8 h-8 text-indigo-300 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">Signal-first</div>
               <div className="text-slate-400">Timing + thesis fit, not guesswork</div>
@@ -131,20 +131,18 @@ const SpaceTechInvestorsPage: React.FC = () => {
               {investors.map((inv) => (
                 <div
                   key={inv.id}
-                  className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6 hover:border-indigo-400/60 transition-colors"
+                  className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-white mb-1">{inv.name}</h3>
                       {inv.type && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-slate-800 text-slate-300">
-                          {inv.type}
-                        </span>
+                        <span className="text-xs text-slate-500">{inv.type}</span>
                       )}
                     </div>
                     {typeof inv.investor_score === 'number' && (
-                      <div className="px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30">
-                        <span className="text-indigo-300 font-mono text-sm">{inv.investor_score.toFixed(1)}</span>
+                      <div className="px-2 py-0.5 rounded-md bg-indigo-500/15">
+                        <span className="text-indigo-200 font-mono text-sm tabular-nums">{inv.investor_score.toFixed(1)}</span>
                       </div>
                     )}
                   </div>
@@ -156,7 +154,7 @@ const SpaceTechInvestorsPage: React.FC = () => {
                     )}
                     <div className="flex flex-wrap gap-2 mt-3">
                       {inv.sectors?.slice(0, 3).map((sector, idx) => (
-                        <span key={idx} className="px-2 py-1 rounded-md bg-slate-800/80 text-xs text-slate-200">
+                        <span key={idx} className="text-xs text-slate-400">
                           {sector}
                         </span>
                       ))}
@@ -174,17 +172,17 @@ const SpaceTechInvestorsPage: React.FC = () => {
             {startups.map((s) => (
               <div
                 key={s.id}
-                className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6 hover:border-indigo-400/60 transition-colors"
+                className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]"
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-bold text-white">{s.name}</h3>
-                  <div className="px-2 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30">
-                    <span className="text-indigo-300 text-sm font-mono">{s.total_god_score}</span>
+                  <div className="px-2 py-0.5 rounded-md bg-indigo-500/15">
+                    <span className="text-indigo-200 text-sm font-mono tabular-nums">{s.total_god_score}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {s.sectors?.slice(0, 3).map((sector, idx) => (
-                    <span key={idx} className="px-2 py-1 rounded-md bg-slate-800/80 text-xs text-slate-300">
+                    <span key={idx} className="text-xs text-slate-400">
                       {sector}
                     </span>
                   ))}

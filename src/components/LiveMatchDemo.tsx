@@ -159,7 +159,7 @@ const LiveMatchDemo: React.FC<LiveMatchDemoProps> = ({ isOpen, onClose, showSign
           {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-orange-500/20 to-violet-500/20 border border-orange-500/30 mb-4">
-              <img src="/images/fire_icon_01.jpg" alt="" className="w-5 h-5 object-contain" />
+              <img src="/images/fire_icon_01.png" alt="" className="w-5 h-5 object-contain" />
               <span className="text-orange-300 text-sm font-bold">LIVE MATCHING DEMO</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">
@@ -223,7 +223,7 @@ const LiveMatchDemo: React.FC<LiveMatchDemoProps> = ({ isOpen, onClose, showSign
                     animationPhase >= 4 ? 'bg-orange-500/60 scale-150' : 'bg-orange-500/30'
                   }`} />
                   <img 
-                    src="/images/fire_icon_01.jpg" 
+                    src="/images/fire_icon_01.png" 
                     alt="Match" 
                     className={`relative w-14 h-14 md:w-16 md:h-16 object-contain transition-all duration-300 ${
                       animationPhase >= 4 ? 'scale-125' : 'animate-pulse'
@@ -318,7 +318,7 @@ const LiveMatchDemo: React.FC<LiveMatchDemoProps> = ({ isOpen, onClose, showSign
               <span className="text-gray-400">Investors</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
-              <img src="/images/fire_icon_01.jpg" alt="" className="w-4 h-4 object-contain" />
+              <img src="/images/fire_icon_01.png" alt="" className="w-4 h-4 object-contain" />
               <span className="text-white font-bold">399K</span>
               <span className="text-gray-400">Matches</span>
             </div>

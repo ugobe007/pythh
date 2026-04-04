@@ -16,6 +16,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 );
 
+/** Narrative for UI when top-level columns are empty but inference JSON has text */
+function effectiveStartupDescription(row) {
+  const ex = row.extracted_data && typeof row.extracted_data === 'object' ? row.extracted_data : {};
+  return (
+    row.description ||
+    row.pitch ||
+    ex.description ||
+    ex.product_description ||
+    ex.value_proposition ||
+    (typeof ex.pitch === 'string' ? ex.pitch : null) ||
+    null
+  );
+}
+
 // GET /api/preview/:startupId
 router.get('/:startupId', async (req, res) => {
   const { startupId } = req.params;
@@ -30,7 +44,7 @@ router.get('/:startupId', async (req, res) => {
     // 1. Fetch startup (approved only)
     const { data: startup, error: sErr } = await supabase
       .from('startup_uploads')
-      .select('id, name, tagline, description, website, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .select('id, name, tagline, description, pitch, website, sectors, stage, extracted_data, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
       .eq('id', startupId)
       .eq('status', 'approved')
       .single();
@@ -104,12 +118,15 @@ router.get('/:startupId', async (req, res) => {
       investor: row.investors
     })).filter(m => m.investor);
 
+    const descriptionForUi = effectiveStartupDescription(startup);
+
     res.json({
       startup: {
         id: startup.id,
         name: startup.name,
         tagline: startup.tagline,
-        description: startup.description,
+        description: descriptionForUi,
+        extracted_data: startup.extracted_data || null,
         website: startup.website,
         sectors: startup.sectors,
         stage: startup.stage,

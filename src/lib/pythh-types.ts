@@ -115,6 +115,10 @@ export interface StartupContext {
     /** Set when founder uploads pitch deck — used for accomplishment bonus */
     deck_filename?: string | null;
     deck_url?: string | null;
+    /** Trajectory band — pipeline: compute-maturity.js (UI: Exploring→Apex) */
+    maturity_level?: string | null;
+    maturity_score?: number | null;
+    maturity_gaps?: unknown;
   };
   god: {
     total: number;

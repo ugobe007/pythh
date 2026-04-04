@@ -18,6 +18,7 @@ import { User, Lock, Eye, ExternalLink, Copy, Check } from 'lucide-react';
 import type { RadarRowViewModel } from '@/lib/radar-view-model';
 import { RADAR_THRESHOLDS } from '@/lib/radar-view-model';
 import { UnlockButton } from './UnlockButton';
+import { MaturityStrip } from './MaturityStrip';
 
 // -----------------------------------------------------------------------------
 // PROPS (View Model Based)
@@ -44,6 +45,10 @@ interface LiveMatchTableProps {
   startupName?: string;
   startupTagline?: string;
   startupSectors?: string[];
+  /** Same startup as profile card — shows above investor rows */
+  maturityLevel?: string | null;
+  maturityScore?: number | null;
+  maturityGaps?: unknown;
 }
 
 // -----------------------------------------------------------------------------
@@ -124,6 +129,9 @@ export function LiveMatchTable({
   startupName,
   startupTagline,
   startupSectors,
+  maturityLevel,
+  maturityScore,
+  maturityGaps,
 }: LiveMatchTableProps) {
   const navigate = useNavigate();
 
@@ -179,6 +187,16 @@ export function LiveMatchTable({
       data-testid={mode === 'all' ? 'match-table' : `match-table-${mode}`}
       className={`space-y-0 ${className}`}
     >
+      {maturityLevel && (
+        <div className="px-4 py-2 border-b border-zinc-800/50 bg-zinc-900/40">
+          <MaturityStrip
+            level={maturityLevel}
+            score={maturityScore ?? null}
+            gaps={maturityGaps}
+            variant="inline"
+          />
+        </div>
+      )}
       {/* Column Headers */}
       <div className="h-10 flex items-center gap-4 px-4 text-xs font-medium text-zinc-500 border-b border-zinc-800/50">
         <div className="flex-1">Investor</div>

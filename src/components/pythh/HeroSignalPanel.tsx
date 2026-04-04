@@ -69,47 +69,39 @@ const SECTOR_STRIP = [
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Upsample 7 points → ~28 for a smoother polyline (less “jagged” steps). */
-function upsampleLinear(values: number[], targetLen: number): number[] {
-  if (values.length < 2) return values;
-  const out: number[] = [];
-  const n = values.length;
-  for (let i = 0; i < targetLen; i++) {
-    const t = (i / (targetLen - 1)) * (n - 1);
-    const j = Math.floor(t);
-    const f = t - j;
-    const a = values[j];
-    const b = values[Math.min(j + 1, n - 1)];
-    out.push(a * (1 - f) + b * f);
-  }
-  return out;
-}
-
-/** Mini SVG sparkline — dense interpolated line + soft area fill. Down = amber (matches score accent), not red. */
+/**
+ * Single smooth arc (quadratic) from first → last sample, pulled toward the series
+ * extrema — reads as “momentum” / gentle trend, not a spiky EKG-style trace.
+ */
 function Sparkline({ values, positive }: { values: number[]; positive: boolean }) {
   const gradId = useId().replace(/:/g, '');
   const W = 88;
   const H = 32;
-  const pad = 2;
-  const smooth = upsampleLinear(values, 36);
-  const min = Math.min(...smooth);
-  const max = Math.max(...smooth);
+  const pad = 3;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
   const range = max - min || 1;
-  const coords = smooth.map((v, i) => {
-    const x = pad + (i / (smooth.length - 1)) * (W - pad * 2);
-    const y = pad + (1 - (v - min) / range) * (H - pad * 2);
-    return { x, y };
-  });
-  const lineD = coords.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
-  const last = coords[coords.length - 1];
-  const first = coords[0];
-  const areaD = `${lineD} L ${last.x} ${H - pad} L ${first.x} ${H - pad} Z`;
+  const yAt = (v: number) => pad + (1 - (v - min) / range) * (H - pad * 2);
+
+  const x0 = pad;
+  const x1 = W - pad;
+  const yStart = yAt(values[0]);
+  const yEnd = yAt(values[values.length - 1]);
+  const cx = (x0 + x1) / 2;
+  // Control point: vertical center of the value band — one gentle arc, not a zig-zag trace
+  const yTopBand = yAt(max);
+  const yBotBand = yAt(min);
+  const yPull = (yTopBand + yBotBand) / 2;
+
+  const pathTop = `M ${x0} ${yStart} Q ${cx} ${yPull} ${x1} ${yEnd}`;
+  const areaD = `${pathTop} L ${x1} ${H - pad} L ${x0} ${H - pad} Z`;
 
   const line = positive ? '#34d399' : '#fbbf24';
   const fillTop = positive ? 'rgba(52,211,153,0.2)' : 'rgba(251,191,36,0.14)';
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} fill="none" aria-hidden>
+      <title>Signal trend (smoothed)</title>
       <defs>
         <linearGradient id={`spark-grad-${gradId}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={fillTop} />
@@ -118,14 +110,14 @@ function Sparkline({ values, positive }: { values: number[]; positive: boolean }
       </defs>
       <path d={areaD} fill={`url(#spark-grad-${gradId})`} />
       <path
-        d={lineD}
+        d={pathTop}
         stroke={line}
-        strokeWidth={1.65}
+        strokeWidth={1.75}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       />
-      <circle cx={last.x} cy={last.y} r={2.75} fill={line} />
+      <circle cx={x1} cy={yEnd} r={2.75} fill={line} />
     </svg>
   );
 }

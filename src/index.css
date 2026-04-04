@@ -322,24 +322,44 @@ nav, [class*="fixed"] {
 }
 
 .pythh-btn-outline:hover {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.65);
+  background: transparent;
+  border-color: rgba(16, 185, 129, 0.75);
+  color: #34d399;
 }
 
+.pythh-btn-amber-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.65rem 1.35rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  background: transparent;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  color: #fbbf24;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.pythh-btn-amber-outline:hover {
+  border-color: rgba(253, 224, 71, 0.85);
+  color: #fcd34d;
+}
+
+/* Text-style CTA — no pill border (avoids dated “1980s panel” chrome) */
 .pythh-btn-ghost {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #52616e;
+  border: none;
+  color: #94a3b8;
   font-family: 'Inter', sans-serif;
   font-size: 0.875rem;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition: color 0.2s ease;
   cursor: pointer;
 }
 
 .pythh-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.04);
   color: #e2e8f0;
-  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .pythh-table-row {
@@ -360,48 +380,50 @@ nav, [class*="fixed"] {
 
 .pythh-sector-chip {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  color: #52616e;
+  border: none;
+  color: #64748b;
   font-family: 'Geist Mono', monospace;
   font-size: 0.72rem;
-  padding: 0.3rem 0.75rem;
-  border-radius: 4px;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease;
   cursor: pointer;
 }
 
 .pythh-sector-chip:hover,
 .pythh-sector-chip.active {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
 }
 
 .pythh-heat-card {
-  background: #141a1f;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 8px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-radius: 10px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .pythh-heat-card:hover {
-  border-color: rgba(16, 185, 129, 0.2);
-  box-shadow: 0 0 22px rgba(16, 185, 129, 0.06);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 40px -28px rgba(16, 185, 129, 0.35);
 }
 
 .pythh-number-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.1rem 0.45rem;
-  border-radius: 3px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.22);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid rgba(245, 158, 11, 0.45);
   font-family: 'Geist Mono', monospace;
   font-size: 0.68rem;
   font-weight: 600;
-  color: #f59e0b;
+  color: #fbbf24;
   flex-shrink: 0;
 }
 

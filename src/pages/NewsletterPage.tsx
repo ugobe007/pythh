@@ -331,7 +331,7 @@ export default function NewsletterPage() {
             {/* ── Section 1: Hot Matches ─────────────────────────────────── */}
             {data.hotMatches.length > 0 && (
               <section>
-                <SectionHeading icon="🔥" label="Hot Matches" sub="Highest-signal startup × investor pairs this week" />
+                <SectionHeading icon="🔥" label="Hot Matches" sub="Highest-signal startup × investor matches this week" />
                 <div className="space-y-3">
                   {data.hotMatches.map((m, i) => (
                     <div key={i} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4 flex flex-col sm:flex-row sm:items-center gap-3">

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { HotMatchLogo } from './FlameIcon';
 
 const API_BASE = import.meta.env.VITE_API_URL ||
   (import.meta.env.DEV ? 'http://localhost:3002' : '');
@@ -44,11 +45,11 @@ export default function NewsletterWidget() {
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
-      <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 overflow-hidden">
+      <div className="rounded-xl border border-zinc-800/50 bg-transparent overflow-hidden">
         {/* Header row */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/40">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full border border-cyan-400/80 bg-transparent" />
             <span className="text-white text-sm font-medium">The Daily Signal</span>
             {formattedDate && (
               <span className="text-zinc-600 text-xs">— {formattedDate}</span>
@@ -74,7 +75,10 @@ export default function NewsletterWidget() {
             {/* Hot match */}
             {preview?.hotMatch ? (
               <div className="px-5 py-4">
-                <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">🔥 Hot Match</p>
+                <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
+                  Hot Match
+                </p>
                 <p className="text-white text-sm font-medium truncate">
                   {preview.hotMatch.startup?.name}
                   <span className="text-zinc-600 mx-1.5">×</span>
@@ -86,8 +90,11 @@ export default function NewsletterWidget() {
               </div>
             ) : (
               <div className="px-5 py-4">
-                <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">🔥 Hot Matches</p>
-                <p className="text-zinc-400 text-sm">Top startup × investor pairings</p>
+                <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
+                  Hot Matches
+                </p>
+                <p className="text-zinc-400 text-sm">Top startup × investor matches</p>
                 <p className="text-zinc-600 text-xs mt-1">Updated weekly</p>
               </div>
             )}
@@ -134,8 +141,11 @@ export default function NewsletterWidget() {
           /* Full static fallback — always shows something */
           <div className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/40">
             <div className="px-5 py-4">
-              <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">🔥 Hot Matches</p>
-              <p className="text-zinc-400 text-sm">Top startup × investor pairings</p>
+              <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
+                Hot Matches
+              </p>
+              <p className="text-zinc-400 text-sm">Top startup × investor matches</p>
               <p className="text-zinc-600 text-xs mt-1">Updated weekly</p>
             </div>
             <div className="px-5 py-4">

@@ -93,9 +93,9 @@ const RoboticsInvestorsPage: React.FC = () => {
       <div className="container mx-auto px-4 pt-24 pb-16">
         {/* Hero */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-cyan-500/10 text-cyan-200/95 mb-6">
             <Bot className="w-4 h-4 text-cyan-400" />
-            <span className="text-cyan-400 font-medium">Robotics & Automation</span>
+            <span className="font-medium">Robotics & Automation</span>
           </div>
 
           <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-white via-cyan-200 to-sky-400 bg-clip-text text-transparent">
@@ -108,17 +108,17 @@ const RoboticsInvestorsPage: React.FC = () => {
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-16">
-            <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
               <Users className="w-8 h-8 text-cyan-400 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">{stats.investors}+</div>
               <div className="text-slate-400">Active Robotics Investors</div>
             </div>
-            <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
               <Cpu className="w-8 h-8 text-cyan-400 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">{stats.startups}+</div>
               <div className="text-slate-400">Robotics Startups Tracked</div>
             </div>
-            <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6">
+            <div className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
               <Rocket className="w-8 h-8 text-cyan-400 mx-auto mb-3" />
               <div className="text-3xl font-bold text-white mb-1">Signal-first</div>
               <div className="text-slate-400">Matches based on real founder signals</div>
@@ -139,20 +139,18 @@ const RoboticsInvestorsPage: React.FC = () => {
               {investors.map((inv) => (
                 <div
                   key={inv.id}
-                  className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6 hover:border-cyan-500/60 transition-colors"
+                  className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-white mb-1">{inv.name}</h3>
                       {inv.type && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-slate-800 text-slate-300">
-                          {inv.type}
-                        </span>
+                        <span className="text-xs text-slate-500">{inv.type}</span>
                       )}
                     </div>
                     {typeof inv.investor_score === 'number' && (
-                      <div className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30">
-                        <span className="text-cyan-400 font-mono text-sm">
+                      <div className="px-2 py-0.5 rounded-md bg-cyan-500/15">
+                        <span className="text-cyan-300 font-mono text-sm tabular-nums">
                           {inv.investor_score.toFixed(1)}
                         </span>
                       </div>
@@ -170,7 +168,7 @@ const RoboticsInvestorsPage: React.FC = () => {
                       {inv.sectors?.slice(0, 3).map((sector, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-1 rounded-md bg-slate-800/80 text-xs text-slate-200"
+                          className="text-xs text-slate-400"
                         >
                           {sector}
                         </span>
@@ -190,12 +188,12 @@ const RoboticsInvestorsPage: React.FC = () => {
             {startups.map((s) => (
               <div
                 key={s.id}
-                className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-xl p-6 hover:border-cyan-500/60 transition-colors"
+                className="bg-white/[0.03] rounded-lg p-5 backdrop-blur-sm transition-colors hover:bg-white/[0.06]"
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-bold text-white">{s.name}</h3>
-                  <div className="px-2 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30">
-                    <span className="text-cyan-400 text-sm font-mono">
+                  <div className="px-2 py-0.5 rounded-md bg-cyan-500/15">
+                    <span className="text-cyan-300 text-sm font-mono tabular-nums">
                       {s.total_god_score}
                     </span>
                   </div>
@@ -204,7 +202,7 @@ const RoboticsInvestorsPage: React.FC = () => {
                   {s.sectors?.slice(0, 3).map((sector, idx) => (
                     <span
                       key={idx}
-                      className="px-2 py-1 rounded-md bg-slate-800/80 text-xs text-slate-300"
+                      className="text-xs text-slate-400"
                     >
                       {sector}
                     </span>

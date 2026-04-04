@@ -32,6 +32,11 @@ import { supabase } from '../lib/supabase';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { analytics } from '../analytics';
 import { UPGRADE_COPY, UpgradeMoment } from '../lib/upgradeMoments';
+import {
+  WIDGET_FREE_MATCH_LIMIT,
+  WIDGET_PAID_MATCH_LIMIT,
+  formatWidgetProPrice,
+} from '../lib/widgetTier';
 
 type BillingCycle = 'monthly' | 'annual';
 type PlanTier = 'free' | 'pro' | 'proplus' | 'elite';
@@ -68,7 +73,8 @@ const PLANS: PricingPlan[] = [
       { text: 'Submit 1 startup URL', included: true },
       { text: 'GOD Score overview', included: true },
       { text: 'Browse Rankings & Explore', included: true },
-      { text: '3 investor matches (masked)', included: true },
+      { text: '3 investor matches on web (masked)', included: true },
+      { text: `MCP / widget: ${WIDGET_FREE_MATCH_LIMIT} investor matches`, included: true },
       { text: 'Weekly Signal Digest', included: true },
       { text: 'Watchlists', included: false },
       { text: 'Signal alerts', included: false },
@@ -135,7 +141,7 @@ const PLANS: PricingPlan[] = [
 const FAQ_ITEMS = [
   {
     question: 'Can I try before I pay?',
-    answer: 'Yes. The free tier gives you GOD Scores, rankings, and 3 masked matches. No card required.',
+    answer: `Yes. The free tier gives you GOD Scores, rankings, 3 masked matches on the site, and ${WIDGET_FREE_MATCH_LIMIT} investor matches via the MCP/widget. No card required.`,
   },
   {
     question: 'Can I cancel anytime?',
@@ -156,6 +162,10 @@ const FAQ_ITEMS = [
   {
     question: 'Do you offer refunds?',
     answer: "If you\'re not satisfied within the first 7 days, contact us for a full refund. No questions asked.",
+  },
+  {
+    question: 'What is the MCP / widget add-on?',
+    answer: `Free users get ${WIDGET_FREE_MATCH_LIMIT} investor matches inside Cursor, Claude, or any MCP client. Widget Pro (${formatWidgetProPrice()}/mo) raises that to ${WIDGET_PAID_MATCH_LIMIT} matches per analysis and includes Oracle coaching instructions in the tool responses—without living on the website.`,
   },
 ];
 
@@ -706,6 +716,13 @@ export default function PricingPage() {
                 <td className="py-3 px-3 text-center text-white font-medium text-xs">All + strategy</td>
               </tr>
               <tr>
+                <td className="py-3 px-4 text-zinc-300">MCP / widget matches</td>
+                <td className="py-3 px-3 text-center text-zinc-500 text-xs">{WIDGET_FREE_MATCH_LIMIT}</td>
+                <td className="py-3 px-3 text-center text-zinc-400 text-xs" colSpan={3}>
+                  {formatWidgetProPrice()}/mo add-on · up to {WIDGET_PAID_MATCH_LIMIT} + Oracle
+                </td>
+              </tr>
+              <tr>
                 <td className="py-3 px-4 text-zinc-300">Watchlists</td>
                 <td className="py-3 px-3 text-center"><X className="w-4 h-4 text-zinc-700 mx-auto" /></td>
                 <td className="py-3 px-3 text-center"><Check className="w-4 h-4 text-cyan-500 mx-auto" /></td>
@@ -756,6 +773,56 @@ export default function PricingPage() {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        {/* MCP & Widget — distribution outside the web app */}
+        <div id="mcp-widget" className="max-w-3xl mx-auto mb-16 scroll-mt-24">
+          <div className="rounded-2xl border border-orange-500/25 bg-gradient-to-br from-orange-500/[0.07] via-zinc-950/80 to-amber-500/[0.05] p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-orange-400/90 font-semibold mb-2">
+                  Cursor · Claude · any MCP client
+                </p>
+                <h2 className="text-xl font-bold text-white mb-2">MCP &amp; embed widget</h2>
+                <p className="text-sm text-zinc-400 leading-relaxed max-w-xl">
+                  Run Pythh where you already work. The free tier includes{' '}
+                  <span className="text-zinc-200 font-medium">{WIDGET_FREE_MATCH_LIMIT} investor matches</span>{' '}
+                  per startup via MCP. Upgrade to Widget Pro for{' '}
+                  <span className="text-zinc-200 font-medium">up to {WIDGET_PAID_MATCH_LIMIT} matches</span>{' '}
+                  plus Oracle-style coaching instructions returned in the same thread—no tab-switching to pythh.ai.
+                </p>
+              </div>
+              <div className="sm:text-right shrink-0">
+                <p className="text-2xl font-bold text-white">{formatWidgetProPrice()}</p>
+                <p className="text-xs text-zinc-500">/ month · Widget Pro add-on</p>
+              </div>
+            </div>
+            <ul className="grid sm:grid-cols-2 gap-3 text-sm text-zinc-300 mb-6">
+              <li className="flex gap-2">
+                <Check className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-white">Free:</strong> {WIDGET_FREE_MATCH_LIMIT} matches, GOD score, core tools
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <Check className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong className="text-white">Widget Pro:</strong> {WIDGET_PAID_MATCH_LIMIT} matches + Oracle instructions
+                </span>
+              </li>
+            </ul>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/signup/founder"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold transition-colors"
+              >
+                Start free (MCP key in dashboard)
+              </Link>
+              <span className="text-xs text-zinc-500 self-center max-w-xs">
+                Widget Pro checkout will appear in billing when the add-on is live.
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* ── Premium Services (Upsell) ─────────────────────────────────── */}

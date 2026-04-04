@@ -70,7 +70,7 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
           <div className="flex justify-center mb-4">
             <div className="relative">
               <img 
-                src="/images/fire_icon_03.jpg" 
+                src="/images/fire_icon_03.png" 
                 alt="Fire" 
                 className="w-20 h-20 object-contain animate-pulse drop-shadow-[0_0_20px_rgba(255,120,0,0.8)]"
               />
@@ -83,7 +83,7 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
           {isHotMatch && (
             <div className="flex justify-center mb-3">
               <span className="px-3 py-1 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full text-xs font-bold text-white flex items-center gap-1 animate-pulse">
-                <img src="/images/fire_icon_01.jpg" alt="" className="w-4 h-4 object-contain" /> {badgeText}
+                <img src="/images/fire_icon_01.png" alt="" className="w-4 h-4 object-contain" /> {badgeText}
               </span>
             </div>
           )}
@@ -97,7 +97,7 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
           {/* Subheadline */}
           <div className="flex justify-center mb-4">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-slate-800 to-slate-900 rounded-full border border-violet-500/50">
-              <img src="/images/fire_icon_01.jpg" alt="" className="w-4 h-4 object-contain" />
+              <img src="/images/fire_icon_01.png" alt="" className="w-4 h-4 object-contain" />
               <span className="text-sm text-gray-300">Powered by</span>
               <span className="text-sm font-bold bg-gradient-to-r from-orange-400 to-violet-400 bg-clip-text text-transparent">
                 GOD Score™
@@ -145,7 +145,7 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
                 </>
               ) : (
                 <>
-                  <img src="/images/fire_icon_02.jpg" alt="" className="w-5 h-5 object-contain group-hover:scale-110 transition-transform" />
+                  <img src="/images/fire_icon_02.png" alt="" className="w-5 h-5 object-contain group-hover:scale-110 transition-transform" />
                   Find My Investor Matches
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
@@ -170,7 +170,7 @@ export default function GetMatchedPopup({ isOpen, onClose, lastMatchScore, lastS
           {/* GOD Score badge */}
           <div className="mt-4 flex justify-center">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-900/50 to-slate-900/50 rounded-full border border-violet-500/30">
-              <img src="/images/fire_icon_01.jpg" alt="" className="w-4 h-4 object-contain" />
+              <img src="/images/fire_icon_01.png" alt="" className="w-4 h-4 object-contain" />
               <span className="text-[10px] text-gray-300">Powered by</span>
               <span className="text-[10px] font-bold bg-gradient-to-r from-orange-400 to-violet-400 bg-clip-text text-transparent">
                 GOD Score™

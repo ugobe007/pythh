@@ -11,6 +11,7 @@
 import { useEffect, useRef } from 'react';
 import type { StartupContext } from '@/lib/pythh-types';
 import { GODScoreExplainer } from './GODScoreExplainer';
+import { MaturityStrip } from './MaturityStrip';
 
 // Stage label mapping
 const STAGE_LABELS: Record<number, string> = {
@@ -131,6 +132,8 @@ interface StartupProfileCardProps {
   /** URL to show when context is null (e.g. from submitResult) */
   website?: string | null;
   loading?: boolean;
+  /** When RPC failed but preview/report is unavailable */
+  contextError?: Error | null;
   unlockedCount: number;
   totalMatches: number;
 }
@@ -140,6 +143,7 @@ export default function StartupProfileCard({
   displayName,
   website: websiteProp,
   loading = false,
+  contextError = null,
   unlockedCount,
   totalMatches,
 }: StartupProfileCardProps) {
@@ -190,7 +194,11 @@ export default function StartupProfileCard({
                 {websiteDisplay} ↗
               </a>
             )}
-            <p className="text-sm text-zinc-500">Profile data loading…</p>
+            <p className="text-sm text-zinc-500">
+              {contextError
+                ? 'Profile data could not be loaded. Try refreshing the page.'
+                : 'Profile data loading…'}
+            </p>
           </div>
 
           {/* Basic Stats */}
@@ -361,6 +369,16 @@ export default function StartupProfileCard({
             </div>
           )}
 
+          {/* Trajectory (Exploring → Apex) — not a grade */}
+          {startup?.maturity_level && (
+            <MaturityStrip
+              level={startup.maturity_level}
+              score={startup.maturity_score ?? null}
+              gaps={startup.maturity_gaps}
+              variant="card"
+            />
+          )}
+
           {/* Metadata row: Stage + Sectors */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {stage && STAGE_LABELS[stage] && (
@@ -477,8 +495,10 @@ export default function StartupProfileCard({
             <GODBar label="Vision" value={god.vision} max={15} color="bg-cyan-500" />
           </div>
 
-          {/* Industry Comparison - Compact */}
-          {comparison && (
+          {/* Industry Comparison - Compact (hidden when unknown, e.g. preview-only context) */}
+          {comparison &&
+            comparison.industry_avg >= 0 &&
+            comparison.top_quartile >= 0 && (
             <div className="flex items-center justify-between text-[10px]">
               <span className="text-zinc-500">vs industry avg</span>
               <span className="text-zinc-300 font-semibold">{comparison.industry_avg}</span>

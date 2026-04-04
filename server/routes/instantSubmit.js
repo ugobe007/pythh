@@ -60,6 +60,88 @@ const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 
 /**
+ * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
+ * many SPAs ship an empty body but rich structured data in the head.
+ */
+function extractJsonLdDescriptionFromHtml(rawHtml) {
+  if (!rawHtml || typeof rawHtml !== 'string') return '';
+  const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  const candidates = [];
+  while ((m = re.exec(rawHtml)) !== null) {
+    const raw = m[1].trim();
+    if (!raw) continue;
+    try {
+      let parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) parsed = [parsed];
+      for (const node of parsed) {
+        if (!node || typeof node !== 'object') continue;
+        const t = node['@type'];
+        const types = Array.isArray(t) ? t : [t];
+        const ok = types.some((x) =>
+          x && /SoftwareApplication|Organization|WebApplication|LocalBusiness|Corporation/i.test(String(x))
+        );
+        const desc = node.description;
+        if (ok && typeof desc === 'string' && desc.length >= 32) {
+          candidates.push(desc.trim());
+        }
+      }
+    } catch {
+      /* malformed JSON-LD */
+    }
+  }
+  if (candidates.length === 0) return '';
+  return candidates.sort((a, b) => b.length - a.length)[0].substring(0, 800);
+}
+
+/**
+ * Meta / og tags, first long body paragraph, or JSON-LD — pick the richest non-empty blurb.
+ */
+function extractPageSummaryFromHtml(rawHtml) {
+  if (!rawHtml || typeof rawHtml !== 'string') {
+    return { bestDescription: '', inferenceMeta: null };
+  }
+  const metaDesc =
+    (rawHtml.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+      rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i))?.[1];
+  const ogDesc =
+    (rawHtml.match(/<meta\s+[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
+      rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i))?.[1];
+  const metaDescription = (ogDesc || metaDesc || '')
+    .trim()
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .substring(0, 500);
+
+  const bodyFallback = rawHtml
+    .replace(/<(script|style|noscript|nav|header|footer|aside)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .find((s) => s.length > 60 && s.length < 500 && !/cookie|privacy|terms|copyright|©/i.test(s)) || '';
+
+  const jsonLd = extractJsonLdDescriptionFromHtml(rawHtml);
+  const parts = [metaDescription, bodyFallback.trim().substring(0, 400), jsonLd].filter(Boolean);
+  const bestDescription = parts.length === 0 ? '' : parts.sort((a, b) => b.length - a.length)[0];
+
+  if (!bestDescription) {
+    return { bestDescription: '', inferenceMeta: null };
+  }
+  return {
+    bestDescription,
+    inferenceMeta: {
+      product_description: bestDescription,
+      tagline: bestDescription.length <= 120 ? bestDescription : `${bestDescription.substring(0, 117)}...`,
+    },
+  };
+}
+
+/**
  * Transform a DB startup row into a scoring profile.
  * Ported from scripts/recalculate-scores.ts (SSOT).
  */
@@ -593,7 +675,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
 
     if (!checkTimeout()) {
       try {
-        const fetchTimeout = Math.min(2500, deadline - Date.now());
+        const fetchTimeout = Math.min(4500, deadline - Date.now());
         if (fetchTimeout > 300) {
           const response = await Promise.race([
             axios.get(fullUrl, {
@@ -607,38 +689,9 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
             new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), fetchTimeout + 400)),
           ]);
           const rawHtml = response.data;
-          const metaDesc =
-            (rawHtml.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
-              rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i))?.[1];
-          const ogDesc =
-            (rawHtml.match(/<meta\s+[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
-              rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i))?.[1];
-          const metaDescription = (ogDesc || metaDesc || '')
-            .trim()
-            .replace(/&amp;/g, '&')
-            .replace(/&#39;/g, "'")
-            .replace(/&quot;/g, '"')
-            .substring(0, 500);
-
-          // Fallback: extract first meaningful paragraph of visible text if no meta description
-          let bodyFallback = '';
-          if (!metaDescription) {
-            bodyFallback = rawHtml
-              .replace(/<(script|style|noscript|nav|header|footer|aside)[^>]*>[\s\S]*?<\/\1>/gi, '')
-              .replace(/<[^>]+>/g, ' ')
-              .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'")
-              .replace(/\s+/g, ' ')
-              .trim()
-              .split(/(?<=[.!?])\s+/)
-              .find(s => s.length > 60 && s.length < 400 && !/cookie|privacy|terms|copyright|©/i.test(s)) || '';
-          }
-
-          const bestDescription = metaDescription || bodyFallback.trim().substring(0, 400);
-          if (bestDescription) {
-            inferenceMeta = {
-              product_description: bestDescription,
-              tagline: bestDescription.length <= 120 ? bestDescription : bestDescription.substring(0, 117) + '...',
-            };
+          const pageSummary = extractPageSummaryFromHtml(rawHtml);
+          if (pageSummary.inferenceMeta) {
+            inferenceMeta = pageSummary.inferenceMeta;
           }
           websiteContent = rawHtml
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -776,6 +829,8 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       })
       .eq('id', startupId);
 
+    // Initial Signal row: derived from GOD so the UI always has a number on first paint.
+    // Range ~5.5–9.5 maps GOD 35→100. Reconcile jobs / real signal pipelines may overwrite later.
     const godScore = scores.total_god_score || 50;
     const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
     const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
@@ -1034,12 +1089,12 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     }
 
     if (!skipPhase2Fetch) {
-    // ── Fetch website content (2s hard timeout, reduced for speed) ──
+    // ── Fetch website content (meta / body / JSON-LD summary) ──
     let websiteContent = null;
-    let inferenceMeta = null;  // meta description / og:description from raw HTML
+    let inferenceMeta = null;
     if (!checkTimeout()) {
       try {
-        const fetchTimeout = Math.min(2000, pipelineDeadline - Date.now());
+        const fetchTimeout = Math.min(3500, pipelineDeadline - Date.now());
         if (fetchTimeout <= 0) {
           console.warn(`  ⚠️ [BG] Skipping fetch - pipeline timeout approaching`);
         } else {
@@ -1055,12 +1110,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             new Promise((_, reject) => setTimeout(() => reject(new Error('fetch timeout')), fetchTimeout + 500))
           ]);
           const rawHtml = response.data;
-          // Extract meta description before stripping (most sites have og:description or meta description)
-          const metaDesc = (rawHtml.match(/<meta\s+[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) || rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i))?.[1];
-          const ogDesc = (rawHtml.match(/<meta\s+[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) || rawHtml.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i))?.[1];
-          const metaDescription = (ogDesc || metaDesc || '').trim().replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').substring(0, 500);
-          if (metaDescription) {
-            inferenceMeta = { product_description: metaDescription, tagline: metaDescription.length <= 120 ? metaDescription : metaDescription.substring(0, 117) + '...' };
+          const pageSummary = extractPageSummaryFromHtml(rawHtml);
+          if (pageSummary.inferenceMeta) {
+            inferenceMeta = pageSummary.inferenceMeta;
           }
           websiteContent = rawHtml
             .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -1072,7 +1124,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
             .replace(/\s+/g, ' ')
             .trim()
             .substring(0, 15000);
-          console.log(`  🔄 [BG] Fetched ${websiteContent.length} chars${metaDescription ? ' + meta description' : ''}`);
+          console.log(
+            `  🔄 [BG] Fetched ${websiteContent.length} chars${pageSummary.bestDescription ? ` + page summary (${pageSummary.bestDescription.length} chars)` : ''}`
+          );
         }
       } catch (fetchErr) {
         console.warn(`  🔄 [BG] Fetch failed: ${fetchErr.message}`);

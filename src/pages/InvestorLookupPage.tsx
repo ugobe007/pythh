@@ -5,15 +5,18 @@
  * Free users: 2 industry queries per browser session. Then signup gate.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { trackEvent } from '../lib/analytics';
 import { apiUrl } from '../lib/apiConfig';
+import { InvestorActivityBadgeStrip } from '../components/SignalTableBadges';
 
 const SESSION_QUERY_KEY = 'pythh_top10_industry_queries_v1';
+/** Last successful Top 10 rows — restores table when you return (does not replace auth). */
+const LOOKUP_RESULTS_CACHE = 'pythh_lookup_results_cache_v1';
 const FREE_QUERY_LIMIT = 2;
 const LOOKUP_AB_VARIANT_KEY = 'pythh_lookup_ab_variant_v1';
 const LOOKUP_SIGNUP_CLICK_KEY = 'pythh_lookup_signup_clicked_v1';
@@ -208,6 +211,8 @@ export default function InvestorLookupPage() {
   const [reminderDraft, setReminderDraft] = useState<Record<string, string>>({});
   const [outreachMessage, setOutreachMessage] = useState<string | null>(null);
   const [abVariant] = useState<'A' | 'B'>(() => getAbVariant());
+  const hydratedFromServer = useRef(false);
+  const lookupRequestSeq = useRef(0);
 
   const queriesRemaining = Math.max(0, FREE_QUERY_LIMIT - sessionQueriesUsed);
   const isBlocked = !isLoggedIn && sessionQueriesUsed >= FREE_QUERY_LIMIT;
@@ -311,20 +316,25 @@ export default function InvestorLookupPage() {
     return 'Why now: active profile with current signal strength.';
   }
 
-  async function generateTop10() {
-    if (!selectedIndustry) return;
+  /** @param sectorOverride — pass when chip changes so we fetch before React commits selectedIndustry */
+  async function generateTop10(sectorOverride?: string) {
+    // `onClick={generateTop10}` passes the click event as arg — only accept real sector strings
+    const sector = (typeof sectorOverride === 'string' ? sectorOverride : selectedIndustry).trim();
+    if (!sector) return;
     if (!isLoggedIn && isBlocked) return;
 
+    const seq = ++lookupRequestSeq.current;
     setLoading(true);
     setSearchError(null);
     try {
       let data: InvestorRow[] = [];
-      const qs = new URLSearchParams({ sector: selectedIndustry, limit: '10' });
+      const qs = new URLSearchParams({ sector, limit: '10' });
       try {
         const payload = await withTimeout(
           (async () => {
             const r = await fetch(apiUrl(`/api/lookup/top-investors?${qs.toString()}`), {
               method: 'GET',
+              cache: 'no-store',
               headers: { Accept: 'application/json' },
             });
             const text = await r.text();
@@ -345,7 +355,7 @@ export default function InvestorLookupPage() {
         data = (payload.investors || []) as InvestorRow[];
       } catch (apiErr) {
         console.warn('[lookup] API route failed, falling back to Supabase client:', apiErr);
-        data = await fetchTopInvestorsDirect(supabase, selectedIndustry, LOOKUP_QUERY_MS);
+        data = await fetchTopInvestorsDirect(supabase, sector, LOOKUP_QUERY_MS);
       }
 
       const rows = (data as InvestorRow[]).map((r) => {
@@ -355,9 +365,18 @@ export default function InvestorLookupPage() {
           investor_score: r.investor_score != null ? r.investor_score + boost : r.investor_score,
         };
       });
+      if (seq !== lookupRequestSeq.current) return;
       setResults(rows);
+      try {
+        localStorage.setItem(
+          LOOKUP_RESULTS_CACHE,
+          JSON.stringify({ industry: sector, rows, savedAt: Date.now() })
+        );
+      } catch {
+        /* ignore quota */
+      }
       trackEvent('lookup_top10_generated', {
-        industry: selectedIndustry,
+        industry: sector,
         stage: selectedStage,
         result_count: rows.length,
       });
@@ -367,13 +386,49 @@ export default function InvestorLookupPage() {
         setSessionQueriesUsed(used);
       }
     } catch (e) {
+      if (seq !== lookupRequestSeq.current) return;
       setResults([]);
       setSearchError(e instanceof Error ? e.message : 'Could not generate list');
       console.error(e);
     } finally {
-      setLoading(false);
+      if (seq === lookupRequestSeq.current) setLoading(false);
     }
   }
+
+  /** Restore last list from cache, else prepopulate with a SpaceTech preview (no free-query charge). */
+  useEffect(() => {
+    if (hydratedFromServer.current) return;
+    hydratedFromServer.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = localStorage.getItem(LOOKUP_RESULTS_CACHE);
+        if (raw) {
+          const c = JSON.parse(raw) as { industry: string; rows: InvestorRow[]; savedAt: number };
+          if (
+            c.rows?.length > 0 &&
+            typeof c.savedAt === 'number' &&
+            Date.now() - c.savedAt < 7 * 24 * 60 * 60 * 1000
+          ) {
+            setSelectedIndustry(c.industry);
+            setResults(c.rows);
+            return;
+          }
+        }
+      } catch {
+        /* fall through to preview */
+      }
+      try {
+        const data = await fetchTopInvestorsDirect(supabase, 'SpaceTech', 15000);
+        if (!cancelled && data.length > 0) setResults(data);
+      } catch {
+        /* leave empty; user taps Generate */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     async function hydrateLoggedInWorkflow() {
@@ -433,25 +488,42 @@ export default function InvestorLookupPage() {
             </span>
           </h1>
           <p className="text-sm text-zinc-500 max-w-3xl">
-            Pick your industry and we will generate a straightforward Top 10 list of the most active investors.
+            Tap an industry to load a Top 10 list of the most active investors (or use the button to refresh).
             This is a teaser list, not personalized matching.
           </p>
         </div>
 
-        <div className="mb-6 p-4 rounded-lg border border-zinc-800 bg-zinc-900/30">
-          <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-3">Choose industry</div>
+        <div
+          className="mb-5 p-4 sm:p-5 rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-950/35 via-zinc-900/45 to-zinc-950/50"
+          style={{
+            boxShadow:
+              'inset 0 1px 0 0 rgba(34,211,238,0.12), 0 12px 40px -12px rgba(0,0,0,0.55), 0 0 48px -20px rgba(34,211,238,0.12)',
+          }}
+        >
+          <div className="text-[10px] uppercase tracking-widest text-cyan-500/90 mb-3 font-medium">Choose industry</div>
           <div className="flex flex-wrap gap-2">
             {INDUSTRIES.map((industry) => (
               <button
                 key={industry}
+                type="button"
                 onClick={() => {
+                  if (industry === selectedIndustry) return;
                   setSelectedIndustry(industry);
+                  setResults([]);
+                  setSearchError(null);
                   trackEvent('lookup_industry_selected', { industry });
+                  if (!isLoggedIn && isBlocked) {
+                    setSearchError(
+                      'Free lookup limit reached for this browser session. Sign in for unlimited industry lists, or clear site data to reset the teaser.'
+                    );
+                    return;
+                  }
+                  void generateTop10(industry);
                 }}
-                className={`px-3 py-1.5 rounded text-xs transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   selectedIndustry === industry
-                    ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
-                    : 'bg-zinc-900 text-zinc-500 border border-zinc-800 hover:border-zinc-700'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_20px_-4px_rgba(34,211,238,0.35)]'
+                    : 'bg-zinc-900/80 text-zinc-400 border border-zinc-700/80 hover:border-emerald-500/30 hover:text-emerald-300/90'
                 }`}
               >
                 {industry}
@@ -463,7 +535,7 @@ export default function InvestorLookupPage() {
             <select
               value={selectedStage}
               onChange={(e) => setSelectedStage(e.target.value)}
-              className="px-3 py-2 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs"
+              className="px-3 py-2 rounded-lg bg-zinc-950/80 border border-cyan-900/40 text-zinc-200 text-xs focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
             >
               {STAGES.map((stage) => (
                 <option key={stage} value={stage}>
@@ -472,15 +544,25 @@ export default function InvestorLookupPage() {
               ))}
             </select>
             <button
-              onClick={generateTop10}
+              type="button"
+              onClick={() => void generateTop10()}
               disabled={loading || (!isLoggedIn && isBlocked)}
-              className="px-4 py-2.5 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              title={
+                !isLoggedIn && isBlocked
+                  ? 'Free lookup limit reached — sign in or use a new browser session'
+                  : undefined
+              }
+              className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600/25 to-emerald-600/20 text-cyan-200 border border-cyan-400/45 hover:from-cyan-500/35 hover:to-emerald-500/25 transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_24px_-8px_rgba(34,211,238,0.4)]"
             >
               {loading ? 'Generating...' : `Generate Top 10 — ${selectedIndustry}`}
             </button>
             {!isLoggedIn && (
               <span className="text-xs text-zinc-500">
-                Free queries this session: <span className="text-zinc-300">{queriesRemaining}</span> / {FREE_QUERY_LIMIT}
+                Free queries:{' '}
+                <span className="text-emerald-400 font-semibold tabular-nums">{queriesRemaining}</span>
+                <span className="text-zinc-600"> / </span>
+                <span className="text-cyan-400/90 tabular-nums">{FREE_QUERY_LIMIT}</span>
+                <span className="text-zinc-600 ml-1">this browser</span>
               </span>
             )}
             {isLoggedIn && (
@@ -552,9 +634,21 @@ export default function InvestorLookupPage() {
                 >
                   <div className="text-sm text-zinc-600">{idx + 1}</div>
                   <div className="min-w-0">
-                    <Link to={`/investor/${row.id}`} className="text-sm text-white truncate block hover:text-cyan-400">
-                      {row.name || '—'}
-                    </Link>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Link
+                        to={`/investor/${row.id}`}
+                        className="text-sm text-white truncate hover:text-cyan-400 min-w-0 flex-1"
+                      >
+                        {row.name || '—'}
+                      </Link>
+                      <InvestorActivityBadgeStrip
+                        row={row}
+                        selectedIndustry={selectedIndustry}
+                        selectedStage={selectedStage}
+                        compact
+                        className="flex-shrink-0"
+                      />
+                    </div>
                     {row.investment_thesis && (
                       <div className="text-[11px] text-zinc-600 truncate">{row.investment_thesis}</div>
                     )}

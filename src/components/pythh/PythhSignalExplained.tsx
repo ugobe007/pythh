@@ -36,7 +36,7 @@ const DIMENSIONS = [
     label: 'VC++ Score',
     desc: 'How an investor is perceived by other VCs — co-investment history, portfolio reputation, founder NPS. Signal quality, not just quantity.',
     detail: 'Peer-weighted scoring',
-    color: '#10b981',
+    color: '#22d3ee',
   },
 ];
 
@@ -54,37 +54,44 @@ export default function PythhSignalExplained() {
   }, []);
 
   return (
-    <section ref={ref} style={{ background: '#0b0e13', padding: '7rem 0' }}>
+    <section ref={ref} style={{ background: '#0b0e13', padding: '2.5rem 0 2.75rem' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 2rem' }}>
 
-        {/* The statement */}
+        {/* Headline + body inline when wide; stacks on narrow */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={visible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7 }}
-          style={{ marginBottom: '5rem' }}
+          transition={{ duration: 0.55 }}
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+            columnGap: '1.25rem',
+            rowGap: '0.5rem',
+            marginBottom: '1.25rem',
+          }}
         >
           <h2 style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 800,
-            fontSize: 'clamp(1.75rem, 4vw, 3.25rem)',
+            fontSize: 'clamp(1.35rem, 3vw, 2.35rem)',
             letterSpacing: '-0.03em',
-            lineHeight: 1.1,
+            lineHeight: 1.15,
             color: '#f0f6fc',
-            maxWidth: 640,
-            margin: '0 0 1rem',
+            margin: 0,
+            flex: '1 1 16rem',
           }}>
-            Every investor leaves a trail.
-            <br />
+            Every investor leaves a trail.{' '}
             <span style={{ color: '#10b981' }}>We follow it.</span>
           </h2>
           <p style={{
             fontFamily: "'Inter', sans-serif",
-            fontSize: '0.9375rem',
+            fontSize: '0.8125rem',
             color: '#52616e',
-            lineHeight: 1.75,
-            maxWidth: 500,
+            lineHeight: 1.55,
+            maxWidth: 420,
             margin: 0,
+            flex: '1 1 220px',
           }}>
             A single data point is noise. A sequence of signals is a pattern.
             Pythh detects patterns across 40+ behavioral dimensions — 6 to 18 months
@@ -95,11 +102,11 @@ export default function PythhSignalExplained() {
         {/* 3-column data reveal */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 1,
           background: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: 10,
+          borderRadius: 8,
           overflow: 'hidden',
         }}>
           {DIMENSIONS.map((dim, i) => (
@@ -110,7 +117,7 @@ export default function PythhSignalExplained() {
               transition={{ duration: 0.6, delay: 0.15 + i * 0.12 }}
               style={{
                 background: '#0f1318',
-                padding: '2.5rem 2rem',
+                padding: '1.35rem 1.2rem 1.15rem',
                 position: 'relative',
               }}
             >
@@ -120,48 +127,48 @@ export default function PythhSignalExplained() {
                 background: `linear-gradient(90deg, ${dim.color}66, transparent)`,
               }} />
 
-              <span className="pythh-label-caps" style={{ color: dim.color, marginBottom: '1.5rem', display: 'block' }}>
+              <span className="pythh-label-caps" style={{ color: dim.color, marginBottom: '0.65rem', display: 'block' }}>
                 {dim.key}
               </span>
 
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 2 }}>
                 <span
                   className="pythh-score-number"
                   style={{
-                    fontSize: '3.5rem',
+                    fontSize: '2.65rem',
                     color: dim.color,
                     lineHeight: 1,
-                    textShadow: `0 0 32px ${dim.color}55`,
+                    textShadow: `0 0 24px ${dim.color}44`,
                   }}
                 >
                   {dim.value}
                 </span>
-                <span className="pythh-score-number" style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.2)' }}>
+                <span className="pythh-score-number" style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.2)' }}>
                   {dim.unit}
                 </span>
               </div>
 
-              <p className="pythh-label-caps" style={{ marginBottom: '1.25rem', letterSpacing: '0.08em' }}>
+              <p className="pythh-label-caps" style={{ marginBottom: '0.65rem', letterSpacing: '0.08em' }}>
                 {dim.label}
               </p>
 
               <p style={{
                 fontFamily: "'Inter', sans-serif",
-                fontSize: '0.875rem',
+                fontSize: '0.8125rem',
                 color: '#52616e',
-                lineHeight: 1.75,
-                marginBottom: '1.5rem',
+                lineHeight: 1.55,
+                marginBottom: '0.85rem',
               }}>
                 {dim.desc}
               </p>
 
               <span style={{
                 fontFamily: "'Geist Mono', monospace",
-                fontSize: '0.68rem',
+                fontSize: '0.65rem',
                 color: '#2e3d4a',
                 letterSpacing: '0.06em',
                 borderTop: '1px solid rgba(255,255,255,0.04)',
-                paddingTop: '1rem',
+                paddingTop: '0.65rem',
                 display: 'block',
               }}>
                 {dim.detail}

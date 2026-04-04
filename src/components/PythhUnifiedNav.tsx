@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 interface NavLink {
   label: string;
@@ -38,6 +39,7 @@ const MORE_LINKS: NavLink[] = [
 
 export default function PythhUnifiedNav() {
   const location = useLocation();
+  const { isLoggedIn } = useAuth();
   const [mobileOpen, setMobileOpen]   = useState(false);
   const [moreOpen, setMoreOpen]       = useState(false);
   const mobileRef                     = useRef<HTMLDivElement>(null);
@@ -185,6 +187,18 @@ export default function PythhUnifiedNav() {
           {/* Mobile full menu */}
           {mobileOpen && (
             <div className="absolute top-full right-4 mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
+              {isLoggedIn && (
+                <Link
+                  to="/app/signals-dashboard"
+                  className={`block px-4 py-3 text-sm border-b border-zinc-800/50 ${
+                    isActive("/app/signals-dashboard")
+                      ? "text-white bg-zinc-800/40"
+                      : "text-cyan-400 hover:text-cyan-300 hover:bg-zinc-800/30"
+                  }`}
+                >
+                  Dashboard
+                </Link>
+              )}
               {[...PRIMARY_LINKS, ...MORE_LINKS].map((link, i, arr) => (
                 <Link
                   key={link.to}
