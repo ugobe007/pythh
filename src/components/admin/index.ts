@@ -6,3 +6,4 @@
 export { default as GODScoreMonitor } from './GODScoreMonitor';
 export { default as SocialSignalsMonitor } from './SocialSignalsMonitor';
 export { default as SystemHealthAlerts } from './SystemHealthAlerts';
+export { AdminPageHeader } from './AdminPageHeader';

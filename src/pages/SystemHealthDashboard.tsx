@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/apiConfig';
-import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Activity, Database, Brain, Zap, Users, Building2, ExternalLink, ArrowRight } from 'lucide-react';
+import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Activity, Database, Brain, Zap, Users, Building2, ExternalLink, ArrowRight, Shield } from 'lucide-react';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader';
 import GODScoreTrendChart from '../components/charts/GODScoreTrendChart';
 import InferenceDataCoverageChart from '../components/charts/InferenceDataCoverageChart';
 import MatchQualityChart from '../components/charts/MatchQualityChart';
@@ -49,10 +50,7 @@ export default function SystemHealthDashboard() {
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  console.log('[SystemHealthDashboard] Component rendered, loading:', loading, 'error:', error);
-
   const loadSystemHealth = async () => {
-    console.log('[SystemHealthDashboard] Starting loadSystemHealth');
     setRefreshing(true);
     setError(null);
 
@@ -132,9 +130,9 @@ export default function SystemHealthDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center">
         <div className="text-white text-xl flex items-center gap-3">
-          <RefreshCw className="animate-spin" />
+          <RefreshCw className="animate-spin text-amber-400" />
           Loading system health...
         </div>
       </div>
@@ -143,14 +141,15 @@ export default function SystemHealthDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
+      <div className="flex min-h-[50vh] items-center justify-center px-4">
+        <div className="text-center max-w-md">
           <XCircle className="text-red-500 mx-auto mb-4" size={48} />
           <h2 className="text-white text-xl mb-2">Failed to load health data</h2>
-          <p className="text-gray-400 mb-4">{error}</p>
-          <button 
+          <p className="text-slate-400 mb-4">{error}</p>
+          <button
+            type="button"
             onClick={loadSystemHealth}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
+            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg text-black font-semibold"
           >
             Retry
           </button>
@@ -160,32 +159,30 @@ export default function SystemHealthDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <div className="p-6">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            🛡️ System Health Dashboard
-          </h1>
-          <p className="text-gray-400 mt-1">
-            Real-time monitoring of all [pyth] ai systems
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-400">
-            Updated: {lastUpdated?.toLocaleTimeString()}
-          </span>
-          <button
-            onClick={loadSystemHealth}
-            disabled={refreshing}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-        </div>
-      </div>
+    <div className="w-full text-white pb-10">
+      <AdminPageHeader
+        icon={Shield}
+        title="System Health"
+        subtitle="Real-time monitoring of pipelines, scores, matches, and ML coverage"
+        actions={
+          <>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Updated {lastUpdated?.toLocaleTimeString()}
+            </span>
+            <button
+              type="button"
+              onClick={loadSystemHealth}
+              disabled={refreshing}
+              className="px-4 py-2 rounded-lg bg-slate-800/80 border border-slate-600/80 hover:bg-slate-700/80 flex items-center gap-2 disabled:opacity-50 text-sm text-slate-200"
+            >
+              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </>
+        }
+      />
+
+      <div className="max-w-7xl mx-auto px-4 space-y-8">
 
       {/* Overall Status Banner - Clickable when issues detected */}
       {(overallStatus === 'WARN' || overallStatus === 'ERROR') ? (

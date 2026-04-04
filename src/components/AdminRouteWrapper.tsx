@@ -36,12 +36,13 @@ export function AdminRouteWrapper() {
       'database-check': 'Database Check',
       'portfolio': 'Virtual Portfolio',
       'lp-targets': 'LP Targets',
+      'signal-feed': 'Signal Feed',
     };
     return pageNames[path] || path.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
   return (
-    <div className="min-h-screen bg-[#121212]">
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
       <DbHealthBanner />
       <AdminNavBar currentPage={getPageName()} />
       <main className="w-full pt-14">

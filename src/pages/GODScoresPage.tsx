@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, AlertCircle, TrendingUp, TrendingDown, CheckCircle, Clock, Settings, ArrowRight, Activity } from 'lucide-react';
+import { RefreshCw, AlertCircle, TrendingUp, TrendingDown, CheckCircle, Clock, Settings, ArrowRight, Activity, Sparkles } from 'lucide-react';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/apiConfig';
 
@@ -120,73 +121,74 @@ export default function GODScoresPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f0729] via-[#1a0f3a] to-[#2d1558] text-white">
-      {/* Header */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent mb-2">
-              🎯 GOD Scores (Real-Time)
-            </h1>
-            <p className="text-slate-400">Live startup scoring and rankings</p>
-          </div>
-          <div className="flex items-center gap-3">
+    <div className="w-full">
+      <AdminPageHeader
+        maxWidthClass="max-w-[1800px]"
+        icon={Sparkles}
+        title="GOD Scores"
+        subtitle="Live startup scoring and rankings — real-time table and score history"
+        actions={
+          <>
             <button
+              type="button"
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
                 autoRefresh
-                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                  : 'bg-slate-700 text-slate-400 border border-slate-600'
+                  ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                  : 'bg-slate-800/80 text-slate-400 border border-slate-600/80'
               }`}
             >
               <Activity className="w-4 h-4" />
               Auto-refresh {autoRefresh ? 'ON' : 'OFF'}
             </button>
             <button
+              type="button"
               onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 statusFilter === 'approved'
-                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                  : 'bg-slate-700 text-slate-400 border border-slate-600'
+                  ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+                  : 'bg-slate-800/80 text-slate-400 border border-slate-600/80'
               }`}
             >
-              {statusFilter === 'approved' ? '✓ Approved Only' : 'All Statuses'}
+              {statusFilter === 'approved' ? 'Approved only' : 'All statuses'}
             </button>
             <button
+              type="button"
               onClick={() => navigate('/admin/god-settings')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-black font-semibold rounded-lg transition-all"
+              className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-black font-semibold rounded-lg transition-all text-sm"
             >
               <Settings className="w-4 h-4" />
               Settings
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={refresh}
               disabled={refreshing}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors disabled:opacity-50"
+              className="p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/80 rounded-lg transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="max-w-[1800px] mx-auto p-4 space-y-4">
+      <div className="max-w-[1800px] mx-auto px-4 pb-10 space-y-4">
         {/* Stats */}
         <div className="grid grid-cols-5 gap-3 text-xs">
-          <div className="bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-700">
+          <div className="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700">
             <div className="text-xl font-bold font-mono text-blue-400">{stats.topScore}</div>
             <div className="text-gray-500 text-[10px]">Top Score</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-700">
+          <div className="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700">
             <div className="text-xl font-bold font-mono text-cyan-400">{stats.avgScore}</div>
             <div className="text-gray-500 text-[10px]">Avg Score</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-700">
+          <div className="bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700">
             <div className="text-xl font-bold font-mono text-green-400">{stats.totalScored}</div>
             <div className="text-gray-500 text-[10px]">Scored</div>
           </div>
-          <div className="col-span-2 bg-gray-800/30 rounded-lg px-3 py-2 border border-gray-700/50">
+          <div className="col-span-2 bg-slate-800/40 rounded-lg px-3 py-2 border border-slate-700/50">
             <div className="text-[10px] text-gray-400">
               <strong className="text-blue-400">Formula:</strong> Team (30%) + Traction (25%) + Market (20%) + Product (15%) + Pitch (10%)
             </div>
@@ -203,12 +205,12 @@ export default function GODScoresPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="bg-slate-800/50 rounded-lg border border-slate-700 overflow-hidden">
           {loading ? (
             <div className="px-4 py-12 text-center text-gray-500">Loading...</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-700/50">
+              <thead className="bg-slate-700/50">
                 <tr>
                   <th className="text-center px-4 py-2 text-gray-400 font-medium w-16">#</th>
                   <th className="text-left px-4 py-2 text-gray-400 font-medium">Startup</th>
@@ -220,7 +222,7 @@ export default function GODScoresPage() {
               </thead>
               <tbody>
                 {startups.map((s, idx) => (
-                  <tr key={s.id} className="border-t border-gray-700/50 hover:bg-gray-700/30">
+                  <tr key={s.id} className="border-t border-slate-700/50 hover:bg-slate-700/30">
                     <td className="px-4 py-2 text-center text-gray-500 font-mono">{idx + 1}</td>
                     <td className="px-4 py-2">
                       <Link to={`/startup/${s.id}`} className="text-white font-medium hover:text-cyan-400">{s.name}</Link>
@@ -237,7 +239,7 @@ export default function GODScoresPage() {
                       {s.total_god_score ?? 0}
                     </td>
                     <td className="px-4 py-2">
-                      <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${
                           (s.total_god_score ?? 0) >= 90 ? 'bg-gradient-to-r from-blue-500 to-yellow-400' :
                           (s.total_god_score ?? 0) >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
@@ -258,7 +260,7 @@ export default function GODScoresPage() {
         </div>
 
         {/* Algorithm Bias Detection */}
-        <div className="bg-gray-800/50 rounded-lg border border-yellow-500/30 p-4">
+        <div className="bg-slate-800/50 rounded-lg border border-yellow-500/30 p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-yellow-400" />
@@ -275,7 +277,7 @@ export default function GODScoresPage() {
             <div className="space-y-2">
               {algorithmBias.length > 0 ? (
                 algorithmBias.map((bias, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs p-2 bg-gray-700/30 rounded border border-gray-600/30">
+                  <div key={idx} className="flex items-center justify-between text-xs p-2 bg-slate-700/30 rounded border border-slate-600/30">
                     <div className="flex items-center gap-2">
                       <span className="text-gray-300 font-medium">{bias.component}</span>
                       <span className="text-gray-500">({bias.count} scored)</span>
@@ -307,7 +309,7 @@ export default function GODScoresPage() {
         </div>
 
         {/* Score Change History */}
-        <div className="bg-gray-800/50 rounded-lg border border-blue-500/30 p-4">
+        <div className="bg-slate-800/50 rounded-lg border border-blue-500/30 p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-blue-400" />
@@ -324,7 +326,7 @@ export default function GODScoresPage() {
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {scoreChanges.length > 0 ? (
                 scoreChanges.map((change) => (
-                  <div key={change.startupId} className="flex items-center justify-between text-xs p-2 bg-gray-700/30 rounded border border-gray-600/30">
+                  <div key={change.startupId} className="flex items-center justify-between text-xs p-2 bg-slate-700/30 rounded border border-slate-600/30">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <Link 
                         to={`/startup/${change.startupId}`}
@@ -364,7 +366,7 @@ export default function GODScoresPage() {
         </div>
 
         {/* Quick Links */}
-        <div className="bg-gray-800/30 rounded-lg border border-gray-700/50 p-4">
+        <div className="bg-slate-800/40 rounded-lg border border-slate-700/50 p-4">
           <h3 className="text-sm font-semibold text-white mb-3">⚡ Related Tools</h3>
           <div className="flex flex-wrap gap-2 text-xs">
             <Link to="/admin/industry-rankings" className="px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded text-blue-400 hover:bg-blue-500/30">📊 Industry Rankings</Link>

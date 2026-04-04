@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
 import {
-  ArrowLeft, Radio, TrendingUp, DollarSign, Users, Building,
+  Radio, TrendingUp, DollarSign, Users, Building,
   ShoppingCart, AlertTriangle, Zap, Target, Clock, RefreshCw,
   ChevronRight, Eye, Filter, BarChart3, Globe, Activity,
   Briefcase, Rocket, Shield, Search, GitBranch, Layers,
   ArrowRight, Gauge, CheckCircle2, XCircle, Flame,
 } from 'lucide-react';
-import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader';
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 const sb = createClient(
@@ -986,7 +986,7 @@ export default function SignalFeedPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center">
         <div className="flex items-center gap-3">
           <Radio className="w-8 h-8 text-amber-400 animate-pulse" />
           <span className="text-white text-xl">Loading Signal Intelligence…</span>
@@ -996,39 +996,20 @@ export default function SignalFeedPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <LogoDropdownMenu />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-20">
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between mb-6 gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-zinc-400" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2">
-                <span className="text-amber-400">[pyth]</span>
-                <span className="text-cyan-400">signal</span>
-                <span>Intelligence</span>
-              </h1>
-              <p className="text-zinc-500 mt-1 text-sm">
-                Language → Intent → Action.
-                <span className="text-zinc-600 ml-1">{totalSignals.toLocaleString()} signals · {trajectories.length} trajectories · {matches.length} matches</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1.5">
+    <div className="w-full text-white pb-20">
+      <AdminPageHeader
+        icon={Radio}
+        title="Signal Intelligence"
+        subtitle={`Language → intent → action · ${totalSignals.toLocaleString()} signals · ${trajectories.length} trajectories · ${matches.length} matches`}
+        actions={
+          <>
             {lastUpdated && (
-              <span className="text-[10px] text-zinc-600">
+              <span className="text-[10px] text-slate-500 hidden sm:inline">
                 Updated {relativeDate(lastUpdated.toISOString())}
               </span>
             )}
             <button
+              type="button"
               onClick={() => {
                 setRefreshing(true);
                 loadSignals();
@@ -1036,13 +1017,16 @@ export default function SignalFeedPage() {
                 loadMatches();
               }}
               disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-zinc-400 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-600/80 rounded-xl text-sm text-slate-200 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
-          </div>
-        </div>
+          </>
+        }
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
         {/* ── Stats row ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

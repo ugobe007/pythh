@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { RefreshCw, Edit2, Trash2, Search, ChevronLeft, ChevronRight, Save, X } from 'lucide-react';
+import { RefreshCw, Edit2, Trash2, Search, ChevronLeft, ChevronRight, Save, X, Database } from 'lucide-react';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader';
 import { adminRpc } from '../services/adminRpc';
 
 interface StartupUpload {
@@ -126,23 +127,33 @@ export default function EditStartups() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 overflow-auto">
-      {/* Header */}
-      <div className="border-b border-gray-800 bg-gray-900/95 sticky top-0 z-30">
-        <div className="max-w-[1800px] mx-auto px-4 py-2 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-white pl-20">✏️ Edit Startups</h1>
-          <div className="flex items-center gap-4 text-xs">
-            <Link to="/" className="text-gray-400 hover:text-white">Home</Link>
-            <Link to="/admin" className="text-gray-400 hover:text-white">Admin</Link>
-            <Link to="/admin/discovered-startups" className="text-cyan-400 hover:text-cyan-300">Discovered</Link>
-            <button onClick={refresh} className="text-gray-400 hover:text-white">
+    <div className="w-full text-slate-100 overflow-auto pb-10">
+      <AdminPageHeader
+        maxWidthClass="max-w-[1800px]"
+        icon={Database}
+        title="Edit Startups"
+        subtitle="Search, edit status, and open startup detail pages"
+        actions={
+          <>
+            <Link
+              to="/admin/discovered-startups"
+              className="px-3 py-2 text-sm rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors"
+            >
+              RSS discoveries
+            </Link>
+            <button
+              type="button"
+              onClick={refresh}
+              className="p-2 rounded-lg bg-slate-800/80 border border-slate-600/80 text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors"
+              title="Refresh"
+            >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="max-w-[1800px] mx-auto p-4 space-y-4">
+      <div className="max-w-[1800px] mx-auto px-4 space-y-4">
         {/* Search & Filters */}
         <div className="flex items-center gap-4">
           <form onSubmit={handleSearch} className="flex-1 relative">
@@ -152,13 +163,13 @@ export default function EditStartups() {
               type="text"
               defaultValue={searchQuery}
               placeholder="Search by name..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
+              className="w-full bg-slate-800/80 border border-slate-600/80 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
             />
           </form>
           <select
             value={statusFilter}
             onChange={(e) => updateSearchParams({ status: e.target.value, page: 0 })}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+            className="bg-slate-800/80 border border-slate-600/80 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500/50"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -168,7 +179,7 @@ export default function EditStartups() {
         </div>
 
         {/* Stats */}
-        <div className="bg-gray-800/30 rounded-lg border border-gray-700/50 px-4 py-3 flex items-center justify-between text-sm">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/80 px-4 py-3 flex items-center justify-between text-sm">
           <div className="text-gray-400">
             {count.toLocaleString()} total startups
             {statusFilter !== 'all' && ` (filtered by ${statusFilter})`}
@@ -180,12 +191,12 @@ export default function EditStartups() {
         </div>
 
         {/* Table */}
-        <div className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
           {loading ? (
             <div className="px-4 py-12 text-center text-gray-500">Loading startups...</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-700/50">
+              <thead className="bg-slate-700/50">
                 <tr>
                   <th className="text-left px-4 py-2 text-gray-400 font-medium">Name</th>
                   <th className="text-left px-4 py-2 text-gray-400 font-medium">Tagline</th>
@@ -199,7 +210,7 @@ export default function EditStartups() {
                 {rows.map((s) => (
                   <tr 
                     key={s.id} 
-                    className="border-t border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                    className="border-t border-slate-700/50 hover:bg-slate-700/25 cursor-pointer"
                     onClick={() => editingId !== s.id && navigate(`/startup/${s.id}`)}
                   >
                     <td className="px-4 py-2">
@@ -208,7 +219,7 @@ export default function EditStartups() {
                           type="text"
                           value={editData.name}
                           onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                          className="w-full bg-slate-700/80 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
@@ -222,7 +233,7 @@ export default function EditStartups() {
                           value={editData.tagline}
                           onChange={(e) => setEditData({ ...editData, tagline: e.target.value })}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                          className="w-full bg-slate-700/80 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
                           maxLength={100}
                         />
                       ) : (
@@ -236,7 +247,7 @@ export default function EditStartups() {
                         <select
                           value={editData.status}
                           onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                          className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                          className="bg-slate-700/80 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
                         >
                           <option value="pending">pending</option>
                           <option value="approved">approved</option>
@@ -250,7 +261,7 @@ export default function EditStartups() {
                         }`}>{s.status}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-center font-mono text-yellow-400 font-bold">
+                    <td className="px-4 py-2 text-center font-mono text-amber-400 font-bold">
                       {s.total_god_score !== null ? s.total_god_score.toFixed(1) : '-'}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-500 font-mono text-xs">
@@ -319,7 +330,7 @@ export default function EditStartups() {
             <button
               onClick={() => updateSearchParams({ page: Math.max(0, page - 1) })}
               disabled={page === 0}
-              className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              className="px-3 py-1.5 bg-slate-800/80 border border-slate-600/80 rounded-lg text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             >
               <ChevronLeft className="w-4 h-4" /> Prev
             </button>
@@ -329,7 +340,7 @@ export default function EditStartups() {
             <button
               onClick={() => updateSearchParams({ page: Math.min(totalPages - 1, page + 1) })}
               disabled={page >= totalPages - 1}
-              className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              className="px-3 py-1.5 bg-slate-800/80 border border-slate-600/80 rounded-lg text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             >
               Next <ChevronRight className="w-4 h-4" />
             </button>

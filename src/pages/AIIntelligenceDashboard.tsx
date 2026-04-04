@@ -12,7 +12,6 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  ArrowLeft,
   Target,
   DollarSign,
   Radio,
@@ -24,7 +23,7 @@ import {
   Layers,
   BarChart,
 } from 'lucide-react';
-import LogoDropdownMenu from '../components/LogoDropdownMenu';
+import { AdminPageHeader } from '../components/admin/AdminPageHeader';
 
 /* ─── types ─── */
 interface DiscoveredStartup {
@@ -127,10 +126,10 @@ export default function AIIntelligenceDashboard() {
   /* ─── Loading ─── */
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="flex min-h-[40vh] items-center justify-center">
         <div className="flex items-center gap-3">
-          <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-          <span className="text-white text-xl">Loading AI Intelligence...</span>
+          <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
+          <span className="text-white text-xl">Loading AI Intelligence…</span>
         </div>
       </div>
     );
@@ -140,33 +139,27 @@ export default function AIIntelligenceDashboard() {
   const totalSourceDiscoveries = rssSources.reduce((sum, s) => sum + (s.total_discoveries || 0), 0);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <LogoDropdownMenu />
-
-      <div className="max-w-7xl mx-auto px-6 pt-6 pb-16">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate(-1)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-              <ArrowLeft className="w-5 h-5 text-zinc-400" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2">
-                <span className="text-amber-400">[pyth]</span>
-                <span className="text-cyan-400">ai</span>
-                <span>AI Intelligence</span>
-              </h1>
-              <p className="text-zinc-500 mt-1">Real-time system overview — scraper, scoring, matching, and ML pipeline</p>
-            </div>
-          </div>
-          <button onClick={loadData} className="px-4 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors flex items-center gap-2 text-sm font-medium">
+    <div className="w-full text-white pb-16">
+      <AdminPageHeader
+        icon={Brain}
+        title="AI Intelligence"
+        subtitle="Scraper yield, scoring distribution, matching, and ML pipeline health"
+        actions={
+          <button
+            type="button"
+            onClick={loadData}
+            className="px-4 py-2 rounded-lg bg-slate-800/80 border border-slate-600/80 text-slate-200 hover:bg-slate-700/80 transition-colors flex items-center gap-2 text-sm font-medium"
+          >
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-        </div>
+        }
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <Database className="w-6 h-6 text-purple-400" />
               <span className="text-2xl font-bold">{totalDiscovered.toLocaleString()}</span>
@@ -174,7 +167,7 @@ export default function AIIntelligenceDashboard() {
             <div className="text-sm text-zinc-400">Startups Discovered</div>
             <div className="text-xs text-cyan-400 mt-1">+{discoveredToday} today</div>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <Gauge className="w-6 h-6 text-cyan-400" />
               <span className="text-2xl font-bold">{approvedCount.toLocaleString()}</span>
@@ -182,7 +175,7 @@ export default function AIIntelligenceDashboard() {
             <div className="text-sm text-zinc-400">Approved &amp; Scored</div>
             <div className="text-xs text-green-400 mt-1">avg GOD: {scoreStats.avg}</div>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <Target className="w-6 h-6 text-green-400" />
               <span className="text-2xl font-bold">{matchCount.toLocaleString()}</span>
@@ -190,7 +183,7 @@ export default function AIIntelligenceDashboard() {
             <div className="text-sm text-zinc-400">Active Matches</div>
             <div className="text-xs text-zinc-500 mt-1">{investorCount.toLocaleString()} investors</div>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <Radio className="w-6 h-6 text-amber-400" />
               <span className="text-2xl font-bold">{activeSources}/{rssSources.length}</span>
@@ -214,8 +207,8 @@ export default function AIIntelligenceDashboard() {
               onClick={() => setSelectedTab(tab.id)}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 whitespace-nowrap ${
                 selectedTab === tab.id
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
-                  : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:bg-zinc-800'
+                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/40'
+                  : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:bg-slate-700/50'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -227,14 +220,14 @@ export default function AIIntelligenceDashboard() {
         {/* ─── RSS Data Stream Tab ─── */}
         {selectedTab === 'rss' && (
           <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Radio className="w-5 h-5 text-cyan-400" />
                 RSS Source Health
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {rssSources.slice(0, 9).map(src => (
-                  <div key={src.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-center justify-between">
+                  <div key={src.id} className="bg-slate-900/40 border border-slate-700/80 rounded-lg p-3 flex items-center justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-white truncate">{src.name}</div>
                       <div className="text-xs text-zinc-500">{src.category || 'Uncategorized'}</div>
@@ -251,7 +244,7 @@ export default function AIIntelligenceDashboard() {
               )}
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Activity className="w-5 h-5 text-purple-400" />
@@ -263,7 +256,7 @@ export default function AIIntelligenceDashboard() {
               </div>
               <div className="space-y-2">
                 {recentDiscoveries.slice(0, 10).map(d => (
-                  <div key={d.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors cursor-pointer" onClick={() => navigate('/admin/discovered-startups')}>
+                  <div key={d.id} className="bg-slate-900/40 border border-slate-700/80 rounded-lg p-4 hover:border-slate-600 transition-colors cursor-pointer" onClick={() => navigate('/admin/discovered-startups')}>
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2">
@@ -303,14 +296,14 @@ export default function AIIntelligenceDashboard() {
                 { label: 'Max', value: scoreStats.max.toString(), color: 'text-green-400' },
                 { label: 'With Momentum', value: scoreStats.withMomentum.toLocaleString(), color: 'text-amber-400' },
               ].map(s => (
-                <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+                <div key={s.label} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
                   <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
                   <div className="text-xs text-zinc-500 mt-1">{s.label}</div>
                 </div>
               ))}
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <BarChart className="w-5 h-5 text-cyan-400" />
                 GOD Score Distribution
@@ -338,7 +331,7 @@ export default function AIIntelligenceDashboard() {
               </div>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-400" />
@@ -350,7 +343,7 @@ export default function AIIntelligenceDashboard() {
               </div>
               <div className="space-y-2">
                 {recentlyScored.map((s, i) => (
-                  <div key={i} className="flex items-center justify-between bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3">
+                  <div key={i} className="flex items-center justify-between bg-slate-900/40 border border-slate-700/80 rounded-lg px-4 py-3">
                     <span className="text-sm font-medium">{s.name}</span>
                     <div className="flex items-center gap-4">
                       {s.momentum_score > 0 && <span className="text-xs text-amber-400">+{s.momentum_score} momentum</span>}
@@ -369,7 +362,7 @@ export default function AIIntelligenceDashboard() {
         {/* ─── Sector Trends Tab ─── */}
         {selectedTab === 'trends' && (
           <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-cyan-400" />
                 Sector Trends
@@ -382,7 +375,7 @@ export default function AIIntelligenceDashboard() {
                     const width = (t.count / maxCount) * 100;
                     const isHot = t.recentCount > 2;
                     return (
-                      <div key={t.sector} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                      <div key={t.sector} className="bg-slate-900/40 border border-slate-700/80 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             {isHot && <span className="text-sm">🔥</span>}
@@ -412,24 +405,24 @@ export default function AIIntelligenceDashboard() {
         {selectedTab === 'matches' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 text-center">
                 <Sparkles className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
                 <div className="text-3xl font-bold">{matchCount.toLocaleString()}</div>
                 <div className="text-sm text-zinc-400 mt-1">Total Matches</div>
               </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 text-center">
                 <Layers className="w-8 h-8 text-purple-400 mx-auto mb-2" />
                 <div className="text-3xl font-bold">{investorCount.toLocaleString()}</div>
                 <div className="text-sm text-zinc-400 mt-1">Investors</div>
               </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 text-center">
                 <Hash className="w-8 h-8 text-green-400 mx-auto mb-2" />
                 <div className="text-3xl font-bold">{approvedCount.toLocaleString()}</div>
                 <div className="text-sm text-zinc-400 mt-1">Scored Startups</div>
               </div>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-400" />
                 Matching Architecture
@@ -482,7 +475,7 @@ export default function AIIntelligenceDashboard() {
         {/* ─── ML Pipeline Tab ─── */}
         {selectedTab === 'ml' && (
           <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Brain className="w-5 h-5 text-cyan-400" />
                 ML Training Pipeline
@@ -526,7 +519,7 @@ export default function AIIntelligenceDashboard() {
               </div>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Activity className="w-5 h-5 text-amber-400" />
                 Recent System Logs
@@ -549,7 +542,7 @@ export default function AIIntelligenceDashboard() {
               )}
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <Zap className="w-5 h-5 text-cyan-400" />
                 How the ML Pipeline Works
@@ -560,7 +553,7 @@ export default function AIIntelligenceDashboard() {
                   { step: '2', title: 'GOD Scoring', desc: 'Each startup is scored 0-100 across Team, Traction, Market, Product, and Vision. Momentum bonuses applied.' },
                   { step: '3', title: 'Match Generation', desc: 'Scored startups matched to investors using GOD score (60%) + semantic similarity (40%) + stage/sector fit.' },
                 ].map(s => (
-                  <div key={s.step} className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                  <div key={s.step} className="bg-slate-900/40 border border-slate-700/80 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 text-xs font-bold flex items-center justify-center">{s.step}</span>
                       <span className="text-sm font-medium">{s.title}</span>
