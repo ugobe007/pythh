@@ -9,12 +9,25 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { supabase } from '../../lib/supabase';
+import { fetchPlatformStats } from '../../lib/platformStats';
 
-function Counter({ target, duration = 2000 }: { target: number; duration?: number }) {
+function Counter({
+  target,
+  duration = 2000,
+  ready = true,
+}: {
+  target: number;
+  duration?: number;
+  /** When false, show placeholder until first successful fetch */
+  ready?: boolean;
+}) {
   const [val, setVal] = useState(0);
   useEffect(() => {
-    if (target === 0) return;
+    if (!ready) return;
+    if (target === 0) {
+      setVal(0);
+      return;
+    }
     const start = Date.now();
     const tick = () => {
       const elapsed = Date.now() - start;
@@ -25,8 +38,9 @@ function Counter({ target, duration = 2000 }: { target: number; duration?: numbe
     };
     const raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return <>{val > 0 ? val.toLocaleString() : '…'}</>;
+  }, [target, duration, ready]);
+  if (!ready) return <>…</>;
+  return <>{val.toLocaleString()}</>;
 }
 
 const MOCK_INVESTORS = [
@@ -81,6 +95,7 @@ export default function PythhWhatYouGet({
   const navigate = useNavigate();
   const [visible, setVisible] = useState(variant === 'hero');
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
+  const [statsReady, setStatsReady] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
@@ -94,21 +109,17 @@ export default function PythhWhatYouGet({
   };
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await supabase.rpc('get_platform_stats');
-        const p = res.data || { startups: 0, investors: 0, matches: 0 };
-        setStats({
-          startups: p.startups || 0,
-          investors: p.investors || 0,
-          matches: p.matches || 0,
-        });
-      } catch {
-        /* keep zeros */
-      }
+    async function load() {
+      const p = await fetchPlatformStats();
+      setStats(p);
+      setStatsReady(true);
     }
-    fetchStats();
-    const interval = setInterval(fetchStats, 60000);
+    load();
+    const interval = setInterval(async () => {
+      const p = await fetchPlatformStats();
+      setStats(p);
+      setStatsReady(true);
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -269,7 +280,7 @@ export default function PythhWhatYouGet({
                       className="pythh-score-number tabular-nums"
                       style={{ fontSize: '0.875rem', color: numColor, textShadow: `0 0 12px ${glow}` }}
                     >
-                      <Counter target={n} />
+                      <Counter target={n} ready={statsReady} />
                     </span>
                     <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.72rem', color: '#2e3d4a' }}>
                       {label}

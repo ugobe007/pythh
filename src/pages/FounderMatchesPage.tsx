@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fetchPlatformStats } from '../lib/platformStats';
 import MatchHeatMap, { SectorMatch } from '../components/MatchHeatMap';
 
 // Pipeline stages
@@ -225,10 +226,10 @@ export default function FounderMatchesPage() {
       const unique = Array.from(seen.values());
       const sIds = [...new Set(unique.map(m => m.startup_id).filter(Boolean))];
       const iIds = [...new Set(unique.map(m => m.investor_id).filter(Boolean))];
-      const [sRes, iRes, platformRes] = await Promise.all([
+      const [sRes, iRes, platformCounts] = await Promise.all([
         supabase.from('startup_uploads').select('id, name, tagline, sectors, stage, total_god_score, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit').in('id', sIds),
         supabase.from('investors').select('id, name, firm, sectors, stage, check_size_min, check_size_max, type').in('id', iIds),
-        supabase.rpc('get_platform_stats'),
+        fetchPlatformStats(),
       ]);
       const sMap = new Map((sRes.data || []).map((s: any) => [s.id, s]));
       const iMap = new Map((iRes.data || []).map((i: any) => [i.id, i]));
@@ -237,7 +238,7 @@ export default function FounderMatchesPage() {
       for (const m of unique) { const s = sMap.get(m.startup_id); const i = iMap.get(m.investor_id); if (!s || !i) continue; if (usedS.has(m.startup_id) || usedI.has(m.investor_id)) continue; usedS.add(m.startup_id); usedI.add(m.investor_id); rows.push({ ...m, startup: s, investor: i } as EngineMatchRow); }
       for (let x = rows.length - 1; x > 0; x--) { const j = Math.floor(Math.random() * (x + 1)); [rows[x], rows[j]] = [rows[j], rows[x]]; }
       setEngineMatches(rows);
-      const p = platformRes.data || { startups: 0, investors: 0, matches: 0 };
+      const p = platformCounts;
       setPlatformStats({ total: p.matches || 0, startups: p.startups || 0, investors: p.investors || 0 });
     } catch (err: any) { setEngineError(err?.message || 'Failed to load engine'); } finally { setEngineLoading(false); }
   }, []);

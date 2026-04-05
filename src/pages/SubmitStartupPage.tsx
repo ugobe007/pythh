@@ -11,6 +11,7 @@ import { submitStartup } from '../services/submitStartup';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import InvestorReadinessReport, { type ReportData } from '../components/pythh/InvestorReadinessReport';
 import { supabase } from '../lib/supabase';
+import { fetchPlatformStats } from '../lib/platformStats';
 import { fetchPreviewReport, fetchTimeoutSignal } from '../lib/apiConfig';
 import { isUuidString } from '../lib/isUuid';
 
@@ -109,8 +110,7 @@ export default function SubmitStartupPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await supabase.rpc('get_platform_stats');
-        const p = res.data || { startups: 0, investors: 0, matches: 0 };
+        const p = await fetchPlatformStats();
         setStats({
           startups: p.startups || 0,
           investors: p.investors || 0,

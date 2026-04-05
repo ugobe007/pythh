@@ -14,6 +14,7 @@ import PythhWordmark from '../PythhWordmark';
 import { HotMatchLogo } from '../FlameIcon';
 
 import { supabase } from '../../lib/supabase';
+import { fetchPlatformStats } from '../../lib/platformStats';
 import { normalizeStartupUrl, canonicalizeStartupUrl } from '../../utils/normalizeUrl';
 import { useUsageTracking } from '../../hooks/useUsageTracking';
 import { useAuth } from '../../contexts/AuthContext';
@@ -35,10 +36,22 @@ const STATIC_INVESTOR_SIGNALS = [
   { investor: 'Benchmark',         signal: 5.4, delta: '0.0',  god: 55, vcp: 62, blocks: 2, sectors: ['AI/ML'] },
 ];
 
-function Counter({ target, duration = 2000 }: { target: number; duration?: number }) {
+function Counter({
+  target,
+  duration = 2000,
+  ready = true,
+}: {
+  target: number;
+  duration?: number;
+  ready?: boolean;
+}) {
   const [val, setVal] = useState(0);
   useEffect(() => {
-    if (target === 0) return;
+    if (!ready) return;
+    if (target === 0) {
+      setVal(0);
+      return;
+    }
     const start = Date.now();
     const tick = () => {
       const elapsed = Date.now() - start;
@@ -49,8 +62,9 @@ function Counter({ target, duration = 2000 }: { target: number; duration?: numbe
     };
     const raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return <>{val > 0 ? val.toLocaleString() : '…'}</>;
+  }, [target, duration, ready]);
+  if (!ready) return <>…</>;
+  return <>{val.toLocaleString()}</>;
 }
 
 export default function PythhAnalyzeEntryHero() {
@@ -62,6 +76,7 @@ export default function PythhAnalyzeEntryHero() {
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
+  const [statsReady, setStatsReady] = useState(false);
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
 
   const navigate = useNavigate();
@@ -72,19 +87,17 @@ export default function PythhAnalyzeEntryHero() {
   useEffect(() => { refreshProfile(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await supabase.rpc('get_platform_stats');
-        const p = res.data || { startups: 0, investors: 0, matches: 0 };
-        setStats({
-          startups: p.startups || 0,
-          investors: p.investors || 0,
-          matches: p.matches || 0,
-        });
-      } catch {}
+    async function load() {
+      const p = await fetchPlatformStats();
+      setStats(p);
+      setStatsReady(true);
     }
-    fetchStats();
-    const interval = setInterval(fetchStats, 60000);
+    load();
+    const interval = setInterval(async () => {
+      const p = await fetchPlatformStats();
+      setStats(p);
+      setStatsReady(true);
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -329,7 +342,7 @@ export default function PythhAnalyzeEntryHero() {
                 ].map(({ n, label }) => (
                   <div key={label} className="flex items-baseline gap-1.5">
                     <span className="pythh-score-number text-[0.9375rem] text-[#e2e8f0]">
-                      <Counter target={n} />
+                      <Counter target={n} ready={statsReady} />
                     </span>
                     <span className="font-[family-name:Inter] text-[0.75rem]" style={{ color: '#2e3d4a' }}>
                       {label}

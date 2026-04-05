@@ -15,6 +15,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Zap, RefreshCw, Search } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { fetchPlatformStats } from "../lib/platformStats";
 import DataCompletenessBadge from "./DataCompletenessBadge";
 import FundingCountdown from "./FundingCountdown";
 import { useFundingPrediction } from "../hooks/useFundingPrediction";
@@ -150,7 +151,7 @@ export default function MatchingEngine() {
       const iIds = [...new Set(unique.map((m) => m.investor_id).filter(Boolean))];
 
       // Parallelize ALL remaining queries: startup details, investor details, AND fast stats RPC
-      const [sRes, iRes, platformRes] = await Promise.all([
+      const [sRes, iRes, platformCounts] = await Promise.all([
         supabase
           .from("startup_uploads")
           .select("id, name, tagline, sectors, stage, total_god_score, website, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit")
@@ -159,7 +160,7 @@ export default function MatchingEngine() {
           .from("investors")
           .select("id, name, firm, sectors, stage, check_size_min, check_size_max, type")
           .in("id", iIds),
-        supabase.rpc("get_platform_stats"),
+        fetchPlatformStats(),
       ]);
 
       const sMap = new Map((sRes.data || []).map((s: any) => [s.id, s]));
@@ -185,7 +186,7 @@ export default function MatchingEngine() {
       }
 
       setMatches(rows);
-      const p = platformRes.data || { startups: 0, investors: 0, matches: 0 };
+      const p = platformCounts;
       setStats({
         total: p.matches || 0,
         startups: p.startups || 0,

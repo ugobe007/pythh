@@ -7,6 +7,14 @@
 
 import { supabase } from '../lib/supabase';
 
+/** All columns used by Explore + signal badges */
+const FULL_SELECT =
+  'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit';
+
+/** If a migration is missing optional columns, retry with this subset */
+const CORE_SELECT =
+  'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score';
+
 export interface StartupSearchFilters {
   query?: string;
   sectors?: string[];
@@ -66,39 +74,42 @@ export async function searchStartups(filters: StartupSearchFilters): Promise<{
     limit = 50,
   } = filters;
 
-  let qb = supabase
-    .from('startup_uploads')
-    .select(
-      'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit',
-      { count: 'exact' }
-    )
-    .eq('status', 'approved')
-    .not('total_god_score', 'is', null);
+  const run = async (selectList: string) => {
+    let qb = supabase
+      .from('startup_uploads')
+      .select(selectList, { count: 'exact' })
+      .eq('status', 'approved')
+      .not('total_god_score', 'is', null);
 
-  // Text search across name, tagline, description
-  if (query.trim()) {
-    const q = query.trim();
-    qb = qb.or(`name.ilike.%${q}%,tagline.ilike.%${q}%,description.ilike.%${q}%`);
+    if (query.trim()) {
+      const q = query.trim();
+      qb = qb.or(`name.ilike.%${q}%,tagline.ilike.%${q}%,description.ilike.%${q}%`);
+    }
+
+    if (sectors.length > 0) {
+      qb = qb.overlaps('sectors', sectors);
+    }
+
+    if (stage && STAGE_MAP[stage] !== undefined) {
+      qb = qb.eq('stage', STAGE_MAP[stage]);
+    }
+
+    const ascending = sortBy === 'name';
+    qb = qb.order(sortBy, { ascending });
+
+    qb = qb.limit(limit);
+    return qb;
+  };
+
+  let { data, count, error } = await run(FULL_SELECT);
+
+  if (error) {
+    console.warn('[startupSearchService] Full column select failed, retrying core columns:', error.message);
+    const second = await run(CORE_SELECT);
+    data = second.data;
+    count = second.count;
+    error = second.error;
   }
-
-  // Sector filter — overlaps for array column
-  if (sectors.length > 0) {
-    qb = qb.overlaps('sectors', sectors);
-  }
-
-  // Stage filter
-  if (stage && STAGE_MAP[stage] !== undefined) {
-    qb = qb.eq('stage', STAGE_MAP[stage]);
-  }
-
-  // Sort
-  const ascending = sortBy === 'name';
-  qb = qb.order(sortBy, { ascending });
-
-  // Limit
-  qb = qb.limit(limit);
-
-  const { data, count, error } = await qb;
 
   if (error) {
     console.error('[startupSearchService] Search error:', error);
