@@ -7,7 +7,7 @@
 //   1. All values pre-computed in view model
 //   2. Row height is 64px
 //   3. Glow-only decoration (no borders)
-//   4. Click → Navigate to /signal-matches?startup=<id>
+//   4. Click → Navigate to /submit?startup=<id> (readiness report)
 // ============================================================================
 
 import { useNavigate } from 'react-router-dom';
