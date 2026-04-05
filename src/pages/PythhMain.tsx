@@ -10,11 +10,11 @@
  *   1. Hero      — “What you get” (3 steps + outline CTA); full analyze UI on /signal-matches
  *   2. Signals   — investor table with sector chip filters
  *   3. Explained — signal explainer strip
- *   4. Heat      — sector heat cards + daily signal
- *   5. Footer    — newsletter + links
+ *   4. Digest    — Daily Signal teaser (NewsletterWidget)
+ *   5. Footer    — links
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
@@ -25,9 +25,6 @@ import NewsletterWidget     from '../components/NewsletterWidget';
 import { GODScoreExplainer } from '../components/pythh/GODScoreExplainer';
 import PythhSignalExplained from '../components/pythh/PythhSignalExplained';
 import PythhWhatYouGet      from '../components/pythh/PythhWhatYouGet';
-import PythhWordmark        from '../components/PythhWordmark';
-import { HotMatchLogo }     from '../components/FlameIcon';
-
 import { supabase }                               from '../lib/supabase';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,20 +43,6 @@ const STATIC_INVESTOR_SIGNALS = [
 ];
 
 const SECTOR_CHIPS = ['All', 'AI/ML', 'SaaS', 'FinTech', 'BioTech', 'SpaceTech', 'DeepTech', 'Climate'];
-
-// 6-sector heat with static fallback — live DB data overrides first 3 (AI/ML omitted by design)
-const STATIC_SECTOR_HEAT = [
-  { name: 'Gaming',    signal: 8.2, delta: 0.2,  vcCount: 12, emoji: '🎮' },
-  { name: 'FinTech',   signal: 7.9, delta: -0.1, vcCount: 9,  emoji: '⚡' },
-  { name: 'BioTech',   signal: 7.3, delta: 0.2,  vcCount: 6,  emoji: '🧬' },
-  { name: 'SpaceTech', signal: 6.8, delta: 0.5,  vcCount: 4,  emoji: '🚀' },
-  { name: 'Robotics',  signal: 6.5, delta: -0.3, vcCount: 7,  emoji: '🤖' },
-  { name: 'Climate',   signal: 6.1, delta: 0.1,  vcCount: 5,  emoji: '🌱' },
-];
-
-function isAiMlSector(name: string) {
-  return /^ai\s*\/?\s*ml$/i.test(name.trim());
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER COMPONENTS
@@ -83,34 +66,9 @@ function ScoreBlocks({ count, total = 5 }: { count: number; total?: number }) {
 export default function PythhHome() {
   // ── UI state ──────────────────────────────────────────────────────────────
   const [activeSector, setActiveSector] = useState('All');
-  // Default true so Sector Heat + Daily Signal (wordmark, flame) aren’t stuck at opacity 0
-  // before the intersection observer fires; observer still sets true when section is seen.
-  const [heatVisible, setHeatVisible]   = useState(true);
-  const [barWidths, setBarWidths]       = useState<number[]>(STATIC_SECTOR_HEAT.map(() => 0));
-  const heatRef = useRef<HTMLDivElement>(null);
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [investorSignals, setInvestorSignals] = useState(STATIC_INVESTOR_SIGNALS);
-  const [sectorHeatLive, setSectorHeatLive]   = useState<Array<{ sector: string; startup_count: number; avg_god: number }>>([]);
-  // ── Sector heat scroll trigger ────────────────────────────────────────────
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setHeatVisible(true); },
-      { threshold: 0.1 }
-    );
-    if (heatRef.current) observer.observe(heatRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!heatVisible) return;
-    const timers = STATIC_SECTOR_HEAT.map((s, i) =>
-      setTimeout(() => {
-        setBarWidths(prev => { const n = [...prev]; n[i] = s.signal * 10; return n; });
-      }, i * 80 + 150)
-    );
-    return () => timers.forEach(clearTimeout);
-  }, [heatVisible]);
 
   // ── Live investor signals ─────────────────────────────────────────────────
   useEffect(() => {
@@ -156,47 +114,6 @@ export default function PythhHome() {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
-  // ── Sector heat (live from DB) ────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchSectorHeat() {
-      try {
-        const { data } = await supabase.rpc('get_sector_heat', { p_limit: 3 });
-        if (data && Array.isArray(data) && data.length >= 3 && !cancelled) setSectorHeatLive(data);
-      } catch {}
-    }
-    fetchSectorHeat();
-    return () => { cancelled = true; };
-  }, []);
-
-  // ── Computed: 6-sector heat merging live + static ─────────────────────────
-  const sectorHeat = useMemo(() => {
-    const EMOJIS: Record<string, string> = {
-      'AI/ML': '🔥', Fintech: '⚡', 'Climate Tech': '🌱',
-      'Developer Tools': '🛠️', SaaS: '☁️', Healthcare: '🧬',
-      Gaming: '🎮', BioTech: '🧬',
-    };
-    const toSignal = (god: number) =>
-      Math.min(9.9, +((Math.max(35, god) - 35) / 65 * 4.0 + 5.5).toFixed(1));
-
-    const liveCandidates = sectorHeatLive.filter(s => !isAiMlSector(s.sector));
-    const liveSlice =
-      sectorHeatLive.length >= 3 && liveCandidates.length >= 3
-        ? liveCandidates.slice(0, 3).map(s => ({
-            name:    s.sector,
-            signal:  toSignal(s.avg_god),
-            delta:   +((s.avg_god - 50) / 125).toFixed(1),
-            vcCount: Math.max(1, Math.round(s.startup_count / 60)),
-            emoji:   EMOJIS[s.sector] ?? '📊',
-          }))
-        : STATIC_SECTOR_HEAT.slice(0, 3);
-
-    // Fill remaining slots from static list (different sectors from live)
-    const liveNames = new Set(liveSlice.map(s => s.name.toLowerCase()));
-    const remaining = STATIC_SECTOR_HEAT.filter(s => !liveNames.has(s.name.toLowerCase())).slice(0, 3);
-    return [...liveSlice, ...remaining].filter(s => !isAiMlSector(s.name)).slice(0, 6);
-  }, [sectorHeatLive]);
-
   // ── Filtered investor table ───────────────────────────────────────────────
   const filteredInvestors = useMemo(() => {
     if (activeSector === 'All') return investorSignals;
@@ -207,8 +124,6 @@ export default function PythhHome() {
 
   const deltaColor = (d: string) =>
     d.startsWith('+') ? '#10b981' : d.startsWith('-') ? '#ef4444' : '#2e3d4a';
-
-  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -380,161 +295,7 @@ export default function PythhHome() {
       <PythhSignalExplained />
 
       {/* ══════════════════════════════════════════════════════════════════════
-          4. SECTOR HEAT
-          ══════════════════════════════════════════════════════════════════════ */}
-      <section ref={heatRef} style={{ background: '#0b0e13', padding: '2.5rem 0 3rem' }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 2rem' }}>
-
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={heatVisible ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5 }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}
-          >
-            <span className="pythh-label-caps">Sector Heat</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="pythh-live-dot" />
-              <span className="pythh-label-caps" style={{ color: '#22c55e' }}>live</span>
-            </div>
-          </motion.div>
-
-          {/* 6-card grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 10, marginBottom: 16 }}>
-            {sectorHeat.map((sector, i) => {
-              const isPos = sector.delta > 0;
-              return (
-                <motion.div
-                  key={sector.name}
-                  className="pythh-heat-card"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={heatVisible ? { opacity: 1, y: 0 } : {}}
-                  transition={{ duration: 0.45, delay: i * 0.08 }}
-                  style={{ padding: '0.65rem 0.75rem' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span className="pythh-score-number" style={{ fontSize: '0.62rem', letterSpacing: '0.08em', color: '#52616e', textTransform: 'uppercase' }}>
-                      {sector.name}
-                    </span>
-                    <span className="pythh-score-number" style={{ fontSize: '0.72rem', color: isPos ? '#10b981' : '#ef4444' }}>
-                      {isPos ? '+' : ''}{sector.delta.toFixed(1)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span className="pythh-score-number pythh-amber-glow" style={{ fontSize: '1.65rem', fontWeight: 600, color: '#f59e0b', lineHeight: 1 }}>
-                      {sector.signal.toFixed(1)}
-                    </span>
-                    <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{sector.emoji}</span>
-                  </div>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.65rem', color: '#2e3d4a', marginBottom: '0.55rem' }}>
-                    {sector.vcCount} VCs active
-                  </p>
-                  <div className="pythh-signal-bar-bg">
-                    <div className="pythh-signal-bar" style={{ width: `${barWidths[i] ?? 0}%` }} />
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* VC lens CTA */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 48 }}>
-            <Link
-              to="/rankings"
-              className="pythh-btn-ghost inline-flex items-center gap-2 py-1 no-underline hover:underline underline-offset-4 decoration-white/20"
-            >
-              See full rankings by VC lens (Sequoia · a16z · YC · Founders Fund)
-              <ArrowRight size={13} className="opacity-70" />
-            </Link>
-          </div>
-
-          {/* Daily Signal card */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={heatVisible ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            style={{
-              marginTop: 8,
-              paddingTop: 28,
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              marginBottom: 28,
-              gap: 16,
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                  <span className="pythh-live-dot" />
-                  <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: '0.9375rem', color: '#e2e8f0' }}>
-                    The Daily Signal
-                  </span>
-                  <span className="pythh-score-number" style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                    — {today}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <PythhWordmark size="sm" />
-                  <span
-                    className="pythh-label-caps"
-                    style={{ color: '#64748b', letterSpacing: '0.14em', fontSize: '0.65rem' }}
-                  >
-                    favorite picks
-                  </span>
-                </div>
-              </div>
-              <Link
-                to="/newsletter"
-                className="inline-flex items-center gap-1.5 shrink-0 text-sm font-semibold text-emerald-400/95 hover:text-emerald-300 transition-colors no-underline hover:underline underline-offset-4 decoration-emerald-500/30"
-              >
-                Read full digest <ArrowRight size={13} />
-              </Link>
-            </div>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '1.5rem 2rem',
-                maxWidth: 720,
-              }}
-            >
-              {[
-                { flame: true as const, label: 'Hot Matches', title: 'Top startup × investor matches', sub: 'Updated weekly' },
-                {
-                  icon: '📊',
-                  label: 'Hottest Sector',
-                  title: sectorHeat[0]?.name ?? 'Gaming',
-                  sub: `Signal ${sectorHeat[0]?.signal?.toFixed(1) ?? '—'} · ${sectorHeat[0]?.vcCount ?? '—'} VCs active`,
-                },
-              ].map(item => (
-                <div key={item.label}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                    {'flame' in item && item.flame ? (
-                      <HotMatchLogo size="sm" className="flex-shrink-0" />
-                    ) : (
-                      <span style={{ fontSize: '0.875rem', opacity: 0.85 }}>{'icon' in item ? item.icon : ''}</span>
-                    )}
-                    <span className="pythh-label-caps">{item.label}</span>
-                  </div>
-                  <p style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: '0.9375rem', color: '#e2e8f0', marginBottom: 6, lineHeight: 1.35 }}>
-                    {item.title}
-                  </p>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.72rem', color: '#64748b' }}>
-                    {item.sub}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          5. NEWSLETTER + FOOTER
+          4. DAILY SIGNAL (single teaser — API-backed)
           ══════════════════════════════════════════════════════════════════════ */}
       <NewsletterWidget />
 
