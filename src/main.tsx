@@ -23,6 +23,10 @@ try {
       </HelmetProvider>
     );
     setBootText('Running…');
+    // Hide boot overlay even if the inline index.html interval misses (e.g. concurrent / strict mode).
+    queueMicrotask(() => {
+      document.getElementById('boot-indicator')?.style.setProperty('display', 'none');
+    });
   }
 } catch (e) {
   fatalBoot('render', e);

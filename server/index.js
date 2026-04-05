@@ -45,8 +45,23 @@ app.get('/ping', (req, res) => res.status(200).json({ ok: true, ts: new Date().t
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
   app.use('/assets', express.static(path.join(distPath, 'assets'), { immutable: true, maxAge: '1y' }));
-  app.use(express.static(distPath, { maxAge: '0' }));
+  app.use(
+    express.static(distPath, {
+      maxAge: '0',
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      },
+    })
+  );
   app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$).*/, (req, res) => {
+    // Never cache HTML: stale index.html keeps old hashed chunk names → wrong boot flow / blank app.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

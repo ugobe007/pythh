@@ -115,10 +115,7 @@ if (typeof window !== 'undefined') {
       // eslint-disable-next-line no-console
       console.info('[api] API base →', base || '(empty)', '| example →', apiUrl('/api/health'));
     } else if (import.meta.env.PROD && !base) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[api] VITE_API_URL is unset — /api requests use the current origin. For static hosting without a Node /api route, set VITE_API_URL at build time to your API origin.'
-      );
+      // Same-origin /api is normal when the SPA and Express share one host (e.g. Fly). No warning.
     }
   });
 }
