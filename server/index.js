@@ -48,6 +48,9 @@ if (fs.existsSync(distPath)) {
   app.use(
     express.static(distPath, {
       maxAge: '0',
+      // Safari often serves stale HTML when ETag/Last-Modified revalidation pairs badly with SPAs.
+      etag: false,
+      lastModified: false,
       setHeaders(res, filePath) {
         if (filePath.endsWith('index.html')) {
           res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -57,12 +60,18 @@ if (fs.existsSync(distPath)) {
       },
     })
   );
+  const indexAbs = path.join(distPath, 'index.html');
+  const indexSendOpts = {
+    etag: false,
+    lastModified: false,
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
+  };
   app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$).*/, (req, res) => {
-    // Never cache HTML: stale index.html keeps old hashed chunk names → wrong boot flow / blank app.
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.sendFile(path.join(distPath, 'index.html'));
+    res.sendFile(indexAbs, indexSendOpts);
   });
 }
 app.listen(PORT, '0.0.0.0', () => {

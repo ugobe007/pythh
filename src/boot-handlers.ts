@@ -58,4 +58,11 @@ window.addEventListener('unhandledrejection', (e) => {
   }
 });
 
+// Safari / WebKit: restored from back-forward cache can replay an old bundle snapshot.
+window.addEventListener('pageshow', (e: PageTransitionEvent) => {
+  if (e.persisted) {
+    window.location.reload();
+  }
+});
+
 setBootText('Loading… (app)');
