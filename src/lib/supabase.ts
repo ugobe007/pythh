@@ -7,11 +7,26 @@ import { createClient } from "@supabase/supabase-js";
 
 const isServer = typeof window === "undefined";
 
-// Browser: Vite statically replaces import.meta.env.VITE_* at build time.
-// Server/Node: process.env is used directly (scripts, GitHub Actions).
+/** Set by server/index.js in injected <script> before the app bundle loads (production Fly/runtime env). */
+function browserSupabaseUrl(): string {
+  const r = typeof window !== "undefined" ? window.__PYTHH_RUNTIME__ : undefined;
+  const fromHost = r?.supabaseUrl?.trim();
+  if (fromHost) return fromHost;
+  return (import.meta.env.VITE_SUPABASE_URL as string) || "";
+}
+
+function browserSupabaseAnonKey(): string {
+  const r = typeof window !== "undefined" ? window.__PYTHH_RUNTIME__ : undefined;
+  const fromHost = r?.supabaseAnonKey?.trim();
+  if (fromHost) return fromHost;
+  return (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || "";
+}
+
+// Browser: prefer window.__PYTHH_RUNTIME__ (injected HTML), then Vite build-time env.
+// Server/Node: process.env (scripts, GitHub Actions, Fly).
 const supabaseUrl: string = isServer
   ? (typeof process !== "undefined" ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "" : "")
-  : (import.meta.env.VITE_SUPABASE_URL || "");
+  : browserSupabaseUrl();
 
 const supabaseKey: string = isServer
   ? (typeof process !== "undefined"
@@ -21,7 +36,7 @@ const supabaseKey: string = isServer
         process.env.SUPABASE_ANON_KEY ||
         ""
       : "")
-  : (import.meta.env.VITE_SUPABASE_ANON_KEY || "");
+  : browserSupabaseAnonKey();
 
 // Track if credentials are missing (for error display)
 export const hasValidSupabaseCredentials = !!(supabaseUrl && supabaseKey);

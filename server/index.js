@@ -47,6 +47,8 @@ if (fs.existsSync(distPath)) {
   app.use('/assets', express.static(path.join(distPath, 'assets'), { immutable: true, maxAge: '1y' }));
   app.use(
     express.static(distPath, {
+      // Do not auto-serve index.html for "/" — we inject runtime Supabase config into HTML first.
+      index: false,
       maxAge: '0',
       // Safari often serves stale HTML when ETag/Last-Modified revalidation pairs badly with SPAs.
       etag: false,
@@ -61,17 +63,38 @@ if (fs.existsSync(distPath)) {
     })
   );
   const indexAbs = path.join(distPath, 'index.html');
-  const indexSendOpts = {
-    etag: false,
-    lastModified: false,
-    headers: {
+  /** Disk template cached once; runtime Supabase keys injected per request from process.env (Fly secrets). */
+  let spaIndexDiskTemplate = null;
+  function getSpaIndexHtml() {
+    try {
+      if (!spaIndexDiskTemplate) {
+        spaIndexDiskTemplate = fs.readFileSync(indexAbs, 'utf8');
+      }
+      let html = spaIndexDiskTemplate;
+      const url = String(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+      const anon = String(
+        process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
+      ).trim();
+      if (url && anon) {
+        const payload = JSON.stringify({ supabaseUrl: url, supabaseAnonKey: anon });
+        const inject = `<script>window.__PYTHH_RUNTIME__=${payload};<\/script>`;
+        html = html.includes('</head>')
+          ? html.replace('</head>', `${inject}</head>`)
+          : inject + html;
+      }
+      return html;
+    } catch (e) {
+      console.error('[pythh] Failed to read index.html for SPA:', e.message);
+      return '<!DOCTYPE html><html><body>App shell missing</body></html>';
+    }
+  }
+  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$).*/, (req, res) => {
+    res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       Pragma: 'no-cache',
       Expires: '0',
-    },
-  };
-  app.get(/^(?!\/api\/)(?!\/uploads\/)(?!\/assets\/)(?!\/ping$).*/, (req, res) => {
-    res.sendFile(indexAbs, indexSendOpts);
+    });
+    res.type('html').send(getSpaIndexHtml());
   });
 }
 app.listen(PORT, '0.0.0.0', () => {
