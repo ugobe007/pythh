@@ -5,6 +5,7 @@
  */
 
 import { Link } from 'react-router-dom';
+import { stripHtmlForDisplay } from '@/lib/stripHtml';
 import {
   Flame,
   ChevronRight,
@@ -370,7 +371,7 @@ export default function InvestorReadinessReport({
 
         {startup.description && (
           <p className="text-sm text-zinc-400 leading-relaxed mt-4 border-t border-white/[0.06] pt-4">
-            {startup.description}
+            {stripHtmlForDisplay(startup.description)}
           </p>
         )}
         <p className="text-[11px] text-zinc-600 mt-3 leading-snug border-t border-white/[0.06] pt-3">

@@ -1,7 +1,7 @@
 /**
  * Phase A Router (IA locked - Feb 2026)
  *
- * CANONICAL SUBMISSION: /signal-matches?url=...
+ * URL submit resolves on /signal-matches?url= then redirects to /submit?startup= (readiness report).
  * Every URL input bar in the app navigates here. The unified submitStartup()
  * service (src/services/submitStartup.ts) handles resolution + creation + matching.
  *
@@ -13,7 +13,8 @@
  * - /pricing           PricingPage (conversion)
  * - /about             AboutPage
  * - /support           SupportPage
- * - /signal-matches    URL submission results (THE canonical submit surface)
+ * - /submit?startup=   Investor readiness report (bookmarkable; primary post-submit landing)
+ * - /signal-matches    Live match dashboard (?url= resolves startup then redirects to /submit)
  *
  * Redirects → /platform:
  * - /signals, /matches, /how-it-works, /signals-significance, /engine
@@ -62,7 +63,7 @@ import SignalMatches from "./pages/SignalMatches";
 
 function StartupIdRedirect() {
   const { startupId } = useParams<{ startupId: string }>();
-  return <Navigate to={`/signal-matches?startup=${startupId}`} replace />;
+  return <Navigate to={`/submit?startup=${startupId}`} replace />;
 }
 
 const RouteFallback = () => (

@@ -143,10 +143,8 @@ export default function SignalMatches() {
         if (result.startup_id) {
           setSubmitPhase('done');
 
-          navigate(
-            `/signal-matches?startup=${encodeURIComponent(result.startup_id)}&url=${encodeURIComponent(urlToResolve)}`,
-            { replace: true }
-          );
+          // Readiness report (/submit) is the founder-facing default; full live dashboard is linked from the report.
+          navigate(`/submit?startup=${encodeURIComponent(result.startup_id)}`, { replace: true });
           return;
         }
 

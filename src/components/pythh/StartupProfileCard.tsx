@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react';
 import type { StartupContext } from '@/lib/pythh-types';
 import { GODScoreExplainer } from './GODScoreExplainer';
 import { MaturityStrip } from './MaturityStrip';
+import { stripHtmlForDisplay } from '@/lib/stripHtml';
 
 // Stage label mapping
 const STAGE_LABELS: Record<number, string> = {
@@ -359,7 +360,7 @@ export default function StartupProfileCard({
           {(businessSummary || fallbackSummary) && (
             <div className="bg-zinc-800/30 rounded-lg p-2.5">
               <p className="text-sm text-zinc-300 leading-relaxed line-clamp-2">
-                {businessSummary || fallbackSummary}
+                {stripHtmlForDisplay(businessSummary || fallbackSummary || '')}
               </p>
               {!businessSummary && fallbackSummary && (
                 <p className="text-[10px] text-zinc-500 mt-1 italic">

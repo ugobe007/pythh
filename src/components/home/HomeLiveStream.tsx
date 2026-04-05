@@ -112,7 +112,7 @@ export function HomeLiveStream({
           row={row}
           onNavigate={(type, id) => {
             if (type === 'startup') {
-              navigate(`/signal-matches?startup=${id}`);
+              navigate(`/submit?startup=${id}`);
             } else {
               navigate(`/signal-matches?investor=${id}`);
             }

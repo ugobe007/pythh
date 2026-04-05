@@ -628,5 +628,5 @@ export function matchesPath(startupIdOrUrl: string, isUrl = false): string {
     return `/signal-matches?url=${encodeURIComponent(startupIdOrUrl)}`;
   }
 
-  return `/signal-matches?startup=${encodeURIComponent(startupIdOrUrl)}`;
+  return `/submit?startup=${encodeURIComponent(startupIdOrUrl)}`;
 }

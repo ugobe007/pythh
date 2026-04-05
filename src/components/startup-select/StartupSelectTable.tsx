@@ -57,7 +57,7 @@ export function StartupSelectTable({
   const navigate = useNavigate();
 
   const handleEnter = (startupId: string) => {
-    navigate(`/signal-matches?startup=${startupId}`);
+    navigate(`/submit?startup=${startupId}`);
   };
 
   if (loading && rows.length === 0) {
