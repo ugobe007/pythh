@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 # Prevent concurrent golden set tests - wait for in-progress to complete
 concurrency:
@@ -12,6 +13,8 @@ concurrency:
 
 jobs:
   golden:
+    # Fork PRs have no repo secrets — skip instead of failing every check
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -20,11 +23,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - run: npm ci
 
+      # Match Fly Deploy secret names: VITE_* or SUPABASE_* (see fly-deploy.yml)
+      - name: Verify Supabase secrets present
+        run: |
+          URL="${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}"
+          KEY="${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "❌ Set VITE_SUPABASE_URL or SUPABASE_URL, and SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY)."
+            exit 1
+          fi
+          echo "✅ Supabase URL and service role secret are set."
+
       - name: Run GOD golden set
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/test-god-golden.js
