@@ -57,6 +57,8 @@ type QueuedEvent = {
 const eventQueue: QueuedEvent[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | null = null;
 let isFlushing = false;
+/** After a 404 on /api/analytics/flush (static hosting), stop requesting to avoid noisy console. */
+let analyticsFlushEndpointMissing = false;
 
 // Throttle state - prevent same event firing twice in 10s
 const lastEventTimes: Map<EventName, number> = new Map();
@@ -154,6 +156,11 @@ async function flushEvents(): Promise<void> {
     return;
   }
 
+  if (analyticsFlushEndpointMissing) {
+    eventQueue.length = 0;
+    return;
+  }
+
   if (isFlushing) return;
   isFlushing = true;
 
@@ -193,6 +200,7 @@ async function flushEvents(): Promise<void> {
           apiRouteOutcome = 'ok';
         } else if (res.status === 404 || res.status === 502) {
           apiRouteOutcome = 'missing';
+          analyticsFlushEndpointMissing = true;
         } else {
           apiRouteOutcome = 'other';
         }

@@ -17,6 +17,7 @@
  */
 
 require('dotenv').config();
+const { getResolved: getInferenceConfig } = require('../lib/inferencePipelineConfig');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData } = require('../lib/inference-extractor');
@@ -73,7 +74,12 @@ async function retryEnrichment(startup) {
 
   // News fallback if HTML was empty
   if (!foundNewData && isDataSparse({ extracted_data: inferenceData })) {
-    const newsResult = await quickEnrich(startup.name, inferenceData, startup.website || null, 5000);
+    const newsResult = await quickEnrich(
+      startup.name,
+      inferenceData,
+      startup.website || null,
+      getInferenceConfig().SPARSE_ENRICH_NEWS_TIMEOUT_MS,
+    );
     if (newsResult.enrichmentCount > 0) {
       inferenceData = { ...inferenceData, ...newsResult.enrichedData };
       foundNewData = true;

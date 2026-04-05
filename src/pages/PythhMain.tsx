@@ -47,15 +47,19 @@ const STATIC_INVESTOR_SIGNALS = [
 
 const SECTOR_CHIPS = ['All', 'AI/ML', 'SaaS', 'FinTech', 'BioTech', 'SpaceTech', 'DeepTech', 'Climate'];
 
-// 6-sector heat with static fallback — live DB data overrides first 3
+// 6-sector heat with static fallback — live DB data overrides first 3 (AI/ML omitted by design)
 const STATIC_SECTOR_HEAT = [
-  { name: 'AI / ML',   signal: 8.4, delta: 0.3,  vcCount: 14, emoji: '🔥' },
+  { name: 'Gaming',    signal: 8.2, delta: 0.2,  vcCount: 12, emoji: '🎮' },
   { name: 'FinTech',   signal: 7.9, delta: -0.1, vcCount: 9,  emoji: '⚡' },
   { name: 'BioTech',   signal: 7.3, delta: 0.2,  vcCount: 6,  emoji: '🧬' },
   { name: 'SpaceTech', signal: 6.8, delta: 0.5,  vcCount: 4,  emoji: '🚀' },
   { name: 'Robotics',  signal: 6.5, delta: -0.3, vcCount: 7,  emoji: '🤖' },
   { name: 'Climate',   signal: 6.1, delta: 0.1,  vcCount: 5,  emoji: '🌱' },
 ];
+
+function isAiMlSector(name: string) {
+  return /^ai\s*\/?\s*ml$/i.test(name.trim());
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPER COMPONENTS
@@ -175,20 +179,22 @@ export default function PythhHome() {
     const toSignal = (god: number) =>
       Math.min(9.9, +((Math.max(35, god) - 35) / 65 * 4.0 + 5.5).toFixed(1));
 
-    const liveSlice = sectorHeatLive.length >= 3
-      ? sectorHeatLive.slice(0, 3).map(s => ({
-          name:    s.sector,
-          signal:  toSignal(s.avg_god),
-          delta:   +((s.avg_god - 50) / 125).toFixed(1),
-          vcCount: Math.max(1, Math.round(s.startup_count / 60)),
-          emoji:   EMOJIS[s.sector] ?? '📊',
-        }))
-      : STATIC_SECTOR_HEAT.slice(0, 3);
+    const liveCandidates = sectorHeatLive.filter(s => !isAiMlSector(s.sector));
+    const liveSlice =
+      sectorHeatLive.length >= 3 && liveCandidates.length >= 3
+        ? liveCandidates.slice(0, 3).map(s => ({
+            name:    s.sector,
+            signal:  toSignal(s.avg_god),
+            delta:   +((s.avg_god - 50) / 125).toFixed(1),
+            vcCount: Math.max(1, Math.round(s.startup_count / 60)),
+            emoji:   EMOJIS[s.sector] ?? '📊',
+          }))
+        : STATIC_SECTOR_HEAT.slice(0, 3);
 
     // Fill remaining slots from static list (different sectors from live)
     const liveNames = new Set(liveSlice.map(s => s.name.toLowerCase()));
     const remaining = STATIC_SECTOR_HEAT.filter(s => !liveNames.has(s.name.toLowerCase())).slice(0, 3);
-    return [...liveSlice, ...remaining].slice(0, 6);
+    return [...liveSlice, ...remaining].filter(s => !isAiMlSector(s.name)).slice(0, 6);
   }, [sectorHeatLive]);
 
   // ── Filtered investor table ───────────────────────────────────────────────
@@ -491,14 +497,19 @@ export default function PythhHome() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                 gap: '1.5rem 2rem',
+                maxWidth: 720,
               }}
             >
               {[
-                { flame: true as const, label: 'Hot Matches',    title: 'Top startup × investor matches', sub: 'Updated weekly' },
-                { icon: '⚡', label: '#1 This Week',   title: sectorHeat[0]?.name ?? 'AI / ML',  sub: `${sectorHeat[0]?.vcCount ?? 14} VCs active` },
-                { icon: '📊', label: 'Hottest Sector', title: sectorHeat[0]?.name ?? 'AI / ML',  sub: `Signal ${sectorHeat[0]?.signal?.toFixed(1) ?? '8.4'}` },
+                { flame: true as const, label: 'Hot Matches', title: 'Top startup × investor matches', sub: 'Updated weekly' },
+                {
+                  icon: '📊',
+                  label: 'Hottest Sector',
+                  title: sectorHeat[0]?.name ?? 'Gaming',
+                  sub: `Signal ${sectorHeat[0]?.signal?.toFixed(1) ?? '—'} · ${sectorHeat[0]?.vcCount ?? '—'} VCs active`,
+                },
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>

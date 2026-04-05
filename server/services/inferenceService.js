@@ -16,6 +16,9 @@ const {
 } = require('../../lib/inference-extractor');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { detectSignals } = require('./signalDetector');
+const { extractOntologyFromNewsText } = require('../../lib/ontologyNewsInference');
+const { dedupeAndRankArticles } = require('../../lib/articleDedupe');
+const { getResolved: getInferenceConfig } = require('../../lib/inferencePipelineConfig');
 
 // Google News RSS often needs >4s; short timeouts yield 0 articles everywhere.
 const parser = new Parser({
@@ -80,11 +83,48 @@ function normalizeNameForSearch(name) {
  */
 function normalizeNameForMatch(name) {
   const legalSuffixes = /\b(inc\.?|llc\.?|corp\.?|ltd\.?|co\.?|limited|incorporated|technologies|technology|solutions|labs?|group|ventures?|capital|systems?|networks?|platform|platforms?|software|services?)\b\.?$/gi;
-  const full = name.trim().replace(legalSuffixes, '').trim().toLowerCase();
+  let full = name.trim().replace(legalSuffixes, '').trim().toLowerCase();
+  // Match press copy that omits possessive ("Smith's" in DB vs "Smith raises" in article)
+  full = full.replace(/\u2019s$/i, '').replace(/'s$/i, '');
   // "short" = first two words (handles "Acme Technologies" → "Acme")
   const tokens = full.split(/\s+/).filter(Boolean);
   const short = tokens.slice(0, 2).join(' ');
   return { full, short };
+}
+
+/** Normalize curly apostrophes and strip trailing possessive for token matching */
+function stripTrailingPossessiveToken(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name.trim().replace(/\u2019|\u2018/g, "'").replace(/'s$/i, '').trim();
+}
+
+/**
+ * Surface forms of the same entity (DB may store "Acme's" or Unicode apostrophe; articles use "Acme").
+ * Used by narrative scoring and related filters.
+ */
+function inferenceNameMatchVariants(name) {
+  if (!name || typeof name !== 'string') return [''];
+  const t = name.trim();
+  if (!t) return [''];
+  const set = new Set();
+  const ascii = t.replace(/\u2019|\u2018/g, "'");
+  set.add(t);
+  if (ascii !== t) set.add(ascii);
+  const bare = stripTrailingPossessiveToken(ascii);
+  if (bare.length >= 2 && bare !== ascii) set.add(bare);
+  return [...set];
+}
+
+/**
+ * Best token for Google News / RSS queries after headline-fragment rules.
+ */
+function primarySearchToken(startupName) {
+  if (!startupName || typeof startupName !== 'string') return '';
+  const fromRules = normalizeNameForSearch(startupName);
+  if (fromRules) return fromRules;
+  const bare = stripTrailingPossessiveToken(startupName);
+  if (bare.length >= 4) return bare;
+  return startupName.trim();
 }
 
 /**
@@ -115,7 +155,7 @@ function normalizeNameForMatch(name) {
  * @param {string} startupName — company name to score
  * @returns {{ score: number, frames: string[] }}
  */
-function scoreNarrativeRole(text, startupName) {
+function scoreNarrativeRoleForVariant(text, startupName) {
   if (!text || !startupName) return { score: 0, frames: [] };
 
   const escaped = startupName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -127,18 +167,18 @@ function scoreNarrativeRole(text, startupName) {
   let score = 0.15; // base: name is present
 
   // ── SUBJECT frame ─────────────────────────────────────────────────────────
-  // "NAME <verb>" — name is the grammatical subject of an action
-  const SUBJECT_VERBS = /\b(?:raised?|closed?|secured?|announced?|launched?|released?|unveiled?|is|was|will|has|have|had|expands?|pivots?|acquires?|partners?|joins?|exits?|files?|goes?|lists?|shuts?|merged?|completed?|signed?|drops?|hired?|named?|appoints?|opens?|enters?|hits?|crosses?|reaches?)\b/i;
+  // "NAME <verb>" — name is the grammatical subject of an action (headlines use 3rd person: raises, lands, nets, …)
+  const SUBJECT_VERBS = /\b(?:raises?|raised|raising|closes?|closed|closing|secures?|secured|securing|announces?|announced|announcing|launches?|launched|launching|releases?|released|releasing|unveils?|unveiled|unveiling|debuts?|debuted|debuting|is|was|will|has|have|had|expands?|expanded|expanding|pivots?|pivoted|pivoting|acquires?|acquired|acquiring|partners?|partnered|partnering|joins?|joined|joining|exits?|exited|exiting|files?|filed|filing|goes|went|going|lists?|listed|listing|shuts?|shut|shutting|merges?|merged|merging|completes?|completed|completing|signed|signs|signing|drops?|dropped|dropping|hires?|hired|hiring|named|names|naming|appoints?|appointed|appointing|opens?|opened|opening|enters?|entered|entering|hits?|hit|hitting|crosses?|crossed|crossing|reaches?|reached|reaching|lands?|landed|landing|nets?|netted|netting|bags?|bagged|bagging|scores?|scored|scoring|snags?|snagged|snagging|pulls?|pulled|pulling|attracts?|attracted|attracting|receives?|received|receiving|garners?|garnered|garnering|rolls?|rolled|rolling|inks?|inked|inking|snaps?|snapped|snapping|scoops?|scooped|scooping)\b/i;
   if (new RegExp(`\\b${escaped}\\b\\s+` + SUBJECT_VERBS.source, 'i').test(text)) {
     frames.push('subject');
     score = Math.max(score, 0.90);
   }
 
   // ── POSSESSIVE frame ──────────────────────────────────────────────────────
-  // "at NAME", "from NAME", "invested in NAME", "NAME's ..."
+  // "at NAME", "from NAME", "invested in NAME", "NAME's ..." / Unicode apostrophe
   const POSSESSIVE_PRE = /\b(?:at|from|for|joining?|left|quit|building|built|working at|partnered with|invested in|backed by|funded by|acquired by|spun out of|coming from|coming to|heading to|headed to)\s+/i;
   if (new RegExp(POSSESSIVE_PRE.source + escaped, 'i').test(text) ||
-      new RegExp(`\\b${escaped}'s\\b`, 'i').test(text)) {
+      new RegExp(`\\b${escaped}['\u2019]s\\b`, 'i').test(text)) {
     frames.push('possessive');
     score = Math.max(score, 0.85);
   }
@@ -190,6 +230,20 @@ function scoreNarrativeRole(text, startupName) {
   }
 
   return { score: Math.min(score, 1), frames };
+}
+
+/**
+ * Score narrative match using all surface forms (possessive vs bare name, apostrophe variants).
+ */
+function scoreNarrativeRole(text, startupName) {
+  const variants = inferenceNameMatchVariants(startupName);
+  let best = { score: 0, frames: [] };
+  for (const v of variants) {
+    if (!v || v.length < 2) continue;
+    const r = scoreNarrativeRoleForVariant(text, v);
+    if (r.score > best.score) best = r;
+  }
+  return best;
 }
 
 /**
@@ -247,6 +301,35 @@ const FAST_SOURCES = {
   googleNews: (query) => `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`
 };
 
+/** Google News RSS often returns 503 when rate-limited; not an application/inference bug. */
+function isGoogleNews503Message(msg) {
+  return /\b503\b|status code 503/i.test(String(msg || ''));
+}
+
+// Cooldown after repeated 503s so batch jobs don't spend ~70s per startup retrying GN.
+let gn503FailStreak = 0;
+let gnPausedUntil = 0;
+
+function gnRecordGoogleNewsSuccess() {
+  gn503FailStreak = 0;
+}
+
+function gnRecordGoogleNews503Failure() {
+  gn503FailStreak++;
+  if (gn503FailStreak >= 3) {
+    gnPausedUntil = Date.now() + 120000;
+    gn503FailStreak = 0;
+    console.log(
+      '[inference] Google News RSS returned HTTP 503 repeatedly — pausing news fetches for 2m (rate limit / upstream). ' +
+        'Inference logic is fine; use `npm run enrich:sparse:html` or retry later.',
+    );
+  }
+}
+
+function isGoogleNewsPaused() {
+  return Date.now() < gnPausedUntil;
+}
+
 // Load the full news source registry (Tier 1 + Tier 2 = standard enrichment)
 const { getStandardSources } = require('./dataSources/newsSources');
 const EXTENDED_SOURCES_LIST = getStandardSources();
@@ -257,11 +340,18 @@ const EXTENDED_SOURCES_LIST = getStandardSources();
  * @param {string} startupWebsite - Company website (optional)
  * @param {number} maxArticles - Max articles to fetch (default: 5)
  * @param {string} [extraSearchTerms] - Optional extra terms (e.g. VC name) for "StartupName VCName funding" search
+ * @param {{ lite?: boolean }} [options] - lite=true: Google News (+GN fallbacks) only; skip extended RSS (required for quickEnrich timeouts)
  * @returns {Promise<Array>} Array of {title, content, link, pubDate, source}
  */
-async function searchStartupNews(startupName, startupWebsite = null, maxArticles = 6, extraSearchTerms = null) {
+async function searchStartupNews(startupName, startupWebsite = null, maxArticles = null, extraSearchTerms = null, options = {}) {
+  const cfg = getInferenceConfig();
+  const lite = options.lite === true;
+  if (maxArticles == null) maxArticles = cfg.SEARCH_MAX_ARTICLES;
   const articles = [];
-  const searchToken = normalizeNameForSearch(startupName) || startupName.trim();
+  if (isGoogleNewsPaused()) {
+    return dedupeAndRankArticles([]);
+  }
+  const searchToken = primarySearchToken(startupName);
   const useNormalized = searchToken !== startupName.trim();
 
   // Detect "ambiguous" names: single word, ≤7 chars (Branch, Arc, Bolt, Vibe, etc.)
@@ -303,25 +393,27 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
   const query = queries[0];
   const feedUrl = FAST_SOURCES.googleNews(query);
 
-  const fetchFeed = async (retries = 4) => {
-    for (let attempt = 0; attempt <= retries; attempt++) {
+  // 503 from Google: at most one retry with short backoff (avoid ~60s+ per startup during GN outages).
+  const fetchFeed = async () => {
+    for (let attempt = 0; ; attempt++) {
       try {
         return await parseWithDeadline(feedUrl);
       } catch (e) {
         const msg = String(e.message || e || '');
-        if (attempt < retries && /timeout|timed out|ETIMEDOUT|ECONNRESET|503|502|429|Status code 5/i.test(msg)) {
-          const backoff = /503|502|429|Status code 5/.test(msg) ? 6000 + attempt * 2000 : 1200;
-          if (DEBUG_INFERENCE) console.log(`[inference] Retry in ${backoff / 1000}s after ${msg}`);
-          await new Promise(r => setTimeout(r, backoff));
-          continue;
-        }
-        throw e;
+        const is503 = isGoogleNews503Message(msg);
+        const retryable = /timeout|timed out|ETIMEDOUT|ECONNRESET|503|502|429|Status code 5/i.test(msg);
+        const maxAttemptIndex = is503 ? 1 : 4;
+        if (!retryable || attempt >= maxAttemptIndex) throw e;
+        const backoff = is503 ? 1500 : /503|502|429|Status code 5/i.test(msg) ? 6000 + attempt * 2000 : 1200;
+        if (DEBUG_INFERENCE) console.log(`[inference] Retry in ${backoff / 1000}s after ${msg}`);
+        await new Promise(r => setTimeout(r, backoff));
       }
     }
   };
 
   try {
     const feed = await fetchFeed();
+    gnRecordGoogleNewsSuccess();
     const rawItems = feed.items.slice(0, maxArticles);
     const rawCount = rawItems.length;
 
@@ -367,14 +459,23 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
       }
     }
 
+    if (lite && DEBUG_INFERENCE) {
+      console.log(`[inference] lite search: skipping extended RSS for "${startupName}"`);
+    }
+
     // Extended sources: run in parallel alongside whatever Google News returned.
+    // Skipped in lite mode so quickEnrich finishes before per-request timeouts (full fan-out can exceed 60s).
     // Sources are drawn from the news source registry (Tier 1 + Tier 2 = ~30 sources).
     // — Each source has an independent timeout so slow feeds don't block others.
     // — Strict name filter applied: no unrelated articles for supplementary sources.
     // — Results deduplicated by URL across all sources.
+    if (lite) {
+      return dedupeAndRankArticles(articles);
+    }
+
     const maxExtended = Math.min(
       EXTENDED_SOURCES_LIST.length,
-      Math.max(4, parseInt(process.env.ENRICH_MAX_EXTENDED_SOURCES || '14', 10) || 14),
+      Math.max(4, cfg.ENRICH_MAX_EXTENDED_SOURCES),
     );
     const extendedJobs = EXTENDED_SOURCES_LIST.slice(0, maxExtended).map(source => ({
       key:     source.key,
@@ -387,8 +488,8 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
     const seenUrls = new Set(articles.map(a => a.link));
 
     // Google News RSS rate-limits hard if we fan out dozens of parallel feeds — batch + pause.
-    const EXT_CHUNK = Math.max(2, parseInt(process.env.ENRICH_EXTENDED_CHUNK || '4', 10) || 4);
-    const EXT_PAUSE_MS = Math.max(0, parseInt(process.env.ENRICH_EXTENDED_PAUSE_MS || '350', 10) || 350);
+    const EXT_CHUNK = Math.max(2, cfg.ENRICH_EXTENDED_CHUNK);
+    const EXT_PAUSE_MS = Math.max(0, cfg.ENRICH_EXTENDED_PAUSE_MS);
     const extendedResults = [];
     for (let j = 0; j < extendedJobs.length; j += EXT_CHUNK) {
       const slice = extendedJobs.slice(j, j + EXT_CHUNK);
@@ -435,10 +536,17 @@ async function searchStartupNews(startupName, startupWebsite = null, maxArticles
     }
 
   } catch (error) {
-    console.log(`[inference] Search failed for "${query}": ${error.message}`);
+    const msg = String(error.message || error || '');
+    if (isGoogleNews503Message(msg)) gnRecordGoogleNews503Failure();
+    console.log(
+      `[inference] Search failed for "${query}": ${msg}` +
+        (isGoogleNews503Message(msg)
+          ? ' (Google News RSS HTTP 503 — upstream/rate limit; not an inference-engine defect.)'
+          : ''),
+    );
   }
 
-  return articles;
+  return dedupeAndRankArticles(articles);
 }
 
 // ─── HTML entity decode map for common encodings in RSS content ─────────────
@@ -569,6 +677,17 @@ function generateNameVariants(slug) {
 async function inferDomainFromName(startupName, timeoutMs = 2000) {
   if (!startupName) return null;
 
+  /** Whole-function ceiling — sequential HEAD probes used to multiply timeoutMs into 30s+ otherwise */
+  const wallMs = Math.min(
+    30000,
+    Math.max(
+      8000,
+      parseInt(process.env.INFER_DOMAIN_MAX_WALL_MS || '', 10) || 22000,
+    ),
+  );
+  const wallStart = Date.now();
+  const timeLeft = () => Math.max(0, wallMs - (Date.now() - wallStart));
+
   // Normalize: strip legal/generic suffixes from the END of the name only.
   // Anchored to end-of-string ($) to prevent stripping embedded words:
   // "Ventures Today" must NOT become "Today" (ventures? was removing mid-word).
@@ -603,9 +722,11 @@ async function inferDomainFromName(startupName, timeoutMs = 2000) {
       }
     }
     for (const domain of candidates) {
+      if (timeLeft() < 250) return null;
+      const perTry = Math.max(300, Math.min(timeoutMs, timeLeft()));
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const timer = setTimeout(() => controller.abort(), perTry);
         const res = await fetch(`https://${domain}`, {
           method: 'HEAD',
           redirect: 'follow',
@@ -716,23 +837,73 @@ function extractCompanyUrlFromArticles(articles, startupName = '') {
 function extractDataFromArticles(articles, currentData = {}, startupName = '') {
   const enrichedData = { ...currentData };
   const fieldsEnriched = [];
-  
+  const cfg = getInferenceConfig();
+
   if (!articles || articles.length === 0) {
     return { enrichedData, enrichmentCount: 0, fieldsEnriched };
   }
-  
+
+  articles = dedupeAndRankArticles(articles);
+
   // Combine all article text for analysis
   const allText = articles.map(a => `${a.title} ${a.content}`).join('\n\n');
-  
-  // Extract funding information
+
+  let maxNarrative = 0;
+  for (const a of articles) {
+    const text = `${a.title || ''} ${a.content || ''}`;
+    maxNarrative = Math.max(maxNarrative, scoreNarrativeRole(text, startupName).score);
+  }
+
+  // Grammar ontology first (used for funding corroboration + needs)
+  const ontologyMaxChars = Math.min(64000, Math.max(4000, cfg.ONTOLOGY_NEWS_MAX_CHARS));
+  const ontologyMaxSentences = Math.min(48, Math.max(8, cfg.ONTOLOGY_NEWS_MAX_SENTENCES));
+  const ontologyText = allText.slice(0, ontologyMaxChars);
+  let ontologyInference = extractOntologyFromNewsText(ontologyText, {
+    maxSentences: ontologyMaxSentences,
+  });
+
+  const ontologyFundraising =
+    ontologyInference &&
+    ontologyInference.signal_classes.some(
+      (c) =>
+        c.signal_class === 'fundraising_signal' &&
+        (c.best_certainty ?? 0) >= cfg.FUNDING_ONTOLOGY_CERTAINTY,
+    );
+  const fundingAgrees =
+    maxNarrative >= cfg.FUNDING_NARRATIVE_AGREE_THRESHOLD || !!ontologyFundraising;
+
+  let fundingTentative = null;
+
+  // Funding: only promote to canonical raise_* when regex + (narrative OR ontology fundraising)
   if (!enrichedData.raise_amount || enrichedData.raise_amount === '') {
     const funding = extractFunding(allText);
-    if (funding.amount > 0) {
-      enrichedData.raise_amount = `$${funding.amount}`;
-      enrichedData.raise_type = funding.round;
-      enrichedData.funding_amount = funding.amount;
-      enrichedData.funding_stage = funding.round;
-      fieldsEnriched.push('funding');
+    const amt = funding.funding_amount;
+    if (amt != null && !Number.isNaN(amt) && amt > 0) {
+      const stage = funding.funding_stage || funding.funding_round || '';
+      const formatted =
+        amt >= 1e9
+          ? `$${(amt / 1e9).toFixed(2)}B`
+          : amt >= 1e6
+            ? `$${(amt / 1e6).toFixed(2)}M`
+            : amt >= 1e3
+              ? `$${Math.round(amt / 1e3)}K`
+              : `$${Math.round(amt)}`;
+      if (fundingAgrees) {
+        enrichedData.raise_amount = formatted;
+        enrichedData.raise_type = stage;
+        enrichedData.funding_amount = amt;
+        enrichedData.funding_stage = stage || enrichedData.funding_stage;
+        fieldsEnriched.push('funding');
+      } else {
+        fundingTentative = {
+          raise_amount: formatted,
+          funding_amount: amt,
+          funding_stage: stage,
+          reason: 'regex_only_needs_corroboration',
+          max_narrative_score: Math.round(maxNarrative * 1000) / 1000,
+          ontology_fundraising: !!ontologyFundraising,
+        };
+      }
     }
   }
   
@@ -821,6 +992,39 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
     }
   }
 
+  if (
+    ontologyInference &&
+    (ontologyInference.signal_classes.length > 0 || ontologyInference.inferred_strategic_needs.length > 0)
+  ) {
+    enrichedData.ontology_inference = ontologyInference;
+    fieldsEnriched.push('ontology_inference');
+    if (DEBUG_INFERENCE) {
+      console.log(
+        `[ontology] "${startupName}": ${ontologyInference.signal_classes.length} classes, ${ontologyInference.inferred_strategic_needs.length} strategic needs`,
+      );
+    }
+  }
+
+  enrichedData.enrichment_confidence = {
+    ...(enrichedData.enrichment_confidence || {}),
+    ...(fundingTentative ? { funding_tentative: fundingTentative } : {}),
+    max_narrative_score: Math.round(maxNarrative * 1000) / 1000,
+    funding_corroboration: fundingAgrees,
+    ontology_fundraising_signal: !!ontologyFundraising,
+    fields: {
+      funding:
+        enrichedData.funding_amount || enrichedData.raise_amount
+          ? fundingAgrees
+            ? Math.min(0.95, 0.45 + maxNarrative * 0.35 + (ontologyFundraising ? 0.15 : 0))
+            : 0.35
+          : null,
+      sectors: enrichedData.sectors?.length ? 0.55 : null,
+      market_signals: enrichedData.market_signals?.signals?.length ? 0.6 : null,
+      ontology: ontologyInference?.signal_classes?.length ? 0.65 : null,
+    },
+    computed_at: new Date().toISOString(),
+  };
+
   return {
     enrichedData,
     enrichmentCount: fieldsEnriched.length,
@@ -844,9 +1048,11 @@ async function quickEnrichWithVC(startupName, vcName, currentData = {}, startupW
   const startTime = Date.now();
   try {
     const enrichmentPromise = (async () => {
-      let articles = await searchStartupNews(startupName, startupWebsite, 10, vcName);
+      const qcfg = getInferenceConfig();
+      const liteOpts = { lite: qcfg.QUICK_ENRICH_LITE };
+      let articles = await searchStartupNews(startupName, startupWebsite, qcfg.QUICK_ENRICH_VC_ARTICLES, vcName, liteOpts);
       if (articles.length === 0) {
-        articles = await searchStartupNews(startupName, startupWebsite, 8);
+        articles = await searchStartupNews(startupName, startupWebsite, qcfg.QUICK_ENRICH_VC_FALLBACK_ARTICLES, null, liteOpts);
       }
       if (articles.length === 0) {
         return { enrichedData: currentData, enrichmentCount: 0, fieldsEnriched: [], articlesFound: 0 };
@@ -881,7 +1087,10 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
   try {
     const enrichmentPromise = (async () => {
       // Step 1: Search news — now queries Google News + PRNewswire + Substack + HN + Reddit
-      const articles = await searchStartupNews(startupName, startupWebsite, 5);
+      const icfg = getInferenceConfig();
+      const articles = await searchStartupNews(startupName, startupWebsite, icfg.QUICK_ENRICH_ARTICLES, null, {
+        lite: icfg.QUICK_ENRICH_LITE,
+      });
       
       if (articles.length === 0) {
         return {
@@ -925,7 +1134,13 @@ async function quickEnrich(startupName, currentData = {}, startupWebsite = null,
     });
     
     const result = await Promise.race([enrichmentPromise, timeoutPromise]);
-    
+
+    if (result.timedOut) {
+      console.warn(
+        `[inference] quickEnrich timed out after ${timeoutMs}ms for "${startupName}" — raise SPARSE_ENRICH_NEWS_TIMEOUT_MS or rely on QUICK_ENRICH_LITE (default) so only Google News runs inside the budget`,
+      );
+    }
+
     const elapsed = Date.now() - startTime;
     console.log(`[inference] Quick enrichment for "${startupName}": ${result.enrichmentCount} fields in ${elapsed}ms` +
                 (result.timedOut ? ' (timed out)' : '') +
@@ -962,7 +1177,9 @@ function isDataSparse(startup) {
   if (extracted.customer_count || extracted.customers) signalCount++;
   if (extracted.arr || extracted.revenue || extracted.mrr) signalCount++;
   if (extracted.team_signals && extracted.team_signals.length > 0) signalCount++;
-  
+  if (extracted.market_signals?.signals?.length > 0) signalCount++;
+  if (extracted.ontology_inference?.signal_classes?.length > 0) signalCount++;
+
   return signalCount < 5;
 }
 
@@ -974,6 +1191,12 @@ module.exports = {
   isDataSparse,
   inferDomainFromName,
   normalizeNameForSearch,
+  primarySearchToken,
+  stripTrailingPossessiveToken,
+  inferenceNameMatchVariants,
   generateNameVariants,
   scoreNarrativeRole,
+  scoreNarrativeRoleForVariant,
+  extractOntologyFromNewsText,
+  dedupeAndRankArticles,
 };

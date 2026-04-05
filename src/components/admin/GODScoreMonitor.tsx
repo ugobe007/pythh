@@ -35,6 +35,13 @@ interface EnrichmentSummary {
   criteria?: string;
 }
 
+interface InferencePipelinePayload {
+  defaults?: Record<string, number | boolean>;
+  resolved?: Record<string, number | boolean>;
+  env_overrides?: Record<string, string>;
+  error?: string;
+}
+
 interface GODScoreHealth {
   status: 'healthy' | 'warning' | 'error';
   avgScore: number;
@@ -42,9 +49,15 @@ interface GODScoreHealth {
   distribution: ScoreDistribution[];
   alerts: string[];
   godComponentAverages?: GodComponentAverages;
-  enrichment?: EnrichmentSummary;
+  enrichment?: EnrichmentSummary & {
+    enrichment_signals?: {
+      with_ontology_inference?: number;
+      with_market_signals_in_extracted_data?: number;
+    };
+  };
   ontologyLibraries?: Record<string, unknown>;
   oracleSummary?: Record<string, unknown>;
+  inferencePipeline?: InferencePipelinePayload;
 }
 
 export default function GODScoreMonitor() {
@@ -61,6 +74,7 @@ export default function GODScoreMonitor() {
     enrichment: undefined,
     ontologyLibraries: undefined,
     oracleSummary: undefined,
+    inferencePipeline: undefined,
   });
   const [lastRecalc, setLastRecalc] = useState<string | null>(null);
 
@@ -247,6 +261,49 @@ export default function GODScoreMonitor() {
           {health.enrichment.criteria && (
             <p className="text-[11px] text-slate-600 mt-2">{health.enrichment.criteria}</p>
           )}
+          {health.enrichment.enrichment_signals && (
+            <div className="mt-3 rounded-lg bg-slate-900/40 border border-slate-700/80 p-2 text-[11px] text-slate-400">
+              <span className="text-slate-500">News enrichment in </span>
+              <code className="text-cyan-400/90">extracted_data</code>
+              <span className="text-slate-500">: </span>
+              ontology_inference{' '}
+              <span className="text-slate-200">{health.enrichment.enrichment_signals.with_ontology_inference ?? 0}</span>
+              {' · '}
+              market_signals{' '}
+              <span className="text-slate-200">
+                {health.enrichment.enrichment_signals.with_market_signals_in_extracted_data ?? 0}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Inference pipeline config (RSS / ontology limits) */}
+      {health.inferencePipeline && !health.inferencePipeline.error && health.inferencePipeline.resolved && (
+        <div className="p-4 border-b border-slate-700">
+          <div className="text-sm font-medium text-slate-300 mb-2">Inference pipeline (resolved limits)</div>
+          <div className="text-[11px] text-slate-500 font-mono space-y-1">
+            <div>
+              ENRICH_MAX_EXTENDED_SOURCES: {health.inferencePipeline.resolved.ENRICH_MAX_EXTENDED_SOURCES} ·
+              SEARCH_MAX_ARTICLES: {health.inferencePipeline.resolved.SEARCH_MAX_ARTICLES} ·
+              ONTOLOGY_NEWS_MAX_SENTENCES: {health.inferencePipeline.resolved.ONTOLOGY_NEWS_MAX_SENTENCES}
+            </div>
+            <div>
+              INFERENCE_BATCH_LIMIT: {health.inferencePipeline.resolved.INFERENCE_BATCH_LIMIT} · RSS_ENRICH_DAYS_LOOKBACK:{' '}
+              {health.inferencePipeline.resolved.RSS_ENRICH_DAYS_LOOKBACK}
+            </div>
+            <div>
+              quickEnrich lite (GN only, no extended RSS):{' '}
+              {health.inferencePipeline.resolved.QUICK_ENRICH_LITE === false ? 'off' : 'on'} · SPARSE_NEWS_TIMEOUT_MS:{' '}
+              {health.inferencePipeline.resolved.SPARSE_ENRICH_NEWS_TIMEOUT_MS}
+            </div>
+            {health.inferencePipeline.env_overrides &&
+              Object.keys(health.inferencePipeline.env_overrides).length > 0 && (
+                <div className="text-amber-400/90 pt-1">
+                  Env overrides: {JSON.stringify(health.inferencePipeline.env_overrides)}
+                </div>
+              )}
+          </div>
         </div>
       )}
 

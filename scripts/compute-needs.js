@@ -137,6 +137,33 @@ async function main() {
   for (let i = 0; i < trajectories.length; i += BATCH_SZ) {
     const batch = trajectories.slice(i, i + BATCH_SZ);
 
+    const batchEntityIds = batch.map((t) => t.entity_id);
+    const { data: entityLinks } = await supabase
+      .from('pythh_entities')
+      .select('id, startup_upload_id')
+      .in('id', batchEntityIds);
+
+    const uploadIds = [...new Set((entityLinks || []).map((e) => e.startup_upload_id).filter(Boolean))];
+    let extractedByUploadId = {};
+    if (uploadIds.length > 0) {
+      const { data: uploads } = await supabase
+        .from('startup_uploads')
+        .select('id, extracted_data')
+        .in('id', uploadIds);
+      extractedByUploadId = Object.fromEntries((uploads || []).map((u) => [u.id, u.extracted_data]));
+    }
+
+    const enrichmentByEntityId = {};
+    for (const el of entityLinks || []) {
+      if (!el.startup_upload_id) continue;
+      const ex = extractedByUploadId[el.startup_upload_id];
+      if (!ex) continue;
+      enrichmentByEntityId[el.id] = {
+        ontology_inference: ex.ontology_inference,
+        market_signals: ex.market_signals,
+      };
+    }
+
     for (const traj of batch) {
       stats.entities++;
       const entityId = traj.entity_id;
@@ -174,9 +201,11 @@ async function main() {
       };
 
       try {
+        const enrichment = enrichmentByEntityId[entityId];
         const needs = inferNeeds(signalHistory, trajectoryReport, {
           window_days:    90,
           min_confidence: MIN_CONF,
+          enrichment: enrichment && (enrichment.ontology_inference || enrichment.market_signals) ? enrichment : undefined,
         });
 
         if (DRY_RUN) {

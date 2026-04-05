@@ -41,9 +41,7 @@ import {
   invalidateStartupContext,
 } from '@/services/pythh-rpc';
 import { useLegacyRadarAdapter } from '@/hooks/useRadarViewModel';
-
-const API_BASE =
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3002' : '');
+import { apiUrl, fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 
 const SAVED_MATCHES_KEY = 'pythh_saved_matches';
 
@@ -266,7 +264,9 @@ export default function SignalMatches() {
       setReportLoading(true);
 
       try {
-        const res = await fetch(`${API_BASE}/api/preview/${resolvedStartupId}`);
+        const res = await fetchPreviewReport(resolvedStartupId, {
+          signal: fetchTimeoutSignal(60_000),
+        });
         if (!res.ok) throw new Error('Could not load report');
 
         const data: ReportData = await res.json();
@@ -280,7 +280,9 @@ export default function SignalMatches() {
 
           pollInterval = window.setInterval(async () => {
             try {
-              const pollRes = await fetch(`${API_BASE}/api/preview/${resolvedStartupId}`);
+              const pollRes = await fetch(apiUrl(`/api/preview/${resolvedStartupId}`), {
+                signal: fetchTimeoutSignal(45_000),
+              });
               if (!pollRes.ok) return;
 
               const pollData: ReportData = await pollRes.json();
@@ -561,6 +563,20 @@ export default function SignalMatches() {
             isStale={isStale}
           />
         </div>
+
+        {resolvedStartupId && (
+          <p className="text-xs text-zinc-500 mb-4 leading-relaxed max-w-3xl">
+            This is the <span className="text-zinc-400">live match dashboard</span> (full table, unlocks, Copy
+            intro). For the shorter bookmarkable report (same engine), open the{' '}
+            <Link
+              to={`/submit?startup=${encodeURIComponent(resolvedStartupId)}`}
+              className="text-cyan-400/90 hover:text-cyan-300 underline-offset-2 hover:underline"
+            >
+              investor readiness report
+            </Link>
+            .
+          </p>
+        )}
 
         <p className="text-sm text-zinc-400 leading-relaxed mb-2">
           <span className="text-cyan-400">Signal</span> = timing.

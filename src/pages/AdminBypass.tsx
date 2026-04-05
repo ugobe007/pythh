@@ -10,9 +10,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Shield, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AdminBypass() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'checking' | 'success' | 'error'>('checking');
   const [message, setMessage] = useState('Verifying admin key...');
@@ -40,17 +42,9 @@ export default function AdminBypass() {
       return;
     }
 
-    // Bypass successful - create admin session
-    const adminUser = {
-      email: 'admin@pythh.ai',
-      name: 'Admin',
-      isAdmin: true,
-    };
-
-    localStorage.setItem('currentUser', JSON.stringify(adminUser));
-    localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('adminBypass', 'true');
     localStorage.setItem('adminBypassTime', new Date().toISOString());
+    login('admin@pythh.ai', '');
 
     setStatus('success');
     setMessage('Admin access granted! Redirecting...');
@@ -59,7 +53,7 @@ export default function AdminBypass() {
     setTimeout(() => {
       navigate('/admin/health');
     }, 1500);
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, login]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">

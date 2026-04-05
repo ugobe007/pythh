@@ -1,26 +1,36 @@
 /**
  * Canonical API Configuration
- * Prevents localhost leakage in production builds
+ *
+ * Resolution order:
+ * 1. `VITE_API_URL` (trimmed, no trailing slash) when set — used in all environments.
+ * 2. Development — if unset, default to `http://localhost:3002` (Express default; matches Vite proxy target)
+ *    so `/api/*` always hits the Node server from any dev port without relying on same-origin proxy alone.
+ * 3. Production — if unset, empty string → same-origin `/api/...` (requires your host to reverse-proxy
+ *    `/api` to Node, or you must set `VITE_API_URL` at build time to the API origin).
  */
 
+const DEV_DEFAULT_API_BASE = 'http://localhost:3002';
+
 /**
- * Get the base URL for API calls
- * @returns Empty string for same-origin, or the configured base URL
+ * Get the base URL for API calls (no trailing slash).
  */
 export function getApiBase(): string {
   const raw = (import.meta.env.VITE_API_URL ?? '').trim();
 
-  // If unset, use same-origin (works in dev + prod)
-  if (!raw) return '';
-
-  // Prevent accidental localhost in production builds
-  const isProd = import.meta.env.PROD;
-  if (isProd && /localhost|127\.0\.0\.1/.test(raw)) {
-    console.warn('[api] refusing localhost base in production:', raw);
-    return '';
+  if (raw) {
+    const isProd = import.meta.env.PROD;
+    if (isProd && /localhost|127\.0\.0\.1/.test(raw)) {
+      console.warn('[api] refusing localhost base in production:', raw);
+      return '';
+    }
+    return raw.replace(/\/$/, '');
   }
 
-  return raw.replace(/\/$/, '');
+  if (import.meta.env.DEV) {
+    return DEV_DEFAULT_API_BASE.replace(/\/$/, '');
+  }
+
+  return '';
 }
 
 /**
@@ -73,8 +83,45 @@ export function fetchTimeoutSignal(ms: number): AbortSignal {
   return c.signal;
 }
 
+/**
+ * GET /api/preview/:startupId — used immediately after submit/instant flow.
+ * Retries only on **404** with short backoff (row occasionally not visible right after insert).
+ */
+export async function fetchPreviewReport(
+  startupId: string,
+  options: { signal?: AbortSignal; maxRetries?: number } = {}
+): Promise<Response> {
+  const maxRetries = Math.max(1, options.maxRetries ?? 4);
+  const signal = options.signal ?? fetchTimeoutSignal(45_000);
+  let last: Response | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    last = await fetch(apiUrl(`/api/preview/${startupId}`), { signal });
+    if (last.ok || last.status !== 404) return last;
+    if (attempt < maxRetries - 1) {
+      await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+    }
+  }
+  return last!;
+}
+
 // Legacy export for backwards compatibility
 export const API_BASE = getApiBase();
+
+/** One-time browser logs so misconfigured API bases are obvious in devtools */
+if (typeof window !== 'undefined') {
+  queueMicrotask(() => {
+    const base = getApiBase();
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.info('[api] API base →', base || '(empty)', '| example →', apiUrl('/api/health'));
+    } else if (import.meta.env.PROD && !base) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[api] VITE_API_URL is unset — /api requests use the current origin. For static hosting without a Node /api route, set VITE_API_URL at build time to your API origin.'
+      );
+    }
+  });
+}
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;

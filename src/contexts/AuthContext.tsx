@@ -31,6 +31,8 @@ interface AuthContextType {
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   refreshProfile: () => Promise<void>;
+  /** Call after supabase.auth.signIn* so L5Guard sees user before navigate */
+  refreshSessionUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -158,6 +160,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshSessionUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await syncUserFromSupabase(session.user);
+      await loadProfile(session.user.id);
+    }
+  };
+
   const login = (email: string, password: string) => {
     // This is now mainly for backward compatibility
     // Real auth happens in Login.tsx via supabase.auth.signIn
@@ -207,7 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login, 
       logout,
       updateUser,
-      refreshProfile
+      refreshProfile,
+      refreshSessionUser,
     }}>
       {children}
     </AuthContext.Provider>

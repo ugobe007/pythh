@@ -51,6 +51,10 @@ import PythhMain from "./pages/PythhMain";
 // /lookup is a growth surface — eager-load so we never depend on a lazy chunk fetch
 // (stale caches + hashed filenames → "Importing a module script failed").
 import InvestorLookupPage from "./pages/InvestorLookupPage";
+// /platform is the target of /matches, /signals, /engine, etc. — eager-load for the same reason.
+import PlatformPage from "./pages/PlatformPage";
+// Canonical public matches (/signal-matches) — eager-load so "back to matches" never depends on a chunk fetch.
+import SignalMatches from "./pages/SignalMatches";
 
 // -----------------------------------------------------------------------------
 // ROUTE HELPERS
@@ -89,8 +93,6 @@ const RouteFallback = () => (
 // LAZY PAGES — PUBLIC
 // -----------------------------------------------------------------------------
 
-const PlatformPage = lazy(() => import("./pages/PlatformPage"));
-const SignalMatches = lazy(() => import("./pages/SignalMatches"));
 const SignalTrends = lazy(() => import("./pages/SignalTrends"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));

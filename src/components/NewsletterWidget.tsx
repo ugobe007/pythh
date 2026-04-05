@@ -4,9 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { HotMatchLogo } from './FlameIcon';
-
-const API_BASE = import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3002' : '');
+import { apiUrl } from '@/lib/apiConfig';
 
 interface DigestPreview {
   hotMatch: {
@@ -24,7 +22,7 @@ export default function NewsletterWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/newsletter/today`)
+    fetch(apiUrl('/api/newsletter/today'))
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return;
@@ -70,7 +68,7 @@ export default function NewsletterWidget() {
             Loading signals…
           </div>
         ) : preview?.hotMatch || preview?.topStartup || preview?.hotSector ? (
-          <div className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/40">
+          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/40 max-w-3xl">
 
             {/* Hot match */}
             {preview?.hotMatch ? (
@@ -99,27 +97,7 @@ export default function NewsletterWidget() {
               </div>
             )}
 
-            {/* Top startup */}
-            {preview?.topStartup ? (
-              <div className="px-5 py-4">
-                <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">⚡ #1 This Week</p>
-                <p className="text-white text-sm font-medium truncate">{preview.topStartup.name}</p>
-                <p className="text-cyan-400 font-mono text-xs mt-1">
-                  GOD {preview.topStartup.total_god_score}
-                  {(preview.topStartup.sectors || [])[0] && (
-                    <span className="text-zinc-600 ml-2">{preview.topStartup.sectors[0]}</span>
-                  )}
-                </p>
-              </div>
-            ) : (
-              <div className="px-5 py-4">
-                <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">⚡ GOD Leaderboard</p>
-                <p className="text-zinc-400 text-sm">Top-ranked startups by the algorithm</p>
-                <p className="text-zinc-600 text-xs mt-1">Scores recalculated daily</p>
-              </div>
-            )}
-
-            {/* Hot sector */}
+            {/* Hottest sector (+ optional GOD leader so #1 startup is not a third column) */}
             {preview?.hotSector ? (
               <div className="px-5 py-4">
                 <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">📈 Hottest Sector</p>
@@ -127,19 +105,33 @@ export default function NewsletterWidget() {
                 <p className="text-zinc-500 text-xs mt-1">
                   {preview.hotSector.count} startups · avg score {preview.hotSector.avg_score}
                 </p>
+                {preview?.topStartup && (
+                  <p className="text-cyan-400/90 font-mono text-xs mt-2 pt-2 border-t border-zinc-800/50">
+                    GOD leader: {preview.topStartup.name}
+                    <span className="text-zinc-600 ml-2">GOD {preview.topStartup.total_god_score}</span>
+                    {(preview.topStartup.sectors || [])[0] && (
+                      <span className="text-zinc-500 ml-2">{preview.topStartup.sectors[0]}</span>
+                    )}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="px-5 py-4">
                 <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">📈 Sector Heat</p>
                 <p className="text-zinc-400 text-sm">Where investor attention is pointing</p>
                 <p className="text-zinc-600 text-xs mt-1">Live from the match engine</p>
+                {preview?.topStartup && (
+                  <p className="text-cyan-400/90 font-mono text-xs mt-2 pt-2 border-t border-zinc-800/50">
+                    GOD leader: {preview.topStartup.name} · GOD {preview.topStartup.total_god_score}
+                  </p>
+                )}
               </div>
             )}
 
           </div>
         ) : (
           /* Full static fallback — always shows something */
-          <div className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/40">
+          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/40 max-w-3xl">
             <div className="px-5 py-4">
               <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <HotMatchLogo size="xs" className="flex-shrink-0 opacity-90" aria-hidden />
@@ -147,11 +139,6 @@ export default function NewsletterWidget() {
               </p>
               <p className="text-zinc-400 text-sm">Top startup × investor matches</p>
               <p className="text-zinc-600 text-xs mt-1">Updated weekly</p>
-            </div>
-            <div className="px-5 py-4">
-              <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">⚡ GOD Leaderboard</p>
-              <p className="text-zinc-400 text-sm">Top-ranked startups by the algorithm</p>
-              <p className="text-zinc-600 text-xs mt-1">Scores recalculated daily</p>
             </div>
             <div className="px-5 py-4">
               <p className="text-zinc-600 text-[10px] uppercase tracking-widest mb-2">📈 Sector Heat</p>

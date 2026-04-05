@@ -3,7 +3,8 @@
  * ═══════════════════════════════════════════════════════════════
  * Public, no-auth endpoint for the shareable match preview page.
  * Returns startup info + top 10 investor matches (names/firms/scores).
- * Only serves `status = 'approved'` startups.
+ * Serves startups that are visible to the product (approved, pending, etc.).
+ * Rejected rows are excluded so share links cannot revive spam.
  * ═══════════════════════════════════════════════════════════════
  */
 
@@ -30,6 +31,51 @@ function effectiveStartupDescription(row) {
   );
 }
 
+// GET /api/preview/:startupId/investor/:investorId — oracle match copy for deep links (must be before /:startupId)
+router.get('/:startupId/investor/:investorId', async (req, res) => {
+  const { startupId, investorId } = req.params;
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(startupId) || !uuidRe.test(investorId)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  try {
+    const { data: startup, error: sErr } = await supabase
+      .from('startup_uploads')
+      .select('id, status')
+      .eq('id', startupId)
+      .maybeSingle();
+
+    if (sErr || !startup) {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+    if (String(startup.status || '').toLowerCase() === 'rejected') {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+
+    const { data: row, error: mErr } = await supabase
+      .from('startup_investor_matches')
+      .select('match_score, why_you_match, reasoning, fit_analysis')
+      .eq('startup_id', startupId)
+      .eq('investor_id', investorId)
+      .maybeSingle();
+
+    if (mErr || !row) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    return res.json({
+      match_score: row.match_score,
+      why_you_match: row.why_you_match,
+      reasoning: row.reasoning,
+      fit_analysis: row.fit_analysis ?? null,
+    });
+  } catch (err) {
+    console.error('[preview] investor match error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/preview/:startupId
 router.get('/:startupId', async (req, res) => {
   const { startupId } = req.params;
@@ -41,15 +87,18 @@ router.get('/:startupId', async (req, res) => {
   }
 
   try {
-    // 1. Fetch startup (approved only)
+    // 1. Fetch startup by id — filter rejected in JS so NULL / pending / approved all work
+    //    (PostgREST .neq() excludes NULL rows, which made /api/preview 404 for many inserts.)
     const { data: startup, error: sErr } = await supabase
       .from('startup_uploads')
-      .select('id, name, tagline, description, pitch, website, sectors, stage, extracted_data, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .select('id, name, tagline, description, pitch, website, sectors, stage, status, extracted_data, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
       .eq('id', startupId)
-      .eq('status', 'approved')
-      .single();
+      .maybeSingle();
 
     if (sErr || !startup) {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+    if (String(startup.status || '').toLowerCase() === 'rejected') {
       return res.status(404).json({ error: 'Startup not found' });
     }
 
@@ -70,6 +119,7 @@ router.get('/:startupId', async (req, res) => {
     const { data: matchRows, error: mErr } = await supabase
       .from('startup_investor_matches')
       .select(`
+        investor_id,
         match_score,
         why_you_match,
         investors (
@@ -112,11 +162,18 @@ router.get('/:startupId', async (req, res) => {
       ? Math.round(100 - ((higherCount / approvedTotal) * 100))
       : 50;
 
-    const matches = (matchRows || []).map(row => ({
-      match_score: row.match_score,
-      why_you_match: row.why_you_match,
-      investor: row.investors
-    })).filter(m => m.investor);
+    const matches = (matchRows || [])
+      .map((row) => {
+        const raw = row.investors;
+        const investor = Array.isArray(raw) ? raw[0] : raw;
+        return {
+          investor_id: row.investor_id,
+          match_score: row.match_score,
+          why_you_match: row.why_you_match,
+          investor,
+        };
+      })
+      .filter((m) => m.investor && (m.investor.id || m.investor_id));
 
     const descriptionForUi = effectiveStartupDescription(startup);
 

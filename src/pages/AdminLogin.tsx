@@ -17,7 +17,7 @@ import { Shield, Mail, Lock, Key, Eye, EyeOff, AlertTriangle, CheckCircle } from
 
 export default function AdminLogin() {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refreshSessionUser, login } = useAuth();
 
   // Already authenticated as admin — skip the login form
   useEffect(() => {
@@ -54,17 +54,10 @@ export default function AdminLogin() {
         throw new Error('Not an admin account. Use an authorized admin email.');
       }
 
-      // Create admin session
-      const adminUser = {
-        email: data.user?.email || email,
-        name: data.user?.email?.split('@')[0] || 'Admin',
-        isAdmin: true,
-      };
+      // Hydrate AuthContext from the new Supabase session before navigate — otherwise
+      // L5Guard still sees user=null and bounces back to /admin-login.
+      await refreshSessionUser();
 
-      localStorage.setItem('currentUser', JSON.stringify(adminUser));
-      localStorage.setItem('isLoggedIn', 'true');
-
-      // Redirect to admin panel
       navigate('/admin/health');
     } catch (err: any) {
       console.error('[AdminLogin] Error:', err);
@@ -88,16 +81,9 @@ export default function AdminLogin() {
       return;
     }
 
-    // Create admin session
-    const adminUser = {
-      email: 'admin@pythh.ai',
-      name: 'Admin',
-      isAdmin: true,
-    };
-
-    localStorage.setItem('currentUser', JSON.stringify(adminUser));
-    localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('adminBypass', 'true');
+    // No Supabase session — set React auth state so L5Guard allows /admin/*
+    login('admin@pythh.ai', '');
 
     navigate('/admin/health');
   };

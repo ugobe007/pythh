@@ -34,6 +34,8 @@ interface SaveToSignalCardProps {
   // Styling
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /** Merged onto the inner button last — use for page-specific outline / theme overrides */
+  buttonClassName?: string;
 }
 
 const sizeClasses = {
@@ -62,6 +64,7 @@ export default function SaveToSignalCard({
   onSaveChange,
   size = 'md',
   className = '',
+  buttonClassName = '',
 }: SaveToSignalCardProps) {
   const [isSaved, setIsSaved] = useState(initialSaved ?? false);
   const [isLoading, setIsLoading] = useState(false);
@@ -130,14 +133,15 @@ export default function SaveToSignalCard({
         className={`
           ${buttonSizeClasses[size]}
           rounded-md transition-all duration-150
-          ${isSaved 
-            ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-500/10' 
-            : 'text-slate-400 hover:text-amber-500 hover:bg-slate-700/50'
-          }
+          ${isSaved
+            ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-500/10'
+            : 'text-slate-400 hover:text-amber-500 hover:bg-slate-700/50'}
           disabled:opacity-50 disabled:cursor-not-allowed
           focus:outline-none focus:ring-2 focus:ring-amber-500/50
           group
+          ${buttonClassName}
         `}
+        aria-pressed={isSaved}
         title={isSaved ? 'Saved to Signal Card' : 'Save to Signal Card'}
       >
         {isLoading ? (

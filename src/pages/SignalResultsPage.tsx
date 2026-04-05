@@ -12,6 +12,10 @@ import { getSignalStrength, formatTimeAgo } from '../utils/signalHelpers';
 import { SignalResult } from '../types/signals';
 import { supabase } from '../lib/supabase';
 import { withErrorMonitoring } from '../lib/dbErrorMonitor';
+import {
+  EnrichmentInsightsAccordion,
+  type ExtractedDataInsightsShape,
+} from '../components/pythh';
 
 export default function SignalResultsPage() {
   const [searchParams] = useSearchParams();
@@ -64,6 +68,7 @@ export default function SignalResultsPage() {
     receptivityWindow: string;
     recentActivity: string;
   } | null>(null);
+  const [extractedData, setExtractedData] = useState<ExtractedDataInsightsShape | null>(null);
 
   // Fetch signals from database
   useEffect(() => {
@@ -94,9 +99,11 @@ export default function SignalResultsPage() {
         const startupId = rpcResult.startup_id;
 
         // Step 2: Fetch startup details for name, stats, and GOD scores
-        const { data: startup, error: startupErr } = await supabase
+        const { data: startup } = await supabase
           .from('startup_uploads')
-          .select('name, stage, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+          .select(
+            'name, stage, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, extracted_data',
+          )
           .eq('id', startupId)
           .single();
 
@@ -114,6 +121,7 @@ export default function SignalResultsPage() {
             product: startup.product_score,
             vision: startup.vision_score,
           });
+          setExtractedData((startup.extracted_data as ExtractedDataInsightsShape) ?? null);
         }
 
         // Step 2b: Fetch signal scores
@@ -558,6 +566,8 @@ export default function SignalResultsPage() {
             </div>
           </div>
         )}
+
+        <EnrichmentInsightsAccordion extractedData={extractedData} />
 
         {/* Timing Insights */}
         {timingInsights && (

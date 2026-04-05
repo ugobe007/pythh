@@ -11,9 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { WatchButton } from '../components/WatchButton';
-
-const API_BASE = import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3002' : '');
+import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 
 const SITE_URL = 'https://pythh.ai';
 
@@ -225,7 +223,7 @@ export default function MatchPreviewPage() {
 
   useEffect(() => {
     if (!startupId) return;
-    fetch(`${API_BASE}/api/preview/${startupId}`)
+    fetchPreviewReport(startupId, { signal: fetchTimeoutSignal(60_000) })
       .then(r => {
         if (!r.ok) throw new Error(r.status === 404 ? 'not_found' : 'error');
         return r.json();

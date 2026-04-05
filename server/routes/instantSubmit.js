@@ -31,6 +31,7 @@ const {
   SECTOR_SYNONYMS,
 } = require('../lib/sectorTaxonomy');
 const { calculateCompleteness } = require('../services/dataCompletenessService');
+const { recomputeStartupSignalScoresFromPythh } = require('../lib/recomputeStartupSignalScoresFromPythh');
 
 // =============================================================================
 // REAL SCORING PIPELINE - The GOD Score SSOT
@@ -1634,6 +1635,18 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         if (toInsert.length > 0) {
           await supabase.from('pythh_signal_events').insert(toInsert);
           console.log(`  ✅ [BG] Phase 4: ${toInsert.length} LLM signals written for ${displayName}`);
+        }
+
+        if (entityId) {
+          const rec = await recomputeStartupSignalScoresFromPythh(supabase, {
+            startupUploadId: startupId,
+            entityId,
+          });
+          if (rec.ok) {
+            console.log(
+              `  ✅ [BG] Phase 4: startup_signal_scores from pythh_signal_events (total=${rec.signals_total})`
+            );
+          }
         }
       } catch (e) {
         console.warn(`  ⚠️  [BG] Phase 4 signal enrichment failed: ${e.message}`);

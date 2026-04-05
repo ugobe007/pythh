@@ -4,13 +4,15 @@
  * top investor matches, meeting success forecast, and next steps.
  */
 
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Globe, ChevronRight } from 'lucide-react';
 import { submitStartup } from '../services/submitStartup';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import InvestorReadinessReport, { type ReportData } from '../components/pythh/InvestorReadinessReport';
 import { supabase } from '../lib/supabase';
+import { fetchPreviewReport, fetchTimeoutSignal } from '../lib/apiConfig';
+import { isUuidString } from '../lib/isUuid';
 
 function Counter({ target, duration = 2000 }: { target: number; duration?: number }) {
   const [val, setVal] = useState(0);
@@ -30,9 +32,6 @@ function Counter({ target, duration = 2000 }: { target: number; duration?: numbe
   return <>{val > 0 ? val.toLocaleString() : '…'}</>;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? 'http://localhost:3002' : '');
-
 // Types are now imported from InvestorReadinessReport
 
 // ─── Loading stages ───────────────────────────────────────────────────────
@@ -50,12 +49,62 @@ const LOADING_STAGES = [
 type Step = 'form' | 'loading' | 'report' | 'error';
 
 export default function SubmitStartupPage() {
-  const [step, setStep] = useState<Step>('form');
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const startupInUrl = searchParams.get('startup');
+  const shouldDeepLoad = useMemo(() => isUuidString(startupInUrl), [startupInUrl]);
+
+  const [step, setStep] = useState<Step>(() => (shouldDeepLoad ? 'loading' : 'form'));
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
   const [report, setReport] = useState<ReportData | null>(null);
   const [loadingStage, setLoadingStage] = useState(0);
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
+
+  // Keep URL in sync when we have a loaded report (bookmarkable deep link)
+  useEffect(() => {
+    if (step !== 'report' || !report?.startup.id) return;
+    const cur = searchParams.get('startup');
+    if (cur === report.startup.id) return;
+    navigate(`/submit?startup=${encodeURIComponent(report.startup.id)}`, { replace: true });
+  }, [step, report?.startup.id, searchParams, navigate]);
+
+  // Restore report from ?startup=UUID (bookmark, back from investor profile, shared link)
+  useEffect(() => {
+    const sid = searchParams.get('startup');
+    if (!isUuidString(sid)) return;
+    if (report?.startup.id === sid) return;
+
+    let cancelled = false;
+    (async () => {
+      setStep('loading');
+      setError('');
+      try {
+        const res = await fetchPreviewReport(sid, {
+          signal: fetchTimeoutSignal(60_000),
+        });
+        if (!res.ok) {
+          const detail =
+            res.status === 404
+              ? 'Report not ready yet — try again in a moment.'
+              : `Could not load report (${res.status}).`;
+          throw new Error(detail);
+        }
+        const data: ReportData = await res.json();
+        if (cancelled) return;
+        setReport(data);
+        setStep('report');
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Something went wrong.');
+        setStep('error');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, report?.startup.id]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -99,8 +148,16 @@ export default function SubmitStartupPage() {
         setStep('error');
         return;
       }
-      const res = await fetch(`${API_BASE}/api/preview/${result.startup_id}`);
-      if (!res.ok) throw new Error('Could not load report.');
+      const res = await fetchPreviewReport(result.startup_id, {
+        signal: fetchTimeoutSignal(60_000),
+      });
+      if (!res.ok) {
+        const detail =
+          res.status === 404
+            ? 'Report not ready yet — try again in a moment.'
+            : `Could not load report (${res.status}).`;
+        throw new Error(detail);
+      }
       const data: ReportData = await res.json();
       setReport(data);
       setStep('report');
@@ -110,7 +167,13 @@ export default function SubmitStartupPage() {
     }
   };
 
-  const reset = () => { setStep('form'); setUrl(''); setError(''); setReport(null); };
+  const reset = () => {
+    setStep('form');
+    setUrl('');
+    setError('');
+    setReport(null);
+    navigate('/submit', { replace: true });
+  };
 
   // ── Loading view ─────────────────────────────────────────────────────────
   if (step === 'loading') {
@@ -177,7 +240,7 @@ export default function SubmitStartupPage() {
       <div className="min-h-screen bg-[#080808] flex flex-col" style={{ backgroundImage: 'radial-gradient(ellipse 80% 40% at 50% 0%, rgba(62,207,142,0.08) 0%, transparent 55%)' }}>
         <PythhUnifiedNav />
         <div className="flex-1 px-4 pt-12 pb-24">
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-5xl mx-auto w-full">
             <InvestorReadinessReport report={report} showFooter={true} onReset={reset} />
           </div>
         </div>

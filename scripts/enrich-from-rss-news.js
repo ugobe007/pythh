@@ -26,6 +26,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData, extractCompanyNameFromHeadline } = require('../lib/inference-extractor.js');
 // Canonical shared validator — replaces local JUNK_ENTITY_WORDS / JUNK_ENTITY_PATTERNS
 const { isValidStartupName } = require('../lib/startupNameValidator');
+const { getResolved: getInferencePipelineConfig } = require('../lib/inferencePipelineConfig');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -48,7 +49,7 @@ const PR_WIRE_DOMAINS = [
 // The main name-quality gate is now isValidStartupName() from lib/startupNameValidator.
 const KNOWN_PUBLISHER_FRAGMENTS = /^(techcrunch|moneycontrol\.com|marketscreener\.com|wall street journal|wsj|bloomberg|reuters|forbes|ft\.com|crunchbase)/i;
 
-const DAYS_LOOKBACK = 180; // 6 months of events
+const DAYS_LOOKBACK = getInferencePipelineConfig().RSS_ENRICH_DAYS_LOOKBACK;
 
 function domainOfPublisher(publisher) {
   if (!publisher || typeof publisher !== 'string') return '';

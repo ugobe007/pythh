@@ -6447,6 +6447,8 @@ function computeEnrichmentStats(rows) {
   const byTier = { A: 0, B: 0, C: 0, unknown: 0 };
   const byStatus = {};
   let needsEnrichment = 0;
+  let with_ontology_inference = 0;
+  let with_market_signals_in_extracted = 0;
   for (const r of rows || []) {
     const st = r.status || 'unknown';
     byStatus[st] = (byStatus[st] || 0) + 1;
@@ -6456,6 +6458,9 @@ function computeEnrichmentStats(rows) {
     else if (tier === 'C') byTier.C += 1;
     else byTier.unknown += 1;
     if (startupRowNeedsEnrichment(r)) needsEnrichment += 1;
+    const ex = r.extracted_data;
+    if (ex?.ontology_inference?.signal_classes?.length) with_ontology_inference++;
+    if (ex?.market_signals?.signals?.length) with_market_signals_in_extracted++;
   }
   return {
     total: (rows || []).length,
@@ -6464,6 +6469,10 @@ function computeEnrichmentStats(rows) {
     needs_enrichment: needsEnrichment,
     criteria:
       'needs_enrichment = missing extracted_data, tier C, unknown/missing tier, or data_completeness < 35',
+    enrichment_signals: {
+      with_ontology_inference,
+      with_market_signals_in_extracted_data: with_market_signals_in_extracted,
+    },
   };
 }
 
@@ -6488,7 +6497,16 @@ function getOntologyLibraryStats() {
         anchor_matching: 'server/services/signalDetector.js ← lib/signal-ontology.js (ANCHOR_INDEX)',
         submit_inputs: 'lib/inference-extractor.js (internal SECTOR_KEYWORDS / patterns; not the ontology files)',
         gap_audit: 'scripts/audit-signal-gaps.js suggests additions to signalOntology.js',
+        colloquial_to_grammar: 'lib/ontologyCrosswalk.js (COLLOQUIAL_TO_GRAMMAR) — align with needsInference + signal classes',
       },
+      ontology_crosswalk: (() => {
+        try {
+          const xw = require('../lib/ontologyCrosswalk');
+          return { mapped_signals: Object.keys(xw.COLLOQUIAL_TO_GRAMMAR).length };
+        } catch (e) {
+          return { error: String(e.message || e) };
+        }
+      })(),
     };
   } catch (e) {
     return { error: String(e.message || e) };
@@ -6648,6 +6666,14 @@ app.get('/api/admin/kpis', async (req, res) => {
 app.get('/api/admin/score-health', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
+    const inferencePipeline = (() => {
+      try {
+        return require('../lib/inferencePipelineConfig').getInferencePipelineSnapshot();
+      } catch (e) {
+        return { error: String(e.message || e) };
+      }
+    })();
+
     const [scores, enrichRows, ontologyLibraries, oracleSummary] = await Promise.all([
       paginateStartupUploads(
         supabase,
@@ -6674,6 +6700,7 @@ app.get('/api/admin/score-health', async (req, res) => {
         enrichment,
         ontologyLibraries,
         oracleSummary,
+        inferencePipeline,
       });
     }
 
@@ -6723,6 +6750,7 @@ app.get('/api/admin/score-health', async (req, res) => {
       enrichment,
       ontologyLibraries,
       oracleSummary,
+      inferencePipeline,
     });
   } catch (err) {
     console.error('[/api/admin/score-health] Error:', err);

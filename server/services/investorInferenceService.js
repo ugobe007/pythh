@@ -20,6 +20,10 @@
 'use strict';
 
 const Parser = require('rss-parser');
+const { dedupeAndRankArticles } = require('../../lib/articleDedupe');
+const { extractOntologyFromNewsText } = require('../../lib/ontologyNewsInference');
+const { getResolved: getInferenceConfig } = require('../../lib/inferencePipelineConfig');
+const { detectSignals } = require('./signalDetector');
 
 const parser = new Parser({
   timeout: 20000,
@@ -78,6 +82,9 @@ function parseUSD(amount, unit) {
  */
 async function searchInvestorNews(investorName, firm) {
   const articles = [];
+  const cfg = getInferenceConfig();
+  const maxPrimary = cfg.INVESTOR_NEWS_MAX_ARTICLES;
+  const maxFirmExtra = cfg.INVESTOR_NEWS_FIRM_EXTRA;
 
   // Build contextual queries
   const queries = [
@@ -91,7 +98,7 @@ async function searchInvestorNews(investorName, firm) {
 
   try {
     const feed = await parser.parseURL(feedUrl);
-    const recent = feed.items.slice(0, 6);
+    const recent = feed.items.slice(0, maxPrimary);
 
     for (const item of recent) {
       articles.push({
@@ -104,12 +111,12 @@ async function searchInvestorNews(investorName, firm) {
     }
 
     // Also try firm-specific search if first returned few results and firm differs
-    if (articles.length < 3 && firm && firm !== investorName) {
+    if (articles.length < 4 && firm && firm !== investorName) {
       const firmQuery = `"${firm}" venture capital portfolio`;
       const firmFeed = await parser.parseURL(
         `https://news.google.com/rss/search?q=${encodeURIComponent(firmQuery)}&hl=en-US&gl=US&ceid=US:en`
       );
-      for (const item of firmFeed.items.slice(0, 4)) {
+      for (const item of firmFeed.items.slice(0, maxFirmExtra)) {
         articles.push({
           title: item.title || '',
           content: item.contentSnippet || item.content || '',
@@ -123,7 +130,7 @@ async function searchInvestorNews(investorName, firm) {
     // Network error, return empty
   }
 
-  return articles;
+  return dedupeAndRankArticles(articles);
 }
 
 /**
@@ -227,6 +234,38 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
       enrichedData.geography_focus = foundGeo.slice(0, 3);
       enrichmentCount++;
     }
+  }
+
+  // ── 7. Grammar ontology + colloquial signals (parity with startup inferenceService) ──
+  const combinedText = articles.map((a) => `${a.title} ${a.content}`).join('\n\n');
+  const cfg = getInferenceConfig();
+  const ontologyInference = extractOntologyFromNewsText(combinedText.slice(0, cfg.ONTOLOGY_NEWS_MAX_CHARS), {
+    maxSentences: Math.min(32, cfg.ONTOLOGY_NEWS_MAX_SENTENCES),
+  });
+  if (ontologyInference && (ontologyInference.signal_classes.length > 0 || ontologyInference.inferred_strategic_needs.length > 0)) {
+    enrichedData.ontology_inference = ontologyInference;
+    enrichmentCount++;
+  }
+
+  const anchorName = [currentInvestor.name, currentInvestor.firm].filter(Boolean).join(' ').trim() || currentInvestor.name || '';
+  const signalReport = detectSignals(articles, anchorName);
+  if (signalReport.signals.length > 0) {
+    enrichedData.market_signals = {
+      primarySignal: signalReport.primarySignal?.signal || null,
+      primaryCategory: signalReport.primarySignal?.category || null,
+      primaryMeaning: signalReport.primarySignal?.meaning || null,
+      signals: signalReport.signals.map((s) => ({
+        signal: s.signal,
+        category: s.category,
+        meaning: s.meaning,
+        score: parseFloat(s.score.toFixed(3)),
+        count: s.count,
+        snippet: s.snippets[0] || null,
+      })),
+      scores: signalReport.scores,
+      detectedAt: new Date().toISOString(),
+    };
+    enrichmentCount++;
   }
 
   return { enrichedData, enrichmentCount };
@@ -430,4 +469,5 @@ module.exports = {
   searchInvestorNews,
   extractInvestorDataFromArticles,
   buildOracleSignals,
+  dedupeAndRankArticles,
 };

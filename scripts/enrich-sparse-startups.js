@@ -7,18 +7,24 @@
  *   Step 2: If still sparse → quickEnrich (Google News RSS fallback queries)
  *
  * Process:
- * 1. Identify Phase 2-4 startups (scores < 70, missing key data)
+ * 1. Identify Phase 2-4 startups with total_god_score below a ceiling (default 70; override with --god-score-below=85)
  * 2. For each: fetch website HTML → extractInferenceData
  * 3. If still sparse after HTML: quickEnrich via news (3-query cascade)
  * 4. Merge enriched data + promote to top-level columns
  * 5. Mark for GOD score recalculation
  *
- * Run: node scripts/enrich-sparse-startups.js [--limit=50] [--dry-run] [--no-url-only] [--include-holding] [--run-all] [--html-only]
+ * Run: node scripts/enrich-sparse-startups.js [--limit=50] [--dry-run] [--no-url-only] [--include-holding] [--run-all] [--html-only] [--god-score-below=85]
+ *
+ * News step uses quickEnrich with SPARSE_ENRICH_NEWS_TIMEOUT_MS (default 90s). QUICK_ENRICH_LITE (default on)
+ * skips extended RSS fan-out so Google News + fallbacks finish before the timeout; set QUICK_ENRICH_LITE=0 for
+ * full extended sources on overnight jobs only.
+ * HTML-only outer timeout: SPARSE_ENRICH_HTML_PER_STARTUP_TIMEOUT_MS (default 120s) — inferDomain + fetch + extractInferenceData.
  *
  * --no-url-only     Only target startups with no website OR company_website field.
  * --include-holding Also include startups in 'holding' (3+ failed attempts). Use to retry after fixing issues.
  * --run-all         Loop until no sparse startups remain. Uses --limit per chunk (default 200).
  * --html-only       Skip Google News RSS (use when blocked). Enriches from website HTML + infers URL from name when missing.
+ * --god-score-below=N  Only rows with total_god_score < N (default 70). Raise N (e.g. 85) when the queue is empty but you still want to enrich.
  */
 
 require('dotenv').config();
@@ -28,19 +34,21 @@ const { createClient } = require('@supabase/supabase-js');
 // Shared inference engine — same functions used by instantSubmit.js
 const { extractInferenceData } = require('../lib/inference-extractor');
 const { quickEnrich, isDataSparse, inferDomainFromName, normalizeNameForSearch } = require('../server/services/inferenceService');
+const { getResolved: getInferenceConfig } = require('../lib/inferencePipelineConfig');
 // Shared URL validation — SINGLE SOURCE OF TRUTH for junk domain detection
 const { isJunkUrl } = require('../lib/junk-url-config');
 const { isGarbage } = require('./cleanup-garbage');
+const { ontologyJunkReason } = require('../lib/pendingNameOntology');
 
 // ============================================================================
 // CONCURRENCY — 1 when hitting Google News (rate-limited), 4 when html-only
 // ============================================================================
 const CONCURRENCY_NEWS = 1;
-const CONCURRENCY_HTML_ONLY = 4;
+/** Sequential: large-site HTML + regex extract can saturate CPU; avoids interleaved logs and false 60s timeouts */
+const CONCURRENCY_HTML_ONLY = 1;
 
-// Per-startup timeout — fail fast on slow sites (we lose them anyway)
-const PER_STARTUP_TIMEOUT_MS_HTML = 8000;   // 8s for html-only
-const PER_STARTUP_TIMEOUT_MS_FULL = 35000;  // 35s when news is enabled
+// Per-startup timeout — full pipeline must fit inside outer withTimeout (inferDomain can probe many domains)
+const PER_STARTUP_TIMEOUT_MS_FULL = getInferenceConfig().SPARSE_ENRICH_PER_STARTUP_TIMEOUT_MS;
 
 function withTimeout(promise, ms, label) {
   return Promise.race([
@@ -116,12 +124,16 @@ async function enrichOneStartup(startup, dryRun = false, htmlOnly = false) {
   let urlToUse = startup.website || startup.company_website;
 
   // ── html-only: when no URL, try to discover via name→domain inference ──
+  // inferDomainFromName returns { domain, correctedSlug } — not a string (do not assign the object to urlToUse).
   if (htmlOnly && !urlToUse) {
     const nameForInference = (typeof normalizeNameForSearch === 'function' ? normalizeNameForSearch(startup.name) : null) || startup.name;
     const inferred = await inferDomainFromName(nameForInference, 1500);
-    if (inferred) {
-      urlToUse = inferred;
-      stepLog.push(`URL: inferred ${inferred} from name`);
+    if (inferred && inferred.domain) {
+      urlToUse = inferred.domain;
+      stepLog.push(`URL: inferred https://${String(inferred.domain).replace(/^https?:\/\//, '')} from name`);
+      if (inferred.correctedSlug && !inferenceData.corrected_name_slug) {
+        inferenceData.corrected_name_slug = inferred.correctedSlug;
+      }
     }
   }
 
@@ -163,7 +175,12 @@ async function enrichOneStartup(startup, dryRun = false, htmlOnly = false) {
   if (runNews) {
     // Pass null for junk URLs — don't let news use an article URL as domain query
     const newsUrl = urlToUse && !isJunkUrl(urlToUse) ? urlToUse : null;
-    const newsResult = await quickEnrich(startup.name, inferenceData, newsUrl, 25000);
+    const newsResult = await quickEnrich(
+      startup.name,
+      inferenceData,
+      newsUrl,
+      getInferenceConfig().SPARSE_ENRICH_NEWS_TIMEOUT_MS,
+    );
     if (newsResult.enrichmentCount > 0) {
       inferenceData = { ...inferenceData, ...newsResult.enrichedData };
       stepLog.push(`News: +${newsResult.enrichmentCount} fields (${newsResult.fieldsEnriched.join(', ')}) from ${newsResult.articlesFound} articles`);
@@ -285,8 +302,27 @@ async function runWithRetry(fn, maxAttempts = 3, baseDelayMs = 5000) {
   }
 }
 
+function parseGodScoreBelowArg(args) {
+  const hit = args.find(a => a.startsWith('--god-score-below='));
+  if (hit) {
+    const v = parseInt(hit.split('=')[1], 10);
+    if (Number.isFinite(v)) return Math.min(200, Math.max(1, v));
+  }
+  const env = process.env.SPARSE_ENRICH_GOD_SCORE_BELOW;
+  if (env !== undefined && env !== '') {
+    const v = parseInt(env, 10);
+    if (Number.isFinite(v)) return Math.min(200, Math.max(1, v));
+  }
+  return 70;
+}
+
+/** Include row if score is unknown (null) or strictly below ceiling */
+function scoreBelowCeiling(score, ceiling) {
+  return score == null || score < ceiling;
+}
+
 async function runOneChunk(opts) {
-  const { limit, dryRun, noUrlOnly, includeHolding, htmlOnly } = opts;
+  const { limit, dryRun, noUrlOnly, includeHolding, htmlOnly, godScoreBelow } = opts;
 
   const buildQuery = () => {
     let q = supabase
@@ -321,18 +357,31 @@ async function runOneChunk(opts) {
     return { processed: 0, enriched: 0, noData: 0, errors: 0 };
   }
 
-  const sparseStartups = noUrlOnly
-    ? startups.filter(s => s.total_god_score < 70).slice(0, limit)
+  let sparseStartups = noUrlOnly
+    ? startups.filter(s => scoreBelowCeiling(s.total_god_score, godScoreBelow)).slice(0, limit)
     : startups.filter(s => {
         const { phase } = classifyDataRichness(s);
-        return phase >= 2 && s.total_god_score < 70;
+        return phase >= 2 && scoreBelowCeiling(s.total_god_score, godScoreBelow);
       }).slice(0, limit);
 
+  const preNameFilter = sparseStartups.length;
+  sparseStartups = sparseStartups.filter((s) => {
+    if (isGarbage(s.name)) return false;
+    if (ontologyJunkReason(s.name)) return false;
+    return true;
+  });
+  const nameFiltered = preNameFilter - sparseStartups.length;
+  if (nameFiltered > 0) {
+    console.log(
+      `Filtered out ${nameFiltered} row(s) with headline/person/junk names (same rules as startupNameValidator + ontology).\n`,
+    );
+  }
+
   const modeLabel = noUrlOnly
-    ? 'no URL, score < 70'
+    ? `no URL, score < ${godScoreBelow}`
     : htmlOnly
-      ? `html-only (+ URL discovery), status: waiting/null${includeHolding ? '/holding' : ''}, score < 70`
-      : `status: waiting/null${includeHolding ? '/holding' : ''}, score < 70`;
+      ? `html-only (+ URL discovery), status: waiting/null${includeHolding ? '/holding' : ''}, score < ${godScoreBelow}`
+      : `status: waiting/null${includeHolding ? '/holding' : ''}, score < ${godScoreBelow}`;
   console.log(`Found ${sparseStartups.length} startups pending enrichment (${modeLabel})\n`);
 
   if (sparseStartups.length === 0) {
@@ -345,18 +394,19 @@ async function runOneChunk(opts) {
         byPhase[phase] = (byPhase[phase] || 0) + 1;
       });
       console.log(`  By phase: ${Object.entries(byPhase).map(([p, n]) => `phase ${p}: ${n}`).join(', ')}`);
-      // Show why each was excluded (score >= 70 or phase < 2)
+      // Show why each was excluded (score >= ceiling or phase < 2)
       const excluded = startups.filter(s => {
         const { phase } = classifyDataRichness(s);
-        return phase < 2 || s.total_god_score >= 70;
+        return phase < 2 || !scoreBelowCeiling(s.total_god_score, godScoreBelow);
       });
       if (excluded.length > 0) {
-        console.log(`  Excluded by filter (phase>=2 and score<70): ${excluded.map(s => `"${s.name}" (phase ${classifyDataRichness(s).phase}, score ${s.total_god_score ?? 'null'})`).join('; ')}`);
+        console.log(`  Excluded by filter (phase>=2 and score<${godScoreBelow}): ${excluded.map(s => `"${s.name}" (phase ${classifyDataRichness(s).phase}, score ${s.total_god_score ?? 'null'})`).join('; ')}`);
       }
     }
     if (!includeHolding) console.log('Tip: try --include-holding to retry startups that previously failed.');
     if (!noUrlOnly) console.log('Tip: try --no-url-only to target startups with no website.');
     if (htmlOnly) console.log('Tip: HTML-only mode only processes startups WITH a website. Without --html-only, news fallback can enrich startups without URLs.');
+    console.log(`Tip: no rows matched score < ${godScoreBelow}. Widen pool: --god-score-below=85 (env SPARSE_ENRICH_GOD_SCORE_BELOW).`);
     return { processed: 0, enriched: 0, noData: 0, errors: 0 };
   }
 
@@ -369,13 +419,15 @@ async function runOneChunk(opts) {
   for (let batchStart = 0; batchStart < sparseStartups.length; batchStart += concurrency) {
     const batch = sparseStartups.slice(batchStart, batchStart + concurrency);
 
-    const timeoutMs = htmlOnly ? PER_STARTUP_TIMEOUT_MS_HTML : PER_STARTUP_TIMEOUT_MS_FULL;
+    const timeoutMs = htmlOnly
+      ? getInferenceConfig().SPARSE_ENRICH_HTML_PER_STARTUP_TIMEOUT_MS
+      : PER_STARTUP_TIMEOUT_MS_FULL;
     const results = await Promise.allSettled(batch.map(async (startup, batchIdx) => {
       const i = batchStart + batchIdx;
       console.log(`\n[${i + 1}/${sparseStartups.length}] ${startup.name} (score: ${startup.total_god_score})`);
 
-      if (isGarbage(startup.name)) {
-        console.log(`  ⏭️  Skipped (garbage name — run cleanup-garbage --delete to remove)`);
+      if (isGarbage(startup.name) || ontologyJunkReason(startup.name)) {
+        console.log(`  ⏭️  Skipped (invalid or headline-style name)`);
         return { status: 'skipped' };
       }
 
@@ -430,8 +482,12 @@ async function runOneChunk(opts) {
 }
 
 async function enrichSparseStartups() {
+  const _cfg = getInferenceConfig();
   console.log('=== STARTUP ENRICHMENT — Full Inference Pipeline ===\n');
   console.log('Pipeline: URL scrape (extractInferenceData) → news fallback (quickEnrich)\n');
+  console.log(
+    `[config] SPARSE_ENRICH_NEWS_TIMEOUT_MS=${_cfg.SPARSE_ENRICH_NEWS_TIMEOUT_MS} · QUICK_ENRICH_LITE=${_cfg.QUICK_ENRICH_LITE} · SPARSE_ENRICH_HTML_PER_STARTUP_TIMEOUT_MS=${_cfg.SPARSE_ENRICH_HTML_PER_STARTUP_TIMEOUT_MS} (set in .env to override)\n`,
+  );
 
   const args = process.argv.slice(2);
   const limitArg = args.find(arg => arg.startsWith('--limit='));
@@ -441,6 +497,7 @@ async function enrichSparseStartups() {
   const includeHolding = args.includes('--include-holding');
   const runAll = args.includes('--run-all');
   const htmlOnly = args.includes('--html-only');
+  const godScoreBelow = parseGodScoreBelowArg(args);
 
   const effectiveLimit = runAll && !limitArg ? 200 : limit;
 
@@ -450,8 +507,11 @@ async function enrichSparseStartups() {
   if (htmlOnly) console.log('🌐 HTML-ONLY mode — skipping Google News (use when RSS is blocked)\n');
   if (runAll) console.log(`♻️  RUN-ALL mode — processing in chunks of ${effectiveLimit} until pool is empty\n`);
   else console.log(`Processing up to ${limit} startups\n`);
+  if (godScoreBelow !== 70) {
+    console.log(`📊 God-score ceiling: total_god_score < ${godScoreBelow} (--god-score-below or SPARSE_ENRICH_GOD_SCORE_BELOW)\n`);
+  }
 
-  const opts = { limit: effectiveLimit, dryRun, noUrlOnly, includeHolding, htmlOnly };
+  const opts = { limit: effectiveLimit, dryRun, noUrlOnly, includeHolding, htmlOnly, godScoreBelow };
 
   let totalProcessed = 0;
   let totalEnriched = 0;

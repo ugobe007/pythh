@@ -8,6 +8,7 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData } = require('./lib/inference-extractor');
+const { getResolved: getInferencePipelineConfig } = require('./lib/inferencePipelineConfig');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -25,7 +26,7 @@ async function main() {
     .select('id, name, tagline, description, extracted_data, traction_score, product_score, vision_score, website')
     .or('traction_score.lt.10,product_score.lt.10,vision_score.lt.10')
     .not('tagline', 'is', null)
-    .limit(200);
+    .limit(getInferencePipelineConfig().INFERENCE_BATCH_LIMIT);
 
   if (error) {
     console.error('Error fetching startups:', error.message);

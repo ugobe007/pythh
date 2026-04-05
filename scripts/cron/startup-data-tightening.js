@@ -29,6 +29,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const { getResolved: getInferencePipelineConfig } = require('../../lib/inferencePipelineConfig');
 
 function run(cmd, args, label, { fatal = true } = {}) {
   return new Promise((resolve, reject) => {
@@ -74,10 +75,10 @@ function parseArgs(argv) {
   const promoteLimit = promoteLimitArg ? parseInt(promoteLimitArg.split('=')[1], 10) : null;
 
   const sparseLimitArg = argv.find((a) => a.startsWith('--sparse-limit='));
-  let sparseLimit = 100;
+  let sparseLimit = getInferencePipelineConfig().STARTUP_TIGHTEN_SPARSE_DEFAULT;
   if (sparseLimitArg) {
     const v = parseInt(sparseLimitArg.split('=')[1], 10);
-    sparseLimit = Number.isFinite(v) ? v : 100;
+    sparseLimit = Number.isFinite(v) ? v : getInferencePipelineConfig().STARTUP_TIGHTEN_SPARSE_DEFAULT;
   }
 
   return {

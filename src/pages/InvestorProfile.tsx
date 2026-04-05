@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import SaveToSignalCard from '../components/SaveToSignalCard';
 import ShareButton from '../components/ShareButton';
 import { supabase } from '../lib/supabase';
@@ -25,7 +25,14 @@ import { withErrorMonitoring } from '../lib/dbErrorMonitor';
 import { useAuth } from '../contexts/AuthContext';
 import { useOracleStartupId } from '../hooks/useOracleStartupId';
 import { isUuidString } from '../lib/isUuid';
-import { Briefcase, TrendingUp, Clock, DollarSign, Award, Users, Target, Zap } from 'lucide-react';
+import { apiUrl } from '../lib/apiConfig';
+import { PYTHH_MARKETING_BG } from '../lib/pythhMarketingTheme';
+import { Briefcase, TrendingUp, Clock, Award, Users, Target, Zap, ChevronLeft } from 'lucide-react';
+
+/** Stroke-only surfaces — cyan accent, no fill (pythh public UI) */
+const cardStroke = 'rounded-lg border border-cyan-500/35 bg-transparent';
+const chipOutline =
+  'inline-flex items-center rounded-md border border-cyan-500/35 bg-transparent px-2.5 py-1 text-xs text-cyan-300/90 hover:border-cyan-400/50 hover:text-cyan-200 transition-colors';
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -202,14 +209,43 @@ const defaultInvestor: InvestorData = {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
 
+type PreviewMatchPayload = {
+  match_score: number;
+  why_you_match: string | null;
+  reasoning: string | null;
+  fit_analysis: unknown;
+};
+
 export default function InvestorProfile() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const { user, isLoggedIn } = useAuth();
   const startupId = useOracleStartupId();
   const [investor, setInvestor] = useState<InvestorData>(defaultInvestor);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  
+  const [previewMatch, setPreviewMatch] = useState<PreviewMatchPayload | null>(null);
+
+  const startupFromQuery = searchParams.get('startup');
+  const readinessReportBackUrl =
+    isUuidString(startupFromQuery) ? `/submit?startup=${encodeURIComponent(startupFromQuery)}` : null;
+
+  /**
+   * Return founders to the same surface as “Save this report” — /submit readiness UI — not the full
+   * /signal-matches live dashboard (different layout; avoids confusion after viewing an investor).
+   */
+  const backFromProfileUrl = (() => {
+    const sid =
+      isUuidString(startupFromQuery ?? '')
+        ? startupFromQuery!
+        : isLoggedIn && startupId && isUuidString(startupId)
+          ? startupId
+          : null;
+    return sid ? `/submit?startup=${encodeURIComponent(sid)}` : '/signal-matches';
+  })();
+  const backFromProfileLabel =
+    backFromProfileUrl.startsWith('/submit') ? '← Back to your readiness report' : '← Back to matches';
+
   // Check if founder is logged in and has a startup
   const startupClaimed = isLoggedIn && !!startupId;
 
@@ -304,6 +340,40 @@ export default function InvestorProfile() {
     loadInvestor();
   }, [id, startupId, isLoggedIn]);
 
+  // Public report deep-link: /investor/:id?startup=UUID — oracle match copy without login
+  useEffect(() => {
+    if (!id || !isUuidString(id)) {
+      setPreviewMatch(null);
+      return;
+    }
+    const sid = searchParams.get('startup');
+    if (!sid || !isUuidString(sid)) {
+      setPreviewMatch(null);
+      return;
+    }
+    if (isLoggedIn) {
+      setPreviewMatch(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/preview/${sid}/investor/${id}`));
+        if (!res.ok) {
+          if (!cancelled) setPreviewMatch(null);
+          return;
+        }
+        const data = (await res.json()) as PreviewMatchPayload;
+        if (!cancelled) setPreviewMatch(data);
+      } catch {
+        if (!cancelled) setPreviewMatch(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, searchParams, isLoggedIn]);
+
   // Lifeform breathing
   useEffect(() => {
     const interval = setInterval(() => {
@@ -316,18 +386,22 @@ export default function InvestorProfile() {
   // Style helpers with Pythh colors
   const alignmentColor = (state: AlignmentState): string => {
     switch (state) {
-      case 'Warming': return 'text-emerald-400';
-      case 'Monitoring': return 'text-cyan-400';
-      case 'Cooling': return 'text-amber-400';
-      case 'Dormant': return 'text-[#5f5f5f]';
+      case 'Warming':
+        return 'text-cyan-300';
+      case 'Monitoring':
+        return 'text-cyan-400/90';
+      case 'Cooling':
+        return 'text-amber-400/90';
+      case 'Dormant':
+        return 'text-zinc-500';
     }
   };
 
   const timingColor = (t: string): string => {
-    if (t === 'Active') return 'text-emerald-400';
-    if (t === 'Warming') return 'text-cyan-400';
-    if (t === 'Cooling') return 'text-amber-400';
-    return 'text-[#5f5f5f]';
+    if (t === 'Active') return 'text-cyan-300';
+    if (t === 'Warming') return 'text-cyan-400/90';
+    if (t === 'Cooling') return 'text-amber-400/90';
+    return 'text-zinc-500';
   };
 
   // Score click → Score Drawer (lens locked)
@@ -336,7 +410,10 @@ export default function InvestorProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1c1c1c]" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div
+      className="min-h-screen text-zinc-200"
+      style={{ fontFamily: 'Inter, system-ui, sans-serif', ...PYTHH_MARKETING_BG }}
+    >
       
       {/* Lifeform animations */}
       <style>{`
@@ -353,22 +430,50 @@ export default function InvestorProfile() {
       {/* ═══════════════════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════════════════ */}
-      <header className="border-b border-[#2e2e2e]">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/app" className="text-white font-medium">pythh</Link>
-            <span className="text-[#5f5f5f]">/</span>
-            <Link to="/matches" className="text-[#8f8f8f] hover:text-white transition-colors">matches</Link>
-            <span className="text-[#5f5f5f]">/</span>
-            <span className="text-[#8f8f8f]">{id}</span>
+      <header className="border-b border-cyan-500/15">
+        <div className="max-w-3xl mx-auto px-6 py-4">
+          {readinessReportBackUrl && (
+            <div className="mb-3">
+              <Link
+                to={readinessReportBackUrl}
+                className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/40 bg-transparent px-3 py-1.5 text-sm font-medium text-cyan-400/95 hover:border-cyan-400/60 hover:text-cyan-300 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4 shrink-0" aria-hidden />
+                Back to your investor readiness report
+              </Link>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0 text-sm">
+              <Link to="/" className="text-white font-medium shrink-0">
+                pythh
+              </Link>
+              <span className="text-[#5f5f5f] shrink-0">/</span>
+              {readinessReportBackUrl ? (
+                <Link
+                  to={readinessReportBackUrl}
+                  className="text-[#8f8f8f] hover:text-white transition-colors truncate"
+                >
+                  Your report
+                </Link>
+              ) : (
+                <Link to="/platform" className="text-[#8f8f8f] hover:text-white transition-colors">
+                  Platform
+                </Link>
+              )}
+              <span className="text-[#5f5f5f] shrink-0">/</span>
+              <span className="text-[#8f8f8f] truncate" title={id}>
+                Investor
+              </span>
+            </div>
+            <span className="text-xs text-[#5f5f5f] shrink-0">
+              {isUpdating ? (
+                <span style={{ animation: 'updateFade 1.2s ease-in-out' }}>updating…</span>
+              ) : (
+                'Live'
+              )}
+            </span>
           </div>
-          <span className="text-xs text-[#5f5f5f]">
-            {isUpdating ? (
-              <span style={{ animation: 'updateFade 1.2s ease-in-out' }}>updating…</span>
-            ) : (
-              'Live'
-            )}
-          </span>
         </div>
       </header>
 
@@ -378,11 +483,13 @@ export default function InvestorProfile() {
             1️⃣ IDENTITY STRIP — Minimal, human + Save/Share
         ═══════════════════════════════════════════════════════════════ */}
         <section className="mb-10">
-          <div className="flex items-start justify-between mb-2">
-            <div className="px-4 py-2 border border-emerald-400/50 rounded-lg">
-              <h1 className="text-xl text-emerald-400 font-medium">{investor.name}</h1>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className={`min-w-0 flex-1 px-4 py-3 ${cardStroke}`}>
+              <h1 className="text-lg sm:text-xl text-cyan-300 font-medium leading-snug break-words">
+                {investor.name}
+              </h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 shrink-0">
               <SaveToSignalCard
                 entityType="investor"
                 entityId={id || ''}
@@ -390,6 +497,7 @@ export default function InvestorProfile() {
                 scoreValue={investor.lensScore}
                 context="from profile header"
                 size="sm"
+                buttonClassName="!bg-transparent border border-cyan-500/40 text-cyan-400/90 hover:!bg-transparent hover:text-cyan-300 focus:ring-cyan-500/40 aria-pressed:!bg-transparent aria-pressed:text-cyan-200 aria-pressed:border-cyan-500/55 aria-pressed:hover:text-cyan-100"
               />
               <ShareButton
                 payload={{
@@ -422,41 +530,48 @@ export default function InvestorProfile() {
                   redaction_level: 'public',
                 }}
                 size="sm"
+                className="rounded-md border border-cyan-500/40 bg-transparent px-2.5 py-1.5 text-cyan-400/90 hover:border-cyan-400/55 hover:text-cyan-300 hover:!bg-transparent"
               />
             </div>
           </div>
-          <div className="text-sm text-[#8f8f8f] space-y-1">
-            <p><span className="text-cyan-400">Focus:</span> <span className="text-white/90">{investor.focus}</span></p>
-            <p><span className="text-cyan-400">Stage:</span> <span className="text-white/90">{investor.stage}</span></p>
-            <p className="text-[#5f5f5f] text-xs mt-2">Observed since: <span className="text-cyan-400/70">{investor.observedSince}</span></p>
-          </div>
+          <p className="text-sm leading-relaxed text-zinc-300">
+            <span className="text-cyan-400/90 font-medium">Focus</span>{' '}
+            <span>{investor.focus}</span>
+            <span className="text-zinc-600 mx-2">·</span>
+            <span className="text-cyan-400/90 font-medium">Stage</span>{' '}
+            <span>{investor.stage}</span>
+            <span className="text-zinc-600 mx-2">·</span>
+            <span className="text-zinc-500 text-xs">Observed since {investor.observedSince}</span>
+          </p>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════
             🎯 SIGNALS THIS INVESTOR RESPONDS TO — Top priority for founders
         ═══════════════════════════════════════════════════════════════ */}
         {investor.signalsTheyRespondTo.length > 0 && (
-          <section className="mb-10 border border-emerald-400/50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-emerald-400" />
+          <section className={`mb-10 p-4 ${cardStroke}`}>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Zap className="w-4 h-4 shrink-0 text-cyan-400/90" aria-hidden />
                 <div className="text-cyan-400 text-sm font-medium">Signals this investor responds to</div>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-emerald-400">{investor.lensScore.toFixed(1)}</span>
-                <span className="text-xs text-white/60">/ 10</span>
+              <div className="flex items-baseline gap-1.5 shrink-0">
+                <span className="text-2xl font-bold text-cyan-300 tabular-nums">
+                  {investor.lensScore.toFixed(1)}
+                </span>
+                <span className="text-xs text-zinc-500">/ 10</span>
               </div>
             </div>
-            <div className="space-y-1.5">
+            <p className="text-sm text-zinc-300 leading-relaxed">
               {investor.signalsTheyRespondTo.map((signal, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-emerald-400 mt-0.5">•</span>
-                  <span className="text-white/90">{signal}</span>
-                </div>
+                <span key={i}>
+                  {i > 0 && <span className="text-zinc-600"> · </span>}
+                  <span>{signal}</span>
+                </span>
               ))}
-            </div>
-            <div className="mt-3 pt-3 border-t border-emerald-500/20">
-              <p className="text-xs text-cyan-400/70 italic">
+            </p>
+            <div className="mt-3 pt-3 border-t border-cyan-500/20">
+              <p className="text-xs text-cyan-400/65 italic">
                 Signal score reflects investor quality and responsiveness. Higher scores indicate stronger signal alignment.
               </p>
             </div>
@@ -467,56 +582,81 @@ export default function InvestorProfile() {
             2️⃣ BEHAVIORAL SUMMARY — This is the soul (3 bullets max)
         ═══════════════════════════════════════════════════════════════ */}
         <section className="mb-10">
-          <div className="text-cyan-400 text-sm mb-3 font-medium">Behavioral pattern</div>
-          <div className="space-y-2">
+          <div className="text-cyan-400 text-sm mb-2 font-medium">Behavioral pattern</div>
+          <p className="text-sm text-zinc-300 leading-relaxed">
             {investor.behavioralPattern.map((pattern, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <span className="text-emerald-400 mt-0.5">•</span>
-                <span className="text-white/90">{pattern}</span>
-              </div>
+              <span key={i}>
+                {i > 0 && <span className="text-zinc-600"> · </span>}
+                <span>{pattern}</span>
+              </span>
             ))}
-          </div>
+          </p>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════
             3️⃣ RECENT BEHAVIOR — Lifeform core (≤30 days)
         ═══════════════════════════════════════════════════════════════ */}
         <section className="mb-10">
-          <div className="text-cyan-400 text-sm mb-3 font-medium">Recent behavior</div>
-          <div className="space-y-2">
+          <div className="text-cyan-400 text-sm mb-2 font-medium">Recent behavior</div>
+          <p
+            className="text-sm text-zinc-300 leading-relaxed"
+            style={{ animation: 'profileFadeIn 0.25s ease-out both' }}
+          >
             {investor.recentBehavior.map((item, i) => (
-              <div 
-                key={i} 
-                className="flex items-start gap-2 text-sm"
-                style={{ animation: `profileFadeIn 0.2s ease-out ${i * 0.05}s both` }}
-              >
-                <span className="text-emerald-400 mt-0.5">•</span>
-                <span className="text-white/80">{item}</span>
-              </div>
+              <span key={i}>
+                {i > 0 && <span className="text-zinc-600"> · </span>}
+                <span>{item}</span>
+              </span>
             ))}
-          </div>
+          </p>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════
-            4️⃣ MATCH QUALITY (if founder logged in)
+            4️⃣ MATCH QUALITY — logged-in founders, or ?startup= from readiness report (preview API)
         ═══════════════════════════════════════════════════════════════ */}
-        {startupClaimed && investor.matchScore !== undefined && (
-          <section className="mb-10 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 rounded-lg border border-emerald-500/30 p-5">
+        {!loading && previewMatch && !isLoggedIn && (
+          <section className={`mb-10 p-5 ${cardStroke}`}>
             <div className="flex items-center gap-2 mb-4">
-              <Target className="w-4 h-4 text-emerald-400" />
+              <Target className="w-4 h-4 text-cyan-400/90" />
+              <div className="text-cyan-400 text-sm font-medium">How this investor fits your startup</div>
+            </div>
+            <div className="flex items-baseline gap-3 mb-3">
+              <span className="text-3xl font-bold text-cyan-300 tabular-nums">
+                {Math.round(previewMatch.match_score ?? 0)}
+              </span>
+              <span className="text-sm text-zinc-500">/ 100</span>
+            </div>
+            <div className="space-y-2 mt-3">
+              {[previewMatch.reasoning, previewMatch.why_you_match]
+                .filter((r): r is string => typeof r === 'string' && r.trim().length > 0)
+                .map((reason, i) => (
+                  <p key={i} className="text-sm text-zinc-300 leading-relaxed">
+                    {reason}
+                  </p>
+                ))}
+            </div>
+            <p className="text-[11px] text-zinc-500 mt-4 leading-snug">
+              From your pythh match engine — explore the full investor profile below.
+            </p>
+          </section>
+        )}
+
+        {startupClaimed && investor.matchScore !== undefined && (
+          <section className={`mb-10 p-5 ${cardStroke}`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="w-4 h-4 text-cyan-400/90" />
               <div className="text-cyan-400 text-sm font-medium">Your match quality</div>
             </div>
             <div className="flex items-baseline gap-3 mb-3">
-              <span className="text-3xl font-bold text-emerald-400">{investor.matchScore}</span>
-              <span className="text-sm text-white/60">/ 100</span>
+              <span className="text-3xl font-bold text-cyan-300 tabular-nums">{investor.matchScore}</span>
+              <span className="text-sm text-zinc-500">/ 100</span>
             </div>
             {investor.matchReasons && investor.matchReasons.length > 0 && (
               <div className="space-y-1.5 mt-3">
                 {investor.matchReasons.map((reason, i) => (
-                  <div key={i} className="text-sm text-white/80 flex items-start gap-2">
-                    <span className="text-emerald-400 mt-0.5">✓</span>
-                    <span>{reason}</span>
-                  </div>
+                  <p key={i} className="text-sm text-zinc-300 leading-relaxed">
+                    {reason}
+                  </p>
                 ))}
               </div>
             )}
@@ -526,11 +666,11 @@ export default function InvestorProfile() {
         {/* ═══════════════════════════════════════════════════════════════
             5️⃣ ALIGNMENT & TIMING — This is discipline
         ═══════════════════════════════════════════════════════════════ */}
-        <section className="mb-10 bg-[#232323] rounded-lg border border-cyan-500/20 p-5">
+        <section className={`mb-10 p-5 ${cardStroke}`}>
           {startupClaimed ? (
             <>
               <div className="text-cyan-400 text-sm mb-4 font-medium">Your alignment</div>
-              <div className="grid grid-cols-3 gap-6 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
                 <div>
                   <span className="text-cyan-400/70 block mb-1 text-xs">Current state</span>
                   <span className={`${alignmentColor(investor.alignmentState)} font-medium`}>
@@ -539,26 +679,33 @@ export default function InvestorProfile() {
                 </div>
                 <div>
                   <span className="text-cyan-400/70 block mb-1 text-xs">Lens score</span>
-                  <span 
-                    className="text-emerald-400 font-mono cursor-pointer hover:text-emerald-300 transition-colors font-semibold"
+                  <span
+                    className="text-cyan-300 font-mono cursor-pointer hover:text-cyan-200 transition-colors font-semibold tabular-nums"
                     onClick={handleScoreClick}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') handleScoreClick();
+                    }}
                   >
-                    {investor.lensScore} <span className="text-[#5f5f5f] text-xs">(GOD)</span>
+                    {investor.lensScore} <span className="text-zinc-500 text-xs font-sans">(GOD)</span>
                   </span>
                 </div>
                 <div>
                   <span className="text-cyan-400/70 block mb-1 text-xs">Timing</span>
-                  <span className={`${timingColor(investor.timing)} font-medium`}>
-                    {investor.timing}
-                  </span>
+                  <span className={`${timingColor(investor.timing)} font-medium`}>{investor.timing}</span>
                 </div>
               </div>
             </>
           ) : (
-            <div className="text-white/70 text-sm">
-              <Link to="/signup/founder" className="text-cyan-400 hover:text-cyan-300 underline">
+            <div className="text-zinc-400 text-sm">
+              <Link
+                to="/signup/founder"
+                className="text-cyan-400/95 border-b border-dotted border-cyan-500/50 hover:border-cyan-400/70 hover:text-cyan-300 transition-colors"
+              >
                 Claim your startup
-              </Link> to see alignment and timing.
+              </Link>{' '}
+              to see alignment and timing.
             </div>
           )}
         </section>
@@ -569,30 +716,30 @@ export default function InvestorProfile() {
         {(investor.totalInvestments || investor.successfulExits || investor.investmentPace) && (
           <section className="mb-10 grid grid-cols-3 gap-4">
             {investor.totalInvestments && (
-              <div className="bg-[#232323] rounded-lg border border-cyan-500/20 p-4">
+              <div className={`p-4 ${cardStroke}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Briefcase className="w-4 h-4 text-cyan-400" />
+                  <Briefcase className="w-4 h-4 text-cyan-400/90" />
                   <span className="text-cyan-400/70 text-xs">Total Investments</span>
                 </div>
-                <div className="text-2xl font-bold text-emerald-400">{investor.totalInvestments}</div>
+                <div className="text-2xl font-bold text-cyan-300 tabular-nums">{investor.totalInvestments}</div>
               </div>
             )}
             {investor.successfulExits && (
-              <div className="bg-[#232323] rounded-lg border border-cyan-500/20 p-4">
+              <div className={`p-4 ${cardStroke}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Award className="w-4 h-4 text-cyan-400" />
+                  <Award className="w-4 h-4 text-cyan-400/90" />
                   <span className="text-cyan-400/70 text-xs">Successful Exits</span>
                 </div>
-                <div className="text-2xl font-bold text-emerald-400">{investor.successfulExits}</div>
+                <div className="text-2xl font-bold text-cyan-300 tabular-nums">{investor.successfulExits}</div>
               </div>
             )}
             {investor.investmentPace && (
-              <div className="bg-[#232323] rounded-lg border border-cyan-500/20 p-4">
+              <div className={`p-4 ${cardStroke}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-cyan-400" />
+                  <TrendingUp className="w-4 h-4 text-cyan-400/90" />
                   <span className="text-cyan-400/70 text-xs">Deals/Year</span>
                 </div>
-                <div className="text-2xl font-bold text-emerald-400">~{investor.investmentPace}</div>
+                <div className="text-2xl font-bold text-cyan-300 tabular-nums">~{investor.investmentPace}</div>
               </div>
             )}
           </section>
@@ -609,15 +756,12 @@ export default function InvestorProfile() {
             </div>
             <div className="flex flex-wrap gap-2">
               {investor.portfolioCompanies.slice(0, 12).map((company, i) => (
-                <span
-                  key={i}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm hover:bg-emerald-500/20 transition-colors"
-                >
+                <span key={i} className={`${chipOutline} text-sm`}>
                   {company}
                 </span>
               ))}
               {investor.portfolioCompanies.length > 12 && (
-                <span className="px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm">
+                <span className={`${chipOutline} text-sm text-zinc-400`}>
                   +{investor.portfolioCompanies.length - 12} more
                 </span>
               )}
@@ -638,10 +782,7 @@ export default function InvestorProfile() {
               {investor.notableInvestments.slice(0, 8).map((inv: any, i: number) => {
                 const name = typeof inv === 'string' ? inv : (inv.name || inv.company || String(inv));
                 return (
-                  <span
-                    key={i}
-                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 border border-cyan-400/40 text-cyan-300 text-sm font-medium"
-                  >
+                  <span key={i} className={`${chipOutline} text-sm font-medium`}>
                     {name}
                   </span>
                 );
@@ -654,12 +795,12 @@ export default function InvestorProfile() {
             9️⃣ INVESTMENT THESIS — Full text
         ═══════════════════════════════════════════════════════════════ */}
         {investor.investmentThesis && (
-          <section className="mb-10 bg-[#232323] rounded-lg border border-cyan-500/20 p-5">
+          <section className={`mb-10 p-5 ${cardStroke}`}>
             <div className="flex items-center gap-2 mb-4">
-              <Target className="w-4 h-4 text-cyan-400" />
+              <Target className="w-4 h-4 text-cyan-400/90" />
               <div className="text-cyan-400 text-sm font-medium">Investment Thesis</div>
             </div>
-            <p className="text-white/90 text-sm leading-relaxed">{investor.investmentThesis}</p>
+            <p className="text-zinc-300 text-sm leading-relaxed">{investor.investmentThesis}</p>
           </section>
         )}
 
@@ -667,15 +808,15 @@ export default function InvestorProfile() {
             🔟 WARM INTRO GUIDANCE — How to reach them
         ═══════════════════════════════════════════════════════════════ */}
         {investor.preferredIntroMethod && (
-          <section className="mb-10 bg-gradient-to-br from-cyan-500/10 to-emerald-500/10 rounded-lg border border-cyan-500/30 p-5">
+          <section className={`mb-10 p-5 ${cardStroke}`}>
             <div className="flex items-center gap-2 mb-3">
-              <Users className="w-4 h-4 text-cyan-400" />
+              <Users className="w-4 h-4 text-cyan-400/90" />
               <div className="text-cyan-400 text-sm font-medium">Preferred Introduction Method</div>
             </div>
-            <p className="text-white/90 text-sm">{investor.preferredIntroMethod}</p>
+            <p className="text-zinc-300 text-sm leading-relaxed">{investor.preferredIntroMethod}</p>
             {investor.avgResponseTime && (
-              <p className="text-cyan-400/70 text-xs mt-2 flex items-center gap-1">
-                <Clock className="w-3 h-3" />
+              <p className="text-cyan-400/65 text-xs mt-2 flex items-center gap-1">
+                <Clock className="w-3 h-3 shrink-0" aria-hidden />
                 Average response time: {investor.avgResponseTime} days
               </p>
             )}
@@ -687,15 +828,15 @@ export default function InvestorProfile() {
         ═══════════════════════════════════════════════════════════════ */}
         {investor.relativeBehavior.length > 0 && (
           <section className="mb-10">
-            <div className="text-cyan-400 text-sm mb-3 font-medium">Relative behavior</div>
-            <div className="space-y-2">
+            <div className="text-cyan-400 text-sm mb-2 font-medium">Relative behavior</div>
+            <p className="text-sm text-zinc-300 leading-relaxed">
               {investor.relativeBehavior.map((item, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-emerald-400 mt-0.5">•</span>
-                  <span className="text-white/80">{item}</span>
-                </div>
+                <span key={i}>
+                  {i > 0 && <span className="text-zinc-600"> · </span>}
+                  <span>{item}</span>
+                </span>
               ))}
-            </div>
+            </p>
           </section>
         )}
 
@@ -704,28 +845,28 @@ export default function InvestorProfile() {
             1️⃣3️⃣ FULL BIO — If available
         ═══════════════════════════════════════════════════════════════ */}
         {investor.bio && investor.bio.length > 150 && (
-          <section className="mb-10 bg-[#232323] rounded-lg border border-cyan-500/20 p-5">
+          <section className={`mb-10 p-5 ${cardStroke}`}>
             <div className="text-cyan-400 text-sm mb-3 font-medium">About</div>
-            <p className="text-white/90 text-sm leading-relaxed">{investor.bio}</p>
+            <p className="text-zinc-300 text-sm leading-relaxed">{investor.bio}</p>
           </section>
         )}
 
         {/* ═══════════════════════════════════════════════════════════════
             1️⃣4️⃣ QUIET GUIDANCE — One line, no emphasis
         ═══════════════════════════════════════════════════════════════ */}
-        <section className="mb-10 pl-4 border-l border-cyan-500/30">
-          <p className="text-sm text-white/70 italic">{investor.quietGuidance}</p>
+        <section className="mb-10 pl-4 border-l border-cyan-500/35">
+          <p className="text-sm text-zinc-400 italic">{investor.quietGuidance}</p>
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════
             QUIET EXIT
         ═══════════════════════════════════════════════════════════════ */}
         <div className="pt-4">
-          <Link 
-            to="/matches"
-            className="text-[#8f8f8f] hover:text-[#c0c0c0] text-sm transition-colors"
+          <Link
+            to={backFromProfileUrl}
+            className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/35 bg-transparent px-3 py-2 text-sm text-cyan-400/90 hover:border-cyan-400/55 hover:text-cyan-300 transition-colors"
           >
-            ← Back to matches
+            {backFromProfileLabel}
           </Link>
         </div>
         
