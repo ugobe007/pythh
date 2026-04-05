@@ -3,23 +3,23 @@
   "cases": [
     {
       "startup_id": "ae70a524-5c0a-41ef-bb99-040c2fdb0139",
-      "name": "HCLTech (elite band)",
-      "min_total": 88,
-      "max_total": 92,
+      "name": "HCLTech (golden anchor)",
+      "min_total": 73,
+      "max_total": 83,
       "must_include_components": ["team", "traction", "market"]
     },
     {
       "startup_id": "b4b7a92f-9a07-4f50-9834-78972373fc97",
-      "name": "Maven (mid band)",
-      "min_total": 72,
-      "max_total": 78,
+      "name": "Maven (golden anchor)",
+      "min_total": 86,
+      "max_total": 96,
       "must_include_components": ["team", "vision"]
     },
     {
       "startup_id": "7e825a26-cf65-45e3-8465-b6f52bc030ab",
-      "name": "AIX Ventures (low band)",
-      "min_total": 38,
-      "max_total": 42,
+      "name": "AIX Ventures (golden anchor)",
+      "min_total": 54,
+      "max_total": 64,
       "must_include_components": ["vision"]
     }
   ]

@@ -76,7 +76,7 @@ for (const c of golden.cases) {
   const total = Number(explain.total_score ?? NaN);
   const base = Number(explain.base_total_score ?? NaN);
   const signals = Number(explain.signals_bonus ?? NaN);
-  
+
   if (!Number.isFinite(total)) {
     failed++;
     console.error(`[FAIL] total_score missing/invalid for ${c.startup_id}`);
