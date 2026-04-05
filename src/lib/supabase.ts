@@ -22,18 +22,18 @@ function browserSupabaseAnonKey(): string {
   return (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || "";
 }
 
-// Browser: prefer window.__PYTHH_RUNTIME__ (injected HTML), then Vite build-time env.
-// Server/Node: process.env (scripts, GitHub Actions, Fly).
+// Browser: window.__PYTHH_RUNTIME__ (HTML injection + main.tsx fetch /api/public-config), then Vite env.
+// Server: prefer SUPABASE_* so Fly secrets override fly.toml VITE_*.
 const supabaseUrl: string = isServer
-  ? (typeof process !== "undefined" ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "" : "")
+  ? (typeof process !== "undefined" ? process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "" : "")
   : browserSupabaseUrl();
 
 const supabaseKey: string = isServer
   ? (typeof process !== "undefined"
       ? process.env.SUPABASE_SERVICE_KEY ||
         process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.VITE_SUPABASE_ANON_KEY ||
         process.env.SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
         ""
       : "")
   : browserSupabaseAnonKey();

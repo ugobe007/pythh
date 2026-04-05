@@ -41,6 +41,24 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
 app.get('/ping', (req, res) => res.status(200).json({ ok: true, ts: new Date().toISOString() }));
+
+// Public anon config for browser (same keys as HTML injection). Prefer SUPABASE_* so Fly secrets
+// override stale VITE_* from fly.toml. Registered before static/SPA so it always resolves.
+app.get('/api/public-config', (req, res) => {
+  const supabaseUrl = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  const supabaseAnonKey = String(
+    process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
+  ).trim();
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return res.status(503).json({
+      error: 'config_unavailable',
+      hint: 'Set SUPABASE_URL and SUPABASE_ANON_KEY (or VITE_*) on the host.',
+    });
+  }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.json({ supabaseUrl, supabaseAnonKey });
+});
+
 // Serve frontend immediately so the site loads even if a later require() crashes
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
@@ -71,9 +89,9 @@ if (fs.existsSync(distPath)) {
         spaIndexDiskTemplate = fs.readFileSync(indexAbs, 'utf8');
       }
       let html = spaIndexDiskTemplate;
-      const url = String(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+      const url = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
       const anon = String(
-        process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''
+        process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
       ).trim();
       if (url && anon) {
         const payload = JSON.stringify({ supabaseUrl: url, supabaseAnonKey: anon });
