@@ -73,10 +73,19 @@ const authConfig = isServer
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     };
 
+/** WebKit/Safari can serve stale PostgREST responses from cache; incognito works because cache is empty. */
+const supabaseClientOptions: Parameters<typeof createClient<any>>[2] = { auth: authConfig };
+if (!isServer) {
+  supabaseClientOptions.global = {
+    fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+      fetch(input, { ...init, cache: 'no-store' }),
+  };
+}
+
 export const supabase = hasValidSupabaseCredentials
-  ? createClient<any>(supabaseUrl, supabaseKey, { auth: authConfig })
+  ? createClient<any>(supabaseUrl, supabaseKey, supabaseClientOptions)
   : createClient<any>(
       supabaseUrl || "https://placeholder.supabase.co",
       supabaseKey || "placeholder-key",
-      { auth: authConfig }
+      supabaseClientOptions
     );

@@ -17,7 +17,10 @@ async function ensureClientConfig(): Promise<void> {
     w.__PYTHH_RUNTIME__?.supabaseUrl?.trim() && w.__PYTHH_RUNTIME__?.supabaseAnonKey?.trim();
   if (has) return;
   try {
-    const r = await fetch(apiUrl('/api/public-config'), { credentials: 'same-origin' });
+    const r = await fetch(apiUrl('/api/public-config'), {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
     if (!r.ok) return;
     const j = (await r.json()) as { supabaseUrl?: string; supabaseAnonKey?: string };
     if (j?.supabaseUrl && j?.supabaseAnonKey) {

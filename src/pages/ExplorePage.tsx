@@ -62,20 +62,28 @@ export default function ExplorePage() {
   // ─── Execute search ───────────────────────────────────────
   const executeSearch = useCallback(async () => {
     setIsLoading(true);
-    const { data, count, error } = await searchStartups({
-      query,
-      sectors: selectedSectors,
-      stage: selectedStage,
-      sortBy,
-      limit: 50,
-    });
+    try {
+      const { data, count, error } = await searchStartups({
+        query,
+        sectors: selectedSectors,
+        stage: selectedStage,
+        sortBy,
+        limit: 50,
+      });
 
-    if (!error && data) {
-      setResults(data);
-      setTotalCount(count);
+      if (!error && data) {
+        setResults(data);
+        setTotalCount(count);
+      }
+      setHasSearched(true);
+    } catch (e) {
+      console.error('[ExplorePage] search failed:', e);
+      setResults([]);
+      setTotalCount(0);
+      setHasSearched(true);
+    } finally {
+      setIsLoading(false);
     }
-    setHasSearched(true);
-    setIsLoading(false);
   }, [query, selectedSectors, selectedStage, sortBy]);
 
   // Load on mount
