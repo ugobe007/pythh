@@ -1332,6 +1332,46 @@ const { withTimeout, TimeoutError, TIMEOUTS } = require('./utils/withTimeout');
 const { matchesCache } = require('./utils/cache');
 
 // ============================================================
+// Public marketing stats — same-origin for Safari / strict clients
+// (browser bundle may fail direct *.supabase.co requests; server uses service role.)
+// ============================================================
+app.get('/api/platform-stats', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('get_platform_stats');
+    const fromRpc = rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData);
+    const startupsRpc = fromRpc ? Number(rpcData.startups ?? 0) || 0 : 0;
+    const matchesRpc = fromRpc ? Number(rpcData.matches ?? 0) || 0 : 0;
+    if (!rpcErr && fromRpc && (startupsRpc > 0 || matchesRpc > 0)) {
+      return res
+        .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120')
+        .json({
+          startups: startupsRpc,
+          investors: Number(rpcData.investors ?? 0) || 0,
+          matches: matchesRpc,
+          source: 'rpc',
+        });
+    }
+    const [su, inv, mat] = await Promise.all([
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('investors').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+    ]);
+    return res
+      .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120')
+      .json({
+        startups: su.count ?? 0,
+        investors: inv.count ?? 0,
+        matches: mat.count ?? 0,
+        source: 'count',
+      });
+  } catch (err) {
+    console.error('[platform-stats]', err.message);
+    return res.status(503).json({ error: 'stats_unavailable', message: err.message });
+  }
+});
+
+// ============================================================
 // Newsletter endpoints — Daily Signal Digest
 // Public endpoints — no auth required
 // ============================================================

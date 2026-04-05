@@ -1,9 +1,11 @@
 /**
  * Platform-wide counts for marketing UI (home hero, submit flow, etc.).
- * Tries RPC first, then head-count queries — same strategy as PlatformPage.
+ * 1) Same-origin GET /api/platform-stats (server uses service role — reliable in Safari / strict browsers).
+ * 2) Direct Supabase RPC + head counts as fallback (local dev without API).
  */
 
 import { supabase } from './supabase';
+import { apiUrl } from './apiConfig';
 
 export type PlatformStats = { startups: number; investors: number; matches: number };
 
@@ -21,10 +23,36 @@ function normalizeRpcPayload(data: unknown): PlatformStats | null {
 }
 
 /**
- * Returns live counts. Uses `get_platform_stats` when healthy; otherwise
- * exact head counts on core tables (respects RLS — same as user-facing queries).
+ * Returns live counts.
  */
 export async function fetchPlatformStats(): Promise<PlatformStats> {
+  try {
+    const res = await fetch(apiUrl('/api/platform-stats'), {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const j = (await res.json()) as Partial<PlatformStats & { source?: string }>;
+      if (
+        j &&
+        typeof j.startups === 'number' &&
+        typeof j.investors === 'number' &&
+        typeof j.matches === 'number'
+      ) {
+        return {
+          startups: j.startups,
+          investors: j.investors,
+          matches: j.matches,
+        };
+      }
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[platformStats] /api/platform-stats failed, using Supabase client', e);
+    }
+  }
+
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await supabase.rpc('get_platform_stats');
