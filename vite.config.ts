@@ -33,6 +33,11 @@ export default defineConfig({
     },
   },
   build: {
+    // One CSS bundle avoids Vite's dynamic-import CSS preload path that can throw
+    // "Unable to preload CSS" in production and leave the app blank (no Supabase data).
+    cssCodeSplit: false,
+    // Native modulepreload only; avoids legacy polyfill edge cases.
+    modulePreload: { polyfill: false },
     sourcemap: false,
     // Target modern browsers — avoids transpiling async/await, arrow functions,
     // optional chaining etc. which Fly.io's audience supports. Smaller output.
