@@ -6,6 +6,7 @@
 
 import { Link } from 'react-router-dom';
 import { stripHtmlForDisplay } from '@/lib/stripHtml';
+import { dedupeInvestorMatchesByFirm } from '@/lib/dedupeInvestorMatchesByFirm';
 import {
   Flame,
   ChevronRight,
@@ -107,9 +108,6 @@ function fmtMoney(n?: number) {
 function signalBarPct(v: number) {
   return Math.min(100, (v / 2.5) * 100);
 }
-
-/** `signals_total` is 0–10, but low values read like a bad “rating”; show words until composite is solid */
-const SIGNAL_HEADLINE_NUMERIC_MIN = 5;
 
 const COMPONENT_INSIGHTS: Record<
   keyof ScoreComponents,
@@ -287,7 +285,7 @@ export default function InvestorReadinessReport({
   const { startup, matches, total_matches } = report;
   const sc = startup.score_components;
   const weakKeys = getWeakComponents(sc);
-  const topSlice = matches.slice(0, 5);
+  const topSlice = dedupeInvestorMatchesByFirm(matches, 5);
   const topAvg =
     topSlice.reduce((s, m) => s + m.match_score, 0) / Math.max(topSlice.length, 1);
   const successRate = meetingSuccessRate(startup.god_score, topAvg);
@@ -299,7 +297,10 @@ export default function InvestorReadinessReport({
   const signalTotal = startup.signal_score ?? 0;
   const sig = startup.signal_components;
   const hasSignalSubscores = !!(sig && Object.values(sig).some((v) => v > 0));
-  const showSignalNumericHeadline = signalTotal >= SIGNAL_HEADLINE_NUMERIC_MIN;
+  /** Show /10 headline whenever the composite exists (>0). Same SSOT as the match table (`signals_total`). */
+  const showSignalNumericHeadline = signalTotal > 0;
+  /** Sub-score column numbers: show whenever we have layer data (composite and/or subscores). */
+  const showSignalSubscoreNumbers = showSignalNumericHeadline || hasSignalSubscores;
   const signalHeadlineWord = !showSignalNumericHeadline
     ? hasSignalSubscores || signalTotal > 0
       ? 'Partial'
@@ -345,11 +346,9 @@ export default function InvestorReadinessReport({
                     {signalHeadlineWord}
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1 leading-snug normal-case tracking-normal font-normal">
-                    {signalTotal > 0 && signalTotal < SIGNAL_HEADLINE_NUMERIC_MIN
-                      ? 'Composite still building — bars below, no headline yet'
-                      : hasSignalSubscores
-                        ? 'Headline score when composite is firm'
-                        : 'Score appears after enrichment'}
+                    {hasSignalSubscores
+                      ? 'Composite still aggregating — see subscores below'
+                      : 'Score appears after enrichment'}
                   </p>
                 </>
               )}
@@ -486,7 +485,7 @@ export default function InvestorReadinessReport({
                 <div key={key}>
                   <div className="flex justify-between text-xs gap-2 mb-0.5">
                     <span className="text-zinc-400">{meta.label}</span>
-                    {showSignalNumericHeadline ? (
+                    {showSignalSubscoreNumbers ? (
                       <span className="text-zinc-600 font-mono tabular-nums">{v.toFixed(1)}</span>
                     ) : (
                       <span className="text-zinc-600" aria-hidden>

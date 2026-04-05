@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dedupeInvestorMatchesByFirm } from '@/lib/dedupeInvestorMatchesByFirm';
 import { Flame, Lock, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -131,13 +132,13 @@ export default function TopMatchesCards({ startupId, totalMatches = 0 }: TopMatc
         setLoading(true);
         setError(null);
 
-        // Fetch top 5 matches
+        // Fetch a wide slice, then one partner per VC firm (top 5 unique firms)
         const { data: matchData, error: matchError } = await supabase
           .from('startup_investor_matches')
           .select('investor_id, match_score, reasoning, why_you_match')
           .eq('startup_id', startupId)
           .order('match_score', { ascending: false })
-          .limit(5);
+          .limit(60);
 
         if (matchError) throw matchError;
         if (!matchData || matchData.length === 0) {
@@ -166,7 +167,7 @@ export default function TopMatchesCards({ startupId, totalMatches = 0 }: TopMatc
           investor: investorMap.get(m.investor_id) || null,
         }));
 
-        setMatches(formattedMatches);
+        setMatches(dedupeInvestorMatchesByFirm(formattedMatches, 5));
       } catch (err) {
         console.error('Error fetching top matches:', err);
         setError(err instanceof Error ? err.message : 'Failed to load matches');

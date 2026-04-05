@@ -15,7 +15,8 @@
  *   Result: every founder sees 0 on their Signal Health chart.
  *
  *   This script is the bridge. It aggregates pythh_signal_events by entity,
- *   computes the 5 dimension scores, and upserts into startup_signal_scores.
+ *   computes the 5 dimension scores, blends with GOD (same rules as
+ *   server/lib/recomputeStartupSignalScoresFromPythh.js), and upserts startup_signal_scores.
  *
  * DIMENSION MAPPING (matches startup_signal_scores schema constraints):
  *   founder_language_shift  max 2.0  — exploratory, product, market_position, gtm signals
@@ -33,6 +34,15 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { fetchAll, upsertInBatches } = require('../lib/supabaseUtils');
+const { clamp, applyGodBlendToSignalDimensions } = require('../lib/signalScoreGodBlend');
+
+/** Same default as instantSubmit (`scores.total_god_score || 50`) when GOD is missing in DB. */
+const DEFAULT_GOD_SCORE_BLEND = 50;
+
+function resolveGodScoreForBlend(raw) {
+  if (raw != null && raw !== '' && Number.isFinite(Number(raw))) return Number(raw);
+  return DEFAULT_GOD_SCORE_BLEND;
+}
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -178,11 +188,6 @@ function computeNewsMomentum(signals) {
   return score;
 }
 
-/** Clamp a value to [0, cap], rounded to 1 decimal. */
-function clamp(val, cap) {
-  return Math.round(Math.min(Math.max(val, 0), cap) * 10) / 10;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +209,30 @@ async function main() {
   let entityList = entities || [];
   if (LIMIT_ARG) entityList = entityList.slice(0, LIMIT_ARG);
   console.log(`  Found ${entityList.length} entities with startup_upload_id\n`);
+
+  const uploadIds = [...new Set(entityList.map(e => e.startup_upload_id).filter(Boolean))];
+  const godByUploadId = {};
+  if (uploadIds.length > 0) {
+    // PostgREST URL/query limits: a single .in() with tens of thousands of UUIDs returns 0 rows silently.
+    const GOD_ID_CHUNK = 150;
+    for (let i = 0; i < uploadIds.length; i += GOD_ID_CHUNK) {
+      const idChunk = uploadIds.slice(i, i + GOD_ID_CHUNK);
+      const { data: godRows, error: godErr } = await supabase
+        .from('startup_uploads')
+        .select('id, total_god_score')
+        .in('id', idChunk);
+      if (godErr) {
+        console.warn(`  total_god_score chunk ${i} warning:`, godErr.message);
+        continue;
+      }
+      for (const r of godRows || []) {
+        godByUploadId[r.id] = r.total_god_score;
+      }
+    }
+    console.log(
+      `  Loaded total_god_score for ${Object.keys(godByUploadId).length} / ${uploadIds.length} startup_uploads (chunked)\n`
+    );
+  }
 
   const entityIds = entityList.map(e => e.id);
   const uploadIdByEntity = {};
@@ -238,6 +267,7 @@ async function main() {
 
   const dimTotals = { founder_language_shift: 0, investor_receptivity: 0, news_momentum: 0, capital_convergence: 0, execution_velocity: 0 };
   const classCounts = {};
+  let godScoreDefaulted = 0;
 
   for (const entity of entityList) {
     const uploadId = uploadIdByEntity[entity.id];
@@ -252,35 +282,50 @@ async function main() {
       classCounts[s.primary_signal] = (classCounts[s.primary_signal] || 0) + 1;
     }
 
-    const founder_language_shift = clamp(
+    const founder_language_shift_raw = clamp(
       sumDimension(signals, FOUNDER_LANGUAGE_CLASSES, false),
       CAP.founder_language_shift
     );
-
-    const investor_receptivity = clamp(
+    const investor_receptivity_raw = clamp(
       sumDimension(signals, INVESTOR_RECEPTIVITY_CLASSES, false),
       CAP.investor_receptivity
     );
-
-    const news_momentum = clamp(
-      computeNewsMomentum(signals),
-      CAP.news_momentum
-    );
-
-    const capital_convergence = clamp(
+    const news_momentum_raw = clamp(computeNewsMomentum(signals), CAP.news_momentum);
+    const capital_convergence_raw = clamp(
       sumDimension(signals, CAPITAL_CONVERGENCE_CLASSES, true),
       CAP.capital_convergence
     );
-
-    const execution_velocity = clamp(
+    const execution_velocity_raw = clamp(
       sumDimension(signals, EXECUTION_VELOCITY_CLASSES, true),
       CAP.execution_velocity
     );
 
-    const signals_total = clamp(
-      founder_language_shift + investor_receptivity + news_momentum + capital_convergence + execution_velocity,
-      10.0
+    const rawGod = godByUploadId[uploadId];
+    if (rawGod == null || rawGod === '' || !Number.isFinite(Number(rawGod))) godScoreDefaulted++;
+    const godScore = resolveGodScoreForBlend(rawGod);
+    const blended = applyGodBlendToSignalDimensions(
+      {
+        founder_language_shift: founder_language_shift_raw,
+        investor_receptivity: investor_receptivity_raw,
+        news_momentum: news_momentum_raw,
+        capital_convergence: capital_convergence_raw,
+        execution_velocity: execution_velocity_raw,
+      },
+      signals.length,
+      godScore,
+      CAP
     );
+    const {
+      founder_language_shift,
+      investor_receptivity,
+      news_momentum,
+      capital_convergence,
+      execution_velocity,
+      signals_total,
+      eventSum,
+      blendWeight,
+      godPrior,
+    } = blended;
 
     dimTotals.founder_language_shift += founder_language_shift;
     dimTotals.investor_receptivity   += investor_receptivity;
@@ -298,9 +343,15 @@ async function main() {
       capital_convergence,
       execution_velocity,
       debug: {
-        entity_id:     entity.id,
-        signal_count:  signals.length,
-        computed_at:   new Date().toISOString(),
+        entity_id: entity.id,
+        signal_count: signals.length,
+        event_sum_before_blend: eventSum,
+        god_prior: godPrior,
+        blend_weight: godPrior != null ? blendWeight : null,
+        god_score_db: rawGod != null && rawGod !== '' && Number.isFinite(Number(rawGod)) ? Number(rawGod) : null,
+        god_score_used_for_blend: godScore,
+        source: 'sync-signal-scores.js',
+        computed_at: new Date().toISOString(),
       },
     });
   }
@@ -310,6 +361,9 @@ async function main() {
   console.log(`  Entities with signals:  ${withSignals}`);
   console.log(`  Entities without:       ${noSignals}`);
   console.log(`  Rows to upsert:         ${rows.length}`);
+  if (withSignals > 0) {
+    console.log(`  GOD default ${DEFAULT_GOD_SCORE_BLEND} used for blend: ${godScoreDefaulted} / ${withSignals} rows (missing/non-finite total_god_score)`);
+  }
 
   if (rows.length > 0) {
     const n = rows.length;

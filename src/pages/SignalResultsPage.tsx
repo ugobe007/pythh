@@ -12,6 +12,7 @@ import { getSignalStrength, formatTimeAgo } from '../utils/signalHelpers';
 import { SignalResult } from '../types/signals';
 import { supabase } from '../lib/supabase';
 import { withErrorMonitoring } from '../lib/dbErrorMonitor';
+import { dedupeInvestorMatchesByFirm } from '../lib/dedupeInvestorMatchesByFirm';
 import {
   EnrichmentInsightsAccordion,
   type ExtractedDataInsightsShape,
@@ -169,7 +170,7 @@ export default function SignalResultsPage() {
             .eq('startup_id', startupId)
             .gte('match_score', 50)
             .order('match_score', { ascending: false })
-            .limit(5),
+            .limit(40),
           { startupId }
         );
 
@@ -184,9 +185,15 @@ export default function SignalResultsPage() {
           return;
         }
 
+        const rawForDedupe = (matches as any[]).map((m: any) => ({
+          ...m,
+          investor: Array.isArray(m.investors) ? m.investors[0] : m.investors,
+        }));
+        const dedupedMatches = dedupeInvestorMatchesByFirm(rawForDedupe, 5);
+
         // Step 4: Transform to SignalResult format
-        const transformedSignals: SignalResult[] = matches.map((m: any) => {
-          const investor = m.investors;
+        const transformedSignals: SignalResult[] = dedupedMatches.map((m: any) => {
+          const investor = m.investor ?? (Array.isArray(m.investors) ? m.investors[0] : m.investors);
           const matchScore = Math.round(m.match_score || 0);
           
           // Parse lookingFor from reasoning or why_you_match
@@ -246,7 +253,7 @@ export default function SignalResultsPage() {
           totalInvestors: transformedSignals.length,
           topScore: transformedSignals[0]?.signalStrength || 0,
           stage: startup?.stage || 'N/A',
-          avgCheck: calculateAvgCheck(matches)
+          avgCheck: calculateAvgCheck(dedupedMatches)
         });
 
         setSignals(transformedSignals);

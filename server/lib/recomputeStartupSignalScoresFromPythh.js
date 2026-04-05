@@ -1,10 +1,12 @@
 /**
  * Recompute startup_signal_scores from pythh_signal_events for one startup.
- * Mirrors scripts/sync-signal-scores.js — run after new signals are written (e.g. instant submit Phase 4).
+ * Uses lib/signalScoreGodBlend.js (same as scripts/sync-signal-scores.js). Run after new signals (e.g. instant submit Phase 4).
  * If there are no pythh signals, returns { ok: false, reason: 'no_signals' } and does not overwrite GOD-seeded rows.
  */
 
 'use strict';
+
+const { clamp, applyGodBlendToSignalDimensions } = require('../../lib/signalScoreGodBlend');
 
 const FOUNDER_LANGUAGE_CLASSES = {
   exploratory_signal: 1.0,
@@ -111,16 +113,12 @@ function computeNewsMomentum(signals) {
   return score;
 }
 
-function clamp(val, cap) {
-  return Math.round(Math.min(Math.max(val, 0), cap) * 10) / 10;
-}
-
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
- * @param {{ startupUploadId: string, entityId?: string | null }} opts
+ * @param {{ startupUploadId: string, entityId?: string | null, godScore?: number | null }} opts
  * @returns {Promise<{ ok: boolean, reason?: string, signals_total?: number }>}
  */
-async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId, entityId: entityIdOpt }) {
+async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId, entityId: entityIdOpt, godScore }) {
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRe.test(startupUploadId)) {
     return { ok: false, reason: 'invalid_startup_id' };
@@ -153,27 +151,46 @@ async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId
     return { ok: false, reason: 'no_signals' };
   }
 
-  const founder_language_shift = clamp(
+  const founder_language_shift_raw = clamp(
     sumDimension(signals, FOUNDER_LANGUAGE_CLASSES, false),
     CAP.founder_language_shift
   );
-  const investor_receptivity = clamp(
+  const investor_receptivity_raw = clamp(
     sumDimension(signals, INVESTOR_RECEPTIVITY_CLASSES, false),
     CAP.investor_receptivity
   );
-  const news_momentum = clamp(computeNewsMomentum(signals), CAP.news_momentum);
-  const capital_convergence = clamp(
+  const news_momentum_raw = clamp(computeNewsMomentum(signals), CAP.news_momentum);
+  const capital_convergence_raw = clamp(
     sumDimension(signals, CAPITAL_CONVERGENCE_CLASSES, true),
     CAP.capital_convergence
   );
-  const execution_velocity = clamp(
+  const execution_velocity_raw = clamp(
     sumDimension(signals, EXECUTION_VELOCITY_CLASSES, true),
     CAP.execution_velocity
   );
-  const signals_total = clamp(
-    founder_language_shift + investor_receptivity + news_momentum + capital_convergence + execution_velocity,
-    10.0
+  const blended = applyGodBlendToSignalDimensions(
+    {
+      founder_language_shift: founder_language_shift_raw,
+      investor_receptivity: investor_receptivity_raw,
+      news_momentum: news_momentum_raw,
+      capital_convergence: capital_convergence_raw,
+      execution_velocity: execution_velocity_raw,
+    },
+    signals.length,
+    godScore,
+    CAP
   );
+  const {
+    founder_language_shift,
+    investor_receptivity,
+    news_momentum,
+    capital_convergence,
+    execution_velocity,
+    signals_total,
+    eventSum,
+    blendWeight,
+    godPrior,
+  } = blended;
 
   const { error: upErr } = await supabase.from('startup_signal_scores').upsert(
     {
@@ -188,6 +205,10 @@ async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId
       debug: {
         entity_id: entityId,
         signal_count: signals.length,
+        event_sum_before_blend: eventSum,
+        god_prior: godPrior,
+        blend_weight: godPrior != null ? blendWeight : null,
+        god_score_input: godScore ?? null,
         source: 'recomputeStartupSignalScoresFromPythh',
         computed_at: new Date().toISOString(),
       },

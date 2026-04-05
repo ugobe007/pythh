@@ -2,7 +2,7 @@
  * /api/preview/:startupId
  * ═══════════════════════════════════════════════════════════════
  * Public, no-auth endpoint for the shareable match preview page.
- * Returns startup info + top 10 investor matches (names/firms/scores).
+ * Returns startup info + top investor matches (unique firm; up to 10 for preview UI).
  * Serves startups that are visible to the product (approved, pending, etc.).
  * Rejected rows are excluded so share links cannot revive spam.
  * ═══════════════════════════════════════════════════════════════
@@ -16,6 +16,8 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 );
+
+const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
 
 /** Narrative for UI when top-level columns are empty but inference JSON has text */
 function effectiveStartupDescription(row) {
@@ -115,7 +117,7 @@ router.get('/:startupId', async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .eq('startup_id', startupId);
 
-    // 3. Fetch top 10 matches with investor details
+    // 3. Fetch a wide slice, then dedupe by VC firm (one partner per firm), keep top 10 for preview UI
     const { data: matchRows, error: mErr } = await supabase
       .from('startup_investor_matches')
       .select(`
@@ -139,7 +141,7 @@ router.get('/:startupId', async (req, res) => {
       `)
       .eq('startup_id', startupId)
       .order('match_score', { ascending: false })
-      .limit(10);
+      .limit(120);
 
     if (mErr) {
       console.error('[preview] match fetch error:', mErr);
@@ -162,7 +164,7 @@ router.get('/:startupId', async (req, res) => {
       ? Math.round(100 - ((higherCount / approvedTotal) * 100))
       : 50;
 
-    const matches = (matchRows || [])
+    const mapped = (matchRows || [])
       .map((row) => {
         const raw = row.investors;
         const investor = Array.isArray(raw) ? raw[0] : raw;
@@ -174,6 +176,8 @@ router.get('/:startupId', async (req, res) => {
         };
       })
       .filter((m) => m.investor && (m.investor.id || m.investor_id));
+
+    const matches = dedupeInvestorMatchesByFirm(mapped, 10);
 
     const descriptionForUi = effectiveStartupDescription(startup);
 

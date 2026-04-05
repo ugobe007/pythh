@@ -1641,6 +1641,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           const rec = await recomputeStartupSignalScoresFromPythh(supabase, {
             startupUploadId: startupId,
             entityId,
+            godScore,
           });
           if (rec.ok) {
             console.log(

@@ -334,7 +334,9 @@ export default function StartupProfileCard({
 
               {/* Tagline - only if distinct from description */}
               {tagline && tagline !== businessSummary && tagline !== `Startup at ${websiteDisplay}` && (
-                <p className="text-xs text-cyan-400/80 mt-0.5 font-medium line-clamp-1">{tagline}</p>
+                <p className="text-xs text-cyan-400/80 mt-0.5 font-medium line-clamp-1">
+                  {stripHtmlForDisplay(tagline)}
+                </p>
               )}
 
               {/* Source link — shown when we only have a publisher/news URL, not the company homepage */}

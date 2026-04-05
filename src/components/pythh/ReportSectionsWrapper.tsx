@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dedupeInvestorMatchesByFirm } from '@/lib/dedupeInvestorMatchesByFirm';
 import { FocusAreas, MeetingSuccessForecast, NextSteps, BottomCTA } from './ReportSections';
 import type { StartupContext } from '@/lib/pythh-types';
 
@@ -24,20 +25,28 @@ export default function ReportSectionsWrapper({
   useEffect(() => {
     async function fetchTopMatchScores() {
       try {
-        // Fetch top 5 match scores
+        // Top 5 unique firms by match score (aligns with readiness match list)
         const { data, error } = await supabase
           .from('startup_investor_matches')
-          .select('match_score')
+          .select(`
+            match_score,
+            investors ( id, name, firm )
+          `)
           .eq('startup_id', startupId)
           .order('match_score', { ascending: false })
-          .limit(5);
+          .limit(40);
 
         if (error) throw error;
 
-        const scores = (data || [])
+        const rows = (data || []).map((row: { match_score: number; investors: unknown }) => ({
+          match_score: row.match_score,
+          investors: row.investors,
+        }));
+        const deduped = dedupeInvestorMatchesByFirm(rows, 5);
+        const scores = deduped
           .map(m => m.match_score)
           .filter((score): score is number => score !== null && score !== undefined)
-          .map(score => typeof score === 'number' ? score : parseFloat(score));
+          .map(score => (typeof score === 'number' ? score : parseFloat(String(score))));
 
         setTopMatchScores(scores);
       } catch (err) {
