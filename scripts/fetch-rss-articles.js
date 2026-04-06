@@ -11,6 +11,7 @@
  *   - Captures article_title, article_url, article_date, description (body)
  *   - Uses rss-parser to handle RSS 2.0 + Atom feeds natively
  *   - Strips HTML from article bodies to produce clean parseable text
+ *   - Skips items that fail lib/source-quality-filter.js (same as ssot-rss-scraper)
  *   - Also activates high-priority RSS sources if none are active
  *
  * Usage:
@@ -25,6 +26,7 @@ require('dotenv').config();
 
 const { createClient } = require('@supabase/supabase-js');
 const RSSParser        = require('rss-parser');
+const { shouldProcessEvent } = require('../lib/source-quality-filter');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -174,6 +176,7 @@ async function main() {
     sources_ok: 0, sources_err: 0,
     articles_found: 0, articles_saved: 0,
     articles_skipped_dup: 0, articles_skipped_short: 0,
+    articles_skipped_quality: 0,
     errors: 0,
   };
 
@@ -218,6 +221,11 @@ async function main() {
       stats.articles_found++;
       const url = item.link || item.guid;
       if (!url) continue;
+
+      if (!shouldProcessEvent(item.title || '', source.name).keep) {
+        stats.articles_skipped_quality++;
+        continue;
+      }
 
       // Dedup
       if (existingUrls.has(url)) { stats.articles_skipped_dup++; continue; }
@@ -284,6 +292,7 @@ async function main() {
   console.log(`Saved to DB:          ${DRY_RUN ? '(dry-run)' : stats.articles_saved}`);
   console.log(`Skipped (duplicate):  ${stats.articles_skipped_dup}`);
   console.log(`Skipped (too short):  ${stats.articles_skipped_short}`);
+  console.log(`Skipped (source Q):   ${stats.articles_skipped_quality}`);
   console.log(`Errors:               ${stats.errors}`);
 
   if (DRY_RUN) {

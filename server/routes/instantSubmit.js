@@ -59,6 +59,7 @@ try {
 const { extractInferenceData } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
+const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -269,7 +270,9 @@ async function getInvestors(supabase) {
     console.log(`  📦 Loading investors into cache...`);
     const { data: investors, error } = await supabase
       .from('investors')
-      .select('id, name, firm, url, sectors, stage, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals')
+      .select(
+        'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals',
+      )
       .eq('status', 'active');
     
     if (error) throw error;
@@ -363,6 +366,10 @@ function getCandidateInvestors(startupSectors, maxCandidates) {
     .slice(0, cap);
 
   return candidates;
+}
+
+function matchFeatureSnapshotFor(engine, phase, startupPayload, investor, extra) {
+  return buildMatchFeatureSnapshot({ engine, phase, startup: startupPayload, investor, extra });
 }
 // ============================================================================
 
@@ -935,7 +942,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // Prefer real GOD from DB (set by syncEnrichmentAndGodScoreForSubmit before BG runs)
     const { data: suPh } = await supabase
       .from('startup_uploads')
-      .select('name, sectors, stage, total_god_score')
+      .select(
+        'name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, mrr, arr, customer_count, growth_rate_monthly',
+      )
       .eq('id', startupId)
       .single();
     const placeholderStartup = {
@@ -944,6 +953,20 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       sectors: Array.isArray(suPh?.sectors) && suPh.sectors.length ? suPh.sectors : ['Technology'],
       stage: suPh?.stage ?? 1,
       total_god_score: typeof suPh?.total_god_score === 'number' ? suPh.total_god_score : 50,
+      team_score: suPh?.team_score ?? null,
+      traction_score: suPh?.traction_score ?? null,
+      market_score: suPh?.market_score ?? null,
+      product_score: suPh?.product_score ?? null,
+      vision_score: suPh?.vision_score ?? null,
+      maturity_level: suPh?.maturity_level ?? null,
+      data_completeness: suPh?.data_completeness ?? null,
+      has_revenue: !!suPh?.has_revenue,
+      has_customers: !!suPh?.has_customers,
+      is_launched: !!suPh?.is_launched,
+      mrr: suPh?.mrr ?? null,
+      arr: suPh?.arr ?? null,
+      customer_count: suPh?.customer_count ?? null,
+      growth_rate_monthly: suPh?.growth_rate_monthly ?? null,
     };
     
     // Tier A: cheap prefilter → max 300 candidates, then expensive scoring on shortlist only
@@ -987,6 +1010,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
                   status: 'suggested',
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
+                  feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'phase1', placeholderStartup, investor, {}),
                 };
               }
               return null;
@@ -1433,6 +1457,24 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         total_god_score: scores.total_god_score,
       };
 
+      const startupSnapshotPhase3 = {
+        ...enrichedStartup,
+        team_score: scores.team_score,
+        traction_score: scores.traction_score,
+        market_score: scores.market_score,
+        product_score: scores.product_score,
+        vision_score: scores.vision_score,
+        maturity_level: enrichedRow.maturity_level ?? null,
+        data_completeness: completenessResult?.percentage ?? null,
+        has_revenue: !!enrichedRow.has_revenue,
+        has_customers: !!enrichedRow.has_customers,
+        is_launched: !!enrichedRow.is_launched,
+        mrr: enrichedRow.mrr ?? null,
+        arr: enrichedRow.arr ?? null,
+        customer_count: enrichedRow.customer_count ?? null,
+        growth_rate_monthly: enrichedRow.growth_rate_monthly ?? null,
+      };
+
       const startupSectors = Array.isArray(enrichedStartup.sectors) ? enrichedStartup.sectors : [];
       // Tier B: max 1000 candidates, expensive scoring on shortlist only
       const investors = getCandidateInvestors(startupSectors, PIPELINE_CONFIG.MAX_CANDIDATE_INVESTORS);
@@ -1479,6 +1521,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
                     status: 'suggested',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
+                    feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'phase3', startupSnapshotPhase3, investor, {
+                      signal_total: signalScore,
+                    }),
                   };
                 }
                 return null;

@@ -35,6 +35,22 @@ const LIMIT = (() => {
 })();
 const BATCH = 100;
 
+async function logQualityGateToAiLogs(payload) {
+  try {
+    await sb.from('ai_logs').insert({
+      type: 'quality_gate',
+      status: payload.dry_run ? 'dry_run' : 'executed',
+      message: payload.dry_run
+        ? `Quality gate dry-run: would reject ${payload.would_reject} rows.`
+        : `Quality gate rejected ${payload.rejected} thin scraper rows.`,
+      details: payload,
+      created_at: new Date().toISOString(),
+    });
+  } catch (_) {
+    /* best-effort */
+  }
+}
+
 const ADMIN_NOTE =
   'Auto-rejected by quality-gate: no website, no meaningful content, ' +
   'and no manual submission. Re-approve after enrichment provides more data.';
@@ -144,6 +160,15 @@ async function runGate() {
     console.log(`\n✅ Rejected ${rejectedCount} junk entries.`);
     console.log('Re-approve from the admin panel after enrichment adds content.');
   }
+
+  await logQualityGateToAiLogs({
+    dry_run: DRY_RUN,
+    limit: LIMIT,
+    scanned: processed,
+    would_reject: rejectedCount,
+    skipped_ok: skippedCount,
+    rejected: DRY_RUN ? 0 : rejectedCount,
+  });
 }
 
 runGate().catch(err => {

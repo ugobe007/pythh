@@ -7,6 +7,8 @@
  *
  * Uses: article_title, description, problem, solution, value_proposition
  *
+ * Drops rows that fail lib/source-quality-filter.js (headline + rss_source).
+ *
  * Only processes records where:
  *   - startup_id IS NULL (not yet promoted to startup_uploads)
  *   - name and article_title are non-null
@@ -29,6 +31,7 @@ const { parseSignal }          = require('../lib/signalParser');
 const { buildSignalEvent,
         buildTimelineEvent }   = require('../lib/signalEventBuilder');
 const { insertInBatches }      = require('../lib/supabaseUtils');
+const { shouldProcessEvent }   = require('../lib/source-quality-filter');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -113,10 +116,31 @@ async function main() {
     offset += PAGE_FETCH;
   }
   rows = rows.slice(0, LIMIT);
-  console.log(`\r   Fetched: ${rows.length} discovered_startups (startup_id IS NULL).\n`);
+  console.log(`\r   Fetched: ${rows.length} discovered_startups (startup_id IS NULL).`);
+
+  const nBeforeQuality = rows.length;
+  let skippedSourceQuality = 0;
+  rows = rows.filter((r) => {
+    const title = (r.article_title || r.name || '').trim();
+    const pub = (r.rss_source || '').trim();
+    if (!shouldProcessEvent(title, pub).keep) {
+      skippedSourceQuality++;
+      return false;
+    }
+    return true;
+  });
+  if (skippedSourceQuality > 0) {
+    console.log(`   Source quality filter: skipped ${skippedSourceQuality} (${rows.length} remain, from ${nBeforeQuality})\n`);
+  } else {
+    console.log('\n');
+  }
 
   if (!rows.length) {
-    console.log('No discovered_startups to process (all already imported or none with article_title).');
+    if (skippedSourceQuality > 0) {
+      console.log('No discovered_startups left after source quality filter.');
+    } else {
+      console.log('No discovered_startups to process (all already imported or none with article_title).');
+    }
     return;
   }
 
@@ -147,7 +171,8 @@ async function main() {
   const stats = {
     startups: 0, entities_inserted: 0,
     sentences_parsed: 0, signals_written: 0,
-    skipped_low_conf: 0, skipped_unclassified: 0, errors: 0,
+    skipped_low_conf: 0, skipped_unclassified: 0, skipped_source_quality: skippedSourceQuality,
+    errors: 0,
     by_class: {}, by_evidence: {},
   };
 
@@ -299,6 +324,7 @@ async function main() {
   console.log(`Sentences parsed:     ${stats.sentences_parsed}`);
   console.log(`Signals written:      ${DRY_RUN ? '(dry-run)' : stats.signals_written}`);
   console.log(`Skipped (unclassif.): ${stats.skipped_unclassified}`);
+  console.log(`Skipped (source Q):   ${stats.skipped_source_quality}`);
   console.log(`Errors:               ${stats.errors}`);
   console.log('');
 

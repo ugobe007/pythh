@@ -205,6 +205,8 @@ export interface StartupInvestorMatch {
   reasoning: string | null;
   why_you_match: string[] | null;
   fit_analysis: Json | null;
+  /** Point-in-time features at match generation (ML / drift). */
+  feature_snapshot: Json | null;
   
   // Status - Use MATCH_STATUS constants
   status: MatchStatus | null;  // NOT investment_made

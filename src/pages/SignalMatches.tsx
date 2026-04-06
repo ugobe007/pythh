@@ -32,6 +32,8 @@ import SignalHealthHexagon from '@/components/pythh/SignalHealthHexagon';
 import { GODScoreExplainer } from '@/components/pythh/GODScoreExplainer';
 import ImproveScoreWizard from '@/components/ImproveScoreWizard';
 import PythhAnalyzeEntryHero from '@/components/pythh/PythhAnalyzeEntryHero';
+import { StartupSignalBadgeStrip } from '@/components/SignalTableBadges';
+import { applyGoldilocksSignalBonus, isGoldilocksCandidate } from '@/lib/goldilocksCandidate';
 
 import { submitStartup, type SubmitResult } from '@/services/submitStartup';
 import {
@@ -67,6 +69,7 @@ interface StartupBenchmarkRow {
   momentum_delta: number;
   readiness: number;
   match_count: number;
+  goldilocks_candidate: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -1252,7 +1255,9 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
         const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
         const signalBase = 5.5 + normalized * 4.0;
         const matchBonus = Math.min(matchCount / 50, 0.5);
-        const signalScore = Math.max(5.0, Math.min(10, signalBase + matchBonus));
+        let signalScore = Math.max(5.0, Math.min(10, signalBase + matchBonus));
+        const goldilocks = isGoldilocksCandidate(godScore, s.maturity_level);
+        signalScore = applyGoldilocksSignalBonus(signalScore, goldilocks);
 
         const tractionWeight = (s.traction_score || 0) * 1.5;
         const teamWeight = (s.team_score || 0) * 1.2;
@@ -1276,6 +1281,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
           momentum_delta: Math.round(momentumDelta * 10) / 10,
           readiness,
           match_count: matchCount,
+          goldilocks_candidate: goldilocks,
         };
       });
 
@@ -1399,7 +1405,15 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
                   sorted.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-800/50 transition-colors group">
                       <td className="px-4 py-3">
-                        <span className="font-medium text-white">{s.name}</span>
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="font-medium text-white">{s.name}</span>
+                          <StartupSignalBadgeStrip
+                            flags={{}}
+                            goldilocksCandidate={s.goldilocks_candidate}
+                            compact
+                            className="flex-shrink-0"
+                          />
+                        </div>
                       </td>
 
                       <td className="px-3 py-3">

@@ -152,6 +152,13 @@ node scripts/investor-data-quality-gate.js --quarantine --execute
 node scripts/investor-data-quality-gate.js --validate "John Doe" --firm "ABC Capital" --context "backed startup"
 ```
 
+### Automation & monitoring
+
+- **Snapshot (tiers, scores, verification):** `npm run dq:investors` (uses `SUPABASE_SERVICE_KEY` when set so counts are not limited by RLS).
+- **Garbage scan:** `node scripts/investor-data-quality-gate.js` (default) — lists candidates from `validateInvestorEntity`.
+- **Quarantine path:** `--quarantine` / `--quarantine --execute` — moves bad rows toward `investor_mentions_raw` per script logic.
+- **Platform rollup:** `npm run dq:report:full` includes investor-quality stdout alongside startups/RSS checks; quick cron mode: `npm run dq:report:json` (enrichment + RSS sample only).
+
 ## What "Missing Investor Data" Actually Means
 
 After cleanup, legitimate missing cases:

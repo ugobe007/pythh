@@ -9,11 +9,11 @@ import { supabase } from '../lib/supabase';
 
 /** All columns used by Explore + signal badges */
 const FULL_SELECT =
-  'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit';
+  'id, name, tagline, description, sectors, stage, location, total_god_score, maturity_level, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score, psychological_multiplier, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit';
 
 /** If a migration is missing optional columns, retry with this subset */
 const CORE_SELECT =
-  'id, name, tagline, description, sectors, stage, location, total_god_score, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score';
+  'id, name, tagline, description, sectors, stage, location, total_god_score, maturity_level, team_score, traction_score, market_score, product_score, vision_score, website, raise_type, created_at, enhanced_god_score';
 
 export interface StartupSearchFilters {
   query?: string;
@@ -32,6 +32,7 @@ export interface StartupSearchResult {
   stage: number | null;
   location: string | null;
   total_god_score: number | null;
+  maturity_level: string | null;
   team_score: number | null;
   traction_score: number | null;
   market_score: number | null;

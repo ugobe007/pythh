@@ -20,6 +20,9 @@
  * Metric signals (after promote — ARR/MRR/funding → pythh_signal_events):
  *   Included by default: node scripts/ingest-metrics-signals.js --apply
  *   Skip: --skip-metrics-signals
+ *
+ * Optional rollup (stdout / JSON for monitoring):
+ *   --skip-dq-report   (default: run scripts/data-quality-report.js at end)
  */
 
 'use strict';
@@ -81,6 +84,8 @@ function parseArgs(argv) {
     sparseLimit = Number.isFinite(v) ? v : getInferencePipelineConfig().STARTUP_TIGHTEN_SPARSE_DEFAULT;
   }
 
+  const skipDqReport = argv.includes('--skip-dq-report');
+
   return {
     skipGarbage,
     skipPromote,
@@ -92,6 +97,7 @@ function parseArgs(argv) {
     rssLimit,
     promoteLimit,
     sparseLimit,
+    skipDqReport,
   };
 }
 
@@ -103,6 +109,7 @@ async function main() {
   console.log(`  Metrics signals: ${opts.skipPromote || opts.skipMetricsSignals ? 'skipped' : 'ingest-metrics-signals --apply'}`);
   console.log(`  RSS: ${opts.skipRss ? 'skipped' : opts.rssAll ? 'enrich-from-rss-news --all' : `enrich-from-rss-news --limit ${opts.rssLimit || 2000}`}`);
   console.log(`  Sparse inference: ${opts.skipSparse ? 'skipped' : `enrich-sparse-startups --limit=${opts.sparseLimit}${opts.sparseHtmlOnly ? ' --html-only' : ''}`}`);
+  console.log(`  DQ rollup: ${opts.skipDqReport ? 'skipped (--skip-dq-report)' : 'data-quality-report.js --json --quick'}`);
   const start = Date.now();
 
   try {
@@ -159,6 +166,13 @@ async function main() {
   } catch (err) {
     console.error('\n❌ Startup data tightening failed:', err.message);
     process.exit(1);
+  }
+
+  if (!opts.skipDqReport) {
+    section('🔟 ', 'Data quality report (rollup — non-fatal)');
+    await run('node', ['scripts/data-quality-report.js', '--json', '--quick'], 'data-quality-report', {
+      fatal: false,
+    });
   }
 
   const elapsed = ((Date.now() - start) / 1000 / 60).toFixed(1);

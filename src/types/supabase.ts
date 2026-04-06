@@ -9345,6 +9345,7 @@ export type Database = {
           contacted_at: string | null
           created_at: string | null
           created_by: string | null
+          feature_snapshot: Json | null
           feedback_received: boolean | null
           fit_analysis: Json | null
           id: string
@@ -9370,6 +9371,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           created_by?: string | null
+          feature_snapshot?: Json | null
           feedback_received?: boolean | null
           fit_analysis?: Json | null
           id?: string
@@ -9395,6 +9397,7 @@ export type Database = {
           contacted_at?: string | null
           created_at?: string | null
           created_by?: string | null
+          feature_snapshot?: Json | null
           feedback_received?: boolean | null
           fit_analysis?: Json | null
           id?: string

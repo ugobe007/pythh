@@ -13,6 +13,7 @@ const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
+const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
 
 // ============ V16 MATCHING ALGORITHM ============
 
@@ -282,7 +283,7 @@ async function getInvestors() {
   let all = [], offset = 0;
   while (true) {
     const { data } = await supabase.from('investors')
-      .select('id, name, sectors, stage, check_size_min, check_size_max')
+      .select('id, name, sectors, stage, check_size_min, check_size_max, geography_focus, investor_score, investor_tier')
       .eq('status', 'active')
       .range(offset, offset + 999);
     if (!data || !data.length) break;
@@ -300,7 +301,9 @@ async function getInvestors() {
 async function processStartup(startupId) {
   // Get startup (with PMF fields)
   const { data: startup } = await supabase.from('startup_uploads')
-    .select('id, name, sectors, stage, total_god_score, has_revenue, has_customers, is_launched, raise_amount, days_from_idea_to_mvp, time_to_first_revenue_months, deployment_frequency, growth_rate_monthly, arr_growth_rate, pivot_speed_days, mrr, customer_growth_monthly, nps_score, users_who_would_be_very_disappointed, nrr, organic_referral_rate, customer_interviews_conducted')
+    .select(
+      'id, name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, raise_amount, days_from_idea_to_mvp, time_to_first_revenue_months, deployment_frequency, growth_rate_monthly, arr_growth_rate, pivot_speed_days, mrr, arr, customer_count, customer_growth_monthly, nps_score, users_who_would_be_very_disappointed, nrr, organic_referral_rate, customer_interviews_conducted',
+    )
     .eq('id', startupId)
     .single();
   
@@ -310,7 +313,28 @@ async function processStartup(startupId) {
   }
   
   const investors = await getInvestors();
-  
+
+  const startupSnap = {
+    id: startup.id,
+    sectors: startup.sectors,
+    stage: startup.stage,
+    total_god_score: startup.total_god_score,
+    team_score: startup.team_score,
+    traction_score: startup.traction_score,
+    market_score: startup.market_score,
+    product_score: startup.product_score,
+    vision_score: startup.vision_score,
+    maturity_level: startup.maturity_level,
+    data_completeness: startup.data_completeness,
+    has_revenue: startup.has_revenue,
+    has_customers: startup.has_customers,
+    is_launched: startup.is_launched,
+    mrr: startup.mrr,
+    arr: startup.arr,
+    customer_count: startup.customer_count,
+    growth_rate_monthly: startup.growth_rate_monthly,
+  };
+
   // Calculate matches for all investors
   const allMatches = investors.map(inv => {
     const result = calculateMatchScore(startup, inv);
@@ -319,7 +343,12 @@ async function processStartup(startupId) {
       investor_id: inv.id,
       match_score: result.score,
       confidence_level: result.confidence,
-      status: 'suggested'
+      status: 'suggested',
+      feature_snapshot: buildMatchFeatureSnapshot({
+        engine: 'queue_v16',
+        startup: startupSnap,
+        investor: inv,
+      }),
     };
   });
   

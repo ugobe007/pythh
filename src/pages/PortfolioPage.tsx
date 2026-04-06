@@ -16,6 +16,13 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '../lib/apiConfig';
 import { PYTHH_ICON_GLYPH } from '../lib/brandAssets';
+import { healthTierChipClass, healthTierLabel, type HealthTier } from '../lib/portfolioHealth';
+import {
+  MATURITY_SHORT,
+  formatMaturityGapLine,
+  maturityBadgeClass,
+  normalizeMaturityLevel,
+} from '../lib/maturityUi';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,6 +55,26 @@ interface PortfolioEntry {
   latest_round_post_money?: number;
   latest_lead_investor?: string;
   total_rounds_tracked?: number;
+  /** From `portfolio_health` view */
+  primary_sector?: string | null;
+  sector_god_percentile?: number | null;
+  god_delta?: number | null;
+  pillar_spread?: number | null;
+  pillar_min?: number | null;
+  last_event_at?: string | null;
+  days_since_last_event?: number | null;
+  events_last_180d?: number | null;
+  health_tier?: HealthTier | string;
+  health_tier_rank?: number;
+  /** Goldilocks / maturity (see lib/maturityClassifier + scripts/compute-maturity.js) */
+  maturity_level?: string | null;
+  maturity_score?: number | null;
+  maturity_gaps?: unknown;
+  maturity_degree_index?: number | null;
+  god_implied_maturity_floor_index?: number | null;
+  goldilocks_maturity_gap?: number | null;
+  in_goldilocks_god_zone?: boolean;
+  goldilocks_alignment?: 'unknown' | 'thin_signals' | 'ahead_of_god' | 'aligned' | string;
 }
 
 interface PortfolioMetrics {
@@ -103,19 +130,22 @@ export default function PortfolioPage() {
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'exited'>('all');
+  const [tierFilter, setTierFilter] = useState<'all' | HealthTier>('all');
+  const [sortBy, setSortBy] = useState<'god' | 'health'>('health');
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [sortBy]);
 
   async function loadData() {
     setLoading(true);
     setError(null);
     try {
+      const q = sortBy === 'health' ? '?sort=health' : '?sort=god';
       const [listRes, metricsRes] = await Promise.all([
-        fetch(apiUrl('/api/portfolio')),
+        fetch(apiUrl(`/api/portfolio${q}`)),
         fetch(apiUrl('/api/portfolio/metrics')),
       ]);
 
@@ -137,6 +167,10 @@ export default function PortfolioPage() {
     if (filter === 'active') return e.status === 'active';
     if (filter === 'exited') return ['acquired', 'ipo', 'exited'].includes(e.status);
     return true;
+  }).filter((e) => {
+    if (tierFilter === 'all') return true;
+    const t = (e.health_tier as string) || 'core';
+    return t === tierFilter;
   });
 
   const exits = entries.filter((e) => ['acquired', 'ipo', 'exited'].includes(e.status));
@@ -185,7 +219,9 @@ export default function PortfolioPage() {
           </h1>
           <p className="text-white/60 text-base max-w-2xl leading-relaxed">
             Every startup that crosses a GOD score of 70 gets added to the Pythh virtual fund.
-            We track them like YC — watching for funding rounds, acquisitions, and IPOs.
+            We track them like YC — funding rounds, acquisitions, IPOs — and score each pick on
+            peer-relative momentum (vs sector) and thesis balance so slow or overstretched names surface
+            in Review.
           </p>
         </div>
 
@@ -212,26 +248,68 @@ export default function PortfolioPage() {
         )}
 
         {/* ── Filters ── */}
-        <div className="flex gap-2 mb-6">
-          {(['all', 'active', 'exited'] as const).map((f) => {
-            const count = f === 'all' ? entries.length : f === 'active' ? entries.filter(e => e.status === 'active').length : exits.length;
-            return (
-              <button
-                key={f}
-                onClick={() => {
-                  setFilter(f);
-                  setShowAll(false); // Reset to collapsed when changing filter
-                }}
-                className={`px-4 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors ${
-                  filter === f
-                    ? 'border-emerald-400 text-emerald-400'
-                    : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'
-                }`}
-              >
-                {f} ({count})
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-white/40 uppercase tracking-wider w-full sm:w-auto">Status</span>
+            {(['all', 'active', 'exited'] as const).map((f) => {
+              const count = f === 'all' ? entries.length : f === 'active' ? entries.filter(e => e.status === 'active').length : exits.length;
+              return (
+                <button
+                  key={f}
+                  onClick={() => {
+                    setFilter(f);
+                    setShowAll(false);
+                  }}
+                  className={`px-4 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors ${
+                    filter === f
+                      ? 'border-emerald-400 text-emerald-400'
+                      : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'
+                  }`}
+                >
+                  {f} ({count})
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-white/40 uppercase tracking-wider w-full sm:w-auto">Health tier</span>
+            {(['all', 'review', 'watch', 'core', 'exited'] as const).map((t) => {
+              const count =
+                t === 'all'
+                  ? entries.length
+                  : entries.filter((e) => (e.health_tier as string) === t).length;
+              return (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setTierFilter(t === 'all' ? 'all' : t);
+                    setShowAll(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors ${
+                    tierFilter === t
+                      ? 'border-cyan-400 text-cyan-400'
+                      : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'
+                  }`}
+                >
+                  {t === 'all' ? 'All tiers' : healthTierLabel(t)} ({count})
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-3 items-center">
+            <span className="text-xs text-white/40 uppercase tracking-wider">Sort</span>
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value as 'god' | 'health');
+                setShowAll(false);
+              }}
+              className="bg-black border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="health">Health (Review first)</option>
+              <option value="god">GOD score (entry)</option>
+            </select>
+          </div>
         </div>
 
         {/* ── Content ── */}
@@ -270,12 +348,13 @@ export default function PortfolioPage() {
             <Zap size={18} className="text-emerald-400" />
             <h2 className="text-xl font-bold">How the Pythh Fund works</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[
               { step: '01', title: 'GOD Score ≥ 70', desc: 'Every approved startup that scores 70 or higher on the proprietary GOD algorithm is automatically added.' },
               { step: '02', title: '$100K virtual check', desc: 'We log a $100,000 virtual investment at the estimated entry valuation at time of picking.' },
               { step: '03', title: 'We track everything', desc: 'Funding rounds, lead investors, post-money valuations, acquisitions, and IPOs are all logged.' },
               { step: '04', title: 'MOIC + IRR', desc: 'As valuations update we compute unrealised MOIC and annualised IRR just like a real fund.' },
+              { step: '05', title: 'Health + Goldilocks', desc: 'Core / Watch / Review blends momentum with maturity-vs-GOD alignment (same floor as the maturity classifier): if signals say “Building” but GOD looks “Scaling”, we flag thin-signal risk. Run compute-maturity so every pick has a maturity label.' },
             ].map((s) => (
               <div key={s.step}>
                 <div className="text-xs text-cyan-400 font-bold tracking-wider mb-2">STEP {s.step}</div>
@@ -298,6 +377,13 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
   const scoreColorClass = godBadgeColor(entry.entry_god_score);
   const isExit = ['acquired', 'ipo', 'exited'].includes(entry.status);
   const moicDelta = entry.moic ? entry.moic - 1 : 0;
+  const tier = (entry.health_tier as string) || 'core';
+  const delta = entry.god_delta;
+  const pct = entry.sector_god_percentile;
+  const matKey = normalizeMaturityLevel(entry.maturity_level ?? undefined);
+  const matMeta = matKey ? MATURITY_SHORT[matKey] : null;
+  const gapLine = formatMaturityGapLine(entry.maturity_gaps);
+  const align = entry.goldilocks_alignment;
 
   return (
     <div className="border border-white/10 rounded-lg p-6 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 items-center hover:border-cyan-400/30 transition-colors">
@@ -316,9 +402,38 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
             {chip.label}
           </span>
 
+          {/* Health tier */}
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${healthTierChipClass(tier)}`}
+            title="Core = strong momentum vs peers; Watch = soft signals; Review = score drop, cold news, weak sector peer rank, imbalanced pillars, or maturity thin vs GOD (Goldilocks)"
+          >
+            {healthTierLabel(tier)}
+          </span>
+
+          {matMeta && matKey && (
+            <span
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${maturityBadgeClass(matKey)}`}
+              title={matMeta.hint}
+            >
+              {matMeta.label}
+            </span>
+          )}
+
+          {entry.in_goldilocks_god_zone && (
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full border border-amber-500/40 text-amber-300/90"
+              title="GOD score in the 60–75 distribution band (classic Goldilocks zone)"
+            >
+              GOD 60–75 zone
+            </span>
+          )}
+
           {/* GOD badge */}
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${scoreColorClass}`}>
             GOD {entry.entry_god_score}
+            {entry.current_god_score != null && entry.current_god_score !== entry.entry_god_score ? (
+              <span className="text-white/50 font-normal"> → {entry.current_god_score}</span>
+            ) : null}
           </span>
 
           {/* Round badge */}
@@ -334,8 +449,49 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
           <p className="text-sm text-white/60 m-0 leading-relaxed">{entry.tagline}</p>
         )}
 
+        {align === 'thin_signals' && (
+          <p className="text-xs text-amber-300/95 m-0 leading-snug border-l-2 border-amber-500/60 pl-2">
+            Goldilocks: maturity is below what this GOD score implies (signal depth vs score). Review
+            traction and data freshness.
+          </p>
+        )}
+        {align === 'ahead_of_god' && (
+          <p className="text-xs text-cyan-300/90 m-0 leading-snug border-l-2 border-cyan-500/40 pl-2">
+            Maturity trajectory runs ahead of raw GOD — often richer signal history than the headline score.
+          </p>
+        )}
+        {align === 'unknown' && entry.status === 'active' && (
+          <p className="text-xs text-zinc-500 m-0">
+            Maturity not classified — run <code className="text-zinc-400">node scripts/compute-maturity.js --apply</code>
+          </p>
+        )}
+        {gapLine && (
+          <p className="text-xs text-zinc-500 m-0 italic leading-snug">{gapLine}</p>
+        )}
+
         {/* Meta row */}
         <div className="flex gap-5 flex-wrap mt-1">
+          {entry.primary_sector && (
+            <span className="text-xs text-cyan-400/80">{entry.primary_sector}</span>
+          )}
+          {pct != null && (
+            <span className="text-xs text-white/50" title="Percentile vs approved startups in the same primary sector">
+              Sector {pct.toFixed(0)}th pct
+            </span>
+          )}
+          {delta != null && delta !== 0 && (
+            <span className={`text-xs font-medium ${delta < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+              ΔGOD {delta > 0 ? '+' : ''}{delta}
+            </span>
+          )}
+          {entry.days_since_last_event != null && (
+            <span className="text-xs text-white/50">
+              Last signal {entry.days_since_last_event}d ago
+            </span>
+          )}
+          {entry.days_since_last_event == null && entry.events_last_180d != null && entry.events_last_180d === 0 && entry.status === 'active' && (
+            <span className="text-xs text-white/40">No portfolio events logged yet</span>
+          )}
           <span className="text-xs text-white/50 flex items-center gap-1">
             <Clock size={11} />
             Picked {formatDate(entry.entry_date)}

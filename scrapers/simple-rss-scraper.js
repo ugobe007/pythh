@@ -6,6 +6,7 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const Parser = require('rss-parser');
+const { shouldProcessEvent } = require('../lib/source-quality-filter');
 
 const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 const parser = new Parser({
@@ -146,6 +147,10 @@ async function scrapeRSS() {
       let sourceAdded = 0;
       
       for (const item of items) {
+        if (!item.title || !shouldProcessEvent(item.title, source.name).keep) {
+          continue;
+        }
+
         const info = extractStartupInfo(item.title, item.contentSnippet || item.content);
         
         if (info) {

@@ -8759,20 +8759,27 @@ function _calcIrr(entry, current, days) {
   return Math.round((Math.pow(current / entry, 1 / years) - 1) * 10000) / 10000;
 }
 
-// GET /api/portfolio — public listing from portfolio_summary view
+// GET /api/portfolio — public listing from portfolio_health view (tiers + momentum)
+// sort=god (default) | health (review/watch first, then worst GOD delta)
 app.get('/api/portfolio', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
     const limit = Math.min(parseInt(req.query.limit || '200', 10), 500);
     const status = req.query.status || null;
+    const sort = String(req.query.sort || 'god').toLowerCase();
 
-    let query = supabase
-      .from('portfolio_summary')
-      .select('*')
-      .order('entry_god_score', { ascending: false })
-      .limit(limit);
+    let query = supabase.from('portfolio_health').select('*').limit(limit);
 
     if (status) query = query.eq('status', status);
+
+    if (sort === 'health') {
+      query = query
+        .order('health_tier_rank', { ascending: true })
+        .order('god_delta', { ascending: true })
+        .order('entry_god_score', { ascending: false });
+    } else {
+      query = query.order('entry_god_score', { ascending: false });
+    }
 
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
@@ -8830,7 +8837,7 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
     const { startupId } = req.params;
 
     const [{ data: entry }, { data: events }] = await Promise.all([
-      supabase.from('portfolio_summary').select('*').eq('startup_id', startupId).maybeSingle(),
+      supabase.from('portfolio_health').select('*').eq('startup_id', startupId).maybeSingle(),
       supabase.from('portfolio_events').select('*').eq('startup_id', startupId).order('event_date', { ascending: false }),
     ]);
 

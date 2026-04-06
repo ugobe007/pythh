@@ -3,7 +3,12 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
+const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const key =
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(url, key);
 
 async function main() {
   // 1. Check investor_score and investor_tier distribution

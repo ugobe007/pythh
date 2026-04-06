@@ -15,6 +15,7 @@
  *   4. growth_rate     — capped at 1000% monthly (anything higher = bad parse)
  *   5. tagline         — reject ObjectID / hex-hash strings
  *   6. name            — flag article-fragment names (headline patterns)
+ *   7. website         — flag news/article URLs (not company homepages)
  *
  * Usage:
  *   node scripts/data-integrity-check.js              # report only
@@ -25,6 +26,7 @@
 'use strict';
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { classifySuspiciousStartupWebsite } = require('../lib/suspiciousStartupWebsite');
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -121,6 +123,8 @@ async function logToAiLogs(totalIssues, issues, applied) {
       tagline_hash:    issues.tagline_hash?.length     || 0,
       definite_junk:   issues.definite_junk?.length    || 0,
       name_fragment:   issues.name_fragment?.length    || 0,
+      suspicious_website: issues.suspicious_website?.length || 0,
+      bad_maturity_level: issues.bad_maturity_level?.length || 0,
     };
     await supabase.from('ai_logs').insert({
       type: 'data_integrity_check',
@@ -143,7 +147,7 @@ async function main() {
   const rows = await paginate((from, to) =>
     supabase
       .from('startup_uploads')
-      .select('id, name, source_type, customer_count, arr_usd, revenue_usd, growth_rate, tagline, website, submitted_email')
+      .select('id, name, source_type, customer_count, arr_usd, revenue_usd, growth_rate, tagline, website, submitted_email, maturity_level')
       .eq('status', 'approved')
       .range(from, to)
   );
@@ -157,7 +161,20 @@ async function main() {
     tagline_hash:     [],
     definite_junk:    [],
     name_fragment:    [],
+    suspicious_website: [],
+    bad_maturity_level: [],
   };
+
+  const MATURITY_OK = new Set([
+    null,
+    undefined,
+    'freshman',
+    'sophomore',
+    'junior',
+    'senior',
+    'graduate',
+    'phd',
+  ]);
 
   for (const r of rows) {
     const isManual = r.source_type === 'manual';
@@ -179,6 +196,24 @@ async function main() {
 
     if (!isManual && isArticleFragment(r.name) && !r.website)
       issues.name_fragment.push({ id: r.id, name: r.name, src: r.source_type });
+
+    const ws = classifySuspiciousStartupWebsite(r.website);
+    if (ws.suspicious) {
+      issues.suspicious_website.push({
+        id: r.id,
+        name: r.name,
+        website: r.website,
+        reason: ws.reason,
+        src: r.source_type,
+      });
+    }
+
+    if (r.maturity_level != null && String(r.maturity_level).trim() !== '') {
+      const ml = String(r.maturity_level).toLowerCase().trim();
+      if (!MATURITY_OK.has(ml)) {
+        issues.bad_maturity_level.push({ id: r.id, name: r.name, maturity_level: r.maturity_level });
+      }
+    }
   }
 
   let totalIssues = Object.values(issues).reduce((s, l) => s + l.length, 0);
@@ -187,11 +222,20 @@ async function main() {
     if (list.length === 0) { console.log(`  ✅  ${key}: no issues`); continue; }
     console.log(`\n  ⚠️  ${key}: ${list.length} issue(s)`);
     const show = VERBOSE ? list : list.slice(0, 5);
-    show.forEach(r => {
-      const detail = r.val !== undefined
-        ? `  value=${r.val?.toLocaleString()}, cap=${r.cap?.toLocaleString()}, src=${r.src}`
-        : r.tagline ? `  tagline="${r.tagline}"` : `  name="${r.name}"`;
-      console.log(`     "${(r.name||'').slice(0,35)}"${detail}`);
+    show.forEach((r) => {
+      let detail;
+      if (r.val !== undefined) {
+        detail = `  value=${r.val?.toLocaleString()}, cap=${r.cap?.toLocaleString()}, src=${r.src}`;
+      } else if (r.tagline) {
+        detail = `  tagline="${r.tagline}"`;
+      } else if (key === 'suspicious_website' && r.website) {
+        detail = `  website="${String(r.website).slice(0, 70)}" (${r.reason})`;
+      } else if (key === 'bad_maturity_level') {
+        detail = `  maturity_level="${r.maturity_level}"`;
+      } else {
+        detail = `  name="${r.name}"`;
+      }
+      console.log(`     "${(r.name || '').slice(0, 35)}"${detail}`);
     });
     if (!VERBOSE && list.length > 5) console.log(`     … and ${list.length - 5} more (--verbose)`);
   }
@@ -205,7 +249,8 @@ async function main() {
   }
 
   if (!APPLY) {
-    console.log('\n  Run with --fix to auto-null the bad values.\n');
+    console.log('\n  Run with --fix to auto-null numeric/tagline issues, reject junk names, null bad maturity.');
+    console.log('  (suspicious_website is report-only — review before clearing website manually.)\n');
     await logToAiLogs(totalIssues, issues, false);
     return;
   }
@@ -246,6 +291,14 @@ async function main() {
       else ok += slice.length;
     }
     console.log(`  ✓ Rejected ${ok} article-fragment names`);
+  }
+
+  if (issues.bad_maturity_level.length > 0) {
+    await applyFix(
+      issues.bad_maturity_level.map((r) => r.id),
+      'maturity_level',
+      'invalid maturity_level (not in canonical enum)'
+    );
   }
 
   await logToAiLogs(totalIssues, issues, true);

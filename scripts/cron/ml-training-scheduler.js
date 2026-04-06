@@ -2,7 +2,11 @@
 /**
  * ML Training Scheduler
  * Runs ML training on a schedule (daily at 3 AM by default)
- * 
+ *
+ * Other schedulers (separate processes):
+ *   - scripts/cron/dq-report-scheduler.js — data-quality rollup
+ *   - scripts/cron/ml-match-maintenance-scheduler.js — match feedback train + drift (+ optional snapshot backfill)
+ *
  * Usage:
  *   node scripts/cron/ml-training-scheduler.js              # Run once and exit
  *   node scripts/cron/ml-training-scheduler.js --daemon     # Run continuously with schedule

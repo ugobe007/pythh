@@ -5,7 +5,7 @@
  * Architecture (Parser is SSOT):
  * 1. Ingest ALL RSS items
  * 2. Pass to Phase-Change parser (SSOT for decisions)
- * 3. Phase A: ALWAYS store event (even FILTERED/OTHER)
+ * 3. Phase A: Store event after parser + source-quality filter (lib/source-quality-filter.js)
  * 4. Phase B: ONLY create graph joins when parser.graph_safe=true
  * 
  * NO judgment logic allowed in extractor - parser decides everything.
@@ -35,6 +35,8 @@ const { calculateHotScore } = require('../../server/services/startupScoringServi
 const { JUNK_DOMAINS: PUBLISHER_DOMAINS, isJunkUrl } = require('../../lib/junk-url-config');
 // Canonical shared validator (single source of truth for name quality)
 const { isValidStartupName } = require('../../lib/startupNameValidator');
+// RSS headline + publisher gate (reduces noise in startup_events — see lib/source-quality-filter.js)
+const sourceQuality = require('../../lib/source-quality-filter');
 
 /**
  * Transform a startup row into a scoring profile (matches recalculate-scores.ts SSOT).
@@ -256,6 +258,7 @@ const metrics = {
   events_inserted: 0,
   graph_edges_inserted: 0,
   reject_reasons: {},
+  source_quality: {}, // lib/source-quality-filter — counts by reason (NOISY_PUBLISHER, etc.)
   filtered_reasons: {},
   graph_safe_false_reasons: {},
 };
@@ -373,11 +376,19 @@ async function scrapeRssFeeds() {
           continue;
         }
         
-        // PHASE 2A: ALWAYS STORE EVENT (even FILTERED/OTHER)
-        // ===================================================
+        // PHASE 2A: STORE EVENT (parser passed + source quality passed)
+        // ============================================================
         if (event.extraction.decision === "REJECT") {
           rejected++;
           recordMetric('reject_reasons', event.extraction.reject_reason || 'unknown');
+          continue;
+        }
+
+        // Source quality (noisy publishers, non-startup headlines, big-tech fluff)
+        const sq = sourceQuality.shouldProcessEvent(item.title, source.name);
+        if (!sq.keep) {
+          rejected++;
+          recordMetric('source_quality', sq.reason);
           continue;
         }
 
@@ -710,6 +721,17 @@ async function scrapeRssFeeds() {
     Object.entries(metrics.reject_reasons)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
+      .forEach(([reason, count]) => {
+        console.log(`  • ${reason}: ${count}`);
+      });
+    console.log();
+  }
+
+  if (Object.keys(metrics.source_quality).length > 0) {
+    const totalSq = Object.values(metrics.source_quality).reduce((a, b) => a + b, 0);
+    console.log(`Source quality filter (${totalSq} items dropped, lib/source-quality-filter.js):`);
+    Object.entries(metrics.source_quality)
+      .sort((a, b) => b[1] - a[1])
       .forEach(([reason, count]) => {
         console.log(`  • ${reason}: ${count}`);
       });

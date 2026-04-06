@@ -20,6 +20,7 @@ const { extractCompanyName } = require('../../lib/headlineExtractor');
 const { extractNames: extractNamesFromSentence } = require('../../lib/sentenceExtractor');
 // Pythh Signal Intelligence — extracts structured business signals from article text
 const { parseSignal } = require('../../lib/signalParser');
+const { shouldProcessEvent } = require('../../lib/source-quality-filter');
 
 // Import v2 Inference Extractor for better sector detection (18 categories vs 5)
 let v2ExtractSectors, extractInferenceData;
@@ -242,6 +243,16 @@ async function scrapeRssFeeds() {
       let skipped = 0;
       for (const item of items) {
         totalDiscovered++;
+
+        if (!item.title || !item.link) {
+          skipped++;
+          continue;
+        }
+
+        if (!shouldProcessEvent(item.title, source.name).keep) {
+          skipped++;
+          continue;
+        }
         
         // Skip if not startup-related
         if (!isStartupNews(item.title || '', item.contentSnippet || item.content || '')) {

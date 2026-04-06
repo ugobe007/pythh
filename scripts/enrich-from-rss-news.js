@@ -5,6 +5,9 @@
  * Matches startup_events (from RSS scraper) to approved startups and enriches
  * their profiles with press signals, funding, and M&A info.
  *
+ * Drops rows that fail lib/source-quality-filter.js (same rules as ssot-rss-scraper)
+ * before matching startups — reduces enrichment from noisy headlines.
+ *
  * Identifies:
  *   - Amount: funding size ($XM, $XB, etc.)
  *   - Stage: seed, pre-seed, series-a/b/c, bridge, growth, debt, convertible-note
@@ -27,6 +30,7 @@ const { extractInferenceData, extractCompanyNameFromHeadline } = require('../lib
 // Canonical shared validator — replaces local JUNK_ENTITY_WORDS / JUNK_ENTITY_PATTERNS
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const { getResolved: getInferencePipelineConfig } = require('../lib/inferencePipelineConfig');
+const { shouldProcessEvent } = require('../lib/source-quality-filter');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -221,11 +225,24 @@ async function main() {
     fetchApprovedStartups(limit),
   ]);
 
-  console.log(`  Events: ${events.length} (last ${DAYS_LOOKBACK} days)`);
+  let sourceQualitySkipped = 0;
+  const eventsFiltered = events.filter((ev) => {
+    const r = shouldProcessEvent(ev.source_title, ev.source_publisher);
+    if (!r.keep) {
+      sourceQualitySkipped++;
+      return false;
+    }
+    return true;
+  });
+
+  console.log(`  Events fetched: ${events.length} (last ${DAYS_LOOKBACK} days)`);
+  if (sourceQualitySkipped > 0) {
+    console.log(`  Source quality filter: skipped ${sourceQualitySkipped} (${eventsFiltered.length} remain)`);
+  }
   console.log(`  Startups: ${startups.length}\n`);
 
-  if (events.length === 0) {
-    console.log('  No events to process. Run RSS scraper first.');
+  if (eventsFiltered.length === 0) {
+    console.log('  No events to process after filters. Run RSS scraper first.');
     return;
   }
 
@@ -264,9 +281,9 @@ async function main() {
   // For each event, find matching startups and aggregate
   const startupSignals = new Map(); // startupId -> { tier1, tier2, tier3, total, funding, articles, events }
   let eventsProcessed = 0;
-  for (const event of events) {
+  for (const event of eventsFiltered) {
     eventsProcessed++;
-    if (eventsProcessed % 2000 === 0) process.stdout.write(`\r  Matching events: ${eventsProcessed}/${events.length}...`);
+    if (eventsProcessed % 2000 === 0) process.stdout.write(`\r  Matching events: ${eventsProcessed}/${eventsFiltered.length}...`);
     const names = entityNamesFromEvent(event);
     if (names.length === 0) continue;
 
@@ -358,14 +375,14 @@ async function main() {
     const hasSectors = Array.isArray(ext.sectors) && ext.sectors.length > 0;
     return !hasFunding || !hasSectors;
   });
-  if (sparseStartups.length > 0 && events.length > 0) {
-    process.stdout.write(`\r  Reverse pass: searching ${sparseStartups.length} sparse startups in ${events.length} headlines...`);
+  if (sparseStartups.length > 0 && eventsFiltered.length > 0) {
+    process.stdout.write(`\r  Reverse pass: searching ${sparseStartups.length} sparse startups in ${eventsFiltered.length} headlines...`);
     const nameNorm = (n) => (n || '').toLowerCase().trim().replace(/\s+/g, ' ');
     let reverseMatches = 0;
     for (const startup of sparseStartups) {
       const needle = nameNorm(startup.name);
       if (needle.length < 4) continue;
-      for (const ev of events) {
+      for (const ev of eventsFiltered) {
         const title = (ev.source_title || '').toLowerCase();
         if (!title.includes(needle)) continue;
         const tid = startup.id;

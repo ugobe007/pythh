@@ -14,6 +14,7 @@
 
 # Reports directory (if it doesn't already exist)
 reports/
+ontology-sample.jsonl
 *.log
 
 # Secrets and sensitive files

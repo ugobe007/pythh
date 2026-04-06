@@ -4,29 +4,8 @@
  */
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { classifySuspiciousStartupWebsite } = require('../lib/suspiciousStartupWebsite');
 const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-
-const NEWS_DOMAINS = [
-  'techcrunch.com','ventureburn.com','cleantechnica.com','pehub.com',
-  'reuters.com','bloomberg.com','forbes.com','wsj.com','ft.com',
-  'axios.com','cnbc.com','businessinsider.com','fortune.com',
-  'crunchbase.com','sifted.eu','eu-startups.com','thenextweb.com',
-  'venturebeat.com','wired.com','pehub.com','techeu.com','tech.eu',
-  'startupbeat.com','geekwire.com','bizjournals.com','inc.com',
-  'fastcompany.com','theregister.com','zdnet.com','mashable.com',
-];
-
-// Also catch generic article patterns regardless of domain
-const ARTICLE_PATTERNS = [
-  /\/\d{4}\/\d{2}\/\d{2}\//,  // date in URL like /2026/02/04/
-  /\/blog\//,
-  /\/news\//,
-  /\/press\//,
-  /\/article/,
-  /\/story\//,
-  /\.html$/,
-  /\/\d{5,}/,  // long numeric ID in URL
-];
 
 (async () => {
   const { data } = await sb.from('startup_uploads')
@@ -50,12 +29,12 @@ const ARTICLE_PATTERNS = [
       continue;
     }
 
-    const url = s.website.toLowerCase();
-    const isNewsDomain = NEWS_DOMAINS.some(d => url.includes(d + '/'));
-    const isArticlePattern = ARTICLE_PATTERNS.some(p => p.test(url));
-
-    if (isNewsDomain || isArticlePattern) {
-      newsArticles.push({ ...s, reason: isNewsDomain ? 'news domain' : 'article URL pattern' });
+    const { suspicious, reason } = classifySuspiciousStartupWebsite(s.website);
+    if (suspicious) {
+      newsArticles.push({
+        ...s,
+        reason: reason === 'news_domain' ? 'news domain' : 'article URL pattern',
+      });
     }
   }
 

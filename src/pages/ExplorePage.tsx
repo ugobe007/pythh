@@ -16,6 +16,7 @@ import ScoreDrilldownDrawer from '../components/ScoreDrilldownDrawer';
 import { generateDrilldownData, type DrilldownPayload } from '../utils/scoreDrilldown';
 import { PYTHH_MARKETING_BG } from '../lib/pythhMarketingTheme';
 import { StartupSignalBadgeStrip } from '../components/SignalTableBadges';
+import { isGoldilocksCandidate } from '../lib/goldilocksCandidate';
 
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -362,6 +363,10 @@ export default function ExplorePage() {
                         <span className="text-sm text-white truncate hover:text-cyan-400">{startup.name || 'Unnamed'}</span>
                         <StartupSignalBadgeStrip
                           flags={startup}
+                          goldilocksCandidate={isGoldilocksCandidate(
+                            startup.total_god_score,
+                            startup.maturity_level
+                          )}
                           hotScoreTier={bestGod >= 85}
                           warmingScoreTier={bestGod >= 70 && bestGod < 85}
                           psychBoost={

@@ -63,6 +63,8 @@ import {
 } from '@/components/pythh';
 import { LiveMatchTable } from '@/components/pythh/LiveMatchTableV2';
 import { useLegacyRadarAdapter } from '@/hooks/useRadarViewModel';
+import { StartupSignalBadgeStrip } from '@/components/SignalTableBadges';
+import { applyGoldilocksSignalBonus, isGoldilocksCandidate } from '@/lib/goldilocksCandidate';
 
 // -----------------------------------------------------------------------------
 // RESOLUTION STATE (for "not found" / "picker" / "missing context" UI states)
@@ -623,6 +625,7 @@ interface StartupBenchmarkRow {
   momentum_delta: number;    // change from prior period
   readiness: number;         // 0-1, surface tension
   match_count: number;       // investor matches waiting
+  goldilocks_candidate: boolean;
 }
 
 // Tooltip content for benchmark explanations
@@ -859,7 +862,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
       // Fetch startups with GOD scores
       const { data: startupsData, error: startupsError } = await supabase
         .from('startup_uploads')
-        .select('id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors')
+        .select('id, name, total_god_score, maturity_level, team_score, traction_score, market_score, product_score, vision_score, sectors')
         .eq('status', 'approved')
         .order('total_god_score', { ascending: false })
         .limit(100);
@@ -894,7 +897,9 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
         const signalBase = (godScore / 100) * 6; // Base from GOD (0-6)
         const matchBonus = Math.min(matchCount / 10, 2); // Match velocity bonus (0-2)
         const variance = (Math.random() - 0.5) * 2; // Some variance (±1)
-        const signalScore = Math.max(0, Math.min(10, signalBase + matchBonus + variance));
+        let signalScore = Math.max(0, Math.min(10, signalBase + matchBonus + variance));
+        const goldilocks = isGoldilocksCandidate(godScore, s.maturity_level);
+        signalScore = applyGoldilocksSignalBonus(signalScore, goldilocks);
         
         // Derive YC++ Score (0-100) from GOD + category premium
         // Elite VCs favor: high traction, strong teams, hot sectors
@@ -922,6 +927,7 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
           momentum_delta: Math.round(momentumDelta * 10) / 10,
           readiness,
           match_count: matchCount,
+          goldilocks_candidate: goldilocks,
         };
       });
       
@@ -1043,9 +1049,17 @@ function StartupPicker({ onSelect }: { onSelect: (id: string, name: string) => v
                       key={s.id} 
                       className="hover:bg-gray-800/50 transition-colors group"
                     >
-                      {/* Startup Name - just name, per spec */}
+                      {/* Startup Name + Goldilocks badge when applicable */}
                       <td className="px-4 py-3">
-                        <span className="font-medium text-white">{s.name}</span>
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="font-medium text-white">{s.name}</span>
+                          <StartupSignalBadgeStrip
+                            flags={{}}
+                            goldilocksCandidate={s.goldilocks_candidate}
+                            compact
+                            className="flex-shrink-0"
+                          />
+                        </div>
                       </td>
                       
                       {/* Signal Score with direction */}

@@ -8,6 +8,7 @@ import {
   Link2,
   Radio,
   Repeat2,
+  Sparkles,
   Sun,
   Target,
   Zap,
@@ -28,6 +29,8 @@ export type StartupSignalFlags = {
 
 type StartupStripProps = {
   flags: StartupSignalFlags;
+  /** GOD 60–75 with maturity aligned to signals (not thin) — Goldilocks sweet spot */
+  goldilocksCandidate?: boolean;
   /** Best GOD / enhanced ≥ 85 — flame */
   hotScoreTier?: boolean;
   /** Best GOD / enhanced in [70, 85) — sun (warming); mutually exclusive with hotScoreTier */
@@ -48,6 +51,7 @@ const chip =
  */
 export function StartupSignalBadgeStrip({
   flags,
+  goldilocksCandidate = false,
   hotScoreTier = false,
   warmingScoreTier = false,
   psychBoost = false,
@@ -58,6 +62,21 @@ export function StartupSignalBadgeStrip({
   const pad = compact ? 'p-0.5' : 'p-1';
 
   const items: { key: string; node: ReactNode }[] = [];
+
+  if (goldilocksCandidate) {
+    items.push({
+      key: 'goldilocks',
+      node: (
+        <span
+          key="goldilocks"
+          title="Goldilocks — GOD 60–75 with maturity aligned to signal depth (sweet-spot zone)"
+          className={`${chip} ${pad} border-amber-400/55 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.25)]`}
+        >
+          <Sparkles className={icon} strokeWidth={2.2} />
+        </span>
+      ),
+    });
+  }
 
   if (hotScoreTier) {
     items.push({

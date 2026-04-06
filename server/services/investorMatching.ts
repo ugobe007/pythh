@@ -1,6 +1,40 @@
 import OpenAI from 'openai';
 import { supabase } from '../config/supabase';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot') as {
+  buildMatchFeatureSnapshot: (opts: {
+    engine: string;
+    phase?: string | null;
+    startup: Record<string, unknown>;
+    investor: Record<string, unknown>;
+    extra?: Record<string, unknown>;
+  }) => Record<string, unknown>;
+};
+
+function startupRowForSnapshot(startup: any): Record<string, unknown> {
+  return {
+    id: startup?.id,
+    sectors: startup?.sectors,
+    stage: startup?.stage,
+    total_god_score: startup?.total_god_score,
+    team_score: startup?.team_score,
+    traction_score: startup?.traction_score,
+    market_score: startup?.market_score,
+    product_score: startup?.product_score,
+    vision_score: startup?.vision_score,
+    maturity_level: startup?.maturity_level,
+    data_completeness: startup?.data_completeness,
+    has_revenue: !!startup?.has_revenue,
+    has_customers: !!startup?.has_customers,
+    is_launched: !!startup?.is_launched,
+    mrr: startup?.mrr,
+    arr: startup?.arr,
+    customer_count: startup?.customer_count,
+    growth_rate_monthly: startup?.growth_rate_monthly,
+  };
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -110,7 +144,8 @@ export async function generateMatches(
 
     // 6. Save matches to database
     for (const match of topMatches) {
-      await saveMatch(startupId, userId, match);
+      const inv = investors.find((i) => i.id === match.investor_id);
+      await saveMatch(startupId, userId, match, startup, inv || ({ id: match.investor_id } as Investor));
     }
 
     // 7. Log activity
@@ -249,7 +284,9 @@ Focus on: stage alignment, sector expertise, check size fit, portfolio synergies
 async function saveMatch(
   startupId: string,
   userId: string,
-  match: MatchResult
+  match: MatchResult,
+  startupRow: any,
+  investorRow: Investor
 ): Promise<void> {
   try {
     // Validate UUIDs
@@ -269,6 +306,21 @@ async function saveMatch(
       userUuid = userId; // Keep as is - Supabase will handle it
     }
     
+    const feature_snapshot = buildMatchFeatureSnapshot({
+      engine: 'investor_matching_ai',
+      startup: startupRowForSnapshot(startupRow),
+      investor: {
+        id: investorRow.id,
+        sectors: investorRow.sectors,
+        stage: investorRow.stage,
+        check_size_min: investorRow.check_size_min,
+        check_size_max: investorRow.check_size_max,
+        geography_focus: (investorRow as any).geography_focus,
+        investor_score: (investorRow as any).investor_score,
+        investor_tier: (investorRow as any).investor_tier,
+      },
+    });
+
     const { error } = await supabase.from('startup_investor_matches').insert({
       startup_id: startupId,
       investor_id: match.investor_id,
@@ -281,6 +333,7 @@ async function saveMatch(
       intro_email_body: match.intro_email_body,
       why_you_match: match.why_you_match,
       status: 'suggested',
+      feature_snapshot,
     });
 
     if (error) {
