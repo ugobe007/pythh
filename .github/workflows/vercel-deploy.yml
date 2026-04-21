@@ -1,0 +1,54 @@
+# Production frontend on Vercel — driven entirely from GitHub Actions.
+# Use this when Vercel's "Connect Git Repository" integration is missing or unreliable.
+#
+# Required GitHub Actions secrets (repo → Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN         — https://vercel.com/account/tokens
+#   VERCEL_ORG_ID        — Vercel → hot-money-honey → Settings → General (Team ID)
+#   VERCEL_PROJECT_ID    — same page (Project ID)
+#   Values also appear in .vercel/project.json after: npx vercel link
+#
+# The Vercel project must have Production env vars for the Vite build (e.g. VITE_SUPABASE_*),
+# same as you would for a dashboard-triggered deploy.
+
+name: Vercel Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Vercel secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=0
+          if [ -z "$VERCEL_TOKEN" ]; then echo "::error::Missing secret VERCEL_TOKEN — create at https://vercel.com/account/tokens"; missing=1; fi
+          if [ -z "$VERCEL_ORG_ID" ]; then echo "::error::Missing secret VERCEL_ORG_ID — Vercel project Settings → General (Team ID)"; missing=1; fi
+          if [ -z "$VERCEL_PROJECT_ID" ]; then echo "::error::Missing secret VERCEL_PROJECT_ID — Vercel project Settings → General (Project ID)"; missing=1; fi
+          exit "$missing"
+
+      - name: Write .vercel/project.json for CLI
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          mkdir -p .vercel
+          node -e "const fs=require('fs'); fs.mkdirSync('.vercel',{recursive:true}); fs.writeFileSync('.vercel/project.json', JSON.stringify({ orgId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID }));"
+
+      - name: Deploy to Vercel (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
