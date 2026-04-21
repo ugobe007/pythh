@@ -377,9 +377,15 @@ async function checkDataHealth() {
       pass(`${recentStarts} new startups discovered in last 24h`);
     }
     
-    // Check RSS source health
-    const { data: rssStats } = await supabase.rpc('get_rss_health_stats').catch(() => ({ data: null }));
-    
+    // Check RSS source health (RPC may be missing — use try/catch; builder is not always Promise-like for .catch)
+    let rssStats = null;
+    try {
+      const { data, error } = await supabase.rpc('get_rss_health_stats');
+      if (!error) rssStats = data;
+    } catch {
+      rssStats = null;
+    }
+
     if (!rssStats) {
       // Fallback: manual query
       const { count: neverScraped } = await supabase
