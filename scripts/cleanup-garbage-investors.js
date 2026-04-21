@@ -19,6 +19,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { isGarbageInvestorName } = require('../lib/investorNameHeuristics');
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -26,52 +27,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const isDryRun = !process.argv.includes('--execute');
 
-// Patterns that indicate a name is likely an article fragment, not an investor
-const GARBAGE_NAME_PATTERNS = [
-  /^(the |a |an |this |that |how |why |what |when |where |who |which )/i,
-  /^(can |could |should |would |will |may |might |shall |must |do |does |did )/i,
-  /^(is |are |was |were |been |being |have |has |had |get |gets |got )/i,
-  /\b(says?|said|reports?|reported|announces?|announced|raises?|raised|receives?|received)\b/i,
-  /\b(according to|in a|for a|of the|to the|on the|at the|from the|by the)\b/i,
-  /\b(funding|investment|million|billion|round|series [A-F]|ipo|startup|fintech)\b.*\b(funding|investment|million|billion|round|series [A-F]|ipo)\b/i, // Two funding keywords = headline
-  /[.!?]$/, // Ends with sentence punctuation
-  /^\d/, // Starts with a number
-  /\bhttps?:\/\//i, // Contains URL
-  /[,;:]\s.*[,;:]/, // Multiple comma/semicolons = sentence fragment
-];
-
-// Known patterns for legitimate investor names  
-const LEGITIMATE_PATTERNS = [
-  /^[A-Z][a-z]+ [A-Z][a-z]+$/, // "John Smith"
-  /\b(capital|ventures?|partners?|group|fund|investments?|advisors?|holdings?|management|labs?|financial|securities|equity|asset)\b/i,
-  / (LP|LLC|Inc|Co|Corp|Ltd)\b/i,
-];
-
 function isGarbageName(name) {
-  if (!name) return true;
-  const trimmed = name.trim();
-  
-  // Too short
-  if (trimmed.length < 3) return true;
-  
-  // Too long (real investor names rarely exceed 60 chars)
-  if (trimmed.length > 80) return true;
-  
-  // Check if it looks legitimate first
-  for (const pattern of LEGITIMATE_PATTERNS) {
-    if (pattern.test(trimmed)) return false;
-  }
-  
-  // Check garbage patterns
-  for (const pattern of GARBAGE_NAME_PATTERNS) {
-    if (pattern.test(trimmed)) return true;
-  }
-  
-  // Contains lots of spaces (sentence-like, > 8 words)
-  const wordCount = trimmed.split(/\s+/).length;
-  if (wordCount > 8) return true;
-  
-  return false;
+  return isGarbageInvestorName(name);
 }
 
 function isDataPoor(investor) {

@@ -15,6 +15,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { isGarbageInvestorName } = require('../lib/investorNameHeuristics');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -294,7 +295,16 @@ function isFirmEcho(text, context = '') {
  */
 function validateInvestorEntity(name, firm = null, context = '', sourceUrl = '') {
   const cleanedName = stripArticlePrefixes(name);
-  
+
+  if (isGarbageInvestorName(cleanedName)) {
+    return {
+      valid: false,
+      reason: 'name_heuristic_junk',
+      confidence: 0.05,
+      message: 'Name matches headline/team-page junk heuristics (titles, concat, program tags)',
+    };
+  }
+
   // Failure Mode 1: Sentence fragment
   if (isSentenceFragment(cleanedName)) {
     return {
