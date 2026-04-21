@@ -192,11 +192,12 @@ const GOD_SCORE_CONFIG = {
   // ACCEPTABLE RANGE: 19.0 - 23.0 (enforced by validation)
   // Math: rawTotal (avg ~12, max ~17) / divisor * 10 → 0-10 scale → * 10 = 0-100
   // Lower divisor = higher scores. 19 → ~63 avg; 20 → ~60 avg.
-  normalizationDivisor: 18.0,  // Mar 2026: 18 for stronger bump (divisor 19 had no visible effect; 60% still in 40-49)
+  // Higher divisor → lower GOD scores on 0–100 scale (Apr 2026: avg had drifted ~80+; target mid-60s)
+  normalizationDivisor: 20.5,
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 0.5 - 3.0 (enforced by validation)
-  baseBoostMinimum: 3.0,  // Raised from 2.5 to lift sparse-data floor
+  baseBoostMinimum: 2.5,
   
   // Vibe bonus cap - qualitative signal boost
   // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)

@@ -209,13 +209,36 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS: locked to known domains in production (Pythh + Fly hostname + optional legacy hosts)
+// CORS: locked to known domains in production (Pythh + Fly hostname + optional legacy hosts).
+// New Vercel preview/custom domains: add via fly secrets (or env) without redeploying code:
+//   CORS_EXTRA_ORIGINS=https://preview-xyz.vercel.app,https://newbrand.com
+// APP_URL / APP_BASE_URL are also merged when set (emails/link builders often define these already).
+function parseExtraCorsOrigins() {
+  const out = [];
+  const tryPush = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return;
+    try {
+      out.push(new URL(s).origin);
+    } catch {
+      /* ignore */
+    }
+  };
+  tryPush(process.env.APP_URL);
+  tryPush(process.env.APP_BASE_URL);
+  for (const part of String(process.env.CORS_EXTRA_ORIGINS || '').split(',')) {
+    tryPush(part);
+  }
+  return out;
+}
+
 const ALLOWED_ORIGINS = [
   'https://pythh.ai',
   'https://www.pythh.ai',
   'https://hot-honey.fly.dev',
   'https://hothoney.ai',
   'https://www.hothoney.ai',
+  ...parseExtraCorsOrigins(),
 ];
 if (!IS_PRODUCTION) {
   ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:3002', 'http://localhost:3000');
@@ -6581,6 +6604,34 @@ function computeEnrichmentStats(rows) {
   };
 }
 
+/** Map admin_get_score_health_core() JSON to enrichment block (fast path — no full-table scan). */
+function enrichmentFromScoreHealthCore(core) {
+  const tc = core.tier_counts || {};
+  const by_tier = {
+    A: Number(tc.A || 0),
+    B: Number(tc.B || 0),
+    C: Number(tc.C || 0),
+    unknown: Number(tc.unknown || 0) + Number(tc[''] || 0),
+  };
+  const sc = core.status_counts || {};
+  const by_startup_status = {};
+  for (const k of Object.keys(sc)) {
+    by_startup_status[k] = Number(sc[k]);
+  }
+  return {
+    total: Number(core.enrich_total) || 0,
+    by_tier,
+    by_startup_status,
+    needs_enrichment: Number(core.enrich_needs) || 0,
+    criteria:
+      'needs_enrichment ≈ SQL estimate (tier C/empty, missing extracted_data, or data_completeness < 35). Ontology/market signal counts omitted on fast path.',
+    enrichment_signals: {
+      with_ontology_inference: 0,
+      with_market_signals_in_extracted_data: 0,
+    },
+  };
+}
+
 function getOntologyLibraryStats() {
   try {
     const so = require('../lib/signalOntology');
@@ -6738,24 +6789,18 @@ app.get('/api/admin/kpis', async (req, res) => {
       ttlMs: 30_000,
       fetcher: async () => {
         const supabase = getSupabaseClient();
-        const [approved, pending, investors, matches] = await Promise.all([
-          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-          supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabase.from('investors').select('*', { count: 'exact', head: true }),
-          supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
-        ]);
-        const scores = await paginateStartupUploads(supabase, 'total_god_score', (q) =>
-          q.eq('status', 'approved').not('total_god_score', 'is', null)
-        );
-        const avg = scores.length > 0
-          ? scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / scores.length
-          : 0;
+        const { data: kpiRows, error: kpiErr } = await supabase.rpc('admin_get_dashboard_kpis');
+        if (kpiErr) throw kpiErr;
+        const r = Array.isArray(kpiRows) ? kpiRows[0] : kpiRows;
+        if (!r) {
+          throw new Error('admin_get_dashboard_kpis returned no row');
+        }
         return {
-          startups_approved: approved.count || 0,
-          startups_pending: pending.count || 0,
-          investors_total: investors.count || 0,
-          matches_total: matches.count || 0,
-          avg_god_score: Math.round(avg * 10) / 10,
+          startups_approved: Number(r.startups_approved) || 0,
+          startups_pending: Number(r.startups_pending) || 0,
+          investors_total: Number(r.investors_total) || 0,
+          matches_total: Number(r.matches_total) || 0,
+          avg_god_score: Math.round(Number(r.avg_god_score) * 10) / 10,
         };
       },
     });
@@ -6779,21 +6824,39 @@ app.get('/api/admin/score-health', async (req, res) => {
       }
     })();
 
-    const [scores, enrichRows, ontologyLibraries, oracleSummary] = await Promise.all([
-      paginateStartupUploads(
-        supabase,
-        'total_god_score, team_score, traction_score, market_score, product_score, vision_score',
-        (q) => q.eq('status', 'approved'),
-      ),
-      paginateStartupUploads(supabase, 'extracted_data, data_completeness, status', (q) => q),
+    const [ontologyLibraries, oracleSummary, rpcHealth] = await Promise.all([
       Promise.resolve(getOntologyLibraryStats()),
       fetchOracleServiceSummary(supabase),
+      supabase.rpc('admin_get_score_health_core'),
     ]);
 
-    const godComponentAverages = computeGodComponentAverages(scores);
-    const enrichment = computeEnrichmentStats(enrichRows);
+    const coreErr = rpcHealth?.error;
+    const core = rpcHealth?.data;
+    if (coreErr) {
+      throw new Error(coreErr.message || 'admin_get_score_health_core failed');
+    }
+    if (core == null) {
+      throw new Error('admin_get_score_health_core returned null — apply migration 20260421140000_admin_fast_health_rpcs.sql');
+    }
 
-    if (!scores || scores.length === 0) {
+    const enrichment = enrichmentFromScoreHealthCore(core);
+    const total = Number(core.total_startups) || 0;
+    const avg = Number(core.avg_score) || 0;
+    const rnd = (x) => Math.round(Number(x) * 100) / 100;
+    const compN = Number(core.comp_n) || 0;
+    const godComponentAverages =
+      compN === 0
+        ? { n: 0, team: null, traction: null, market: null, product: null, vision: null }
+        : {
+            n: compN,
+            team: rnd(core.comp_team),
+            traction: rnd(core.comp_traction),
+            market: rnd(core.comp_market),
+            product: rnd(core.comp_product),
+            vision: rnd(core.comp_vision),
+          };
+
+    if (total === 0) {
       return res.json({
         schemaVersion: 2,
         status: 'warning',
@@ -6809,19 +6872,24 @@ app.get('/api/admin/score-health', async (req, res) => {
       });
     }
 
-    const total = scores.length;
-    const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
+    const b40 = Number(core.b40) || 0;
+    const b50 = Number(core.b50) || 0;
+    const b60 = Number(core.b60) || 0;
+    const b70 = Number(core.b70) || 0;
+    const b80 = Number(core.b80) || 0;
     const ranges = [
-      { range: '40-49', min: 40, max: 50, color: 'bg-red-500' },
-      { range: '50-59', min: 50, max: 60, color: 'bg-orange-500' },
-      { range: '60-69', min: 60, max: 70, color: 'bg-yellow-500' },
-      { range: '70-79', min: 70, max: 80, color: 'bg-green-500' },
-      { range: '80+', min: 80, max: 101, color: 'bg-emerald-500' },
+      { range: '40-49', count: b40, color: 'bg-red-500' },
+      { range: '50-59', count: b50, color: 'bg-orange-500' },
+      { range: '60-69', count: b60, color: 'bg-yellow-500' },
+      { range: '70-79', count: b70, color: 'bg-green-500' },
+      { range: '80+', count: b80, color: 'bg-emerald-500' },
     ];
-    const distribution = ranges.map((r) => {
-      const count = scores.filter((s) => s.total_god_score >= r.min && s.total_god_score < r.max).length;
-      return { range: r.range, count, percent: Math.round((count / total) * 1000) / 10, color: r.color };
-    });
+    const distribution = ranges.map((r) => ({
+      range: r.range,
+      count: r.count,
+      percent: Math.round((r.count / total) * 1000) / 10,
+      color: r.color,
+    }));
     const alerts = [];
     let status = 'healthy';
     const lowBandPercent = distribution[0].percent;
@@ -6885,18 +6953,18 @@ app.get('/api/admin/system-health', async (req, res) => {
       fetcher: async () => {
         const supabase = getSupabaseClient();
         const checks = [];
-        // GOD Score distribution check
-        const scores = await paginateStartupUploads(supabase, 'total_god_score', (q) => q.eq('status', 'approved'));
-        if (scores && scores.length > 0) {
-          const total = scores.length;
-          const lowBandCount = scores.filter(s => s.total_god_score >= 40 && s.total_god_score < 50).length;
+        // GOD Score distribution check (RPC — no full-table paginate)
+        const { data: ghCore, error: ghErr } = await supabase.rpc('admin_get_score_health_core');
+        if (!ghErr && ghCore && Number(ghCore.total_startups) > 0) {
+          const total = Number(ghCore.total_startups);
+          const lowBandCount = Number(ghCore.b40) || 0;
           const lowBandPercent = (lowBandCount / total) * 100;
-          const avg = scores.reduce((a, s) => a + (s.total_god_score || 0), 0) / total;
+          const avg = Number(ghCore.avg_score) || 0;
           if (lowBandPercent > 30) checks.push({ name: 'GOD Score Distribution', status: 'error', message: `${lowBandPercent.toFixed(1)}% stuck in 40-49 band`, action: { label: 'Fix Scores', route: '/admin/god-settings' } });
           else if (lowBandPercent > 10) checks.push({ name: 'GOD Score Distribution', status: 'warning', message: `${lowBandPercent.toFixed(1)}% in 40-49 band`, action: { label: 'View Scores', route: '/admin/god-scores' } });
           else checks.push({ name: 'GOD Score Distribution', status: 'ok', message: `Healthy distribution (avg: ${avg.toFixed(1)})` });
         } else {
-          checks.push({ name: 'GOD Score Distribution', status: 'error', message: 'No approved startups found', action: { label: 'Add Startups', route: '/admin/edit-startups' } });
+          checks.push({ name: 'GOD Score Distribution', status: 'error', message: ghErr ? `Score health RPC: ${ghErr.message}` : 'No approved startups found', action: { label: 'Add Startups', route: '/admin/edit-startups' } });
         }
         // Match count check
         const { count: matchCount } = await supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true });
@@ -6924,49 +6992,31 @@ app.get('/api/admin/system-health', async (req, res) => {
 });
 
 // GET /api/admin/social-signals
-// Returns social signal stats for SocialSignalsMonitor component
+// Returns social signal stats for SocialSignalsMonitor component (SQL aggregate — not 20k row fetch)
 app.get('/api/admin/social-signals', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    // Fetch signals data and last updated in parallel
-    const [{ data: platformData }, { data: topData }, { data: lastSignal }] = await Promise.all([
-      supabase.from('social_signals').select('platform, startup_id').limit(10000),
-      supabase.from('social_signals').select('startup_id, startup_name, engagement_score').limit(10000),
-      supabase.from('social_signals').select('created_at').order('created_at', { ascending: false }).limit(1).single(),
-    ]);
-    // Collect unique startup_ids that have no stored name — resolve from startup_uploads
-    const unresolvedIds = [...new Set((topData || []).filter(s => s.startup_id && !s.startup_name).map(s => s.startup_id))];
-    const idToName = {};
-    if (unresolvedIds.length > 0) {
-      const { data: nameRows } = await supabase.from('startup_uploads').select('id, name').in('id', unresolvedIds.slice(0, 500));
-      (nameRows || []).forEach(r => { idToName[r.id] = r.name; });
+    const { data: raw, error } = await supabase.rpc('admin_get_social_signal_dashboard');
+    if (error) throw error;
+    if (!raw) {
+      throw new Error('admin_get_social_signal_dashboard returned null — apply migration 20260421140000_admin_fast_health_rpcs.sql');
     }
-    const platformMap = new Map();
-    (platformData || []).forEach(s => {
-      const existing = platformMap.get(s.platform) || { count: 0, startups: new Set() };
-      existing.count++;
-      if (s.startup_id) existing.startups.add(s.startup_id);
-      platformMap.set(s.platform, existing);
-    });
-    const platforms = Array.from(platformMap.entries()).map(([platform, data]) => ({ platform, count: data.count, uniqueStartups: data.startups.size })).sort((a, b) => b.count - a.count);
-    const uniqueStartups = new Set((platformData || []).filter(s => s.startup_id).map(s => s.startup_id)).size;
-    // Resolve name: stored startup_name > id lookup from startup_uploads > skip
-    const startupMap = new Map();
-    (topData || []).forEach(s => {
-      const name = s.startup_name || idToName[s.startup_id] || null;
-      if (!name) return;
-      const existing = startupMap.get(name) || { count: 0, totalEngagement: 0 };
-      existing.count++;
-      existing.totalEngagement += s.engagement_score || 0;
-      startupMap.set(name, existing);
-    });
-    const topStartups = Array.from(startupMap.entries()).map(([name, data]) => ({ name, signalCount: data.count, buzzScore: Math.round(data.totalEngagement) })).sort((a, b) => b.signalCount - a.signalCount).slice(0, 10);
+    const platforms = (raw.platforms || []).map((p) => ({
+      platform: p.platform,
+      count: Number(p.count) || 0,
+      uniqueStartups: Number(p.uniqueStartups ?? p.unique_startups) || 0,
+    }));
+    const topStartups = (raw.top_startups || []).map((t) => ({
+      name: t.name,
+      signalCount: Number(t.signalCount) || 0,
+      buzzScore: Number(t.buzzScore) || 0,
+    }));
     res.json({
-      totalSignals: (platformData || []).length,
-      uniqueStartups,
+      totalSignals: Number(raw.total_signals) || 0,
+      uniqueStartups: Number(raw.unique_startups) || 0,
       platforms,
       topStartups,
-      lastUpdated: lastSignal?.created_at || null,
+      lastUpdated: raw.last_updated || null,
     });
   } catch (err) {
     console.error('[/api/admin/social-signals] Error:', err);
@@ -8784,7 +8834,39 @@ app.get('/api/portfolio', async (req, res) => {
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
 
-    res.json({ entries: data || [], count: data?.length || 0 });
+    const rows = data || [];
+    const ids = rows.map((e) => e.startup_id).filter(Boolean);
+    let propMap = new Map();
+    if (ids.length > 0) {
+      const chunkSize = 120;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const { data: propRows, error: propErr } = await supabase
+          .from('startup_uploads')
+          .select(
+            'id, exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
+          )
+          .in('id', chunk);
+        if (!propErr && propRows?.length) {
+          for (const r of propRows) propMap.set(r.id, r);
+        }
+      }
+    }
+
+    const entries = rows.map((e) => {
+      const p = propMap.get(e.startup_id);
+      if (!p) return e;
+      return {
+        ...e,
+        exit_propensity_score: p.exit_propensity_score,
+        exit_propensity_confidence: p.exit_propensity_confidence,
+        exit_propensity_tier: p.exit_propensity_tier,
+        exit_propensity_breakdown: p.exit_propensity_breakdown,
+        exit_propensity_at: p.exit_propensity_at,
+      };
+    });
+
+    res.json({ entries, count: entries.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -8842,7 +8924,27 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
     ]);
 
     if (!entry) return res.status(404).json({ error: 'Not in portfolio' });
-    res.json({ entry, events: events || [] });
+
+    const { data: prop } = await supabase
+      .from('startup_uploads')
+      .select(
+        'exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
+      )
+      .eq('id', startupId)
+      .maybeSingle();
+
+    const merged = prop
+      ? {
+          ...entry,
+          exit_propensity_score: prop.exit_propensity_score,
+          exit_propensity_confidence: prop.exit_propensity_confidence,
+          exit_propensity_tier: prop.exit_propensity_tier,
+          exit_propensity_breakdown: prop.exit_propensity_breakdown,
+          exit_propensity_at: prop.exit_propensity_at,
+        }
+      : entry;
+
+    res.json({ entry: merged, events: events || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

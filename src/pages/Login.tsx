@@ -2,12 +2,13 @@ import { useState, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { isAdminEmail } from '../lib/adminConfig';
 import { Mail, Lock, ArrowLeft, Sparkles, Eye, EyeOff, Github } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, refreshSessionUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,10 +23,10 @@ export default function Login() {
     setError('');
     try {
       const params = new URLSearchParams(window.location.search);
-      const redirect = params.get('redirect') || (location.state as { redirectTo?: string })?.redirectTo || '/profile';
+      const redirect = params.get('redirect') || (location.state as { redirectTo?: string })?.redirectTo || '/account';
       const redirectTo = redirect.startsWith('/')
         ? `${window.location.origin}${redirect}`
-        : `${window.location.origin}/profile`;
+        : `${window.location.origin}/account`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -121,21 +122,35 @@ export default function Login() {
       
       // Also update localStorage auth for backward compatibility
       login(email, password);
-      
-      // Check redirect: URL param, route-guard state, then sensible default
-      const isAdmin = email.includes('admin') || email.includes('ugobe');
+      // Hydrate isAdmin from profiles.is_admin before choosing post-login UI
+      await refreshSessionUser();
+
       const params = new URLSearchParams(window.location.search);
       const redirectFromUrl = params.get('redirect');
       const redirectFromState = (location.state as { redirectTo?: string })?.redirectTo;
+
+      let isAdminUser = false;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUser = sessionData?.session?.user;
+      if (sessionUser) {
+        const email = sessionUser.email || '';
+        isAdminUser = isAdminEmail(email);
+        if (!isAdminUser) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', sessionUser.id)
+            .maybeSingle();
+          isAdminUser = profile?.is_admin === true;
+        }
+      }
 
       if (redirectFromUrl) {
         navigate(redirectFromUrl);
       } else if (redirectFromState) {
         navigate(redirectFromState);
-      } else if (isAdmin) {
-        navigate('/admin');
       } else {
-        navigate('/profile');
+        navigate(isAdminUser ? '/admin' : '/account');
       }
     } catch (err: any) {
       console.error('[Login] Error:', err);
