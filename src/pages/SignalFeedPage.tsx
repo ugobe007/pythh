@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createClient } from '@supabase/supabase-js';
 import {
   Radio, TrendingUp, DollarSign, Users, Building,
   ShoppingCart, AlertTriangle, Zap, Target, Clock, RefreshCw,
@@ -9,12 +8,8 @@ import {
   ArrowRight, Gauge, CheckCircle2, XCircle, Flame,
 } from 'lucide-react';
 import { AdminPageHeader } from '../components/admin/AdminPageHeader';
-
-// ─── Supabase ─────────────────────────────────────────────────────────────────
-const sb = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-);
+import { stripHtmlForDisplay } from '../lib/stripHtml';
+import { supabase } from '../lib/supabase';
 
 // ─── Signal metadata maps (mirrors signalOntology.js for the frontend) ────────
 const SIGNAL_LABELS: Record<string, string> = {
@@ -27,11 +22,14 @@ const SIGNAL_LABELS: Record<string, string> = {
   buyer_signal:              'Buying',
   buyer_pain_signal:         'Pain Signal',
   investor_interest_signal:  'Investor Interest',
+  diligence_signal:          'Diligence / Data Room',
   investor_rejection_signal: 'Investor Pass',
   regulatory_signal:         'Regulatory',
   market_position_signal:    'Market Position',
   product_signal:            'Product',
   hiring_signal:             'Hiring',
+  gtm_hiring_signal:         'GTM / Sales Hiring',
+  engineering_hiring_signal: 'Engineering Hiring',
   enterprise_signal:         'Enterprise Push',
   expansion_signal:          'Expansion',
   gtm_signal:                'GTM Build',
@@ -53,11 +51,14 @@ const SIGNAL_COLORS: Record<string, { bg: string; text: string; border: string }
   buyer_signal:              { bg: 'bg-cyan-500/15',    text: 'text-cyan-400',    border: 'border-cyan-500/30'    },
   buyer_pain_signal:         { bg: 'bg-orange-500/15',  text: 'text-orange-400',  border: 'border-orange-500/30'  },
   investor_interest_signal:  { bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
+  diligence_signal:          { bg: 'bg-yellow-500/15',  text: 'text-yellow-400',  border: 'border-yellow-500/30' },
   investor_rejection_signal: { bg: 'bg-zinc-500/15',    text: 'text-zinc-400',    border: 'border-zinc-500/30'    },
   regulatory_signal:         { bg: 'bg-blue-500/15',    text: 'text-blue-400',    border: 'border-blue-500/30'    },
   market_position_signal:    { bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
   product_signal:            { bg: 'bg-sky-500/15',     text: 'text-sky-400',     border: 'border-sky-500/30'     },
   hiring_signal:             { bg: 'bg-indigo-500/15',  text: 'text-indigo-400',  border: 'border-indigo-500/30'  },
+  gtm_hiring_signal:         { bg: 'bg-fuchsia-500/15', text: 'text-fuchsia-400', border: 'border-fuchsia-500/30' },
+  engineering_hiring_signal: { bg: 'bg-cyan-500/15',  text: 'text-cyan-300',    border: 'border-cyan-500/30'    },
   enterprise_signal:         { bg: 'bg-amber-500/15',   text: 'text-amber-400',   border: 'border-amber-500/30'   },
   expansion_signal:          { bg: 'bg-teal-500/15',    text: 'text-teal-400',    border: 'border-teal-500/30'    },
   gtm_signal:                { bg: 'bg-indigo-500/15',  text: 'text-indigo-400',  border: 'border-indigo-500/30'  },
@@ -78,11 +79,14 @@ const WHO_CARES_MAP: Record<string, { investors: boolean; vendors: boolean; acqu
   buyer_signal:              { investors: false, vendors: true,  acquirers: false, recruiters: false },
   buyer_pain_signal:         { investors: false, vendors: true,  acquirers: false, recruiters: false },
   investor_interest_signal:  { investors: true,  vendors: false, acquirers: false, recruiters: false },
+  diligence_signal:          { investors: true,  vendors: false, acquirers: false, recruiters: false },
   investor_rejection_signal: { investors: true,  vendors: false, acquirers: false, recruiters: false },
   regulatory_signal:         { investors: true,  vendors: true,  acquirers: true,  recruiters: false },
   market_position_signal:    { investors: true,  vendors: true,  acquirers: true,  recruiters: false },
   product_signal:            { investors: true,  vendors: true,  acquirers: false, recruiters: false },
   hiring_signal:             { investors: true,  vendors: true,  acquirers: false, recruiters: true  },
+  gtm_hiring_signal:         { investors: true,  vendors: true,  acquirers: false, recruiters: true  },
+  engineering_hiring_signal: { investors: true,  vendors: true,  acquirers: false, recruiters: true  },
   enterprise_signal:         { investors: true,  vendors: true,  acquirers: false, recruiters: false },
   expansion_signal:          { investors: true,  vendors: true,  acquirers: false, recruiters: false },
   gtm_signal:                { investors: true,  vendors: true,  acquirers: false, recruiters: true  },
@@ -103,11 +107,14 @@ const INFERENCE_MAP: Record<string, { urgency: string; strategic_direction: stri
   buyer_signal:              { urgency: 'medium',   strategic_direction: 'technology adoption', likely_need: ['software', 'vendor', 'platform'] },
   buyer_pain_signal:         { urgency: 'high',     strategic_direction: 'pain-driven purchase',likely_need: ['automation', 'robotics', 'AI', 'analytics'] },
   investor_interest_signal:  { urgency: 'medium',   strategic_direction: 'fundraising',         likely_need: ['pitch deck', 'data room', 'CRM'] },
+  diligence_signal:          { urgency: 'high',     strategic_direction: 'financing close',     likely_need: ['data room', 'legal DD', 'financial DD'] },
   investor_rejection_signal: { urgency: 'low',      strategic_direction: 'continue fundraising',likely_need: [] },
   regulatory_signal:         { urgency: 'medium',   strategic_direction: 'compliance milestone',likely_need: ['compliance tools', 'legal', 'QA'] },
   market_position_signal:    { urgency: 'low',      strategic_direction: 'market building',     likely_need: ['PR', 'marketing', 'analyst relations'] },
   product_signal:            { urgency: 'medium',   strategic_direction: 'product launch',      likely_need: ['cloud infra', 'dev tools', 'analytics'] },
   hiring_signal:             { urgency: 'high',     strategic_direction: 'team growth',         likely_need: ['ATS', 'recruiter', 'payroll', 'benefits'] },
+  gtm_hiring_signal:         { urgency: 'high',     strategic_direction: 'go-to-market',        likely_need: ['ATS', 'CRM', 'sales tools', 'comp plans'] },
+  engineering_hiring_signal: { urgency: 'high',     strategic_direction: 'product scale',       likely_need: ['ATS', 'dev tools', 'cloud', 'security'] },
   enterprise_signal:         { urgency: 'high',     strategic_direction: 'enterprise push',     likely_need: ['CRM', 'sales tools', 'security compliance'] },
   expansion_signal:          { urgency: 'medium',   strategic_direction: 'geographic expansion',likely_need: ['localization', 'legal', 'regional marketing'] },
   gtm_signal:                { urgency: 'high',     strategic_direction: 'go-to-market',        likely_need: ['CRM', 'marketing automation', 'lead gen'] },
@@ -677,7 +684,7 @@ function SignalCard({ card }: { card: SignalCard }) {
             )}
           </div>
           {card.headline && (
-            <p className="text-zinc-500 text-xs leading-snug line-clamp-2">{card.headline}</p>
+            <p className="text-zinc-500 text-xs leading-snug line-clamp-2">{stripHtmlForDisplay(card.headline)}</p>
           )}
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1.5">
@@ -806,6 +813,9 @@ const SIGNAL_CLASS_OPTIONS = [
   { value: 'buyer_budget_signal',    label: 'Budget Ready' },
   { value: 'distress_signal',        label: 'Distress' },
   { value: 'hiring_signal',          label: 'Hiring' },
+  { value: 'gtm_hiring_signal',     label: 'GTM / Sales Hiring' },
+  { value: 'engineering_hiring_signal', label: 'Engineering Hiring' },
+  { value: 'diligence_signal',       label: 'Diligence / Data Room' },
   { value: 'product_signal',         label: 'Product' },
   { value: 'expansion_signal',       label: 'Expansion' },
   { value: 'enterprise_signal',      label: 'Enterprise' },
@@ -867,7 +877,7 @@ export default function SignalFeedPage() {
   const loadSignals = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await sb
+      const { data, error } = await supabase
         .from('discovered_startups')
         .select('id, name, article_title, article_url, rss_source, created_at, sectors, funding_amount, funding_stage, metadata')
         .not('metadata', 'is', null)
@@ -892,7 +902,7 @@ export default function SignalFeedPage() {
 
   const loadTrajectories = useCallback(async () => {
     try {
-      const { data, error } = await sb
+      const { data, error } = await supabase
         .from('pythh_active_trajectories')
         .select('*')
         .order('velocity_score', { ascending: false })
@@ -906,7 +916,7 @@ export default function SignalFeedPage() {
 
   const loadMatches = useCallback(async () => {
     try {
-      const { data, error } = await sb
+      const { data, error } = await supabase
         .from('pythh_top_matches')
         .select('*')
         .order('match_score', { ascending: false })

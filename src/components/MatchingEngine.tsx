@@ -150,6 +150,13 @@ export default function MatchingEngine() {
       const sIds = [...new Set(unique.map((m) => m.startup_id).filter(Boolean))];
       const iIds = [...new Set(unique.map((m) => m.investor_id).filter(Boolean))];
 
+      // PostgREST returns 400 if `.in('id', [])` is sent — guard before querying.
+      if (sIds.length === 0 || iIds.length === 0) {
+        setError("Engine offline — no matches available.");
+        setLoading(false);
+        return;
+      }
+
       // Parallelize ALL remaining queries: startup details, investor details, AND fast stats RPC
       const [sRes, iRes, platformCounts] = await Promise.all([
         supabase
@@ -162,6 +169,9 @@ export default function MatchingEngine() {
           .in("id", iIds),
         fetchPlatformStats(),
       ]);
+
+      if (sRes.error) throw sRes.error;
+      if (iRes.error) throw iRes.error;
 
       const sMap = new Map((sRes.data || []).map((s: any) => [s.id, s]));
       const iMap = new Map((iRes.data || []).map((i: any) => [i.id, i]));

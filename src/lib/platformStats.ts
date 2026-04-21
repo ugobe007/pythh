@@ -31,7 +31,8 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
     });
-    if (res.ok) {
+    const ct = res.headers.get('content-type') || '';
+    if (res.ok && ct.includes('application/json')) {
       const j = (await res.json()) as Partial<PlatformStats & { source?: string }>;
       if (
         j &&
@@ -58,9 +59,9 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
       const res = await supabase.rpc('get_platform_stats');
       if (res.error) throw res.error;
       const p = normalizeRpcPayload(res.data);
-      if (p && ((p.startups || 0) > 0 || (p.matches || 0) > 0)) {
-        return p;
-      }
+      // Return any successful RPC payload (including all zeros) — avoids falling through to
+      // client head-count queries that can 400 in edge cases and spams the network tab.
+      if (p) return p;
     } catch (e) {
       if (import.meta.env.DEV) {
         // eslint-disable-next-line no-console
@@ -74,10 +75,17 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
 
   try {
     const [s, i, m] = await Promise.all([
-      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-      supabase.from('investors').select('*', { count: 'exact', head: true }),
-      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_uploads').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('investors').select('id', { count: 'exact', head: true }),
+      supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }),
     ]);
+    if (s.error || i.error || m.error) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn('[platformStats] head-count fallback errors', s.error, i.error, m.error);
+      }
+      return { startups: 0, investors: 0, matches: 0 };
+    }
     return {
       startups: s.count ?? 0,
       investors: i.count ?? 0,

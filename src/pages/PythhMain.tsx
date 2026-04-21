@@ -78,7 +78,7 @@ export default function PythhHome() {
         const { data, error } = await supabase
           .from('investors')
           .select('name, firm, investor_score, investor_tier, sectors, score_breakdown')
-          .or('investor_tier.eq.elite,investor_tier.eq.strong')
+          .in('investor_tier', ['elite', 'strong'])
           .not('investor_score', 'is', null)
           .gte('investor_score', 6.5)
           .order('investor_score', { ascending: false })
