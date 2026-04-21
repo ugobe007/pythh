@@ -1,11 +1,30 @@
 import { defineConfig } from 'vite';
+import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
+/** Injected into dist/index.html so View Source shows which Git commit Vercel built (debug stale deploys). */
+function pythhBuildMetaPlugin(): Plugin {
+  return {
+    name: 'pythh-build-meta',
+    transformIndexHtml(html) {
+      const sha =
+        process.env.VERCEL_GIT_COMMIT_SHA ||
+        process.env.GITHUB_SHA ||
+        process.env.CF_PAGES_COMMIT_SHA ||
+        '';
+      if (!sha) return html;
+      if (html.includes('name="pythh-build"')) return html;
+      return html.replace(/<head>/i, `<head>\n    <meta name="pythh-build" content="${sha}" />`);
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    pythhBuildMetaPlugin(),
     nodePolyfills({
       // Polyfill Buffer, process, global at bundle time so vendor chunks
       // don't explode on Safari / browsers without Node globals.
