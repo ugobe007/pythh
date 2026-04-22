@@ -31,8 +31,22 @@ import { calculateSpikyAndHotBonus } from '../server/services/spikyBachelorServi
 
 // T7: Investor Pedigree bonus — rewards real backer/advisor confidence signals (Feb 28, 2026)
 import { calculateInvestorPedigreeBonus } from '../server/services/investorPedigreeScoringService';
+import { isValidStartupName } from '../server/utils/startupNameValidator';
+
+import { formatScoreRecalcSummaryLegend } from '../src/lib/scoreRecalcSummaryLabels';
 
 dotenv.config();
+
+/**
+ * Verbose 💰 pedigree lines — suppress for entries that look like RSS headline junk.
+ * Note: entity_gate='junk' rows are already excluded at the query level (ontology gate pre-filter).
+ * This guard is a secondary check for unclassified entries with invalid names.
+ */
+function shouldLogPedigreeLine(startup: any): boolean {
+  const gate = String(startup?.entity_gate ?? '').toLowerCase();
+  if (gate === 'junk') return false;
+  return isValidStartupName(startup?.name).isValid;
+}
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
@@ -343,6 +357,7 @@ async function recalculateScores(): Promise<void> {
       .from('startup_uploads')
       .select('*')
       .in('status', ['pending', 'approved'])
+      .neq('entity_gate', 'junk')   // Ontology gate: junk entities are excluded from scoring entirely
       .order('updated_at', { ascending: true })
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -373,7 +388,12 @@ async function recalculateScores(): Promise<void> {
   console.log(`   Phase 1 (Data Rich):  ${phases[1].length} startups`);
   console.log(`   Phase 2 (Good Data):  ${phases[2].length} startups`);
   console.log(`   Phase 3 (Medium):     ${phases[3].length} startups`);
-  console.log(`   Phase 4 (Sparse):     ${phases[4].length} startups\n`);
+  console.log(`   Phase 4 (Sparse):     ${phases[4].length} startups`);
+  if (phases[4].length > 2000) {
+    console.log(`   (Phase 4 is slow: ~${Math.ceil(phases[4].length / 250)} min typical — one DB update + history insert per changed row; progress logs every 400 rows.)\n`);
+  } else {
+    console.log('');
+  }
 
   // T2: Pre-load score history for momentum trajectory dimension
   const startupIds = startups.map((s: any) => s.id);
@@ -423,8 +443,16 @@ async function recalculateScores(): Promise<void> {
     let phaseUpdated = 0;
     let phaseUnchanged = 0;
     const startTime = Date.now();
+    let processedInPhase = 0;
 
   for (const startup of phaseStartups) {
+    processedInPhase++;
+    // Heartbeat: Phase 4 can take 20–40m (thousands of sequential DB round-trips) with no other logs
+    if (processedInPhase === 1 || processedInPhase % 400 === 0 || processedInPhase === phaseStartups.length) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      console.log(`  ⏳ Phase ${phaseNum} progress: ${processedInPhase}/${phaseStartups.length} (${elapsed}s elapsed)`);
+    }
+
     const oldScore = startup.total_god_score || 0;
     
     // ============================================================================
@@ -534,7 +562,10 @@ async function recalculateScores(): Promise<void> {
       if (pedigreeResult.applied && pedigreeResult.bonus > 0) {
         pedigreeBonus = pedigreeResult.bonus;
         pedigreeApplied++;
-        if (pedigreeResult.tier === 'elite' || pedigreeResult.bonus >= 5) {
+        if (
+          shouldLogPedigreeLine(startup) &&
+          (pedigreeResult.tier === 'elite' || pedigreeResult.bonus >= 5)
+        ) {
           console.log(`  💰 ${startup.name}: +${pedigreeBonus} pedigree (${pedigreeResult.tier}) — ${pedigreeResult.matchedInvestors.slice(0,3).join(', ')}`);
         }
       }
@@ -553,7 +584,11 @@ async function recalculateScores(): Promise<void> {
       accomplishmentBonus += Math.min(founderEvidenceCount, 2); // +1 per press URL, max +2
     }
     if (accomplishmentBonus > 0) {
-      console.log(`  📄 ${startup.name}: +${accomplishmentBonus} accomplishment evidence (deck: ${hasDeck}, press: ${founderEvidenceCount})`);
+      accomplishmentApplied++;
+      // Logging every row with a deck in Phase 3–4 floods the terminal (thousands of lines) and slows I/O
+      if (phaseNum <= 2) {
+        console.log(`  📄 ${startup.name}: +${accomplishmentBonus} accomplishment evidence (deck: ${hasDeck}, press: ${founderEvidenceCount})`);
+      }
     }
 
     const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus + accomplishmentBonus;
@@ -963,6 +998,9 @@ async function recalculateScores(): Promise<void> {
   console.log(`  Investor pedigree bonus: ${pedigreeApplied}`);
   console.log(`  Accomplishment evidence bonus: ${accomplishmentApplied}`);
   console.log(`  Total: ${startups.length}`);
+  console.log('');
+  console.log(formatScoreRecalcSummaryLegend());
+  console.log('');
   console.log('✅ Score recalculation complete');
 }
 
