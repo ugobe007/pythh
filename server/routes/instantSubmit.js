@@ -869,6 +869,140 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
   }
 }
 
+/** First-response match count: must feel instant like legacy “hot” submit flows */
+const SYNC_RESPONSE_TOP_N = 5;
+/** Tight prefilter for sync path — full BG pipeline still runs a wider pass */
+const SYNC_MATCH_CANDIDATE_CAP = 220;
+
+const MATCH_API_SELECT = `
+  id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at,
+  investors:investor_id (
+    id, name, firm, url, sectors, stage,
+    total_investments, active_fund_size, investment_thesis
+  )
+`;
+
+function uploadRowToPlaceholderStartup(startupId, row) {
+  const r = row || {};
+  return {
+    id: startupId,
+    name: r.name || 'Startup',
+    sectors: Array.isArray(r.sectors) && r.sectors.length ? r.sectors : ['Technology'],
+    stage: r.stage ?? 1,
+    total_god_score: typeof r.total_god_score === 'number' ? r.total_god_score : 50,
+    team_score: r.team_score ?? null,
+    traction_score: r.traction_score ?? null,
+    market_score: r.market_score ?? null,
+    product_score: r.product_score ?? null,
+    vision_score: r.vision_score ?? null,
+    maturity_level: r.maturity_level ?? null,
+    data_completeness: r.data_completeness ?? null,
+    has_revenue: !!r.has_revenue,
+    has_customers: !!r.has_customers,
+    is_launched: !!r.is_launched,
+    mrr: r.mrr ?? null,
+    arr: r.arr ?? null,
+    customer_count: r.customer_count ?? null,
+    growth_rate_monthly: r.growth_rate_monthly ?? null,
+  };
+}
+
+function buildInstantMatchRow(startupId, placeholderStartup, investor, fitResult) {
+  const { score, fitAnalysis, confidence } = fitResult;
+  return {
+    startup_id: startupId,
+    investor_id: investor.id,
+    match_score: score,
+    reasoning: generateReasoning(placeholderStartup, investor, fitAnalysis),
+    fit_analysis: fitAnalysis,
+    confidence_level: confidence,
+    why_you_match: generateWhyYouMatch(placeholderStartup, investor, fitAnalysis),
+    status: 'suggested',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'sync_response', placeholderStartup, investor, {}),
+  };
+}
+
+/**
+ * God → same seed signal as sync/tier scoring (0–9 scale in practice after Math.round)
+ */
+function signalTotalFromGod(god) {
+  const g = typeof god === 'number' && Number.isFinite(god) ? god : 50;
+  const normalized = Math.max(0, Math.min(1, (g - 35) / 65));
+  return parseFloat((5.5 + normalized * 4.0).toFixed(1));
+}
+
+/**
+ * Scores a shortlist and upserts top N so the first /submit response (and /status) show real matches.
+ * Does not delete other rows; background Phase 1 may replace the full set shortly after.
+ */
+async function generateSyncTopMatchesForHttpResponse(
+  supabase,
+  { startupId, placeholderStartup, signalTotal, maxMs }
+) {
+  const wall = Date.now() + (maxMs || 4500);
+  const out = { matches: [], match_count: 0, error: null };
+  try {
+    await getInvestors(supabase);
+    const sec =
+      Array.isArray(placeholderStartup.sectors) && placeholderStartup.sectors.length
+        ? placeholderStartup.sectors
+        : ['Technology'];
+    const cap = Math.min(PIPELINE_CONFIG.FAST_MATCH_LIMIT, SYNC_MATCH_CANDIDATE_CAP);
+    const candidates = getCandidateInvestors(sec, cap);
+    if (!candidates.length) {
+      return out;
+    }
+    const sig = typeof signalTotal === 'number' && Number.isFinite(signalTotal)
+      ? signalTotal
+      : signalTotalFromGod(placeholderStartup.total_god_score);
+
+    const withScores = [];
+    for (const inv of candidates) {
+      if (Date.now() > wall) break;
+      try {
+        const result = calculateMatchScore(placeholderStartup, inv, sig, inv.signals || null);
+        if (result.score >= MATCH_CONFIG.PERSISTENCE_FLOOR) {
+          withScores.push({ inv, result });
+        }
+      } catch {
+        /* one investor */
+      }
+    }
+    withScores.sort((a, b) => b.result.score - a.result.score);
+    const top = withScores.slice(0, SYNC_RESPONSE_TOP_N);
+    if (top.length === 0) {
+      return out;
+    }
+    const rows = top.map(({ inv, result }) => buildInstantMatchRow(startupId, placeholderStartup, inv, result));
+    const { error: upErr } = await supabase
+      .from('startup_investor_matches')
+      .upsert(rows, { onConflict: 'startup_id,investor_id', ignoreDuplicates: false });
+    if (upErr) {
+      console.warn(`[SYNC] match upsert: ${upErr.message}`);
+    }
+    const ids = rows.map((r) => r.investor_id);
+    const { data: joined, error: selErr } = await supabase
+      .from('startup_investor_matches')
+      .select(MATCH_API_SELECT)
+      .eq('startup_id', startupId)
+      .eq('status', 'suggested')
+      .in('investor_id', ids);
+    if (selErr) {
+      out.error = selErr.message;
+      return out;
+    }
+    const byInv = new Map((joined || []).map((j) => [j.investor_id, j]));
+    out.matches = ids.map((iid) => byInv.get(iid)).filter(Boolean);
+    out.match_count = out.matches.length;
+    return out;
+  } catch (e) {
+    out.error = e?.message || String(e);
+    return out;
+  }
+}
+
 /**
  * POST /api/instant/submit
  * 
@@ -878,9 +1012,9 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
 // ============================================================================
 // BACKGROUND PIPELINE — heavy work runs AFTER HTTP response
 // ============================================================================
-// Concurrency limiter: max 1 pipeline at a time to avoid event loop starvation
+// Concurrency limiter — allow 2 so queued submits don't stall as long on load spikes
 let activePipelineCount = 0;
-const MAX_CONCURRENT_PIPELINES = 1;
+const MAX_CONCURRENT_PIPELINES = 2;
 const pipelineQueue = [];
 
 function startBackgroundPipeline(args) {
@@ -969,9 +1103,13 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       growth_rate_monthly: suPh?.growth_rate_monthly ?? null,
     };
     
-    // Tier A: cheap prefilter → max 300 candidates, then expensive scoring on shortlist only
-    const quickInvestors = getCandidateInvestors(['Technology'], PIPELINE_CONFIG.FAST_MATCH_LIMIT);
-    console.log(`  ⚡ [BG] Phase 1 shortlist: ${quickInvestors.length} candidates (cap=${PIPELINE_CONFIG.FAST_MATCH_LIMIT})`);
+    // Tier A: use real startup sectors (sync path updates these before BG runs) — not generic Technology
+    const phase1Sectors =
+      Array.isArray(placeholderStartup.sectors) && placeholderStartup.sectors.length
+        ? placeholderStartup.sectors
+        : ['Technology'];
+    const quickInvestors = getCandidateInvestors(phase1Sectors, PIPELINE_CONFIG.FAST_MATCH_LIMIT);
+    console.log(`  ⚡ [BG] Phase 1 shortlist: ${quickInvestors.length} candidates (cap=${PIPELINE_CONFIG.FAST_MATCH_LIMIT}, sectors=${phase1Sectors.join(',')})`);
     const quickMatches = [];
     
     // CRITICAL FIX: Parallel processing with timeout protection
@@ -1639,7 +1777,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           {
             model: 'gpt-4o-mini',
             messages: [
-              { role: 'system', content: 'You are a startup signal classifier. For each sentence, return a JSON object with key "signals" containing an array of {sentence_index, primary_signal, signal_strength, confidence, posture, action_tag}. primary_signal must be one of: fundraising_signal, growth_signal, revenue_signal, product_signal, hiring_signal, expansion_signal, enterprise_signal, efficiency_signal, distress_signal, exit_signal, buyer_pain_signal, demand_signal, market_signal, founder_psychology_signal, exploratory_signal.' },
+              { role: 'system', content: 'You are a startup signal classifier. For each sentence, return a JSON object with key "signals" containing an array of {sentence_index, primary_signal, signal_strength, confidence, posture, action_tag}. primary_signal must be one of: fundraising_signal, growth_signal, revenue_signal, product_signal, hiring_signal, gtm_hiring_signal, engineering_hiring_signal, diligence_signal, expansion_signal, enterprise_signal, efficiency_signal, distress_signal, exit_signal, buyer_pain_signal, demand_signal, market_signal, founder_psychology_signal, exploratory_signal.' },
               { role: 'user', content: `Classify signals in these sentences from a startup:\n\n${userContent}\n\nReturn ONLY valid JSON with a "signals" key.` },
             ],
             response_format: { type: 'json_object' },
@@ -1656,6 +1794,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         const sigs = Array.isArray(parsed) ? parsed : (parsed.signals || []);
 
         const VALID = ['fundraising_signal','growth_signal','revenue_signal','product_signal','hiring_signal',
+          'gtm_hiring_signal','engineering_hiring_signal','diligence_signal',
           'expansion_signal','enterprise_signal','efficiency_signal','distress_signal','exit_signal',
           'buyer_pain_signal','demand_signal','market_signal','founder_psychology_signal','exploratory_signal',
           'acquisition_signal','partnership_signal','gtm_signal','buyer_signal'];
@@ -1942,16 +2081,48 @@ router.post('/submit', async (req, res) => {
           }), 50);
         }
         
+        // Inline top matches so the client never sees an empty first response (then BG deepens the list)
+        let firstMatches = [];
+        let firstCount = existingMatchCount || 0;
+        const regenSyncBudget = Math.max(800, Math.min(5500, HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime) - 500));
+        try {
+          const { data: sigRow } = await supabase
+            .from('startup_signal_scores')
+            .select('signals_total')
+            .eq('startup_id', startupId)
+            .maybeSingle();
+          const sigT =
+            sigRow?.signals_total != null
+              ? parseFloat(sigRow.signals_total)
+              : signalTotalFromGod(startup?.total_god_score);
+          const ph = uploadRowToPlaceholderStartup(startupId, startup);
+          const sm = await generateSyncTopMatchesForHttpResponse(supabase, {
+            startupId,
+            placeholderStartup: ph,
+            signalTotal: sigT,
+            maxMs: regenSyncBudget,
+          });
+          if (sm.matches?.length) {
+            firstMatches = sm.matches;
+            firstCount = Math.max(firstCount, sm.match_count);
+          }
+        } catch (e) {
+          console.warn('[INSTANT] existing-startup first-paint matches failed:', e?.message);
+        }
+        
         const processingTime = Date.now() - startTime;
-        console.log(`  ⚡ Early return (existing, needs regen) in ${processingTime}ms`);
+        console.log(
+          `  ⚡ Return (existing, needs regen) in ${processingTime}ms — first_paint=${firstMatches.length}`
+        );
         
         return res.json({
           startup_id: startupId,
           startup,
-          matches: [],
-          match_count: existingMatchCount || 0,
+          matches: firstMatches,
+          match_count: firstCount,
           is_new: false,
           gen_in_progress: true,
+          initial_matches_sync: firstMatches.length > 0,
           processing_time_ms: processingTime
         });
       }
@@ -2059,6 +2230,7 @@ router.post('/submit', async (req, res) => {
     
     // Real GOD score + DB update before background matches (fixes stuck-at-50 for new URL submits)
     let syncScoringDone = false;
+    let syncScoreResult = null;
     if (isNew && startupId) {
       // Preserve path when user submits e.g. "httpbin.org/html" (domain strips path)
       const fullUrlForSync = inputRaw.startsWith('http') ? inputRaw : `https://${inputRaw}`;
@@ -2074,6 +2246,7 @@ router.post('/submit', async (req, res) => {
           displayName: domainToName(domain),
           maxMs: syncBudget,
         });
+        syncScoreResult = sr;
         syncScoringDone = !!sr.ok;
         if (sr.ok) {
           const { data: fresh } = await supabase
@@ -2087,6 +2260,48 @@ router.post('/submit', async (req, res) => {
         }
       } catch (syncErr) {
         console.warn('[INSTANT] sync GOD score failed (background will compute):', syncErr?.message);
+      }
+    }
+
+    // Synchronous top-N matches in the same request (avoids empty UI while BG pipeline queues)
+    let firstPaintMatches = [];
+    let firstMatchCount = 0;
+    if (startupId) {
+      const matchBudget = Math.max(500, Math.min(5200, HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime) - 400));
+      try {
+        const { data: phRow } = await supabase
+          .from('startup_uploads')
+          .select(
+            'id, name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, mrr, arr, customer_count, growth_rate_monthly',
+          )
+          .eq('id', startupId)
+          .single();
+        const ph = uploadRowToPlaceholderStartup(startupId, phRow || startup);
+        let sigT = signalTotalFromGod(ph.total_god_score);
+        if (syncScoringDone && syncScoreResult?.ok && typeof syncScoreResult.signalTotal === 'number') {
+          sigT = syncScoreResult.signalTotal;
+        } else {
+          const { data: scRow } = await supabase
+            .from('startup_signal_scores')
+            .select('signals_total')
+            .eq('startup_id', startupId)
+            .maybeSingle();
+          if (scRow?.signals_total != null) {
+            sigT = parseFloat(scRow.signals_total);
+          }
+        }
+        const sm = await generateSyncTopMatchesForHttpResponse(supabase, {
+          startupId,
+          placeholderStartup: ph,
+          signalTotal: sigT,
+          maxMs: matchBudget,
+        });
+        if (sm.matches?.length) {
+          firstPaintMatches = sm.matches;
+          firstMatchCount = sm.match_count;
+        }
+      } catch (e) {
+        console.warn('[INSTANT] first-paint URL matches failed:', e?.message);
       }
     }
 
@@ -2122,31 +2337,36 @@ router.post('/submit', async (req, res) => {
     // Save session pointer
     const sessionId = req.body?.session_id || req.headers['x-session-id'];
     if (sessionId) {
+      const ids = (firstPaintMatches || []).map((m) => m.investors?.id).filter(Boolean);
+      const names = (firstPaintMatches || []).map((m) => m.investors?.name || m.investors?.firm).filter(Boolean);
       void supabase.from('temp_match_sessions').insert({
         session_id: sessionId,
         startup_id: startupId,
         startup_name: startup?.name,
         startup_website: startup?.website,
         input_url: inputRaw,
-        matches: [],
-        match_count: 0,
-        top_5_investor_ids: [],
-        top_5_investor_names: [],
+        matches: firstPaintMatches,
+        match_count: firstMatchCount,
+        top_5_investor_ids: ids,
+        top_5_investor_names: names,
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       }).then(() => {}).catch(() => {});
     }
     
     const processingTime = Date.now() - startTime;
-    console.log(`  ⚡ Early return (new startup) in ${processingTime}ms — background pipeline started`);
+    console.log(
+      `  ⚡ Early return (new startup) in ${processingTime}ms — first_paint=${firstPaintMatches.length}, background started`
+    );
     
     safeJson(200, {
       startup_id: startupId,
       startup,
-      matches: [],
-      match_count: 0,
+      matches: firstPaintMatches,
+      match_count: firstMatchCount,
       is_new: true,
       gen_in_progress: true,
+      initial_matches_sync: firstPaintMatches.length > 0,
       processing_time_ms: processingTime
     });
     return;

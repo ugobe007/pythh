@@ -18,6 +18,7 @@
  *   node scripts/fetch-rss-articles.js              # dry-run
  *   node scripts/fetch-rss-articles.js --apply
  *   node scripts/fetch-rss-articles.js --apply --limit 20   # max 20 sources
+ *   node scripts/fetch-rss-articles.js --apply --sources 50 # same as --limit (alias)
  *   node scripts/fetch-rss-articles.js --activate          # activate top sources
  */
 
@@ -27,6 +28,7 @@ require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const RSSParser        = require('rss-parser');
 const { shouldProcessEvent } = require('../lib/source-quality-filter');
+const { isVcNewsDailyHomepageUrl, fetchVcNewsDailyHomepageItems } = require('../lib/vcNewsDailyHomepage');
 
 const REQUIRED_ENV = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
 for (const k of REQUIRED_ENV) {
@@ -45,7 +47,8 @@ function argVal(flag, fallback = null) {
 }
 const DRY_RUN        = !process.argv.includes('--apply');
 const ACTIVATE_MODE  =  process.argv.includes('--activate');
-const SOURCE_LIMIT   = +(argVal('--limit',        '30'));
+// `--sources` is an alias for `--limit` (max RSS sources per run)
+const SOURCE_LIMIT   = +(argVal('--limit', argVal('--sources', '30')));
 const ARTICLE_LIMIT  = +(argVal('--articles',     '20'));   // max articles per source
 const MIN_TEXT_LEN   = +(argVal('--min-text',     '80'));   // min chars for body
 
@@ -84,6 +87,70 @@ function titleToName(title) {
   const m = title.match(/^([A-Z][A-Za-z0-9 .&']{2,40})\s+(raises?|secures?|closes?|launches?|acquires?|announces?)/i);
   if (m) return m[1].trim();
   return null;
+}
+
+/** Matches idx_discovered_startups_unique: (LOWER(name), COALESCE(LOWER(website), '')) */
+function nameWebsiteKey(name, website) {
+  const n = String(name || '').trim().toLowerCase();
+  const w = String(website || '').trim().toLowerCase();
+  return `${n}|${w}`;
+}
+
+/** Stable short tag from URL so two articles with the same extracted name don't collide. */
+function shortDedupeSuffix(url) {
+  const s = String(url || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0;
+  return Math.abs(h).toString(36).slice(0, 8);
+}
+
+/**
+ * Ensure `name` + null website is unique for idx_discovered_startups_unique.
+ * RSS rows often omit website; many headlines map to the same hint → batch INSERT fails entirely.
+ */
+function disambiguateNameForUniqueIndex(baseName, articleUrl, usedKeys) {
+  const base = (baseName || 'Article').trim().slice(0, 220) || 'Article';
+  let candidate = base;
+  let key = nameWebsiteKey(candidate, null);
+  if (!usedKeys.has(key)) {
+    usedKeys.add(key);
+    return candidate;
+  }
+  const tag = shortDedupeSuffix(articleUrl);
+  candidate = `${base} ·${tag}`;
+  key = nameWebsiteKey(candidate, null);
+  let n = 0;
+  while (usedKeys.has(key) && n < 20) {
+    n++;
+    candidate = `${base} ·${tag}${n}`;
+    key = nameWebsiteKey(candidate, null);
+  }
+  usedKeys.add(key);
+  return candidate;
+}
+
+/**
+ * Build insert row for discovered_startups — only columns present on every project.
+ * Do not send `latest_funding_amount` (or other startup_uploads-only metrics): many
+ * `discovered_startups` tables / PostgREST schema caches have no such column, and
+ * projects that added it with wrong defaults caused type errors. Omit entirely; add via migration + backfill if needed.
+ */
+function buildDiscoveredRssRow({ nameHint, item, url, articleDate, body, source }) {
+  return {
+    name: nameHint,
+    article_title: item.title?.slice(0, 500) || null,
+    article_url: url,
+    article_date: articleDate,
+    description: body,
+    rss_source: source.name,
+    sectors: [],
+    metadata: {
+      feed_category: source.category,
+      feed_id: source.id,
+      article_source: 'rss',
+    },
+    imported_to_startups: false,
+  };
 }
 
 // ── Activate top-priority inactive sources ─────────────────────────────────
@@ -162,7 +229,32 @@ async function main() {
     .not('article_url', 'is', null)
     .limit(30000);
   for (const r of (existingRows || [])) if (r.article_url) existingUrls.add(r.article_url);
-  console.log(`   Existing URLs loaded: ${existingUrls.size}\n`);
+  console.log(`   Existing URLs loaded: ${existingUrls.size}`);
+
+  // Preload (name, website) keys so we can disambiguate before INSERT — avoids failing whole batches
+  // on idx_discovered_startups_unique (LOWER(name), COALESCE(LOWER(website), '')).
+  const usedNameWebsiteKeys = new Set();
+  {
+    const PAGE = 1000;
+    let off = 0;
+    for (;;) {
+      const { data: nkRows, error: nkErr } = await supabase
+        .from('discovered_startups')
+        .select('name, website')
+        .order('discovered_at', { ascending: false })
+        .range(off, off + PAGE - 1);
+      if (nkErr) {
+        console.warn('   (warn) could not preload name/website keys:', nkErr.message);
+        break;
+      }
+      const chunk = nkRows || [];
+      for (const r of chunk) usedNameWebsiteKeys.add(nameWebsiteKey(r.name, r.website));
+      if (chunk.length < PAGE) break;
+      off += PAGE;
+      if (off >= 100000) break;
+    }
+  }
+  console.log(`   Existing (name,website) keys: ${usedNameWebsiteKeys.size}\n`);
 
   const parser = new RSSParser({
     timeout: 10000,
@@ -179,6 +271,13 @@ async function main() {
     articles_skipped_quality: 0,
     errors: 0,
   };
+  const rowErrorSamples = new Set();
+  const logRowInsertError = (msg) => {
+    const key = (msg || '').slice(0, 90);
+    if (rowErrorSamples.has(key)) return;
+    rowErrorSamples.add(key);
+    console.error('   row insert:', key);
+  };
 
   const toInsert = [];
   const FLUSH_SIZE = 50;
@@ -188,11 +287,24 @@ async function main() {
       const batch = toInsert.splice(0, toInsert.length);
       if (!batch.length) return;
       const { error } = await supabase.from('discovered_startups').insert(batch);
-      if (error) {
-        console.error('\n   DB insert error:', error.message.slice(0, 80));
-        stats.errors++;
-      } else {
+      if (!error) {
         stats.articles_saved += batch.length;
+        return;
+      }
+      console.error('\n   DB insert error (batch):', error.message.slice(0, 160));
+      stats.errors++;
+      for (const row of batch) {
+        const { error: e2 } = await supabase.from('discovered_startups').insert([row]);
+        if (!e2) {
+          stats.articles_saved++;
+          continue;
+        }
+        if (e2.code === '23505' || /duplicate key/i.test(e2.message || '')) {
+          stats.articles_skipped_dup++;
+        } else {
+          stats.errors++;
+          logRowInsertError(e2.message || '');
+        }
       }
     }
   }
@@ -202,7 +314,14 @@ async function main() {
 
     let feed;
     try {
-      feed = await parser.parseURL(source.url);
+      if (isVcNewsDailyHomepageUrl(source.url)) {
+        const items = await fetchVcNewsDailyHomepageItems({
+          userAgent: 'Mozilla/5.0 (compatible; PythhBot/1.0)',
+        });
+        feed = { items };
+      } else {
+        feed = await parser.parseURL(source.url);
+      }
       stats.sources_ok++;
       process.stdout.write(`✓  (${feed.items?.length || 0} items)`);
     } catch (err) {
@@ -242,21 +361,18 @@ async function main() {
       const rawDate = item.pubDate || item.isoDate || item.date;
       const articleDate = rawDate ? new Date(rawDate).toISOString() : null;
 
-      // Startup name hint from headline
-      const nameHint = titleToName(item.title) || item.title?.slice(0, 80) || 'Unknown';
+      // Startup name hint from headline (disambiguate for DB unique index on name + website)
+      const rawHint = titleToName(item.title) || item.title?.slice(0, 80) || 'Unknown';
+      const nameHint = disambiguateNameForUniqueIndex(rawHint, url, usedNameWebsiteKeys);
 
-      const record = {
-        name:          nameHint,
-        article_title: item.title?.slice(0, 500) || null,
-        article_url:   url,
-        article_date:  articleDate,
-        description:   body,
-        rss_source:    source.name,
-        source:        'rss',
-        sectors:       [],
-        metadata:      { feed_category: source.category, feed_id: source.id },
-        imported_to_startups: false,
-      };
+      const record = buildDiscoveredRssRow({
+        nameHint,
+        item,
+        url,
+        articleDate,
+        body,
+        source,
+      });
 
       if (DRY_RUN) {
         console.log(`\n   [DRY] "${item.title?.slice(0,60)}" → ${body.length} chars`);

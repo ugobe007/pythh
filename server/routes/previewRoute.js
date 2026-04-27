@@ -19,6 +19,92 @@ const supabase = createClient(
 
 const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
 
+/**
+ * When startup_investor_matches has no rows yet (pipeline still running, or failed),
+ * return top sector investors via get_lookup_top_investors so /submit and share links are not empty.
+ */
+async function buildSuggestedInvestorMatches(startup) {
+  const fromList = (arr) =>
+    (Array.isArray(arr) ? arr : [])
+      .map((s) => String(s).trim())
+      .filter((s) => s.length > 0);
+  const sectorQueue = fromList(startup.sectors);
+  for (const extra of ['Technology', 'SaaS', 'FinTech', 'AI', 'Healthcare', 'B2B']) {
+    if (!sectorQueue.includes(extra)) sectorQueue.push(extra);
+  }
+  const tried = new Set();
+  for (const sec of sectorQueue) {
+    const k = sec.toLowerCase();
+    if (tried.has(k)) continue;
+    tried.add(k);
+    const { data, error } = await supabase.rpc('get_lookup_top_investors', {
+      p_sector: sec,
+      p_limit: 10,
+    });
+    if (error) {
+      console.warn('[preview] suggested-investor RPC:', error.message || error);
+      continue;
+    }
+    if (data && data.length > 0) {
+      return data.map((inv) => {
+        const base = Number(inv.investor_score);
+        const match_score = Math.min(100, Math.max(20, (Number.isFinite(base) ? base : 50) + 5));
+        return {
+          investor_id: inv.id,
+          match_score,
+          why_you_match:
+            'Top investors in this sector (suggested for preview). Your personalized matches appear once scoring finishes.',
+          investor: {
+            id: inv.id,
+            name: inv.name,
+            firm: inv.firm,
+            title: null,
+            sectors: inv.sectors,
+            stage: inv.stage,
+            check_size_min: null,
+            check_size_max: null,
+            investor_tier: null,
+            twitter_url: null,
+            linkedin_url: inv.linkedin_url || null,
+            photo_url: null,
+          },
+        };
+      });
+    }
+  }
+  const { data: topPace, error: paceErr } = await supabase
+    .from('investors')
+    .select(
+      'id, name, firm, title, sectors, stage, check_size_min, check_size_max, investor_tier, investor_score, twitter_url, linkedin_url, photo_url'
+    )
+    .order('investment_pace_per_year', { ascending: false, nullsFirst: false })
+    .limit(8);
+  if (paceErr) {
+    console.warn('[preview] suggested-investor pace fallback:', paceErr.message);
+    return [];
+  }
+  return (topPace || []).map((inv) => ({
+    investor_id: inv.id,
+    match_score: Math.min(100, Math.max(25, 40 + Math.round((Number(inv.investor_score) || 0) / 5))),
+    why_you_match:
+      'Actively deploying investors (suggested for preview) while we compute your custom fit scores.',
+    investor: {
+      id: inv.id,
+      name: inv.name,
+      firm: inv.firm,
+      title: inv.title,
+      sectors: inv.sectors,
+      stage: inv.stage,
+      check_size_min: inv.check_size_min,
+      check_size_max: inv.check_size_max,
+      investor_tier: inv.investor_tier,
+      twitter_url: inv.twitter_url,
+      linkedin_url: inv.linkedin_url,
+      photo_url: inv.photo_url,
+    },
+  }));
+}
+
 /** Narrative for UI when top-level columns are empty but inference JSON has text */
 function effectiveStartupDescription(row) {
   const ex = row.extracted_data && typeof row.extracted_data === 'object' ? row.extracted_data : {};
@@ -177,7 +263,13 @@ router.get('/:startupId', async (req, res) => {
       })
       .filter((m) => m.investor && (m.investor.id || m.investor_id));
 
-    const matches = dedupeInvestorMatchesByFirm(mapped, 10);
+    let matches = dedupeInvestorMatchesByFirm(mapped, 10);
+    let suggestedInvestorFallback = false;
+    if (matches.length === 0) {
+      const suggested = await buildSuggestedInvestorMatches(startup);
+      matches = dedupeInvestorMatchesByFirm(suggested, 5);
+      if (matches.length > 0) suggestedInvestorFallback = true;
+    }
 
     const descriptionForUi = effectiveStartupDescription(startup);
 
@@ -211,6 +303,7 @@ router.get('/:startupId', async (req, res) => {
       },
       total_matches: totalMatches || 0,
       matches,
+      suggested_investor_fallback: suggestedInvestorFallback,
     });
 
   } catch (err) {

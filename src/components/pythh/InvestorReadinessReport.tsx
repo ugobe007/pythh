@@ -74,6 +74,8 @@ export interface ReportData {
   };
   total_matches: number;
   matches: Match[];
+  /** True when API used get_lookup_top_investors because startup_investor_matches was empty */
+  suggested_investor_fallback?: boolean;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -282,7 +284,7 @@ export default function InvestorReadinessReport({
   showFooter = false,
   onReset,
 }: InvestorReadinessReportProps) {
-  const { startup, matches, total_matches } = report;
+  const { startup, matches, total_matches, suggested_investor_fallback } = report;
   const sc = startup.score_components;
   const weakKeys = getWeakComponents(sc);
   const topSlice = dedupeInvestorMatchesByFirm(matches, 5);
@@ -416,6 +418,12 @@ export default function InvestorReadinessReport({
         <p className="text-xs text-zinc-600 mb-3">
           Ranked by thesis fit, stage, and sector — same engine as the full product.
         </p>
+        {suggested_investor_fallback && topSlice.length > 0 ? (
+          <p className="text-[11px] text-amber-200/85 bg-amber-500/10 border border-amber-500/18 rounded px-2.5 py-2 mb-3 leading-snug">
+            Showing top sector investors now — your personalized match list will fill in once scoring
+            finishes in the background.
+          </p>
+        ) : null}
 
         {topSlice.length === 0 ? (
           <div className="rounded border border-dashed border-white/[0.12] bg-zinc-950/50 px-3 py-4 text-sm text-zinc-500">
