@@ -6,6 +6,7 @@
  * - No event loss on transient failures
  * - Bulk insert (1 request per flush)
  * - Stable anon_id + session_id for funnel stitching
+ * - On 502/503/504 from /api/analytics/flush, retry only — never fall back to browser Supabase insert (RLS → 403).
  */
 
 import { apiUrl } from './apiConfig';
@@ -185,8 +186,8 @@ async function flushEvents(): Promise<void> {
     }));
 
     let persisted = false;
-    /** 'ok' | 'missing' (404/502/connection refused) | 'other' */
-    let apiRouteOutcome: 'ok' | 'missing' | 'other' = 'other';
+    /** 'ok' | 'missing' (404 only — static hosting) | 'transient' (502/503/504/network) | 'other' */
+    let apiRouteOutcome: 'ok' | 'missing' | 'transient' | 'other' = 'other';
 
     if (typeof window !== 'undefined') {
       try {
@@ -198,24 +199,32 @@ async function flushEvents(): Promise<void> {
         if (res.ok) {
           persisted = true;
           apiRouteOutcome = 'ok';
-        } else if (res.status === 404 || res.status === 502) {
+        } else if (res.status === 404) {
           apiRouteOutcome = 'missing';
           analyticsFlushEndpointMissing = true;
+        } else if (res.status === 502 || res.status === 503 || res.status === 504) {
+          // Upstream (Fly/Vercel rewrite) blips — retry; do not treat as "no API" (502 used to silence forever).
+          apiRouteOutcome = 'transient';
         } else {
           apiRouteOutcome = 'other';
         }
       } catch {
-        apiRouteOutcome = 'missing';
+        apiRouteOutcome = 'transient';
       }
     }
 
-    // Do not call Supabase when the API route is missing — anon insert hits RLS and spams 401 in the console.
-    if (!persisted && apiRouteOutcome !== 'missing') {
+    // Direct ai_logs insert uses the browser anon key → RLS blocks in production (403). DEV-only fallback.
+    if (
+      import.meta.env.DEV &&
+      !persisted &&
+      apiRouteOutcome !== 'missing' &&
+      apiRouteOutcome !== 'transient'
+    ) {
       const { supabase } = await import('./supabase');
       const { error } = await (supabase as any).from('ai_logs').insert(rows);
       if (!error) {
         persisted = true;
-      } else if (import.meta.env.DEV) {
+      } else {
         // eslint-disable-next-line no-console
         console.warn('[pyth.analytics] Direct ai_logs insert failed:', error.message);
       }
