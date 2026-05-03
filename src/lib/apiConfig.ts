@@ -15,7 +15,24 @@ const DEV_DEFAULT_API_BASE = 'http://localhost:3002';
  * Get the base URL for API calls (no trailing slash).
  */
 export function getApiBase(): string {
-  const raw = (import.meta.env.VITE_API_URL ?? '').trim();
+  let raw = (import.meta.env.VITE_API_URL ?? '').trim();
+
+  // pythh.ai is served on Vercel; API lives on Fly. If the build still points VITE_API_URL at *.fly.dev,
+  // browser calls are cross-origin — 502/503 error pages omit CORS and look like "blocked by CORS".
+  // Prefer same-origin `/api/...` so vercel.json can proxy to Fly (see /api rewrite there).
+  if (typeof window !== 'undefined' && import.meta.env.PROD && raw) {
+    try {
+      const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+      if (u.hostname.endsWith('.fly.dev')) {
+        const h = window.location.hostname;
+        if (h === 'pythh.ai' || h === 'www.pythh.ai') {
+          raw = '';
+        }
+      }
+    } catch {
+      /* ignore bad VITE_API_URL */
+    }
+  }
 
   if (raw) {
     const isProd = import.meta.env.PROD;
