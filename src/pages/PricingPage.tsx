@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import PremiumServiceModal, { type ServiceType } from '../components/PremiumServiceModal';
 import { 
   Check, 
@@ -140,6 +140,11 @@ const PLANS: PricingPlan[] = [
 
 const FAQ_ITEMS = [
   {
+    question: 'What is the Fundraising Brief vs the live product?',
+    answer:
+      'The live product (URL → analysis) is always-on: ranked investors, signals, and unlocks inside Pythh. The Fundraising Brief is a packaged decision asset—snapshot, signal proof, top ~25 with “why / why now,” outreach angles, positioning, and sequence—meant to share with advisors or your team. Brief SKUs are fulfilled manually while we harden automation.',
+  },
+  {
     question: 'Can I try before I pay?',
     answer: `Yes. The free tier gives you GOD Scores, rankings, 3 masked matches on the site, and ${WIDGET_FREE_MATCH_LIMIT} investor matches via the MCP/widget. No card required.`,
   },
@@ -186,6 +191,7 @@ const API_BASE = import.meta.env.VITE_API_URL ||
 export default function PricingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -201,6 +207,14 @@ export default function PricingPage() {
   const urlPlan = searchParams.get('plan') as PlanTier | null;
   const upgradeSource = urlSource || (sessionStorage.getItem('upgrade_source') as UpgradeMoment | null);
   const highlightPlan = urlPlan || (upgradeSource ? UPGRADE_COPY[upgradeSource]?.targetPlan : null);
+
+  // Deep-link scroll for /pricing#fundraising-brief (nav "Brief")
+  useEffect(() => {
+    if (location.hash !== '#fundraising-brief') return;
+    requestAnimationFrame(() => {
+      document.getElementById('fundraising-brief')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash, location.pathname]);
 
   // Track pricing page view with source
   useEffect(() => {
@@ -405,10 +419,10 @@ export default function PricingPage() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
-            Navigate fundraising with clarity.
+            Pythh Capital — raise with signal, not guesswork.
           </h1>
           <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto">
-            Signal-to-target navigation for founders. See your signals, understand your position, know exactly what to do.
+            Subscriptions keep signals live. The Fundraising Brief is the decision asset: a ranked shortlist, why each name is on it, why now, and how to open the conversation.
           </p>
 
           {/* Billing Toggle */}
@@ -444,6 +458,85 @@ export default function PricingPage() {
             </p>
           )}
         </div>
+
+        {/* Fundraising Brief — one-time tiers (manual / concierge rollout) */}
+        <section
+          id="fundraising-brief"
+          className="max-w-5xl mx-auto mb-16 scroll-mt-28 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.04] p-6 sm:p-10"
+        >
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400/90 mb-2">
+              Decision deliverable
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Fundraising Brief</h2>
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
+              Not a dashboard—a ranked brief you can forward. Top investors by likelihood, signal summary, competitive positioning, sequence, and per-investor outreach angles.{' '}
+              <span className="text-zinc-300">
+                Grounded in observed investor behavior, not self-reported preferences alone.
+              </span>
+            </p>
+            <p className="text-xs text-zinc-500 mt-3">
+              Start free with a live URL analysis; upgrade tiers unlock depth. Brief SKUs below are offered as manual / concierge while we scale fulfillment—use{' '}
+              <Link to="/contact" className="text-emerald-400 hover:underline">
+                Contact
+              </Link>{' '}
+              to request a Brief or bundle with strategy.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            {[
+              {
+                name: 'Brief — Core',
+                price: '$99',
+                blurb: 'Snapshot + signal read + top matches preview—ideal for a fast sanity check before a raise push.',
+                bullets: ['Startup snapshot & Pythh interpretation', 'Signal summary (strength + timing)', 'Top 5 investors unlocked in product flow'],
+                cta: 'Run live analysis',
+                to: '/signal-matches',
+              },
+              {
+                name: 'Brief — Full',
+                price: '$299',
+                blurb: 'Full ranked set, “why this investor,” why-now, outreach angles, and positioning—what you send to advisors.',
+                bullets: ['Top ~25 ranked + rationale', 'Outreach angle per top investor', 'Competitive & narrative positioning', 'PDF export (where available)'],
+                cta: 'Contact for Full Brief',
+                to: '/contact',
+                query: '?topic=fundraising-brief&sku=full',
+              },
+              {
+                name: 'Brief — Premium',
+                price: '$1,000+',
+                blurb: 'Concierge: intro pathways, sequence, and hands-on strategy layered on the Full Brief.',
+                bullets: ['Everything in Full', 'Warm intro pathway research', 'Fundraising sequence & narrative review', 'Optional working session'],
+                cta: 'Contact premium',
+                to: '/contact',
+                query: '?topic=fundraising-brief&sku=premium',
+              },
+            ].map((tier) => (
+              <div
+                key={tier.name}
+                className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-5 flex flex-col"
+              >
+                <h3 className="text-lg font-semibold text-white">{tier.name}</h3>
+                <p className="text-2xl font-black text-emerald-400 mt-1">{tier.price}</p>
+                <p className="text-xs text-zinc-500 mt-2 leading-relaxed">{tier.blurb}</p>
+                <ul className="mt-4 space-y-2 text-sm text-zinc-300 flex-1">
+                  {tier.bullets.map((b) => (
+                    <li key={b} className="flex gap-2">
+                      <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to={`${tier.to}${'query' in tier ? tier.query : ''}`}
+                  className="mt-5 block text-center py-2.5 rounded-lg text-sm font-semibold border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 transition"
+                >
+                  {tier.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Pricing Cards — Free, Pro, Pro+ */}
         <div className="grid sm:grid-cols-3 gap-4 max-w-4xl mx-auto mb-6">
@@ -848,7 +941,7 @@ export default function PricingPage() {
               <div className="text-2xl">🔬</div>
               <div>
                 <h3 className="text-white font-semibold mb-1">Pythh Research Report</h3>
-                <p className="text-zinc-500 text-sm">Deep competitive and investor landscape analysis for your startup. Know exactly who's moving in your space and why.</p>
+                <p className="text-zinc-500 text-sm">Deep competitive and investor landscape analysis for your startup—which funds are active in your category, who backed adjacencies, and what that implies for your raise.</p>
               </div>
               <button onClick={() => setActiveService('research_report')} className="mt-auto text-xs text-cyan-400 hover:text-cyan-300 transition font-medium text-left">Request this service →</button>
             </div>

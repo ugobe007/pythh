@@ -14,3 +14,7 @@
 **Repo folder name:** may still be `hot-honey` on disk; that does not change the product name.
 
 Legacy docs may say “Hot Honey” or “Hot Money”; treat **Pythh** as correct for user-facing copy going forward.
+
+**Data ingestion (RSS, parsers, workflow):** see [PYTHH_SCRAPERS_PARSERS_WORKFLOW.md](./PYTHH_SCRAPERS_PARSERS_WORKFLOW.md).
+
+**Company trajectory (signal sequences → prediction):** see [PYTHH_TRAJECTORY_ENGINE.md](./PYTHH_TRAJECTORY_ENGINE.md).

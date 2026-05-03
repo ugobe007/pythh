@@ -36,7 +36,7 @@ const NEW_RSS_SOURCES = [
   { name: 'The Information', url: 'https://www.theinformation.com/feed', category: 'vc' },
   { name: 'Fortune Term Sheet', url: 'https://fortune.com/tag/term-sheet/feed/', category: 'funding' },
   { name: 'PitchBook News', url: 'https://pitchbook.com/news/feed', category: 'funding' },
-  { name: 'Axios Pro Rata', url: 'https://www.axios.com/pro-rata', category: 'vc' },
+  { name: 'Axios Pro Rata', url: 'https://www.axios.com/feeds/feed.rss', category: 'vc' },
   { name: 'StrictlyVC', url: 'https://www.strictlyvc.com/feed/', category: 'vc' },
   { name: 'EU Startups', url: 'https://www.eu-startups.com/feed/', category: 'startups' },
   { name: 'ArcticStartup', url: 'https://arcticstartup.com/feed/', category: 'startups' },

@@ -129,9 +129,9 @@ export default function PythhHome() {
   return (
     <div style={{ minHeight: '100vh', background: '#080b10', fontFamily: "'Inter', sans-serif" }}>
       <SEO
-        title="pythh.ai - Signal Science for Venture | 12.6K+ Startups Analyzed"
-        description="Find your investors using signal intelligence. Get funded. 12,600+ startups analyzed, 841,915+ live matches. Enter your URL—ranked matches in seconds."
-        keywords="startup funding, investor matching, VC matching, startup investors, seed funding, series A, AI matching, GOD score, venture capital matching"
+        title="pythh.ai — Pythh Capital | Investor signals for your raise"
+        description="See who is most likely to fund your next round—not a generic list. Pythh ranks investors from live signals, fit, and timing, with outreach angles. Enter your startup URL to analyze."
+        keywords="fundraising brief, startup funding, investor signals, VC matching, seed funding, series A, investor timing, GOD score, venture capital intelligence"
         canonical="/"
       />
 
@@ -143,7 +143,7 @@ export default function PythhHome() {
       <PythhWhatYouGet
         variant="hero"
         ctaTo="/signal-matches"
-        ctaLabel="Get your matches →"
+        ctaLabel="Analyze my startup →"
         ctaVariant="emerald"
       />
 

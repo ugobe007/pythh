@@ -36,6 +36,34 @@ const TOP_N      = +(argVal('--top', '20'));
 const ENTITY_ID  = argVal('--entity-id', null);
 const BATCH_SZ   = 50;
 
+/** Same key as partial unique indexes on pythh_matches (trajectory_id null vs non-null). */
+function matchDedupeKey(row) {
+  const t = row.trajectory_id == null ? '' : String(row.trajectory_id);
+  return `${row.entity_id}\0${row.candidate_id}\0${t}`;
+}
+
+function dedupeMatchRows(rows) {
+  const seen = new Set();
+  const out  = [];
+  for (const r of rows) {
+    const k = matchDedupeKey(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
+
+async function deleteMatchesForEntities(supabase, entityIds) {
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const ok = await deleteByIds(supabase, 'pythh_matches', 'entity_id', entityIds);
+    if (ok) return true;
+    await new Promise(r => setTimeout(r, 400 * attempt));
+  }
+  return false;
+}
+
 async function main() {
   console.log('\n🎯 COMPUTE PYTHH MATCHES');
   console.log('═'.repeat(60));
@@ -120,8 +148,12 @@ async function main() {
   // ── 5. Delete stale matches if applying ─────────────────────────────────────
   if (!DRY_RUN && entityIds.length) {
     console.log('🗑️  Clearing stale matches for these entities…');
-    const ok = await deleteByIds(supabase, 'pythh_matches', 'entity_id', entityIds);
-    if (ok) console.log('  Cleared.\n');
+    const ok = await deleteMatchesForEntities(supabase, entityIds);
+    if (!ok) {
+      console.error('❌ Could not delete existing pythh_matches for this batch after retries. Aborting to avoid unique violations.');
+      process.exit(1);
+    }
+    console.log('  Cleared.\n');
   }
 
   // ── 6. Process each entity ──────────────────────────────────────────────────
@@ -176,13 +208,21 @@ async function main() {
       continue;
     }
 
-    // Take top N
-    const topMatches = ranked.slice(0, TOP_N);
+    // Take top N unique candidates (rankMatches can repeat candidate_id → unique index violation).
+    const topMatches = [];
+    const seenCand = new Set();
+    for (const m of ranked) {
+      if (!m?.candidate_id || seenCand.has(m.candidate_id)) continue;
+      seenCand.add(m.candidate_id);
+      topMatches.push(m);
+      if (topMatches.length >= TOP_N) break;
+    }
 
     for (const m of topMatches) {
       matchBuffer.push({
         entity_id:          entity.id,
         candidate_id:       m.candidate_id,
+        trajectory_id:      trajectory?.id ?? null,
         match_type:         m.match_type,
         match_score:        Math.min(1, Math.max(0, +(m.match_score || 0).toFixed(2))),
         timing_score:       Math.min(1, Math.max(0, +(m.timing_score || 0).toFixed(2))),
@@ -204,7 +244,8 @@ async function main() {
 
     // Flush batch
     if (!DRY_RUN && matchBuffer.length >= BATCH_SZ) {
-      const batch = matchBuffer.splice(0, BATCH_SZ);
+      const rawBatch = matchBuffer.splice(0, BATCH_SZ);
+      const batch    = dedupeMatchRows(rawBatch);
       const { error: insErr } = await supabase.from('pythh_matches').insert(batch);
       if (insErr) { console.error('\n  Insert error:', insErr.message); stats.errors++; }
       else stats.matches_written += batch.length;
@@ -213,9 +254,10 @@ async function main() {
 
   // Flush remainder
   if (!DRY_RUN && matchBuffer.length > 0) {
-    const { error: insErr } = await supabase.from('pythh_matches').insert(matchBuffer);
+    const finalRows = dedupeMatchRows(matchBuffer);
+    const { error: insErr } = await supabase.from('pythh_matches').insert(finalRows);
     if (insErr) { console.error('\n  Insert error:', insErr.message); stats.errors++; }
-    else stats.matches_written += matchBuffer.length;
+    else stats.matches_written += finalRows.length;
   }
 
   if (DRY_RUN) {

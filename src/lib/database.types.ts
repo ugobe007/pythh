@@ -65,6 +65,9 @@ export interface Database {
           startup_advice: Json | null
           twitter_handle: string | null
           typical_ownership_pct: number | null
+          entity_gate: string | null
+          entity_gate_reason: string | null
+          entity_gate_at: string | null
         }
         Insert: {
           id?: string
@@ -91,6 +94,9 @@ export interface Database {
           created_at?: string | null
           updated_at?: string | null
           embedding?: string | null
+          entity_gate?: string | null
+          entity_gate_reason?: string | null
+          entity_gate_at?: string | null
         }
         Update: {
           id?: string
@@ -117,6 +123,9 @@ export interface Database {
           created_at?: string | null
           updated_at?: string | null
           embedding?: string | null
+          entity_gate?: string | null
+          entity_gate_reason?: string | null
+          entity_gate_at?: string | null
         }
         Relationships: []
       }
@@ -226,6 +235,14 @@ export interface Database {
           team_size: number | null
           customer_count: number | null
           growth_rate_monthly: number | null
+          entity_gate: string | null
+          entity_gate_reason: string | null
+          entity_gate_at: string | null
+          exit_propensity_score: number | null
+          exit_propensity_confidence: number | null
+          exit_propensity_breakdown: Json | null
+          exit_propensity_tier: string | null
+          exit_propensity_at: string | null
         }
         Insert: {
           id?: string
@@ -264,6 +281,14 @@ export interface Database {
           team_size?: number | null
           customer_count?: number | null
           growth_rate_monthly?: number | null
+          entity_gate?: string | null
+          entity_gate_reason?: string | null
+          entity_gate_at?: string | null
+          exit_propensity_score?: number | null
+          exit_propensity_confidence?: number | null
+          exit_propensity_breakdown?: Json | null
+          exit_propensity_tier?: string | null
+          exit_propensity_at?: string | null
         }
         Update: {
           id?: string
@@ -302,6 +327,14 @@ export interface Database {
           team_size?: number | null
           customer_count?: number | null
           growth_rate_monthly?: number | null
+          entity_gate?: string | null
+          entity_gate_reason?: string | null
+          entity_gate_at?: string | null
+          exit_propensity_score?: number | null
+          exit_propensity_confidence?: number | null
+          exit_propensity_breakdown?: Json | null
+          exit_propensity_tier?: string | null
+          exit_propensity_at?: string | null
         }
         Relationships: []
       }
@@ -762,9 +795,32 @@ export interface Database {
         }
         Relationships: []
       }
+      user_deal_preferences: {
+        Row: {
+          user_id: string
+          investment_assumptions: Json
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          investment_assumptions?: Json
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          investment_assumptions?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {}
-    Functions: {}
+    Functions: {
+      candidate_portfolio_sector_overlap: {
+        Args: { p_candidate_id: string }
+        Returns: Json
+      }
+    }
     Enums: {}
     CompositeTypes: {}
   }

@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { sanitizeSignalSentence } from '@/lib/stripHtml';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,9 @@ const SIGNAL_LABELS: Record<string, string> = {
   distress_signal:       'Distress',
   revenue_signal:        'Revenue',
   hiring_signal:         'Hiring',
+  gtm_hiring_signal:     'GTM Hiring',
+  engineering_hiring_signal: 'Eng Hiring',
+  diligence_signal:      'Diligence',
   enterprise_signal:     'Enterprise',
   expansion_signal:      'Expansion',
   gtm_signal:            'GTM Build',
@@ -54,6 +58,9 @@ const SIGNAL_LABELS: Record<string, string> = {
 const SIGNAL_COLORS: Record<string, string> = {
   fundraising_signal:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   hiring_signal:         'bg-sky-500/10 text-sky-400 border-sky-500/30',
+  gtm_hiring_signal:     'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30',
+  engineering_hiring_signal: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+  diligence_signal:      'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
   growth_signal:         'bg-teal-500/10 text-teal-400 border-teal-500/30',
   revenue_signal:        'bg-teal-500/10 text-teal-400 border-teal-500/30',
   enterprise_signal:     'bg-violet-500/10 text-violet-400 border-violet-500/30',
@@ -194,7 +201,7 @@ export default function SignalEventTimeline({ startupId, limit = 12 }: Props) {
                   {/* Text */}
                   <div className="flex-1 min-w-0">
                     <p className="text-zinc-300 text-xs leading-relaxed line-clamp-2">
-                      {ev.raw_sentence ?? '—'}
+                      {sanitizeSignalSentence(ev.raw_sentence) || '—'}
                     </p>
 
                     {/* Meta row */}

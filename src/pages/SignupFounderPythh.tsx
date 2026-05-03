@@ -19,12 +19,12 @@ import { trackEvent } from '../lib/analytics';
 export default function SignupFounderPythh() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, refreshSessionUser } = useAuth();
 
-  // Redirect logged-in users to profile
+  // Redirect logged-in users to account hub
   useEffect(() => {
     if (isLoggedIn && user) {
-      navigate('/profile');
+      navigate('/account');
     }
   }, [isLoggedIn, user, navigate]);
 
@@ -33,9 +33,11 @@ export default function SignupFounderPythh() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
+  /** Set when signUp succeeds but Supabase returned no session (email confirmation required). */
+  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
 
-  // Get redirect URL - default to profile page for new signups
-  const redirectUrl = searchParams.get('redirect') || '/profile';
+  // Get redirect URL - default to account hub for new signups
+  const redirectUrl = searchParams.get('redirect') || '/account';
   const matchCount = searchParams.get('matches') || '';
   const startupUrl = searchParams.get('url') || '';
 
@@ -127,9 +129,20 @@ export default function SignupFounderPythh() {
         }
       }
 
-      console.log('[SignupFounderPythh] Account created, advancing to step 2');
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      // Handle invite
+      if (!session) {
+        setEmailConfirmationPending(true);
+        trackEvent('signup_email_confirmation_required', { email_domain: formData.email.split('@')[1] || '' });
+        return;
+      }
+
+      await refreshSessionUser();
+
+      console.log('[SignupFounderPythh] Session active, advancing to step 2');
+
       const pendingInvite = getPendingInvite();
       if (pendingInvite) {
         try {
@@ -145,8 +158,6 @@ export default function SignupFounderPythh() {
         }
       }
 
-      // Update localStorage for backward compatibility
-      login(formData.email, formData.password);
       setStep(2);
     } catch (err: any) {
       console.error('[SignupFounderPythh] Error:', err);
@@ -200,11 +211,11 @@ export default function SignupFounderPythh() {
   // Step-contextual right panel content
   const stepGuide: Record<1 | 2 | 3, { heading: string; intro: string; items: { title: string; detail: string }[] }> = {
     1: {
-      heading: 'Signal intelligence',
-      intro: 'Your account activates a live signal dashboard — investor matches that update as market conditions shift.',
+      heading: 'Pythh Capital',
+      intro: 'Your account saves a live fundraising view—investors ranked by who is most likely to fund you next, with signals that refresh as the market moves.',
       items: [
-        { title: 'Top investor matches', detail: '5 unlocked investor profiles with fit scores, thesis alignment details, and outreach guidance. Ranked by signal strength.' },
-        { title: 'Live signal scoring', detail: 'Your startup scored across 5 signal dimensions in real-time: language shift, capital convergence, investor receptivity, news momentum, execution velocity.' },
+        { title: 'Ranked investors + angles', detail: 'Unlocked profiles with fit scores, “why this investor,” and outreach guidance—not spray-and-pray lists.' },
+        { title: 'Live signal scoring', detail: 'Your startup scored across 5 signal dimensions in real time: language shift, capital convergence, investor receptivity, news momentum, execution velocity.' },
         { title: 'GOD score breakdown', detail: '22+ models evaluate your startup\'s intrinsic position — team, traction, market, product, vision. Scores recalibrate continuously.' },
       ],
     },
@@ -283,8 +294,32 @@ export default function SignupFounderPythh() {
               </div>
             )}
 
-            {/* Step 1: Account */}
-            {step === 1 && (
+            {/* Step 1: Account — or confirm-email notice (no fake "logged in" without Supabase session) */}
+            {step === 1 && emailConfirmationPending && (
+              <div className="space-y-4">
+                <div className="px-3 py-3 border border-emerald-500/30 bg-emerald-500/5 rounded-md">
+                  <p className="text-white text-sm font-medium">Check your email</p>
+                  <p className="text-zinc-400 text-xs mt-2 leading-relaxed">
+                    We sent a confirmation link to{' '}
+                    <span className="text-zinc-200">{formData.email}</span>. Open it in this browser so your session
+                    is saved, then return here or{' '}
+                    <Link to="/login" className="text-emerald-400 hover:text-emerald-300 underline">
+                      sign in
+                    </Link>{' '}
+                    to continue setup.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEmailConfirmationPending(false)}
+                  className="w-full py-2.5 border border-zinc-800 hover:border-zinc-700 text-zinc-400 text-sm rounded-md transition-colors"
+                >
+                  Use a different email
+                </button>
+              </div>
+            )}
+
+            {step === 1 && !emailConfirmationPending && (
               <div className="space-y-4">
                 <div>
                   <label className="block text-zinc-500 text-xs mb-1.5">Email *</label>

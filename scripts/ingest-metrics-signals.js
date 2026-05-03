@@ -381,7 +381,10 @@ async function run() {
     }
   }
 
-  let totalSignals = 0, entitiesProcessed = 0, entitiesSkipped = 0;
+  let totalSignals = 0, entitiesProcessed = 0;
+  let skippedNoEntityLink = 0;
+  let skippedAlreadyIngestedToday = 0;
+  let skippedNoMetricRules = 0;
 
   const classCounts = {};
   const signalBuf = [];
@@ -391,18 +394,21 @@ async function run() {
     const entityId = entityByUploadId[row.id];
 
     if (!entityId) {
-      entitiesSkipped++;
+      skippedNoEntityLink++;
       continue;
     }
 
     // Skip if already ingested today (idempotency guard)
     if (!DRY && alreadyIngestedToday.has(entityId)) {
-      entitiesSkipped++;
+      skippedAlreadyIngestedToday++;
       continue;
     }
 
     const sigs = extractMetricSignals(row, entityId, now);
-    if (sigs.length === 0) continue;
+    if (sigs.length === 0) {
+      skippedNoMetricRules++;
+      continue;
+    }
 
     entitiesProcessed++;
     totalSignals += sigs.length;
@@ -442,9 +448,11 @@ async function run() {
   }
 
   console.log(`\n  Results:`);
-  console.log(`    Entities matched:  ${entitiesProcessed}`);
-  console.log(`    Entities skipped:  ${entitiesSkipped} (no entity match)`);
-  console.log(`    Signals generated: ${totalSignals}`);
+  console.log(`    Entities with signals written: ${entitiesProcessed}`);
+  console.log(`    Signals generated:             ${totalSignals}`);
+  console.log(`    Skipped (no pythh_entities link): ${skippedNoEntityLink}`);
+  console.log(`    Skipped (metrics already today):  ${skippedAlreadyIngestedToday}`);
+  console.log(`    Skipped (no metric fields hit rules): ${skippedNoMetricRules}`);
   console.log(`\n  Signal class breakdown:`);
   for (const [cls, n] of Object.entries(classCounts).sort((a,b) => b[1]-a[1])) {
     console.log(`    ${n.toString().padStart(5)}  ${cls}`);

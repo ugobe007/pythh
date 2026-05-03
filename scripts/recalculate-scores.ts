@@ -12,6 +12,7 @@
  * Runs hourly via PM2 cron.
  */
 
+import * as path from 'path';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { calculateHotScore } from '../server/services/startupScoringService';
@@ -35,7 +36,7 @@ import { isValidStartupName } from '../server/utils/startupNameValidator';
 
 import { formatScoreRecalcSummaryLegend } from '../src/lib/scoreRecalcSummaryLabels';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 /**
  * Verbose 💰 pedigree lines — suppress for entries that look like RSS headline junk.
@@ -48,8 +49,12 @@ function shouldLogPedigreeLine(startup: any): boolean {
   return isValidStartupName(startup?.name).isValid;
 }
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  '';
 
 if (!supabaseUrl || !supabaseKey) {
   console.error('❌ Missing Supabase credentials');
@@ -57,6 +62,60 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/** Paginated fetch with retries — full-row select('*') is heavy; small pages avoid ETIMEDOUT. */
+async function fetchAllStartupsForRecalc(): Promise<any[]> {
+  const pageSize = Math.max(50, Math.min(500, Number(process.env.SCORE_RECALC_PAGE_SIZE || 280)));
+  const maxAttempts = Math.max(1, Math.min(12, Number(process.env.SCORE_RECALC_FETCH_RETRIES || 6)));
+  const startups: any[] = [];
+  let page = 0;
+  while (true) {
+    let batch: any[] | null = null;
+    let lastErr: { message?: string } | null = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const { data, error: fetchError } = await supabase
+        .from('startup_uploads')
+        .select('*')
+        .in('status', ['pending', 'approved'])
+        .neq('entity_gate', 'junk')
+        .order('updated_at', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (!fetchError && data) {
+        batch = data;
+        lastErr = null;
+        break;
+      }
+      lastErr = fetchError;
+      const msg = `${fetchError?.message || ''} ${(fetchError as any)?.details || ''}`;
+      const retryable =
+        /ETIMEDOUT|timeout|terminated|ECONNRESET|EPIPE|502|503|504/i.test(msg) ||
+        (fetchError as any)?.code === '57014';
+      if (!retryable || attempt === maxAttempts) break;
+      const backoff = Math.min(30_000, 1500 * 2 ** (attempt - 1));
+      console.warn(
+        `  ⚠️  Fetch page ${page} attempt ${attempt}/${maxAttempts} failed (${fetchError?.message || 'error'}) — retry in ${backoff}ms`
+      );
+      await sleep(backoff);
+    }
+    if (lastErr) {
+      console.error('Error fetching startups:', lastErr);
+      process.exit(1);
+    }
+    if (!batch || batch.length === 0) break;
+    startups.push(...batch);
+    if (page === 0 || page % 5 === 0) {
+      console.log(`  … loaded ${startups.length} rows (page ${page}, size ${pageSize})`);
+    }
+    if (batch.length < pageSize) break;
+    page++;
+  }
+  return startups;
+}
 
 interface ScoreBreakdown {
   market_score: number;
@@ -346,35 +405,19 @@ async function recalculateScores(): Promise<void> {
   // Load faith-alignment aggregates once (optional; safe if table empty)
   const faithAgg = await loadFaithAggregates();
 
-  // Get startups that need recalculation
-  // Process all approved/pending startups with pagination (Supabase default limit is 1000)
-  let startups: any[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  
-  while (true) {
-    const { data: batch, error: fetchError } = await supabase
-      .from('startup_uploads')
-      .select('*')
-      .in('status', ['pending', 'approved'])
-      .neq('entity_gate', 'junk')   // Ontology gate: junk entities are excluded from scoring entirely
-      .order('updated_at', { ascending: true })
-      .range(page * pageSize, (page + 1) * pageSize - 1);
-
-    if (fetchError) {
-      console.error('Error fetching startups:', fetchError);
-      process.exit(1);
-    }
-    if (!batch || batch.length === 0) break;
-    startups = startups.concat(batch);
-    if (batch.length < pageSize) break;
-    page++;
-  }
+  // Get startups (paginated + retries — large select('*') pages time out over REST)
+  console.log(
+    `  (page size ${Number(process.env.SCORE_RECALC_PAGE_SIZE || 280)}, retries ${Number(process.env.SCORE_RECALC_FETCH_RETRIES || 6)} — tune via env)\n`
+  );
+  const startups = await fetchAllStartupsForRecalc();
 
   if (!startups || startups.length === 0) {
     console.log('No startups to process');
     return;
   }
+  console.log(
+    `  (scope: status pending|approved, entity_gate ≠ junk — ${startups.length} rows; approved-only health checks use ~15k)\n`
+  );
 
   // Classify startups into phases
   const phases = {

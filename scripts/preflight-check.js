@@ -22,6 +22,18 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
+const { fetchAllPages } = require('./lib/supabasePaginate');
+
+function supabaseServiceRoleKey() {
+  return process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
+function createSupabaseServiceClient() {
+  return createClient(
+    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+    supabaseServiceRoleKey()
+  );
+}
 
 // Parse args
 const args = process.argv.slice(2);
@@ -82,10 +94,6 @@ const REQUIRED_ENV = {
     pattern: /^eyJ/,
     placeholder: 'your-anon-key'
   },
-  'SUPABASE_SERVICE_KEY': { 
-    pattern: /^eyJ/,
-    placeholder: 'your-service-key'
-  },
   // OpenAI
   'OPENAI_API_KEY': { 
     pattern: /^sk-(?:proj-)?[A-Za-z0-9_-]{20,}/,
@@ -96,6 +104,8 @@ const REQUIRED_ENV = {
 const OPTIONAL_ENV = {
   'SUPABASE_URL': { pattern: /^https:\/\/[a-z]+\.supabase\.co$/ },
   'VITE_OPENAI_API_KEY': { pattern: /^sk-/ },
+  'SUPABASE_SERVICE_KEY': { pattern: /^eyJ/ },
+  'SUPABASE_SERVICE_ROLE_KEY': { pattern: /^eyJ/ },
 };
 
 async function checkEnvironment() {
@@ -161,6 +171,16 @@ async function checkEnvironment() {
       pass(`${key} (optional) is set`);
     }
   }
+
+  const svc =
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!svc || svc.includes('your-') || svc === 'your_supabase_service_role_key') {
+    fail('Set SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY (service role JWT from Supabase dashboard)');
+  } else if (!/^eyJ/.test(svc)) {
+    warn('Supabase service key format looks unusual (expected JWT starting with eyJ)');
+  } else {
+    pass('Supabase service key present (SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY)');
+  }
 }
 
 // ============================================================================
@@ -177,11 +197,8 @@ async function checkAPIs() {
   
   // Test Supabase
   try {
-    const supabase = createClient(
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-    
+    const supabase = createSupabaseServiceClient();
+
     const { count, error } = await supabase
       .from('startup_uploads')
       .select('*', { count: 'exact', head: true });
@@ -242,7 +259,7 @@ const REQUIRED_SCHEMA = {
     'id', 'startup_id', 'investor_id', 'match_score', 'created_at'
   ],
   'discovered_startups': [
-    'id', 'name', 'source', 'created_at'
+    'id', 'name', 'rss_source', 'created_at'
   ],
   'startup_signal_scores': [
     'startup_id', 'signals_total', 'as_of'
@@ -256,11 +273,8 @@ async function checkSchema() {
   header('DATABASE SCHEMA');
   
   try {
-    const supabase = createClient(
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-    
+    const supabase = createSupabaseServiceClient();
+
     for (const [table, columns] of Object.entries(REQUIRED_SCHEMA)) {
       // Check if table exists by querying it
       const { data, error } = await supabase
@@ -269,18 +283,25 @@ async function checkSchema() {
         .limit(1);
       
       if (error) {
-        if (error.message.includes('does not exist')) {
+        const msg = String(error.message || '');
+        const schemaCacheCol = msg.match(/Could not find the ['"](\w+)['"] column of ['"]?(\w+)['"]?/i);
+        // "column … does not exist" must not be misclassified as a missing table
+        if (schemaCacheCol && schemaCacheCol[2]?.toLowerCase() === table.toLowerCase()) {
+          fail(`Table '${table}' missing column: ${schemaCacheCol[1]}`);
+        } else if (/column\s+["']?(?:[\w.]+\.)?(\w+)["']?\s+does\s+not\s+exist/i.test(msg)) {
+          const match = msg.match(/column\s+["']?(?:[\w.]+\.)?(\w+)["']?\s+does\s+not\s+exist/i);
+          fail(`Table '${table}' missing column: ${match ? match[1] : '?'}`);
+        } else if (/relation\s+["']?[\w.]+["']?\s+does\s+not\s+exist/i.test(msg)) {
           fail(`Table '${table}' does not exist`);
-        } else if (error.message.includes('column')) {
-          // Extract missing column from error
-          const match = error.message.match(/column ['"]?(\w+)['"]?/i);
-          if (match) {
-            fail(`Table '${table}' missing column: ${match[1]}`);
-          } else {
-            fail(`Table '${table}' schema error: ${error.message}`);
-          }
+        } else if (msg.toLowerCase().includes('column')) {
+          const match = msg.match(/column ['"]?(\w+)['"]?/i);
+          fail(
+            match
+              ? `Table '${table}' missing column: ${match[1]}`
+              : `Table '${table}' schema error: ${msg}`
+          );
         } else {
-          warn(`Table '${table}' query issue: ${error.message}`);
+          warn(`Table '${table}' query issue: ${msg}`);
         }
       } else {
         pass(`Table '${table}' has all ${columns.length} required columns`);
@@ -299,11 +320,8 @@ async function checkDataHealth() {
   header('DATA HEALTH');
   
   try {
-    const supabase = createClient(
-      process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY
-    );
-    
+    const supabase = createSupabaseServiceClient();
+
     // Check startup count
     const { count: startupCount } = await supabase
       .from('startup_uploads')
@@ -344,24 +362,29 @@ async function checkDataHealth() {
       pass(`${matchCount} matches`);
     }
     
-    // Check GOD score distribution
-    const { data: scoreStats } = await supabase
-      .from('startup_uploads')
-      .select('total_god_score')
-      .eq('status', 'approved')
-      .not('total_god_score', 'is', null);
-    
+    // Check GOD score distribution (paginate — single select is capped at ~1000 rows)
+    const scoreStats = await fetchAllPages((from, to) =>
+      supabase
+        .from('startup_uploads')
+        .select('total_god_score')
+        .eq('status', 'approved')
+        .not('total_god_score', 'is', null)
+        .range(from, to)
+    );
+
     if (scoreStats?.length) {
-      const scores = scoreStats.map(s => s.total_god_score);
+      const scores = scoreStats.map((s) => Number(s.total_god_score)).filter((n) => !Number.isNaN(n));
       const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
       const min = Math.min(...scores);
       const max = Math.max(...scores);
-      
+
       if (avg < 40 || avg > 80) {
-        warn(`GOD score average is ${avg.toFixed(1)} (expected 40-80)`);
+        warn(`GOD score average is ${avg.toFixed(1)} (expected 40-80, n=${scores.length})`);
       } else {
-        pass(`GOD scores: avg=${avg.toFixed(1)}, range=${min}-${max}`);
+        pass(`GOD scores: avg=${avg.toFixed(1)}, range=${min}-${max} (n=${scores.length})`);
       }
+    } else {
+      warn('GOD scores: no approved rows with total_god_score set');
     }
     
     // Check RSS freshness
@@ -420,6 +443,34 @@ async function checkDataHealth() {
 // CHECK 5: PM2 Process Config
 // ============================================================================
 
+/** Resolve whether a PM2 app points at real files (npm/npx/node patterns). */
+function pm2ReferencedFileExists(app) {
+  const root = process.cwd();
+  const cwd =
+    app.cwd && app.cwd !== './' && app.cwd !== '.'
+      ? path.join(root, app.cwd)
+      : root;
+  const script = String(app.script || '').trim();
+  const args = String(app.args || '').trim();
+
+  if (script === 'npm' || script === 'pnpm' || script === 'yarn') {
+    return fs.existsSync(path.join(root, 'package.json'));
+  }
+
+  const candidates = [];
+  if (/\.(js|ts|cjs|mjs)$/i.test(script)) candidates.push(script);
+  for (const t of args.split(/\s+/)) {
+    if (/\.(js|ts|cjs|mjs)$/i.test(t)) candidates.push(t);
+  }
+  if (candidates.length === 0) return true;
+
+  for (const rel of candidates) {
+    const abs = path.isAbsolute(rel) ? rel : path.resolve(cwd, rel);
+    if (fs.existsSync(abs)) return true;
+  }
+  return false;
+}
+
 async function checkPM2Config() {
   header('PM2 CONFIGURATION');
   
@@ -446,10 +497,8 @@ async function checkPM2Config() {
         warn(`${app.name}: watch=true with no ignore patterns`);
       }
       
-      // Check script exists
-      const scriptPath = path.join(process.cwd(), app.args || app.script);
-      if (!fs.existsSync(scriptPath.replace('node ', ''))) {
-        warn(`${app.name}: script may not exist: ${app.script} ${app.args || ''}`);
+      if (!pm2ReferencedFileExists(app)) {
+        warn(`${app.name}: script file not found (${app.script} ${app.args || ''})`);
       }
     }
     

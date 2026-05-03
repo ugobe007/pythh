@@ -30,7 +30,7 @@ top_startups AS (
   FROM public.startup_intel_v5_sector
   WHERE sector_key IS NOT NULL 
     AND investor_signal_sector_0_10 IS NOT NULL 
-    AND investor_signal_sector_0_10 >= 5
+    AND investor_signal_sector_0_10 >= 3
   ORDER BY 
     CASE WHEN investor_state_sector = 'hot' THEN 0 ELSE 1 END,
     investor_signal_sector_0_10 DESC NULLS LAST

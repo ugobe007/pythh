@@ -8,16 +8,26 @@
  * Drops rows that fail lib/source-quality-filter.js (same rules as ssot-rss-scraper)
  * before matching startups — reduces enrichment from noisy headlines.
  *
+ * After loading approved startups, filters the pool with evaluateStartupNameForPipeline
+ * (lib/entityResolutionGate — logic engine → ontology → entity ontology → legacy net).
+ * That removes headline fragments and junk that still have entity_gate null/needs_url but
+ * are not startup-like names (isValidStartupName alone is weaker).
+ *
  * Identifies:
  *   - Amount: funding size ($XM, $XB, etc.)
  *   - Stage: seed, pre-seed, series-a/b/c, bridge, growth, debt, convertible-note
  *   - Acquisitions & mergers (startup_exits, company_status, funding_outcomes)
  *
  * Run: node scripts/enrich-from-rss-news.js
- *   --all           # Review ALL approved startups (recommended for full coverage)
- *   --limit 200     # Or process up to N startups
- *   --dry-run       # Preview without writing
- *   --skip-recalc   # Skip auto-running recalculate-scores.ts at the end
+ *   --all                  # Review ALL approved startups (recommended for full coverage)
+ *   --limit 200            # Or process up to N startups
+ *   --gate-qualified-only  # Only entity_gate=qualified (strict; small pool)
+ *   --gate-exclude-junk    # Skip only entity_gate=junk (keeps null, needs_url, qualified) — recommended
+ *   --dry-run              # Preview without writing
+ *   --skip-recalc          # Skip auto-running recalculate-scores.ts at the end
+ *
+ * Env: RSS_ENRICH_GATE_QUALIFIED_ONLY=1     # strict qualified pool
+ *      RSS_ENRICH_GATE_EXCLUDE_JUNK_ONLY=1 # exclude junk only (recommended; add to .env)
  *
  * If startups were updated, automatically runs recalculate-scores.ts to refresh GOD scores.
  */
@@ -27,8 +37,10 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData, extractCompanyNameFromHeadline } = require('../lib/inference-extractor.js');
+const { extractDealCompanyMentions, buildEventTextBlob } = require('../lib/rssDealMentions.js');
 // Canonical shared validator — replaces local JUNK_ENTITY_WORDS / JUNK_ENTITY_PATTERNS
 const { isValidStartupName } = require('../lib/startupNameValidator');
+const { evaluateStartupNameForPipeline } = require('../lib/entityResolutionGate');
 const { getResolved: getInferencePipelineConfig } = require('../lib/inferencePipelineConfig');
 const { shouldProcessEvent } = require('../lib/source-quality-filter');
 
@@ -108,6 +120,11 @@ function entityNamesFromEvent(event) {
   // Inference: extract company name from headline (e.g. "Acme raises $10M" -> "Acme")
   const headlineName = extractCompanyNameFromHeadline(event.source_title);
   if (headlineName) add(headlineName);
+  // Multi-clause wire copy: "invested in A … did not invest in B" (see lib/rssDealMentions.js)
+  const textBlob = buildEventTextBlob(event);
+  if (textBlob.length >= 20) {
+    for (const m of extractDealCompanyMentions(textBlob)) add(m);
+  }
   return [...names];
 }
 
@@ -175,17 +192,30 @@ async function fetchRecentEvents() {
 
 const STARTUPS_PAGE_SIZE = 1000;
 
-async function fetchApprovedStartups(limit) {
+/**
+ * @param {'none'|'qualified_only'|'exclude_junk'} gateMode
+ */
+async function fetchApprovedStartups(limit, gateMode) {
+  const build = (q) => {
+    let query = q
+      .from('startup_uploads')
+      .select('id, name, extracted_data, entity_gate')
+      .eq('status', 'approved');
+    if (gateMode === 'qualified_only') {
+      query = query.eq('entity_gate', 'qualified');
+    } else if (gateMode === 'exclude_junk') {
+      query = query.or('entity_gate.is.null,entity_gate.eq.needs_url,entity_gate.eq.qualified');
+    }
+    return query;
+  };
+
   if (limit > 1000) {
     // Fetch all approved startups (paginate — Supabase returns max 1000 per request)
     const all = [];
     let offset = 0;
     for (;;) {
       process.stdout.write(`\r  Fetching startups... ${all.length} so far`);
-      const { data, error } = await supabase
-        .from('startup_uploads')
-        .select('id, name, extracted_data')
-        .eq('status', 'approved')
+      const { data, error } = await build(supabase)
         .order('id', { ascending: true })
         .range(offset, offset + STARTUPS_PAGE_SIZE - 1);
       if (error) throw error;
@@ -197,11 +227,7 @@ async function fetchApprovedStartups(limit) {
     process.stdout.write('\r');
     return all;
   }
-  const { data, error } = await supabase
-    .from('startup_uploads')
-    .select('id, name, extracted_data')
-    .eq('status', 'approved')
-    .limit(limit);
+  const { data, error } = await build(supabase).limit(limit);
   if (error) throw error;
   return data || [];
 }
@@ -210,6 +236,26 @@ async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const all = args.includes('--all');
+  const cliQualified = args.includes('--gate-qualified-only');
+  const cliExcludeJunk = args.includes('--gate-exclude-junk');
+  const envQualified = process.env.RSS_ENRICH_GATE_QUALIFIED_ONLY === '1';
+  const envExcludeJunk = process.env.RSS_ENRICH_GATE_EXCLUDE_JUNK_ONLY === '1';
+
+  /** CLI flags override .env so `--gate-exclude-junk` works even if RSS_ENRICH_GATE_QUALIFIED_ONLY=1. */
+  let gateMode = 'none';
+  if (cliQualified && cliExcludeJunk) {
+    gateMode = 'qualified_only';
+  } else if (cliQualified) {
+    gateMode = 'qualified_only';
+  } else if (cliExcludeJunk) {
+    gateMode = 'exclude_junk';
+  } else if (envQualified && envExcludeJunk) {
+    gateMode = 'qualified_only';
+  } else if (envQualified) {
+    gateMode = 'qualified_only';
+  } else if (envExcludeJunk) {
+    gateMode = 'exclude_junk';
+  }
   let limit = 500;
   const limitIdx = args.indexOf('--limit');
   if (limitIdx !== -1 && args[limitIdx + 1]) limit = parseInt(args[limitIdx + 1], 10) || 500;
@@ -218,12 +264,29 @@ async function main() {
   console.log('\n📰 ENRICH FROM RSS NEWS\n');
   console.log('═'.repeat(60));
   if (dryRun) console.log('  (DRY RUN — no writes)\n');
+  if (!cliQualified && !cliExcludeJunk && envQualified && envExcludeJunk) {
+    console.log(
+      '  ⚠️  .env has both RSS_ENRICH_GATE_QUALIFIED_ONLY=1 and RSS_ENRICH_GATE_EXCLUDE_JUNK_ONLY=1 — using qualified-only. Remove one.\n',
+    );
+  }
+  if (gateMode === 'qualified_only') {
+    console.log('  (RSS pool: entity_gate=qualified only — strict)\n');
+  } else if (gateMode === 'exclude_junk') {
+    console.log('  (RSS pool: skip entity_gate=junk only — null, needs_url, qualified included)\n');
+  }
   console.log('  Loading data...');
 
-  const [events, startups] = await Promise.all([
+  const [events, startupsAll] = await Promise.all([
     fetchRecentEvents(),
-    fetchApprovedStartups(limit),
+    fetchApprovedStartups(limit, gateMode),
   ]);
+
+  const startups = startupsAll.filter((s) => {
+    const n = (s.name || '').trim();
+    if (!n) return false;
+    return evaluateStartupNameForPipeline(n).ok;
+  });
+  const excludedNamePipeline = startupsAll.length - startups.length;
 
   let sourceQualitySkipped = 0;
   const eventsFiltered = events.filter((ev) => {
@@ -239,7 +302,7 @@ async function main() {
   if (sourceQualitySkipped > 0) {
     console.log(`  Source quality filter: skipped ${sourceQualitySkipped} (${eventsFiltered.length} remain)`);
   }
-  console.log(`  Startups: ${startups.length}\n`);
+  console.log(`  Startups in pool: ${startups.length}${excludedNamePipeline > 0 ? ` (${excludedNamePipeline} excluded by name pipeline — not startup-like)` : ''}\n`);
 
   if (eventsFiltered.length === 0) {
     console.log('  No events to process after filters. Run RSS scraper first.');
@@ -473,15 +536,25 @@ async function main() {
   const { data: acqData } = await supabase.from('funding_outcomes').select('startup_id').eq('outcome_type', 'acquired').in('startup_id', startupIds);
   const acquiredByStartup = new Set((acqData || []).map(r => r.startup_id));
 
+  const BULK_INSERT_SIZE = 50;
   console.log('  Pre-fetch done. Processing startups...\n');
+  if (totalFundingEvents > 0) {
+    console.log(
+      `  Note: funding_outcomes commit in batches of ${BULK_INSERT_SIZE}; mid-run "0 committed" is normal until the first full batch or final flush.`
+    );
+  }
   let processed = 0;
   const fundingBatch = [];
-  const BULK_INSERT_SIZE = 50;
 
   for (const [_id, sig] of startupSignals) {
     processed++;
     if (processed % 50 === 0) {
-      console.log(`  Progress: ${processed}/${startupSignals.size} startups, ${fundingOutcomesInserted} funding, ${exitsInserted} exits...`);
+      // fundingOutcomesInserted only moves after a full batch flush OR the final flush — do not treat "0" mid-run as "no funding"
+      console.log(
+        `  Progress: ${processed}/${startupSignals.size} startups, ` +
+          `funding rows: ${fundingOutcomesInserted} committed + ${fundingBatch.length} queued (raw events before dedupe: ${totalFundingEvents}), ` +
+          `${exitsInserted} exits...`
+      );
     }
     const startup = sig.startup;
     const existing = startup.extracted_data || {};

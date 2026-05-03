@@ -356,9 +356,10 @@ export default function FounderProfileDashboard() {
                 Go to Pythh submission →
               </Link>
             </div>
-            <div className="pt-4 flex gap-4 text-xs text-zinc-600">
+            <div className="pt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-600">
+              <Link to="/account" className="hover:text-cyan-400/90 transition-colors">Account</Link>
               <Link to="/settings" className="hover:text-zinc-400 transition-colors">Settings</Link>
-              <button onClick={() => { logout(); navigate('/'); }} className="hover:text-zinc-400 transition-colors">Sign out</button>
+              <button type="button" onClick={() => { logout(); navigate('/'); }} className="hover:text-zinc-400 transition-colors">Sign out</button>
             </div>
           </div>
         </div>

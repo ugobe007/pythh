@@ -26,6 +26,8 @@
  * Stacking: tiers stack additively up to the cap.
  */
 
+import { isValidStartupName } from '../utils/startupNameValidator';
+
 export interface PedigreeResult {
   applied: boolean;
   bonus: number;                     // 0–10 when Tier 1 (prominent VC), 0–5 otherwise
@@ -246,6 +248,30 @@ function isPlausibleStartupName(name: string | null | undefined): boolean {
 // ============================================================================
 
 export function calculateInvestorPedigreeBonus(startup: any): PedigreeResult {
+  const gate = String(startup?.entity_gate ?? '').toLowerCase();
+  if (gate === 'junk') {
+    return {
+      applied: false,
+      bonus: 0,
+      tier: 'none',
+      matchedInvestors: [],
+      matchedAdvisors: [],
+      explanation: 'entity_gate is junk; investor pedigree not applied',
+    };
+  }
+
+  const nameValidation = isValidStartupName(startup?.name);
+  if (!nameValidation.isValid) {
+    return {
+      applied: false,
+      bonus: 0,
+      tier: 'none',
+      matchedInvestors: [],
+      matchedAdvisors: [],
+      explanation: `Startup name failed validation (${nameValidation.reason || 'invalid'}); pedigree not applied`,
+    };
+  }
+
   if (!isPlausibleStartupName(startup?.name)) {
     return {
       applied: false,

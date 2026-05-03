@@ -1,5 +1,5 @@
 /**
- * PythhWhatYouGet — "From URL to top investors in 30 seconds."
+ * PythhWhatYouGet — Pythh Capital home wedge: behavior-first ranking + outreach angles.
  *
  * Supabase-style: hairline borders, transparent surfaces, stroke + type only (no fills).
  */
@@ -157,7 +157,7 @@ export default function PythhWhatYouGet({
           style={{ marginBottom: variant === 'hero' ? '1.35rem' : '1.75rem' }}
         >
           <span className="pythh-label-caps" style={{ display: 'block', marginBottom: 10, color: MUTED }}>
-            What you get
+            Pythh Capital
           </span>
           <h2 style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
@@ -169,9 +169,9 @@ export default function PythhWhatYouGet({
             maxWidth: variant === 'hero' ? 'none' : 720,
             margin: 0,
           }}>
-            From URL to top{' '}
-            <span style={{ color: '#10b981' }}>investors</span>
-            {' '}in 30 seconds.
+            See who is{' '}
+            <span style={{ color: '#10b981' }}>most likely to fund you</span>
+            {' '}next—not a generic investor list.
           </h2>
           <p
             style={{
@@ -183,7 +183,7 @@ export default function PythhWhatYouGet({
               margin: '0.85rem 0 0',
             }}
           >
-            We scrape your site to build a full startup signal profile then match you with top investors.
+            Ranked by live signals, fit, and timing, with outreach angles you can use today. Paste your URL to start.
           </p>
         </motion.div>
 
@@ -306,7 +306,7 @@ export default function PythhWhatYouGet({
           >
             <div style={stepHeader}>
               <span className="pythh-number-badge">02</span>
-              <span className="pythh-label-caps" style={{ color: MUTED }}>Top 50 matches scored</span>
+              <span className="pythh-label-caps" style={{ color: MUTED }}>Top investors ranked</span>
             </div>
             <div style={{
               padding: '0.75rem 1rem 1rem',
@@ -342,7 +342,7 @@ export default function PythhWhatYouGet({
                 ))}
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', color: MUTED, marginTop: 'auto', paddingTop: '0.75rem', lineHeight: 1.5, marginBottom: 0 }}>
-                Ranked by thesis fit, timing, and stage. No spray-and-pray.
+                Ranked by likelihood, thesis fit, and timing—not generic lists.
               </p>
             </div>
           </motion.div>
@@ -355,7 +355,7 @@ export default function PythhWhatYouGet({
           >
             <div style={stepHeader}>
               <span className="pythh-number-badge">03</span>
-              <span className="pythh-label-caps" style={{ color: MUTED }}>Ready-to-send intro line</span>
+              <span className="pythh-label-caps" style={{ color: MUTED }}>Outreach angle + opening line</span>
             </div>
             <div style={{
               padding: '1rem',
@@ -397,7 +397,7 @@ export default function PythhWhatYouGet({
                 </div>
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', color: MUTED, lineHeight: 1.5, margin: 'auto 0 0', paddingTop: '0.75rem' }}>
-                Copy-paste outreach, written to their thesis. Get the meeting.
+                Best angle, suggested opener, and what to avoid—so you can act today.
               </p>
             </div>
           </motion.div>

@@ -121,7 +121,8 @@ const newSources = [
   { name: 'Y Combinator', url: 'https://www.ycombinator.com/blog/feed', category: 'accelerator', region: 'us', priority: 1 },
   { name: 'Techstars', url: 'https://www.techstars.com/blog/feed', category: 'accelerator', region: 'us', priority: 1 },
   { name: 'MassChallenge', url: 'https://masschallenge.org/feed', category: 'accelerator', region: 'us', priority: 2 },
-  { name: 'Startup Grind', url: 'https://www.startupgrind.com/feed/', category: 'accelerator', region: 'global', priority: 2 },
+  // Startup Grind RSS was 404/broken — use blog subdomain if re-enabled after verifying feed
+  // { name: 'Startup Grind', url: '...', ... },
   { name: '500 Startups', url: 'https://500.co/feed/', category: 'accelerator', region: 'us', priority: 2 },
   
   // ========================================

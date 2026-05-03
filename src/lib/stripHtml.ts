@@ -40,7 +40,9 @@ export function stripHtmlForDisplay(input: string | undefined | null): string {
   let s = input
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ');
+    .replace(/<[^>]+>/g, ' ')
+    // Malformed / truncated tags (e.g. "<a href=\"Source" with no closing >)
+    .replace(/<[^>]*$/g, ' ');
 
   // Decimal numeric refs: &#160; or broken &# 160 ;
   s = s.replace(/&#\s*(\d{1,7})\s*;/g, (_, n) => decodeNumericCode(Number(n)));
@@ -56,6 +58,9 @@ export function stripHtmlForDisplay(input: string | undefined | null): string {
     return v !== undefined ? v : '';
   });
 
+  // Partial `&nbsp` without semicolon (truncated HTML entity in scrapes)
+  s = s.replace(/&nbsp(?!;)/gi, ' ');
+
   // Empty / broken entity markers: "& ;" "&;"
   s = s.replace(/&\s*;/g, '');
 
@@ -69,4 +74,29 @@ export function stripHtmlForDisplay(input: string | undefined | null): string {
   s = s.replace(/\b(Time)\s+(The\s)/g, '$1. $2');
 
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Evidence lines from RSS / HTML often concatenate title + source twice, or ship with entities/tags.
+ * Use anywhere `pythh_signal_events.raw_sentence` (or similar) is shown as plain text.
+ */
+export function sanitizeSignalSentence(input: string | undefined | null): string {
+  const s = stripHtmlForDisplay(input);
+  if (!s) return '';
+
+  const parts = s.split(/\. +/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2 && parts[1].startsWith(parts[0])) {
+    return parts[0];
+  }
+
+  const n = s.length;
+  for (let len = Math.floor(n / 2); len >= 28; len--) {
+    const head = s.slice(0, len).trimEnd();
+    const tail = s.slice(len).trimStart();
+    if (head.length >= 20 && tail.startsWith(head)) {
+      return head;
+    }
+  }
+
+  return s;
 }

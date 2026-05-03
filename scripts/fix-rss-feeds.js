@@ -26,6 +26,8 @@ const APPLY = process.argv.includes('--apply');
 // REPLACEMENTS: Broken URL → Working alternative URL
 // ═══════════════════════════════════════════════════════════════
 const URL_REPLACEMENTS = {
+  // Fast Company — /technology/rss.xml → 404 (Apr 2026)
+  'https://www.fastcompany.com/technology/rss.xml': 'https://www.fastcompany.com/latest/rss',
   // 404 feeds — replace with working alternatives
   'https://www.accel.com/noteworthy/feed': 'https://www.accel.com/noteworthy/rss.xml',
   'https://api.axios.com/feed/technology': 'https://www.axios.com/technology/feed.rss',
@@ -62,10 +64,19 @@ const DEACTIVATE_URLS = [
   'https://pitchbook.com/news/rss',           // PitchBook — blocked
   'https://www.artificialintelligence-news.com/feed/',  // AI News duplicate (will try replacement first)
   
+  // Dead RSS / HTML instead of XML / bot-block — pause (Apr 2026)
+  'https://builtin.com/rss.xml',
+  'https://www.sbir.gov/rss/awards.rss',
+  'https://www.grants.gov/rss/GG_NewOppByCategory.xml?category=ST',
+  'https://www.finsmes.com/feed',
+  'https://www.finsmes.com/feed/',
+  'https://www.startupgrind.com/blog/feed/',
+  'https://www.startupgrind.com/feed/',
+
   // PARSE errors — not valid RSS
   'https://www.greenbiz.com/feed',                          // GreenBiz — broken XML
   'https://kr-asia.com/feed',                               // KrASIA — broken XML
-  'https://www.startupgrind.com/feed/',                     // Startup Grind — broken XML  
+  // Startup Grind — see URLs above (blog/feed and /feed/)
   'https://uwaterloo.ca/engineering/startup-list',          // Not an RSS feed (HTML page)
   'https://www.ycombinator.com/companies',                  // Not an RSS feed (HTML page)
   
@@ -77,6 +88,56 @@ const DEACTIVATE_URLS = [
   'https://blog.ventureradar.com/2020/09/29/the-top-20-newly-founded-university-spin-offs-you-should-know/',  // Static blog post
   'https://www.extruct.ai/data-room/ycombinator-companies-f25/',  // Not RSS
   'https://blog.producthunt.com/feed',                      // Product Hunt Blog — dead
+
+  // Apr 2026 — scrape log (404/403/parse/HTML); also in scripts/sql/deactivate_dead_rss_feeds_bulk.sql
+  'https://www.fastcompany.com/technology/rss.xml',
+  'https://a16z.com/feed/',
+  'https://a16z.com/blog/feed/',
+  'https://www.bvp.com/atlas/rss.xml',
+  'https://www.accel.com/insights/feed',
+  'https://www.bvp.com/feed',
+  'https://betalist.com/feed',
+  'https://www.indexventures.com/feed/',
+  'https://www.angellist.com/blog/rss.xml',
+  'https://review.firstround.com/feed',
+  'https://www.axios.com/pro-rata/rss',
+  'https://www.axios.com/pro-rata',
+  'https://fortune.com/tag/term-sheet/feed/',
+  'https://vcnewsdaily.com/feed/',
+  'https://www.techstars.com/blog/feed',
+  'https://thehustle.co/feed/',
+  'https://greylock.com/feed/',
+  'https://www.nea.com/insights/feed',
+  'https://www.nea.com/feed',
+  'https://www.nfx.com/post/feed.xml',
+  'https://sequoiacap.com/stories/',
+  'https://sequoiacap.com/stories/?_story-category=news',
+  'https://dealroom.co/blog/feed',
+  'https://www.bloomberg.com/feed/podcast/bloomberg-technology',
+  'https://benchmark.com/feed/',
+  'https://www.gv.com/feed/',
+  'https://kr-asia.com/rss/feed.xml',
+  'https://feeds.megaphone.fm/thisweekinstartups',
+  'https://www.deeplearning.ai/the-batch/',
+  'https://e27.co/feed/',
+  'https://www.saascapital.com/blog/feed/',
+  'https://blog.angel.co/feed/',
+  'https://www.indiehackers.com/feed',
+  'https://hax.co/startups/',
+  'https://sifted.eu/feed/',
+  'https://www.wired.co.uk/feed/category/business/latest/rss',
+  'https://www.tomtunguz.com/feed/',
+  'https://bothsidesofthetable.com/feed',
+  'https://inside.com/ai/rss',
+  'https://www.businessinsider.com/sai/rss',
+  'https://www.thetwentyminutevc.com/feed/',
+  'https://www.startups.com/library/rss',
+  'https://www.theinformation.com/feed',
+  'https://www.cbinsights.com/feed',
+  'https://500.co/blog/feed/',
+  'https://www.fintechfutures.com/feed/',
+  'https://www.inc.com/rss/index.rss',
+  'https://www.eu-startups.com/feed/',
 ];
 
 // ═══════════════════════════════════════════════════════════════

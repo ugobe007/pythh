@@ -38,10 +38,10 @@ const FirePointsWidget: React.FC = () => {
           </div>
         </div>
         <Link
-          to="/profile"
+          to="/account"
           className="px-3 py-1.5 bg-cyan-100 hover:bg-cyan-200 text-cyan-700 text-sm font-medium rounded-lg transition-all"
         >
-          View Profile
+          Account
         </Link>
       </div>
 

@@ -42,10 +42,10 @@ const RSS_SOURCES = [
   // ============================================================
   { name: 'Crunchbase News', url: 'https://news.crunchbase.com/feed/', category: 'Funding', active: true },
   { name: 'PitchBook News', url: 'https://pitchbook.com/news/feed', category: 'Funding', active: true },
-  { name: 'Axios Pro Rata', url: 'https://www.axios.com/pro-rata', category: 'VC News', active: true },
+  { name: 'Axios Pro Rata', url: 'https://www.axios.com/feeds/feed.rss', category: 'VC News', active: true },
   { name: 'StrictlyVC', url: 'https://www.strictlyvc.com/feed/', category: 'VC News', active: true },
   { name: 'Term Sheet (Fortune)', url: 'https://fortune.com/tag/term-sheet/feed/', category: 'VC News', active: true },
-  { name: 'Bloomberg Technology', url: 'https://www.bloomberg.com/feed/podcast/bloomberg-technology', category: 'Tech News', active: true },
+  { name: 'Bloomberg Technology', url: 'https://feeds.bloomberg.com/technology/news.rss', category: 'Tech News', active: true },
   
   // ============================================================
   // TIER 3: Product Hunt & Discovery Platforms
@@ -152,7 +152,7 @@ const RSS_SOURCES = [
   { name: 'Business Insider Tech', url: 'https://www.businessinsider.com/sai/rss', category: 'Tech News', active: true },
   { name: 'Reuters Technology', url: 'https://www.reuters.com/technology', category: 'Tech News', active: true },
   { name: 'CNBC Technology', url: 'https://www.cnbc.com/id/19854910/device/rss/rss.html', category: 'Tech News', active: true },
-  { name: 'Fast Company', url: 'https://www.fastcompany.com/technology/rss.xml', category: 'Tech News', active: true },
+  { name: 'Fast Company', url: 'https://www.fastcompany.com/latest/rss', category: 'Tech News', active: true },
   { name: 'Inc Magazine', url: 'https://www.inc.com/rss/index.rss', category: 'Startup News', active: true },
   { name: 'Entrepreneur', url: 'https://www.entrepreneur.com/latest.rss', category: 'Startup News', active: true },
   

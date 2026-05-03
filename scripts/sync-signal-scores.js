@@ -82,6 +82,7 @@ const INVESTOR_RECEPTIVITY_CLASSES = {
 
 const CAPITAL_CONVERGENCE_CLASSES = {
   fundraising_signal:    1.0,
+  diligence_signal:      0.95,
   acquisition_signal:    0.9,
   exit_signal:           0.85,
   revenue_signal:        0.75,
@@ -92,6 +93,8 @@ const CAPITAL_CONVERGENCE_CLASSES = {
 const EXECUTION_VELOCITY_CLASSES = {
   product_signal:        1.0,
   hiring_signal:         0.9,
+  gtm_hiring_signal:     0.92,
+  engineering_hiring_signal: 0.91,
   growth_signal:         0.85,
   expansion_signal:      0.8,
   partnership_signal:    0.75,

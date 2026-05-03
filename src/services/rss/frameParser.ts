@@ -3,6 +3,27 @@
 // Import inference engine for fast zero-cost classification
 import eventClassifier from '../../../lib/event-classifier';
 
+/** RSS parsers sometimes emit objects (Atom `link`, `content:encoded`) — never pass those to String() or templates blindly. */
+function safeRssText(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    if (typeof o.href === "string") return o.href;
+    if (typeof o.url === "string") return o.url;
+    if (typeof o._ === "string") return o._;
+    if (typeof o["#text"] === "string") return o["#text"] as string;
+    if (typeof o.content === "string") return o.content;
+    if (Array.isArray(o) && o.length > 0) return safeRssText(o[0]);
+  }
+  try {
+    return String(v);
+  } catch {
+    return "";
+  }
+}
+
 export type FrameType = "BIDIRECTIONAL" | "DIRECTIONAL" | "SELF_EVENT" | "EXEC_EVENT" | "UNKNOWN";
 
 // Semantic context captured from additive descriptors (scored evidence channel)
@@ -214,18 +235,20 @@ function normalizeCurrency(prefix?: string | null): string {
  * Prevents HK$ B→M bug by never re-deriving magnitude
  */
 function parseAmount(title: string): CapitalEvent['amounts'] | undefined {
+  const t = typeof title === "string" ? title : safeRssText(title);
+  if (!t) return undefined;
   // Canonical regex: captures (HK$|$|€|£|₹)? (numeric) (K|M|B|thousand|million|billion)?
   const AMOUNT_RE = /\b(?:(HK\$|\$|€|£|₹)\s*)?(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d+))?\s*(K|M|B|k|m|b|thousand|million|billion)?\b/g;
   
   // Must have context keywords to avoid "100M users" false positives
   const CONTEXT_RE = /\b(raise|secure|close|funding|investment|round|deal|valuation|valued|capital|series)\b/i;
-  if (!CONTEXT_RE.test(title)) return undefined;
+  if (!CONTEXT_RE.test(t)) return undefined;
   
   let bestMatch: RegExpExecArray | null = null;
   let match: RegExpExecArray | null;
   
   // Find first match that has a magnitude token (or explicit currency symbol)
-  while ((match = AMOUNT_RE.exec(title)) !== null) {
+  while ((match = AMOUNT_RE.exec(t)) !== null) {
     const [, currencyPrefix, integerPart, decimalPart, magnitudeToken] = match;
     if (magnitudeToken || currencyPrefix) {
       bestMatch = match;
@@ -261,7 +284,9 @@ function parseAmount(title: string): CapitalEvent['amounts'] | undefined {
  * Detects: Seed, Pre-Seed, Angel, Series A/B/C/D/E, Growth, Debt, Bridge
  */
 function parseRound(title: string): string | null {
-  const roundMatch = title.match(/\b(Pre-Seed|Seed|Angel|Series\s+[A-E]|Growth|Debt|Bridge|Convertible\s+note)\b/i);
+  const t = typeof title === "string" ? title : safeRssText(title);
+  if (!t) return null;
+  const roundMatch = t.match(/\b(Pre-Seed|Seed|Angel|Series\s+[A-E]|Growth|Debt|Bridge|Convertible\s+note)\b/i);
   if (!roundMatch) return null;
   
   return roundMatch[1];
@@ -717,7 +742,7 @@ function validateEntityQuality(entity: string): boolean {
  * Uses hash(publisher + url) NOT title to avoid duplicates
  */
 function generateEventId(publisher: string, url: string): string {
-  const combined = `${publisher}|${url}`;
+  const combined = `${safeRssText(publisher)}|${safeRssText(url)}`;
   // Simple hash for stable ID
   let hash = 0;
   for (let i = 0; i < combined.length; i++) {
@@ -726,12 +751,15 @@ function generateEventId(publisher: string, url: string): string {
     hash = hash & hash; // Convert to 32bit integer
   }
   const eventId = `evt_${Math.abs(hash).toString(36)}`;
-  
-  // DEBUG: Log what we're hashing
-  if (Math.random() < 0.05) { // Log 5% of events to avoid spam
-    console.log(`[DEBUG] EventID: ${eventId} from "${publisher}" + "${url.slice(0, 80)}"`);
+
+  // Optional: log sampled event IDs (default off — even 5% × thousands of items floods the terminal).
+  const logIds =
+    process.env.RSS_SCRAPER_DEBUG === '1' || process.env.RSS_LOG_EVENT_IDS === '1';
+  if (logIds && Math.random() < Number(process.env.RSS_EVENT_ID_LOG_RATE || 0.05)) {
+    const u = safeRssText(url);
+    console.log(`[DEBUG] EventID: ${eventId} from "${publisher}" + "${u.slice(0, 80)}"`);
   }
-  
+
   return eventId;
 }
 
@@ -918,6 +946,7 @@ const TITLECASE_CHUNK_RE =
   /\b[A-Z][A-Za-z0-9]*(?:\s+[A-Z][A-Za-z0-9]*){0,4}\b/g;
 
 function normalizeQuotes(s: string) {
+  if (s == null || typeof s !== "string") return "";
   return s
     .replace(/[""]/g, '"')
     .replace(/['']/g, "'")
@@ -1440,7 +1469,8 @@ const PATTERNS: Pattern[] = [
 ];
 
 export function parseFrameFromTitle(titleRaw: string): ParsedFrame {
-  let title = normalizeQuotes(titleRaw);
+  const titleStr = safeRssText(titleRaw);
+  let title = normalizeQuotes(titleStr);
   const notes: string[] = [];
 
   // Jisst-lite: strip person possessives and known "X-backed" modifiers early
@@ -1571,9 +1601,12 @@ export function toCapitalEvent(
   title: string,
   publishedAt?: string
 ): CapitalEvent {
+  const safeTitle = safeRssText(title);
+  const safeUrl = safeRssText(url);
+  const safePublisher = safeRssText(publisher);
   // PHASE 1: Try inference engine first (FAST & FREE)
   // This catches 60-70% of events without complex regex parsing
-  const inference = eventClassifier.classifyEvent(title);
+  const inference = eventClassifier.classifyEvent(safeTitle);
   
   // If inference is confident (>0.6) and we don't have a strong frame match, use it
   const useInference = inference.confidence >= 0.6 && (
@@ -1597,11 +1630,11 @@ export function toCapitalEvent(
   }
   
   // Generate stable event ID from publisher + url (article URL, not feed URL)
-  const event_id = generateEventId(publisher, url);
+  const event_id = generateEventId(safePublisher, safeUrl);
   
   // Extract amounts and round
-  const amounts = parseAmount(title);
-  const round = parseRound(title);
+  const amounts = parseAmount(safeTitle);
+  const round = parseRound(safeTitle);
   
   // Normalize entities from slots
   const entities: CapitalEventEntity[] = [];
@@ -1649,7 +1682,7 @@ export function toCapitalEvent(
   // This handles "The Rippling/Deel...", "Inside Apple's...", "Capital One To Buy Brex..."
   if (frame.frameType === "UNKNOWN" && entities.length === 0) {
     // Clean headline: remove prefixes like "The ", "Inside ", "How "
-    let cleanedTitle = title
+    let cleanedTitle = safeTitle
       .replace(/^(The|A|An)\s+/i, "")
       .replace(/^(Inside|How|What|Why|When|Where|Watch|Meet|Ask|Why)\s+/i, "");
     
@@ -1718,7 +1751,7 @@ export function toCapitalEvent(
   }
   
   // Apply production guardrails (SSOT: FILTERED short-circuits before mapEventType)
-  const isTopicHeadlineFlagged = isTopicHeadline(title);
+  const isTopicHeadlineFlagged = isTopicHeadline(safeTitle);
   
   let finalEventType = frame.eventType;
   let finalConfidence = frame.meta.confidence;
@@ -1740,9 +1773,9 @@ export function toCapitalEvent(
     event_id,
     occurred_at: publishedAt || new Date().toISOString(),
     source: {
-      publisher,
-      url,
-      title,
+      publisher: safePublisher,
+      url: safeUrl,
+      title: safeTitle,
       published_at: publishedAt,
     },
     event_type: finalEventType,
@@ -1765,7 +1798,7 @@ export function toCapitalEvent(
       // PARSER IS SSOT: decision gates (no extractor judgment allowed)
       // ACCEPT = store event (even FILTERED/OTHER)
       // REJECT = truly junk (newsletters, predictions with no company names)
-      decision: isTopicHeadline(title) && entities.length === 0 ? "REJECT" : "ACCEPT",
+      decision: isTopicHeadline(safeTitle) && entities.length === 0 ? "REJECT" : "ACCEPT",
       
       // graph_safe = true ONLY when safe to create entity edges
       // TIERED confidence: funding/acquisition/launch events get lower threshold
@@ -1785,7 +1818,7 @@ export function toCapitalEvent(
             entities.some(e => validateEntityQuality(e.name)))
         )
       ),
-      reject_reason: isTopicHeadline(title) && entities.length === 0 ? filteredReason || "topic_headline" : undefined,
+      reject_reason: isTopicHeadline(safeTitle) && entities.length === 0 ? filteredReason || "topic_headline" : undefined,
     },
   };
   

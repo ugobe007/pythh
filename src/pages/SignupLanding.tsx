@@ -14,10 +14,10 @@ export default function SignupLanding() {
   const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
 
-  // Redirect logged-in users to profile
+  // Redirect logged-in users to account hub
   useEffect(() => {
     if (isLoggedIn && user) {
-      navigate('/profile');
+      navigate('/account');
     }
   }, [isLoggedIn, user, navigate]);
 
@@ -50,7 +50,7 @@ export default function SignupLanding() {
                     <h2 className="text-sm font-medium text-white">Founder</h2>
                   </div>
                   <p className="text-xs text-zinc-500 leading-relaxed">
-                    See which investors are aligned with your startup right now. Get signal-based matches, GOD scoring, and outreach intelligence.
+                    Pythh Capital: see which investors are most likely to fund your next round from real signals—ranked list, timing, and outreach angles—not generic CRM lists.
                   </p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-zinc-700 group-hover:text-zinc-400 transition-colors mt-1 flex-shrink-0 ml-4" />
@@ -97,7 +97,7 @@ export default function SignupLanding() {
                 How Pythh works
               </h2>
               <p className="text-sm text-zinc-500 leading-relaxed">
-                Pythh analyzes real-time investor behavior, market signals, and startup positioning to generate high-confidence matches. No spray-and-pray — just precision.
+                Pythh ranks who is most likely to fund your next round from live market signals and fit—then gives you a short list you can act on, not a directory dump.
               </p>
             </div>
 
@@ -114,8 +114,8 @@ export default function SignupLanding() {
               />
               <InfoRow
                 icon={<Users className="w-4 h-4 text-violet-400" />}
-                title="Investor matching"
-                detail="Signal strength x thesis alignment x timing window = actionable matches."
+                title="Ranked investors + angles"
+                detail="Who, why, why now—and how to open the conversation."
               />
               <InfoRow
                 icon={<Shield className="w-4 h-4 text-zinc-400" />}

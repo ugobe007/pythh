@@ -8,6 +8,20 @@
 import { supabase } from '../src/lib/supabase';
 import { InvestorEnrichmentService } from '../src/lib/investorEnrichmentService';
 
+function requireServiceRoleKey(): void {
+  const k =
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    '';
+  if (!k) {
+    console.error(
+      '❌ VC enrichment writes to investor_news / investor_partners / investor_investments / investor_advice (RLS).'
+    );
+    console.error('   Set SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY in .env (same as GitHub Actions).');
+    process.exit(1);
+  }
+}
+
 // Target VCs to enrich (top 10 from your database)
 const TARGET_VCS = [
   'Y Combinator',
@@ -23,6 +37,7 @@ const TARGET_VCS = [
 ];
 
 async function enrichAllVCs() {
+  requireServiceRoleKey();
   console.log('🚀 Starting VC enrichment process...\n');
   
   const results = [];
@@ -33,18 +48,29 @@ async function enrichAllVCs() {
     console.log('='.repeat(60));
     
     try {
-      // Find investor in database
-      const { data: investor, error } = await supabase
+      // Find investor in database (avoid .single(): multiple ILIKE matches → PGRST116)
+      const { data: matches, error } = await supabase
         .from('investors')
         .select('id, name')
         .ilike('name', `%${vcName}%`)
-        .single();
+        .limit(8);
       
-      if (error || !investor) {
+      if (error) {
+        console.log(`⚠️  ${vcName} query error: ${error.message}`);
+        results.push({ vc: vcName, status: 'query_error', error: error.message });
+        continue;
+      }
+      if (!matches?.length) {
         console.log(`⚠️  ${vcName} not found in database, skipping...`);
         results.push({ vc: vcName, status: 'not_found' });
         continue;
       }
+      if (matches.length > 1) {
+        console.log(
+          `⚠️  Multiple investors match "%${vcName}%": ${matches.map((m) => m.name).join(' | ')} — using first: "${matches[0].name}"`
+        );
+      }
+      const investor = matches[0];
       
       // Enrich investor data
       const result = await InvestorEnrichmentService.enrichInvestor(

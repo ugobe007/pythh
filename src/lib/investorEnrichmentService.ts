@@ -118,15 +118,61 @@ const VC_WEBSITES: Record<string, {
   }
 }
 
+/** DB names / aliases → key in VC_WEBSITES (scrapers use exact config keys). */
+const VC_NAME_ALIASES: Record<string, string> = {
+  a16z: 'Andreessen Horowitz',
+  'andreessen horowitz (a16z)': 'Andreessen Horowitz',
+  greylock: 'Greylock Partners',
+  nea: 'NEA',
+  'new enterprise associates': 'NEA',
+  kp: 'Kleiner Perkins',
+  'kleiner perkins caufield & byers': 'Kleiner Perkins',
+  lsvp: 'Lightspeed Venture Partners',
+  lightspeed: 'Lightspeed Venture Partners',
+  yc: 'Y Combinator',
+  sequoia: 'Sequoia Capital',
+  benchmark: 'Benchmark',
+  'founders fund': 'Founders Fund',
+  accel: 'Accel',
+};
+
 /**
  * Scrape and enrich investor data from multiple sources
  */
 export class InvestorEnrichmentService {
-  
+  /** Resolve `investors.name` from DB to a VC_WEBSITES key (fuzzy / aliases). */
+  private static resolveVcWebsiteKey(investorName: string): string | null {
+    const raw = investorName.trim();
+    if (VC_WEBSITES[raw]) return raw;
+    const lower = raw.toLowerCase();
+    if (VC_NAME_ALIASES[lower]) return VC_NAME_ALIASES[lower];
+    for (const key of Object.keys(VC_WEBSITES)) {
+      if (key.toLowerCase() === lower) return key;
+    }
+    for (const key of Object.keys(VC_WEBSITES)) {
+      const kl = key.toLowerCase();
+      if (lower.includes(kl) || kl.includes(lower)) return key;
+    }
+    return null;
+  }
+
+  private static getVcConfig(investorName: string) {
+    const key = this.resolveVcWebsiteKey(investorName);
+    const config = key ? VC_WEBSITES[key] : undefined;
+    return { key, config };
+  }
+
   /**
    * Enrich an investor with partners, investments, and advice
    */
   static async enrichInvestor(investorId: string, investorName: string) {
+    const { key: vcKey, config: vcResolved } = this.getVcConfig(investorName);
+    if (!vcResolved) {
+      console.warn(
+        `⚠️ No VC_WEBSITES entry for "${investorName}" (resolved key=${vcKey ?? 'null'}) — scraping will be limited to news search / RSS if any.`
+      );
+    }
+
     console.log(`🔍 Starting enrichment for ${investorName}...`);
     
     try {
@@ -156,14 +202,17 @@ export class InvestorEnrichmentService {
       }
       
       // 5. Update last enrichment date
-      await supabase
+      const { error: invUpdErr } = await supabase
         .from('investors')
         .update({ 
           last_enrichment_date: new Date().toISOString(),
-          news_feed_url: VC_WEBSITES[investorName]?.rssUrl,
+          news_feed_url: vcResolved?.rssUrl ?? null,
           linkedin_url: `https://www.linkedin.com/company/${investorName.toLowerCase().replace(/\s+/g, '-')}`
         })
         .eq('id', investorId);
+      if (invUpdErr) {
+        console.warn(`⚠️ investors row update failed (RLS or schema?): ${invUpdErr.message}`);
+      }
       
       console.log(`✨ Enrichment complete for ${investorName}`);
       
@@ -191,7 +240,7 @@ export class InvestorEnrichmentService {
     const partners: Partner[] = [];
     
     try {
-      const vcInfo = VC_WEBSITES[investorName];
+      const { config: vcInfo } = this.getVcConfig(investorName);
       if (!vcInfo?.teamPage) {
         console.log(`⚠️ No team page URL for ${investorName}`);
         return partners;
@@ -256,7 +305,7 @@ export class InvestorEnrichmentService {
     const investments: Investment[] = [];
     
     try {
-      const vcInfo = VC_WEBSITES[investorName];
+      const { config: vcInfo } = this.getVcConfig(investorName);
       if (!vcInfo?.portfolioPage) {
         console.log(`⚠️ No portfolio page URL for ${investorName}`);
         return investments;
@@ -316,7 +365,7 @@ export class InvestorEnrichmentService {
     const advice: Advice[] = [];
     
     try {
-      const vcInfo = VC_WEBSITES[investorName];
+      const { config: vcInfo } = this.getVcConfig(investorName);
       if (!vcInfo?.rssUrl && !vcInfo?.blogUrl) {
         console.log(`⚠️ No blog/RSS URL for ${investorName}`);
         return advice;
@@ -406,7 +455,7 @@ export class InvestorEnrichmentService {
     
     try {
       // 1. Check VC's own RSS feed
-      const vcInfo = VC_WEBSITES[investorName];
+      const { config: vcInfo } = this.getVcConfig(investorName);
       if (vcInfo?.rssUrl) {
         const rssNews = await this.scrapeRSSFeed(vcInfo.rssUrl, investorName);
         news.push(...rssNews);

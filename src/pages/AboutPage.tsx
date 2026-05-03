@@ -61,7 +61,9 @@ export default function AboutPage() {
               <span className="text-white font-medium">pythh.ai</span> is the modern oracle. 
               We read the signals that investors emit — deployment patterns, sector shifts, 
               portfolio gaps, timing cues — and translate them into actionable intelligence. 
-              Not prophecy. <span className="text-white">Signal science.</span>
+              Today that shows up as <span className="text-white">Pythh Capital</span>: fundraising intelligence 
+              (live analysis + the <span className="text-white">Fundraising Brief</span>) so you see who to pitch first, why they fit, and how to respond—not prophecy.{' '}
+              <span className="text-white">Signal science.</span>
             </p>
           </div>
         </div>
@@ -82,8 +84,8 @@ export default function AboutPage() {
                 desc: "Every startup is evaluated across five dimensions: Team, Traction, Market, Product, and Vision. The composite score (0–100) determines match quality and investor fit.",
               },
               {
-                title: "AI-Powered Matching",
-                desc: "Our matching engine pairs startups with investors based on thesis alignment, stage fit, sector overlap, and timing signals. Not spray-and-pray — precision targeting.",
+                title: "AI-Powered matching",
+                desc: "Rank investors by likelihood and fit from behavior and signals—then layer outreach angles so lists become leverage.",
               },
               {
                 title: "Founder Timing",

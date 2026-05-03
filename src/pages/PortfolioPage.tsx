@@ -75,6 +75,18 @@ interface PortfolioEntry {
   goldilocks_maturity_gap?: number | null;
   in_goldilocks_god_zone?: boolean;
   goldilocks_alignment?: 'unknown' | 'thin_signals' | 'ahead_of_god' | 'aligned' | string;
+  /** Heuristic M&A / strategic exit propensity (not a securities forecast) */
+  exit_propensity_score?: number | null;
+  exit_propensity_confidence?: number | null;
+  exit_propensity_tier?: string | null;
+  exit_propensity_breakdown?: {
+    market_strategic_fit?: number;
+    traction_momentum?: number;
+    stage_readiness?: number;
+    strategic_visibility?: number;
+    labels?: Record<string, string>;
+  } | null;
+  exit_propensity_at?: string | null;
 }
 
 interface PortfolioMetrics {
@@ -109,6 +121,15 @@ function godBadgeColor(score: number): string {
   if (score >= 85) return 'text-emerald-400 border-emerald-400/50';
   if (score >= 70) return 'text-cyan-400 border-cyan-400/50';
   return 'text-white/50 border-white/20';
+}
+
+function exitPropensityChipClass(tier: string | null | undefined): string {
+  const t = (tier || '').toLowerCase();
+  if (t === 'high') return 'border-emerald-400/60 text-emerald-300';
+  if (t === 'elevated') return 'border-cyan-400/55 text-cyan-300';
+  if (t === 'moderate') return 'border-white/25 text-white/60';
+  if (t === 'low') return 'border-white/15 text-white/40';
+  return 'border-white/20 text-white/50';
 }
 
 function statusChip(status: string) {
@@ -442,6 +463,18 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
               {entry.latest_round_type} {entry.latest_round_post_money ? `· ${formatUSD(entry.latest_round_post_money)}` : ''}
             </span>
           )}
+
+          {entry.status === 'active' &&
+            entry.exit_propensity_score != null &&
+            entry.exit_propensity_tier &&
+            !['realized', 'n_a'].includes(String(entry.exit_propensity_tier)) && (
+              <span
+                className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${exitPropensityChipClass(entry.exit_propensity_tier)}`}
+                title={`Strategic exit propensity (heuristic): ${entry.exit_propensity_score}/100. Confidence ${entry.exit_propensity_confidence != null ? Math.round(entry.exit_propensity_confidence * 100) : '—'}%. Not a prediction of any transaction.`}
+              >
+                Exit propensity {entry.exit_propensity_score} · {entry.exit_propensity_tier}
+              </span>
+            )}
         </div>
 
         {/* Tagline */}

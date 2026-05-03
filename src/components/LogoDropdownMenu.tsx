@@ -192,14 +192,23 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
               </span>
             </Link>
 
-            {/* Right side: Sign in + Hamburger */}
+            {/* Right side: Account or Sign in + Hamburger */}
             <div className="flex items-center gap-3">
-              <Link
-                to={loginTo}
-                className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/5 hover:text-white transition"
-              >
-                Sign in
-              </Link>
+              {isLoggedIn ? (
+                <Link
+                  to="/account"
+                  className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-sm font-medium text-white/85 hover:bg-white/5 hover:text-white transition"
+                >
+                  Account
+                </Link>
+              ) : (
+                <Link
+                  to={loginTo}
+                  className="rounded-full border border-white/10 bg-transparent px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/5 hover:text-white transition"
+                >
+                  Sign in
+                </Link>
+              )}
               <button
                 onClick={() => (isOpen ? handleClose() : handleOpen())}
                 className="rounded-xl border border-white/10 bg-white/5 p-2 text-white/80 hover:bg-white/10 hover:text-white transition"
@@ -255,8 +264,12 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
               
               {isLoggedIn ? (
                 <>
+                  <SectionLabel>Account</SectionLabel>
+                  <MenuItem to="/account" label="Account" sub="Profile, admin access, settings" onClose={handleClose} />
+                  <MenuItem to="/profile" label="Founder profile" sub="Signals, matches, next steps" onClose={handleClose} />
+                  <MenuItem to="/settings" label="Settings" sub="Preferences & notifications" onClose={handleClose} />
+                  <div className="h-px bg-white/10 my-2" />
                   <MenuItem to="/app/oracle" label="Pythh Oracle" sub="Signal coaching & VC alignment" onClose={handleClose} />
-                  <MenuItem to="/profile" label="Dashboard" sub="Signals, matches, actions" onClose={handleClose} />
                   {userRole === 'investor' && (
                     <MenuItem to="/investor/dashboard" label="Observatory" sub="Discovery flow & quality drift" onClose={handleClose} />
                   )}
@@ -281,16 +294,14 @@ export default function LogoDropdownMenu({ onPythClick, externalOpen, onOpenChan
                 </button>
               )}
 
-              {/* Admin Section */}
+              {/* Admin — single entry; full tools live under /admin */}
               {isAdmin && (
                 <>
                   <div className="h-px bg-amber-500/20 my-2" />
                   <div className="text-[9px] text-amber-500/70 uppercase tracking-widest px-4 py-1">
                     Operator
                   </div>
-                  <MenuItem to="/admin/control" label="Control" sub="System settings" onClose={handleClose} />
-                  <MenuItem to="/admin/health" label="Health" sub="System status" onClose={handleClose} />
-                  <MenuItem to="/admin/scrapers" label="Pipelines" sub="Data flows" onClose={handleClose} />
+                  <MenuItem to="/admin" label="Admin panel" sub="Review queue, RSS, health, scrapers" onClose={handleClose} />
                 </>
               )}
 

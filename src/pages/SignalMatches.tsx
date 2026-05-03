@@ -16,7 +16,7 @@
 // ============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -500,6 +500,10 @@ export default function SignalMatches() {
   }
 
   if (uiState.mode === 'missing_context') {
+    // Inside /app, the hub is Signals Dashboard — avoid duplicating the public /signal-matches marketing hero.
+    if (isInApp) {
+      return <Navigate to="/app/signals-dashboard" replace />;
+    }
     return (
       <PageShell isInApp={isInApp} onRefresh={handleRefresh} tableLoading={tableLoading}>
         <PythhAnalyzeEntryHero />

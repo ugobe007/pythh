@@ -38,6 +38,7 @@ export const ROUTES = {
   // User Pages
   SIGNUP: '/signup',
   LOGIN: '/login',
+  ACCOUNT: '/account',
   PROFILE: '/profile',
   FEED: '/feed',
   PORTFOLIO: '/portfolio',

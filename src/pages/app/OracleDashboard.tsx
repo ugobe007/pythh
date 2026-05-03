@@ -55,6 +55,7 @@ import {
 } from '../../components/OracleMilestones';
 import { OracleScribe } from '../../components/OracleScribe';
 import { supabase } from '../../lib/supabase';
+import { ORACLE_STEPS } from '../../services/oracleService';
 
 interface Milestone {
   id: string;

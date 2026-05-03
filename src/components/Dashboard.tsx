@@ -214,8 +214,8 @@ const Dashboard: React.FC = () => {
                   <p className="text-sm text-gray-400">Level up your investor game</p>
                 </div>
               </div>
-              <Link to="/profile" className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg text-sm font-medium transition-all">
-                View Profile
+              <Link to="/account" className="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg text-sm font-medium transition-all">
+                Account
               </Link>
             </div>
 

@@ -9,9 +9,10 @@
  *                          Pulls feeds → parses frames → inserts events +
  *                          startup_uploads rows with initial GOD score.
  *
- *   2. RSS enrichment      enrich-from-rss-news.js
+ *   2. RSS enrichment      enrich-from-rss-news.js --all --gate-exclude-junk
  *                          Fills web_signals, press_tier, reddit mentions,
- *                          extracted_data from news context.
+ *                          extracted_data from news context. Skips entity_gate=junk
+ *                          only (aligned with ENRICHMENT_STAGES.md RSS guidance).
  *
  *   3. Promote fields      promote-extracted-fields.js --apply
  *                          Moves stranded JSONB values (customer_count,
@@ -46,8 +47,8 @@
  *   node scripts/cron/signal-pipeline.js --enrich-only # Steps 2-7 (skip RSS)
  *   node scripts/cron/signal-pipeline.js --score-only  # Steps 6-7 only
  *
- * Schedule (PM2 ecosystem.config.js or system cron):
- *   cron_restart: '0 */4 * * *'   # Every 4 hours
+ * Schedule (PM2 ecosystem.config.js or system cron): every 4 hours
+ *   (crontab uses 0 star-slash-4 — see ecosystem.config.js, not repeated here)
  */
 
 'use strict';
@@ -110,7 +111,7 @@ async function main() {
     // ── 2. RSS Enrichment ─────────────────────────────────────────────────────
     if (!scoreOnly) {
       section('2️⃣ ', 'Enrich from RSS news → web_signals, press_tier, extracted_data');
-      await run('node', ['scripts/enrich-from-rss-news.js', '--all'], 'enrich-from-rss-news');
+      await run('node', ['scripts/enrich-from-rss-news.js', '--all', '--gate-exclude-junk'], 'enrich-from-rss-news');
     }
 
     // ── 3. Promote extracted fields → canonical root columns ──────────────────

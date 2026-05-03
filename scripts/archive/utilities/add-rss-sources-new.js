@@ -2,7 +2,7 @@ require('dotenv').config();
 const s = require('@supabase/supabase-js').createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 const newSources = [
-  { name: 'Axios Pro Rata', url: 'https://www.axios.com/pro-rata', category: 'funding', active: true },
+  { name: 'Axios Pro Rata', url: 'https://www.axios.com/feeds/feed.rss', category: 'funding', active: true },
   { name: 'The Information', url: 'https://www.theinformation.com/feed', category: 'funding', active: true },
   { name: 'PitchBook News', url: 'https://pitchbook.com/news/feed', category: 'funding', active: true },
   { name: 'Silicon Valley Business Journal', url: 'https://www.bizjournals.com/sanjose/news/feed', category: 'funding', active: true },

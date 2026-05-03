@@ -32,6 +32,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
+const GOD_SCORE_ERROR_LOG_CAP = Math.max(0, Number(process.env.GOD_SCORE_ERROR_LOG_CAP || 12));
+let godScoreErrorLogCount = 0;
+
 // Import inference extractor for structured data extraction
 let extractInferenceData, assessConfidence;
 try {
@@ -788,7 +791,15 @@ async function saveStartup(startup) {
       godScores = calculateGODScore(startupForScoring);
       console.log(`   🔥 GOD Score: ${startup.name} → ${godScores.total_god_score}/100`);
     } catch (scoreErr) {
-      console.log(`   ⚠️  GOD Score failed for ${startup.name}: ${scoreErr.message}`);
+      godScoreErrorLogCount += 1;
+      const verbose = process.env.VERBOSE_GOD_SCORING === '1';
+      if (verbose || GOD_SCORE_ERROR_LOG_CAP === 0 || godScoreErrorLogCount <= GOD_SCORE_ERROR_LOG_CAP) {
+        console.log(`   ⚠️  GOD Score failed for ${startup.name}: ${scoreErr.message}`);
+      } else if (godScoreErrorLogCount === GOD_SCORE_ERROR_LOG_CAP + 1) {
+        console.log(
+          `   ⚠️  … further GOD Score errors suppressed (${GOD_SCORE_ERROR_LOG_CAP}/run; VERBOSE_GOD_SCORING=1 or GOD_SCORE_ERROR_LOG_CAP=0 for all)`
+        );
+      }
     }
     
     // Insert new startup with inference data + REAL GOD score

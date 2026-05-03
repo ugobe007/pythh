@@ -8,6 +8,10 @@
  *   node scripts/prod-health.js                         # defaults to https://pythh.ai
  *   node scripts/prod-health.js --url https://pythh.ai  # custom URL
  *   node scripts/prod-health.js --verbose               # show response bodies
+ *   node scripts/prod-health.js --strict                # fail on hot-matches empty, low match count, stale 24h
+ *
+ * If /api/health warns "non-JSON", the default host may be the SPA (e.g. Vercel) not the API.
+ * Set PROD_HEALTH_API_BASE=https://<your-api-origin> or pass --url <api-origin>.
  *
  * Exit codes:
  *   0 = all checks pass (or warn-only)
@@ -16,14 +20,20 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { fetchAllPages } = require('./lib/supabasePaginate');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const args   = process.argv.slice(2);
 const urlArg = args.find(a => a.startsWith('--url='))?.split('=')[1]
              || (args.includes('--url') ? args[args.indexOf('--url') + 1] : null);
 const VERBOSE = args.includes('--verbose') || args.includes('-v');
+const STRICT = args.includes('--strict');
 
-const BASE_URL = (urlArg || 'https://pythh.ai').replace(/\/$/, '');
+const BASE_URL = (
+  urlArg ||
+  process.env.PROD_HEALTH_API_BASE ||
+  'https://pythh.ai'
+).replace(/\/$/, '');
 const TIMEOUT  = 10_000; // ms per request
 
 // ── Colors ───────────────────────────────────────────────────────────────────
@@ -80,14 +90,21 @@ async function get(path, opts = {}) {
 async function checkCoreApi() {
   section('Core API');
 
-  // /api/health
+  // /api/health (200 + non-JSON body is common behind CDNs — do not treat as hard fail)
   const h = await get('/api/health');
-  if (h.ok && h.body?.status === 'ok') {
-    pass('/api/health', `${h.ms}ms · DB connected`);
-  } else if (h.ok && h.body?.status === 'degraded') {
-    warn('/api/health', `degraded — ${h.body?.database?.error ?? 'unknown'}`);
-  } else {
+  if (!h.ok) {
     fail('/api/health', h.error ?? `HTTP ${h.status}`);
+  } else if (h.body?.status === 'ok') {
+    pass('/api/health', `${h.ms}ms · DB connected`);
+  } else if (h.body?.status === 'degraded') {
+    warn('/api/health', `degraded — ${h.body?.database?.error ?? 'unknown'} · ${h.ms}ms`);
+  } else if (h.body?.database?.connected === true) {
+    pass('/api/health', `${h.ms}ms · DB reachable`);
+  } else {
+    warn(
+      '/api/health',
+      `HTTP ${h.status} — unexpected body (${h.body == null ? 'empty or non-JSON' : JSON.stringify(h.body).slice(0, 120)})`
+    );
   }
 
   // /api/engine/status
@@ -121,8 +138,10 @@ async function checkMatchEngine() {
       pass('/api/hot-matches', `${matches.length} matches returned · ${hm.ms}ms`);
     } else if (matches.length > 0) {
       warn('/api/hot-matches', `only ${matches.length} matches (expected ≥5) · ${hm.ms}ms`);
-    } else {
+    } else if (STRICT) {
       fail('/api/hot-matches', 'no matches returned');
+    } else {
+      warn('/api/hot-matches', 'no matches returned (use --strict to fail)');
     }
 
     // Validate shape of first match
@@ -197,7 +216,10 @@ async function checkDatabase() {
   section('Database');
 
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const key =
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     warn('Supabase env vars not set — skipping DB checks');
@@ -206,28 +228,38 @@ async function checkDatabase() {
 
   const sb = createClient(url, key);
 
-  // Startup count + GOD score
+  // Startup count + GOD score (paginate — PostgREST caps a single response at ~1000 rows)
   try {
-    const { data, error, count } = await sb
+    const { count: totalApproved, error: countErr } = await sb
       .from('startup_uploads')
-      .select('total_god_score', { count: 'exact' })
+      .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
+    if (countErr) throw countErr;
+    const total = totalApproved ?? 0;
 
-    if (error) throw error;
-    const total = count ?? data?.length ?? 0;
-    const avg   = data?.length
-      ? Math.round(data.reduce((s, r) => s + (r.total_god_score ?? 0), 0) / data.length)
+    const godRows = await fetchAllPages((from, to) =>
+      sb.from('startup_uploads').select('total_god_score').eq('status', 'approved').range(from, to)
+    );
+
+    const scored = godRows
+      .map((r) => r.total_god_score)
+      .filter((v) => v != null && v !== '' && !Number.isNaN(Number(v)))
+      .map(Number);
+    const avg = scored.length
+      ? Math.round(scored.reduce((s, v) => s + v, 0) / scored.length)
       : 0;
-    const atFloor = data?.filter(r => r.total_god_score <= 41).length ?? 0;
-    const pctFloor = total ? Math.round((atFloor / total) * 100) : 0;
+    const atFloor = scored.filter((v) => v <= 41).length;
+    const pctFloor = scored.length ? Math.round((atFloor / scored.length) * 100) : 0;
 
     if (total > 5000) {
-      pass(`startups (approved)`, `${total.toLocaleString()} · avg GOD ${avg}`);
+      pass(`startups (approved)`, `${total.toLocaleString()} · avg GOD ${avg} (${scored.length} scored)`);
     } else {
       warn(`startups (approved)`, `only ${total.toLocaleString()} (expected >5000)`);
     }
 
-    if (avg >= 52) {
+    if (!scored.length) {
+      warn(`GOD score avg`, 'no numeric total_god_score on approved rows — run recalculate-scores');
+    } else if (avg >= 52) {
       pass(`GOD score avg`, `${avg} (target ≥52)`);
     } else if (avg >= 45) {
       warn(`GOD score avg`, `${avg} — below target of 52`);
@@ -235,8 +267,10 @@ async function checkDatabase() {
       fail(`GOD score avg`, `${avg} — critically low (target ≥52)`);
     }
 
-    if (pctFloor > 60) {
-      fail(`GOD score floor bunching`, `${pctFloor}% of startups at/near floor (≤41)`);
+    if (!scored.length) {
+      warn(`GOD score distribution`, 'skipped — no scores');
+    } else if (pctFloor > 60) {
+      fail(`GOD score floor bunching`, `${pctFloor}% of scored startups at/near floor (≤41)`);
     } else if (pctFloor > 40) {
       warn(`GOD score floor bunching`, `${pctFloor}% at floor`);
     } else {
@@ -270,8 +304,12 @@ async function checkDatabase() {
       pass('matches', `${(count).toLocaleString()} total`);
     } else if ((count ?? 0) > 50_000) {
       warn('matches', `${(count ?? 0).toLocaleString()} — lower than expected (>500k)`);
-    } else {
+    } else if ((count ?? 0) >= 10_000) {
+      warn('matches', `${(count ?? 0).toLocaleString()} — below 50k (use --strict to fail)`);
+    } else if (STRICT) {
       fail('matches', `only ${(count ?? 0).toLocaleString()} — match engine may need regeneration`);
+    } else {
+      warn('matches', `only ${(count ?? 0).toLocaleString()} — very low (strict mode would fail)`);
     }
   } catch (err) {
     fail('startup_investor_matches query', err.message);
@@ -288,8 +326,10 @@ async function checkDatabase() {
       pass('data freshness (last 24h)', `${count} new startups ingested`);
     } else if ((count ?? 0) > 0) {
       warn('data freshness (last 24h)', `only ${count} new startups — scraper may be slow`);
-    } else {
+    } else if (STRICT) {
       fail('data freshness (last 24h)', 'no new startups in 24h — scraper likely down');
+    } else {
+      warn('data freshness (last 24h)', 'no new startups in 24h (use --strict to fail)');
     }
   } catch (err) {
     fail('freshness check', err.message);

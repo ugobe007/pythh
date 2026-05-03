@@ -33,10 +33,44 @@ const { parseSignal } = require('../../lib/signalParser');
 const { calculateHotScore } = require('../../server/services/startupScoringService.ts');
 // Shared URL validation — import as PUBLISHER_DOMAINS to keep existing usages unchanged
 const { JUNK_DOMAINS: PUBLISHER_DOMAINS, isJunkUrl } = require('../../lib/junk-url-config');
+const { isVcNewsDailyHomepageUrl, fetchVcNewsDailyHomepageItems } = require('../../lib/vcNewsDailyHomepage');
 // Canonical shared validator (single source of truth for name quality)
 const { isValidStartupName } = require('../../lib/startupNameValidator');
 // RSS headline + publisher gate (reduces noise in startup_events — see lib/source-quality-filter.js)
 const sourceQuality = require('../../lib/source-quality-filter');
+
+/** Cap per-process GOD scorer error lines (set GOD_SCORE_ERROR_LOG_CAP=0 for unlimited; VERBOSE_GOD_SCORING=1 ignores cap). */
+const GOD_SCORE_ERROR_LOG_CAP = Math.max(0, Number(process.env.GOD_SCORE_ERROR_LOG_CAP || 12));
+let godScoreErrorLogCount = 0;
+
+/** Extra-high-volume feeds: use half the sample rate vs other publishers (still in sample mode only). */
+function isNoisyGraphJoinSource(sourceName, sourceUrl) {
+  const n = String(sourceName || '').toLowerCase();
+  const u = String(sourceUrl || '').toLowerCase();
+  return (
+    n.includes('google news')
+    || u.includes('news.google.com')
+    || n.includes('vc news daily')
+    || u.includes('vcnewsdaily.com')
+  );
+}
+
+function graphJoinDetailLogMode() {
+  const explicit = process.env.RSS_NAME_LOOKUP_LOG;
+  if (explicit === 'off') return 'off';
+  if (explicit === 'full' || process.env.RSS_SCRAPER_DEBUG === '1') return 'full';
+  return 'sample';
+}
+
+function shouldLogGraphJoinDetail(sourceName, sourceUrl) {
+  const mode = graphJoinDetailLogMode();
+  if (mode === 'off') return false;
+  if (mode === 'full') return true;
+  // Sample mode: throttle for *all* feeds (TechCrunch, etc. were still flooding at 100%).
+  const base = Math.min(1, Math.max(0, Number(process.env.RSS_NAME_LOOKUP_SAMPLE_RATE || 0.08)));
+  const rate = isNoisyGraphJoinSource(sourceName, sourceUrl) ? base * 0.5 : base;
+  return Math.random() < rate;
+}
 
 /**
  * Transform a startup row into a scoring profile (matches recalculate-scores.ts SSOT).
@@ -241,6 +275,7 @@ const RATE_LIMIT_CONFIG = {
     'hacker news': 45000,
     'fortune': 15000,
     'wired': 10000,
+    'vc news daily': 8000,
   }
 };
 
@@ -268,6 +303,26 @@ function recordMetric(category, reason) {
     metrics[category][reason] = 0;
   }
   metrics[category][reason]++;
+}
+
+/** Some feeds (Atom / Fierce Biotech–style) emit `link` or `content` as objects — coercing avoids template-literal / URL throws. */
+function coerceRssText(val) {
+  if (val == null) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'object') {
+    if (typeof val.href === 'string') return val.href;
+    if (typeof val.url === 'string') return val.url;
+    if (typeof val._ === 'string') return val._;
+    if (typeof val['#text'] === 'string') return val['#text'];
+    if (typeof val.content === 'string') return val.content;
+    if (Array.isArray(val) && val.length) return coerceRssText(val[0]);
+  }
+  try {
+    return String(val);
+  } catch {
+    return '';
+  }
 }
 
 async function scrapeRssFeeds() {
@@ -326,17 +381,23 @@ async function scrapeRssFeeds() {
     console.log(`   ${source.url}`);
     
     try {
-      // Create fresh parser with random UA for each request (with optional proxy)
-      const parser = createParser(source.url);
-      
-      const feedPromise = parser.parseURL(source.url);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Feed timeout')), 30000)
-      );
-      
-      const feed = await Promise.race([feedPromise, timeoutPromise]);
-      const items = feed.items?.slice(0, 50) || [];
-      
+      let items;
+
+      if (isVcNewsDailyHomepageUrl(source.url)) {
+        // Site has no stable RSS; homepage cards are scraped into RSS-shaped items.
+        console.log('   (HTML homepage — VC News Daily synthetic feed)');
+        const rawItems = await fetchVcNewsDailyHomepageItems({ userAgent: getRandomUserAgent() });
+        items = rawItems.slice(0, 50);
+      } else {
+        const parser = createParser(source.url);
+        const feedPromise = parser.parseURL(source.url);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Feed timeout')), 30000)
+        );
+        const feed = await Promise.race([feedPromise, timeoutPromise]);
+        items = feed.items?.slice(0, 50) || [];
+      }
+
       console.log(`   Found ${items.length} items`);
       recordSourceSuccess(source.url); // Track success
       
@@ -347,16 +408,19 @@ async function scrapeRssFeeds() {
       for (const item of items) {
         metrics.rss_items_total++;
         
-        if (!item.title || !item.link) {
+        const linkStr = coerceRssText(item.link).trim();
+        const titleRaw = coerceRssText(item.title);
+        if (!titleRaw || !linkStr) {
           rejected++;
           continue;
         }
         
         // PHASE 1: PARSER DECIDES (SSOT)
         // ==============================
+        const titleForFrame = titleRaw;
         let frame, event;
         try {
-          frame = parseFrameFromTitle(item.title);
+          frame = parseFrameFromTitle(titleForFrame);
           if (!frame) {
             rejected++;
             recordMetric('reject_reasons', 'no_frame_match');
@@ -366,8 +430,8 @@ async function scrapeRssFeeds() {
           event = toCapitalEvent(
             frame,
             source.name,
-            item.link,
-            item.title,
+            linkStr,
+            titleForFrame,
             item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString()
           );
         } catch (err) {
@@ -385,7 +449,7 @@ async function scrapeRssFeeds() {
         }
 
         // Source quality (noisy publishers, non-startup headlines, big-tech fluff)
-        const sq = sourceQuality.shouldProcessEvent(item.title, source.name);
+        const sq = sourceQuality.shouldProcessEvent(titleForFrame, source.name);
         if (!sq.keep) {
           rejected++;
           recordMetric('source_quality', sq.reason);
@@ -397,7 +461,8 @@ async function scrapeRssFeeds() {
         // Non-blocking — failures are silently ignored so a bad parse never
         // breaks the scrape. Results are merged into event semantic_context and
         // startup extracted_data for the Signal Feed and scoring engine.
-        const articleText = `${item.title} ${item.contentSnippet || item.content || ''}`.slice(0, 2000);
+        const bodySnippet = coerceRssText(item.contentSnippet || item.content);
+        const articleText = `${titleForFrame} ${bodySnippet}`.slice(0, 2000);
         let pythhSignal = null;
         try { pythhSignal = parseSignal(articleText); } catch (_e) { /* silent */ }
 
@@ -472,18 +537,18 @@ async function scrapeRssFeeds() {
           // SANITIZE: strip location/category prefixes before any lookup or validation
           const rawName = primaryEntity.name;
           primaryEntity.name = sanitizeStartupName(primaryEntity.name);
-          if (primaryEntity.name !== rawName) {
+          if (primaryEntity.name !== rawName && shouldLogGraphJoinDetail(source.name, source.url)) {
             console.log(`   🧹 Name sanitized: "${rawName}" → "${primaryEntity.name}"`);
           }
           
           // Try to create graph join into startup_uploads
           try {
             // Try extracting website from article link first
-            let website = extractWebsite(item.link, item.content);
+            let website = extractWebsite(linkStr, bodySnippet);
             
             // If article link is a publisher, try to find company URL in content
-            if (!website && (item.content || item.contentSnippet)) {
-              website = extractCompanyUrlFromContent(item.content || item.contentSnippet, primaryEntity.name);
+            if (!website && bodySnippet) {
+              website = extractCompanyUrlFromContent(bodySnippet, primaryEntity.name);
             }
             
             // STRATEGY: Try website-based match first, then name-based match
@@ -500,17 +565,19 @@ async function scrapeRssFeeds() {
               existing = result.data;
               existingError = result.error;
             } else {
-              // FALLBACK: No website found — use name-based dedup
-              // This handles the common case where article is on publisher domain
+              // FALLBACK: No website — match any existing row by exact name (name is globally unique).
+              // Previously we only matched source_type=rss, which missed manual/import rows and caused
+              // duplicate key violations on startup_uploads_name_unique.
               const result = await supabase
                 .from('startup_uploads')
                 .select('id')
                 .eq('name', primaryEntity.name)
-                .eq('source_type', 'rss')
-                .single();
+                .maybeSingle();
               existing = result.data;
               existingError = result.error;
-              console.log(`   🔍 Name-based lookup for "${primaryEntity.name}" (no website found)`);
+              if (shouldLogGraphJoinDetail(source.name, source.url)) {
+                console.log(`   🔍 Name-based lookup for "${primaryEntity.name}" (no website found)`);
+              }
             }
 
             let startupRow = existing;
@@ -527,7 +594,7 @@ async function scrapeRssFeeds() {
               }
               
               // === V2 INFERENCE + REAL GOD SCORING ===
-              const articleText = `${primaryEntity.name} ${event.source.title} ${item.contentSnippet || item.content || ''}`; // eslint-disable-line no-shadow
+              const articleText = `${primaryEntity.name} ${event.source.title} ${bodySnippet}`; // eslint-disable-line no-shadow
               let extractedData = {};
               let inferredSectors = detectSectors(event.source.title);
               let godScores = {};
@@ -564,7 +631,15 @@ async function scrapeRssFeeds() {
                 godScores = calculateGODScore(startupForScoring);
                 console.log(`   🔥 GOD Score: ${primaryEntity.name} → ${godScores.total_god_score}/100`);
               } catch (scoreErr) {
-                console.log(`   ⚠️  GOD Score failed for ${primaryEntity.name}: ${scoreErr.message}`);
+                godScoreErrorLogCount += 1;
+                const verbose = process.env.VERBOSE_GOD_SCORING === '1';
+                if (verbose || GOD_SCORE_ERROR_LOG_CAP === 0 || godScoreErrorLogCount <= GOD_SCORE_ERROR_LOG_CAP) {
+                  console.log(`   ⚠️  GOD Score failed for ${primaryEntity.name}: ${scoreErr.message}`);
+                } else if (godScoreErrorLogCount === GOD_SCORE_ERROR_LOG_CAP + 1) {
+                  console.log(
+                    `   ⚠️  … further GOD Score errors suppressed (${GOD_SCORE_ERROR_LOG_CAP}/run; VERBOSE_GOD_SCORING=1 or GOD_SCORE_ERROR_LOG_CAP=0 for all)`
+                  );
+                }
                 godScores = { total_god_score: 50 }; // Fallback only on error — treated as pending
               }
 
@@ -585,7 +660,7 @@ async function scrapeRssFeeds() {
                                   :                                 'holding';
               
               // Create new startup with v2 inference data + real GOD score + Pythh signals
-              const { data: newRow, error: err } = await supabase
+              let { data: newRow, error: err } = await supabase
                 .from('startup_uploads')
                 .insert({
                   name: primaryEntity.name,
@@ -613,13 +688,28 @@ async function scrapeRssFeeds() {
                 })
                 .select('id')
                 .single();
-              
-              if (startupStatus === 'approved') {
-                console.log(`   ✅ Auto-approved: ${primaryEntity.name} (GOD: ${score})`);
-              } else if (startupStatus === 'pending') {
-                console.log(`   ⏳ Pending review: ${primaryEntity.name} (GOD: ${score} — ${FLOOR}–${AUTO_APPROVE_THRESHOLD - 1} range)`);
-              } else {
-                console.log(`   🔒 Holding (30-day data collection): ${primaryEntity.name} (GOD: ${score} < ${FLOOR})`);
+
+              if (err && (err.code === '23505' || String(err.message || '').includes('startup_uploads_name_unique'))) {
+                const { data: dupRow } = await supabase
+                  .from('startup_uploads')
+                  .select('id')
+                  .eq('name', primaryEntity.name)
+                  .maybeSingle();
+                if (dupRow) {
+                  newRow = dupRow;
+                  err = null;
+                  console.log(`   🔗 Graph join: existing startup "${primaryEntity.name}" (name unique)`);
+                }
+              }
+
+              if (!err) {
+                if (startupStatus === 'approved') {
+                  console.log(`   ✅ Auto-approved: ${primaryEntity.name} (GOD: ${score})`);
+                } else if (startupStatus === 'pending') {
+                  console.log(`   ⏳ Pending review: ${primaryEntity.name} (GOD: ${score} — ${FLOOR}–${AUTO_APPROVE_THRESHOLD - 1} range)`);
+                } else {
+                  console.log(`   🔒 Holding (30-day data collection): ${primaryEntity.name} (GOD: ${score} < ${FLOOR})`);
+                }
               }
               startupRow = newRow;
               startupError = err;
@@ -798,6 +888,12 @@ function sanitizeStartupName(name) {
   //          "Analog chipmaker", "Payment infrastructure provider", "Wearable tech company"
   n = n.replace(/^(?:[A-Za-z][A-Za-z0-9\-/]+\s+){0,3}(?:startup|company|firm|platform|chipmaker|provider|maker|developer|builder|unicorn|venture)\s+/i, '');
 
+  // Trailing PR verbs (wire headlines: "Acme Announces $10M", "HYFIX Announces $15M Seed")
+  n = n.replace(
+    /\s+(Announces?|Secures?|Raises?|Closes?|Pulls?\s+In|Pulls?\s+in|Nabs?|Snares?|Scores?|Lands?|Inks?|Emerges?|Receives?)\s*$/i,
+    ''
+  );
+
   n = n.trim();
 
   // Safety: if sanitization wiped the whole string, return the original trimmed name
@@ -814,11 +910,12 @@ function sanitizeStartupName(name) {
 // Helper: Extract company URL from article content (HTML)
 // When the article link is a publisher domain, look inside the content for company URLs
 function extractCompanyUrlFromContent(content, entityName) {
-  if (!content) return '';
+  const html = coerceRssText(content);
+  if (!html) return '';
   try {
     // Look for href links in HTML content that aren't publisher domains
     const hrefPattern = /href=["'](https?:\/\/[^"'\s]+)["']/gi;
-    const matches = [...content.matchAll(hrefPattern)];
+    const matches = [...html.matchAll(hrefPattern)];
     
     for (const match of matches) {
       try {

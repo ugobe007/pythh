@@ -20,10 +20,14 @@
  * full extended sources on overnight jobs only.
  * HTML-only outer timeout: SPARSE_ENRICH_HTML_PER_STARTUP_TIMEOUT_MS (default 120s) — inferDomain + fetch + extractInferenceData.
  *
- * --no-url-only     Only target startups with no website OR company_website field.
- * --include-holding Also include startups in 'holding' (3+ failed attempts). Use to retry after fixing issues.
- * --run-all         Loop until no sparse startups remain. Uses --limit per chunk (default 200).
- * --html-only       Skip Google News RSS (use when blocked). Enriches from website HTML + infers URL from name when missing.
+ * --no-url-only       Only target startups with no website OR company_website field.
+ *                     Automatically skips entity_gate=junk rows at the DB level so no time is wasted on junk names.
+ *                     Also skip entity_gate=qualified rows (they already have a URL, no point in URL discovery).
+ * --gate-needs-url-only  Stricter variant: only rows explicitly labeled entity_gate=needs_url by entity-resolution-gate.js.
+ *                        Use after running `node scripts/entity-resolution-gate.js --execute` to target the exact needs_url set.
+ * --include-holding  Also include startups in 'holding' (3+ failed attempts). Use to retry after fixing issues.
+ * --run-all          Loop until no sparse startups remain. Uses --limit per chunk (default 200).
+ * --html-only        Skip Google News RSS (use when blocked). Enriches from website HTML + infers URL from name when missing.
  * --god-score-below=N  Only rows with total_god_score < N (default 70). Raise N (e.g. 85) when the queue is empty but you still want to enrich.
  */
 
@@ -39,6 +43,11 @@ const { getResolved: getInferenceConfig } = require('../lib/inferencePipelineCon
 const { isJunkUrl } = require('../lib/junk-url-config');
 const { isGarbage } = require('./cleanup-garbage');
 const { ontologyJunkReason } = require('../lib/pendingNameOntology');
+const {
+  mlLogEnabled,
+  insertEntityGateMlEventsBatch,
+  buildRowFromSnapshot,
+} = require('../lib/nameGateMlLogger');
 
 // ============================================================================
 // CONCURRENCY — 1 when hitting Google News (rate-limited), 4 when html-only
@@ -322,15 +331,28 @@ function scoreBelowCeiling(score, ceiling) {
 }
 
 async function runOneChunk(opts) {
-  const { limit, dryRun, noUrlOnly, includeHolding, htmlOnly, godScoreBelow } = opts;
+  const { limit, dryRun, noUrlOnly, gateNeedsUrlOnly, includeHolding, htmlOnly, godScoreBelow, requireSignal } = opts;
+
+  const excludeEntityJunk = process.env.SPARSE_ENRICH_EXCLUDE_ENTITY_JUNK === '1';
 
   const buildQuery = () => {
     let q = supabase
       .from('startup_uploads')
-      .select('id, name, website, company_website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since')
+      .select('id, name, website, company_website, pitch, sectors, stage, raise_amount, raise_type, customer_count, mrr, arr, team_size, location, total_god_score, extracted_data, enrichment_attempts, enrichment_status, holding_since, entity_gate')
       .eq('status', 'approved');
 
-    if (noUrlOnly) {
+    if (gateNeedsUrlOnly) {
+      // Strictest: only rows explicitly labeled needs_url by entity-resolution-gate --execute
+      q = q.eq('entity_gate', 'needs_url');
+    } else if (noUrlOnly) {
+      // --no-url-only automatically excludes junk (no point probing URLs for junk names)
+      // and excludes qualified (they already have a URL, won't appear in no-url cohort anyway but explicit is cheaper)
+      q = q.or('entity_gate.is.null,entity_gate.eq.needs_url');
+    } else if (excludeEntityJunk) {
+      q = q.or('entity_gate.is.null,entity_gate.eq.needs_url,entity_gate.eq.qualified');
+    }
+
+    if (noUrlOnly || gateNeedsUrlOnly) {
       q = q
         .is('website', null)
         .is('company_website', null)
@@ -357,7 +379,7 @@ async function runOneChunk(opts) {
     return { processed: 0, enriched: 0, noData: 0, errors: 0 };
   }
 
-  let sparseStartups = noUrlOnly
+  let sparseStartups = (noUrlOnly || gateNeedsUrlOnly)
     ? startups.filter(s => scoreBelowCeiling(s.total_god_score, godScoreBelow)).slice(0, limit)
     : startups.filter(s => {
         const { phase } = classifyDataRichness(s);
@@ -377,8 +399,29 @@ async function runOneChunk(opts) {
     );
   }
 
-  const modeLabel = noUrlOnly
-    ? `no URL, score < ${godScoreBelow}`
+  // Signal filter: sectors, stage, team_size are auto-assigned by the ingestion pipeline
+  // to every RSS-scraped entry ("Gaming" is a universal fallback sector). Only pitch and
+  // explicit numeric business data are reliable founder-submitted signals.
+  if (requireSignal) {
+    const preSignalFilter = sparseStartups.length;
+    sparseStartups = sparseStartups.filter((s) => {
+      if (s.pitch && s.pitch.trim().length > 20) return true;
+      if (s.raise_amount) return true;
+      if (s.customer_count || s.mrr || s.arr) return true;
+      return false;
+    });
+    const signalFiltered = preSignalFilter - sparseStartups.length;
+    if (signalFiltered > 0) {
+      console.log(
+        `Skipped ${signalFiltered} zero-signal shell rows (no pitch/raise/metrics — RSS-scraped junk with auto-assigned sectors/stage). Use --no-require-signal to disable.\n`,
+      );
+    }
+  }
+
+  const modeLabel = gateNeedsUrlOnly
+    ? `entity_gate=needs_url (gate-labeled), score < ${godScoreBelow}`
+    : noUrlOnly
+    ? `no URL (junk excluded at DB), score < ${godScoreBelow}`
     : htmlOnly
       ? `html-only (+ URL discovery), status: waiting/null${includeHolding ? '/holding' : ''}, score < ${godScoreBelow}`
       : `status: waiting/null${includeHolding ? '/holding' : ''}, score < ${godScoreBelow}`;
@@ -400,11 +443,14 @@ async function runOneChunk(opts) {
         return phase < 2 || !scoreBelowCeiling(s.total_god_score, godScoreBelow);
       });
       if (excluded.length > 0) {
-        console.log(`  Excluded by filter (phase>=2 and score<${godScoreBelow}): ${excluded.map(s => `"${s.name}" (phase ${classifyDataRichness(s).phase}, score ${s.total_god_score ?? 'null'})`).join('; ')}`);
+        console.log(
+          `  Did not qualify as sparse (need phase≥2 and score<${godScoreBelow}; listed: phase<2 or score≥${godScoreBelow}): ${excluded.map((s) => `"${s.name}" (phase ${classifyDataRichness(s).phase}, score ${s.total_god_score ?? 'null'})`).join('; ')}`,
+        );
       }
     }
     if (!includeHolding) console.log('Tip: try --include-holding to retry startups that previously failed.');
-    if (!noUrlOnly) console.log('Tip: try --no-url-only to target startups with no website.');
+    if (!noUrlOnly && !gateNeedsUrlOnly) console.log('Tip: try --no-url-only to target startups with no website (junk excluded automatically).');
+    if (!gateNeedsUrlOnly) console.log('Tip: try --gate-needs-url-only to target only entity_gate=needs_url rows (requires entity-resolution-gate --execute first).');
     if (htmlOnly) console.log('Tip: HTML-only mode only processes startups WITH a website. Without --html-only, news fallback can enrich startups without URLs.');
     console.log(`Tip: no rows matched score < ${godScoreBelow}. Widen pool: --god-score-below=85 (env SPARSE_ENRICH_GOD_SCORE_BELOW).`);
     return { processed: 0, enriched: 0, noData: 0, errors: 0 };
@@ -426,38 +472,101 @@ async function runOneChunk(opts) {
       const i = batchStart + batchIdx;
       console.log(`\n[${i + 1}/${sparseStartups.length}] ${startup.name} (score: ${startup.total_god_score})`);
 
+      const mlBase = () => ({
+        startup_id: startup.id,
+        name: startup.name,
+        event_source: 'enrich_sparse',
+        entity_gate: startup.entity_gate,
+        meta: { dry_run: dryRun, html_only: htmlOnly },
+      });
+
       if (isGarbage(startup.name) || ontologyJunkReason(startup.name)) {
         console.log(`  ⏭️  Skipped (invalid or headline-style name)`);
-        return { status: 'skipped' };
+        return {
+          status: 'skipped',
+          mlPayload: mlLogEnabled()
+            ? buildRowFromSnapshot({
+                ...mlBase(),
+                enrichment_result: 'skipped_garbage',
+                training_label: 'junk',
+              })
+            : null,
+        };
       }
 
       const urlDisplay = startup.website || startup.company_website || '(no url)';
       if (startup.website || startup.company_website) console.log(`  URL: ${urlDisplay}`);
 
-      const result = await withTimeout(
-        enrichOneStartup(startup, dryRun, htmlOnly),
-        timeoutMs,
-        startup.name
-      );
-      for (const step of result.stepLog) console.log(`  ${step}`);
+      try {
+        const result = await withTimeout(
+          enrichOneStartup(startup, dryRun, htmlOnly),
+          timeoutMs,
+          startup.name
+        );
+        for (const step of result.stepLog) console.log(`  ${step}`);
 
-      if (result.enriched) {
-        console.log(`  ✅ ${result.dryRun ? '[DRY RUN] Would add' : 'Added'} ${result.newFieldCount} new fields`);
-        return { status: 'enriched' };
-      } else {
+        if (result.enriched) {
+          console.log(`  ✅ ${result.dryRun ? '[DRY RUN] Would add' : 'Added'} ${result.newFieldCount} new fields`);
+          return {
+            status: 'enriched',
+            mlPayload: mlLogEnabled()
+              ? buildRowFromSnapshot({
+                  ...mlBase(),
+                  enrichment_result: 'enriched',
+                  training_label: 'ambiguous',
+                })
+              : null,
+          };
+        }
         console.log('  ⚠️  No new data found');
-        return { status: 'noData' };
+        return {
+          status: 'noData',
+          mlPayload: mlLogEnabled()
+            ? buildRowFromSnapshot({
+                ...mlBase(),
+                enrichment_result: 'no_data',
+                training_label: 'ambiguous',
+              })
+            : null,
+        };
+      } catch (err) {
+        const msg = err?.message || String(err);
+        console.log(`  ❌ Error: ${msg}`);
+        return {
+          status: 'error',
+          mlPayload: mlLogEnabled()
+            ? buildRowFromSnapshot({
+                startup_id: startup.id,
+                name: startup.name,
+                event_source: 'enrich_sparse',
+                entity_gate: startup.entity_gate,
+                enrichment_result: 'error',
+                training_label: 'ambiguous',
+                meta: { dry_run: dryRun, html_only: htmlOnly, error: msg.slice(0, 500) },
+              })
+            : null,
+        };
       }
     }));
 
+    const mlRows = [];
     for (const r of results) {
       if (r.status === 'fulfilled') {
+        if (r.value.mlPayload) mlRows.push(r.value.mlPayload);
         if (r.value.status === 'enriched') enriched++;
         else if (r.value.status === 'skipped') { /* not counted */ }
+        else if (r.value.status === 'error') errors++;
         else noData++;
       } else {
         console.log(`  ❌ Error: ${r.reason?.message || r.reason}`);
         errors++;
+      }
+    }
+    if (mlRows.length && mlLogEnabled()) {
+      try {
+        await insertEntityGateMlEventsBatch(supabase, mlRows);
+      } catch (e) {
+        console.warn(`  ⚠️  ML log batch failed: ${e.message}`);
       }
     }
 
@@ -494,15 +603,19 @@ async function enrichSparseStartups() {
   const limit = limitArg ? parseInt(limitArg.split('=')[1]) : 50;
   const dryRun = args.includes('--dry-run');
   const noUrlOnly = args.includes('--no-url-only');
+  const gateNeedsUrlOnly = args.includes('--gate-needs-url-only');
   const includeHolding = args.includes('--include-holding');
   const runAll = args.includes('--run-all');
   const htmlOnly = args.includes('--html-only');
   const godScoreBelow = parseGodScoreBelowArg(args);
+  // Default ON for gate-needs-url-only (pool is heavily polluted); pass --no-require-signal to disable.
+  const requireSignal = !args.includes('--no-require-signal');
 
   const effectiveLimit = runAll && !limitArg ? 200 : limit;
 
   if (dryRun) console.log('🧪 DRY RUN — no database writes\n');
-  if (noUrlOnly) console.log('🔍 NO-URL-ONLY mode — targeting startups with no website field\n');
+  if (noUrlOnly) console.log('🔍 NO-URL-ONLY mode — targeting startups with no website field (junk + qualified rows excluded at DB level)\n');
+  if (gateNeedsUrlOnly) console.log('🎯 GATE-NEEDS-URL-ONLY mode — only entity_gate=needs_url rows (requires entity-resolution-gate --execute first)\n');
   if (includeHolding) console.log('🔄 Including holding status (retry after previous failures)\n');
   if (htmlOnly) console.log('🌐 HTML-ONLY mode — skipping Google News (use when RSS is blocked)\n');
   if (runAll) console.log(`♻️  RUN-ALL mode — processing in chunks of ${effectiveLimit} until pool is empty\n`);
@@ -510,8 +623,10 @@ async function enrichSparseStartups() {
   if (godScoreBelow !== 70) {
     console.log(`📊 God-score ceiling: total_god_score < ${godScoreBelow} (--god-score-below or SPARSE_ENRICH_GOD_SCORE_BELOW)\n`);
   }
+  if (!requireSignal) console.log('⚠️  Signal filter DISABLED (--no-require-signal) — zero-signal shell rows will be attempted\n');
+  else console.log('🔒 Signal filter ON — rows with no pitch/sectors/stage/location/etc will be skipped (pass --no-require-signal to disable)\n');
 
-  const opts = { limit: effectiveLimit, dryRun, noUrlOnly, includeHolding, htmlOnly, godScoreBelow };
+  const opts = { limit: effectiveLimit, dryRun, noUrlOnly, gateNeedsUrlOnly, includeHolding, htmlOnly, godScoreBelow, requireSignal };
 
   let totalProcessed = 0;
   let totalEnriched = 0;

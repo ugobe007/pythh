@@ -17,12 +17,22 @@
  * Skip expensive steps:
  *   node scripts/cron/startup-data-tightening.js --skip-garbage --skip-rss --sparse-limit=0
  *
+ * Entity gate + RSS (after migration 20260410150000_entity_resolution_gate.sql):
+ *   node scripts/cron/startup-data-tightening.js --run-entity-gate --rss-gate-exclude-junk   # skip junk only (recommended)
+ *   node scripts/cron/startup-data-tightening.js --run-entity-gate --rss-gate-qualified     # strict: qualified only
+ *
  * Metric signals (after promote — ARR/MRR/funding → pythh_signal_events):
  *   Included by default: node scripts/ingest-metrics-signals.js --apply
  *   Skip: --skip-metrics-signals
  *
  * Optional rollup (stdout / JSON for monitoring):
  *   --skip-dq-report   (default: run scripts/data-quality-report.js at end)
+ *
+ * Exit propensity (M&A heuristic score → startup_uploads.exit_propensity_*):
+ *   Runs compute-exit-propensity.ts --apply at end unless --skip-exit-propensity
+ *
+ * Sparse GOD ceiling (enrich-sparse-startups default is total_god_score < 70; widen pool):
+ *   --sparse-god-score-below=85   Passes --god-score-below=85 to sparse step (recommended when queue is empty)
  */
 
 'use strict';
@@ -84,9 +94,19 @@ function parseArgs(argv) {
     sparseLimit = Number.isFinite(v) ? v : getInferencePipelineConfig().STARTUP_TIGHTEN_SPARSE_DEFAULT;
   }
 
+  const sparseGodArg = argv.find((a) => a.startsWith('--sparse-god-score-below='));
+  const sparseGodScoreBelow = sparseGodArg ? parseInt(sparseGodArg.split('=')[1], 10) : null;
+
   const skipDqReport = argv.includes('--skip-dq-report');
+  const skipExitPropensity = argv.includes('--skip-exit-propensity');
+  const runEntityGate = argv.includes('--run-entity-gate');
+  const rssGateQualified = argv.includes('--rss-gate-qualified');
+  const rssGateExcludeJunk = argv.includes('--rss-gate-exclude-junk');
 
   return {
+    runEntityGate,
+    rssGateQualified,
+    rssGateExcludeJunk,
     skipGarbage,
     skipPromote,
     skipMetricsSignals,
@@ -98,6 +118,8 @@ function parseArgs(argv) {
     promoteLimit,
     sparseLimit,
     skipDqReport,
+    skipExitPropensity,
+    sparseGodScoreBelow,
   };
 }
 
@@ -106,13 +128,34 @@ async function main() {
 
   console.log('\n🎯  STARTUP DATA TIGHTENING');
   console.log('═'.repeat(60));
+  console.log(`  Entity gate: ${opts.runEntityGate ? 'entity-resolution-gate --execute' : 'skipped (use --run-entity-gate after migration)'}`);
   console.log(`  Metrics signals: ${opts.skipPromote || opts.skipMetricsSignals ? 'skipped' : 'ingest-metrics-signals --apply'}`);
-  console.log(`  RSS: ${opts.skipRss ? 'skipped' : opts.rssAll ? 'enrich-from-rss-news --all' : `enrich-from-rss-news --limit ${opts.rssLimit || 2000}`}`);
-  console.log(`  Sparse inference: ${opts.skipSparse ? 'skipped' : `enrich-sparse-startups --limit=${opts.sparseLimit}${opts.sparseHtmlOnly ? ' --html-only' : ''}`}`);
+  const rssGate =
+    opts.rssGateQualified ? ' --gate-qualified-only' : opts.rssGateExcludeJunk ? ' --gate-exclude-junk' : '';
+  console.log(
+    `  RSS: ${opts.skipRss ? 'skipped' : `${opts.rssAll ? 'enrich-from-rss-news --all' : `enrich-from-rss-news --limit ${opts.rssLimit || 2000}`}${rssGate}`}`,
+  );
+  const sparseGod =
+    opts.sparseGodScoreBelow != null && Number.isFinite(opts.sparseGodScoreBelow)
+      ? ` --god-score-below=${opts.sparseGodScoreBelow}`
+      : '';
+  console.log(
+    `  Sparse inference: ${opts.skipSparse ? 'skipped' : `enrich-sparse-startups --limit=${opts.sparseLimit}${opts.sparseHtmlOnly ? ' --html-only' : ''}${sparseGod}`}`,
+  );
   console.log(`  DQ rollup: ${opts.skipDqReport ? 'skipped (--skip-dq-report)' : 'data-quality-report.js --json --quick'}`);
+  console.log(
+    `  Exit propensity: ${opts.skipExitPropensity ? 'skipped (--skip-exit-propensity)' : 'compute-exit-propensity.ts --apply'}`,
+  );
   const start = Date.now();
 
   try {
+    if (opts.runEntityGate) {
+      section('0️⃣ ', 'Entity resolution gate (junk / needs_url / qualified)');
+      await run('node', ['scripts/entity-resolution-gate.js', '--execute'], 'entity-resolution-gate', {
+        fatal: false,
+      });
+    }
+
     if (!opts.skipGarbage) {
       section('1️⃣ ', 'Reject invalid approved names (cleanup-garbage --reject)');
       await run('node', ['scripts/cleanup-garbage.js', '--reject'], 'cleanup-garbage');
@@ -137,6 +180,8 @@ async function main() {
     if (!opts.skipRss) {
       section('3️⃣ ', 'Enrich from RSS news (press, funding, extracted_data)');
       const rssArgs = ['scripts/enrich-from-rss-news.js'];
+      if (opts.rssGateQualified) rssArgs.push('--gate-qualified-only');
+      else if (opts.rssGateExcludeJunk) rssArgs.push('--gate-exclude-junk');
       if (opts.rssAll) rssArgs.push('--all');
       else rssArgs.push('--limit', String(opts.rssLimit || 2000));
       await run('node', rssArgs, 'enrich-from-rss-news');
@@ -158,6 +203,9 @@ async function main() {
       section(opts.skipRss ? '5️⃣ ' : '8️⃣ ', 'Sparse startup enrichment (website + optional news)');
       const sparseArgs = ['scripts/enrich-sparse-startups.js', `--limit=${opts.sparseLimit}`];
       if (opts.sparseHtmlOnly) sparseArgs.push('--html-only');
+      if (opts.sparseGodScoreBelow != null && Number.isFinite(opts.sparseGodScoreBelow)) {
+        sparseArgs.push(`--god-score-below=${opts.sparseGodScoreBelow}`);
+      }
       await run('node', sparseArgs, 'enrich-sparse-startups', { fatal: false });
 
       section('9️⃣ ', 'Recalculate GOD scores (after sparse writes)');
@@ -171,6 +219,13 @@ async function main() {
   if (!opts.skipDqReport) {
     section('🔟 ', 'Data quality report (rollup — non-fatal)');
     await run('node', ['scripts/data-quality-report.js', '--json', '--quick'], 'data-quality-report', {
+      fatal: false,
+    });
+  }
+
+  if (!opts.skipExitPropensity) {
+    section('1️⃣1️⃣ ', 'Exit propensity (strategic M&A heuristic → DB)');
+    await run('npx', ['tsx', 'scripts/compute-exit-propensity.ts', '--apply'], 'compute-exit-propensity', {
       fatal: false,
     });
   }

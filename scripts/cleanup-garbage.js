@@ -12,6 +12,7 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { isValidStartupName } = require('../lib/startupNameValidator');
+const { isKnownGoodStartupName } = require('../lib/knownGoodStartupNames');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -126,25 +127,13 @@ const GARBAGE_PATTERNS = [
   /^[A-Z][a-z]+\s+Said\s+[A-Z]/,
 ];
 
-// Known-good startups — never treat as garbage (short names, number-prefixed, etc.)
-const KNOWN_GOOD_STARTUPS = new Set([
-  '1password', 'deel', 'mews', 'wise', 'stripe', 'notion', 'linear',
-  'vercel', 'supabase', 'airtable', 'figma', 'lattice', 'rippling',
-  'ramp', 'brex', 'mercury', 'replit', 'rsc', 'mode', 'webflow', 'run labs',
-  'gusto', 'ripple',   'opensea', 'dune', 'etherscan', 'foundry',
-  'opyn', 'compound', 'aave', 'uniswap', 'dydx',
-  // YC-backed / YC alum (descriptor prefix but legitimate startups)
-  'yc-backed denki', 'yc-backed diligent ai', 'yc-backed escape', 'yc-backed mandel ai',
-  'yc alum mendel', 'yc alum pasito',
-].map(s => s.toLowerCase()));
-
 // Check: legacy patterns OR shared validator (headline fragments, law firm phrases, etc.)
 function isGarbage(name) {
   if (!name || name.trim().length === 0) return true;
   const n = name.trim();
 
-  // Never flag known-good startups
-  if (KNOWN_GOOD_STARTUPS.has(n.toLowerCase())) return false;
+  // Never flag known-good startups (lib/knownGoodStartupNames.js)
+  if (isKnownGoodStartupName(n)) return false;
 
   // Legacy garbage patterns
   if (GARBAGE_PATTERNS.some(p => p.test(n))) return true;

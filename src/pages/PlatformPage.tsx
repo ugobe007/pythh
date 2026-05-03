@@ -67,10 +67,10 @@ const PLAYBOOK = [
 ];
 
 const PIPELINE_STEPS = [
-  { step: "1", label: "Submit URL", desc: "Paste your website — we scan it in seconds." },
-  { step: "2", label: "GOD Scoring", desc: "AI evaluates 20+ factors: team, traction, market, product, vision." },
-  { step: "3", label: "Signal Matching", desc: "ML aligns you with 4,000+ investors by behavior, not stated preferences." },
-  { step: "4", label: "Investor Map", desc: "Ranked matches with timing intel, psychology, and outreach playbook." },
+  { step: "1", label: "Submit URL", desc: "Paste your website — we build your signal profile in seconds." },
+  { step: "2", label: "GOD Scoring", desc: "Multi-factor read on team, traction, market, product, and vision." },
+  { step: "3", label: "Signal matching", desc: "Rank investors by observed behavior and fit—not static directories." },
+  { step: "4", label: "Action layer", desc: "Why each investor, why now, and outreach angles you can use today." },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -104,7 +104,7 @@ export default function PlatformPage() {
       ═══════════════════════════════════════════════════════════════ */}
       <section className="max-w-5xl mx-auto px-4 sm:px-8 pt-8 sm:pt-14 pb-6">
         <div className="text-center">
-          <p className="text-sm text-cyan-400 tracking-widest uppercase mb-4">The Platform</p>
+          <p className="text-sm text-cyan-400 tracking-widest uppercase mb-4">Pythh Capital · The engine</p>
           <h1
             className="text-3xl sm:text-5xl font-bold text-white mb-4"
             style={{
@@ -119,12 +119,16 @@ export default function PlatformPage() {
                   "0 0 16px rgba(34, 211, 238, 0.45), 0 0 32px rgba(34, 211, 238, 0.2)",
               }}
             >
-              can&apos;t hide.
+              can&apos;t hide
             </span>
+            —then see who to pitch first.
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto mb-5">
-            Pythh tracks real investor behavior — portfolio moves, thesis shifts, check-size changes — 
-            and matches you with the ones actively looking for companies like yours. No guessing. Just math.
+            We track real investor behavior—portfolio moves, thesis shifts, deployment signals—and rank who is most likely to fund you next. The same engine powers the live product and the{' '}
+            <Link to="/pricing#fundraising-brief" className="text-cyan-400 hover:underline">
+              Fundraising Brief
+            </Link>
+            .
           </p>
 
           {/* Platform stats — colored numerals (emerald / amber / cyan) */}

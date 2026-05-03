@@ -18,6 +18,7 @@ interface NavLink {
 // Always-visible primary links
 const PRIMARY_LINKS: NavLink[] = [
   { label: "Platform", to: "/platform" },
+  { label: "Brief", to: "/pricing#fundraising-brief" },
   { label: "Explore", to: "/explore" },
   { label: "Submit", to: "/submit" },
   { label: "Pricing", to: "/pricing" },
@@ -154,28 +155,48 @@ export default function PythhUnifiedNav() {
 
           <div className="w-px h-5 bg-zinc-800 mx-2" />
 
-          <Link
-            to="/login"
-            className="px-3 py-1.5 rounded-md text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            Sign in
-          </Link>
-          <Link
-            to="/signup"
-            className="ml-1 px-4 py-1.5 rounded-md text-sm font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition-all"
-          >
-            Sign up
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              to="/account"
+              className="px-3 py-1.5 rounded-md text-sm text-cyan-400/90 hover:text-cyan-300 transition-colors"
+            >
+              Account
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-3 py-1.5 rounded-md text-sm text-zinc-400 hover:text-white transition-colors"
+              >
+                Sign in
+              </Link>
+              <Link
+                to="/signup"
+                className="ml-1 px-4 py-1.5 rounded-md text-sm font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition-all"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* Mobile: Sign up + hamburger */}
         <div className="flex md:hidden items-center gap-2" ref={mobileRef}>
-          <Link
-            to="/signup"
-            className="px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-500 text-black hover:bg-cyan-400 transition"
-          >
-            Sign up
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              to="/account"
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10 transition"
+            >
+              Account
+            </Link>
+          ) : (
+            <Link
+              to="/signup"
+              className="px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-500 text-black hover:bg-cyan-400 transition"
+            >
+              Sign up
+            </Link>
+          )}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/50 transition"
@@ -189,14 +210,14 @@ export default function PythhUnifiedNav() {
             <div className="absolute top-full right-4 mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden">
               {isLoggedIn && (
                 <Link
-                  to="/app/signals-dashboard"
+                  to="/account"
                   className={`block px-4 py-3 text-sm border-b border-zinc-800/50 ${
-                    isActive("/app/signals-dashboard")
+                    isActive("/account")
                       ? "text-white bg-zinc-800/40"
                       : "text-cyan-400 hover:text-cyan-300 hover:bg-zinc-800/30"
                   }`}
                 >
-                  Dashboard
+                  Account
                 </Link>
               )}
               {[...PRIMARY_LINKS, ...MORE_LINKS].map((link, i, arr) => (
@@ -214,12 +235,14 @@ export default function PythhUnifiedNav() {
                   {link.label}
                 </Link>
               ))}
-              <Link
-                to="/login"
-                className="block px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/30 transition"
-              >
-                Sign in
-              </Link>
+              {!isLoggedIn && (
+                <Link
+                  to="/login"
+                  className="block px-4 py-3 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800/30 transition"
+                >
+                  Sign in
+                </Link>
+              )}
             </div>
           )}
         </div>

@@ -36,7 +36,7 @@ const BROKEN_FEEDS = [
   'https://www.saascapital.com/blog/feed/',
   'https://www.techstars.com/blog/feed',
   'https://www.accel.com/insights/feed',
-  'https://www.fastcompany.com/technology/rss.xml',
+  // fastcompany /technology/rss — fixed in migration → /latest/rss
   'https://www.inc.com/rss/index.rss',
   'https://www.businessinsider.com/sai/rss',
   

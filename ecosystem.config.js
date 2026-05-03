@@ -313,23 +313,36 @@ module.exports = {
     },
 
     // ========================================
-    // ENRICH FROM RSS NEWS - Match startup_events to startups, merge press/funding
-    // Runs after RSS scrapers (every 4h at :25) so events are in DB
+    // PENDING STARTUP TRIAGE (RSS scraper queue — no manual admin review)
+    // npm run pending:auto-triage  |  dry: npm run pending:auto-triage:dry
+    // Approves/rejects startup_uploads status=pending (skips submitted_email founders).
+    // Uses correlate policy + GOD≥50 default; rejects tagged [correlate-policy] in admin_notes.
     // ========================================
     {
-      name: 'enrich-from-rss-news',
+      name: 'pending-startup-triage',
       script: 'node',
-      args: 'scripts/enrich-from-rss-news.js --limit=500',
+      args: 'scripts/bulk-auto-review-startups.js --rss-pending --correlate-policy --execute',
       cwd: './',
       instances: 1,
       autorestart: false,
       watch: false,
-      max_memory_restart: '300M',
-      cron_restart: '25 */4 * * *',
+      max_memory_restart: '200M',
+      cron_restart: '30 6 * * *',
       env: {
-        NODE_ENV: 'production'
+        NODE_ENV: 'production',
+        VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+        SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
+        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY
       }
     },
+
+    // NOTE: Standalone enrich-from-rss-news was REMOVED — it duplicated step 2 of
+    // signal-pipeline (every 4h) and fought the same rows. ssot-rss-scraper runs
+    // every 30m; signal-pipeline runs enrich+promote+integrity+quality+sync+recalc.
+    // For entity-gate order (pre-gate → resolution-gate → sparse), use:
+    //   npm run startup:tighten -- --run-entity-gate --rss-gate-exclude-junk
+    // Or the one-liner in docs/ENRICHMENT_STAGES.md §0.
 
     // ========================================
     // SIMPLE RSS SCRAPER (writes to discovered_startups)
@@ -916,6 +929,40 @@ module.exports = {
       //         hash taglines, definite-junk names, article-fragment names
       // Auto-nulls bad numeric values, auto-rejects junk names
       // PM2 exit code 1 = issues found (visible in pm2 status / logs)
+    },
+
+    // ========================================
+    // DQ RUNBOOK — SQL coverage + enrichment stats + RSS filter sample (JSON artifact)
+    // Requires DATABASE_URL (Supabase direct Postgres) for SQL sections.
+    // Staggered after data-integrity-check; writes reports/dq-runbook-<ts>.json
+    // Set DQ_RUNBOOK_CHAIN_REPORT=1 to also write dq-report-<ts>.json (--quick rollup).
+    // ========================================
+    {
+      name: 'dq-runbook-scheduler',
+      script: 'node',
+      args: 'scripts/cron/dq-runbook-scheduler.js',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '512M',
+      max_restarts: 2,
+      cron_restart: '25 6 * * *', // Daily 6:25 (server TZ — set DQ_RUNBOOK_SCHEDULE on Fly if UTC)
+      // Do not set DATABASE_URL / keys to undefined — PM2 can drop Fly-inherited secrets.
+      // Fly: `fly secrets set DATABASE_URL=...` is read when the container starts; only pass defined vars.
+      env: {
+        NODE_ENV: 'production',
+        ...(process.env.VITE_SUPABASE_URL
+          ? { VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL }
+          : {}),
+        ...(process.env.SUPABASE_SERVICE_KEY
+          ? { SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY }
+          : {}),
+        ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
+        ...(process.env.DQ_RUNBOOK_CHAIN_REPORT
+          ? { DQ_RUNBOOK_CHAIN_REPORT: process.env.DQ_RUNBOOK_CHAIN_REPORT }
+          : {}),
+      },
     },
 
     // ========================================

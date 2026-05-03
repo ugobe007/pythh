@@ -129,6 +129,7 @@ const SignupComplete = lazy(() => import("./pages/SignupComplete"));
 const EnrichStartupPage = lazy(() => import("./pages/EnrichStartupPage"));
 
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const AccountHubPage = lazy(() => import("./pages/AccountHubPage"));
 const FounderProfileDashboard = lazy(() => import("./pages/FounderProfileDashboard"));
 const InvestorProfileDashboard = lazy(() => import("./pages/InvestorProfileDashboard"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -291,6 +292,7 @@ const App = () => {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/account" element={<AccountHubPage />} />
             <Route path="/profile" element={<FounderProfileDashboard />} />
             <Route path="/profile/account" element={<ProfilePage />} />
             <Route path="/settings" element={<Settings />} />

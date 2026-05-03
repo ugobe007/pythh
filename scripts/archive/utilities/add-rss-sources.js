@@ -21,7 +21,7 @@ const RSS_FEEDS = [
   { name: 'TechCrunch - Venture', url: 'https://techcrunch.com/category/venture/feed/', category: 'funding_news' },
   { name: 'VentureBeat', url: 'https://venturebeat.com/feed/', category: 'tech_news' },
   { name: 'The Information', url: 'https://www.theinformation.com/feed', category: 'tech_news' },
-  { name: 'Axios Pro Rata', url: 'https://www.axios.com/pro-rata', category: 'funding_news' },
+  { name: 'Axios Pro Rata', url: 'https://www.axios.com/feeds/feed.rss', category: 'funding_news' },
   
   // Startup/VC Focused
   { name: 'Crunchbase News', url: 'https://news.crunchbase.com/feed/', category: 'funding_news' },

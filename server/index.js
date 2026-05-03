@@ -1160,7 +1160,7 @@ app.get('/api/live-pairings', async (req, res) => {
       .select('id, name, sector_key, investor_signal_sector_0_10, investor_state_sector, sector_momentum_0_10, sector_evidence_0_10, sector_narrative_0_10')
       .not('sector_key', 'is', null)
       .not('investor_signal_sector_0_10', 'is', null)
-      .gte('investor_signal_sector_0_10', 5)
+      .gte('investor_signal_sector_0_10', 3)
       .order('investor_signal_sector_0_10', { ascending: false })
       .limit(50);
     

@@ -26,7 +26,8 @@
  * Exit code: 0 = all PASS/WARN, 1 = any FAIL
  */
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
 const { createClient } = require('@supabase/supabase-js');
 const { isJunkUrl } = require('../lib/junk-url-config');
 
@@ -182,20 +183,38 @@ async function runHealthCheck() {
   row('Avg fields/startup', `${avgFields}`,   g3, `across ${enrichedCount} enriched startups`);
 
   // ── 3. GOD Score distribution ─────────────────────────────────────────────
-  const scores = allApproved.map(s => s.total_god_score || 0).filter(s => s > 0);
-  const scoreAvg = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-  const atFloor = scores.filter(s => s >= 40 && s <= 45).length;
-  const highScore = scores.filter(s => s >= 65).length;
+  // Use all non-null numeric scores (do not drop 0 or floor values — avoids a biased average)
+  const scores = allApproved
+    .map((s) => s.total_god_score)
+    .filter((v) => v != null && v !== '' && !Number.isNaN(Number(v)))
+    .map(Number);
+  const scoreAvg =
+    scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const atFloor = scores.filter((s) => s >= 40 && s <= 45).length;
+  const highScore = scores.filter((s) => s >= 65).length;
 
   const g4 = grade(scoreAvg, THRESHOLDS.godScoreAvg);
-  const g5 = grade(pct(highScore, scores.length), THRESHOLDS.godScoreHighPct);
+  const g5 =
+    scores.length === 0
+      ? 'WARN'
+      : grade(pct(highScore, scores.length), THRESHOLDS.godScoreHighPct);
   if (g4 === 'FAIL') anyFail = true;
   results.godScoreAvg = { value: scoreAvg, grade: g4 };
 
   if (!jsonMode) console.log('\n▶ GOD Score Distribution');
-  row('Average GOD score',  scoreAvg, g4, `(floor=40, target avg≥52)`);
-  row('At floor (40-45)',   `${pct(atFloor, scores.length)}%`, atFloor > scores.length * 0.5 ? 'WARN' : 'PASS', `${atFloor} startups barely above minimum`);
-  row('High scores (≥65)',  `${pct(highScore, scores.length)}%`, g5, `${highScore} genuinely strong profiles`);
+  row('Average GOD score', scoreAvg, g4, `(n=${scores.length}, target avg≥52)`);
+  row(
+    'At floor (40-45)',
+    scores.length ? `${pct(atFloor, scores.length)}%` : '—',
+    scores.length && atFloor > scores.length * 0.5 ? 'WARN' : 'PASS',
+    `${atFloor} startups barely above minimum`
+  );
+  row(
+    'High scores (≥65)',
+    scores.length ? `${pct(highScore, scores.length)}%` : '—',
+    g5,
+    `${highScore} genuinely strong profiles`
+  );
 
   // ── 4. Data freshness ─────────────────────────────────────────────────────
   const now = Date.now();

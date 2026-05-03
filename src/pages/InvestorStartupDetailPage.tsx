@@ -5,9 +5,11 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Share2 } from 'lucide-react';
 import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { apiUrl } from '../lib/apiConfig';
 import { supabase } from '../lib/supabase';
+import { sanitizeSignalSentence } from '../lib/stripHtml';
 
 const SESSION_KEY = 'pythh_investor_session';
 
@@ -57,7 +59,8 @@ type TrajectoryRow = {
 const SIGNAL_LABELS: Record<string, string> = {
   fundraising_signal: 'Fundraising', acquisition_signal: 'Acquisition',
   exit_signal: 'Exit Prep', distress_signal: 'Distress', revenue_signal: 'Revenue',
-  hiring_signal: 'Hiring', enterprise_signal: 'Enterprise', expansion_signal: 'Expansion',
+  hiring_signal: 'Hiring', gtm_hiring_signal: 'GTM Hiring', engineering_hiring_signal: 'Eng Hiring',
+  diligence_signal: 'Diligence', enterprise_signal: 'Enterprise', expansion_signal: 'Expansion',
   gtm_signal: 'GTM Build', demand_signal: 'Demand', growth_signal: 'Growth',
   product_signal: 'Product', partnership_signal: 'Partnership',
   buyer_signal: 'Buying', market_position_signal: 'Market Position',
@@ -67,6 +70,9 @@ const SIGNAL_LABELS: Record<string, string> = {
 const SIGNAL_COLORS: Record<string, string> = {
   fundraising_signal: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
   hiring_signal: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
+  gtm_hiring_signal: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/30',
+  engineering_hiring_signal: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+  diligence_signal: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
   growth_signal: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
   enterprise_signal: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
   expansion_signal: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
@@ -190,7 +196,31 @@ export default function InvestorStartupDetailPage() {
                 <span className="text-sm font-semibold text-cyan-400">GOD {startup.total_god_score ?? '—'}</span>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 items-stretch sm:items-end">
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `${window.location.origin}/lookup/startup/${id}`;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: startup.name, text: `${startup.name} on Pythh`, url });
+                      return;
+                    }
+                  } catch {
+                    /* dismissed or unavailable */
+                  }
+                  try {
+                    await navigator.clipboard.writeText(url);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-zinc-600 text-zinc-300 hover:bg-zinc-800/80 hover:text-white transition-colors"
+                title="Share or copy link to this profile"
+              >
+                <Share2 className="w-4 h-4" />
+                Share link
+              </button>
               <button
                 onClick={saveToPortfolio}
                 disabled={saved}
@@ -321,7 +351,7 @@ export default function InvestorStartupDetailPage() {
                       </div>
                       {/* Row 2: raw sentence */}
                       <p className="text-zinc-400 text-xs leading-relaxed line-clamp-2">
-                        {sig.raw_sentence ?? '—'}
+                        {sanitizeSignalSentence(sig.raw_sentence) || '—'}
                       </p>
                       {/* Row 3: likely_needs chips */}
                       {sig.likely_needs && sig.likely_needs.length > 0 && (

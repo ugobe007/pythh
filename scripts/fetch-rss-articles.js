@@ -130,10 +130,9 @@ function disambiguateNameForUniqueIndex(baseName, articleUrl, usedKeys) {
 }
 
 /**
- * Build insert row for discovered_startups — only columns present on every project.
- * Do not send `latest_funding_amount` (or other startup_uploads-only metrics): many
- * `discovered_startups` tables / PostgREST schema caches have no such column, and
- * projects that added it with wrong defaults caused type errors. Omit entirely; add via migration + backfill if needed.
+ * Build insert row for discovered_startups — omit `latest_funding_amount`.
+ * Rely on Postgres (nullable, no bad DEFAULT) after migration; PostgREST can bind the
+ * wrong type if its schema cache is stale — run NOTIFY reload migration if inserts fail.
  */
 function buildDiscoveredRssRow({ nameHint, item, url, articleDate, body, source }) {
   return {
@@ -291,7 +290,15 @@ async function main() {
         stats.articles_saved += batch.length;
         return;
       }
-      console.error('\n   DB insert error (batch):', error.message.slice(0, 160));
+      const errBlob = [error.message, error.details, error.hint].filter(Boolean).join(' | ');
+      console.error('\n   DB insert error (batch):', errBlob.slice(0, 220));
+      if (/latest_funding_amount.*bigint.*text|bigint.*text.*latest_funding_amount/i.test(errBlob)) {
+        console.error(
+          '   Hint: PostgREST schema cache may be stale vs Postgres, or a DB default/trigger still assigns text.\n' +
+          '   Apply migration 20260426210000 (NOTIFY + DROP DEFAULT), or in SQL Editor run:\n' +
+          '   NOTIFY pgrst, \'reload schema\';\n'
+        );
+      }
       stats.errors++;
       for (const row of batch) {
         const { error: e2 } = await supabase.from('discovered_startups').insert([row]);

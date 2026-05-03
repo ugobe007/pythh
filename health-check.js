@@ -5,12 +5,15 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { fetchAllPages } = require('./scripts/lib/supabasePaginate');
 require('dotenv').config();
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function healthCheck() {
   console.log('\n🏥 PYTHH PLATFORM HEALTH CHECK\n');
@@ -65,27 +68,33 @@ async function healthCheck() {
     results.failed++;
   }
   
-  // GOD scores
+  // GOD scores (paginate — avoid averaging only the first ~1000 rows)
   try {
-    const { data } = await supabase
-      .from('startup_uploads')
-      .select('total_god_score')
-      .eq('status', 'approved')
-      .not('total_god_score', 'is', null)
-      .limit(1000);
-    
-    if (data && data.length > 0) {
-      const avg = data.reduce((a, b) => a + b.total_god_score, 0) / data.length;
-      const min = Math.min(...data.map(d => d.total_god_score));
-      const max = Math.max(...data.map(d => d.total_god_score));
-      
-      console.log(`✅ GOD scores: avg ${avg.toFixed(1)}, range ${min}-${max}`);
+    const rows = await fetchAllPages((from, to) =>
+      supabase
+        .from('startup_uploads')
+        .select('total_god_score')
+        .eq('status', 'approved')
+        .not('total_god_score', 'is', null)
+        .range(from, to)
+    );
+
+    if (rows.length > 0) {
+      const nums = rows.map((d) => Number(d.total_god_score)).filter((n) => !Number.isNaN(n));
+      const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+      const min = Math.min(...nums);
+      const max = Math.max(...nums);
+
+      console.log(`✅ GOD scores: avg ${avg.toFixed(1)}, range ${min}-${max} (n=${nums.length})`);
       results.passed++;
-      
+
       if (avg < 50 || avg > 70) {
         console.log(`   ⚠️  Warning: Average GOD score ${avg.toFixed(1)} outside target 60-65`);
         results.warnings++;
       }
+    } else {
+      console.log('   ⚠️  Warning: No approved startups with total_god_score set');
+      results.warnings++;
     }
   } catch (err) {
     console.log('❌ GOD score check failed:', err.message);

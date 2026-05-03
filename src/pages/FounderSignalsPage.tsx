@@ -16,6 +16,7 @@ import { Search, ChevronDown, ChevronUp } from 'lucide-react';
 import SignalFlowBars from '../components/SignalFlowBars';
 import { SignalLeaderboard } from '../components/pythh/SignalLeaderboard';
 import { supabase } from '../lib/supabase';
+import { sanitizeSignalSentence } from '../lib/stripHtml';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -171,13 +172,19 @@ export default function FounderSignalsPage() {
       setSectors(rows);
 
       // Real recent movements from latest signal events
-      const movements: RecentMovement[] = (latest || []).map(s => ({
-        text: s.raw_sentence
-          ? s.raw_sentence.slice(0, 80) + (s.raw_sentence.length > 80 ? '…' : '')
-          : `${SIGNAL_CLASS_LABELS[s.primary_signal ?? ''] ?? s.primary_signal} signal detected`,
-        time: s.detected_at ? relativeAge(s.detected_at) : '—',
-        signalClass: s.primary_signal ?? '',
-      }));
+      const movements: RecentMovement[] = (latest || []).map((s) => {
+        const cleaned = sanitizeSignalSentence(s.raw_sentence);
+        const text = cleaned
+          ? cleaned.length > 80
+            ? `${cleaned.slice(0, 80)}…`
+            : cleaned
+          : `${SIGNAL_CLASS_LABELS[s.primary_signal ?? ''] ?? s.primary_signal} signal detected`;
+        return {
+          text,
+          time: s.detected_at ? relativeAge(s.detected_at) : '—',
+          signalClass: s.primary_signal ?? '',
+        };
+      });
       setRecentMovements(movements);
     } catch {
       // Keep whatever data we have

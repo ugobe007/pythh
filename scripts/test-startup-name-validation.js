@@ -67,6 +67,7 @@ ok(isValidStartupName('Translucent Announces').isValid, 'Translucent Announces �
 ok(isValidStartupName('May Health').isValid, 'May + company-like second word');
 ok(isValidStartupName('Grace Robotics').isValid, 'Grace + Robotics (descriptor second word)');
 ok(isValidStartupName('モジョ').isValid, 'Unicode letters (not ASCII-only)');
+ok(isValidStartupName('Cisco Systems').isValid, 'megacorp legal name (not product headline)');
 
 console.log('\n2. isValidStartupName — garbage (must reject)');
 notOk(isValidStartupName('Man Pleads Guilty').isValid, 'Man Pleads Guilty');
@@ -92,6 +93,64 @@ notOk(isValidStartupName('Chris Murphy').isValid, 'likely person (also often a p
 notOk(isValidStartupName('Acme has raised $5M').isValid, 'has raised + $ in name field');
 notOk(isValidStartupName('Breaking: Acme').isValid, 'Breaking: wire prefix');
 notOk(isValidStartupName('One Two Three Four Five Six Seven').isValid, '7 words (>6 max)');
+
+console.log('\n2b. isValidStartupName — RSS/VC headline junk (must reject)');
+notOk(isValidStartupName('Sequoia Capital Andreessen Horowitz').isValid, 'VC name soup');
+notOk(isValidStartupName('Google Wiz').isValid, 'megacorp + token');
+notOk(isValidStartupName('YC Demo Day TechCrunch').isValid, 'YC + media event');
+notOk(isValidStartupName('South America').isValid, 'geographic region');
+notOk(isValidStartupName('Shopify Guillermo Rauch CEO').isValid, '… CEO tail');
+notOk(isValidStartupName('Congratulations to Groww').isValid, 'congratulations headline');
+notOk(isValidStartupName('competitor').isValid, 'generic: competitor');
+notOk(isValidStartupName('Firebase').isValid, 'public product name');
+notOk(isValidStartupName('New York-headquartered').isValid, '-headquartered tail');
+notOk(isValidStartupName('Stripe Ribbit Capital USV').isValid, 'stripe+ribbit fund soup');
+
+// From live run — names that slipped through and must now be caught:
+// Note: "Price Key Limits Best" is 4 generic words with no structural signal — accepted edge case
+notOk(isValidStartupName('Billion Recapitalization').isValid, 'financial descriptor');
+notOk(isValidStartupName('DoorDash Rather').isValid, 'megacorp + filler word');
+notOk(isValidStartupName('FPV Ventures Redpoint').isValid, 'VC fund composite');
+notOk(isValidStartupName('Blue Owl Healthcare Opportunities').isValid, 'VC composite');
+notOk(isValidStartupName('Senate Budget Chair Lindsey').isValid, 'political title fragment');
+notOk(isValidStartupName('Tags Fine-grained').isValid, 'tech tag fragment');
+notOk(isValidStartupName('Agentforce ARR').isValid, 'product + ARR metric tail');
+notOk(isValidStartupName('Rep Greg Steube R-Fla').isValid, 'politician R-state');
+notOk(isValidStartupName('Framework Ventures HV Capital').isValid, 'VC fund composite');
+notOk(isValidStartupName('Soul').isValid, 'generic single word');
+notOk(isValidStartupName('Bar').isValid, 'generic single word');
+notOk(isValidStartupName('Ear').isValid, 'generic single word');
+notOk(isValidStartupName('Academic').isValid, 'generic single word');
+notOk(isValidStartupName('Kafka').isValid, 'open-source tool (single word)');
+notOk(isValidStartupName('Ollama').isValid, 'AI tool (single word)');
+notOk(isValidStartupName('Todd').isValid, 'first name only');
+notOk(isValidStartupName('Zinc Oxide Market').isValid, 'X Market research category');
+notOk(isValidStartupName('Autoinjectors Market').isValid, 'X Market research category');
+notOk(isValidStartupName('Pedestrian Protection System Market').isValid, 'X Market research category');
+notOk(isValidStartupName('Monday April').isValid, 'day-of-week prefix');
+notOk(isValidStartupName('Tuesday Baltimore').isValid, 'day + city fragment');
+notOk(isValidStartupName('Friday Iranian').isValid, 'day + demonym fragment');
+notOk(isValidStartupName("It's").isValid, 'contraction-only name');
+notOk(isValidStartupName("Let's").isValid, 'contraction-only name');
+notOk(isValidStartupName('AirPods').isValid, 'Apple consumer product');
+notOk(isValidStartupName('SonarScanner').isValid, 'dev tool name');
+notOk(isValidStartupName('CONTRIBUTING.md Sponsor').isValid, 'markdown file fragment');
+notOk(isValidStartupName('WeChat Alipay').isValid, 'consumer app compound');
+notOk(isValidStartupName('Minority Leader Hakeem Jeffries').isValid, 'political title');
+notOk(isValidStartupName('Governor Wes Moore').isValid, 'political title');
+notOk(isValidStartupName('Interior Secretary Doug Burgum').isValid, 'cabinet title');
+notOk(isValidStartupName('RentoMojo DRHP').isValid, 'company + IPO filing acronym');
+notOk(isValidStartupName('funding - Wamda').isValid, 'funding-source fragment');
+notOk(isValidStartupName('Claude Opus').isValid, 'AI model version name');
+notOk(isValidStartupName('Conservatives').isValid, 'political grouping');
+notOk(isValidStartupName('Practical').isValid, 'generic single word');
+
+// Ensure legitimate names are NOT caught by new rules
+ok(isValidStartupName('Klarna').isValid, 'Klarna still valid');
+ok(isValidStartupName('Redpoint Ventures').isValid, 'single VC fund still valid');
+ok(isValidStartupName('Powerhouse Ventures').isValid, 'single VC fund still valid');
+ok(isValidStartupName('SC Ventures').isValid, 'SC Ventures still valid');
+ok(isValidStartupName('Qumra Capital').isValid, 'Qumra Capital still valid');
 
 console.log('\n3. extractCompanyName — headlines → company');
 assert(extractCompanyName('Goodwin Advises Shellworks On $10M') === 'Shellworks', 'Law firm: Shellworks');
