@@ -4,8 +4,11 @@
 app = 'hot-honey'
 primary_region = 'lax'
 
-# Runtime env (Docker final stage has no .env). Public Supabase URL + publishable key — required so
-# server/config/supabase.ts and routes do not call createClient("", ...). Service role: `fly secrets set SUPABASE_SERVICE_KEY=...`
+# Runtime env (Docker final stage has no .env). Public Supabase URL + anon key for build/browser.
+# REQUIRED for admin + server-side RPCs (bypasses RLS): set the service_role JWT on Fly — it is NOT
+# listed here on purpose. Local .env SUPABASE_SERVICE_KEY is never deployed.
+#   fly secrets set SUPABASE_SERVICE_KEY="eyJ…"   # same value as in your local .env
+# Without it, Node falls back to VITE_SUPABASE_ANON_KEY below → /api/admin/* often 502/503.
 [env]
   SUPABASE_URL = "https://unkpogyhhjbvxxjvmxlt.supabase.co"
   VITE_SUPABASE_URL = "https://unkpogyhhjbvxxjvmxlt.supabase.co"

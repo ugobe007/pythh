@@ -9,6 +9,15 @@ const path = require('path');
 // Load from project root .env (not server/.env)
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 
+let warnedFlyUsingAnonForServer = false;
+
+function hasServiceRoleEnv() {
+  const a = String(process.env.SUPABASE_SERVICE_KEY || '').trim();
+  const b = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const c = String(process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  return !!(a || b || c);
+}
+
 function getSupabaseClient() {
   // Check for all possible environment variable names (trim — Fly/secret typos may leave whitespace,
   // which is truthy in JS but fails validateSupabaseUrl inside createClient).
@@ -44,6 +53,15 @@ function getSupabaseClient() {
   if (!supabaseKey) {
     throw new Error(
       'SUPABASE_SERVICE_KEY or VITE_SUPABASE_ANON_KEY is required. On Fly: `fly secrets set SUPABASE_SERVICE_KEY=...` or set VITE_SUPABASE_ANON_KEY in [env].',
+    );
+  }
+
+  // Local .env does not run on Fly — without a service_role key the server uses the anon key,
+  // which cannot run admin RPCs reliably (timeouts → SUPABASE_BACKOFF → 503 on /api/admin/*).
+  if (process.env.FLY_APP_NAME && !hasServiceRoleEnv() && !warnedFlyUsingAnonForServer) {
+    warnedFlyUsingAnonForServer = true;
+    console.warn(
+      '[supabase] Fly: SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY) is not set — using anon/publishable key for the Node client. Set the service_role JWT: fly secrets set SUPABASE_SERVICE_KEY="…" (Supabase → Settings → API).',
     );
   }
 
