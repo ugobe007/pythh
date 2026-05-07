@@ -1,12 +1,12 @@
 /**
- * PythhWhatYouGet — Pythh Capital home wedge: behavior-first ranking + outreach angles.
+ * PythhWhatYouGet — Pythh Capital home wedge: fundraising workflow + product preview.
  *
  * Supabase-style: hairline borders, transparent surfaces, stroke + type only (no fills).
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Globe2, ListOrdered, MessageSquareText } from 'lucide-react';
+import { ArrowRight, ChevronRight, Globe2, ListOrdered, MessageSquareText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { fetchPlatformStats } from '../../lib/platformStats';
@@ -48,6 +48,17 @@ const MOCK_INVESTORS = [
   { name: 'Greylock Partners', signal: 8.2, blocks: 4 },
   { name: 'Founders Fund',    signal: 7.7, blocks: 4 },
 ];
+
+const WORKFLOW_STEPS = ['Identify', 'Develop', 'Engage', 'Confirm', 'Advance'] as const;
+
+const FOUNDERS_GET_ITEMS = [
+  'identify the right investors',
+  'develop investor context and strategy',
+  'prepare outreach',
+  'engage investors',
+  'confirm interest',
+  'move qualified conversations toward meetings',
+] as const;
 
 function ScoreBlocks({ count, total = 5 }: { count: number; total?: number }) {
   return (
@@ -193,7 +204,7 @@ export default function PythhWhatYouGet({
           initial={{ opacity: 0, y: 16 }}
           animate={visible ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6 }}
-          style={{ marginBottom: variant === 'hero' ? '1.35rem' : '1.75rem' }}
+          style={{ marginBottom: variant === 'hero' ? '1.5rem' : '2rem' }}
         >
           <span className="pythh-label-caps" style={{ display: 'block', marginBottom: 10, color: MUTED }}>
             Pythh Capital
@@ -201,27 +212,147 @@ export default function PythhWhatYouGet({
           <h2 style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 800,
-            fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)',
+            fontSize: 'clamp(1.55rem, 2.9vw, 2.35rem)',
             letterSpacing: '-0.03em',
             color: '#fafafa',
             lineHeight: 1.15,
-            maxWidth: variant === 'hero' ? 560 : 720,
+            maxWidth: 720,
             margin: 0,
           }}>
-            Who should you pitch{' '}
-            <span style={{ color: '#10b981' }}>first</span>?
+            Automate your fundraising workflow.
           </h2>
           <p
             style={{
               fontFamily: "'Inter', sans-serif",
-              fontSize: 'clamp(0.9rem, 1.5vw, 1rem)',
+              fontSize: 'clamp(0.9rem, 1.45vw, 1.02rem)',
               color: MUTED,
-              lineHeight: 1.6,
-              maxWidth: variant === 'hero' ? 520 : 640,
-              margin: '0.85rem 0 0',
+              lineHeight: 1.65,
+              maxWidth: 760,
+              margin: '0.9rem 0 0',
             }}
           >
-            A short, ranked list from live signals and fit—not a directory dump. Add your URL below to run it.
+            Pythh identifies aligned investors, develops engagement strategy, prepares outreach, and helps advance qualified investor conversations toward real meetings.
+          </p>
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.88rem',
+              color: '#94a3b8',
+              lineHeight: 1.55,
+              maxWidth: 720,
+              margin: '0.65rem 0 0',
+            }}
+          >
+            <span style={{ color: '#cbd5e1', fontWeight: 600 }}>Near-term outcome:</span>{' '}
+            qualified investor conversations—not spray-and-pray volume.
+          </p>
+
+          {/* Workflow strip */}
+          <div
+            aria-label="Fundraising workflow: Identify through Advance"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '0.35rem 0.2rem',
+              marginTop: '1.15rem',
+            }}
+          >
+            {WORKFLOW_STEPS.map((step, i) => (
+              <Fragment key={step}>
+                {i > 0 && (
+                  <ChevronRight
+                    size={14}
+                    strokeWidth={2}
+                    style={{ color: '#475569', flexShrink: 0 }}
+                    aria-hidden
+                  />
+                )}
+                <span
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.07em',
+                    textTransform: 'uppercase',
+                    color: '#94a3b8',
+                    border: '1px solid rgba(148, 163, 184, 0.28)',
+                    borderRadius: 6,
+                    padding: '0.38rem 0.7rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {step}
+                </span>
+              </Fragment>
+            ))}
+          </div>
+
+          {/* What founders get */}
+          <div
+            style={{
+              marginTop: '1.2rem',
+              border: BORDER,
+              borderRadius: 8,
+              padding: '1rem 1.15rem',
+              background: 'rgba(255,255,255,0.02)',
+            }}
+          >
+            <span
+              className="pythh-label-caps"
+              style={{ display: 'block', marginBottom: 8, color: '#cbd5e1', letterSpacing: '0.1em' }}
+            >
+              What founders get
+            </span>
+            <p
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '0.88rem',
+                color: '#e2e8f0',
+                lineHeight: 1.55,
+                margin: 0,
+              }}
+            >
+              Pythh helps move fundraising from manual guessing to a managed workflow:
+            </p>
+            <ul
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '0.84rem',
+                color: MUTED,
+                lineHeight: 1.65,
+                margin: '0.65rem 0 0',
+                paddingLeft: '1.15rem',
+              }}
+            >
+              {FOUNDERS_GET_ITEMS.map((item) => (
+                <li key={item} style={{ marginBottom: 4 }}>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Evidence → action → goal (no term-sheet promise) */}
+          <p
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.8rem',
+              color: '#64748b',
+              lineHeight: 1.6,
+              maxWidth: 720,
+              margin: '1rem 0 0',
+            }}
+          >
+            <span style={{ color: '#94a3b8', fontWeight: 600 }}>Evidence layer:</span>{' '}
+            signals, intent, activity, and fit.
+            <span style={{ display: 'block', marginTop: 6 }}>
+              <span style={{ color: '#94a3b8', fontWeight: 600 }}>Action layer:</span>{' '}
+              outreach, follow-up, and meeting prep.
+            </span>
+            <span style={{ display: 'block', marginTop: 6, color: '#64748b' }}>
+              Ultimate goal: funding—we do not promise a term sheet.
+            </span>
           </p>
         </motion.div>
 
@@ -240,8 +371,8 @@ export default function PythhWhatYouGet({
           >
             <StepHead
               icon={Globe2}
-              title="Your site"
-              subtitle="We read what's public—no LinkedIn login."
+              title="Identify"
+              subtitle="Your URL + public context—no LinkedIn login."
             />
             <div style={{
               padding: '1rem',
@@ -332,7 +463,7 @@ export default function PythhWhatYouGet({
                 </div>
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.78rem', color: MUTED, lineHeight: 1.65, marginTop: 'auto', marginBottom: 0 }}>
-                News and web context layer on top of your homepage—so the match isn’t keyword-deep only.
+                Develop strategy from what is public: site, news, and web signals—not a keyword scrape only.
               </p>
             </div>
           </motion.div>
@@ -345,8 +476,8 @@ export default function PythhWhatYouGet({
           >
             <StepHead
               icon={ListOrdered}
-              title="Your shortlist"
-              subtitle="Ordered by fit and timing for you—not alphabetical."
+              title="Engage"
+              subtitle="Ranked list: who to talk to first and why."
             />
             <div style={{
               padding: '0.75rem 1rem 1rem',
@@ -395,8 +526,8 @@ export default function PythhWhatYouGet({
           >
             <StepHead
               icon={MessageSquareText}
-              title="Your opener"
-              subtitle="Angle + suggested first lines per investor."
+              title="Advance"
+              subtitle="Draft openers, follow-ups, and meeting prep."
             />
             <div style={{
               padding: '1rem',
@@ -437,7 +568,7 @@ export default function PythhWhatYouGet({
                 </div>
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', color: MUTED, lineHeight: 1.5, margin: 'auto 0 0', paddingTop: '0.75rem' }}>
-                You still edit before send—we flag what to stress and what to skip.
+                You edit before send; we suggest angles toward a real conversation—not a closed deal.
               </p>
             </div>
           </motion.div>

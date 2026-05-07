@@ -130,7 +130,7 @@ export default function PythhHome() {
     <div style={{ minHeight: '100vh', background: '#080b10', fontFamily: "'Inter', sans-serif" }}>
       <SEO
         title="pythh.ai — Pythh Capital | Investor signals for your raise"
-        description="Who should you pitch first? Pythh ranks a short investor list from live signals and fit—not a directory. Add your startup URL to analyze."
+        description="Automate your fundraising workflow. Pythh identifies aligned investors, develops engagement strategy, prepares outreach, and helps advance qualified investor conversations toward real meetings. We do not promise a term sheet."
         keywords="fundraising brief, startup funding, investor signals, VC matching, seed funding, series A, investor timing, GOD score, venture capital intelligence"
         canonical="/"
       />
