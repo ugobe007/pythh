@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Globe2, ListOrdered, MessageSquareText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { fetchPlatformStats } from '../../lib/platformStats';
@@ -74,8 +74,47 @@ const stepHeader: React.CSSProperties = {
   borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
   display: 'flex',
   alignItems: 'center',
-  gap: '0.625rem',
+  gap: '0.5rem',
 };
+
+function StepHead({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: typeof Globe2;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div style={stepHeader}>
+      <span
+        className="flex shrink-0 items-center justify-center rounded-md"
+        style={{
+          width: 30,
+          height: 30,
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          color: '#34d399',
+          background: 'rgba(16, 185, 129, 0.08)',
+        }}
+        aria-hidden
+      >
+        <Icon size={16} strokeWidth={2} />
+      </span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <span
+          className="pythh-label-caps"
+          style={{ color: '#e2e8f0', display: 'block', fontSize: '0.68rem', letterSpacing: '0.08em' }}
+        >
+          {title}
+        </span>
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.72rem', color: MUTED, lineHeight: 1.35 }}>
+          {subtitle}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export type PythhWhatYouGetProps = {
   /** `hero` = first screen on home (same UI as section, no scroll-in delay). */
@@ -162,16 +201,15 @@ export default function PythhWhatYouGet({
           <h2 style={{
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: 800,
-            fontSize: 'clamp(1.65rem, 3.2vw, 2.65rem)',
+            fontSize: 'clamp(1.5rem, 2.8vw, 2.25rem)',
             letterSpacing: '-0.03em',
             color: '#fafafa',
-            lineHeight: 1.12,
-            maxWidth: variant === 'hero' ? 'none' : 720,
+            lineHeight: 1.15,
+            maxWidth: variant === 'hero' ? 560 : 720,
             margin: 0,
           }}>
-            See who is{' '}
-            <span style={{ color: '#10b981' }}>most likely to fund you</span>
-            {' '}next—not a generic investor list.
+            Who should you pitch{' '}
+            <span style={{ color: '#10b981' }}>first</span>?
           </h2>
           <p
             style={{
@@ -179,11 +217,11 @@ export default function PythhWhatYouGet({
               fontSize: 'clamp(0.9rem, 1.5vw, 1rem)',
               color: MUTED,
               lineHeight: 1.6,
-              maxWidth: variant === 'hero' ? 'none' : 640,
+              maxWidth: variant === 'hero' ? 520 : 640,
               margin: '0.85rem 0 0',
             }}
           >
-            Ranked by live signals, fit, and timing, with outreach angles you can use today. Paste your URL to start.
+            A short, ranked list from live signals and fit—not a directory dump. Add your URL below to run it.
           </p>
         </motion.div>
 
@@ -200,10 +238,11 @@ export default function PythhWhatYouGet({
             transition={{ duration: 0.6, delay: 0.1 }}
             style={{ ...stepCard, display: 'flex', flexDirection: 'column', height: '100%' }}
           >
-            <div style={stepHeader}>
-              <span className="pythh-number-badge">01</span>
-              <span className="pythh-label-caps" style={{ color: MUTED }}>Submit your URL</span>
-            </div>
+            <StepHead
+              icon={Globe2}
+              title="Your site"
+              subtitle="We read what's public—no LinkedIn login."
+            />
             <div style={{
               padding: '1rem',
               flex: 1,
@@ -293,7 +332,7 @@ export default function PythhWhatYouGet({
                 </div>
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.78rem', color: MUTED, lineHeight: 1.65, marginTop: 'auto', marginBottom: 0 }}>
-                We read your public site, then enrich from news and web sources (no LinkedIn login).
+                News and web context layer on top of your homepage—so the match isn’t keyword-deep only.
               </p>
             </div>
           </motion.div>
@@ -304,10 +343,11 @@ export default function PythhWhatYouGet({
             transition={{ duration: 0.6, delay: 0.22 }}
             style={{ ...stepCard, display: 'flex', flexDirection: 'column', height: '100%' }}
           >
-            <div style={stepHeader}>
-              <span className="pythh-number-badge">02</span>
-              <span className="pythh-label-caps" style={{ color: MUTED }}>Top investors ranked</span>
-            </div>
+            <StepHead
+              icon={ListOrdered}
+              title="Your shortlist"
+              subtitle="Ordered by fit and timing for you—not alphabetical."
+            />
             <div style={{
               padding: '0.75rem 1rem 1rem',
               flex: 1,
@@ -342,7 +382,7 @@ export default function PythhWhatYouGet({
                 ))}
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', color: MUTED, marginTop: 'auto', paddingTop: '0.75rem', lineHeight: 1.5, marginBottom: 0 }}>
-                Ranked by likelihood, thesis fit, and timing—not generic lists.
+                Preview rows; full run unlocks your real matches and scores.
               </p>
             </div>
           </motion.div>
@@ -353,10 +393,11 @@ export default function PythhWhatYouGet({
             transition={{ duration: 0.6, delay: 0.34 }}
             style={{ ...stepCard, display: 'flex', flexDirection: 'column', height: '100%' }}
           >
-            <div style={stepHeader}>
-              <span className="pythh-number-badge">03</span>
-              <span className="pythh-label-caps" style={{ color: MUTED }}>Outreach angle + opening line</span>
-            </div>
+            <StepHead
+              icon={MessageSquareText}
+              title="Your opener"
+              subtitle="Angle + suggested first lines per investor."
+            />
             <div style={{
               padding: '1rem',
               flex: 1,
@@ -382,22 +423,21 @@ export default function PythhWhatYouGet({
                   padding: '0.75rem',
                   marginBottom: 0,
                 }}>
-                  <p style={{
-                    fontFamily: "'Inter', sans-serif",
-                    fontSize: '0.8rem',
-                    color: '#94a3b8',
-                    lineHeight: 1.65,
-                    fontStyle: 'italic',
-                    margin: 0,
-                  }}>
-                    &ldquo;Hi [Partner] — Acme.ai is building infrastructure for real-time AI inference.
-                    Given Sequoia&apos;s recent moves in AI/ML infrastructure (Harvey, Mistral), I think
-                    there&apos;s strong thesis alignment...&rdquo;
+                <p style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: '0.8rem',
+                  color: '#94a3b8',
+                  lineHeight: 1.65,
+                  fontStyle: 'italic',
+                  margin: 0,
+                }}>
+                    &ldquo;Hi [Name] — quick note on Acme.ai and your recent AI infra deals. We sit in a similar wedge;
+                    open to 15 minutes this week?&rdquo;
                   </p>
                 </div>
               </div>
               <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '0.75rem', color: MUTED, lineHeight: 1.5, margin: 'auto 0 0', paddingTop: '0.75rem' }}>
-                Best angle, suggested opener, and what to avoid—so you can act today.
+                You still edit before send—we flag what to stress and what to skip.
               </p>
             </div>
           </motion.div>
