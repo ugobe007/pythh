@@ -1,7 +1,7 @@
 {
-  "installCommand": "npm ci --legacy-peer-deps",
-  "buildCommand": "npm run build",
-  "outputDirectory": "./dist",
+  "installCommand": "cd .. && npm ci --legacy-peer-deps",
+  "buildCommand": "bash -lc 'cd .. && npm run build && rm -rf NEW_pythh_site/dist && cp -r dist NEW_pythh_site/'",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/",
