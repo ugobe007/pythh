@@ -5,13 +5,13 @@
  * Sections: Nav → Hero → Agent Intro → Live Signals → Science → Testimonials → Newsletter → Footer
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import PythiaReveal from "@/components/PythiaReveal";
+const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import {
   ArrowRight,
@@ -418,18 +418,27 @@ function AgentIntroSection() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left: PYTHIA Animated Reveal */}
           <div ref={ref} className={`relative flex items-center justify-center ${isVisible ? "animate-fade-in-up" : "opacity-0"}`} style={{ animationFillMode: "forwards", minHeight: 360 }}>
-            {/* Radial dark backdrop */}
-            <div className="absolute inset-0 rounded-3xl" style={{ background: "radial-gradient(ellipse at center, oklch(0.18 0.015 162) 0%, oklch(0.13 0.01 264) 70%)", border: "1px solid oklch(0.696 0.17 162.48 / 0.12)" }} />
-            {/* Corner accent lines */}
-            <div className="absolute top-4 left-4 w-8 h-8" style={{ borderTop: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderLeft: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
-            <div className="absolute top-4 right-4 w-8 h-8" style={{ borderTop: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderRight: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
-            <div className="absolute bottom-4 left-4 w-8 h-8" style={{ borderBottom: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderLeft: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
-            <div className="absolute bottom-4 right-4 w-8 h-8" style={{ borderBottom: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderRight: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
-            {/* Label */}
+            <div
+              className="absolute inset-0 rounded-3xl"
+              style={{
+                background: "oklch(0.14 0.012 264)",
+                border: "1px solid oklch(0.25 0.01 264)",
+              }}
+            />
             <div className="absolute top-5 left-0 right-0 flex justify-center">
-              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48 / 0.5)" }}>PYTHIA SEES THE SIGNAL</span>
+              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48 / 0.45)" }}>PYTHIA SEES THE SIGNAL</span>
             </div>
-            <PythiaReveal autoPlay={isVisible} />
+            <Suspense
+              fallback={
+                <div
+                  className="relative flex items-center justify-center rounded-2xl"
+                  style={{ width: 320, height: 320, backgroundColor: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
+                  aria-hidden
+                />
+              }
+            >
+              <PythiaReveal autoPlay={isVisible} />
+            </Suspense>
           </div>
 
           {/* Right: Copy */}
@@ -438,8 +447,22 @@ function AgentIntroSection() {
               <div className="h-px w-8" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
               <span className="section-label">MEET YOUR ORACLE</span>
             </div>
-            <h2 className="font-display font-bold mb-2" style={{ fontSize: "clamp(2rem, 4vw, 3rem)", color: "oklch(0.97 0.005 264)" }}>
-              Meet PYTHIA.
+            <h2
+              className="font-display font-bold mb-2 flex flex-wrap items-center gap-3"
+              style={{ fontSize: "clamp(2rem, 4vw, 3rem)", color: "oklch(0.97 0.005 264)" }}
+            >
+              <img
+                src="/images/pythh_oracle.png"
+                alt=""
+                width={44}
+                height={44}
+                className="rounded-lg object-contain flex-shrink-0"
+                style={{
+                  border: "1px solid oklch(0.28 0.01 264)",
+                  boxShadow: "0 0 0 1px oklch(0.696 0.17 162.48 / 0.12)",
+                }}
+              />
+              <span>Meet PYTHIA.</span>
             </h2>
             <p className="text-lg font-medium mb-6" style={{ color: "oklch(0.769 0.188 70.08)" }}>
               The Oracle of your fundraise.

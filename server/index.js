@@ -267,6 +267,20 @@ app.use((req, res, next) => {
   }
 });
 
+// Pythh NEW site — tRPC (same origin as SPA: /api/trpc)
+(function mountPythhTrpcApi() {
+  const { pathToFileURL } = require('url');
+  const trpcEntry = path.join(__dirname, '..', 'NEW_pythh_site', 'trpcExpressMount.ts');
+  import(pathToFileURL(trpcEntry).href)
+    .then((mod) => {
+      mod.mountPythhTrpc(app);
+      console.log('[pythh] /api/trpc mounted (NEW_pythh_site)');
+    })
+    .catch((err) => {
+      console.error('[pythh] Failed to mount /api/trpc:', err);
+    });
+})();
+
 // Request ID middleware (for tracing)
 const { requestIdMiddleware } = require('./middleware/requestId');
 app.use(requestIdMiddleware);

@@ -76,10 +76,24 @@ function shuffleIndices(n: number): number[] {
   return arr;
 }
 
+function usePrefersReducedMotion(): boolean {
+  const [reduce, setReduce] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduce(mq.matches);
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  return reduce;
+}
+
 export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }) {
-  const [phase, setPhase] = useState<AnimPhase>("hidden");
+  const reduceMotion = usePrefersReducedMotion();
+  const [phase, setPhase] = useState<AnimPhase>(reduceMotion ? "revealed" : "hidden");
   const [signalIdx, setSignalIdx] = useState(0);
-  const [signalVisible, setSignalVisible] = useState(false);
+  const [signalVisible, setSignalVisible] = useState(reduceMotion);
   // Which pixels are currently "scattered" (hidden)
   const [scatteredPixels, setScatteredPixels] = useState<Set<number>>(new Set());
   const [scatterOrder] = useState(() => shuffleIndices(TOTAL_PIXELS));
@@ -145,13 +159,15 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
   }, [scatterOrder, clearTimers]);
 
   useEffect(() => {
+    if (reduceMotion) return;
     if (!autoPlay) return;
     const t = setTimeout(runSequence, 500);
     return () => { clearTimeout(t); clearTimers(); };
-  }, [autoPlay, runSequence, clearTimers]);
+  }, [autoPlay, runSequence, clearTimers, reduceMotion]);
 
   // Cycle signals after reveal
   useEffect(() => {
+    if (reduceMotion) return;
     if (phase !== "revealed") return;
     cycleRef.current = setInterval(() => {
       setSignalVisible(false);
@@ -162,12 +178,17 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
       scatterRef.current.push(t);
     }, 4500);
     return () => { if (cycleRef.current) clearInterval(cycleRef.current); };
-  }, [phase]);
+  }, [phase, reduceMotion]);
 
   const signal = LIVE_SIGNALS[signalIdx];
-  const isPixelPhase = phase === "pixelating" || phase === "scattering";
-  const iconVisible = phase === "entering" || phase === "scanning" || phase === "pixelating" || phase === "scattering";
-  const showScanLine = phase === "scanning";
+  const isPixelPhase = !reduceMotion && (phase === "pixelating" || phase === "scattering");
+  const iconVisible =
+    !reduceMotion &&
+    (phase === "entering" ||
+      phase === "scanning" ||
+      phase === "pixelating" ||
+      phase === "scattering");
+  const showScanLine = !reduceMotion && phase === "scanning";
 
   return (
     <div className="relative flex items-center justify-center select-none" style={{ width: 320, height: 320 }}>
@@ -313,6 +334,17 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
+              {reduceMotion && (
+                <img
+                  src={PYTHIA_ICON_URL}
+                  alt=""
+                  width={28}
+                  height={28}
+                  draggable={false}
+                  className="rounded-md object-contain flex-shrink-0"
+                  style={{ filter: "grayscale(1) contrast(1.05)" }}
+                />
+              )}
               <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
               <span className="text-xs font-mono tracking-widest" style={{ color: "oklch(0.696 0.17 162.48)" }}>
                 LIVE SIGNAL
@@ -394,7 +426,7 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
       </div>
 
       {/* ── Replay button ── */}
-      {phase === "revealed" && (
+      {phase === "revealed" && !reduceMotion && (
         <button
           className="absolute bottom-0 right-0 text-xs font-mono px-2 py-1 rounded opacity-30 hover:opacity-70 transition-opacity"
           style={{ color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.2)" }}
