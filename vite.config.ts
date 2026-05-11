@@ -56,6 +56,8 @@ export default defineConfig({
     },
   },
   build: {
+    // Default `dist` is relative to `root`, which would be NEW_pythh_site/dist — Vercel + Fly expect repo-root dist/.
+    outDir: path.resolve(__dirname, 'dist'),
     cssCodeSplit: false,
     modulePreload: { polyfill: false },
     sourcemap: false,
