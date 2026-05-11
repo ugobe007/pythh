@@ -1,19 +1,9 @@
--- Version 001 / create_startups_table
---
--- Production lists this migration in Database → Migrations; the repo must include a file whose
--- version prefix is `001` so Supabase GitHub branching / preview can match remote history.
---
--- Do NOT run this file manually on production if migration 001 is already applied (it almost
--- certainly is). Committing this file fixes the "Remote migration versions not found in local"
--- check by aligning local paths with remote schema_migrations.
---
--- Best body: open Supabase Dashboard → Database → Migrations → 001 → "View migration SQL",
--- copy the exact statements here (idempotent IF NOT EXISTS preferred), then commit.
---
--- Placeholder until you paste the real DDL (safe on empty preview replay; no-op on prod if re-run).
--- Avoid `SELECT 1` / `SELECT 001`: SQL Editor shows a confusing row like { "?column?": 1 } (anonymous column name).
-DO $$
-BEGIN
-  NULL;
-END $$;
+-- Version 001 / create_startups_table (legacy; listed on production migration history).
+-- Supabase Dashboard often has no stored SQL for these rows ("View migration SQL" → undefined).
+-- Source: earliest `startups` definition in repo `supabase-complete-schema.sql` (Part 1 core tables).
 
+CREATE TABLE IF NOT EXISTS public.startups (
+  id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  validated BOOLEAN NOT NULL DEFAULT false
+);
