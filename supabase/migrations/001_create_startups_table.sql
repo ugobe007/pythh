@@ -1,0 +1,14 @@
+-- Version 001 / create_startups_table
+--
+-- Production lists this migration in Database → Migrations; the repo must include a file whose
+-- version prefix is `001` so Supabase GitHub branching / preview can match remote history.
+--
+-- Do NOT run this file manually on production if migration 001 is already applied (it almost
+-- certainly is). Committing this file fixes the "Remote migration versions not found in local"
+-- check by aligning local paths with remote schema_migrations.
+--
+-- Best body: open Supabase Dashboard → Database → Migrations → 001 → "View migration SQL",
+-- copy the exact statements here (idempotent IF NOT EXISTS preferred), then commit.
+--
+-- Placeholder until you paste the real DDL (safe on empty preview replay; no-op on prod if re-run):
+SELECT 1;
