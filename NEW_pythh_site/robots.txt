@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /checkout/
+Disallow: /account
+
+Sitemap: https://pythh.ai/sitemap.xml
