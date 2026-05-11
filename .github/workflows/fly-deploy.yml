@@ -10,7 +10,11 @@ jobs:
   deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
-    concurrency: deploy-group
+    # One deploy at a time; queued runs can still hit a Fly machine lease held by
+    # another actor (dashboard, tokens.fly.io). Retries on the deploy step cover that.
+    concurrency:
+      group: fly-deploy-${{ github.repository }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       
@@ -54,6 +58,19 @@ jobs:
       # This avoids a second npm run build on the remote builder with no secrets
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy to Fly.io
-        run: flyctl deploy --local-only
+        run: |
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            if flyctl deploy --local-only; then
+              ok=1
+              break
+            fi
+            echo "flyctl deploy failed (attempt $attempt/5). Retrying after lease window…"
+            sleep 70
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "All deploy attempts failed."
+            exit 1
+          fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
