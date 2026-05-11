@@ -13,8 +13,8 @@
  * 4. Generate matches using REAL GOD score (matches ONLY after scoring)
  * 5. Return results
  * 
- * IMPORTANT: GOD scores are calculated using the OFFICIAL scoring service
- * (startupScoringService.ts). NO hardcoded scores. NO placeholders.
+ * IMPORTANT: GOD column mapping lives in server/scoring/hotGodFromStartupRow.js
+ * (calculateHotScore from startupScoringService.ts). Do not fork scoring math in this file.
  */
 
 const express = require('express');
@@ -32,23 +32,15 @@ const {
 } = require('../lib/sectorTaxonomy');
 const { calculateCompleteness } = require('../services/dataCompletenessService');
 const { recomputeStartupSignalScoresFromPythh } = require('../lib/recomputeStartupSignalScoresFromPythh');
+const {
+  toScoringProfileFromStartupUpload: toScoringProfile,
+  calculateGodScoreColumnsFromStartup: calculateGODScore,
+} = require('../scoring/hotGodFromStartupRow');
 
 // =============================================================================
-// REAL SCORING PIPELINE - The GOD Score SSOT
+// URL scraping (separate from GOD mapping — see server/scoring/hotGodFromStartupRow.js)
 // =============================================================================
-// .ts files require tsx/ts-node in production; use stubs when not available so the app loads
-let calculateHotScore;
 let scrapeAndScoreStartup;
-try {
-  const scoring = require('../services/startupScoringService.ts');
-  calculateHotScore = scoring.calculateHotScore;
-} catch (e) {
-  console.warn('[instantSubmit] startupScoringService.ts not available (Node cannot run .ts). Using stub.');
-  calculateHotScore = (profile) => ({
-    total: 5.5,
-    breakdown: { team_execution: 1, team_age: 1, market: 1, market_insight: 1, traction: 1, product: 1, product_vision: 1 }
-  });
-}
 try {
   const scraping = require('../services/urlScrapingService.ts');
   scrapeAndScoreStartup = scraping.scrapeAndScoreStartup;
@@ -140,94 +132,6 @@ function extractPageSummaryFromHtml(rawHtml) {
       product_description: bestDescription,
       tagline: bestDescription.length <= 120 ? bestDescription : `${bestDescription.substring(0, 117)}...`,
     },
-  };
-}
-
-/**
- * Transform a DB startup row into a scoring profile.
- * Ported from scripts/recalculate-scores.ts (SSOT).
- */
-function toScoringProfile(startup) {
-  const extracted = startup.extracted_data || {};
-  return {
-    tagline: startup.tagline || extracted.tagline,
-    pitch: startup.description || startup.pitch || extracted.pitch || extracted.description,
-    problem: startup.problem || extracted.problem,
-    solution: startup.solution || extracted.solution,
-    market_size: startup.market_size || extracted.market_size,
-    industries: startup.industries || startup.sectors || extracted.industries || extracted.sectors || [],
-    team: startup.team_companies ? startup.team_companies.map(c => ({
-      name: 'Team Member',
-      previousCompanies: [c]
-    })) : (extracted.team || []),
-    // founders_count = co-founders (2-5), NOT total employees.
-    // team_size > 10 is almost certainly total headcount — guard against false ratio.
-    founders_count: (() => {
-      const ts = startup.team_size || extracted.team_size || null;
-      const explicit = extracted.founders_count || null;
-      if (explicit) return explicit;
-      if (ts && ts <= 10) return ts;
-      return 1;
-    })(),
-    team_size: startup.team_size || extracted.team_size || extracted.team?.team_size || null,
-    technical_cofounders: (startup.has_technical_cofounder ? 1 : 0) || (extracted.has_technical_cofounder ? 1 : 0),
-    // Numeric traction values
-    mrr: startup.mrr || extracted.mrr,
-    revenue: startup.arr || startup.revenue || extracted.revenue || extracted.arr,
-    growth_rate: startup.growth_rate_monthly || extracted.growth_rate || extracted.growth_rate_monthly,
-    customers: startup.customer_count || extracted.customers || extracted.customer_count,
-    active_users: extracted.active_users || extracted.users,
-    gmv: extracted.gmv,
-    retention_rate: extracted.retention_rate,
-    churn_rate: extracted.churn_rate,
-    prepaying_customers: extracted.prepaying_customers,
-    signed_contracts: extracted.signed_contracts,
-    // Boolean inference signals
-    has_revenue: extracted.has_revenue,
-    has_customers: extracted.has_customers,
-    execution_signals: extracted.execution_signals || [],
-    team_signals: extracted.team_signals || [],
-    funding_amount: extracted.funding_amount,
-    funding_stage: extracted.funding_stage,
-    // Product signals
-    launched: startup.is_launched || extracted.is_launched || extracted.launched,
-    demo_available: startup.has_demo || extracted.has_demo || extracted.demo_available,
-    unique_ip: extracted.unique_ip,
-    defensibility: extracted.defensibility,
-    mvp_stage: extracted.mvp_stage,
-    // Other fields
-    founded_date: startup.founded_date || startup.created_at || extracted.founded_date,
-    value_proposition: startup.value_proposition || startup.tagline || extracted.value_proposition,
-    backed_by: startup.backed_by || extracted.backed_by || extracted.investors,
-    // Pass through all fields
-    ...startup,
-    ...extracted
-  };
-}
-
-/**
- * Calculate REAL GOD score using the official scoring service.
- * Ported from scripts/recalculate-scores.ts (SSOT).
- * Returns 0-100 total score + component breakdowns.
- */
-function calculateGODScore(startup) {
-  const profile = toScoringProfile(startup);
-  const result = calculateHotScore(profile);
-  
-  // Convert from 10-point scale to 100-point scale
-  const total = Math.round(result.total * 10);
-  
-  // Map breakdown to 0-100 using data-driven practical maximums
-  const teamCombined = (result.breakdown.team_execution || 0) + (result.breakdown.team_age || 0);
-  const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
-  
-  return {
-    team_score: Math.round((teamCombined / 3.5) * 100),
-    traction_score: Math.round(((result.breakdown.traction || 0) / 3.0) * 100),
-    market_score: Math.round((marketCombined / 2.0) * 100),
-    product_score: Math.round(((result.breakdown.product || 0) / 1.3) * 100),
-    vision_score: Math.round(((result.breakdown.product_vision || 0) / 1.3) * 100),
-    total_god_score: total
   };
 }
 

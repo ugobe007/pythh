@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { EnhancedMatchingService } = require('../services/EnhancedMatchingService');
 
 // Import services from TypeScript modules (using dynamic import for CommonJS compatibility)
 // Note: These functions are loaded asynchronously on first use
@@ -72,172 +73,81 @@ async function loadServices() {
 router.post('/generate', async (req, res) => {
   try {
     const { startupId, priority = 'immediate' } = req.body;
-    
+
     if (!startupId) {
       return res.status(400).json({
         success: false,
-        error: 'startupId is required'
+        error: 'startupId is required',
       });
     }
-    
-    console.log(`🎯 INSTANT MATCH GENERATION for startup ${startupId} (priority: ${priority})`);
-    
-    // Get Supabase client
+
+    console.log(
+      `🎯 INSTANT MATCH (EnhancedMatchingService) for startup ${startupId} (priority: ${priority})`
+    );
+
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY
     );
-    
-    // Get startup data
+
     const { data: startup, error: startupError } = await supabase
       .from('startup_uploads')
-      .select('*')
+      .select('id, name, total_god_score')
       .eq('id', startupId)
       .single();
-    
+
     if (startupError || !startup) {
       return res.status(404).json({
         success: false,
-        error: `Startup not found: ${startupError?.message || 'Unknown error'}`
+        error: `Startup not found: ${startupError?.message || 'Unknown error'}`,
       });
     }
-    
+
     console.log(`  Found startup: ${startup.name || 'Unnamed'} (GOD: ${startup.total_god_score})`);
-    
-    // Get all active investors
-    const { data: investors, error: investorsError } = await supabase
-      .from('investors')
-      .select('*')
-      .eq('status', 'active');
-    
-    if (investorsError) {
+
+    await supabase.from('startup_investor_matches').delete().eq('startup_id', startupId);
+
+    const svc = new EnhancedMatchingService(supabase);
+    const result = await svc.generateMatches(startupId, { maxMatches: 50, minScore: 20 });
+
+    if (!result.success) {
       return res.status(500).json({
         success: false,
-        error: `Failed to load investors: ${investorsError.message}`
+        error: result.error || 'Match generation failed',
       });
     }
-    
-    console.log(`  Loaded ${investors.length} active investors`);
-    
-    // Generate matches using same logic as queue processor
-    const matches = [];
-    for (const investor of investors) {
-      const score = calculateMatchScore(startup, investor);
-      
-      if (score >= 20) { // MIN_MATCH_SCORE
-        matches.push({
-          startup_id: startupId,
-          investor_id: investor.id,
-          match_score: score,
-          reasoning: generateReasoning(startup, investor, score),
-          status: 'suggested',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-      }
-    }
-    
-    console.log(`  Generated ${matches.length} matches (score >= 20)`);
-    
-    if (matches.length > 0) {
-      // Delete existing matches first
-      await supabase
-        .from('startup_investor_matches')
-        .delete()
-        .eq('startup_id', startupId);
-      
-      // Insert new matches in batches
-      const batchSize = 100;
-      let insertedCount = 0;
-      for (let i = 0; i < matches.length; i += batchSize) {
-        const batch = matches.slice(i, i + batchSize);
-        const { error: insertError } = await supabase
-          .from('startup_investor_matches')
-          .insert(batch);
-        
-        if (insertError) {
-          console.error(`  ⚠️ Batch insert error:`, insertError.message);
-        } else {
-          insertedCount += batch.length;
-        }
-      }
-      
-      console.log(`  ✅ Inserted ${insertedCount} matches instantly`);
-      
-      // Log to ai_logs
+
+    const matchCount = result.matchCount ?? 0;
+    console.log(`  ✅ Enhanced matching wrote ${matchCount} rows (min score 20)`);
+
+    try {
       await supabase.from('ai_logs').insert({
         log_type: 'instant_match',
         action_type: 'generate',
-        input_data: { startupId, priority },
-        output_data: { matchCount: insertedCount },
-        created_at: new Date().toISOString()
+        input_data: { startupId, priority, engine: 'EnhancedMatchingService' },
+        output_data: { matchCount, topScore: result.topScore ?? null },
+        created_at: new Date().toISOString(),
       });
-      
-      return res.json({
-        success: true,
-        matchCount: insertedCount,
-        message: `Generated ${insertedCount} matches instantly`
-      });
-    } else {
-      return res.json({
-        success: true,
-        matchCount: 0,
-        message: 'No matches met minimum score threshold (20)'
-      });
+    } catch (_) {
+      /* non-fatal */
     }
-    
+
+    return res.json({
+      success: true,
+      matchCount,
+      message:
+        matchCount > 0
+          ? `Generated ${matchCount} matches (EnhancedMatchingService)`
+          : 'No matches met minimum score threshold (20)',
+    });
   } catch (error) {
     console.error('❌ Error generating instant matches:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to generate matches'
+      error: error.message || 'Failed to generate matches',
     });
   }
 });
-
-/**
- * Calculate match score between startup and investor
- * (Same logic as process-match-queue.js)
- */
-function calculateMatchScore(startup, investor) {
-  let score = startup.total_god_score || 50; // Base score from GOD score
-  
-  // Sector alignment
-  const startupSectors = Array.isArray(startup.sectors) ? startup.sectors : [];
-  const investorSectors = Array.isArray(investor.sectors) ? investor.sectors : [];
-  const sectorOverlap = startupSectors.filter(s => investorSectors.includes(s)).length;
-  
-  if (sectorOverlap > 0) score += 10 * sectorOverlap;
-  
-  // Stage alignment
-  const startupStage = startup.stage || 'seed';
-  const investorStages = Array.isArray(investor.stage) ? investor.stage : [investor.stage];
-  
-  if (investorStages.includes(startupStage)) score += 15;
-  
-  // Cap at 100
-  return Math.min(100, Math.max(0, Math.round(score)));
-}
-
-/**
- * Generate reasoning array for match
- */
-function generateReasoning(startup, investor, score) {
-  const reasons = [];
-  
-  if (score >= 70) reasons.push('Strong overall alignment');
-  if (startup.total_god_score >= 70) reasons.push('High GOD score');
-  
-  const startupSectors = Array.isArray(startup.sectors) ? startup.sectors : [];
-  const investorSectors = Array.isArray(investor.sectors) ? investor.sectors : [];
-  const overlap = startupSectors.filter(s => investorSectors.includes(s));
-  
-  if (overlap.length > 0) {
-    reasons.push(`Sector match: ${overlap.join(', ')}`);
-  }
-  
-  return reasons;
-}
 
 // Ensure services are loaded before handling requests
 router.use(async (req, res, next) => {

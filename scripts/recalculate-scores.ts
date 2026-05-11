@@ -1,8 +1,9 @@
 /**
  * PYTH AI SCORE RECALCULATOR
  * ============================
- * Recalculates GOD scores for startups using the SINGLE SOURCE OF TRUTH:
- * ../server/services/startupScoringService.ts
+ * Recalculates GOD scores for startups using:
+ * - ../server/scoring/hotGodFromStartupRow.js (row → profile → component columns + psych)
+ * - ../server/services/startupScoringService.ts (calculateHotScore implementation)
  * 
  * ALSO includes Bootstrap Scoring for sparse-data startups:
  * ../server/services/bootstrapScoringService.ts
@@ -13,9 +14,10 @@
  */
 
 import * as path from 'path';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import { calculateHotScore } from '../server/services/startupScoringService';
 import { calculateBootstrapScore } from '../server/services/bootstrapScoringService';
 
 // T2: Momentum scoring layer (CommonJS)
@@ -62,6 +64,10 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+const requireHotGod = createRequire(import.meta.url);
+const __recalcDir = path.dirname(fileURLToPath(import.meta.url));
+const hotGod = requireHotGod(path.join(__recalcDir, '../server/scoring/hotGodFromStartupRow.js'));
 
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
@@ -176,192 +182,9 @@ async function loadFaithAggregates(): Promise<Map<string, FaithAgg>> {
   return map;
 }
 
-/**
- * Convert startup DB row to profile format for scoring service
- * 
- * The scoring service now handles BOTH:
- * 1. Numeric values (revenue: 100000) - uses exact amounts for tiered scoring
- * 2. Boolean inference signals (has_revenue: true) - uses as fallback when no numbers
- */
-function toScoringProfile(startup: any): any {
-  // Extract data from extracted_data JSONB column if available
-  const extracted = startup.extracted_data || {};
-  
-  // ============================================================================
-  // PARSED METRICS INTEGRATION (v1 - wired Feb 2026)
-  // ============================================================================
-  // The startup-metric-parser.js backfill populates these columns:
-  //   arr_usd, revenue_usd, last_round_amount_usd, total_funding_usd,
-  //   parsed_customers, parsed_users, parsed_headcount,
-  //   burn_monthly_usd, runway_months, valuation_usd,
-  //   funding_confidence, traction_confidence
-  //
-  // These are HIGHER QUALITY than extracted_data because:
-  //   1. Plausibility-capped ($15B max round, $500B max valuation)
-  //   2. Confidence-gated ($2B+ needs conf≥0.7)
-  //   3. Publisher-domain filtered (120+ blacklist)
-  //   4. Two-pass best-mention selection
-  //
-  // Wire them in as PRIMARY source, with old fields as fallback.
-  // Gate on confidence: only use parsed funding if funding_confidence ≥ 0.35
-  // (Reduced from 0.5 — small rounds (<$50M) tagged with high keyword specificity
-  //  are near-certain; the old 0.5 gate was filtering too aggressively)
-  // ============================================================================
-  
-  const fundingConfidence = startup.funding_confidence || 0;
-  const tractionConfidence = startup.traction_confidence || 0;
-  
-  // Parsed ARR/revenue (gate on traction confidence ≥ 0.35, reduced from 0.4)
-  const parsedRevenue = (tractionConfidence >= 0.35)
-    ? (startup.arr_usd || startup.revenue_usd || 0)
-    : 0;
-  
-  // Parsed customer/user counts (no confidence gate needed — headcount is high confidence)
-  const parsedCustomers = startup.parsed_customers || 0;
-  const parsedUsers = startup.parsed_users || 0;
-  
-  // Parsed funding amount (gate on funding confidence ≥ 0.35, reduced from 0.5)
-  const parsedFunding = (fundingConfidence >= 0.35)
-    ? (startup.last_round_amount_usd || startup.total_funding_usd || 0)
-    : 0;
-  
-  // Parsed burn/runway (gate on funding confidence ≥ 0.4)
-  const parsedBurn = (fundingConfidence >= 0.4) ? (startup.burn_monthly_usd || 0) : 0;
-  const parsedRunway = (fundingConfidence >= 0.4) ? (startup.runway_months || 0) : 0;
-  
-  // Infer boolean signals from parsed metrics
-  const parsedHasRevenue = parsedRevenue > 0;
-  const parsedHasCustomers = parsedCustomers > 0;
-  
-  // Pass through any additional fields FIRST, then override with explicit mappings
-  const base = { ...startup, ...extracted };
-  
-  return {
-    ...base,
-    
-    // Explicit field mappings (override spreads above)
-    tagline: startup.tagline || extracted.tagline,
-    pitch: startup.description || startup.pitch || extracted.pitch || extracted.description,
-    problem: startup.problem || extracted.problem,
-    solution: startup.solution || extracted.solution,
-    market_size: startup.market_size || extracted.market_size,
-    industries: startup.industries || startup.sectors || extracted.industries || extracted.sectors || [],
-    team: startup.team_companies ? startup.team_companies.map((c: string) => ({
-      name: 'Team Member',
-      previousCompanies: [c]
-    })) : (extracted.team || []),
-    // founders_count must be the number of co-founders (2-5), NOT total employees.
-    // team_size > 10 almost certainly means total headcount — don't use as founders_count.
-    founders_count: (() => {
-      const ts = startup.team_size || extracted.team_size || null;
-      const explicit = extracted.founders_count || null;
-      if (explicit) return explicit;
-      if (ts && ts <= 10) return ts; // plausibly a founder count
-      return 1; // default: assume solo until we have better data
-    })(),
-    team_size: startup.team_size || extracted.team_size || extracted.team?.team_size || null, // total employees
-    technical_cofounders: (startup.has_technical_cofounder ? 1 : 0) || (extracted.has_technical_cofounder ? 1 : 0),
-    
-    // Numeric traction values — PARSED METRICS are primary, old fields are fallback
-    mrr: startup.mrr || extracted.mrr,
-    revenue: parsedRevenue || startup.arr || startup.revenue || extracted.revenue || extracted.arr,
-    growth_rate: startup.growth_rate_monthly || extracted.growth_rate || extracted.growth_rate_monthly,
-    customers: parsedCustomers || startup.customer_count || extracted.customers || extracted.customer_count,
-    active_users: parsedUsers || extracted.active_users || extracted.users,
-    gmv: extracted.gmv,
-    retention_rate: extracted.retention_rate,
-    churn_rate: extracted.churn_rate,
-    prepaying_customers: extracted.prepaying_customers,
-    signed_contracts: extracted.signed_contracts,
-    
-    // Boolean inference signals — enriched with parsed metric detection
-    // BUG FIX (Feb 27 2026): startup.has_revenue and startup.has_customers (DB columns)
-    // were being silently dropped by these overrides, losing 7 + 203 confirmed signals.
-    // traction_confidence >= 0.5 means parser found strong revenue/customer language
-    // (ARR/MRR/GMV/CUSTOMERS/USERS mention with high confidence) — treat as has_customers.
-    // traction_confidence >= 0.7 is a very strong signal — treat as has_revenue if none found.
-    has_revenue: parsedHasRevenue || startup.has_revenue || extracted.has_revenue
-      || (tractionConfidence >= 0.7 && !startup.has_revenue && !extracted.has_revenue),
-    has_customers: parsedHasCustomers || startup.has_customers || extracted.has_customers
-      || (tractionConfidence >= 0.5),
-    execution_signals: extracted.execution_signals || [],
-    team_signals: extracted.team_signals || [],
-    funding_amount: parsedFunding || extracted.funding_amount,
-    funding_stage: extracted.funding_stage,
-    
-    // Funding & financial planning — wire in parsed metrics
-    // extracted.funding_amount is written by enrich-floor-startups.js — must be included here
-    // so the scorer's fundingVelocityBonus and traction scoring can use it
-    previous_funding: parsedFunding || startup.previous_funding || extracted.previous_funding || extracted.funding_amount,
-    burn_rate: parsedBurn || startup.burn_rate || extracted.burn_rate,
-    runway_months: parsedRunway || startup.runway_months || extracted.runway_months,
-    
-    // Product signals
-    launched: startup.is_launched || extracted.is_launched || extracted.launched,
-    demo_available: startup.has_demo || extracted.has_demo || extracted.demo_available,
-    unique_ip: extracted.unique_ip,
-    defensibility: extracted.defensibility,
-    mvp_stage: extracted.mvp_stage,
-    
-    // Other fields
-    founded_date: startup.founded_date || startup.created_at || extracted.founded_date,
-    value_proposition: startup.value_proposition || startup.tagline || extracted.value_proposition,
-    backed_by: startup.backed_by || extracted.backed_by || extracted.investors,
-    
-    // Web signals — from enrich-web-signals.mjs (stored in extracted_data.web_signals)
-    // These override nothing; scoring fns read them as fresh signal sources
-    has_blog: (extracted.web_signals?.blog?.found) ?? false,
-    blog_post_count: extracted.web_signals?.blog?.post_count_estimate ?? 0,
-    days_since_blog_post: extracted.web_signals?.blog?.days_since_last_post ?? null,
-    tier1_press_count: extracted.web_signals?.press_tier?.tier1_count ?? 0,
-    tier2_press_count: extracted.web_signals?.press_tier?.tier2_count ?? 0,
-    press_wire_count: extracted.web_signals?.press_tier?.pr_wire_count ?? 0,
-    press_total: extracted.web_signals?.press_tier?.total 
-      ?? extracted.social_signals?.news_count 
-      ?? 0,
-    reddit_mentions: extracted.web_signals?.reddit?.mention_count ?? 0,
-    reddit_positive: extracted.web_signals?.reddit?.positive_count ?? 0,
-    reddit_negative: extracted.web_signals?.reddit?.negative_count ?? 0,
-  };
-}
-
-/**
- * Use the SINGLE SOURCE OF TRUTH scoring service
- * ⚠️  ALL SCORING LOGIC LIVES IN startupScoringService.ts - NOT HERE!
- */
+/** Pure GOD component breakdown — SSOT: server/scoring/hotGodFromStartupRow.js */
 function calculateGODScore(startup: any): ScoreBreakdown {
-  const profile = toScoringProfile(startup);
-  const result = calculateHotScore(profile);
-  
-  // Convert from 10-point scale to 100-point scale
-  const total = Math.round(result.total * 10);
-  
-  // Map breakdown to 0-100 scale
-  // Breakdown structure: team_execution (0-3), product_vision (0-2), traction (0-3), market (0-2), product (0-2)
-  // Also includes: founder_courage (0-1.5), market_insight (0-1.5), team_age (0-1)
-  // 
-  // FIXED Feb 14, 2026: Use THEORETICAL maximums from scoring service to prevent >100
-  // Previous "practical max" divisors were too small, causing scores of 109, 130, etc.
-  // Correct maxes: team_execution(3)+team_age(1)=4, market(2)+insight(1.5)=3.5,
-  //   traction=3, product=2, vision=2
-  // All clamped to 100 as safety net.
-  
-  const teamCombined = (result.breakdown.team_execution || 0) + (result.breakdown.team_age || 0);
-  const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
-  
-  return {
-    team_score: Math.min(Math.round((teamCombined / 4.0) * 100), 100),       // Max: team_execution(3) + team_age(1) = 4.0
-    traction_score: Math.min(Math.round(((result.breakdown.traction || 0) / 3.0) * 100), 100), // Max: traction = 3.0
-    market_score: Math.min(Math.round((marketCombined / 3.5) * 100), 100),   // Max: market(2) + market_insight(1.5) = 3.5
-    product_score: Math.min(Math.round(((result.breakdown.product || 0) / 2.0) * 100), 100),   // Max: product = 2.0
-    vision_score: Math.min(Math.round(((result.breakdown.product_vision || 0) / 2.0) * 100), 100), // Max: product_vision = 2.0
-    total_god_score: total,
-    // Phase 1 Psychological Signals (Feb 12, 2026) - ADMIN APPROVED (ADDITIVE)
-    // FIX (Feb 14): Was reading result.psychological_bonus (undefined) instead of result.psychological_multiplier
-    psychological_multiplier: result.psychological_multiplier || 0,
-    enhanced_god_score: result.enhanced_total ? Math.round(result.enhanced_total * 10) : total,
-    psychological_signals: result.psychological_signals || { fomo: 0, conviction: 0, urgency: 0, risk: 0 }
-  };
+  return hotGod.calculateGodScoreBreakdownFromStartup(startup) as ScoreBreakdown;
 }
 
 /**

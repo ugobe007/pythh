@@ -93,13 +93,18 @@ class EnhancedMatchingService {
       for (const investor of investors) {
         const matchResult = this.calculateMatch(startup, investor);
         if (matchResult.score >= minScore) {
+          const details = matchResult.analysis?.details || [];
+          const reasoning =
+            details.length > 0 ? details.join(' · ') : `Match score ${Math.round(matchResult.score)}`;
           matches.push({
             startup_id: startupId,
             investor_id: investor.id,
             match_score: Math.round(matchResult.score),
             confidence_level: matchResult.confidence,
+            reasoning,
+            why_you_match: details,
             fit_analysis: matchResult.analysis,
-            status: 'suggested'
+            status: 'suggested',
           });
         }
       }

@@ -19,64 +19,10 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const { extractInferenceData } = require('../../lib/inference-extractor');
 const { calculateCompleteness } = require('../services/dataCompletenessService');
+const { calculateGodScoreColumnsFromStartup: calculateGODScore } = require('../scoring/hotGodFromStartupRow');
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// GOD scoring (same as instantSubmit)
-let calculateHotScore;
-try {
-  const scoring = require('../services/startupScoringService.ts');
-  calculateHotScore = scoring.calculateHotScore;
-} catch (e) {
-  calculateHotScore = (profile) => ({
-    total: 5.5,
-    breakdown: { team_execution: 1, team_age: 1, market: 1, market_insight: 1, traction: 1, product: 1, product_vision: 1 }
-  });
-}
-
-function toScoringProfile(startup) {
-  const extracted = startup.extracted_data || {};
-  const ts = startup.team_size ?? extracted.team_size;
-  return {
-    tagline: startup.tagline || extracted.tagline,
-    pitch: startup.description || startup.pitch || extracted.pitch || extracted.description,
-    problem: startup.problem || extracted.problem,
-    solution: startup.solution || extracted.solution,
-    industries: startup.industries || startup.sectors || extracted.industries || extracted.sectors || [],
-    founders_count: extracted.founders_count || (ts && ts <= 10 ? ts : 1) || 1,
-    team_size: ts || null,
-    technical_cofounders: (extracted.has_technical_cofounder ? 1 : 0) || 0,
-    mrr: startup.mrr || extracted.mrr,
-    revenue: startup.arr || startup.revenue || extracted.revenue || extracted.arr,
-    growth_rate_monthly: startup.growth_rate_monthly || extracted.growth_rate || null,
-    customers: startup.customer_count || extracted.customers || extracted.customer_count,
-    has_revenue: extracted.has_revenue,
-    has_customers: extracted.has_customers,
-    launched: startup.is_launched || extracted.is_launched || false,
-    has_demo: startup.has_demo || extracted.has_demo || false,
-    funding_amount: extracted.funding_amount,
-    funding_stage: extracted.funding_stage,
-    ...startup,
-    ...extracted
-  };
-}
-
-function calculateGODScore(startup) {
-  const profile = toScoringProfile(startup);
-  const result = calculateHotScore(profile);
-  const total = Math.round(result.total * 10);
-  const teamCombined = (result.breakdown.team_execution || 0) + (result.breakdown.team_age || 0);
-  const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
-  return {
-    team_score: Math.round((teamCombined / 3.5) * 100),
-    traction_score: Math.round(((result.breakdown.traction || 0) / 3.0) * 100),
-    market_score: Math.round((marketCombined / 2.0) * 100),
-    product_score: Math.round(((result.breakdown.product || 0) / 1.3) * 100),
-    vision_score: Math.round(((result.breakdown.product_vision || 0) / 1.3) * 100),
-    total_god_score: total
-  };
-}
 
 // Multer: memory storage for PDF (we'll upload to Supabase, then delete buffer)
 const upload = multer({
