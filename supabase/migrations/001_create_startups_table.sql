@@ -10,5 +10,10 @@
 -- Best body: open Supabase Dashboard → Database → Migrations → 001 → "View migration SQL",
 -- copy the exact statements here (idempotent IF NOT EXISTS preferred), then commit.
 --
--- Placeholder until you paste the real DDL (safe on empty preview replay; no-op on prod if re-run):
-SELECT 1;
+-- Placeholder until you paste the real DDL (safe on empty preview replay; no-op on prod if re-run).
+-- Avoid `SELECT 1` / `SELECT 001`: SQL Editor shows a confusing row like { "?column?": 1 } (anonymous column name).
+DO $$
+BEGIN
+  NULL;
+END $$;
+
