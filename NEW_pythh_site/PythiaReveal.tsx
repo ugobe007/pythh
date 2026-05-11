@@ -16,7 +16,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { TrendingUp, Zap, Building2, Clock, ArrowRight, Activity } from "lucide-react";
 
-const PYTHIA_ICON_URL = "/manus-storage/pythia_icon_d0c03ccc.png";
+/** Served from repo `public/` (vite publicDir). */
+const PYTHIA_ICON_URL = "/images/pythh_oracle.png";
 
 // Grid dimensions for the pixel mosaic
 const COLS = 12;

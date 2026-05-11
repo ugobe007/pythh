@@ -261,11 +261,17 @@ function HeroSection() {
       className="relative min-h-screen flex items-center pt-16 overflow-hidden"
       style={{ backgroundColor: "oklch(0.13 0.01 264)" }}
     >
-      {/* Background */}
-      <div className="absolute inset-0 opacity-25"
-        style={{ backgroundImage: `url(https://d2xsxph8kpxj0f.cloudfront.net/310519663452998285/Gb3VDTJy3RdmPq23Ws9y3c/pythh_hero_bg-YrbG7hFTcwHXUFzhCy4ukf.webp)`, backgroundSize: "cover", backgroundPosition: "center right" }}
+      {/* Quiet depth — no decorative sparkle / stock hero texture */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        aria-hidden
+        style={{
+          opacity: 0.35,
+          background:
+            "radial-gradient(ellipse 85% 65% at 100% 35%, oklch(0.2 0.035 162 / 0.45) 0%, transparent 58%)",
+        }}
       />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(to right, oklch(0.13 0.01 264) 45%, oklch(0.13 0.01 264 / 0.7) 70%, oklch(0.13 0.01 264 / 0.2) 100%)" }} />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to right, oklch(0.13 0.01 264) 50%, oklch(0.13 0.01 264 / 0.92) 78%, oklch(0.13 0.01 264 / 0.75) 100%)" }} />
       <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.13 0.01 264), transparent)" }} />
 
       <div className="container relative z-10 py-20">
