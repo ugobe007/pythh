@@ -1,0 +1,31 @@
+-- Roadmap reference: labeled M&A / exit outcomes for supervised exit propensity.
+-- Not a migration — design sketch only. Apply via a dated supabase/migrations/*.sql when ready.
+--
+-- Goals:
+--   1) Ground-truth labels (acquired, IPO, merged, still_private, unknown) per startup.
+--   2) Optional features for training: acquirer, date, size band, sector at time of event.
+--   3) Join to startup_uploads.id for exporting training rows alongside heuristic exit_propensity_*.
+--
+-- Example shape (adjust to your RLS and sourcing):
+--
+-- CREATE TABLE public.startup_exit_labels (
+--   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   startup_id uuid NOT NULL REFERENCES public.startup_uploads(id) ON DELETE CASCADE,
+--   outcome text NOT NULL CHECK (outcome IN (
+--     'acquired', 'merged', 'ipo', 'spac', 'still_private', 'unknown'
+--   )),
+--   announced_at date,
+--   acquirer_name text,
+--   source text NOT NULL, -- e.g. 'manual', 'crunchbase', 'press_rss'
+--   confidence numeric(4,3) NOT NULL DEFAULT 1.0 CHECK (confidence >= 0 AND confidence <= 1),
+--   raw jsonb,
+--   created_at timestamptz NOT NULL DEFAULT now(),
+--   UNIQUE (startup_id, outcome, announced_at)
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_startup_exit_labels_outcome ON public.startup_exit_labels (outcome);
+--
+-- Export pattern for ML (conceptual):
+--   SELECT su.id, su.name, su.exit_propensity_score, l.outcome, l.announced_at
+--   FROM startup_uploads su
+--   LEFT JOIN startup_exit_labels l ON l.startup_id = su.id
+--   WHERE su.status = 'approved';
