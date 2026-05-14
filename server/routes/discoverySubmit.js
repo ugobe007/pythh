@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const { normalizeUrl } = require("../lib/urlNormalize");
+const intel = require("../services/submitUrlIntelligence");
 
 // Scraping for discovery: scrape + update only. Do not call processUrlSubmission here — it INSERTs
 // with scraped display names (e.g. "Stripe") and hits startup_uploads_name_unique when dedupe misses.
@@ -98,6 +99,8 @@ router.get("/__submit_build", (req, res) => {
  * Returns existing in-flight or complete job; replaces failed jobs with a new run.
  */
 router.post("/submit", async (req, res) => {
+  const _t0 = Date.now();
+  let _startupId = null, _isNew = false, _resolverTier = null, _intelErr = null;
   try {
     const urlRaw = req.body?.url;
     if (!urlRaw) {
@@ -348,6 +351,20 @@ router.post("/submit", async (req, res) => {
       .update({ status: "building", progress_percent: 5 })
       .eq("id", job.id);
 
+    _startupId = job.startup_id;
+    _resolverTier = _isNew ? 'new' : 'exact';
+    intel.log({
+      url: req.body?.url || '',
+      domain: normalizeUrl(String(req.body?.url || '')).split('/')[0],
+      endpoint: 'discovery',
+      resolverTier: _resolverTier,
+      startupId: _startupId,
+      isNew: _isNew,
+      latencyMs: Date.now() - _t0,
+      errorMsg: _intelErr || undefined,
+      errorCode: _intelErr ? 'runtime_error' : undefined,
+    }).catch(() => {});
+
     return res.json({
       job_id: job.id,
       startup_id: job.startup_id,
@@ -356,6 +373,16 @@ router.post("/submit", async (req, res) => {
     });
   } catch (e) {
     console.error("[discoverySubmit] Error:", e);
+    _intelErr = e?.message || 'unexpected';
+    intel.log({
+      url: req.body?.url || '',
+      domain: normalizeUrl(String(req.body?.url || '')).split('/')[0],
+      endpoint: 'discovery',
+      isNew: false,
+      latencyMs: Date.now() - _t0,
+      errorMsg: _intelErr,
+      errorCode: 'runtime_error',
+    }).catch(() => {});
     return res.status(500).json({ error: "Unexpected server error" });
   }
 });

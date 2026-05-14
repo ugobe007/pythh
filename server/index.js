@@ -5998,6 +5998,10 @@ app.use('/api/oracle', oracleRouter);
 const healthCheckRouter = require('./routes/healthCheck');
 app.use('/api/health', healthCheckRouter);
 
+// Submit intelligence: feedback labels, rolling stats, domain ML weights, watchdog status
+const submitFeedbackRouter = require('./routes/submitFeedback');
+app.use('/api/submit', submitFeedbackRouter);
+
 // Startup API routes (including signal history)
 const startupsRouter = require('./routes/startups');
 app.use('/api/startups', startupsRouter);
@@ -9452,3 +9456,25 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Run scheduled tasks (sweeps, digest, telemetry) after app is fully loaded
 setImmediate(schedulePostStartTasks);
+
+// ── Submit URL Watchdog ───────────────────────────────────────────────────────
+// Runs every WATCHDOG_INTERVAL_MIN minutes (default 15) after a 5-min warmup.
+// Probes /api/instant/submit with known URLs, alerts via Resend on failure,
+// and optionally triggers a Fly.io restart for self-healing.
+setTimeout(() => {
+  const WATCHDOG_INTERVAL_MIN = parseInt(process.env.WATCHDOG_INTERVAL_MIN || '15', 10);
+  const { execFile } = require('child_process');
+  const path = require('path');
+  const watchdogScript = path.join(__dirname, '..', 'scripts', 'cron', 'submit-watchdog.js');
+
+  function runWatchdog() {
+    execFile(process.execPath, [watchdogScript], { timeout: 60000 }, (err, stdout, stderr) => {
+      if (stdout) process.stdout.write(stdout);
+      if (err && !err.killed) console.warn('[watchdog] probe error:', err.message);
+    });
+  }
+
+  runWatchdog(); // first probe immediately after warmup
+  setInterval(runWatchdog, WATCHDOG_INTERVAL_MIN * 60 * 1000);
+  console.log(`🛡️  Submit watchdog active — probing every ${WATCHDOG_INTERVAL_MIN} minutes`);
+}, 5 * 60 * 1000); // 5-min warmup so server is fully ready before first probe

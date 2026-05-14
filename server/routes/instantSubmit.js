@@ -52,6 +52,7 @@ const { extractInferenceData } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
+const intel = require('../services/submitUrlIntelligence');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -1842,6 +1843,9 @@ router.post('/submit', async (req, res) => {
     let startupId = null;
     let startup = null;
     let isNew = false;
+    let _resolverTier = null;   // tracked for ML logging
+    let _intelMatches = 0;
+    let _intelError   = null;
 
     // Fast path: exact/prefix match (uses index, ~10–50ms vs full table scan)
     const baseUrl = `https://${domain}`;
@@ -1899,6 +1903,7 @@ router.post('/submit', async (req, res) => {
       if (scored[0].matchScore >= 50) {
         startup = scored[0];
         startupId = startup.id;
+        _resolverTier = scored[0].matchScore === 100 ? 'exact' : 'fuzzy';
         console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
       }
     }
@@ -1954,6 +1959,7 @@ router.post('/submit', async (req, res) => {
           duration_ms: processingTime,
         }).then(() => {}).catch(() => {});
         
+        _intelMatches = existingMatchCount || 0;
         return res.json({
           startup_id: startupId,
           startup,
@@ -2030,6 +2036,7 @@ router.post('/submit', async (req, res) => {
     
     // ── NEW STARTUP: create minimal row + fire background ──
     isNew = true;
+    _resolverTier = 'new';
     const displayName = domainToName(domain);
     
     // Validate startup name to prevent junk entries
@@ -2274,6 +2281,7 @@ router.post('/submit', async (req, res) => {
   } catch (err) {
     console.error('[INSTANT] Fatal error:', err);
     const reason = err?.message || (typeof err === 'string' ? err : 'Unknown error');
+    _intelError = reason;
     safeJson(500, {
       error: 'Processing failed',
       reason
@@ -2281,6 +2289,19 @@ router.post('/submit', async (req, res) => {
     return;
   } finally {
     clearTimeout(responseTimer);
+    // Fire-and-forget ML outcome log (never blocks response)
+    intel.log({
+      url:          req.body?.url || '',
+      domain:       extractDomain(String(req.body?.url || '')),
+      endpoint:     'instant',
+      resolverTier: _resolverTier,
+      startupId:    startupId || undefined,
+      isNew:        isNew,
+      latencyMs:    Date.now() - startTime,
+      matchCount:   _intelMatches,
+      errorMsg:     _intelError || undefined,
+      errorCode:    _intelError ? 'runtime_error' : undefined,
+    }).catch(() => {});
   }
 });
 
