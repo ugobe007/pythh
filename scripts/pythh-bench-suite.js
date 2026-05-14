@@ -64,5 +64,6 @@ if (failed) {
 }
 console.log(`  PASS  ·  ${elapsed}s`);
 console.log('  Tip: add --http to include prod-health against PROD_HEALTH_API_BASE.');
+console.log('  Tip: npm run contract:submit -- <url>  — discovery vs instant same startup_id.');
 console.log('  Tip: SCORE_RECALC_* and pipeline:audit for deeper data ops separately.');
 console.log('═══════════════════════════════════════════════════════════════\n');

@@ -1842,7 +1842,7 @@ router.post('/submit', async (req, res) => {
     let startupId = null;
     let startup = null;
     let isNew = false;
-    
+
     // Fast path: exact/prefix match (uses index, ~10–50ms vs full table scan)
     const baseUrl = `https://${domain}`;
     const wwwUrl = `https://www.${domain}`;
@@ -1860,7 +1860,7 @@ router.post('/submit', async (req, res) => {
       .or(exactPatterns.join(','))
       .eq('status', 'approved')
       .limit(20);
-    
+
     // Fallback: broad fuzzy search (slower, only if fast path found nothing)
     if ((!candidates || candidates.length === 0) && !searchErr) {
       const searchPatterns = [
@@ -1877,25 +1877,21 @@ router.post('/submit', async (req, res) => {
       candidates = fallback.data;
       searchErr = fallback.error;
     }
-    
+
     if (searchErr) console.error(`  ✗ Search error:`, searchErr);
-    
+
     if (candidates && candidates.length > 0) {
       const scored = candidates.map(c => {
         let score = 0;
         const hasUrl = !!(c.website);
         const candidateCompanyName = extractCompanyName(c.website || '');
         const candidateNameLower = (c.name || '').toLowerCase();
-        // URL-bearing candidates: full score range
         if (c.website && normalizeUrl(c.website) === urlNormalized) score = 100;
-        else if (candidateCompanyName === companyName) score = 90; // domain-derived name exact
+        else if (candidateCompanyName === companyName) score = 90;
         else if (c.website && c.website.toLowerCase().includes(companyName)) score = 50;
-        // Name-only candidates (no website set): use lower scores to avoid false positives
-        // from scraper-sourced entries that share a common word (e.g. "Foundry", "Grows")
         else if (hasUrl && candidateNameLower.includes(companyName)) score = 70;
         else if (hasUrl && companyName.includes(candidateCompanyName) && candidateCompanyName.length > 2) score = 60;
-        else if (!hasUrl && candidateNameLower === companyName) score = 65; // exact name match even without URL
-        // No URL + fuzzy name = below match threshold (prevents scraper noise false positives)
+        else if (!hasUrl && candidateNameLower === companyName) score = 65;
         else if (!hasUrl) score = 20;
         return { ...c, matchScore: score };
       });
@@ -1906,7 +1902,7 @@ router.post('/submit', async (req, res) => {
         console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
       }
     }
-    
+
     // ── EXISTING STARTUP: check for cached matches ──
     if (startupId) {
       const forceGenerate = req.body?.force_generate === true || req.query?.regen === '1';

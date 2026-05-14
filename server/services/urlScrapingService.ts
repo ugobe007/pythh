@@ -10,10 +10,20 @@
 
 import axios from 'axios';
 import OpenAI from 'openai';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
+// CJS module — keep resolution aligned with discoverySubmit / DB normalize_url()
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { normalizeUrl } = require('../lib/urlNormalize.js') as { normalizeUrl: (s: string) => string };
+
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+/** Server-side must use service role — anon + RLS hides rows and breaks URL dedupe (false inserts → name_unique). */
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  '';
 const openaiApiKey = process.env.OPENAI_API_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -341,37 +351,39 @@ export async function scrapeAndScoreStartup(url: string): Promise<{
 export async function updateStartupWithScrapedData(
   startupId: string,
   data: ScrapedStartupData,
-  dataTier: 'A' | 'B' | 'C'
+  dataTier: 'A' | 'B' | 'C',
+  opts?: { omitName?: boolean }
 ): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('startup_uploads')
-      .update({
-        name: data.name,
-        tagline: data.tagline || null,
-        description: data.description || data.pitch || null,
-        pitch: data.pitch || null,
-        // Note: problem, solution, value_proposition, team_companies columns don't exist in schema
-        // Store in extracted_data JSONB instead
-        sectors: data.sectors || ['Technology'],
-        stage: data.stage || 1,
-        is_launched: data.is_launched || false,
-        has_demo: data.has_demo || false,
-        has_technical_cofounder: data.has_technical_cofounder || false,
-        team_size: data.founders_count || null,
-        mrr: data.mrr || null,
-        arr: data.arr || null,
-        customer_count: data.customer_count || null,
-        growth_rate_monthly: data.growth_rate || null,
-        // ⛔ DO NOT SET GOD SCORES HERE - use recalculate-scores.ts
-        // Store ALL extracted data in JSONB (including problem, solution, etc.)
-        extracted_data: {
-          ...data,
-          data_tier: dataTier,
-          scraped_at: new Date().toISOString(),
-        },
-      })
-      .eq('id', startupId);
+    const patch: Record<string, unknown> = {
+      tagline: data.tagline || null,
+      description: data.description || data.pitch || null,
+      pitch: data.pitch || null,
+      // Note: problem, solution, value_proposition, team_companies columns don't exist in schema
+      // Store in extracted_data JSONB instead
+      sectors: data.sectors || ['Technology'],
+      stage: data.stage || 1,
+      is_launched: data.is_launched || false,
+      has_demo: data.has_demo || false,
+      has_technical_cofounder: data.has_technical_cofounder || false,
+      team_size: data.founders_count || null,
+      mrr: data.mrr || null,
+      arr: data.arr || null,
+      customer_count: data.customer_count || null,
+      growth_rate_monthly: data.growth_rate || null,
+      // ⛔ DO NOT SET GOD SCORES HERE - use recalculate-scores.ts
+      // Store ALL extracted data in JSONB (including problem, solution, etc.)
+      extracted_data: {
+        ...data,
+        data_tier: dataTier,
+        scraped_at: new Date().toISOString(),
+      },
+    };
+    if (!opts?.omitName) {
+      patch.name = data.name;
+    }
+
+    const { error } = await supabase.from('startup_uploads').update(patch).eq('id', startupId);
 
     if (error) {
       console.error(`❌ Failed to update startup ${startupId}:`, error);
@@ -387,9 +399,71 @@ export async function updateStartupWithScrapedData(
 }
 
 /**
- * Convenience function: Scrape URL and create/update startup in one call
+ * Resolve startup row for URL / domain (aligned with discoverySubmit 2b–2d).
+ * Convenience: scrape URL and create/update startup in one call.
  * NOTE: GOD scores are NOT set here - run recalculate-scores.ts after enrichment
  */
+async function resolveStartupIdByWebsite(url: string, domain: string): Promise<string | undefined> {
+  const websiteBare = `https://${domain}`;
+  const websiteWww = `https://www.${domain}`;
+  const httpBare = `http://${domain}`;
+  const httpWww = `http://www.${domain}`;
+  const variants = [
+    websiteBare,
+    websiteWww,
+    `${websiteBare}/`,
+    `${websiteWww}/`,
+    httpBare,
+    httpWww,
+    `${httpBare}/`,
+    `${httpWww}/`,
+  ];
+  for (const w of variants) {
+    const { data: rows, error: wErr } = await supabase.from('startup_uploads').select('id').eq('website', w).limit(1);
+    if (wErr) continue;
+    if (rows?.[0]?.id) return rows[0].id;
+  }
+
+  const tryUrls = [
+    url,
+    url.startsWith('http') ? url : `https://${url}`,
+    websiteBare,
+    websiteWww,
+    httpBare,
+  ];
+  for (const u of tryUrls) {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('resolve_startup_by_url', { p_url: u });
+    if (!rpcErr && rpcData) {
+      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      if (row && typeof row === 'object' && 'startup_id' in row && (row as { startup_id?: string }).startup_id) {
+        return (row as { startup_id: string }).startup_id;
+      }
+    }
+  }
+
+  const hostNorm = normalizeUrl(url.startsWith('http') ? url : `https://${url}`);
+
+  for (const d of [hostNorm, `www.${hostNorm}`]) {
+    const { data: cd, error: cdErr } = await supabase
+      .from('startup_uploads')
+      .select('id')
+      .eq('company_domain', d)
+      .limit(1);
+    if (!cdErr && cd?.[0]?.id) return cd[0].id;
+  }
+
+  const { data: looseRows } = await supabase
+    .from('startup_uploads')
+    .select('id, website')
+    .ilike('website', `%${domain}%`)
+    .order('updated_at', { ascending: false })
+    .limit(500);
+  const hit = (looseRows || []).find((r) => r.website && normalizeUrl(r.website) === hostNorm);
+  if (hit?.id) return hit.id;
+
+  return undefined;
+}
+
 export async function processUrlSubmission(url: string): Promise<{
   success: boolean;
   startupId?: string;
@@ -400,64 +474,91 @@ export async function processUrlSubmission(url: string): Promise<{
     // 1. Scrape and extract data (no scoring)
     const { data, dataTier } = await scrapeAndScoreStartup(url);
     
-    // 2. Check if startup already exists
+    // 2. Resolve existing row (must match discoverySubmit — avoid insert name_unique / website_unique)
     const domain = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace('www.', '');
-    
-    const { data: existing } = await supabase
-      .from('startup_uploads')
-      .select('id')
-      .or(`website.ilike.%${domain}%`)
-      .limit(1)
-      .maybeSingle();
+    const websiteBare = `https://${domain}`;
+
+    const existingId = await resolveStartupIdByWebsite(url, domain);
 
     let startupId: string;
 
-    if (existing) {
-      // Update existing
-      startupId = existing.id;
-      await updateStartupWithScrapedData(startupId, data, dataTier);
+    if (existingId) {
+      startupId = existingId;
+      // omitName: scraped titles often equal another startup’s canonical name (e.g. “Stripe”)
+      await updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
     } else {
-      // Create new - set placeholder score of 50 (will be recalculated)
-      const { data: created, error: createError } = await supabase
-        .from('startup_uploads')
-        .insert({
-          name: data.name,
-          website: `https://${domain}`,
-          tagline: data.tagline || `Startup at ${domain}`,
-          description: data.description || data.pitch,
-          pitch: data.pitch,
-          sectors: data.sectors || ['Technology'],
-          stage: data.stage || 1,
-          status: 'approved',
-          source_type: 'url',
-          is_launched: data.is_launched || false,
-          has_demo: data.has_demo || false,
-          has_technical_cofounder: data.has_technical_cofounder || false,
-          team_size: data.founders_count,
-          mrr: data.mrr,
-          arr: data.arr,
-          customer_count: data.customer_count,
-          growth_rate_monthly: data.growth_rate,
-          // ⛔ PLACEHOLDER SCORE - must run recalculate-scores.ts
-          total_god_score: 50,
-          team_score: 10,
-          traction_score: 10,
-          market_score: 10,
-          product_score: 10,
-          vision_score: 10,
-          extracted_data: {
-            ...data,
-            data_tier: dataTier,
-            scraped_at: new Date().toISOString(),
-          },
-        })
-        .select('id')
-        .single();
+      // Create new — never use scraped display name as DB `name` (global name_unique; collides e.g. "Stripe").
+      const discName = `disc-${randomUUID()}`;
+      const baseInsert = {
+        name: discName,
+        website: websiteBare,
+        tagline: data.tagline || (data.name ? `${data.name} — ${domain}` : `Startup at ${domain}`),
+        description: data.description || data.pitch,
+        pitch: data.pitch,
+        sectors: data.sectors || ['Technology'],
+        stage: data.stage || 1,
+        status: 'approved',
+        source_type: 'url',
+        is_launched: data.is_launched || false,
+        has_demo: data.has_demo || false,
+        has_technical_cofounder: data.has_technical_cofounder || false,
+        team_size: data.founders_count,
+        mrr: data.mrr,
+        arr: data.arr,
+        customer_count: data.customer_count,
+        growth_rate_monthly: data.growth_rate,
+        // ⛔ PLACEHOLDER SCORE - must run recalculate-scores.ts
+        total_god_score: 50,
+        team_score: 10,
+        traction_score: 10,
+        market_score: 10,
+        product_score: 10,
+        vision_score: 10,
+        extracted_data: {
+          ...data,
+          data_tier: dataTier,
+          scraped_at: new Date().toISOString(),
+        },
+      };
 
-      if (createError) {
-        return { success: false, error: createError.message };
+      let created = await supabase.from('startup_uploads').insert(baseInsert).select('id').single();
+      const dupInsert =
+        created.error?.code === '23505' ||
+        String(created.error?.message || '').toLowerCase().includes('duplicate key');
+      if (created.error && dupInsert) {
+        const raced = await resolveStartupIdByWebsite(url, domain);
+        if (raced) {
+          startupId = raced;
+          await updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
+          return { success: true, startupId, dataTier };
+        }
+        const retry = await supabase
+          .from('startup_uploads')
+          .insert({
+            ...baseInsert,
+            name: `disc-${randomUUID()}`,
+            website: websiteBare,
+          })
+          .select('id')
+          .single();
+        created = retry;
       }
-      startupId = created.id;
+
+      if (created.error) {
+        const isDup =
+          created.error?.code === '23505' ||
+          String(created.error.message || '').toLowerCase().includes('duplicate key');
+        if (isDup) {
+          const raced = await resolveStartupIdByWebsite(url, domain);
+          if (raced) {
+            startupId = raced;
+            await updateStartupWithScrapedData(startupId, data, dataTier, { omitName: true });
+            return { success: true, startupId, dataTier };
+          }
+        }
+        return { success: false, error: created.error.message };
+      }
+      startupId = created.data!.id;
     }
 
     return {
