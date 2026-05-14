@@ -26,14 +26,15 @@ function mapRowToAuthedUser(row: {
   openId: string;
   name: string | null;
   email: string | null;
-  role: "user" | "admin";
+  role: string;
 }): AuthedUser {
+  const role: AuthedUser["role"] = row.role === "admin" ? "admin" : "user";
   return {
     id: row.id,
     openId: row.openId,
     name: row.name,
     email: row.email,
-    role: row.role,
+    role,
   };
 }
 

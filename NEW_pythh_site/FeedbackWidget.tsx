@@ -66,7 +66,8 @@ export default function FeedbackWidget({ runId, ready = true }: FeedbackWidgetPr
 
   useEffect(() => {
     if (existing) {
-      setSelected(existing.rating);
+      const r = existing.rating;
+      setSelected(r === "up" || r === "down" ? r : null);
       setReason((existing.reason as DownReason | null) ?? null);
       setComment(existing.comment ?? "");
       setSubmitted(true);

@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, like, or, SQL, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, or, SQL } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import {
   founderProfiles,
   InsertSubscription,
@@ -13,18 +14,31 @@ import {
   subscriptions,
   users,
 } from "./schema";
-import { ENV } from "./_core/env";
+import { ENV } from "./env";
 
+let pool: Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+/** Postgres (Supabase) — use `DATABASE_URL` (pooler or direct). */
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) return null;
+  if (!_db) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const isSupabase =
+        url.includes("supabase.co") || url.includes("pooler.supabase.com");
+      pool = new Pool({
+        connectionString: url,
+        max: isSupabase ? 8 : 12,
+        idleTimeoutMillis: 30_000,
+        ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
+      });
+      pool.on("error", (err: Error) => console.error("[Database] pg pool error:", err));
+      _db = drizzle(pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
+      pool = null;
     }
   }
   return _db;
@@ -80,9 +94,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await db
+      .insert(users)
+      .values(values as typeof users.$inferInsert)
+      .onConflictDoUpdate({
+        target: users.openId,
+        set: updateSet as Record<string, unknown>,
+      });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -117,7 +135,8 @@ export async function upsertSubscription(sub: InsertSubscription): Promise<void>
   await db
     .insert(subscriptions)
     .values(sub)
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: subscriptions.stripeSubscriptionId,
       set: {
         status: sub.status,
         plan: sub.plan,
@@ -233,10 +252,12 @@ export async function getInvestorRankings(opts: {
     .offset(offset);
 
   // Count total for pagination
-  const allRows = await db.select({ id: investors.id }).from(investors).where(where);
-  const total = allRows.length;
+  const [{ n: total }] = await db
+    .select({ n: count() })
+    .from(investors)
+    .where(where);
 
-  return { rows, total };
+  return { rows, total: total ?? 0 };
 }
 
 /**
@@ -320,17 +341,20 @@ export async function createPitchDeck(opts: {
   const db = await getDb();
   if (!db) return undefined;
   const { userId, runId, startupUrl, sourceType, fileKey, slides, status = "draft" } = opts;
-  const [result] = await db.insert(pitchDecks).values({
-    userId,
-    runId,
-    startupUrl: startupUrl ?? null,
-    sourceType,
-    fileKey: fileKey ?? null,
-    slidesJson: JSON.stringify(slides),
-    status,
-  });
-  const id = (result as any).insertId as number;
-  const rows = await db.select().from(pitchDecks).where(eq(pitchDecks.id, id)).limit(1);
+  const [inserted] = await db
+    .insert(pitchDecks)
+    .values({
+      userId,
+      runId,
+      startupUrl: startupUrl ?? null,
+      sourceType,
+      fileKey: fileKey ?? null,
+      slidesJson: JSON.stringify(slides),
+      status,
+    })
+    .returning({ id: pitchDecks.id });
+  if (!inserted?.id) return undefined;
+  const rows = await db.select().from(pitchDecks).where(eq(pitchDecks.id, inserted.id)).limit(1);
   return rows[0] ?? undefined;
 }
 
@@ -412,18 +436,21 @@ export async function createOutreachEmail(opts: {
   const db = await getDb();
   if (!db) return undefined;
   const { userId, runId, investorName, investorFirm, toEmail, subject, body } = opts;
-  const [result] = await db.insert(outreachEmails).values({
-    userId,
-    runId,
-    investorName,
-    investorFirm,
-    toEmail: toEmail ?? null,
-    subject,
-    body,
-    status: "draft",
-  });
-  const id = (result as any).insertId as number;
-  const rows = await db.select().from(outreachEmails).where(eq(outreachEmails.id, id)).limit(1);
+  const [inserted] = await db
+    .insert(outreachEmails)
+    .values({
+      userId,
+      runId,
+      investorName,
+      investorFirm,
+      toEmail: toEmail ?? null,
+      subject,
+      body,
+      status: "draft",
+    })
+    .returning({ id: outreachEmails.id });
+  if (!inserted?.id) return undefined;
+  const rows = await db.select().from(outreachEmails).where(eq(outreachEmails.id, inserted.id)).limit(1);
   return rows[0] ?? undefined;
 }
 
@@ -539,9 +566,14 @@ export async function upsertFounderProfile(
   if (!db) return;
   const existing = await getFounderProfile(userId);
   if (existing) {
-    await db.update(founderProfiles).set(patch as Record<string, unknown>).where(eq(founderProfiles.userId, userId));
+    await db
+      .update(founderProfiles)
+      .set({ ...(patch as Record<string, unknown>), updatedAt: new Date() })
+      .where(eq(founderProfiles.userId, userId));
   } else {
-    await db.insert(founderProfiles).values({ userId, ...(patch as Record<string, unknown>) });
+    await db
+      .insert(founderProfiles)
+      .values({ userId, ...(patch as Record<string, unknown>), updatedAt: new Date() });
   }
 }
 
@@ -558,18 +590,20 @@ export async function createMeetingProposal(opts: {
   const db = await getDb();
   if (!db) return undefined;
   const { userId, runId, outreachEmailId, investorName, investorFirm, proposedTimes } = opts;
-  const [result] = await db.insert(meetings).values({
-    userId,
-    runId,
-    outreachEmailId,
-    investorName,
-    investorFirm,
-    proposedTimesJson: JSON.stringify(proposedTimes),
-    status: "proposed",
-  });
-  const id = (result as { insertId?: number }).insertId;
-  if (id == null) return undefined;
-  const rows = await db.select().from(meetings).where(eq(meetings.id, id)).limit(1);
+  const [inserted] = await db
+    .insert(meetings)
+    .values({
+      userId,
+      runId,
+      outreachEmailId,
+      investorName,
+      investorFirm,
+      proposedTimesJson: JSON.stringify(proposedTimes),
+      status: "proposed",
+    })
+    .returning({ id: meetings.id });
+  if (inserted?.id == null) return undefined;
+  const rows = await db.select().from(meetings).where(eq(meetings.id, inserted.id)).limit(1);
   return rows[0] ?? undefined;
 }
 
@@ -637,24 +671,22 @@ export async function getAdminAggregateStats() {
   const startMs = utcStartOfTodayMs();
   const startDay = new Date(startMs);
 
-  const [{ n: totalUsers }] = await db
-    .select({ n: sql<number>`count(*)`.mapWith(Number) })
-    .from(users);
+  const [{ n: totalUsers }] = await db.select({ n: count() }).from(users);
 
   const [{ n: activeSubscribers }] = await db
-    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .select({ n: count() })
     .from(subscriptions)
     .where(
       and(eq(subscriptions.plan, "oracle"), inArray(subscriptions.status, ["active", "trialing", "paused"])),
     );
 
   const [{ n: pipelineRunsToday }] = await db
-    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .select({ n: count() })
     .from(pipelineRuns)
     .where(gte(pipelineRuns.createdAt, startDay));
 
   const [{ n: emailsSentToday }] = await db
-    .select({ n: sql<number>`count(*)`.mapWith(Number) })
+    .select({ n: count() })
     .from(outreachEmails)
     .where(
       and(eq(outreachEmails.status, "sent"), isNotNull(outreachEmails.sentAt), gte(outreachEmails.sentAt, startMs)),

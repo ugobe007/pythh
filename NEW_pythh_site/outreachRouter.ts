@@ -93,7 +93,7 @@ Return ONLY a valid JSON array of slide objects. No markdown, no explanation.`,
     },
   });
 
-  const raw = response.choices[0]?.message?.content ?? "{}";
+  const raw = (response.choices ?? [])[0]?.message?.content ?? "{}";
   const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   const slides: Slide[] = (parsed.slides ?? []).map((s: any, i: number) => ({
     id: s.id || `slide-${i + 1}`,
@@ -149,7 +149,7 @@ ${matchReason ? `Why this investor: ${matchReason}` : ""}`,
     },
   });
 
-  const raw = response.choices[0]?.message?.content ?? "{}";
+  const raw = (response.choices ?? [])[0]?.message?.content ?? "{}";
   const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   return {
     subject: parsed.subject || `Introduction — ${startupUrl}`,

@@ -11,7 +11,7 @@
  * the raw request body is available for Stripe signature verification.
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import Stripe from "stripe";
 import {
   getSubscriptionByStripeId,
@@ -25,7 +25,7 @@ import { notifyOwner } from "./_core/notification";
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured.");
-  return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
+  return new Stripe(key, { apiVersion: "2026-04-22.dahlia" as Stripe.StripeConfig["apiVersion"] });
 }
 
 /**
@@ -84,10 +84,8 @@ export async function handleCheckoutSessionCompleted(
   const firstItem = stripeSub.items.data[0];
   const interval = firstItem?.price?.recurring?.interval;
   const billingCycle = billingCycleFromInterval(interval);
-  // In Stripe v22, current_period_end lives on the SubscriptionItem, not the Subscription
-  const currentPeriodEnd = firstItem?.current_period_end
-    ? firstItem.current_period_end * 1000
-    : undefined;
+  const cpe = stripeSub.current_period_end;
+  const currentPeriodEnd = cpe ? cpe * 1000 : undefined;
 
   const customerId =
     typeof session.customer === "string"
@@ -111,16 +109,16 @@ export async function handleCheckoutSessionCompleted(
   // Notify the site owner of the new Oracle plan subscriber
   const cycleLabel = billingCycle === "annual" ? "Annual" : "Monthly";
   const amountLabel = billingCycle === "annual" ? "$2,988/yr" : "$299/mo";
-  await notifyOwner({
-    title: `🎉 New Oracle subscriber — ${cycleLabel}`,
-    content: [
-      `**Name:** ${user.name ?? "(unknown)"}`,
-      `**Email:** ${user.email ?? "(unknown)"}`,
-      `**Plan:** Oracle ${cycleLabel} (${amountLabel})`,
-      `**Stripe Customer:** ${customerId}`,
-      `**Subscription:** ${subscriptionId}`,
-    ].join("\n"),
-  }).catch((err) =>
+  await notifyOwner(
+    [
+      `New Oracle subscriber — ${cycleLabel}`,
+      `Name: ${user.name ?? "(unknown)"}`,
+      `Email: ${user.email ?? "(unknown)"}`,
+      `Plan: Oracle ${cycleLabel} (${amountLabel})`,
+      `Stripe Customer: ${customerId}`,
+      `Subscription: ${subscriptionId}`,
+    ].join("\n")
+  ).catch((err) =>
     console.warn("[Webhook] notifyOwner failed (non-critical):", err)
   );
 }
@@ -141,9 +139,8 @@ export async function handleSubscriptionUpdated(
   const firstItem = stripeSub.items.data[0];
   const interval = firstItem?.price?.recurring?.interval;
   const billingCycle = billingCycleFromInterval(interval);
-  const currentPeriodEnd = firstItem?.current_period_end
-    ? firstItem.current_period_end * 1000
-    : undefined;
+  const cpe = stripeSub.current_period_end;
+  const currentPeriodEnd = cpe ? cpe * 1000 : undefined;
 
   await upsertSubscription({
     ...existing,
@@ -192,7 +189,7 @@ export function registerStripeWebhook(app: Express): void {
   app.post(
     "/api/stripe/webhook",
     // Use express.raw() here — NOT express.json() — so Stripe can verify the signature
-    (req: Request, res: Response, next) => {
+    (req: Request, res: Response, next: NextFunction) => {
       // express.raw middleware inline
       const chunks: Buffer[] = [];
       req.on("data", (chunk: Buffer) => chunks.push(chunk));

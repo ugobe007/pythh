@@ -48,10 +48,6 @@ const MOCK_USER = {
   name: "Test Founder",
   email: "founder@startup.com",
   role: "user" as const,
-  loginMethod: null,
-  lastSignedIn: new Date(),
-  createdAt: new Date(),
-  updatedAt: new Date(),
 };
 
 const MOCK_SUB = {

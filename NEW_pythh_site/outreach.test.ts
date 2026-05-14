@@ -62,7 +62,7 @@ import { appRouter } from "./routers";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const AUTHED_USER = {
-  id: "user-1",
+  id: 1,
   openId: "oid_1",
   name: "Alice",
   email: "alice@example.com",
@@ -104,7 +104,7 @@ const MOCK_LLM_EMAIL_RESPONSE = {
 describe("outreach.generateDeck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPitchDeckByRunId).mockResolvedValue(null);
+    vi.mocked(getPitchDeckByRunId).mockResolvedValue(undefined);
     vi.mocked(invokeLLM).mockResolvedValue(MOCK_LLM_DECK_RESPONSE as any);
     vi.mocked(createPitchDeck).mockResolvedValue({ id: 42, slides: MOCK_SLIDES } as any);
   });
@@ -231,7 +231,7 @@ describe("outreach.updateDeck", () => {
 
     expect(updatePitchDeckSlides).toHaveBeenCalledWith({
       id: 42,
-      userId: "user-1",
+      userId: 1,
       slides: MOCK_SLIDES,
       status: "approved",
     });
@@ -333,10 +333,11 @@ describe("outreach.updateEmail", () => {
     expect(updateOutreachEmailStatus).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 7,
-        userId: "user-1",
+        userId: 1,
         status: "draft",
         subject: "Updated subject",
         body: "Updated body",
+        toEmail: undefined,
       })
     );
     expect(result.success).toBe(true);
@@ -388,7 +389,7 @@ describe("outreach.approveEmail", () => {
 
     expect(updateOutreachEmailStatus).toHaveBeenCalledWith({
       id: 5,
-      userId: "user-1",
+      userId: 1,
       status: "approved",
     });
     expect(result.success).toBe(true);
@@ -537,7 +538,7 @@ describe("outreach.getOutreachStatus", () => {
   });
 
   it("returns null deck when none exists", async () => {
-    vi.mocked(getPitchDeckByRunId).mockResolvedValue(null);
+    vi.mocked(getPitchDeckByRunId).mockResolvedValue(undefined);
     vi.mocked(getOutreachEmailsByRunId).mockResolvedValue([]);
 
     const caller = makeCaller(AUTHED_USER);
@@ -551,9 +552,18 @@ describe("outreach.getOutreachStatus", () => {
 // ─── exportDeckPdf ────────────────────────────────────────────────────────────
 
 describe("outreach.exportDeckPdf", () => {
+  const DECK_BASE = {
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    startupUrl: null as string | null,
+    fileKey: null as string | null,
+    slidesJson: "[]",
+  };
+
   const DECK_WITH_SLIDES = {
+    ...DECK_BASE,
     id: 42,
-    userId: "user-1",
+    userId: 1,
     runId: "run-1",
     slides: [
       { id: "slide-1", title: "Problem", content: "• Pain point A\n• Pain point B", notes: "Speak slowly" },
@@ -562,11 +572,11 @@ describe("outreach.exportDeckPdf", () => {
     ],
     sourceType: "generated",
     status: "ready",
-  };
+  } as Awaited<ReturnType<typeof getPitchDeckById>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPitchDeckById as any).mockResolvedValue(DECK_WITH_SLIDES);
+    vi.mocked(getPitchDeckById).mockResolvedValue(DECK_WITH_SLIDES);
   });
 
   it("throws UNAUTHORIZED when not authenticated", async () => {
@@ -575,7 +585,7 @@ describe("outreach.exportDeckPdf", () => {
   });
 
   it("throws NOT_FOUND when deck does not exist", async () => {
-    vi.mocked(getPitchDeckById as any).mockResolvedValue(null);
+    vi.mocked(getPitchDeckById).mockResolvedValue(undefined);
     const caller = makeCaller(AUTHED_USER);
     await expect(caller.outreach.exportDeckPdf({ deckId: 999 })).rejects.toMatchObject({
       code: "NOT_FOUND",
@@ -583,7 +593,10 @@ describe("outreach.exportDeckPdf", () => {
   });
 
   it("throws BAD_REQUEST when deck has no slides", async () => {
-    vi.mocked(getPitchDeckById as any).mockResolvedValue({ ...DECK_WITH_SLIDES, slides: [] });
+    vi.mocked(getPitchDeckById).mockResolvedValue({
+      ...DECK_WITH_SLIDES,
+      slides: [],
+    } as NonNullable<Awaited<ReturnType<typeof getPitchDeckById>>>);
     const caller = makeCaller(AUTHED_USER);
     await expect(caller.outreach.exportDeckPdf({ deckId: 42 })).rejects.toMatchObject({
       code: "BAD_REQUEST",

@@ -41,10 +41,6 @@ const MOCK_USER = {
   name: "Test User",
   email: "test@example.com",
   role: "user" as const,
-  lastSignedIn: new Date(),
-  loginMethod: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
 };
 
 function makeCaller() {

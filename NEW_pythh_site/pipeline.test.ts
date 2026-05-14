@@ -65,7 +65,7 @@ const ORACLE_SUB = {
   plan: "oracle" as const,
   billingCycle: "monthly" as const,
   status: "active" as const,
-  currentPeriodEnd: new Date(Date.now() + 30 * 86400000),
+  currentPeriodEnd: Date.now() + 30 * 86400000,
   cancelAtPeriodEnd: 0,
   createdAt: new Date(),
   updatedAt: new Date(),

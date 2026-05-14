@@ -1,18 +1,23 @@
 /**
- * Seed script — populates the investors table with 44 curated signal records.
- * Run once: npx tsx scripts/seed-investors.mjs
+ * Seed script — populates pythh_investors with curated signal records.
+ * Run from repo root: npx tsx NEW_pythh_site/seed-investors.mjs
  *
- * Signal fields are stored as integers × 10 so we avoid floats in MySQL:
- *   signal: 86  → 8.6 displayed
- *   delta:  -2  → -0.2 displayed
+ * Signal fields are stored as integers × 10 (e.g. 86 → 8.6 displayed).
  */
 import "dotenv/config";
-import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
-import { investors } from "../drizzle/schema.ts";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
+import { investors } from "./schema.ts";
 
-const connection = await mysql.createConnection(process.env.DATABASE_URL);
-const db = drizzle(connection);
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("DATABASE_URL is required");
+const pool = new pg.Pool({
+  connectionString: url,
+  ssl: url.includes("supabase.co") || url.includes("pooler.supabase.com")
+    ? { rejectUnauthorized: false }
+    : undefined,
+});
+const db = drizzle(pool);
 
 const SEED = [
   // ── AI / ML ──────────────────────────────────────────────────────────────
@@ -85,4 +90,4 @@ await db.delete(investors);
 await db.insert(investors).values(SEED);
 
 console.log(`✓ Seeded ${SEED.length} investor records`);
-await connection.end();
+await pool.end();

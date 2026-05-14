@@ -33,15 +33,13 @@ import {
 
 const MOCK_USER = { id: 42, openId: "user_abc123", email: "founder@startup.com" };
 
-const MOCK_SUBSCRIPTION_ITEM = {
-  price: { recurring: { interval: "month" } },
-  current_period_end: 1_800_000_000, // Unix seconds
-} as unknown as Stripe.SubscriptionItem;
-
 const MOCK_STRIPE_SUB: Partial<Stripe.Subscription> = {
   id: "sub_test123",
   status: "active",
-  items: { data: [MOCK_SUBSCRIPTION_ITEM] } as Stripe.ApiList<Stripe.SubscriptionItem>,
+  current_period_end: 1_800_000_000,
+  items: {
+    data: [{ price: { recurring: { interval: "month" } } } as Stripe.SubscriptionItem],
+  } as Stripe.ApiList<Stripe.SubscriptionItem>,
 };
 
 /** Minimal mock Stripe client with subscriptions.retrieve */
@@ -82,20 +80,18 @@ describe("handleCheckoutSessionCompleted", () => {
         plan: "oracle",
         billingCycle: "monthly",
         status: "active",
-        currentPeriodEnd: MOCK_SUBSCRIPTION_ITEM.current_period_end * 1000,
+        currentPeriodEnd: 1_800_000_000 * 1000,
       })
     );
   });
 
   it("provisions an annual subscription when interval is 'year'", async () => {
-    const annualItem = {
-      price: { recurring: { interval: "year" } },
-      current_period_end: 1_900_000_000,
-    } as unknown as Stripe.SubscriptionItem;
-
     const annualSub = {
       ...MOCK_STRIPE_SUB,
-      items: { data: [annualItem] } as Stripe.ApiList<Stripe.SubscriptionItem>,
+      current_period_end: 1_900_000_000,
+      items: {
+        data: [{ price: { recurring: { interval: "year" } } } as Stripe.SubscriptionItem],
+      } as Stripe.ApiList<Stripe.SubscriptionItem>,
     };
 
     const session: Partial<Stripe.Checkout.Session> = {
@@ -185,14 +181,14 @@ describe("handleSubscriptionUpdated", () => {
     const updatedSub = {
       ...MOCK_STRIPE_SUB,
       status: "past_due",
+      current_period_end: 1_850_000_000,
       items: {
         data: [
           {
             price: { recurring: { interval: "month" } },
-            current_period_end: 1_850_000_000,
-          },
+          } as Stripe.SubscriptionItem,
         ],
-      },
+      } as Stripe.ApiList<Stripe.SubscriptionItem>,
     } as unknown as Stripe.Subscription;
 
     await handleSubscriptionUpdated(updatedSub);

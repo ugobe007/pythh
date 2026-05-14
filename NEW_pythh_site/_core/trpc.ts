@@ -1,3 +1,4 @@
+import type { Request, Response } from "express";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { UNAUTHED_ERR_MSG } from "../shared/const";
@@ -12,8 +13,8 @@ export type AuthedUser = {
 
 export type TrpcContext = {
   user: AuthedUser | null;
-  req: unknown;
-  res: unknown;
+  req: Request;
+  res: Response;
 };
 
 const t = initTRPC.context<TrpcContext>().create({

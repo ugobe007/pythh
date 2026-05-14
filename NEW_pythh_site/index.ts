@@ -5,8 +5,8 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
-import { registerStripeWebhook } from "../stripeWebhook";
-import { appRouter } from "../routers";
+import { registerStripeWebhook } from "./stripeWebhook";
+import { appRouter } from "./routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 

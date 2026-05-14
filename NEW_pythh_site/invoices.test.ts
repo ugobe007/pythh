@@ -42,15 +42,14 @@ vi.mock("./_core/notification", () => ({
 
 import { appRouter } from "./routers";
 
-function makeCaller(userId = "user-1") {
+function makeCaller() {
   return appRouter.createCaller({
     user: {
-      id: userId,
+      id: 1,
       openId: "open-1",
       name: "Test User",
       email: "test@example.com",
-      role: "user",
-      createdAt: new Date(),
+      role: "user" as const,
     },
     req: {} as never,
     res: {} as never,
@@ -209,7 +208,7 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
   });
 
   it("calls notifyOwner with subscriber details after provisioning", async () => {
-    const fakeUser = { id: "user-1", name: "Alice", email: "alice@example.com" };
+    const fakeUser = { id: 1, openId: "open-1", name: "Alice", email: "alice@example.com" };
     mockGetUserByOpenId.mockResolvedValue(fakeUser);
     mockUpsertSubscription.mockResolvedValue(undefined);
 
@@ -217,11 +216,9 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
       subscriptions: {
         retrieve: vi.fn().mockResolvedValue({
           id: "sub_123",
+          current_period_end: 1_800_000_000,
           items: {
-            data: [{
-              price: { recurring: { interval: "month" } },
-              current_period_end: 1800000000,
-            }],
+            data: [{ price: { recurring: { interval: "month" } } }],
           },
         }),
       },
@@ -236,16 +233,16 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
     await handleCheckoutSessionCompleted(fakeSession, fakeStripe);
 
     expect(mockNotifyOwner).toHaveBeenCalledOnce();
-    const call = mockNotifyOwner.mock.calls[0][0];
-    expect(call.title).toContain("New Oracle subscriber");
-    expect(call.title).toContain("Monthly");
-    expect(call.content).toContain("Alice");
-    expect(call.content).toContain("alice@example.com");
-    expect(call.content).toContain("$299/mo");
+    const message = mockNotifyOwner.mock.calls[0][0] as string;
+    expect(message).toContain("New Oracle subscriber");
+    expect(message).toContain("Monthly");
+    expect(message).toContain("Alice");
+    expect(message).toContain("alice@example.com");
+    expect(message).toContain("$299/mo");
   });
 
   it("does not throw if notifyOwner rejects (non-critical)", async () => {
-    const fakeUser = { id: "user-1", name: "Bob", email: "bob@example.com" };
+    const fakeUser = { id: 2, openId: "open-2", name: "Bob", email: "bob@example.com" };
     mockGetUserByOpenId.mockResolvedValue(fakeUser);
     mockUpsertSubscription.mockResolvedValue(undefined);
     mockNotifyOwner.mockRejectedValue(new Error("Notification service down"));
@@ -254,11 +251,9 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
       subscriptions: {
         retrieve: vi.fn().mockResolvedValue({
           id: "sub_456",
+          current_period_end: 1_900_000_000,
           items: {
-            data: [{
-              price: { recurring: { interval: "year" } },
-              current_period_end: 1900000000,
-            }],
+            data: [{ price: { recurring: { interval: "year" } } }],
           },
         }),
       },
@@ -277,7 +272,7 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
   });
 
   it("includes Annual label and $2,988/yr price for annual billing", async () => {
-    const fakeUser = { id: "user-2", name: "Carol", email: "carol@example.com" };
+    const fakeUser = { id: 3, openId: "open-3", name: "Carol", email: "carol@example.com" };
     mockGetUserByOpenId.mockResolvedValue(fakeUser);
     mockUpsertSubscription.mockResolvedValue(undefined);
     mockNotifyOwner.mockResolvedValue(true);
@@ -286,11 +281,9 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
       subscriptions: {
         retrieve: vi.fn().mockResolvedValue({
           id: "sub_789",
+          current_period_end: 1_900_000_000,
           items: {
-            data: [{
-              price: { recurring: { interval: "year" } },
-              current_period_end: 1900000000,
-            }],
+            data: [{ price: { recurring: { interval: "year" } } }],
           },
         }),
       },
@@ -304,8 +297,8 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
 
     await handleCheckoutSessionCompleted(fakeSession, fakeStripe);
 
-    const call = mockNotifyOwner.mock.calls[0][0];
-    expect(call.title).toContain("Annual");
-    expect(call.content).toContain("$2,988/yr");
+    const message = mockNotifyOwner.mock.calls[0][0] as string;
+    expect(message).toContain("Annual");
+    expect(message).toContain("$2,988/yr");
   });
 });
