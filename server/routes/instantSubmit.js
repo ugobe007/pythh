@@ -176,7 +176,7 @@ async function getInvestors(supabase) {
     const { data: investors, error } = await supabase
       .from('investors')
       .select(
-        'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals',
+        'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals, email, email_best_guess, email_candidates, email_status, email_has_mx',
       )
       .eq('status', 'active');
     
@@ -1926,7 +1926,8 @@ router.post('/submit', async (req, res) => {
             id, match_score, reasoning, fit_analysis, confidence_level, why_you_match, created_at,
             investors:investor_id (
               id, name, firm, url, sectors, stage,
-              total_investments, active_fund_size, investment_thesis
+              total_investments, active_fund_size, investment_thesis,
+              email, email_best_guess, email_candidates, email_status, email_has_mx
             )
           `)
           .eq('startup_id', startupId)
