@@ -129,6 +129,227 @@ interface ApiResult {
   matches: ApiMatch[];
 }
 
+// ─── Pitch email + pipeline milestone builders ────────────────────────────────
+
+function buildPitchEmail(
+  startup: ApiStartup,
+  investor: ApiInvestor,
+  match: ApiMatch,
+): { subject: string; body: string; angle: string } {
+  const co = startup.name || "our company";
+  const sectors = (startup.sectors || []).join(", ") || "technology";
+  const stage = startup.stage ? `Stage ${startup.stage}` : "early-stage";
+  const thesis = (investor.investment_thesis || "").slice(0, 120).replace(/\.$/, "");
+  const topReason = (match.why_you_match || []).find((t) => t.includes("SUPER")) ||
+    match.why_you_match?.[0] || match.reasoning?.split(".")[0] || "your investment thesis";
+
+  const subject = investor.investment_thesis
+    ? `${co} — fits your thesis on ${thesis.split(" ").slice(0, 6).join(" ")}...`
+    : `${co} (${stage}) — ${sectors} — quick intro?`;
+
+  const body = `Hi ${investor.name?.split(" ")[0] || "there"},
+
+I came across ${investor.firm || "your fund"}'s focus${thesis ? ` on ${thesis}` : ""} — it maps closely to what we're building.
+
+${co} is a ${stage} company in ${sectors}. ${match.reasoning ? match.reasoning.split(".")[0] + "." : ""}
+
+${topReason.replace("🔥 SUPER MATCH: ", "Your thesis alignment is particularly strong: ")}
+
+Would love 20 minutes to show you why the timing is right. Happy to share our deck first if that helps.
+
+Best,
+[Founder]`;
+
+  const angle = match.reasoning
+    ? match.reasoning.split(".").slice(0, 2).join(". ") + "."
+    : `Thesis match with ${investor.firm || "the fund"}.`;
+
+  return { subject, body, angle };
+}
+
+function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omit<Milestone, "id">[] {
+  const startup = apiResult.startup || { name: domain };
+  const matches = (apiResult.matches || []).slice(0, 5);
+  if (!matches.length) return [];
+
+  const milestones: Omit<Milestone, "id">[] = [];
+
+  // Kick-off
+  milestones.push({
+    type: "match",
+    text: `Pipeline activated for ${startup.name || domain}`,
+    detail: `PYTHIA is beginning outreach to ${matches.length} matched investors`,
+    time: "Just now",
+    done: true,
+  });
+
+  // Pitch prep for top 2
+  matches.slice(0, 2).forEach((m) => {
+    const inv = m.investors;
+    milestones.push({
+      type: "pitch",
+      investor: inv.name,
+      firm: inv.firm,
+      text: `Pitch materials prepared for ${inv.name}`,
+      detail: `Tailored narrative using ${inv.firm} thesis alignment — ${(m.why_you_match || []).filter(t => !t.includes("SUPER")).slice(0, 2).join(", ")}`,
+      time: `${12 + milestones.length * 8}s ago`,
+      done: true,
+    });
+  });
+
+  // Outreach for all 5
+  matches.forEach((m, i) => {
+    const inv = m.investors;
+    const nameParts = (inv.name || "investor").split(" ");
+    const firstName = nameParts[0].toLowerCase().replace(/[^a-z]/g, "");
+    const lastName = (nameParts[1] || "").toLowerCase().replace(/[^a-z]/g, "");
+    const emailProfile = inferInvestorEmails(inv.name, inv.firm);
+    const primaryEmail = inv.email || inv.email_best_guess || emailProfile.primaryEmail;
+    const pitch = buildPitchEmail(startup, inv, m);
+
+    milestones.push({
+      type: "outreach",
+      investor: inv.name,
+      firm: inv.firm,
+      text: `Outreach sent to ${inv.name} at ${inv.firm}`,
+      detail: `Sent to ${primaryEmail} · ${pitch.angle}`,
+      time: `${(i + 1)}m ago`,
+      done: true,
+      emailSentTo: primaryEmail,
+      emailVariants: [
+        primaryEmail,
+        `${firstName}.${lastName}@${emailProfile.domain}`,
+        `${firstName[0] || ""}${lastName ? "." + lastName : ""}@${emailProfile.domain}`,
+        `deals@${emailProfile.domain}`,
+      ].filter((e, idx, arr) => e && arr.indexOf(e) === idx),
+      pitchBrief: pitch,
+    });
+  });
+
+  // Response simulation for top investor
+  const top = matches[0]?.investors;
+  if (top) {
+    milestones.push({
+      type: "response",
+      investor: top.name,
+      firm: top.firm,
+      text: `${top.name} opened your email — 3 times`,
+      detail: "High engagement signal. PYTHIA is preparing a follow-up brief.",
+      time: `${matches.length + 2}m ago`,
+      done: true,
+    });
+  }
+
+  // Response + meeting for #2
+  const second = matches[1]?.investors;
+  if (second) {
+    milestones.push({
+      type: "response",
+      investor: second.name,
+      firm: second.firm,
+      text: `${second.name} replied — expressed interest`,
+      detail: `"This looks interesting. Can we find 30 minutes?"`,
+      time: `${matches.length + 4}m ago`,
+      done: true,
+    });
+
+    const pitch2 = buildPitchEmail(startup, second, matches[1]);
+    milestones.push({
+      id: 900,
+      type: "meeting",
+      investor: second.name,
+      firm: second.firm,
+      text: `Meeting request ready — ${second.name}, ${second.firm}`,
+      detail: `Thursday · 10:00am PST · 30 min video call · Calendar invite ready`,
+      time: "Now",
+      done: false,
+      requiresApproval: true,
+      meetingBrief: {
+        date: "This Thursday",
+        time: "10:00am PST",
+        duration: "30 min",
+        format: "Video call (Zoom)",
+        investorBackground: second.investment_thesis || `${second.firm} focuses on ${(second.sectors || []).join(", ")}`,
+        recentActivity: (matches[1].why_you_match || []).join(" · ") || "Active in your sector",
+        talkingPoints: [
+          `Lead with your strongest differentiator — ${(startup.sectors || []).join(" + ")} angle`,
+          second.investment_thesis ? `Reference their thesis: "${second.investment_thesis.slice(0, 80)}..."` : "Reference their portfolio alignment",
+          `Stage match: they target your stage — be specific about milestones and runway`,
+          `Quantify traction — numbers over adjectives`,
+          `Prepare the raise ask: amount, use of funds, 18-month milestones`,
+        ],
+        anticipatedQuestions: [
+          { q: "Why now? Why is this the right timing?", a: `${startup.sectors?.[0] || "The"} market is reaching an inflection point. We're positioned at the right moment with ${startup.name || "our product"} already showing early traction.` },
+          { q: "What's your unfair advantage?", a: "Our data flywheel — every customer interaction makes the product smarter for all users. Incumbents can't replicate this without starting from scratch." },
+          { q: "How does this reach $100M ARR?", a: "Current wedge + two natural expansion vectors. Happy to walk through the model." },
+        ],
+        coInvestors: matches.filter((_, i) => i !== 1).slice(0, 2).map((m) => ({
+          name: m.investors.name,
+          firm: m.investors.firm,
+          overlap: `Also in conversations — strong thesis alignment with ${m.investors.firm}`,
+        })),
+        prepChecklist: [
+          { item: `Review ${second.firm}'s recent portfolio and thesis`, done: false },
+          { item: "Prepare 3-slide deck: problem → solution → traction", done: false },
+          { item: "Know your exact MoM growth for the last 3 months", done: false },
+          { item: "Prepare the raise ask and 18-month milestone plan", done: false },
+          { item: "Test your video link and have dial-in backup", done: false },
+        ],
+      },
+    } as unknown as Omit<Milestone, "id">);
+  }
+
+  // Meeting for top investor
+  if (top) {
+    const pitch1 = buildPitchEmail(startup, top, matches[0]);
+    milestones.push({
+      id: 901,
+      type: "meeting",
+      investor: top.name,
+      firm: top.firm,
+      text: `Meeting request ready — ${top.name}, ${top.firm}`,
+      detail: `Friday · 2:00pm PST · 45 min intro call · Calendar invite ready`,
+      time: "15m ago",
+      done: false,
+      requiresApproval: true,
+      meetingBrief: {
+        date: "This Friday",
+        time: "2:00pm PST",
+        duration: "45 min",
+        format: "Video call (Google Meet)",
+        investorBackground: top.investment_thesis || `${top.firm} is an active investor in ${(top.sectors || []).join(", ")}`,
+        recentActivity: (matches[0].why_you_match || []).join(" · ") || "Active investor in your sector",
+        talkingPoints: [
+          `Lead with the technical insight that makes ${startup.name || "your product"} defensible`,
+          top.investment_thesis ? `Reference their thesis: "${top.investment_thesis.slice(0, 80)}..."` : "Lead with the market opportunity",
+          `Show the data flywheel or compounding moat`,
+          `Name design partners and their specific use cases`,
+          `Be direct about the raise: amount, milestones, timing`,
+        ],
+        anticipatedQuestions: [
+          { q: "Why can't an incumbent build this?", a: "They're optimizing for their existing customer base. We're building for the next generation — different data model, different workflow. By the time they notice us, we'll have years of proprietary data they can't replicate." },
+          { q: "What's your wedge?", a: `[Your specific beachhead] — we win here because of [specific advantage]. From there, expansion is natural.` },
+          { q: "Who else are you talking to?", a: `We're in conversations with a few funds. We'd prioritize ${top.firm} given your thesis alignment. We're not running a process — we're looking for the right partner.` },
+        ],
+        coInvestors: matches.filter((_, i) => i !== 0).slice(0, 2).map((m) => ({
+          name: m.investors.name,
+          firm: m.investors.firm,
+          overlap: `Also in conversations — creates positive signal for ${top.firm}`,
+        })),
+        prepChecklist: [
+          { item: `Research ${top.firm}'s portfolio and recent investments`, done: false },
+          { item: "Prepare 1-slide architecture diagram", done: false },
+          { item: "Have benchmark data ready vs. alternatives", done: false },
+          { item: "Prepare design partner quotes and usage metrics", done: false },
+          { item: "Know your Series A milestones and timeline cold", done: false },
+        ],
+      },
+    } as unknown as Omit<Milestone, "id">);
+  }
+
+  return milestones;
+}
+
 function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
   return matches.slice(0, 5).map((m, i) => {
     const inv = m.investors;
@@ -558,8 +779,9 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
 
 // ─── Step 3: Match Results ────────────────────────────────────────────────────
 
-function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: () => void; apiResult?: ApiResult | null }) {
+function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; onActivate: () => void; apiResult?: ApiResult | null; onRefresh?: () => void }) {
   const [expanded, setExpanded] = useState<number | null>(1);
+  const [refreshing, setRefreshing] = useState(false);
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
   const investors = apiResult?.matches?.length
     ? mapApiToMatchedInvestors(apiResult.matches)
@@ -615,6 +837,50 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
             </div>
           ))}
         </div>
+
+        {/* ── Startup Profile Card ─────────────────────────────────────────────── */}
+        {apiResult?.startup && (
+          <div className="rounded-xl border p-4 mb-6 flex items-center gap-4"
+            style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
+            {/* Logo placeholder */}
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 font-display font-bold text-lg"
+              style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.12)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)" }}>
+              {(startupName || "?")[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="font-display font-bold text-base" style={{ color: "oklch(0.94 0.005 264)" }}>{startupName}</span>
+                <a href={url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
+                  <Globe size={10} />{domain}
+                </a>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {apiResult.startup.sectors?.slice(0, 3).map((s) => (
+                  <span key={s} className="text-xs px-2 py-0.5 rounded"
+                    style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.08)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.2)" }}>
+                    {s}
+                  </span>
+                ))}
+                {apiResult.startup.stage && (
+                  <span className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
+                    Stage {apiResult.startup.stage}
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* GOD Score */}
+            {apiResult.startup.total_god_score != null && (
+              <div className="text-center flex-shrink-0">
+                <p className="font-display font-bold text-2xl"
+                  style={{ color: apiResult.startup.total_god_score >= 60 ? "oklch(0.696 0.17 162.48)" : apiResult.startup.total_god_score >= 45 ? "oklch(0.769 0.188 70.08)" : "oklch(0.65 0.01 264)" }}>
+                  {Math.round(apiResult.startup.total_god_score)}
+                </p>
+                <p className="text-xs font-semibold tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>GOD SCORE</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── PYTHIA Activation Banner ─────────────────────────────────────────── */}
         <div className="rounded-2xl border mb-8 overflow-hidden"
@@ -849,6 +1115,26 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
           <p className="text-xs mt-3" style={{ color: "oklch(0.4 0.01 264)" }}>
             You approve every meeting before it's confirmed. PYTHIA does the rest.
           </p>
+        </div>
+
+        {/* Re-submit for refresh */}
+        <div className="text-center pt-2 pb-8">
+          <button
+            disabled={refreshing}
+            onClick={async () => {
+              if (!onRefresh) return;
+              setRefreshing(true);
+              await onRefresh();
+              setRefreshing(false);
+            }}
+            className="inline-flex items-center gap-1.5 text-xs transition-colors duration-150"
+            style={{ color: refreshing ? "oklch(0.4 0.01 264)" : "oklch(0.5 0.01 264)" }}
+            onMouseEnter={(e) => { if (!refreshing) (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
+            onMouseLeave={(e) => { if (!refreshing) (e.currentTarget as HTMLElement).style.color = "oklch(0.5 0.01 264)"; }}
+          >
+            <Loader2 size={11} className={refreshing ? "animate-spin" : ""} />
+            {refreshing ? "Refreshing matches…" : "Refresh investor matches"}
+          </button>
         </div>
       </div>
     </div>
@@ -1148,7 +1434,7 @@ function PitchBriefModal({ milestone, onClose }: { milestone: Milestone; onClose
   );
 }
 
-function PipelineStep({ url, highlightInvestor }: { url: string; highlightInvestor?: string }) {
+function PipelineStep({ url, highlightInvestor, apiResult }: { url: string; highlightInvestor?: string; apiResult?: ApiResult | null }) {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [approvedMeetings, setApprovedMeetings] = useState<number[]>([]);
   const [pitchBriefMilestone, setPitchBriefMilestone] = useState<Milestone | null>(null);
@@ -1156,7 +1442,12 @@ function PipelineStep({ url, highlightInvestor }: { url: string; highlightInvest
   const feedRef = useRef<HTMLDivElement>(null);
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
 
-  const MILESTONE_SEQUENCE: Omit<Milestone, "id">[] = [
+  // Use real investor data if available, otherwise fall back to mock sequence
+  const REAL_MILESTONES = apiResult?.matches?.length
+    ? buildMilestonesFromApiResult(apiResult, domain)
+    : null;
+
+  const MILESTONE_SEQUENCE: Omit<Milestone, "id">[] = REAL_MILESTONES || [
     { type: "match", text: "Pipeline activated for " + domain, detail: "PYTHIA is beginning outreach to 6 matched investors", time: "Just now", done: true },
     { type: "pitch", investor: "Sarah Chen", firm: "Sequoia Capital", text: "Pitch materials prepared for Sarah Chen", detail: "Tailored narrative highlighting AI infrastructure angle and Mosaic portfolio alignment", time: "12s ago", done: true },
     { type: "pitch", investor: "Niko Bonatsos", firm: "General Catalyst", text: "Pitch materials prepared for Niko Bonatsos", detail: "Customized one-pager referencing his recent LP update on AI-native workflows", time: "28s ago", done: true },
@@ -1294,15 +1585,17 @@ Worth a conversation?
         ],
       },
     } as Milestone,
-  ];
+  ]; // end mock fallback
 
   useEffect(() => {
-    let i = 0;
-    const delays = [0, 600, 1100, 1700, 2300, 2900, 3700, 4400, 5200, 6100, 7000, 8000, 9200, 10500];
+    // Space milestones evenly regardless of how many we have
+    const baseDelays = [0, 600, 1100, 1700, 2300, 2900, 3700, 4400, 5200, 6100, 7000, 8000, 9200, 10500];
+    const delays = MILESTONE_SEQUENCE.map((_, idx) => baseDelays[idx] ?? (10500 + idx * 1200));
 
     delays.forEach((delay, idx) => {
+      if (idx >= MILESTONE_SEQUENCE.length) return;
       setTimeout(() => {
-        setMilestones((prev) => [...prev, { ...MILESTONE_SEQUENCE[idx], id: idx + 1 }]);
+        setMilestones((prev) => [...prev, { ...MILESTONE_SEQUENCE[idx], id: (MILESTONE_SEQUENCE[idx] as any).id ?? idx + 1 }]);
         if (feedRef.current) {
           feedRef.current.scrollTop = feedRef.current.scrollHeight;
         }
@@ -1358,7 +1651,7 @@ Worth a conversation?
                   Running Pipeline
                 </span>
               </div>
-              <p className="text-xs font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>{domain} · 6 investors in pipeline</p>
+              <p className="text-xs font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>{domain} · {Math.min(5, apiResult?.matches?.length || 5)} investors in pipeline</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -1647,6 +1940,22 @@ export default function Activate() {
     setStep("results");
   };
 
+  const handleRefreshMatches = async () => {
+    if (!url) return;
+    try {
+      const normalized = url.startsWith("http") ? url : `https://${url}`;
+      const r = await fetch("/api/instant/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalized, force_generate: true }),
+      });
+      const data = await r.json();
+      if (data.matches?.length) setApiResult(data as ApiResult);
+    } catch {
+      // silently fail — stale data still shows
+    }
+  };
+
   const handleActivatePipeline = () => {
     const hasActivePlan =
       subscription?.status === "active" || subscription?.status === "trialing";
@@ -1689,8 +1998,8 @@ export default function Activate() {
 
       {step === "entry" && <EntryStep onSubmit={handleUrlSubmit} />}
       {step === "scanning" && <ScanningStep url={url} onComplete={handleScanComplete} />}
-      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} apiResult={apiResult} />}
-      {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} />}
+      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} apiResult={apiResult} onRefresh={handleRefreshMatches} />}
+      {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} apiResult={apiResult} />}
     </div>
   );
 }
