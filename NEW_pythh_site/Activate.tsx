@@ -8,7 +8,6 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import {
   ArrowRight,
@@ -90,6 +89,64 @@ interface Milestone {
     investorBackground: string;
     recentActivity: string;
   };
+}
+
+// ─── API types (from /api/instant/submit) ─────────────────────────────────────
+
+interface ApiInvestor {
+  id: string;
+  name: string;
+  firm: string;
+  stage: string[];
+  sectors: string[];
+  email?: string;
+  email_best_guess?: string;
+  investment_thesis?: string;
+}
+
+interface ApiMatch {
+  id: string;
+  match_score: number;
+  reasoning: string;
+  confidence_level: string;
+  why_you_match: string[];
+  investors: ApiInvestor;
+}
+
+interface ApiStartup {
+  id?: string;
+  name: string;
+  sectors?: string[];
+  stage?: string;
+  total_god_score?: number;
+}
+
+interface ApiResult {
+  startup: ApiStartup | null;
+  matches: ApiMatch[];
+}
+
+function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
+  return matches.slice(0, 10).map((m, i) => {
+    const inv = m.investors;
+    const stageLabel = (inv.stage || [])
+      .map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
+      .join(", ");
+    return {
+      id: i + 1,
+      name: inv.name || "Unknown",
+      firm: inv.firm || "Unknown Firm",
+      role: "Partner",
+      sector: inv.sectors?.slice(0, 3) || [],
+      stage: stageLabel || "All Stages",
+      checkSize: "N/A",
+      matchScore: Math.round(m.match_score),
+      signalScore: Math.round(m.match_score * 0.9),
+      reason: m.reasoning || m.why_you_match?.join(". ") || "",
+      recentActivity: m.why_you_match?.join(" · ") || "",
+      status: "matched" as const,
+    };
+  });
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -343,20 +400,47 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
 
 // ─── Step 2: Scanning Animation ───────────────────────────────────────────────
 
-function ScanningStep({ url, onComplete }: { url: string; onComplete: () => void }) {
+function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: ApiResult | null) => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [progress, setProgress] = useState(0);
   const capturedEmail = sessionStorage.getItem("pythia_email") || "";
+  const apiResultRef = useRef<ApiResult | null>(null);
+  const animDoneRef = useRef(false);
+
+  const maybeComplete = () => {
+    if (animDoneRef.current && apiResultRef.current !== undefined) {
+      setTimeout(() => onComplete(apiResultRef.current), 400);
+    }
+  };
 
   useEffect(() => {
+    // Fire real API call in parallel with the animation
+    const normalized = url.startsWith("http") ? url : `https://${url}`;
+    fetch("/api/instant/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: normalized }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        apiResultRef.current = data as ApiResult;
+      })
+      .catch(() => {
+        apiResultRef.current = null;
+      })
+      .finally(() => {
+        maybeComplete();
+      });
+
     let stepIndex = 0;
     let totalElapsed = 0;
     const totalDuration = SCAN_STEPS.reduce((a, s) => a + s.duration, 0);
 
     const runStep = () => {
       if (stepIndex >= SCAN_STEPS.length) {
-        setTimeout(onComplete, 600);
+        animDoneRef.current = true;
+        maybeComplete();
         return;
       }
       setCurrentStep(stepIndex);
@@ -470,9 +554,14 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: () => void
 
 // ─── Step 3: Match Results ────────────────────────────────────────────────────
 
-function ResultsStep({ url, onActivate }: { url: string; onActivate: () => void }) {
+function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: () => void; apiResult?: ApiResult | null }) {
   const [expanded, setExpanded] = useState<number | null>(1);
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
+  const investors = apiResult?.matches?.length
+    ? mapApiToMatchedInvestors(apiResult.matches)
+    : MOCK_INVESTORS;
+  const startupName = apiResult?.startup?.name || domain;
+  const matchCount = investors.length;
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
@@ -483,7 +572,7 @@ function ResultsStep({ url, onActivate }: { url: string; onActivate: () => void 
             <PythiaAvatar size={36} />
             <div>
               <p className="text-sm font-semibold" style={{ color: "oklch(0.94 0.005 264)" }}>
-                PYTHIA found <span style={{ color: "oklch(0.696 0.17 162.48)" }}>6 high-signal investors</span> for {domain}
+                PYTHIA found <span style={{ color: "oklch(0.696 0.17 162.48)" }}>{matchCount} high-signal investors</span> for {startupName}
               </p>
               <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>Ranked by timing × thesis fit × optics</p>
             </div>
@@ -505,9 +594,9 @@ function ResultsStep({ url, onActivate }: { url: string; onActivate: () => void 
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
-            { label: "INVESTORS MATCHED", value: "6", sub: "from 5,000+ analyzed", color: "emerald" },
-            { label: "AVG MATCH SCORE", value: "87", sub: "out of 100", color: "amber" },
-            { label: "ESTIMATED MEETINGS", value: "3–4", sub: "based on signal strength", color: "emerald" },
+            { label: "INVESTORS MATCHED", value: String(matchCount), sub: "from 5,000+ analyzed", color: "emerald" },
+            { label: "AVG MATCH SCORE", value: String(Math.round(investors.reduce((s, i) => s + i.matchScore, 0) / (investors.length || 1))), sub: "out of 100", color: "amber" },
+            { label: "ESTIMATED MEETINGS", value: matchCount >= 10 ? "4–6" : matchCount >= 5 ? "2–4" : "1–2", sub: "based on signal strength", color: "emerald" },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl p-4 border text-center"
               style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
@@ -537,7 +626,7 @@ function ResultsStep({ url, onActivate }: { url: string; onActivate: () => void 
 
         {/* Investor list */}
         <div className="space-y-3 mb-8">
-          {MOCK_INVESTORS.map((inv, i) => (
+          {investors.map((inv, i) => (
             <div key={inv.id}
               className="rounded-xl border overflow-hidden transition-all duration-200 cursor-pointer"
               style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: expanded === inv.id ? "oklch(0.696 0.17 162.48 / 0.3)" : "oklch(0.25 0.01 264)" }}
@@ -663,7 +752,7 @@ function ResultsStep({ url, onActivate }: { url: string; onActivate: () => void 
             Ready to run your pipeline?
           </h3>
           <p className="text-sm leading-relaxed mb-6 max-w-md mx-auto" style={{ color: "oklch(0.6 0.01 264)" }}>
-            PYTHIA will reach out to all 6 investors, prepare personalized pitch materials for each, and book meetings on your calendar. You'll only hear from her when a meeting is confirmed.
+            PYTHIA will reach out to all {matchCount} investors, prepare personalized pitch materials for each, and book meetings on your calendar. You'll only hear from her when a meeting is confirmed.
           </p>
           <button
             onClick={onActivate}
@@ -1439,31 +1528,16 @@ Worth a conversation?
 // ─── Main Flow ────────────────────────────────────────────────────────────────
 
 export default function Activate() {
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
 
-  // ── Subscription gate ──────────────────────────────────────────────────────
-  const { data: subscription, isLoading: subLoading } = trpc.stripe.getSubscription.useQuery(
+  // tRPC subscription check — only used when user tries to activate pipeline
+  const { data: subscription } = trpc.stripe.getSubscription.useQuery(
     undefined,
     { enabled: isAuthenticated }
   );
 
-  const isGateLoading = authLoading || (isAuthenticated && subLoading);
-  const hasActivePlan = subscription?.status === "active" || subscription?.status === "trialing";
-
-  useEffect(() => {
-    if (isGateLoading) return;
-    if (!isAuthenticated) {
-      window.location.href = getLoginUrl();
-      return;
-    }
-    if (!hasActivePlan) {
-      navigate("/pricing");
-    }
-  }, [isGateLoading, isAuthenticated, hasActivePlan, navigate]);
-
-  // ── All useState hooks must be called unconditionally (Rules of Hooks) ──────
-  // Read sessionStorage once at mount to determine the initial step.
+  // Read sessionStorage once at mount to determine the initial step
   const [prefilledInvestor] = useState<{ name: string; firm: string; role: string; score: number } | null>(() => {
     try {
       const raw = sessionStorage.getItem("pythia_investor");
@@ -1473,19 +1547,7 @@ export default function Activate() {
   });
   const [step, setStep] = useState<Step>(prefilledInvestor ? "pipeline" : "entry");
   const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
-
-  // Show a minimal loading screen while checking auth / subscription
-  if (isGateLoading || !isAuthenticated || !hasActivePlan) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-            style={{ borderColor: "oklch(0.696 0.17 162.48)", borderTopColor: "transparent" }} />
-          <span className="text-sm" style={{ color: "oklch(0.5 0.01 264)" }}>Verifying Oracle access…</span>
-        </div>
-      </div>
-    );
-  }
+  const [apiResult, setApiResult] = useState<ApiResult | null>(null);
 
   const handleUrlSubmit = (submittedUrl: string, submittedEmail: string) => {
     setUrl(submittedUrl);
@@ -1494,11 +1556,19 @@ export default function Activate() {
     setStep("scanning");
   };
 
-  const handleScanComplete = () => {
+  const handleScanComplete = (result: ApiResult | null) => {
+    setApiResult(result);
     setStep("results");
   };
 
   const handleActivatePipeline = () => {
+    const hasActivePlan =
+      subscription?.status === "active" || subscription?.status === "trialing";
+    if (!isAuthenticated || !hasActivePlan) {
+      // Gate only at this point — show value first, ask for commitment after
+      navigate("/pricing");
+      return;
+    }
     setStep("pipeline");
   };
 
@@ -1533,7 +1603,7 @@ export default function Activate() {
 
       {step === "entry" && <EntryStep onSubmit={handleUrlSubmit} />}
       {step === "scanning" && <ScanningStep url={url} onComplete={handleScanComplete} />}
-      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} />}
+      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} apiResult={apiResult} />}
       {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} />}
     </div>
   );

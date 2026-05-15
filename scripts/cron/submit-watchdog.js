@@ -96,6 +96,29 @@ async function fetchDeepHealth() {
   }
 }
 
+/**
+ * Probe the tRPC auth.me endpoint — this is the gate for the frontend submit
+ * URL flow (Activate.tsx). If it returns anything other than 200 + JSON array,
+ * the UI submit function is broken regardless of whether /api/instant/submit passes.
+ */
+async function probeTrpcAuth() {
+  const PROD_URL = process.env.PROD_BASE_URL || 'https://pythh.ai';
+  const t0 = Date.now();
+  try {
+    const res = await fetch(
+      `${PROD_URL}/api/trpc/auth.me?batch=1&input=${encodeURIComponent(JSON.stringify({ '0': { json: null } }))}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    const ms = Date.now() - t0;
+    if (!res.ok) return { ok: false, ms, error: `HTTP ${res.status} — tRPC not mounted or swallowed by 404 catch-all` };
+    const body = await res.json();
+    if (!Array.isArray(body)) return { ok: false, ms, error: `Unexpected response shape: ${JSON.stringify(body).slice(0, 80)}` };
+    return { ok: true, ms, user: body[0]?.result?.data?.json ?? null };
+  } catch (e) {
+    return { ok: false, ms: Date.now() - t0, error: e.message };
+  }
+}
+
 // ── Resend alert ─────────────────────────────────────────────────────────────
 
 async function sendAlert(subject, htmlBody) {
@@ -197,6 +220,24 @@ async function triggerRestart() {
 
 async function runProbe() {
   console.log(`\n[watchdog] ─── Probe run ${new Date().toISOString()} ───`);
+
+  // ── tRPC auth.me check (frontend gate) ───────────────────────────────────
+  const trpcResult = await probeTrpcAuth();
+  if (!trpcResult.ok) {
+    console.warn(`  ✗ tRPC auth.me FAILED (${trpcResult.ms}ms): ${trpcResult.error}`);
+    console.warn('  ⚠ This means the UI submit URL flow is broken even if REST API passes.');
+    await sendAlert(
+      '🚨 Pythh tRPC auth.me failing — UI submit flow broken',
+      `<h2 style="color:#c0392b">⚠️ tRPC /api/trpc/auth.me is DOWN</h2>
+       <p>The frontend submit URL flow is broken. Users cannot activate PYTHIA.</p>
+       <p><strong>Error:</strong> ${trpcResult.error}</p>
+       <p><strong>Latency:</strong> ${trpcResult.ms}ms</p>
+       <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+       <p>Check: was /api/trpc slot registered before the 404 catch-all? Did the tRPC async import fail?</p>`
+    );
+  } else {
+    console.log(`  ✓ tRPC auth.me OK (${trpcResult.ms}ms) user=${trpcResult.user ? trpcResult.user.email : 'anonymous'}`);
+  }
 
   const probeResults = [];
   let failures = [];
