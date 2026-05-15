@@ -55,6 +55,9 @@ interface MatchedInvestor {
   signalScore: number;
   reason: string;
   recentActivity: string;
+  whyYouMatchTags?: string[];
+  investmentThesis?: string;
+  isSuperMatch?: boolean;
   status: "matched" | "outreach_sent" | "responded" | "meeting_booked";
   emailProfile?: InvestorEmailProfile;
 }
@@ -127,11 +130,13 @@ interface ApiResult {
 }
 
 function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
-  return matches.slice(0, 10).map((m, i) => {
+  return matches.slice(0, 5).map((m, i) => {
     const inv = m.investors;
     const stageLabel = (inv.stage || [])
       .map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
       .join(", ");
+    const tags = m.why_you_match || [];
+    const isSuperMatch = tags.some((t) => t.includes("SUPER MATCH"));
     return {
       id: i + 1,
       name: inv.name || "Unknown",
@@ -142,8 +147,11 @@ function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
       checkSize: "N/A",
       matchScore: Math.round(m.match_score),
       signalScore: Math.round(m.match_score * 0.9),
-      reason: m.reasoning || m.why_you_match?.join(". ") || "",
-      recentActivity: m.why_you_match?.join(" · ") || "",
+      reason: m.reasoning || tags.join(". ") || "",
+      recentActivity: tags.filter((t) => !t.includes("SUPER MATCH")).join(" · ") || "",
+      whyYouMatchTags: tags,
+      investmentThesis: inv.investment_thesis || "",
+      isSuperMatch,
       status: "matched" as const,
     };
   });
@@ -555,8 +563,9 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
   const investors = apiResult?.matches?.length
     ? mapApiToMatchedInvestors(apiResult.matches)
-    : MOCK_INVESTORS;
+    : MOCK_INVESTORS.slice(0, 5);
   const startupName = apiResult?.startup?.name || domain;
+  const totalMatchCount = apiResult?.matches?.length ?? investors.length;
   const matchCount = investors.length;
 
   return (
@@ -568,7 +577,8 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
             <PythiaAvatar size={36} />
             <div>
               <p className="text-sm font-semibold" style={{ color: "oklch(0.94 0.005 264)" }}>
-                PYTHIA found <span style={{ color: "oklch(0.696 0.17 162.48)" }}>{matchCount} high-signal investors</span> for {startupName}
+                PYTHIA ranked <span style={{ color: "oklch(0.696 0.17 162.48)" }}>top {matchCount} investors</span> for {startupName}
+                {totalMatchCount > matchCount && <span style={{ color: "oklch(0.5 0.01 264)" }}> from {totalMatchCount.toLocaleString()} analyzed</span>}
               </p>
               <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>Ranked by timing × thesis fit × optics</p>
             </div>
@@ -590,9 +600,9 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
-            { label: "INVESTORS MATCHED", value: String(matchCount), sub: "from 5,000+ analyzed", color: "emerald" },
-            { label: "AVG MATCH SCORE", value: String(Math.round(investors.reduce((s, i) => s + i.matchScore, 0) / (investors.length || 1))), sub: "out of 100", color: "amber" },
-            { label: "ESTIMATED MEETINGS", value: matchCount >= 10 ? "4–6" : matchCount >= 5 ? "2–4" : "1–2", sub: "based on signal strength", color: "emerald" },
+            { label: "TOP INVESTORS", value: String(matchCount), sub: `from ${totalMatchCount.toLocaleString()} analyzed`, color: "emerald" },
+            { label: "TOP MATCH SCORE", value: String(investors[0]?.matchScore ?? "—"), sub: "out of 100", color: "amber" },
+            { label: "SUPER MATCHES", value: String(investors.filter(i => i.isSuperMatch).length), sub: "highest thesis alignment", color: "emerald" },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl p-4 border text-center"
               style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
@@ -639,6 +649,12 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-display font-semibold text-sm" style={{ color: "oklch(0.94 0.005 264)" }}>{inv.name}</span>
+                    {inv.isSuperMatch && (
+                      <span className="text-xs px-1.5 py-0.5 rounded font-bold"
+                        style={{ backgroundColor: "oklch(0.769 0.188 70.08 / 0.15)", color: "oklch(0.769 0.188 70.08)", border: "1px solid oklch(0.769 0.188 70.08 / 0.3)" }}>
+                        🔥 SUPER
+                      </span>
+                    )}
                     <span className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>{inv.role}</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -668,20 +684,41 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
                   style={{ color: "oklch(0.4 0.01 264)", transform: expanded === inv.id ? "rotate(90deg)" : "rotate(0deg)" }} />
               </div>
 
-              {/* Expanded detail */}
+              {/* Expanded detail — CRM notes */}
               {expanded === inv.id && (
                 <div className="px-4 pb-4 border-t" style={{ borderColor: "oklch(0.22 0.01 264)" }}>
                   <div className="pt-4 space-y-4">
+                    {/* Why you match tags */}
+                    {inv.whyYouMatchTags && inv.whyYouMatchTags.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold tracking-widest mb-2" style={{ color: "oklch(0.5 0.01 264)" }}>MATCH SIGNALS</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {inv.whyYouMatchTags.map((tag, ti) => {
+                            const isSuper = tag.includes("SUPER MATCH");
+                            return (
+                              <span key={ti} className="text-xs px-2 py-0.5 rounded font-medium"
+                                style={{
+                                  backgroundColor: isSuper ? "oklch(0.769 0.188 70.08 / 0.15)" : "oklch(0.696 0.17 162.48 / 0.1)",
+                                  color: isSuper ? "oklch(0.769 0.188 70.08)" : "oklch(0.696 0.17 162.48)",
+                                  border: `1px solid ${isSuper ? "oklch(0.769 0.188 70.08 / 0.3)" : "oklch(0.696 0.17 162.48 / 0.2)"}`,
+                                }}>
+                                {tag}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs font-semibold tracking-widest mb-2" style={{ color: "oklch(0.5 0.01 264)" }}>WHY PYTHIA MATCHED YOU</p>
+                        <p className="text-xs font-semibold tracking-widest mb-2" style={{ color: "oklch(0.5 0.01 264)" }}>PYTHIA'S REASONING</p>
                         <p className="text-sm leading-relaxed" style={{ color: "oklch(0.65 0.01 264)" }}>{inv.reason}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold tracking-widest mb-2" style={{ color: "oklch(0.5 0.01 264)" }}>RECENT SIGNAL</p>
+                        <p className="text-xs font-semibold tracking-widest mb-2" style={{ color: "oklch(0.5 0.01 264)" }}>INVESTOR THESIS</p>
                         <div className="flex items-start gap-2">
-                          <Activity size={13} className="mt-0.5 flex-shrink-0" style={{ color: "oklch(0.769 0.188 70.08)" }} />
-                          <p className="text-sm" style={{ color: "oklch(0.65 0.01 264)" }}>{inv.recentActivity}</p>
+                          <Target size={13} className="mt-0.5 flex-shrink-0" style={{ color: "oklch(0.769 0.188 70.08)" }} />
+                          <p className="text-sm" style={{ color: "oklch(0.65 0.01 264)" }}>{inv.investmentThesis || inv.recentActivity || "—"}</p>
                         </div>
                       </div>
                     </div>
@@ -748,7 +785,7 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
             Ready to run your pipeline?
           </h3>
           <p className="text-sm leading-relaxed mb-6 max-w-md mx-auto" style={{ color: "oklch(0.6 0.01 264)" }}>
-            PYTHIA will reach out to all {matchCount} investors, prepare personalized pitch materials for each, and book meetings on your calendar. You'll only hear from her when a meeting is confirmed.
+            PYTHIA will reach out to your top {matchCount} matched investors, prepare personalized pitch materials for each, and book meetings on your calendar. You approve every action before it goes out.
           </p>
           <button
             onClick={onActivate}
@@ -1541,8 +1578,13 @@ export default function Activate() {
     } catch {}
     return null;
   });
-  const [step, setStep] = useState<Step>(prefilledInvestor ? "pipeline" : "entry");
   const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
+  const [step, setStep] = useState<Step>(() => {
+    if (prefilledInvestor) return "pipeline";
+    // If URL already entered on home page, skip the entry form and go straight to scanning
+    if (sessionStorage.getItem("pythia_url")) return "scanning";
+    return "entry";
+  });
   const [apiResult, setApiResult] = useState<ApiResult | null>(null);
 
   const handleUrlSubmit = (submittedUrl: string, submittedEmail: string) => {
