@@ -152,6 +152,36 @@ let investorCache = {
   bySector: new Map(),
 };
 
+// ── Match Results Cache (10-min LRU) ─────────────────────────────────────────
+// Avoids a full Supabase SELECT on every known-URL hit.
+// Key: startup_id, Value: { matches, matchCount, loadedAt }
+const MATCH_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const MATCH_CACHE_MAX    = 500;             // max startups in memory
+const matchResultsCache  = new Map();
+
+function matchCacheGet(startupId) {
+  const entry = matchResultsCache.get(startupId);
+  if (!entry) return null;
+  if (Date.now() - entry.loadedAt > MATCH_CACHE_TTL_MS) {
+    matchResultsCache.delete(startupId);
+    return null;
+  }
+  return entry;
+}
+
+function matchCacheSet(startupId, matches, matchCount) {
+  if (matchResultsCache.size >= MATCH_CACHE_MAX) {
+    // Evict the oldest entry
+    const oldest = matchResultsCache.keys().next().value;
+    matchResultsCache.delete(oldest);
+  }
+  matchResultsCache.set(startupId, { matches, matchCount, loadedAt: Date.now() });
+}
+
+function matchCacheInvalidate(startupId) {
+  matchResultsCache.delete(startupId);
+}
+
 async function getInvestors(supabase) {
   const now = Date.now();
   
@@ -876,9 +906,21 @@ async function generateSyncTopMatchesForHttpResponse(
       }
     }
     withScores.sort((a, b) => b.result.score - a.result.score);
-    const top = withScores.slice(0, SYNC_RESPONSE_TOP_N);
-    if (top.length === 0) {
-      return out;
+    let top = withScores.slice(0, SYNC_RESPONSE_TOP_N);
+
+    // Fallback: if PERSISTENCE_FLOOR filtered everything out (thin profile / new URL),
+    // grab best available candidates by raw score so the UI never returns empty.
+    if (top.length === 0 && candidates.length > 0) {
+      const allScored = [];
+      for (const inv of candidates.slice(0, 100)) {
+        try {
+          const result = calculateMatchScore(placeholderStartup, inv, sig, inv.signals || null);
+          allScored.push({ inv, result });
+        } catch { /* skip */ }
+      }
+      allScored.sort((a, b) => b.result.score - a.result.score);
+      top = allScored.slice(0, SYNC_RESPONSE_TOP_N);
+      if (top.length === 0) return out;
     }
     const rows = top.map(({ inv, result }) => buildInstantMatchRow(startupId, placeholderStartup, inv, result));
     const { error: upErr } = await supabase
@@ -1920,6 +1962,24 @@ router.post('/submit', async (req, res) => {
         .eq('status', 'suggested');
       
       if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate) {
+        // ── Check in-memory cache first (avoids a Supabase SELECT per request) ──
+        const cached = matchCacheGet(startupId);
+        if (cached && !forceGenerate) {
+          const processingTime = Date.now() - startTime;
+          console.log(`  ⚡ Cache hit for ${startupId} — ${cached.matchCount} matches in ${processingTime}ms`);
+          _intelMatches = cached.matchCount;
+          return res.json({
+            startup_id: startupId,
+            startup,
+            matches: cached.matches,
+            match_count: cached.matchCount,
+            is_new: false,
+            cached: true,
+            cache_source: 'memory',
+            processing_time_ms: processingTime,
+          });
+        }
+
         const { data: existingMatches } = await supabase
           .from('startup_investor_matches')
           .select(`
@@ -1955,6 +2015,13 @@ router.post('/submit', async (req, res) => {
         const processingTime = Date.now() - startTime;
         console.log(`  ⚡ Returned ${existingMatchCount} cached matches in ${processingTime}ms${isStale ? ' (regen queued)' : ''}`);
         
+        // Store in memory cache (skip if stale — background will refresh)
+        if (!isStale && existingMatches?.length) {
+          matchCacheSet(startupId, existingMatches, existingMatchCount);
+        } else if (isStale) {
+          matchCacheInvalidate(startupId); // force fresh load after regen
+        }
+
         void supabase.from('match_gen_logs').insert({
           startup_id: startupId, event: 'skipped',
           source: 'rpc', reason: 'existing_matches',
@@ -1970,6 +2037,7 @@ router.post('/submit', async (req, res) => {
           match_count: existingMatchCount,
           is_new: false,
           cached: true,
+          cache_source: 'db',
           regen_queued: isStale,
           processing_time_ms: processingTime
         });
@@ -2138,52 +2206,93 @@ router.post('/submit', async (req, res) => {
       console.log(`  ✓ Created minimal startup: ${insertName} (${startupId})`);
     }
     
-    // Real GOD score + DB update before background matches (fixes stuck-at-50 for new URL submits)
+    // ── PARALLEL: Speculative match + real scrape race concurrently ──────────
+    // Speculative: use placeholder data (Technology sector, GOD=50) for instant results.
+    // Scrape:      enriches sectors/score — if it finishes in time, we use real matches.
+    // Whichever gives better results wins; UI never waits on the slower path.
     let syncScoringDone = false;
     let syncScoreResult = null;
-    if (isNew && startupId) {
-      // Preserve path when user submits e.g. "httpbin.org/html" (domain strips path)
-      const fullUrlForSync = inputRaw.startsWith('http') ? inputRaw : `https://${inputRaw}`;
-      const syncBudget = Math.max(
-        2500,
-        Math.min(10_000, HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime) - 900)
-      );
-      try {
-        const sr = await syncEnrichmentAndGodScoreForSubmit(supabase, {
-          startupId,
-          fullUrl: fullUrlForSync,
-          domain,
-          displayName: domainToName(domain),
-          maxMs: syncBudget,
-        });
-        syncScoreResult = sr;
-        syncScoringDone = !!sr.ok;
-        if (sr.ok) {
-          const { data: fresh } = await supabase
-            .from('startup_uploads')
-            .select(
-              'id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, team_score, traction_score, market_score, product_score, vision_score'
-            )
-            .eq('id', startupId)
-            .single();
-          if (fresh) startup = fresh;
-        }
-      } catch (syncErr) {
-        console.warn('[INSTANT] sync GOD score failed (background will compute):', syncErr?.message);
-      }
-    }
-
-    // Synchronous top-N matches in the same request (avoids empty UI while BG pipeline queues)
     let firstPaintMatches = [];
     let firstMatchCount = 0;
-    if (startupId) {
+
+    if (isNew && startupId) {
+      const fullUrlForSync = inputRaw.startsWith('http') ? inputRaw : `https://${inputRaw}`;
+      const timeLeft = () => HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime);
+
+      // Pre-load investor cache once before both paths need it (avoids double-fetch race)
+      await getInvestors(supabase).catch(() => {});
+
+      // Speculative match — runs immediately with placeholder data
+      const speculativePlaceholder = uploadRowToPlaceholderStartup(startupId, startup);
+      const speculativePromise = generateSyncTopMatchesForHttpResponse(supabase, {
+        startupId,
+        placeholderStartup: speculativePlaceholder,
+        signalTotal: signalTotalFromGod(50),
+        maxMs: Math.min(2000, timeLeft() - 500),
+      }).catch(() => ({ matches: [], match_count: 0 }));
+
+      // Scrape + real scoring — runs in parallel
+      const scrapePromise = syncEnrichmentAndGodScoreForSubmit(supabase, {
+        startupId,
+        fullUrl: fullUrlForSync,
+        domain,
+        displayName: domainToName(domain),
+        maxMs: Math.max(2500, Math.min(9000, timeLeft() - 900)),
+      }).catch((e) => {
+        console.warn('[INSTANT] sync GOD score failed (background will compute):', e?.message);
+        return { ok: false };
+      });
+
+      // Wait for speculative match first — it's faster
+      const specResult = await speculativePromise;
+      if (specResult.matches?.length) {
+        firstPaintMatches = specResult.matches;
+        firstMatchCount = specResult.match_count;
+        console.log(`  ⚡ Speculative match: ${firstPaintMatches.length} results before scrape`);
+      }
+
+      // Now await scrape — if it finishes with better data, upgrade the matches
+      const sr = await scrapePromise;
+      syncScoreResult = sr;
+      syncScoringDone = !!sr.ok;
+
+      if (sr.ok) {
+        const { data: fresh } = await supabase
+          .from('startup_uploads')
+          .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, team_score, traction_score, market_score, product_score, vision_score')
+          .eq('id', startupId)
+          .single();
+        if (fresh) startup = fresh;
+
+        // Run real match now that we have enriched profile
+        if (timeLeft() > 800) {
+          try {
+            const ph = uploadRowToPlaceholderStartup(startupId, fresh || startup);
+            const sigT = typeof sr.signalTotal === 'number' ? sr.signalTotal : signalTotalFromGod(ph.total_god_score);
+            const realMatch = await generateSyncTopMatchesForHttpResponse(supabase, {
+              startupId,
+              placeholderStartup: ph,
+              signalTotal: sigT,
+              maxMs: Math.min(3000, timeLeft() - 400),
+            });
+            if (realMatch.matches?.length >= firstPaintMatches.length) {
+              // Real match is at least as good — use it (higher quality sectors/score)
+              firstPaintMatches = realMatch.matches;
+              firstMatchCount = realMatch.match_count;
+              console.log(`  ⚡ Real match upgraded: ${firstPaintMatches.length} results`);
+            }
+          } catch (e) {
+            console.warn('[INSTANT] real match after scrape failed:', e?.message);
+          }
+        }
+      }
+    } else if (startupId) {
+      // Existing startup that needs match regen — use sync match
       const matchBudget = Math.max(500, Math.min(5200, HARD_RESPONSE_TIMEOUT_MS - (Date.now() - startTime) - 400));
       try {
         const { data: phRow } = await supabase
           .from('startup_uploads')
-          .select(
-            'id, name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, mrr, arr, customer_count, growth_rate_monthly',
-          )
+          .select('id, name, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, vision_score, maturity_level, data_completeness, has_revenue, has_customers, is_launched, mrr, arr, customer_count, growth_rate_monthly')
           .eq('id', startupId)
           .single();
         const ph = uploadRowToPlaceholderStartup(startupId, phRow || startup);
@@ -2196,15 +2305,10 @@ router.post('/submit', async (req, res) => {
             .select('signals_total')
             .eq('startup_id', startupId)
             .maybeSingle();
-          if (scRow?.signals_total != null) {
-            sigT = parseFloat(scRow.signals_total);
-          }
+          if (scRow?.signals_total != null) sigT = parseFloat(scRow.signals_total);
         }
         const sm = await generateSyncTopMatchesForHttpResponse(supabase, {
-          startupId,
-          placeholderStartup: ph,
-          signalTotal: sigT,
-          maxMs: matchBudget,
+          startupId, placeholderStartup: ph, signalTotal: sigT, maxMs: matchBudget,
         });
         if (sm.matches?.length) {
           firstPaintMatches = sm.matches;
