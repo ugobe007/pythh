@@ -1944,13 +1944,28 @@ export default function Activate() {
     if (!url) return;
     try {
       const normalized = url.startsWith("http") ? url : `https://${url}`;
+      // Kick off background regen
       const r = await fetch("/api/instant/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: normalized, force_generate: true }),
       });
       const data = await r.json();
-      if (data.matches?.length) setApiResult(data as ApiResult);
+      if (data.matches?.length) {
+        setApiResult(data as ApiResult);
+        return;
+      }
+      // Background regen fired — poll once after 4s to pick up fresh matches
+      if (data.gen_in_progress) {
+        await new Promise((res) => setTimeout(res, 4000));
+        const r2 = await fetch("/api/instant/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: normalized }),
+        });
+        const data2 = await r2.json();
+        if (data2.matches?.length) setApiResult(data2 as ApiResult);
+      }
     } catch {
       // silently fail — stale data still shows
     }
