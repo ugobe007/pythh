@@ -1323,7 +1323,7 @@ app.get('/api/trending', async (req, res) => {
     // sector_momentum_0_10, sector_evidence_0_10, sector_narrative_0_10, primary_reason, risk_flag
     let query = supabase
       .from('startup_intel_v5_sector')
-      .select('id, name, sector_key, investor_signal_sector_0_10, investor_state_sector, sector_quantile, sector_momentum_0_10, sector_evidence_0_10, sector_narrative_0_10, primary_reason, risk_flag')
+      .select('id, name, sector_key, investor_signal_sector_0_10, investor_state_sector, sector_momentum_0_10, sector_evidence_0_10, sector_narrative_0_10')
       .not('sector_key', 'is', null)
       .not('investor_state_sector', 'is', null);
     
@@ -1366,16 +1366,13 @@ app.get('/api/trending', async (req, res) => {
         };
       }
       
-      // Elite: Everything
+      // Elite: Everything available
       return {
         ...base,
         investor_signal_sector_0_10: s.investor_signal_sector_0_10,
-        sector_quantile: s.sector_quantile,
         sector_momentum_0_10: s.sector_momentum_0_10,
         sector_evidence_0_10: s.sector_evidence_0_10,
         sector_narrative_0_10: s.sector_narrative_0_10,
-        primary_reason: s.primary_reason,
-        risk_flag: s.risk_flag,
       };
     });
     
@@ -9038,24 +9035,15 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
 
     if (!entry) return res.status(404).json({ error: 'Not in portfolio' });
 
-    const { data: prop } = await supabase
+    const { data: su } = await supabase
       .from('startup_uploads')
       .select(
-        'exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
+        'exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at, team_score, traction_score, market_score, product_score, description, pitch, total_funding_usd'
       )
       .eq('id', startupId)
       .maybeSingle();
 
-    const merged = prop
-      ? {
-          ...entry,
-          exit_propensity_score: prop.exit_propensity_score,
-          exit_propensity_confidence: prop.exit_propensity_confidence,
-          exit_propensity_tier: prop.exit_propensity_tier,
-          exit_propensity_breakdown: prop.exit_propensity_breakdown,
-          exit_propensity_at: prop.exit_propensity_at,
-        }
-      : entry;
+    const merged = su ? { ...entry, ...su } : entry;
 
     res.json({ entry: merged, events: events || [] });
   } catch (err) {
@@ -9204,6 +9192,199 @@ app.post('/api/admin/portfolio/exit', async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ entry: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// INTELLIGENCE API — VC profiles, hot discoveries, deal positioning
+// ──────────────────────────────────────────────────────────────────────────────
+
+// GET /api/intelligence/vc-profiles — paginated VC thesis profiles
+app.get('/api/intelligence/vc-profiles', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const limit  = Math.min(parseInt(req.query.limit  || '50'),  200);
+    const offset = parseInt(req.query.offset || '0');
+    const sort   = req.query.sort === 'confidence' ? 'confidence' : 'profiled_at';
+
+    const { data, error, count } = await supabase
+      .from('vc_intelligence')
+      .select('id, investor_id, firm_name, firm_url, thesis_summary, sector_preferences, stage_preferences, investment_signals, red_flags, personality_profile, communication_style, key_themes, best_outreach_hook, confidence, source_count, profiled_at, scraped_at', { count: 'exact' })
+      .not('profiled_at', 'is', null)
+      .order(sort, { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ profiles: data || [], count, offset, limit });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/intelligence/vc-profiles/:investor_id — single VC profile
+app.get('/api/intelligence/vc-profiles/:investor_id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('vc_intelligence')
+      .select('*')
+      .eq('investor_id', req.params.investor_id)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data)  return res.status(404).json({ error: 'Profile not found' });
+    res.json({ profile: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/intelligence/discoveries — hot startup discovery feed
+app.get('/api/intelligence/discoveries', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const limit    = Math.min(parseInt(req.query.limit  || '50'), 200);
+    const status   = req.query.status  || 'queued';
+    const source   = req.query.source  || null;
+    const minHeat  = parseInt(req.query.min_heat || '0');
+
+    let query = supabase.from('hot_startup_discoveries')
+      .select('*', { count: 'exact' })
+      .eq('status', status)
+      .gte('heat_score', minHeat)
+      .order('heat_score', { ascending: false })
+      .limit(limit);
+
+    if (source) query = query.eq('source', source);
+
+    const { data, error, count } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ discoveries: data || [], count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/intelligence/positioning/:startup_id — deal positioning for a startup
+app.get('/api/intelligence/positioning/:startup_id', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('vc_deal_positioning')
+      .select(`
+        *,
+        investors!vc_deal_positioning_investor_id_fkey(id, name, firm, url, email_best_guess)
+      `)
+      .eq('startup_id', req.params.startup_id)
+      .order('thesis_alignment', { ascending: false })
+      .limit(50);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ positioning: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/intelligence/discoveries/:id/submit — mark discovery as submitted to pipeline
+app.post('/api/intelligence/discoveries/:id/submit', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: disc } = await supabase
+      .from('hot_startup_discoveries')
+      .select('company_url, company_name')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!disc?.company_url) return res.status(400).json({ error: 'No company URL on discovery' });
+
+    await supabase.from('hot_startup_discoveries')
+      .update({ status: 'submitted', submitted_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+
+    res.json({ ok: true, url: disc.company_url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/intelligence/stats — aggregate intelligence system stats
+app.get('/api/intelligence/stats', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const [profiles, discoveries, positioning] = await Promise.all([
+      supabase.from('vc_intelligence').select('id, confidence', { count: 'exact' }),
+      supabase.from('hot_startup_discoveries').select('id, heat_score, status', { count: 'exact' }),
+      supabase.from('vc_deal_positioning').select('id, thesis_alignment', { count: 'exact' }),
+    ]);
+
+    const profiled  = (profiles.data  || []).filter(r => r.confidence > 0).length;
+    const highHeat  = (discoveries.data || []).filter(r => r.heat_score >= 75).length;
+    const submitted = (discoveries.data || []).filter(r => r.status === 'submitted').length;
+    const avgAlign  = (positioning.data || []).length
+      ? Math.round((positioning.data || []).reduce((s, r) => s + (r.thesis_alignment || 0), 0) / positioning.data.length)
+      : 0;
+
+    res.json({
+      vc_profiles:      { total: profiles.count || 0, profiled },
+      discoveries:      { total: discoveries.count || 0, high_heat: highHeat, submitted },
+      positioning_pairs: { total: positioning.count || 0, avg_alignment: avgAlign },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portfolio/candidates — top approved startups NOT already in active portfolio
+// Returns high-GOD-score picks eligible to be added
+app.get('/api/portfolio/candidates', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
+    const minGod = parseInt(req.query.min_god || '78', 10);
+
+    // Fetch active portfolio startup IDs
+    const { data: active } = await supabase
+      .from('virtual_portfolio')
+      .select('startup_id')
+      .eq('status', 'active');
+    const activeIds = new Set((active || []).map(r => r.startup_id));
+
+    // Fetch top candidates not in portfolio
+    const { data: candidates, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, tagline, total_god_score, sectors, stage, team_score, traction_score, market_score, product_score, total_funding_usd, last_round_amount_usd')
+      .eq('status', 'approved')
+      .gte('total_god_score', minGod)
+      .order('total_god_score', { ascending: false })
+      .limit(200);
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    const fresh = (candidates || [])
+      .filter(r => !activeIds.has(r.id))
+      .slice(0, limit)
+      .map(r => {
+        const scores = [r.team_score || 0, r.traction_score || 0, r.market_score || 0, r.product_score || 0];
+        const pillarSpread = Math.max(...scores) - Math.min(...scores);
+        return { ...r, pillar_spread: pillarSpread, pillar_balance: pillarSpread <= 30 ? 'strong' : pillarSpread <= 45 ? 'moderate' : 'unbalanced' };
+      });
+
+    res.json({ candidates: fresh, count: fresh.length, active_portfolio_size: activeIds.size });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/portfolio/refresh — trigger signal refresh for active picks (lightweight, async)
+app.post('/api/portfolio/refresh', async (req, res) => {
+  try {
+    const { spawn } = require('child_process');
+    const child = spawn('node', ['scripts/cron/portfolio-signal-refresh.js'], {
+      detached: true, stdio: 'ignore', cwd: process.cwd(),
+    });
+    child.unref();
+    res.json({ ok: true, message: 'Portfolio signal refresh started in background', pid: child.pid });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
