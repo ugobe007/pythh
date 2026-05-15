@@ -365,6 +365,36 @@ async function checkResponseTimes() {
   }
 }
 
+// ── tRPC Auth ─────────────────────────────────────────────────────────────────
+async function checkTrpcAuth() {
+  section('tRPC / Auth Layer');
+
+  // auth.me must respond 200 with JSON (null = anonymous, object = logged-in user)
+  const t0 = Date.now();
+  let res;
+  try {
+    res = await fetch(
+      `${BASE_URL}/api/trpc/auth.me?batch=1&input=${encodeURIComponent(JSON.stringify({ '0': { json: null } }))}`,
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (e) {
+    fail('/api/trpc/auth.me', `fetch error: ${e.message}`);
+    return;
+  }
+  const ms = Date.now() - t0;
+  if (!res.ok) {
+    fail('/api/trpc/auth.me', `HTTP ${res.status} — tRPC not mounted or 404 catch-all swallowing requests`);
+    return;
+  }
+  const body = await res.json().catch(() => null);
+  if (!Array.isArray(body) || body[0]?.result === undefined) {
+    fail('/api/trpc/auth.me', `unexpected shape: ${JSON.stringify(body)?.slice(0, 100)}`);
+    return;
+  }
+  const user = body[0].result?.data?.json;
+  pass('/api/trpc/auth.me', `${ms}ms · user=${user ? user.email : 'anonymous'}`);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
   const start = Date.now();
@@ -380,6 +410,7 @@ async function main() {
   await checkSignals();
   await checkDatabase();
   await checkResponseTimes();
+  await checkTrpcAuth();
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 
