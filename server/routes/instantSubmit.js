@@ -1816,7 +1816,16 @@ router.post('/submit', async (req, res) => {
       message: 'Startup analysis queued. Continue polling status for completion.'
     });
   }, HARD_RESPONSE_TIMEOUT_MS);
-  
+
+  // Declared outside try so finally block can read them for ML logging
+  let startupId = null;
+  let startup = null;
+  let isNew = false;
+  let _resolverTier = null;
+  let _intelMatches = 0;
+  let _intelError   = null;
+  let domain = null;
+
   try {
     const urlRaw = req.body?.url;
     if (!urlRaw) {
@@ -1826,10 +1835,9 @@ router.post('/submit', async (req, res) => {
     // FAULT TOLERANT INPUT PARSING
     const inputRaw = String(urlRaw).trim();
     const companyName = extractCompanyName(inputRaw);
-    const domain = extractDomain(inputRaw);
+    domain = extractDomain(inputRaw);
     const urlNormalized = normalizeUrl(inputRaw);
     
-    console.error(`🔥 [DEBUG] Parsed: "${companyName}" / "${domain}"`); // FORCE DEBUG OUTPUT
     console.log(`⚡ [INSTANT] Processing: "${inputRaw}" → company="${companyName}" domain="${domain}"`);
     
     if (!companyName || companyName.length < 2) {
@@ -1840,12 +1848,6 @@ router.post('/submit', async (req, res) => {
     }
     
     // ── Resolve existing startup (fast path first, then fuzzy) ──
-    let startupId = null;
-    let startup = null;
-    let isNew = false;
-    let _resolverTier = null;   // tracked for ML logging
-    let _intelMatches = 0;
-    let _intelError   = null;
 
     // Fast path: exact/prefix match (uses index, ~10–50ms vs full table scan)
     const baseUrl = `https://${domain}`;
@@ -2291,8 +2293,8 @@ router.post('/submit', async (req, res) => {
     clearTimeout(responseTimer);
     // Fire-and-forget ML outcome log (never blocks response)
     intel.log({
-      url:          req.body?.url || '',
-      domain:       extractDomain(String(req.body?.url || '')),
+      url:          String(req.body?.url || ''),
+      domain:       domain || extractDomain(String(req.body?.url || '')),
       endpoint:     'instant',
       resolverTier: _resolverTier,
       startupId:    startupId || undefined,

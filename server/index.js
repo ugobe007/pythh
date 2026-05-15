@@ -5998,9 +5998,85 @@ app.use('/api/oracle', oracleRouter);
 const healthCheckRouter = require('./routes/healthCheck');
 app.use('/api/health', healthCheckRouter);
 
-// Submit intelligence: feedback labels, rolling stats, domain ML weights, watchdog status
-const submitFeedbackRouter = require('./routes/submitFeedback');
-app.use('/api/submit', submitFeedbackRouter);
+// Submit Intelligence API — inline to avoid route-shadow issues
+// Endpoints: /api/pythh-intel/feedback, /intelligence, /domain-stats, /watchdog-status
+(function mountIntelRoutes() {
+  try {
+    const intelSvc = require('./services/submitUrlIntelligence');
+    const { createClient: _ci } = require('@supabase/supabase-js');
+    const _sb = () => _ci(
+      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+    );
+
+    app.post('/api/pythh-intel/feedback', async (req, res) => {
+      const { log_id, startup_id, was_correct, source = 'user' } = req.body || {};
+      if (typeof was_correct !== 'boolean') return res.status(400).json({ error: 'was_correct (boolean) required' });
+      if (!log_id && !startup_id) return res.status(400).json({ error: 'log_id or startup_id required' });
+      try {
+        const sb = _sb();
+        if (log_id) { await intelSvc.labelOutcome(log_id, was_correct, source); return res.json({ ok: true, labeled: log_id }); }
+        const { data } = await sb.from('submit_intelligence_log').select('id').eq('startup_id', startup_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!data?.id) return res.status(404).json({ error: 'No log entry found' });
+        await intelSvc.labelOutcome(data.id, was_correct, source);
+        return res.json({ ok: true, labeled: data.id });
+      } catch (e) { return res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/pythh-intel/intelligence', async (req, res) => {
+      const endpoint = req.query.endpoint || 'instant';
+      const hours = parseInt(req.query.hours || '24', 10);
+      try {
+        const sb = _sb();
+        const since = new Date(Date.now() - hours * 3600000).toISOString();
+        const [stats, { data: rows }] = await Promise.all([
+          intelSvc.getRollingStats(endpoint, hours),
+          sb.from('submit_intelligence_log').select('domain,resolver_tier,latency_ms,error_code,match_count').eq('endpoint', endpoint).gte('created_at', since).order('created_at', { ascending: false }).limit(500),
+        ]);
+        const byDomain = {};
+        for (const r of (rows || [])) {
+          if (!r.domain) continue;
+          byDomain[r.domain] = byDomain[r.domain] || { domain: r.domain, hits: 0, errors: 0, latencies: [] };
+          byDomain[r.domain].hits++;
+          if (r.error_code) byDomain[r.domain].errors++;
+          if (r.latency_ms) byDomain[r.domain].latencies.push(r.latency_ms);
+        }
+        const topDomains = Object.values(byDomain).sort((a, b) => b.hits - a.hits).slice(0, 20).map(d => ({
+          domain: d.domain, hits: d.hits,
+          errorRate: d.hits ? Math.round((d.errors / d.hits) * 100) : 0,
+          avgLatencyMs: d.latencies.length ? Math.round(d.latencies.reduce((a, b) => a + b, 0) / d.latencies.length) : 0,
+        }));
+        return res.json({ stats, topDomains, endpoint, windowHours: hours, generatedAt: new Date().toISOString() });
+      } catch (e) { return res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/pythh-intel/domain-stats', async (req, res) => {
+      const { domain } = req.query;
+      if (!domain) return res.status(400).json({ error: 'domain required' });
+      try { return res.json({ domain, ...(await intelSvc.getResolverHint(domain)) }); }
+      catch (e) { return res.status(500).json({ error: e.message }); }
+    });
+
+    app.get('/api/pythh-intel/watchdog-status', async (req, res) => {
+      try {
+        const sb = _sb();
+        const since = new Date(Date.now() - 86400000).toISOString();
+        const [{ data: recent }, { data: summary }] = await Promise.all([
+          sb.from('submit_watchdog_events').select('probe_url,status,latency_ms,action_taken,created_at,error').order('created_at', { ascending: false }).limit(20),
+          sb.from('submit_watchdog_events').select('status').gte('created_at', since),
+        ]);
+        const total = summary?.length || 0;
+        const failures = (summary || []).filter(r => r.status === 'fail').length;
+        const warnings = (summary || []).filter(r => r.status === 'warn').length;
+        return res.json({ last24h: { total, failures, warnings, passes: total - failures - warnings }, recentProbes: recent || [] });
+      } catch (e) { return res.status(500).json({ error: e.message }); }
+    });
+
+    console.log('[pythh] /api/pythh-intel mounted (submit intelligence)');
+  } catch (e) {
+    console.error('[pythh] Failed to mount /api/pythh-intel:', e.message);
+  }
+}());
 
 // Startup API routes (including signal history)
 const startupsRouter = require('./routes/startups');
