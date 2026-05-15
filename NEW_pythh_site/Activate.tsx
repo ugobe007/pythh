@@ -585,13 +585,13 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
           </div>
           <button
             onClick={onActivate}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 whitespace-nowrap"
-            style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px oklch(0.696 0.17 162.48 / 0.5)"; (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap border"
+            style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.1)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
           >
-            <Zap size={14} />
-            Run Pipeline with PYTHIA
+            <Zap size={12} />
+            Activate PYTHIA
           </button>
         </div>
       </div>
@@ -616,17 +616,65 @@ function ResultsStep({ url, onActivate, apiResult }: { url: string; onActivate: 
           ))}
         </div>
 
-        {/* PYTHIA insight */}
-        <div className="rounded-xl p-5 border mb-6 flex gap-4"
-          style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.06)", borderColor: "oklch(0.696 0.17 162.48 / 0.2)" }}>
-          <PythiaAvatar size={36} />
-          <div>
-            <p className="text-sm font-semibold mb-1" style={{ color: "oklch(0.94 0.005 264)" }}>
-              PYTHIA's read on your raise
-            </p>
-            <p className="text-sm leading-relaxed" style={{ color: "oklch(0.65 0.01 264)" }}>
-              Your strongest angle is <span style={{ color: "oklch(0.769 0.188 70.08)" }}>AI infrastructure timing</span> — three of your top matches have publicly signaled interest in this space in the last 6 weeks. I'd lead with your technical differentiation over traction. Sequoia and General Catalyst are your highest-probability first meetings. I recommend starting outreach to all 6 simultaneously — fund cycles won't wait.
-            </p>
+        {/* ── PYTHIA Activation Banner ─────────────────────────────────────────── */}
+        <div className="rounded-2xl border mb-8 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, oklch(0.696 0.17 162.48 / 0.08) 0%, oklch(0.769 0.188 70.08 / 0.05) 100%)", borderColor: "oklch(0.696 0.17 162.48 / 0.3)" }}>
+          {/* Top strip */}
+          <div className="px-6 pt-6 pb-4 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="relative flex-shrink-0">
+                <PythiaAvatar size={52} />
+                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 animate-pulse"
+                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", borderColor: "oklch(0.13 0.01 264)" }} />
+              </div>
+              <div>
+                <p className="font-display font-bold text-lg leading-tight mb-0.5" style={{ color: "oklch(0.94 0.005 264)" }}>
+                  Ready to activate PYTHIA?
+                </p>
+                <p className="text-sm" style={{ color: "oklch(0.65 0.01 264)" }}>
+                  She'll reach out to your top {matchCount} investors — personalized pitch, email sequencing, meeting booked.
+                </p>
+              </div>
+            </div>
+            {/* Primary CTA */}
+            <button
+              onClick={onActivate}
+              className="flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-base transition-all duration-200 whitespace-nowrap flex-shrink-0"
+              style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)", boxShadow: "0 0 0 0 oklch(0.696 0.17 162.48)" }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget as HTMLElement;
+                el.style.backgroundColor = "oklch(0.75 0.17 162.48)";
+                el.style.boxShadow = "0 0 28px oklch(0.696 0.17 162.48 / 0.55)";
+                el.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget as HTMLElement;
+                el.style.backgroundColor = "oklch(0.696 0.17 162.48)";
+                el.style.boxShadow = "0 0 0 0 oklch(0.696 0.17 162.48)";
+                el.style.transform = "none";
+              }}
+            >
+              <Zap size={18} />
+              Activate PYTHIA
+            </button>
+          </div>
+
+          {/* What Pythia does — three steps */}
+          <div className="grid grid-cols-3 gap-px border-t" style={{ borderColor: "oklch(0.696 0.17 162.48 / 0.15)" }}>
+            {[
+              { icon: <Mail size={14} />, label: "Personalized Outreach", desc: `Drafts & sends emails to all ${matchCount} investors` },
+              { icon: <FileText size={14} />, label: "Pitch Prep", desc: "Builds custom deck & one-pager per investor" },
+              { icon: <CalendarCheck size={14} />, label: "Meeting Booked", desc: "You approve before anything goes out" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-start gap-3 px-5 py-4"
+                style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.04)" }}>
+                <span style={{ color: "oklch(0.696 0.17 162.48)" }} className="mt-0.5 flex-shrink-0">{item.icon}</span>
+                <div>
+                  <p className="text-xs font-semibold mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>{item.label}</p>
+                  <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
