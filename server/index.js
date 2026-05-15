@@ -6078,6 +6078,25 @@ app.use('/api/health', healthCheckRouter);
   }
 }());
 
+// Funding Agent — Outreach Pipeline
+// Endpoints: /api/outreach/draft, /draft-batch, /drafts/:id, /approve, /revise, /send, /stats/:id
+try {
+  const outreachRouter = require('./routes/outreachDraft');
+  app.use('/api/outreach', outreachRouter);
+  console.log('[pythh] /api/outreach mounted (funding agent)');
+} catch (e) {
+  console.error('[pythh] Failed to mount /api/outreach:', e.message);
+}
+
+// Resend webhook — tracks opens, bounces, complaints
+try {
+  const outreachWebhookRouter = require('./routes/outreachWebhook');
+  app.use('/api/outreach', outreachWebhookRouter);
+  console.log('[pythh] /api/outreach/webhook mounted (Resend events)');
+} catch (e) {
+  console.error('[pythh] Failed to mount /api/outreach/webhook:', e.message);
+}
+
 // Startup API routes (including signal history)
 const startupsRouter = require('./routes/startups');
 app.use('/api/startups', startupsRouter);
