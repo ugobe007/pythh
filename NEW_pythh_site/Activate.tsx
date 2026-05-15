@@ -405,17 +405,26 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [progress, setProgress] = useState(0);
   const capturedEmail = sessionStorage.getItem("pythia_email") || "";
-  const apiResultRef = useRef<ApiResult | null>(null);
-  const animDoneRef = useRef(false);
+  const apiResultRef = useRef<ApiResult | null | undefined>(undefined);
+  const completeCalledRef = useRef(false);
+
+  // Complete as soon as the API responds — don't gate on animation duration.
+  // The animation keeps playing while we wait, but the moment results are ready
+  // we move on. Minimum 1.2s so the user sees at least one scan step complete.
+  const MIN_DISPLAY_MS = 1200;
+  const mountTimeRef = useRef(Date.now());
 
   const maybeComplete = () => {
-    if (animDoneRef.current && apiResultRef.current !== undefined) {
-      setTimeout(() => onComplete(apiResultRef.current), 400);
-    }
+    if (completeCalledRef.current) return;
+    if (apiResultRef.current === undefined) return; // API not done yet
+    const elapsed = Date.now() - mountTimeRef.current;
+    const delay = Math.max(0, MIN_DISPLAY_MS - elapsed);
+    completeCalledRef.current = true;
+    setTimeout(() => onComplete(apiResultRef.current as ApiResult | null), delay);
   };
 
   useEffect(() => {
-    // Fire real API call in parallel with the animation
+    // Fire real API call — complete the moment it resolves
     const normalized = url.startsWith("http") ? url : `https://${url}`;
     fetch("/api/instant/submit", {
       method: "POST",
@@ -423,41 +432,28 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
       body: JSON.stringify({ url: normalized }),
     })
       .then((r) => r.json())
-      .then((data) => {
-        apiResultRef.current = data as ApiResult;
-      })
-      .catch(() => {
-        apiResultRef.current = null;
-      })
-      .finally(() => {
-        maybeComplete();
-      });
+      .then((data) => { apiResultRef.current = data as ApiResult; })
+      .catch(() => { apiResultRef.current = null; })
+      .finally(maybeComplete);
 
+    // Animation plays while we wait — cosmetic only, does not gate completion
     let stepIndex = 0;
     let totalElapsed = 0;
     const totalDuration = SCAN_STEPS.reduce((a, s) => a + s.duration, 0);
 
     const runStep = () => {
-      if (stepIndex >= SCAN_STEPS.length) {
-        animDoneRef.current = true;
-        maybeComplete();
-        return;
-      }
+      if (stepIndex >= SCAN_STEPS.length) return;
       setCurrentStep(stepIndex);
       const duration = SCAN_STEPS[stepIndex].duration;
-
-      // Animate progress
       const startProgress = (totalElapsed / totalDuration) * 100;
       const endProgress = ((totalElapsed + duration) / totalDuration) * 100;
       const startTime = Date.now();
-
       const progressInterval = setInterval(() => {
         const elapsed = Date.now() - startTime;
         const p = startProgress + ((endProgress - startProgress) * elapsed) / duration;
         setProgress(Math.min(p, endProgress));
         if (elapsed >= duration) clearInterval(progressInterval);
       }, 16);
-
       setTimeout(() => {
         setCompletedSteps((prev) => [...prev, stepIndex]);
         totalElapsed += duration;
