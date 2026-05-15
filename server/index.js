@@ -268,12 +268,22 @@ app.use((req, res, next) => {
 });
 
 // Pythh NEW site — tRPC (same origin as SPA: /api/trpc)
+// Uses a synchronous slot registered NOW (before the /api 404 catch-all further down)
+// so Express routes /api/trpc correctly. The actual handler is patched in once the
+// async TypeScript import resolves.
+let _trpcHandler = null;
+app.use('/api/trpc', (req, res, next) => {
+  if (_trpcHandler) return _trpcHandler(req, res, next);
+  res.status(503).json({ ok: false, error: { code: 'service_unavailable', message: 'tRPC initializing' } });
+});
+
 (function mountPythhTrpcApi() {
   const { pathToFileURL } = require('url');
   const trpcEntry = path.join(__dirname, '..', 'NEW_pythh_site', 'trpcExpressMount.ts');
   import(pathToFileURL(trpcEntry).href)
     .then((mod) => {
-      mod.mountPythhTrpc(app);
+      // Capture the tRPC handler by intercepting app.use('/api/trpc', handler)
+      mod.mountPythhTrpc({ use: (_path, handler) => { _trpcHandler = handler; } });
       console.log('[pythh] /api/trpc mounted (NEW_pythh_site)');
     })
     .catch((err) => {
