@@ -191,6 +191,8 @@ const AdminActions = lazy(() => import("./pages/AdminActions"));
 const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const MLDashboard = lazy(() => import("./pages/MLDashboard"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
+const PortfolioDetailPage = lazy(() => import("./pages/PortfolioDetailPage"));
+const IntelligencePage = lazy(() => import("./pages/IntelligencePage"));
 const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
 const LPTargetsPage = lazy(() => import("./pages/LPTargetsPage"));
 
@@ -305,6 +307,8 @@ const App = () => {
             <Route path="/newsletter/:date" element={<NewsletterPage />} />
 
             <Route path="/portfolio" element={<PortfolioPage />} />
+            <Route path="/portfolio/:startupId" element={<PortfolioDetailPage />} />
+            <Route path="/intelligence" element={<IntelligencePage />} />
             <Route path="/watchlist" element={<WatchlistPage />} />
 
             {/* Optional/legacy growth surfaces */}

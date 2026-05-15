@@ -244,6 +244,11 @@ export default function PortfolioPage() {
             peer-relative momentum (vs sector) and thesis balance so slow or overstretched names surface
             in Review.
           </p>
+          <div className="mt-4">
+            <Link to="/intelligence" className="inline-flex items-center gap-1.5 text-sm text-cyan-400 hover:underline">
+              Market Intelligence dashboard →
+            </Link>
+          </div>
         </div>
 
         {/* ── Metrics Bar ── */}
@@ -562,16 +567,24 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
           <div className="text-xl font-bold text-white/30">1.00×</div>
         )}
 
-        {entry.website && (
-          <a
-            href={entry.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 mt-2 text-xs text-white/50 hover:text-cyan-400 transition-colors"
+        <div className="flex flex-col items-end gap-1.5 mt-2">
+          {entry.website && (
+            <a
+              href={entry.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-white/50 hover:text-cyan-400 transition-colors"
+            >
+              <ExternalLink size={11} /> Visit
+            </a>
+          )}
+          <Link
+            to={`/portfolio/${entry.startup_id}`}
+            className="inline-flex items-center gap-1 text-xs text-cyan-400/70 hover:text-cyan-400 transition-colors"
           >
-            <ExternalLink size={11} /> Visit
-          </a>
-        )}
+            Full dossier →
+          </Link>
+        </div>
       </div>
     </div>
   );
