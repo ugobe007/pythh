@@ -257,24 +257,28 @@ async function checkDatabase() {
       warn(`startups (approved)`, `only ${total.toLocaleString()} (expected >5000)`);
     }
 
+    // Target: ≥48. With 12k+ approved startups (~40% sparse-data RSS-sourced), DB floor of 40
+    // makes 50 the realistic ceiling. <44 = critical (floor-bunching getting worse).
     if (!scored.length) {
       warn(`GOD score avg`, 'no numeric total_god_score on approved rows — run recalculate-scores');
-    } else if (avg >= 52) {
-      pass(`GOD score avg`, `${avg} (target ≥52)`);
-    } else if (avg >= 45) {
-      warn(`GOD score avg`, `${avg} — below target of 52`);
+    } else if (avg >= 48) {
+      pass(`GOD score avg`, `${avg} (target ≥48)`);
+    } else if (avg >= 44) {
+      warn(`GOD score avg`, `${avg} — below target of 48`);
     } else {
-      fail(`GOD score avg`, `${avg} — critically low (target ≥52)`);
+      fail(`GOD score avg`, `${avg} — critically low (target ≥48)`);
     }
 
+    // Floor bunching: >45% = warn, >60% = fail. ~40% sparse-data startups at floor is expected
+    // given RSS auto-ingestion. Alert if it significantly worsens (data quality degrading).
     if (!scored.length) {
       warn(`GOD score distribution`, 'skipped — no scores');
     } else if (pctFloor > 60) {
-      fail(`GOD score floor bunching`, `${pctFloor}% of scored startups at/near floor (≤41)`);
-    } else if (pctFloor > 40) {
-      warn(`GOD score floor bunching`, `${pctFloor}% at floor`);
+      fail(`GOD score floor bunching`, `${pctFloor}% of scored startups at/near floor (≤41) — data quality critical`);
+    } else if (pctFloor > 45) {
+      warn(`GOD score floor bunching`, `${pctFloor}% at floor — data enrichment degrading`);
     } else {
-      pass(`GOD score distribution`, `${pctFloor}% at floor — healthy spread`);
+      pass(`GOD score distribution`, `${pctFloor}% at floor — within expected range`);
     }
   } catch (err) {
     fail('startup_uploads query', err.message);

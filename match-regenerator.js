@@ -677,7 +677,8 @@ async function regenerateMatches() {
     console.log(`📥 Fetching ${isDelta ? 'recently updated' : 'all'} startups...`);
     let allStartups = [];
     let page = 0;
-    const pageSize = 1000;
+    // Smaller page size prevents >12MB JSON payloads that cause truncation timeouts
+    const pageSize = 200;
     
     // Build query
     const deltaThreshold = isDelta 
@@ -687,7 +688,8 @@ async function regenerateMatches() {
     while (true) {
       let query = supabase
         .from('startup_uploads')
-        .select('id, name, sectors, stage, total_god_score, embedding')
+        // Omit embedding — coverage is 0%, and large vectors cause payload truncation
+        .select('id, name, sectors, stage, total_god_score')
         .eq('status', 'approved')
         .gte('total_god_score', 35); // Exclude sub-35 startups from match pool — insufficient signal
       
@@ -702,7 +704,15 @@ async function regenerateMatches() {
       if (!data || data.length === 0) break;
       
       allStartups = allStartups.concat(data);
-      console.log(`   Fetched ${allStartups.length} startups...`);
+      if (allStartups.length % 1000 === 0 || data.length < pageSize) {
+        console.log(`   Fetched ${allStartups.length} startups...`);
+      }
+
+      // Delta mode: cap at 2000 startups to prevent runaway processing
+      if (isDelta && allStartups.length >= 2000) {
+        console.log(`   Delta cap reached (${allStartups.length}). Processing top 2000.`);
+        break;
+      }
       
       if (data.length < pageSize) break; // Last page
       page++;
@@ -722,14 +732,17 @@ async function regenerateMatches() {
     while (true) {
       const { data, error } = await supabase
         .from('investors')
-        .select('id, name, sectors, stage, investor_score, investor_tier, embedding')
+        // Omit embedding — coverage is 0%, and large vectors cause payload truncation
+        .select('id, name, sectors, stage, investor_score, investor_tier')
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
       if (error) throw new Error(`Investor fetch error: ${error.message}`);
       if (!data || data.length === 0) break;
       
       allInvestors = allInvestors.concat(data);
-      console.log(`   Fetched ${allInvestors.length} investors...`);
+      if (allInvestors.length % 1000 === 0 || data.length < pageSize) {
+        console.log(`   Fetched ${allInvestors.length} investors...`);
+      }
       
       if (data.length < pageSize) break; // Last page
       page++;
@@ -738,12 +751,8 @@ async function regenerateMatches() {
     const startups = allStartups;
     const investors = allInvestors;
     
-    // Count embedding coverage
-    const startupsWithEmb = startups.filter(s => s.embedding && Array.isArray(s.embedding) && s.embedding.length > 0).length;
-    const investorsWithEmb = investors.filter(i => i.embedding && Array.isArray(i.embedding) && i.embedding.length > 0).length;
-    
     console.log(`\n📊 Found ${startups.length} startups × ${investors.length} investors`);
-    console.log(`🧠 Embedding coverage: ${startupsWithEmb}/${startups.length} startups, ${investorsWithEmb}/${investors.length} investors`);
+    console.log(`🧠 Semantic match disabled (embeddings not fetched — coverage was 0%)`)
     
     if (startups.length === 0 || investors.length === 0) {
       console.log('⚠️  No data to match');
