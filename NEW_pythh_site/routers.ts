@@ -24,6 +24,7 @@ import {
   type SortDir,
 } from "./db";
 import { TRPCError } from "@trpc/server";
+import { ENV } from "./env";
 import { outreachRouter } from "./outreachRouter";
 
 // Lazily initialise Stripe so the server still starts without the key set.
@@ -51,11 +52,14 @@ export const appRouter = router({
         name: z.string().max(128).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const openId = `email:${input.email.trim().toLowerCase()}`;
+        const email = input.email.trim().toLowerCase();
+        const openId = `email:${email}`;
+        const isOwner = ENV.ownerEmails.includes(email);
         await upsertUser({
           openId,
           name: input.name?.trim() || null,
-          email: input.email.trim().toLowerCase(),
+          email,
+          role: isOwner ? "admin" : "user",
         });
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(
