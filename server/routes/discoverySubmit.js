@@ -14,6 +14,8 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const { normalizeUrl } = require("../lib/urlNormalize");
 const intel = require("../services/submitUrlIntelligence");
+const { isJunkUrl } = require("../../lib/junk-url-config");
+const { enrichSocialScore } = require("../services/newsSignalService");
 
 // Scraping for discovery: scrape + update only. Do not call processUrlSubmission here — it INSERTs
 // with scraped display names (e.g. "Stripe") and hits startup_uploads_name_unique when dedupe misses.
@@ -112,6 +114,15 @@ router.post("/submit", async (req, res) => {
 
     if (!url_normalized || url_normalized.length < 3) {
       return res.status(400).json({ error: "Invalid url" });
+    }
+
+    // Reject news sites, directories, and social platforms before any DB work
+    const urlForJunkCheck = url.startsWith('http') ? url : `https://${url_normalized}`;
+    if (isJunkUrl(urlForJunkCheck)) {
+      return res.status(400).json({
+        error: 'Not a startup website',
+        message: 'That URL appears to be a news site, directory, or social platform. Please enter the startup\'s own website.',
+      });
     }
 
     // 1) See if a job already exists for this normalized URL
@@ -311,6 +322,10 @@ router.post("/submit", async (req, res) => {
             console.warn("[discoverySubmit] fallback row scrape/update:", e?.message || e);
           }
         }
+        // Async news signal enrichment (fire-and-forget)
+        enrichSocialScore(startupId, companyName, `https://${url_normalized}`).catch(e =>
+          console.warn(`[discoverySubmit] newsSignal failed for ${startupId}: ${e.message}`)
+        );
       }
     }
 

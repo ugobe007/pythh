@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, router } from "./_core/trpc";
+import { outreachProcedure, protectedProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 import PDFDocument from "pdfkit";
@@ -264,7 +264,7 @@ export const outreachRouter = router({
    * Generate per-investor outreach email drafts for all matched investors.
    * Idempotent — skips investors that already have a draft for this runId.
    */
-  generateEmailPitch: protectedProcedure
+  generateEmailPitch: outreachProcedure
     .input(
       z.object({
         runId: z.string().min(1).max(64),
@@ -347,7 +347,7 @@ export const outreachRouter = router({
   /**
    * Mark an email as approved (ready to send).
    */
-  approveEmail: protectedProcedure
+  approveEmail: outreachProcedure
     .input(z.object({ emailId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       await updateOutreachEmailStatus({
@@ -362,7 +362,7 @@ export const outreachRouter = router({
    * Send an outreach email via Resend.
    * Requires RESEND_API_KEY to be set.
    */
-  sendEmail: protectedProcedure
+  sendEmail: outreachProcedure
     .input(
       z.object({
         emailId: z.number().int().positive(),
@@ -428,7 +428,7 @@ export const outreachRouter = router({
   /**
    * After an email is sent, propose 3 meeting slots and optionally email the investor.
    */
-  proposeMeeting: protectedProcedure
+  proposeMeeting: outreachProcedure
     .input(
       z.object({
         runId: z.string().min(1).max(64),

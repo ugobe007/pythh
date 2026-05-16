@@ -53,6 +53,8 @@ const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
 const intel = require('../services/submitUrlIntelligence');
+const { isJunkUrl } = require('../../lib/junk-url-config');
+const { enrichSocialScore } = require('../services/newsSignalService');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -778,6 +780,11 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
         vision_score: scores.vision_score,
       })
       .eq('id', startupId);
+
+    // Async news signal enrichment (fire-and-forget — does not block response)
+    enrichSocialScore(startupId, enrichedRow.name, enrichedRow.website).catch(e =>
+      console.warn(`[SYNC] newsSignal enrichment failed for ${startupId}: ${e.message}`)
+    );
 
     // Initial Signal row: derived from GOD so the UI always has a number on first paint.
     // Range ~5.5–9.5 maps GOD 35→100. Reconcile jobs / real signal pipelines may overwrite later.
@@ -2117,6 +2124,15 @@ router.post('/submit', async (req, res) => {
     _resolverTier = 'new';
     const displayName = domainToName(domain);
     
+    // Reject junk/publisher URLs (news sites, directories, social platforms)
+    if (isJunkUrl(`https://${domain}`)) {
+      console.warn(`[instant/submit] Rejected junk domain: "${domain}"`);
+      return res.status(400).json({
+        error: 'Not a startup website',
+        message: 'That URL appears to be a news site, directory, or social platform. Please enter the startup\'s own website.',
+      });
+    }
+
     // Validate startup name to prevent junk entries
     const { isValidStartupName } = await import('../utils/startupNameValidator.js');
     const nameValidation = isValidStartupName(displayName);

@@ -540,6 +540,17 @@ export async function listRecentPipelineRunsForUser(userId: number, limit = 10) 
     .limit(limit);
 }
 
+/** Count total pipeline runs ever created by a user (for free-tier enforcement). */
+export async function countPipelineRunsForUser(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const [row] = await db
+    .select({ n: count() })
+    .from(pipelineRuns)
+    .where(eq(pipelineRuns.userId, userId));
+  return Number(row?.n ?? 0);
+}
+
 // ─── Founder profile ─────────────────────────────────────────────────────────
 
 export async function getFounderProfile(userId: number) {

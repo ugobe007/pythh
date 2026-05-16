@@ -6,6 +6,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { randomUUID } from "node:crypto";
 import {
+  countPipelineRunsForUser,
   createPipelineRun,
   getAdminAggregateStats,
   getFounderProfile,
@@ -464,24 +465,40 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        // Verify Oracle subscription
-        const sub = await getSubscriptionByUserId(ctx.user.id);
-        const isOracle =
-          !!sub &&
-          (sub.status === "active" || sub.status === "trialing" || sub.status === "paused") &&
-          sub.plan === "oracle";
-        if (!isOracle) {
+        // Tier-aware access:
+        //   Admin       → unlimited
+        //   Oracle/Pantheon → unlimited
+        //   Scout ($29) → unlimited searches + matches (no outreach — gated in outreachRouter)
+        //   No plan     → 3 free trial searches, then upgrade prompt
+        const FREE_TRIAL_LIMIT = 3;
+        const PAID_PLANS = new Set(["oracle", "pantheon", "scout"]);
+
+        const sub = await getSubscriptionByUserId(ctx.user.id).catch(() => null);
+        const activePlan =
+          sub && (sub.status === "active" || sub.status === "trialing") ? sub.plan : null;
+        const isAdmin = ctx.user.role === "admin";
+
+        if (!isAdmin && !activePlan) {
+          const usageCount = await countPipelineRunsForUser(ctx.user.id);
+          if (usageCount >= FREE_TRIAL_LIMIT) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `Free trial limit reached (${FREE_TRIAL_LIMIT} searches). Upgrade to SCOUT ($29/mo) for more matches, or Oracle ($299/mo) for the full PYTHIA outreach agent.`,
+            });
+          }
+        } else if (!isAdmin && activePlan && !PAID_PLANS.has(activePlan)) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "Oracle plan required to run PYTHIA analysis.",
+            message: "An active subscription is required to run PYTHIA analysis.",
           });
         }
 
-        // Fetch all investors (Oracle sees all 44)
+        // Fetch all investors (all paid plans + admin see full list)
+        const isOracleTier = isAdmin || activePlan === "oracle" || activePlan === "pantheon";
         const { rows: allInvestors } = await getInvestorRankings({
           limit: 100,
           offset: 0,
-          isOracle: true,
+          isOracle: isOracleTier,
         });
 
         const founderProfile = await getFounderProfile(ctx.user.id);

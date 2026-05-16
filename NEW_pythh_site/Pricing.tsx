@@ -25,7 +25,8 @@ interface PlanFeature {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const FEATURES: PlanFeature[] = [
-  { label: "PYTHIA investor matches / month", free: "10", pro: "Unlimited", enterprise: "Unlimited", highlight: true },
+  { label: "URL submissions + investor matches", free: "3 searches", pro: "Unlimited", enterprise: "Unlimited", highlight: true },
+  { label: "PYTHIA outreach agent", free: false, pro: true, enterprise: true, highlight: true },
   { label: "Automated outreach emails", free: false, pro: true, enterprise: true, highlight: true },
   { label: "Email inference engine", free: false, pro: true, enterprise: true },
   { label: "Pitch brief generation", free: false, pro: true, enterprise: true },
@@ -47,10 +48,10 @@ const PLANS = [
   {
     id: "free",
     name: "Scout",
-    tagline: "Explore the signal",
-    monthlyPrice: 0,
-    annualPrice: 0,
-    cta: "Start free",
+    tagline: "3 searches. See who fits.",
+    monthlyPrice: 29,
+    annualPrice: 24,
+    cta: "Get Scout",
     ctaHref: "/activate",
     color: "oklch(0.5 0.01 264)",
     borderColor: "oklch(0.28 0.01 264)",

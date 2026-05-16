@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { UNAUTHED_ERR_MSG } from "../shared/const";
+import { getSubscriptionByUserId } from "../db";
 
 export type AuthedUser = {
   id: number;
@@ -42,3 +43,31 @@ const requireAdmin = t.middleware(({ ctx, next }) => {
 });
 
 export const adminProcedure = t.procedure.use(requireUser).use(requireAdmin);
+
+/**
+ * Plans that include PYTHIA outreach agent services.
+ * SCOUT ($29) gets searches + matches only — no outreach until Oracle+.
+ */
+const OUTREACH_PLANS = new Set(["oracle", "pantheon"]);
+
+const requireOutreachPlan = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  // Admin users bypass subscription gate
+  if (ctx.user.role === "admin") {
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  }
+  const sub = await getSubscriptionByUserId(ctx.user.id).catch(() => null);
+  if (!sub || sub.status !== "active" || !OUTREACH_PLANS.has(sub.plan)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message:
+        "PYTHIA outreach agent requires an Oracle or Pantheon subscription. Upgrade at pythh.ai/pricing.",
+    });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+/** Use on outreach procedures: generateEmailPitch, sendEmail, proposeMeeting, etc. */
+export const outreachProcedure = t.procedure.use(requireUser).use(requireOutreachPlan);
