@@ -65,9 +65,19 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <!-- Analytics: only injected when VITE_ANALYTICS_ENDPOINT is set at build time -->
+    <script>
+      (function() {
+        var ep = "%VITE_ANALYTICS_ENDPOINT%";
+        var wid = "%VITE_ANALYTICS_WEBSITE_ID%";
+        // Guard: skip if the env vars were not replaced (starts with %) or are blank
+        if (!ep || ep.startsWith('%') || !wid || wid.startsWith('%')) return;
+        var s = document.createElement('script');
+        s.defer = true;
+        s.src = ep + '/umami';
+        s.setAttribute('data-website-id', wid);
+        document.head.appendChild(s);
+      })();
+    </script>
   </body>
 </html>

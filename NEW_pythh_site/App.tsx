@@ -13,6 +13,7 @@ import Account from "./Account";
 import Rankings from "./Rankings";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import Login from "./pages/Login";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path={"/profile"} component={Profile} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/rankings"} component={Rankings} />
+      <Route path={"/login"} component={Login} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

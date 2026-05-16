@@ -38,6 +38,33 @@ export const appRouter = router({
   outreach: outreachRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+
+    /**
+     * Email-based login — creates or retrieves a user account and sets the
+     * pythh_session cookie. No password required for MVP; identify by email.
+     * Uses `email:<address>` as the stable openId namespace.
+     */
+    login: publicProcedure
+      .input(z.object({
+        email: z.string().email("Please enter a valid email address."),
+        name: z.string().max(128).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const openId = `email:${input.email.trim().toLowerCase()}`;
+        await upsertUser({
+          openId,
+          name: input.name?.trim() || null,
+          email: input.email.trim().toLowerCase(),
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(
+          COOKIE_NAME,
+          JSON.stringify({ openId }),
+          { ...cookieOptions, maxAge: ONE_YEAR_MS },
+        );
+        return { success: true } as const;
+      }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
