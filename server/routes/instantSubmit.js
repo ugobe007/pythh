@@ -483,6 +483,13 @@ Object.assign(THEME_TO_SECTOR, {
   'developer tools': 'Developer Tools', 'defense': 'Defense', 'security': 'Cybersecurity',
   'blockchain': 'Crypto/Web3', 'consumer': 'Consumer', 'education': 'EdTech',
   'automation': 'Robotics', 'platforms': 'Infrastructure',
+  // New canonicals
+  'technology': 'Technology', 'digital': 'Technology', 'information technology': 'Technology',
+  'mobility': 'Mobility', 'logistics': 'Mobility', 'transportation': 'Mobility',
+  'food': 'FoodTech', 'food and agriculture': 'AgTech', 'food & agriculture': 'AgTech',
+  'enterprise it': 'Enterprise', 'enterprise saas': 'Enterprise',
+  'health it': 'HealthTech', 'health information technology': 'HealthTech',
+  'cloud computing': 'Infrastructure', 'telecom': 'Infrastructure',
 });
 
 function resolveThemeToSector(theme) {

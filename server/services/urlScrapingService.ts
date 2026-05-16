@@ -361,7 +361,7 @@ export async function updateStartupWithScrapedData(
       pitch: data.pitch || null,
       // Note: problem, solution, value_proposition, team_companies columns don't exist in schema
       // Store in extracted_data JSONB instead
-      sectors: data.sectors || ['Technology'],
+      sectors: data.sectors?.length ? data.sectors : ['SaaS', 'Technology'],
       stage: data.stage || 1,
       is_launched: data.is_launched || false,
       has_demo: data.has_demo || false,
@@ -495,7 +495,7 @@ export async function processUrlSubmission(url: string): Promise<{
         tagline: data.tagline || (data.name ? `${data.name} — ${domain}` : `Startup at ${domain}`),
         description: data.description || data.pitch,
         pitch: data.pitch,
-        sectors: data.sectors || ['Technology'],
+        sectors: data.sectors?.length ? data.sectors : ['SaaS', 'Technology'],
         stage: data.stage || 1,
         status: 'approved',
         source_type: 'url',

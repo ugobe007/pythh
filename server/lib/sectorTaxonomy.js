@@ -22,7 +22,8 @@ const CANONICAL_SECTORS = [
   'Infrastructure',
   'Cybersecurity',
   'Data',
-  
+  'Technology',   // broad catch-all; maps to when no vertical is detected
+
   // Verticals
   'Fintech',
   'HealthTech',
@@ -31,20 +32,21 @@ const CANONICAL_SECTORS = [
   'CleanTech',
   'AgTech',
   'FoodTech',
-  
+  'Mobility',
+
   // Business Models
   'Marketplace',
   'E-commerce',
   'D2C',
   'Consumer',
-  
+
   // Deep Tech
   'DeepTech',
   'Biotech',
   'Robotics',
   'SpaceTech',
   'Defense',
-  
+
   // Other
   'Crypto/Web3',
   'Gaming',
@@ -76,6 +78,8 @@ const SECTOR_SYNONYMS = {
     'enterprise', 'enterprise software', 'enterprise tech',
     'b2b', 'b2b tech', 'business software', 'erp',
     'enterprise applications', 'workflow', 'productivity',
+    'enterprise it', 'enterprise saas', 'future of work',
+    'hrtech', 'hr tech', 'legaltech', 'legal tech',
   ],
   
   // Developer Tools
@@ -89,7 +93,8 @@ const SECTOR_SYNONYMS = {
   'Infrastructure': [
     'infrastructure', 'infra', 'cloud', 'cloud computing',
     'cloud infrastructure', 'iaas', 'paas', 'serverless',
-    'devops', 'infrastructure software',
+    'devops', 'infrastructure software', 'network',
+    'telecommunications', 'telecom',
   ],
   
   // Cybersecurity
@@ -118,6 +123,8 @@ const SECTOR_SYNONYMS = {
     'healthtech', 'health tech', 'healthcare', 'digital health',
     'health', 'medtech', 'medical technology', 'telemedicine',
     'telehealth', 'health/wellness', 'wellness',
+    'health it', 'health information technology', 'clinical',
+    'mental health', 'femtech', 'longevity',
   ],
   
   // EdTech
@@ -143,6 +150,8 @@ const SECTOR_SYNONYMS = {
   'AgTech': [
     'agtech', 'agriculture', 'ag tech', 'agritech',
     'farming', 'food/beverage', 'food tech',
+    'food & agriculture', 'food and agriculture', 'ag',
+    'vertical farming', 'precision agriculture',
   ],
   
   // FoodTech
@@ -154,7 +163,8 @@ const SECTOR_SYNONYMS = {
   // Marketplace
   'Marketplace': [
     'marketplace', 'marketplaces', 'two-sided marketplace',
-    'platform', 'gig economy',
+    'marketplace software', 'platform', 'gig economy',
+    'network business', 'labor marketplace',
   ],
   
   // E-commerce
@@ -173,13 +183,16 @@ const SECTOR_SYNONYMS = {
   'Consumer': [
     'consumer', 'consumer tech', 'consumer internet',
     'consumer software', 'b2c', 'consumer apps',
-    'social', 'social media',
+    'social', 'social media', 'internet/consumer',
+    'internet consumer', 'lifestyle', 'fitness',
   ],
   
   // DeepTech
   'DeepTech': [
     'deeptech', 'deep tech', 'hard tech', 'frontier tech',
     'advanced manufacturing', 'materials', 'science',
+    'nanotechnology', 'photonics', 'semiconductors', 'quantum',
+    'quantum computing',
   ],
   
   // Biotech
@@ -211,6 +224,7 @@ const SECTOR_SYNONYMS = {
   'Crypto/Web3': [
     'crypto', 'web3', 'blockchain', 'cryptocurrency',
     'defi', 'nfts', 'decentralized', 'crypto/blockchain',
+    'distributed ledger', 'digital assets', 'tokenization',
   ],
   
   // Gaming
@@ -230,6 +244,21 @@ const SECTOR_SYNONYMS = {
   'Climate': [
     'climate', 'climate tech', 'carbon', 'environmental',
     'impact', 'social impact', 'sustainability',
+  ],
+
+  // Technology (broad catch-all — also maps investor labels like "Technology", "Digital", etc.)
+  'Technology': [
+    'technology', 'tech', 'digital', 'digital transformation',
+    'information technology', 'it', 'software & technology',
+    'technology & media', 'and technology', 'internet',
+    'internet of things', 'connected devices',
+  ],
+
+  // Mobility
+  'Mobility': [
+    'mobility', 'transportation', 'transportation tech', 'transtech',
+    'future of mobility', 'electric vehicles', 'ev', 'autonomous vehicles',
+    'logistics', 'supply chain', 'freight', 'last mile',
   ],
 };
 
@@ -283,6 +312,12 @@ const RELATED_SECTORS = {
   
   // CleanTech
   'CleanTech': ['Climate', 'DeepTech', 'Infrastructure'],
+
+  // Technology (broad catch-all — cross-matches to all software sectors)
+  'Technology': ['SaaS', 'Enterprise', 'AI/ML', 'Developer Tools', 'Infrastructure', 'Data'],
+
+  // Mobility
+  'Mobility': ['DeepTech', 'Robotics', 'CleanTech', 'Infrastructure'],
 };
 
 /**
@@ -290,8 +325,8 @@ const RELATED_SECTORS = {
  * Higher-level groupings for UI categorization
  */
 const SECTOR_GROUPS = {
-  'Software': ['SaaS', 'Enterprise', 'Developer Tools', 'Infrastructure', 'AI/ML', 'Data', 'Cybersecurity'],
-  'Vertical Tech': ['Fintech', 'HealthTech', 'EdTech', 'PropTech', 'CleanTech', 'AgTech', 'FoodTech'],
+  'Software': ['SaaS', 'Enterprise', 'Developer Tools', 'Infrastructure', 'AI/ML', 'Data', 'Cybersecurity', 'Technology'],
+  'Vertical Tech': ['Fintech', 'HealthTech', 'EdTech', 'PropTech', 'CleanTech', 'AgTech', 'FoodTech', 'Mobility'],
   'Consumer': ['Consumer', 'E-commerce', 'D2C', 'Marketplace', 'Gaming', 'Media'],
   'DeepTech': ['DeepTech', 'Biotech', 'Robotics', 'SpaceTech', 'Defense'],
   'Emerging': ['Crypto/Web3', 'Climate'],

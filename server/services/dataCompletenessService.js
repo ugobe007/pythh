@@ -8,19 +8,20 @@
 const CRITICAL_FIELDS = [
   { field: 'description', weight: 15, label: 'Company Description' },
   { field: 'pitch', weight: 10, label: 'Elevator Pitch' },
-  { field: 'problem', weight: 10, label: 'Problem Statement' },
-  { field: 'solution', weight: 10, label: 'Solution' },
-  { field: 'team', weight: 10, label: 'Team Info' },
+  // problem/solution/team are stored in extracted_data JSONB when root columns don't exist
+  { field: 'problem', weight: 10, label: 'Problem Statement', fallbackPath: 'extracted_data.problem' },
+  { field: 'solution', weight: 10, label: 'Solution', fallbackPath: 'extracted_data.solution' },
+  { field: 'team', weight: 10, label: 'Team Info', fallbackPaths: ['extracted_data.team', 'extracted_data.founders', 'founders'] },
 ];
 
 const HIGH_VALUE_FIELDS = [
-  { field: 'founders', weight: 8, label: 'Founder Details', path: 'extracted_data.founders' },
-  { field: 'funding_amount', weight: 7, label: 'Funding Raised', path: 'extracted_data.funding_amount' },
-  { field: 'customer_count', weight: 7, label: 'Customer Count' },
-  { field: 'mrr', weight: 7, label: 'Monthly Revenue (MRR)' },
-  { field: 'arr', weight: 6, label: 'Annual Revenue (ARR)' },
-  { field: 'growth_rate_monthly', weight: 6, label: 'Growth Rate' },
-  { field: 'team_size', weight: 5, label: 'Team Size' },
+  { field: 'founders', weight: 8, label: 'Founder Details', path: 'extracted_data.founders', fallbackPath: 'founders' },
+  { field: 'funding_amount', weight: 7, label: 'Funding Raised', path: 'extracted_data.funding_amount', fallbackPaths: ['latest_funding_amount', 'total_funding_usd', 'raise_amount'] },
+  { field: 'customer_count', weight: 7, label: 'Customer Count', fallbackPath: 'extracted_data.customer_count' },
+  { field: 'mrr', weight: 7, label: 'Monthly Revenue (MRR)', fallbackPath: 'extracted_data.mrr' },
+  { field: 'arr', weight: 6, label: 'Annual Revenue (ARR)', fallbackPath: 'extracted_data.arr' },
+  { field: 'growth_rate_monthly', weight: 6, label: 'Growth Rate', fallbackPaths: ['extracted_data.growth_rate', 'arr_growth_rate'] },
+  { field: 'team_size', weight: 5, label: 'Team Size', fallbackPath: 'extracted_data.team_size' },
 ];
 
 const NICE_TO_HAVE_FIELDS = [
@@ -64,8 +65,19 @@ function calculateCompleteness(startup) {
 
   for (const fieldDef of ALL_FIELDS) {
     const path = fieldDef.path || fieldDef.field;
-    const value = path.includes('.') ? getNestedValue(startup, path) : startup[fieldDef.field];
-    
+    let value = path.includes('.') ? getNestedValue(startup, path) : startup[fieldDef.field];
+
+    // Fallback: check extracted_data JSONB if root column is absent
+    if (!hasValue(value) && fieldDef.fallbackPath) {
+      value = getNestedValue(startup, fieldDef.fallbackPath);
+    }
+    if (!hasValue(value) && fieldDef.fallbackPaths) {
+      for (const fp of fieldDef.fallbackPaths) {
+        value = getNestedValue(startup, fp);
+        if (hasValue(value)) break;
+      }
+    }
+
     if (hasValue(value)) {
       earnedScore += fieldDef.weight;
       present.push({

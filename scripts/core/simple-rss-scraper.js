@@ -167,7 +167,7 @@ function detectSectors(text) {
     }
   }
   
-  return sectors.length > 0 ? sectors : ['Technology'];
+  return sectors.length > 0 ? sectors : ['SaaS', 'Technology'];
 }
 
 // Check if title is about startup/funding (more lenient)
