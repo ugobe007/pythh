@@ -19,6 +19,7 @@ import {
   upsertFounderProfile,
   upsertPipelineFeedback,
   upsertSubscription,
+  upsertUser,
   type InvestorSortField,
   type SortDir,
 } from "./db";
