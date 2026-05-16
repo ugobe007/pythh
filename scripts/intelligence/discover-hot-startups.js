@@ -255,11 +255,14 @@ async function main() {
   const client = sb();
 
   // ── Also fetch active RSS feeds from Pythh's own rss_sources table ─────────
-  const { data: rssRows } = await client.from('rss_sources')
-    .select('name, url, category')
-    .eq('is_active', true)
-    .limit(50)
-    .then(r => r, () => ({ data: [] }));
+  let rssRows = [];
+  try {
+    const { data: _rssRows } = await client.from('rss_sources')
+      .select('name, url, category')
+      .eq('is_active', true)
+      .limit(50);
+    rssRows = _rssRows || [];
+  } catch (_) { /* rss_sources may be unavailable */ }
 
   const extraSources = (rssRows || []).map(r => ({
     name: r.name, url: r.url,

@@ -46,7 +46,9 @@ CREATE TABLE IF NOT EXISTS public.vc_intelligence (
   updated_at          timestamptz DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_vc_intel_investor  ON public.vc_intelligence (investor_id) WHERE investor_id IS NOT NULL;
+-- Full unique constraint (not partial) so Supabase upsert ON CONFLICT (investor_id) works correctly.
+-- NULLs are distinct in Postgres so multiple NULL investor_ids are allowed.
+ALTER TABLE public.vc_intelligence ADD CONSTRAINT IF NOT EXISTS vc_intel_investor_id_unique UNIQUE (investor_id);
 CREATE        INDEX IF NOT EXISTS idx_vc_intel_firm      ON public.vc_intelligence (firm_name);
 CREATE        INDEX IF NOT EXISTS idx_vc_intel_profiled  ON public.vc_intelligence (profiled_at DESC);
 CREATE        INDEX IF NOT EXISTS idx_vc_intel_conf      ON public.vc_intelligence (confidence DESC);

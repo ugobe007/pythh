@@ -90,7 +90,7 @@
     "purge:sparse-now": "node scripts/purge-sparse-now.js",
     "enrich:t1vc-sparse": "node scripts/enrich-t1vc-sparse.js",
     "list:t1vc-startups": "node scripts/list-t1vc-startups.js",
-    "score": "node scripts/core/god-score-v5-tiered.js",
+    "score": "npx tsx scripts/recalculate-scores.ts",
     "match": "node scripts/core/queue-processor-v16.js",
     "scrape": "node scripts/core/simple-rss-scraper.js",
     "orchestrator": "node scripts/core/unified-scraper-orchestrator.js",

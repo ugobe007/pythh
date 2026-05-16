@@ -346,6 +346,96 @@ export default function InvestorDetailModal({ investorId, onClose, isOracle }: I
                     </div>
                   </div>
 
+                  {/* Notable portfolio */}
+                  {investor.notableInvestments && investor.notableInvestments.length > 0 && (
+                    <div
+                      className="rounded-xl border overflow-hidden"
+                      style={{ borderColor: "oklch(0.22 0.01 264)" }}
+                    >
+                      <div
+                        className="px-4 py-3 border-b flex items-center gap-2"
+                        style={{ backgroundColor: "oklch(0.14 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
+                      >
+                        <TrendingUp size={13} style={{ color: "oklch(0.696 0.17 162.48)" }} />
+                        <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>
+                          NOTABLE PORTFOLIO
+                        </span>
+                      </div>
+                      <div
+                        className="px-4 py-3 flex flex-wrap gap-2"
+                        style={{ backgroundColor: "oklch(0.12 0.01 264)" }}
+                      >
+                        {investor.notableInvestments.slice(0, 8).map((co: string) => (
+                          <span
+                            key={co}
+                            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                            style={{
+                              backgroundColor: "oklch(0.18 0.01 264)",
+                              color: "oklch(0.7 0.01 264)",
+                              border: "1px solid oklch(0.26 0.01 264)",
+                            }}
+                          >
+                            {co}
+                          </span>
+                        ))}
+                        {investor.notableInvestments.length > 8 && (
+                          <span
+                            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                            style={{ color: "oklch(0.45 0.01 264)" }}
+                          >
+                            +{investor.notableInvestments.length - 8} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VC Thesis (from vc_intelligence) */}
+                  {investor.vcIntel?.thesisSummary && (
+                    <div
+                      className="rounded-xl border overflow-hidden"
+                      style={{ borderColor: "oklch(0.22 0.01 264)" }}
+                    >
+                      <div
+                        className="px-4 py-3 border-b flex items-center gap-2"
+                        style={{ backgroundColor: "oklch(0.14 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
+                      >
+                        <Zap size={13} style={{ color: "oklch(0.769 0.188 70.08)" }} />
+                        <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>
+                          INVESTMENT THESIS
+                        </span>
+                      </div>
+                      <div className="px-4 py-3 space-y-3" style={{ backgroundColor: "oklch(0.12 0.01 264)" }}>
+                        <p className="text-sm leading-relaxed" style={{ color: "oklch(0.72 0.01 264)" }}>
+                          {investor.vcIntel.thesisSummary}
+                        </p>
+                        {investor.vcIntel.keyThemes?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {investor.vcIntel.keyThemes.slice(0, 5).map((theme: string) => (
+                              <span
+                                key={theme}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                style={{
+                                  backgroundColor: "oklch(0.769 0.188 70.08 / 0.1)",
+                                  color: "oklch(0.769 0.188 70.08)",
+                                  border: "1px solid oklch(0.769 0.188 70.08 / 0.2)",
+                                }}
+                              >
+                                {theme}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {investor.vcIntel?.bestOutreachHook && (
+                          <div className="mt-2 rounded-lg px-3 py-2" style={{ backgroundColor: "oklch(0.16 0.01 264)" }}>
+                            <p className="text-xs font-bold tracking-widest mb-1" style={{ color: "oklch(0.4 0.01 264)" }}>BEST OUTREACH ANGLE</p>
+                            <p className="text-xs leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>{investor.vcIntel.bestOutreachHook}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recent activity */}
                   {investor.recentActivity && (
                     <div

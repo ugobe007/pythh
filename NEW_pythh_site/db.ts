@@ -267,7 +267,49 @@ export async function getInvestorById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const rows = await db.select().from(investors).where(eq(investors.id, id)).limit(1);
-  return rows[0] ?? undefined;
+  const investor = rows[0] ?? undefined;
+  if (!investor) return undefined;
+
+  // Enrich with vc_intelligence thesis data (main Supabase, bridged by firm name)
+  let vcIntel: {
+    thesisSummary: string | null;
+    sectorPreferences: string[];
+    personalityProfile: string | null;
+    communicationStyle: string | null;
+    bestOutreachHook: string | null;
+    keyThemes: string[];
+    redFlags: string[];
+  } | null = null;
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+    const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    if (sbUrl && sbKey) {
+      const sb = createClient(sbUrl, sbKey);
+      const { data } = await sb
+        .from("vc_intelligence")
+        .select("thesis_summary, sector_preferences, personality_profile, communication_style, best_outreach_hook, key_themes, red_flags")
+        .ilike("firm_name", investor.firm)
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        vcIntel = {
+          thesisSummary: data.thesis_summary ?? null,
+          sectorPreferences: Array.isArray(data.sector_preferences) ? data.sector_preferences : [],
+          personalityProfile: data.personality_profile ?? null,
+          communicationStyle: data.communication_style ?? null,
+          bestOutreachHook: data.best_outreach_hook ?? null,
+          keyThemes: Array.isArray(data.key_themes) ? data.key_themes : [],
+          redFlags: Array.isArray(data.red_flags) ? data.red_flags : [],
+        };
+      }
+    }
+  } catch {
+    // Non-fatal — modal still works without thesis data
+  }
+
+  return { ...investor, vcIntel };
 }
 
 // ─── Pipeline Feedback ────────────────────────────────────────────────────────

@@ -60,6 +60,8 @@ export const investors = pgTable("pythh_investors", {
   geo: varchar("geo", { length: 64 }),
   recentActivity: varchar("recent_activity", { length: 128 }),
   profileUrl: varchar("profile_url", { length: 256 }),
+  notableInvestments: text("notable_investments").array(),
+  portfolioCompanies: text("portfolio_companies").array(),
   isPublic: integer("is_public").default(0).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .defaultNow()

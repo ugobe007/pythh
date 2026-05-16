@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 import { COOKIE_NAME, ONE_YEAR_MS } from "./shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -133,6 +134,7 @@ export const appRouter = router({
             stage: r.stage,
             geo: r.geo,
             recentActivity: r.recentActivity,
+            notableInvestments: r.notableInvestments ?? [],
             isPublic: r.isPublic,
           })),
           total,
@@ -493,145 +495,252 @@ export const appRouter = router({
           });
         }
 
-        // Fetch all investors (all paid plans + admin see full list)
-        const isOracleTier = isAdmin || activePlan === "oracle" || activePlan === "pantheon";
-        const { rows: allInvestors } = await getInvestorRankings({
-          limit: 100,
-          offset: 0,
-          isOracle: isOracleTier,
-        });
+        // ── Step 1: Run the real GOD + v16 pipeline via instantSubmit ────────────
+        const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
+        const INSTANT_URL = `http://127.0.0.1:${PORT}/api/instant/submit`;
 
+        let startupId: string | null = null;
+        let godScore: number | null = null;
+
+        try {
+          const submitRes = await fetch(INSTANT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: input.url }),
+            signal: AbortSignal.timeout(14000),
+          });
+          if (submitRes.ok) {
+            const body = await submitRes.json() as Record<string, unknown>;
+            startupId = (body.startup_id as string) ?? null;
+            godScore = (body.total_god_score as number) ?? null;
+          }
+        } catch (err) {
+          // Non-fatal — fall through to LLM-only path
+          console.warn("[analyzeStartup] instantSubmit call failed:", (err as Error).message);
+        }
+
+        // ── Step 2: Fetch real v16 matches from startup_investor_matches ─────────
+        const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+        const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+        const sbClient = sbUrl && sbKey ? createClient(sbUrl, sbKey) : null;
+
+        type RealMatch = {
+          investorUuid: string;
+          matchScore: number;
+          matchReasons: string[];
+          firmName: string;
+          investorName: string;
+          sectors: string[];
+          stage: string | null;
+          checkSize: string | null;
+          geo: string | null;
+        };
+
+        let realMatches: RealMatch[] = [];
+
+        if (startupId && sbClient) {
+          const { data: matchRows } = await sbClient
+            .from("startup_investor_matches")
+            .select(`
+              investor_id,
+              score,
+              match_reasons,
+              investors!inner(name, firm, sectors, stage, check_size_min, check_size_max, geography_focus)
+            `)
+            .eq("startup_id", startupId)
+            .order("score", { ascending: false })
+            .limit(12);
+
+          if (matchRows && matchRows.length > 0) {
+            realMatches = matchRows.map((row: Record<string, unknown>) => {
+              const inv = row.investors as Record<string, unknown> | null;
+              const sectors = Array.isArray(inv?.sectors)
+                ? (inv.sectors as string[])
+                : (typeof inv?.sectors === "string" ? [inv.sectors] : []);
+              const checkMin = inv?.check_size_min as number | null;
+              const checkMax = inv?.check_size_max as number | null;
+              const checkSize = checkMin && checkMax
+                ? `$${(checkMin / 1e6).toFixed(0)}–${(checkMax / 1e6).toFixed(0)}M`
+                : checkMin ? `$${(checkMin / 1e6).toFixed(0)}M+` : null;
+              return {
+                investorUuid: row.investor_id as string,
+                matchScore: Math.round((row.score as number ?? 0) * 100) / 100,
+                matchReasons: Array.isArray(row.match_reasons) ? (row.match_reasons as string[]) : [],
+                firmName: (inv?.firm as string) ?? "",
+                investorName: (inv?.name as string) ?? "",
+                sectors,
+                stage: (inv?.stage as string) ?? null,
+                checkSize,
+                geo: (inv?.geography_focus as string) ?? null,
+              };
+            });
+          }
+        }
+
+        // ── Step 3: Bridge real matches → pythh_investors by firm name ────────────
+        const isOracleTier = isAdmin || activePlan === "oracle" || activePlan === "pantheon";
+        const { rows: pythhInvestors } = await getInvestorRankings({ limit: 100, offset: 0, isOracle: isOracleTier });
+        const pythhByFirm = new Map(pythhInvestors.map((inv) => [inv.firm.toLowerCase().trim(), inv]));
+
+        // Map real matches to pythh_investors where firm name matches
+        const bridgedMatches = realMatches
+          .map((rm) => {
+            const pythh = pythhByFirm.get(rm.firmName.toLowerCase().trim());
+            return pythh ? { rm, pythh } : null;
+          })
+          .filter(Boolean) as Array<{ rm: RealMatch; pythh: (typeof pythhInvestors)[number] }>;
+
+        // If we got fewer than 3 bridged matches fall back to LLM ranking over pythh_investors
+        const useLLMRanking = bridgedMatches.length < 3;
+
+        // ── Step 4: Founder profile context for LLM ───────────────────────────────
         const founderProfile = await getFounderProfile(ctx.user.id);
         const founderLines: string[] = [];
         if (founderProfile) {
           if (founderProfile.companyName) founderLines.push(`Company: ${founderProfile.companyName}`);
-          if (founderProfile.companyUrl) founderLines.push(`Company URL (profile): ${founderProfile.companyUrl}`);
+          if (founderProfile.companyUrl) founderLines.push(`Company URL: ${founderProfile.companyUrl}`);
           if (founderProfile.stage) founderLines.push(`Stage: ${founderProfile.stage}`);
           if (founderProfile.sector) founderLines.push(`Sector: ${founderProfile.sector}`);
           if (founderProfile.askAmount) founderLines.push(`Ask: ${founderProfile.askAmount}`);
           if (founderProfile.bio) founderLines.push(`Bio: ${founderProfile.bio}`);
-          if (founderProfile.linkedinUrl) founderLines.push(`LinkedIn: ${founderProfile.linkedinUrl}`);
         }
-
-        // Build a compact investor list for the LLM prompt
-        const investorList = allInvestors.map((inv) => ({
-          id: inv.id,
-          name: inv.name,
-          firm: inv.firm,
-          sectors: [inv.sector, inv.sector2].filter(Boolean).join(", "),
-          stage: inv.stage,
-          checkSize: inv.checkSize,
-          geo: inv.geo,
-          signal: (inv.signal / 10).toFixed(1),
-          recentActivity: inv.recentActivity,
-        }));
+        const founderBlock = founderLines.length > 0
+          ? `\n\nFounder profile:\n${founderLines.join("\n")}`
+          : "";
 
         const { invokeLLM } = await import("./_core/llm");
 
-        const systemPrompt = `You are PYTHIA, an AI fundraising oracle specialising in venture capital investor matching.
-You receive a startup URL and a list of active investors. Your job is to:
-1. Infer the startup's sector, stage, and value proposition from the URL.
-2. Rank the top 6 investors by fit, considering sector alignment, stage, check size, and recent activity.
-3. Return a structured JSON response.
+        let enrichedMatches: Array<{
+          id: number; name: string; firm: string; sector: string[];
+          stage: string; checkSize: string; geo: string;
+          signalScore: number; recentActivity: string;
+          matchScore: number; reason: string; godScore?: number | null;
+        }>;
+        let summary: string;
 
-IMPORTANT: Return ONLY valid JSON matching the schema exactly. No markdown, no explanation.`;
+        if (useLLMRanking) {
+          // ── Fallback: LLM ranks pythh_investors (no real v16 data available yet) ──
+          const investorList = pythhInvestors.map((inv) => ({
+            id: inv.id, name: inv.name, firm: inv.firm,
+            sectors: [inv.sector, inv.sector2].filter(Boolean).join(", "),
+            stage: inv.stage, checkSize: inv.checkSize, geo: inv.geo,
+            signal: (inv.signal / 10).toFixed(1),
+          }));
 
-        const founderBlock =
-          founderLines.length > 0
-            ? `\n\nFounder-provided profile (use together with the URL; prefer this when it conflicts with a weak guess from the URL alone):\n${founderLines.join("\n")}`
-            : "";
-
-        const userPrompt = `Startup URL: ${input.url}${founderBlock}
-
-Available investors (${investorList.length} total):
-${JSON.stringify(investorList, null, 2)}
-
-Return the top 6 best-fit investors for this startup.`;
-
-        const llmResponse = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "pythia_matches",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  summary: {
-                    type: "string",
-                    description: "PYTHIA's 2-3 sentence narrative on the startup's strongest fundraising angle and recommended approach.",
+          const llmRes = await invokeLLM({
+            messages: [
+              { role: "system", content: `You are PYTHIA, a VC matching oracle. Rank the top 6 investors for this startup by fit. Return ONLY valid JSON.` },
+              { role: "user", content: `Startup URL: ${input.url}${founderBlock}\n\nInvestors:\n${JSON.stringify(investorList, null, 2)}\n\nReturn JSON: { summary: string, matches: [{investorId: number, matchScore: number, reason: string}] }` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "pythia_matches", strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    summary: { type: "string" },
+                    matches: { type: "array", items: { type: "object", properties: { investorId: { type: "number" }, matchScore: { type: "number" }, reason: { type: "string" } }, required: ["investorId", "matchScore", "reason"], additionalProperties: false } },
                   },
-                  matches: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        investorId: { type: "number", description: "The investor's id from the list" },
-                        matchScore: { type: "number", description: "Match score 0-100" },
-                        reason: { type: "string", description: "1-2 sentences on why this investor fits" },
-                      },
-                      required: ["investorId", "matchScore", "reason"],
-                      additionalProperties: false,
-                    },
-                  },
+                  required: ["summary", "matches"], additionalProperties: false,
                 },
-                required: ["summary", "matches"],
-                additionalProperties: false,
               },
             },
-          },
-        });
-
-        // Parse the LLM response
-        const rawContent = llmResponse.choices?.[0]?.message?.content;
-        const content = typeof rawContent === "string" ? rawContent : null;
-        if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PYTHIA returned an empty response." });
-        let parsed: { summary: string; matches: Array<{ investorId: number; matchScore: number; reason: string }> };
-        try {
-          parsed = JSON.parse(content);;
-        } catch {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PYTHIA returned malformed JSON." });
-        }
-
-        // Enrich matches with full investor data
-        const investorMap = new Map(allInvestors.map((inv) => [inv.id, inv]));
-        const enrichedMatches = parsed.matches
-          .filter((m) => investorMap.has(m.investorId))
-          .slice(0, 6)
-          .map((m) => {
-            const inv = investorMap.get(m.investorId)!;
-            return {
-              id: inv.id,
-              name: inv.name,
-              firm: inv.firm,
-              sector: [inv.sector, inv.sector2].filter(Boolean) as string[],
-              stage: inv.stage ?? "Series A/B",
-              checkSize: inv.checkSize ?? "$5–20M",
-              geo: inv.geo ?? "US",
-              signalScore: parseFloat((inv.signal / 10).toFixed(1)),
-              recentActivity: inv.recentActivity ?? "",
-              matchScore: Math.min(100, Math.max(0, Math.round(m.matchScore))),
-              reason: m.reason,
-            };
           });
+
+          const rawContent = llmRes.choices?.[0]?.message?.content;
+          if (!rawContent) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PYTHIA returned an empty response." });
+          let parsed: { summary: string; matches: Array<{ investorId: number; matchScore: number; reason: string }> };
+          try { parsed = JSON.parse(rawContent); } catch { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "PYTHIA returned malformed JSON." }); }
+
+          summary = parsed.summary;
+          const investorMap = new Map(pythhInvestors.map((inv) => [inv.id, inv]));
+          enrichedMatches = parsed.matches
+            .filter((m) => investorMap.has(m.investorId))
+            .slice(0, 6)
+            .map((m) => {
+              const inv = investorMap.get(m.investorId)!;
+              return {
+                id: inv.id, name: inv.name, firm: inv.firm,
+                sector: [inv.sector, inv.sector2].filter(Boolean) as string[],
+                stage: inv.stage ?? "Series A/B",
+                checkSize: inv.checkSize ?? "$5–20M",
+                geo: inv.geo ?? "US",
+                signalScore: parseFloat((inv.signal / 10).toFixed(1)),
+                recentActivity: inv.recentActivity ?? "",
+                matchScore: Math.min(100, Math.max(0, Math.round(m.matchScore))),
+                reason: m.reason,
+                godScore,
+              };
+            });
+        } else {
+          // ── Primary path: LLM narrates real v16 matches ─────────────────────────
+          const matchContext = bridgedMatches.slice(0, 6).map(({ rm, pythh }) => ({
+            name: pythh.name, firm: pythh.firm,
+            sectors: rm.sectors.join(", ") || [pythh.sector, pythh.sector2].filter(Boolean).join(", "),
+            stage: rm.stage || pythh.stage,
+            checkSize: rm.checkSize || pythh.checkSize,
+            matchScore: rm.matchScore,
+            matchReasons: rm.matchReasons.slice(0, 3).join("; "),
+          }));
+
+          const narrativeRes = await invokeLLM({
+            messages: [
+              { role: "system", content: `You are PYTHIA. The matching engine has already ranked these investors. Your job is to write a narrative summary and a 1-2 sentence reason for each match explaining WHY this investor fits. Use the match reasons provided. Return ONLY valid JSON.` },
+              { role: "user", content: `Startup URL: ${input.url}${founderBlock}\nGOD Score: ${godScore ?? "pending"}\n\nReal matches from scoring engine:\n${JSON.stringify(matchContext, null, 2)}\n\nReturn JSON: { summary: string, reasons: [{firm: string, reason: string}] }` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "pythia_narrative", strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    summary: { type: "string" },
+                    reasons: { type: "array", items: { type: "object", properties: { firm: { type: "string" }, reason: { type: "string" } }, required: ["firm", "reason"], additionalProperties: false } },
+                  },
+                  required: ["summary", "reasons"], additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawNarr = narrativeRes.choices?.[0]?.message?.content;
+          let narrative: { summary: string; reasons: Array<{ firm: string; reason: string }> };
+          try { narrative = JSON.parse(rawNarr ?? "{}"); } catch { narrative = { summary: `PYTHIA identified ${bridgedMatches.length} strong investor matches for this startup based on sector alignment and stage fit.`, reasons: [] }; }
+
+          const reasonMap = new Map((narrative.reasons ?? []).map((r) => [r.firm.toLowerCase(), r.reason]));
+          summary = narrative.summary;
+
+          enrichedMatches = bridgedMatches.slice(0, 6).map(({ rm, pythh }) => ({
+            id: pythh.id, name: pythh.name, firm: pythh.firm,
+            sector: rm.sectors.length > 0 ? rm.sectors : [pythh.sector, pythh.sector2].filter(Boolean) as string[],
+            stage: rm.stage ?? pythh.stage ?? "Series A/B",
+            checkSize: rm.checkSize ?? pythh.checkSize ?? "$5–20M",
+            geo: rm.geo ?? pythh.geo ?? "US",
+            signalScore: parseFloat((pythh.signal / 10).toFixed(1)),
+            recentActivity: pythh.recentActivity ?? "",
+            matchScore: Math.min(100, Math.max(0, Math.round(rm.matchScore))),
+            reason: reasonMap.get(pythh.firm.toLowerCase()) ?? (rm.matchReasons.slice(0, 2).join(". ") || "Strong sector and stage alignment."),
+            godScore,
+          }));
+        }
 
         const runId = input.runId?.trim() || randomUUID();
         await createPipelineRun({
           userId: ctx.user.id,
           runId,
           startupUrl: input.url,
-          summary: parsed.summary,
+          summary,
           matches: enrichedMatches,
         });
 
         return {
           runId,
-          summary: parsed.summary,
+          summary,
           matches: enrichedMatches,
+          godScore,
+          realMatchesUsed: !useLLMRanking,
         };
       }),
 
