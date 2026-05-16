@@ -69,7 +69,7 @@ const SECTOR_SYNONYMS = {
   
   // SaaS
   'SaaS': [
-    'saas', 'software as a service', 'b2b software', 'software',
+    'saas', 'software as a service', 'b2b software',
     'cloud software', 'subscription software', 'b2b saas',
   ],
   
@@ -348,33 +348,38 @@ function normSector(s) {
  * Get canonical sector name from any variant
  * @param {string} sector - raw sector string
  * @returns {string|null} canonical sector name or original if no match
+ *
+ * Uses a two-phase global search so that ANY exact synonym match across all
+ * canonicals wins before ANY partial match fires. This prevents "digital health"
+ * partial-matching "digital" before the Technology canonical exact-matches it.
  */
 function getCanonicalSector(sector) {
   if (!sector) return null;
   const norm = normSector(sector);
-  
-  // Check if it's already canonical
+
+  // Phase 1: canonical name itself (exact, case-insensitive)
   for (const canonical of CANONICAL_SECTORS) {
     if (normSector(canonical) === norm) return canonical;
   }
-  
-  // Check synonyms
+
+  // Phase 2: exact synonym match across ALL canonicals before any partial match
   for (const [canonical, synonyms] of Object.entries(SECTOR_SYNONYMS)) {
-    if (synonyms.some(syn => normSector(syn) === norm)) {
-      return canonical;
-    }
-    // Also check partial match (both strings must be > 4 chars to avoid false positives
-    // like "ar" matching "ar/vr", or "game" matching "games")
+    if (synonyms.some(syn => normSector(syn) === norm)) return canonical;
+  }
+
+  // Phase 3: partial match — substring in either direction
+  // Both strings must be > 5 chars to avoid e.g. "ar" ↔ "ar/vr", "food" ↔ "foodtech"
+  for (const [canonical, synonyms] of Object.entries(SECTOR_SYNONYMS)) {
     if (synonyms.some(syn => {
       const normSyn = normSector(syn);
-      if (!normSyn || normSyn.length <= 4 || norm.length <= 4) return false;
+      if (!normSyn || normSyn.length <= 5 || norm.length <= 5) return false;
       return norm.includes(normSyn) || normSyn.includes(norm);
     })) {
       return canonical;
     }
   }
-  
-  // Return original with proper casing if no canonical match
+
+  // Return original with proper casing if no match found
   return sector;
 }
 
