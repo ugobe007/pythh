@@ -127,6 +127,10 @@ interface ApiStartup {
 interface ApiResult {
   startup: ApiStartup | null;
   matches: ApiMatch[];
+  /** UUID of the startup record that was created/resolved by instantSubmit */
+  startup_id?: string | null;
+  /** True when the background scoring + full match pipeline is still running */
+  gen_in_progress?: boolean;
 }
 
 // ─── Pitch email + pipeline milestone builders ────────────────────────────────
@@ -661,7 +665,17 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
       body: JSON.stringify({ url: normalized }),
     })
       .then((r) => r.json())
-      .then((data) => { apiResultRef.current = data as ApiResult; })
+      .then((data: Record<string, unknown>) => {
+        // Preserve startup_id and gen_in_progress from the raw response so
+        // ResultsStep can poll for live score updates.
+        const result: ApiResult = {
+          startup: (data.startup as ApiStartup) ?? null,
+          matches: Array.isArray(data.matches) ? (data.matches as ApiMatch[]) : [],
+          startup_id: (data.startup_id as string) ?? null,
+          gen_in_progress: Boolean(data.gen_in_progress),
+        };
+        apiResultRef.current = result;
+      })
       .catch(() => { apiResultRef.current = null; })
       .finally(maybeComplete);
 
@@ -790,6 +804,62 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
   const totalMatchCount = apiResult?.matches?.length ?? investors.length;
   const matchCount = investors.length;
 
+  // ── Live GOD score polling ────────────────────────────────────────────────
+  const startupId = apiResult?.startup_id ?? apiResult?.startup?.id ?? null;
+  const initialGodScore = apiResult?.startup?.total_god_score ?? null;
+  const [liveGodScore, setLiveGodScore] = useState<number | null>(initialGodScore);
+  const [scorePending, setScorePending] = useState<boolean>(Boolean(apiResult?.gen_in_progress));
+  // Use a ref so the polling closure always sees the latest match count without re-running the effect
+  const seenMatchCountRef = useRef<number>(apiResult?.matches?.length ?? 0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollAttemptsRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 18; // ~90 seconds at 5s intervals
+
+  useEffect(() => {
+    if (!startupId || !scorePending) return;
+
+    const poll = async () => {
+      pollAttemptsRef.current++;
+      if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
+        setScorePending(false);
+        if (pollRef.current) clearInterval(pollRef.current);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/instant/status?startup_id=${startupId}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+          status: string;
+          startup?: { total_god_score?: number };
+          match_count?: number;
+        };
+        const newScore = data.startup?.total_god_score ?? null;
+        if (newScore != null) setLiveGodScore(newScore);
+
+        const newMatchCount = data.match_count ?? 0;
+        // When background matching finishes with significantly more matches, trigger a refresh.
+        // Use ref so this fires at most once even though the interval keeps running.
+        if (newMatchCount > seenMatchCountRef.current + 3 && onRefresh) {
+          seenMatchCountRef.current = newMatchCount;
+          onRefresh();
+        }
+
+        if (data.status === "ready") {
+          setScorePending(false);
+          if (pollRef.current) clearInterval(pollRef.current);
+        }
+      } catch {
+        // silently ignore transient errors
+      }
+    };
+
+    pollRef.current = setInterval(poll, 5000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startupId]);
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
       {/* Header */}
@@ -869,14 +939,28 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
                 )}
               </div>
             </div>
-            {/* GOD Score */}
-            {apiResult.startup.total_god_score != null && (
+            {/* GOD Score — live-updated while background pipeline runs */}
+            {(liveGodScore != null || initialGodScore != null) && (
               <div className="text-center flex-shrink-0">
-                <p className="font-display font-bold text-2xl"
-                  style={{ color: apiResult.startup.total_god_score >= 60 ? "oklch(0.696 0.17 162.48)" : apiResult.startup.total_god_score >= 45 ? "oklch(0.769 0.188 70.08)" : "oklch(0.65 0.01 264)" }}>
-                  {Math.round(apiResult.startup.total_god_score)}
+                <div className="flex items-center justify-center gap-1">
+                  <p className="font-display font-bold text-2xl"
+                    style={{
+                      color: (liveGodScore ?? initialGodScore ?? 0) >= 60
+                        ? "oklch(0.696 0.17 162.48)"
+                        : (liveGodScore ?? initialGodScore ?? 0) >= 45
+                          ? "oklch(0.769 0.188 70.08)"
+                          : "oklch(0.65 0.01 264)",
+                      transition: "color 0.6s ease",
+                    }}>
+                    {Math.round(liveGodScore ?? initialGodScore ?? 0)}
+                  </p>
+                  {scorePending && (
+                    <Loader2 size={12} className="animate-spin" style={{ color: "oklch(0.5 0.01 264)", marginTop: "2px" }} />
+                  )}
+                </div>
+                <p className="text-xs font-semibold tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>
+                  {scorePending ? "SCORING…" : "GOD SCORE"}
                 </p>
-                <p className="text-xs font-semibold tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>GOD SCORE</p>
               </div>
             )}
           </div>
@@ -1944,27 +2028,20 @@ export default function Activate() {
     if (!url) return;
     try {
       const normalized = url.startsWith("http") ? url : `https://${url}`;
-      // Kick off background regen
       const r = await fetch("/api/instant/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: normalized, force_generate: true }),
+        body: JSON.stringify({ url: normalized }),
       });
-      const data = await r.json();
-      if (data.matches?.length) {
-        setApiResult(data as ApiResult);
-        return;
-      }
-      // Background regen fired — poll once after 4s to pick up fresh matches
-      if (data.gen_in_progress) {
-        await new Promise((res) => setTimeout(res, 4000));
-        const r2 = await fetch("/api/instant/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: normalized }),
-        });
-        const data2 = await r2.json();
-        if (data2.matches?.length) setApiResult(data2 as ApiResult);
+      const rawData = await r.json() as Record<string, unknown>;
+      const result: ApiResult = {
+        startup: (rawData.startup as ApiResult["startup"]) ?? null,
+        matches: Array.isArray(rawData.matches) ? (rawData.matches as ApiResult["matches"]) : [],
+        startup_id: (rawData.startup_id as string) ?? null,
+        gen_in_progress: Boolean(rawData.gen_in_progress),
+      };
+      if (result.matches.length > 0) {
+        setApiResult(result);
       }
     } catch {
       // silently fail — stale data still shows
