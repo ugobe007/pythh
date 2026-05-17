@@ -571,8 +571,26 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
     if (startup.first_time_founders && !startup.mrr && !startup.revenue) {
       penalty -= 0.2;
     }
-    
-    return Math.max(penalty, -1.5);
+
+    // Tar pit compound penalty (Dalton: "non-technical + pre-launch + crowded category = lowest odds")
+    // These categories have historically low YC acceptance because the moat is unclear
+    // and execution risk is extreme without a builder on the team.
+    const TAR_PIT_SECTORS = [
+      'social', 'dating', 'gig economy', 'food delivery', 'media', 'content',
+      'marketplace', 'consumer', 'productivity', 'on-demand', 'creator',
+    ];
+    const industries = (startup as any).industries ?? startup.sectors ?? [];
+    const inTarPit = Array.isArray(industries) && industries.some((s: string) =>
+      TAR_PIT_SECTORS.some(t => s.toLowerCase().includes(t))
+    );
+    const nonTechnical = !startup.technical_cofounders && !(startup as any).has_technical_cofounder;
+    const preLaunch = !startup.launched && !(startup as any).is_launched &&
+      !(startup as any).has_customers && !(startup as any).has_revenue;
+    if (inTarPit && nonTechnical && preLaunch) {
+      penalty -= 1.5; // ~10 GOD score points — Dalton's "lowest odds" compound signal
+    }
+
+    return Math.max(penalty, -2.0); // Expanded floor to accommodate new penalty
   }
 
   // QUICK FIX: Base score boost for all startups with ANY content
@@ -585,25 +603,33 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   let vibeBonus = 0;
   const startupAny = startup as any; // Cast to access VIBE fields
   
-  // 1. Problem/Value Proposition (0-0.6 points) - THE HOOK
-  // Elite VCs need to understand the problem in 30 seconds
+  // 1. Problem / Value Proposition (0-0.6 points) — THE HOOK
+  // Dalton's "GitLab test": can a reader immediately understand WHO uses it,
+  // WHAT it does, and WHY it's better? Clarity beats length every time.
   if (startupAny.value_proposition || startupAny.problem) {
-    const problemText = startupAny.value_proposition || startupAny.problem || '';
-    const problemLength = problemText.length;
-    if (problemLength > 200) vibeBonus += 0.6; // Deep understanding
-    else if (problemLength > 100) vibeBonus += 0.4; // Good clarity
-    else if (problemLength > 50) vibeBonus += 0.2;
-    else if (problemLength > 0) vibeBonus += 0.1;
+    const problemText = (startupAny.value_proposition || startupAny.problem || '') as string;
+    // Structural clarity markers: who the user is, what action it enables, a measurable claim
+    const hasWho = /\b(for|help[s]?|enable[s]?|allow[s]?|let[s]?)\s+(developer|engineer|team|company|startup|business|enterprise|founder|operator|brand|agency)/i.test(problemText);
+    const hasWhat = /\b(build|creat|automat|manag|track|deploy|scale|analyz|process|generat|replac|eliminat|reduc)/i.test(problemText);
+    const hasMeasure = /\b(\d+[kKmMbB%×x]|\$[\d,]+|faster|cheaper|less time|save[s]?|cut[s]?|eliminat)/i.test(problemText);
+    // Base credit for having any content; extra for structural clarity
+    if (problemText.length > 0) vibeBonus += 0.15;
+    if (hasWho) vibeBonus += 0.15;
+    if (hasWhat) vibeBonus += 0.15;
+    if (hasMeasure) vibeBonus += 0.15;
   }
-  
-  // 2. Solution Clarity (0-0.6 points) - THE AHA MOMENT
-  // Does the solution feel inevitable? Is it 10x better?
+
+  // 2. Solution Clarity (0-0.6 points) — THE AHA MOMENT
+  // Same structured clarity test: a concrete solution description beats a long vague one.
   if (startupAny.solution) {
-    const solutionLength = startupAny.solution.length;
-    if (solutionLength > 200) vibeBonus += 0.6; // Clear, detailed solution
-    else if (solutionLength > 100) vibeBonus += 0.4;
-    else if (solutionLength > 50) vibeBonus += 0.2;
-    else if (solutionLength > 0) vibeBonus += 0.1;
+    const solutionText = (startupAny.solution || '') as string;
+    const hasSolutionAction = /\b(build|creat|automat|deploy|integrat|connect|analyz|generat|replac|eliminat)/i.test(solutionText);
+    const hasSolutionWho = /\b(developer|engineer|team|company|startup|business|enterprise|customer|user)/i.test(solutionText);
+    const hasSolutionMeasure = /\b(\d+[kKmMbB%×x]|\$[\d,]+|faster|real.?time|instant|automat|no.?code|one.?click)/i.test(solutionText);
+    if (solutionText.length > 0) vibeBonus += 0.15;
+    if (hasSolutionAction) vibeBonus += 0.15;
+    if (hasSolutionWho) vibeBonus += 0.15;
+    if (hasSolutionMeasure) vibeBonus += 0.15;
   }
   
   // 3. Market Understanding (0-0.5 points) - KNOWS THE BATTLEFIELD
@@ -956,17 +982,27 @@ function scoreTeam(startup: StartupProfile): number {
     else if (startup.team_size >= 3) score += 0.2;
   }
 
-  // Technical co-founders (YC priority)
+  // Technical co-founders (YC priority — Dalton: "5x better odds, single biggest variable")
   // Guard: only compute ratio if founders_count looks like actual founders (≤ 10)
   if (startup.technical_cofounders && startup.founders_count && startup.founders_count <= 10) {
     const techRatio = startup.technical_cofounders / startup.founders_count;
     if (techRatio >= 0.5) {
       score += 1;
       reasons.push('Strong technical team');
+    } else {
+      score += 0.5; // At least one technical person on a larger team
     }
   } else if (startup.technical_cofounders) {
     // We know there's at least one technical person, even if we don't know the ratio
     score += 0.5;
+  }
+
+  // Early-stage amplifier: technical founder matters MOST before traction exists.
+  // YC sees this as the primary predictor of ability to build and iterate.
+  const preTraction = !(startup as any).has_revenue && !startup.customers;
+  if (startup.technical_cofounders && preTraction) {
+    score += 0.75; // Extra weight when there's nothing else to validate the team
+    reasons.push('Technical founder in pre-traction stage');
   }
   
   // Pedigree & experience (Sequoia/FF)
@@ -1181,6 +1217,9 @@ function scoreTraction(startup: StartupProfile): number {
   if ((startup as any).has_customers) score += 0.6; // Customers = strong signal
   if (startup.launched || (startup as any).is_launched) score += 0.4; // Launched = baseline signal
   if (startup.demo_available || (startup as any).has_demo) score += 0.15;
+  // Self-use / dogfooding (Dalton: "are they using their own product?" = evidence of demand)
+  // Weaker than has_customers but still real signal — they built something real enough to use.
+  if ((startup as any).self_use && !(startup as any).has_customers) score += 0.3;
 
   // ============================================================================
   // SOCIAL SIGNALS: Press coverage + App Store ratings (externally enriched)

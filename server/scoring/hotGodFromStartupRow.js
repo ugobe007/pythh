@@ -112,6 +112,7 @@ function toScoringProfileFromStartupUpload(startup) {
 
     launched: startup.is_launched || extracted.is_launched || extracted.launched,
     demo_available: startup.has_demo || extracted.has_demo || extracted.demo_available,
+    self_use: extracted.self_use || startup.self_use || false,
     unique_ip: extracted.unique_ip,
     defensibility: extracted.defensibility,
     mvp_stage: extracted.mvp_stage,
