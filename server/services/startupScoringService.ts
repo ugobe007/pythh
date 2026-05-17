@@ -193,7 +193,7 @@ const GOD_SCORE_CONFIG = {
   // Math: rawTotal (avg ~12, max ~17) / divisor * 10 → 0-10 scale → * 10 = 0-100
   // Lower divisor = higher scores. 19 → ~63 avg; 20 → ~60 avg.
   // Higher divisor → lower GOD scores on 0–100 scale (Apr 2026: avg had drifted ~80+; target mid-60s)
-  normalizationDivisor: 20.5,
+  normalizationDivisor: 19.5,
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 0.5 - 3.0 (enforced by validation)
@@ -707,7 +707,7 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
 
   const teamScore = scoreTeam(startup); // 0-2
   const founderSpeedScore = scoreFounderSpeed(startup); // 0-1
-  const teamExecutionScore = Math.min(teamScore + founderSpeedScore + fundingVelocityBonus, 3.0); // Cap at 3
+  const teamExecutionScore = Math.min(teamScore + founderSpeedScore + fundingVelocityBonus, 3.5); // Raised from 3.0 — technical teams rewarded more
   const productVisionScore = Math.min(scoreVision(startup), 2.0);  // RESTORED to 2.0
   const founderCourageScore = Math.min(scoreFounderCourage(startup), 1.5);
   const marketInsightScore = Math.min(scoreUniqueInsight(startup), 1.5);
@@ -716,7 +716,7 @@ export function calculateHotScore(startup: StartupProfile): HotScore {
   // Traction, Market, Product Performance (keep as is)
   const tractionScore = scoreTraction(startup); // 0-3
   const marketScore = scoreMarket(startup); // 0-2
-  const productScore = Math.min(scoreProduct(startup), 2.0); // 0-2 (RESTORED - was incorrectly changed to 0-3)
+  const productScore = Math.min(scoreProduct(startup), 2.5); // Raised from 2.0 — product releases/demos rewarded more
 
   // ============================================================================
   // ⛔ REMOVED: Unauthorized forward-looking scores (Jan 30, 2026)
@@ -987,21 +987,21 @@ function scoreTeam(startup: StartupProfile): number {
   if (startup.technical_cofounders && startup.founders_count && startup.founders_count <= 10) {
     const techRatio = startup.technical_cofounders / startup.founders_count;
     if (techRatio >= 0.5) {
-      score += 1;
+      score += 1.2; // Raised from 1.0 — majority-technical team is a major signal
       reasons.push('Strong technical team');
     } else {
-      score += 0.5; // At least one technical person on a larger team
+      score += 0.7; // Raised from 0.5 — at least one technical person on a larger team
     }
   } else if (startup.technical_cofounders) {
     // We know there's at least one technical person, even if we don't know the ratio
-    score += 0.5;
+    score += 0.7; // Raised from 0.5
   }
 
   // Early-stage amplifier: technical founder matters MOST before traction exists.
   // YC sees this as the primary predictor of ability to build and iterate.
   const preTraction = !(startup as any).has_revenue && !startup.customers;
   if (startup.technical_cofounders && preTraction) {
-    score += 0.75; // Extra weight when there's nothing else to validate the team
+    score += 1.0; // Raised from 0.75 — biggest variable at pre-traction stage
     reasons.push('Technical founder in pre-traction stage');
   }
   
@@ -1213,13 +1213,13 @@ function scoreTraction(startup: StartupProfile): number {
   // SECTION 3: BOOLEAN FLAGS (direct from database)
   // ============================================================================
   
-  if ((startup as any).has_revenue) score += 1.0; // Revenue = major traction signal
-  if ((startup as any).has_customers) score += 0.6; // Customers = strong signal
-  if (startup.launched || (startup as any).is_launched) score += 0.4; // Launched = baseline signal
-  if (startup.demo_available || (startup as any).has_demo) score += 0.15;
+  if ((startup as any).has_revenue) score += 1.4;    // Raised from 1.0 — revenue is the strongest traction signal
+  if ((startup as any).has_customers) score += 1.0;  // Raised from 0.6 — paying/using customers = real validation
+  if (startup.launched || (startup as any).is_launched) score += 0.8;  // Raised from 0.4 — shipped product matters significantly
+  if (startup.demo_available || (startup as any).has_demo) score += 0.3; // Raised from 0.15 — demo shows build progress
   // Self-use / dogfooding (Dalton: "are they using their own product?" = evidence of demand)
   // Weaker than has_customers but still real signal — they built something real enough to use.
-  if ((startup as any).self_use && !(startup as any).has_customers) score += 0.3;
+  if ((startup as any).self_use && !(startup as any).has_customers) score += 0.4; // Raised from 0.3
 
   // ============================================================================
   // SOCIAL SIGNALS: Press coverage + App Store ratings (externally enriched)
@@ -1231,10 +1231,11 @@ function scoreTraction(startup: StartupProfile): number {
   const trxSocial = (startup as any).social_signals ?? {};
 
   // News article count — quoted-name search → confirmed real press coverage
-  if      (trxSocial.news_article_count >= 20) score += 1.0; // Significant coverage
-  else if (trxSocial.news_article_count >= 10) score += 0.6; // Solid press
-  else if (trxSocial.news_article_count >= 5)  score += 0.35; // Getting noticed
-  else if (trxSocial.news_article_count >= 2)  score += 0.15; // Acknowledged
+  if      (trxSocial.news_article_count >= 20) score += 1.25; // Raised from 1.0 — significant media presence
+  else if (trxSocial.news_article_count >= 10) score += 0.90; // Raised from 0.6 — solid press coverage
+  else if (trxSocial.news_article_count >= 5)  score += 0.60; // Raised from 0.35 — getting noticed by press
+  else if (trxSocial.news_article_count >= 2)  score += 0.35; // Raised from 0.15 — acknowledged by press
+  else if (trxSocial.news_article_count >= 1)  score += 0.20; // New — any confirmed press hit counts
 
   // App Store rating count — ratings ≈ real user count (consumer/B2C traction)
   if      (trxSocial.app_store_rating_count >= 10000) score += 1.0; // Major app
@@ -1247,11 +1248,11 @@ function scoreTraction(startup: StartupProfile): number {
   const tier1Press = (startup as any).tier1_press_count ?? 0;
   const tier2Press = (startup as any).tier2_press_count ?? 0;
   const pressTotal = (startup as any).press_total ?? 0;
-  if      (tier1Press >= 5)  score += 0.6;  // Multiple top-tier features
-  else if (tier1Press >= 2)  score += 0.4;  // Covered by major outlets
-  else if (tier1Press >= 1)  score += 0.2;  // One major press hit
-  else if (tier2Press >= 5)  score += 0.15; // Niche trade press
-  else if (pressTotal >= 3)  score += 0.08; // Some press, classify unknown
+  if      (tier1Press >= 5)  score += 0.90; // Raised from 0.6 — multiple top-tier features (TC, Forbes, WSJ, Bloomberg)
+  else if (tier1Press >= 2)  score += 0.65; // Raised from 0.4 — covered by major outlets
+  else if (tier1Press >= 1)  score += 0.40; // Raised from 0.2 — one major press hit is notable
+  else if (tier2Press >= 5)  score += 0.25; // Raised from 0.15 — strong niche/trade press
+  else if (pressTotal >= 3)  score += 0.15; // Raised from 0.08 — some press, classify unknown
 
   // Reddit mentions — organic community recognition
   const redditMentions = (startup as any).reddit_mentions ?? 0;
@@ -1263,7 +1264,7 @@ function scoreTraction(startup: StartupProfile): number {
   // Bonus if predominantly positive sentiment
   if (redditMentions >= 3 && redditPositive > (redditMentions * 0.7)) score += 0.1;
 
-  return Math.min(score, 3);
+  return Math.min(score, 3.5); // Raised from 3.0 — stronger traction/press signals justify higher ceiling
 }
 
 /**

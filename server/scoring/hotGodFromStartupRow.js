@@ -141,10 +141,10 @@ function breakdownFromHotResult(result) {
   const marketCombined = (result.breakdown.market || 0) + (result.breakdown.market_insight || 0);
 
   return {
-    team_score: Math.min(Math.round((teamCombined / 4.0) * 100), 100),
-    traction_score: Math.min(Math.round(((result.breakdown.traction || 0) / 3.0) * 100), 100),
+    team_score: Math.min(Math.round((teamCombined / 4.5) * 100), 100),       // Updated: team_execution cap 3.5 + team_age 1.0 = 4.5
+    traction_score: Math.min(Math.round(((result.breakdown.traction || 0) / 3.5) * 100), 100), // Updated: traction cap raised to 3.5
     market_score: Math.min(Math.round((marketCombined / 3.5) * 100), 100),
-    product_score: Math.min(Math.round(((result.breakdown.product || 0) / 2.0) * 100), 100),
+    product_score: Math.min(Math.round(((result.breakdown.product || 0) / 2.5) * 100), 100),   // Updated: product cap raised to 2.5
     vision_score: Math.min(Math.round(((result.breakdown.product_vision || 0) / 2.0) * 100), 100),
     total_god_score: total,
     psychological_multiplier: result.psychological_multiplier || 0,
