@@ -16,8 +16,8 @@
  *   Never aliases or bridges — writes to the one true column and stops.
  *
  * SOURCES → CANONICAL ROOT TARGETS:
- *   startup_metrics.best_mentions.last_round_amount.amount_usd  → latest_funding_amount
- *   extracted_data.funding_amount.value (× magnitude)           → latest_funding_amount
+ *   startup_metrics.best_mentions.last_round_amount.amount_usd  → latest_funding_amount + last_round_amount_usd
+ *   extracted_data.funding_amount.value (× magnitude)           → latest_funding_amount + last_round_amount_usd
  *   extracted_data.funding_stage                                 → latest_funding_round
  *   extracted_data.growth_rate                                   → growth_rate
  *   extracted_data.customer_count                                → customer_count
@@ -142,8 +142,13 @@ async function passStartupMetricsFunding(allRows) {
     const safe = toSafeInt(amount);
     if (!safe) continue;
     const roundType = r.startup_metrics?.last_round_type || bm.last_round_amount?.round_type || null;
-    const fields = { latest_funding_amount: safe };
+    // Write to both: latest_funding_amount (for ingest-metrics-signals.js)
+    // AND last_round_amount_usd (for scoring engine hotGodFromStartupRow.js)
+    const fields = { latest_funding_amount: safe, last_round_amount_usd: safe };
     if (roundType && !r.latest_funding_round) fields.latest_funding_round = roundType;
+    if (safe > 0 && (!r.funding_confidence || r.funding_confidence < 0.40)) {
+      fields.funding_confidence = 0.40;
+    }
     updates.push({ id: r.id, fields, _dbg: { name: r.name, amount: safe, source: 'startup_metrics' } });
   }
   console.log(`\n  Pass 1 (startup_metrics → latest_funding_amount): ${updates.length} rows`);
@@ -170,8 +175,13 @@ async function passExtractedFundingAmount(allRows) {
     const safe = parseFundingAmount(fa);
     if (!safe) continue;
     const stage = r.extracted_data?.funding_stage || null;
-    const fields = { latest_funding_amount: safe };
+    // Write to both: latest_funding_amount (for ingest-metrics-signals.js)
+    // AND last_round_amount_usd (for scoring engine hotGodFromStartupRow.js)
+    const fields = { latest_funding_amount: safe, last_round_amount_usd: safe };
     if (stage && !r.latest_funding_round) fields.latest_funding_round = stage;
+    if (safe > 0 && (!r.funding_confidence || r.funding_confidence < 0.40)) {
+      fields.funding_confidence = 0.40;
+    }
     updates.push({ id: r.id, fields, _dbg: { name: r.name, amount: safe, raw: fa.raw, source: 'extracted_data.funding_amount' } });
   }
   console.log(`\n  Pass 2 (extracted_data.funding_amount → latest_funding_amount): ${updates.length} rows`);
