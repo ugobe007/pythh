@@ -188,7 +188,7 @@ async function main() {
       .select('id, name, tagline, description, sectors, stage, total_god_score, team_score, traction_score, market_score, product_score, total_funding_usd, pitch')
       .eq('id', STARTUP_ID).single();
 
-    const { data: matches } = await client.from('pythh_matches')
+    const { data: matches } = await client.from('startup_investor_matches')
       .select('investor_id, match_score')
       .eq('startup_id', STARTUP_ID)
       .order('match_score', { ascending: false })
@@ -209,7 +209,7 @@ async function main() {
       .select('id, name, firm, url').eq('id', INVESTOR_ID).single();
     const vcIntel = intelByInvestor.get(INVESTOR_ID);
 
-    const { data: matches } = await client.from('pythh_matches')
+    const { data: matches } = await client.from('startup_investor_matches')
       .select('startup_id, match_score')
       .eq('investor_id', INVESTOR_ID)
       .order('match_score', { ascending: false })
@@ -226,8 +226,10 @@ async function main() {
 
   } else {
     // Batch: find pairs where we have vc_intelligence but no positioning yet
-    const { data: unpositioned } = await client.from('pythh_matches')
+    // Uses startup_investor_matches (v16 engine) — only profiled investors have vcIntel
+    const { data: unpositioned } = await client.from('startup_investor_matches')
       .select('startup_id, investor_id, match_score')
+      .in('investor_id', [...intelByInvestor.keys()])
       .order('match_score', { ascending: false })
       .limit(LIMIT * 3);
 
