@@ -129,7 +129,10 @@ interface ApiResult {
   matches: ApiMatch[];
   /** UUID of the startup record that was created/resolved by instantSubmit */
   startup_id?: string | null;
-  /** True when the background scoring + full match pipeline is still running */
+  /** True only for brand-new URLs that have never been submitted before.
+   *  Existing startups already have pre-computed GOD scores in the DB. */
+  is_new?: boolean;
+  /** True when the background match-generation pipeline is still running */
   gen_in_progress?: boolean;
 }
 
@@ -672,6 +675,7 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
           startup: (data.startup as ApiStartup) ?? null,
           matches: Array.isArray(data.matches) ? (data.matches as ApiMatch[]) : [],
           startup_id: (data.startup_id as string) ?? null,
+          is_new: Boolean(data.is_new),
           gen_in_progress: Boolean(data.gen_in_progress),
         };
         apiResultRef.current = result;
@@ -805,10 +809,13 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
   const matchCount = investors.length;
 
   // ── Live GOD score polling ────────────────────────────────────────────────
+  // Existing startups already have pre-computed GOD scores — only poll when
+  // this is a brand-new URL that has never been submitted before (is_new: true).
   const startupId = apiResult?.startup_id ?? apiResult?.startup?.id ?? null;
   const initialGodScore = apiResult?.startup?.total_god_score ?? null;
   const [liveGodScore, setLiveGodScore] = useState<number | null>(initialGodScore);
-  const [scorePending, setScorePending] = useState<boolean>(Boolean(apiResult?.gen_in_progress));
+  const isNewStartup = Boolean(apiResult?.is_new);
+  const [scorePending, setScorePending] = useState<boolean>(isNewStartup && Boolean(apiResult?.gen_in_progress));
   // Use a ref so the polling closure always sees the latest match count without re-running the effect
   const seenMatchCountRef = useRef<number>(apiResult?.matches?.length ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2038,6 +2045,7 @@ export default function Activate() {
         startup: (rawData.startup as ApiResult["startup"]) ?? null,
         matches: Array.isArray(rawData.matches) ? (rawData.matches as ApiResult["matches"]) : [],
         startup_id: (rawData.startup_id as string) ?? null,
+        is_new: Boolean(rawData.is_new),
         gen_in_progress: Boolean(rawData.gen_in_progress),
       };
       if (result.matches.length > 0) {
