@@ -180,7 +180,7 @@ async function gateInvestors() {
     const { data } = await supabaseResult(`investors page @${from}`, () =>
       supabase
         .from('investors')
-        .select('id, name, linkedin_url, crunchbase_url, blog_url, twitter_url')
+        .select('id, name, url, linkedin_url, crunchbase_url, blog_url, twitter_url')
         .order('id', { ascending: true })
         .range(from, from + PAGE - 1),
     );
