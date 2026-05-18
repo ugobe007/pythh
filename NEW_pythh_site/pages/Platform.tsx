@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { ArrowRight, Zap, Target, Brain, BarChart3, Mail } from "lucide-react";
@@ -60,6 +61,115 @@ function PageNav() {
   );
 }
 
+// ─── Animated signal bars (live-updating every 3s) ───────────────────────────
+
+interface SignalRow {
+  id: string;
+  label: string;
+  value: number;
+  delta: number;
+  description: string;
+}
+
+const INITIAL_SIGNALS: SignalRow[] = [
+  { id: "funding",     label: "Funding Activity",  value: 0.73, delta:  0.04, description: "Recent funding rounds, term sheets, and investor meetings in your sector" },
+  { id: "hiring",      label: "Hiring Velocity",    value: 0.81, delta:  0.12, description: "Engineering and go-to-market hiring patterns across comparable startups" },
+  { id: "market",      label: "Market Momentum",    value: 0.58, delta: -0.05, description: "Overall sector interest from LPs, analysts, and trade publications" },
+  { id: "social",      label: "Social Proof",       value: 0.71, delta:  0.08, description: "Mentions, shares, and engagement from influential investors and founders" },
+  { id: "competition", label: "Competition Heat",   value: 0.54, delta:  0,    description: "Competitive landscape intensity and market consolidation signals" },
+  { id: "revenue",     label: "Revenue Signals",    value: 0.66, delta:  0.03, description: "B2B contract announcements, customer logos, and revenue milestones" },
+  { id: "product",     label: "Product Velocity",   value: 0.85, delta:  0.15, description: "Shipping cadence, feature launches, and product-market fit indicators" },
+];
+
+function SignalBar({ signal }: { signal: SignalRow }) {
+  const { label, value, delta, description } = signal;
+
+  const deltaPositive = delta > 0;
+  const deltaZero = delta === 0;
+
+  const deltaColor = deltaPositive
+    ? "oklch(0.696 0.17 162.48)"
+    : deltaZero
+    ? "oklch(0.45 0.01 264)"
+    : "oklch(0.65 0.15 22)";
+
+  const arrow = deltaPositive ? "▲" : deltaZero ? "→" : "▼";
+  const sign  = deltaPositive ? "+" : "";
+
+  const barColor =
+    value >= 0.7
+      ? "linear-gradient(to right, oklch(0.55 0.13 195), oklch(0.696 0.17 162.48))"
+      : value >= 0.5
+      ? "linear-gradient(to right, oklch(0.4 0.1 195), oklch(0.55 0.13 195))"
+      : "linear-gradient(to right, oklch(0.3 0.01 264), oklch(0.4 0.01 264))";
+
+  const glowStyle = deltaPositive
+    ? { boxShadow: "0 0 8px rgba(34,211,238,0.35)" }
+    : {};
+
+  return (
+    <div className="group" title={description}>
+      <div className="flex items-center gap-3 mb-1">
+        {/* Label */}
+        <div className="w-36 text-xs truncate" style={{ color: "oklch(0.55 0.01 264)" }}>
+          {label}
+        </div>
+        {/* Bar track */}
+        <div
+          className="flex-1 h-2 rounded-full overflow-hidden"
+          style={{ backgroundColor: "oklch(0.18 0.01 264 / 0.6)" }}
+        >
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${value * 100}%`,
+              background: barColor,
+              transition: "width 700ms ease-out",
+              ...glowStyle,
+            }}
+          />
+        </div>
+        {/* Value */}
+        <div
+          className="w-10 text-right font-mono text-xs"
+          style={{ color: "oklch(0.85 0.005 264)" }}
+        >
+          {value.toFixed(2)}
+        </div>
+        {/* Delta */}
+        <div className="w-16 text-right font-mono text-xs" style={{ color: deltaColor }}>
+          {arrow} {sign}{Math.abs(delta).toFixed(2)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignalFlowBars() {
+  const [signals, setSignals] = useState(INITIAL_SIGNALS);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSignals((prev) =>
+        prev.map((s) => {
+          const movement = (Math.random() - 0.5) * 0.06;
+          const newValue = Math.max(0.1, Math.min(0.95, s.value + movement));
+          return { ...s, value: +newValue.toFixed(2), delta: +(newValue - s.value).toFixed(2) };
+        })
+      );
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      {signals.map((s) => (
+        <SignalBar key={s.id} signal={s} />
+      ))}
+    </div>
+  );
+}
+
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const HOW_IT_WORKS = [
@@ -93,16 +203,6 @@ const HOW_IT_WORKS = [
     label: "Action layer",
     desc: "Ranked matches with confidence levels, fit flags, outreach angles, and ready-to-send intro emails. Why each investor, why now.",
   },
-];
-
-const SIGNAL_TYPES = [
-  { label: "Funding Activity", desc: "New deals, fund closes, portfolio expansions tracked in real time." },
-  { label: "Hiring Velocity", desc: "Investor firms growing teams = capital being actively deployed." },
-  { label: "Market Momentum", desc: "Sector-level capital flow and competitive heat." },
-  { label: "Social Proof", desc: "Conference presence, media coverage, thesis content." },
-  { label: "Revenue Signals", desc: "Startup traction from your public footprint." },
-  { label: "Product Velocity", desc: "Shipping cadence, feature launches, user growth signals." },
-  { label: "Competition Heat", desc: "Adjacent funding rounds and category positioning." },
 ];
 
 const PLAYBOOK = [
@@ -189,24 +289,38 @@ export default function Platform() {
           </div>
         </section>
 
-        {/* ── Signal Types ── */}
+        {/* ── Live Signal Bars ── */}
         <section className="mb-20">
-          <h2 className="font-display font-semibold text-xl mb-2" style={{ color: "oklch(0.85 0.01 264)" }}>
-            7 signal dimensions
-          </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-display font-semibold text-xl" style={{ color: "oklch(0.85 0.01 264)" }}>
+              7 signal dimensions
+            </h2>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: "oklch(0.696 0.17 162.48)", boxShadow: "0 0 5px oklch(0.696 0.17 162.48 / 0.6)", animation: "pulse 2s infinite" }}
+              />
+              <span className="text-xs font-mono" style={{ color: "oklch(0.696 0.17 162.48)" }}>LIVE</span>
+            </div>
+          </div>
           <p className="text-sm mb-8" style={{ color: "oklch(0.5 0.01 264)" }}>
-            Every score is derived from publicly observable behavior — not self-reported data.
+            Every score derived from publicly observable behavior — not self-reported data. Hover a bar for detail.
           </p>
-          <div className="grid sm:grid-cols-2 gap-3">
-            {SIGNAL_TYPES.map((s) => (
-              <div key={s.label}
-                className="p-4 rounded-xl"
-                style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
-              >
-                <p className="text-sm font-medium mb-1" style={{ color: "oklch(0.85 0.01 264)" }}>{s.label}</p>
-                <p className="text-xs leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>{s.desc}</p>
-              </div>
-            ))}
+          <div
+            className="p-6 rounded-2xl"
+            style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
+          >
+            {/* Column headers */}
+            <div className="flex items-center gap-3 mb-4 pb-3" style={{ borderBottom: "1px solid oklch(0.2 0.01 264)" }}>
+              <div className="w-36 text-xs font-mono font-bold" style={{ color: "oklch(0.4 0.01 264)" }}>SIGNAL</div>
+              <div className="flex-1 text-xs font-mono font-bold" style={{ color: "oklch(0.4 0.01 264)" }}>STRENGTH</div>
+              <div className="w-10 text-right text-xs font-mono font-bold" style={{ color: "oklch(0.4 0.01 264)" }}>VAL</div>
+              <div className="w-16 text-right text-xs font-mono font-bold" style={{ color: "oklch(0.4 0.01 264)" }}>Δ</div>
+            </div>
+            <SignalFlowBars />
+            <p className="text-xs mt-4 text-right font-mono" style={{ color: "oklch(0.35 0.01 264)" }}>
+              Updates every 3s · Hover bar for signal description
+            </p>
           </div>
         </section>
 
