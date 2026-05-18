@@ -210,7 +210,8 @@ async function getInvestors(supabase) {
       .select(
         'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals, email, email_best_guess, email_candidates, email_status, email_has_mx',
       )
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .eq('entity_gate', 'qualified');
     
     if (error) throw error;
     
@@ -297,7 +298,8 @@ function getCandidateInvestors(startupSectors, maxCandidates) {
   const candidates = relevant
     .filter((inv) => {
       const score = Number(inv.investor_score);
-      return !Number.isFinite(score) || score >= minScore;
+      // Require a valid GOD score at or above the minimum (nulls rejected)
+      return Number.isFinite(score) && score >= minScore;
     })
     .sort((a, b) => (Number(b.investor_score) || 0) - (Number(a.investor_score) || 0))
     .slice(0, cap);

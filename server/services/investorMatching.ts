@@ -183,6 +183,13 @@ async function analyzeMatch(startup: Startup, investor: Investor): Promise<Match
       geography_fit: true, // Simplified for now
     };
 
+    // Investor GOD score signals for AI context
+    const investorGodScore = (investor as any).investor_score ?? null;
+    const investorTier = (investor as any).investor_tier ?? null;
+    const godScoreContext = investorGodScore !== null
+      ? `- Investor Quality Score (GOD 0-100): ${investorGodScore} [Tier: ${investorTier || 'Unknown'}]`
+      : '';
+
     // Generate AI-powered analysis
     const prompt = `You are an expert venture capital analyst. Analyze this startup-investor match:
 
@@ -206,16 +213,19 @@ INVESTOR:
 - Investment Thesis: ${investor.investment_thesis || 'N/A'}
 - Notable Investments: ${JSON.stringify(investor.notable_investments || [])}
 - Portfolio Companies: ${investor.portfolio_companies?.join(', ') || 'N/A'}
+${godScoreContext}
+
+The investor GOD score (0-100) reflects profile completeness, sector specialization, capital readiness, track record, and recent activity. A score of 70+ is Elite, 50-69 Strong, 30-49 Solid. When investor quality is high, weight your match_score upward slightly — a great investor who is a good fit is more valuable to a founder than a mediocre fit from a low-signal investor.
 
 Provide a JSON response with:
-1. match_score (0-100): Overall fit score
+1. match_score (0-100): Overall fit score (factor in both thesis alignment AND investor quality tier)
 2. confidence_level: "high", "medium", or "low"
 3. reasoning: 2-3 sentences explaining the match quality
 4. why_you_match: Array of 3-5 specific bullet points about fit
 5. intro_email_subject: Compelling subject line for intro email
 6. intro_email_body: Personalized 2-paragraph intro email (use {founder_name} and {investor_name} placeholders)
 
-Focus on: stage alignment, sector expertise, check size fit, portfolio synergies, and thesis alignment.`;
+Focus on: stage alignment, sector expertise, check size fit, portfolio synergies, thesis alignment, and investor quality.`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -618,11 +628,14 @@ export async function getMatchSuggestions(userId?: string, limit: number = 10): 
     if (startupsError) throw startupsError;
     if (!startups || startups.length === 0) return [];
 
-    // Get investors
+    // Get qualified investors with GOD scores, pre-sorted by investor quality
     const { data: investors, error: investorsError } = await supabase
       .from('investors')
-      .select('*')
-      .eq('status', 'active');
+      .select('id, name, firm, title, stage, sectors, check_size_min, check_size_max, geography_focus, investment_thesis, investor_score, investor_tier, entity_gate, leads_rounds')
+      .eq('entity_gate', 'qualified')
+      .gte('investor_score', 30)  // solid tier minimum (0-100 GOD scale)
+      .order('investor_score', { ascending: false })
+      .limit(2000);
 
     if (investorsError) throw investorsError;
     if (!investors || investors.length === 0) return [];
@@ -635,31 +648,33 @@ export async function getMatchSuggestions(userId?: string, limit: number = 10): 
       const matchingInvestors = investors
         .map(investor => {
           let score = 0;
-          // Safe string conversion for stage and sector
           const rawStage = startup.stage || startup.funding_stage || 'seed';
           const startupStage = (typeof rawStage === 'string' ? rawStage : String(rawStage)).toLowerCase();
-          
           const rawSector = startup.sector || startup.industry || '';
           const startupSector = (typeof rawSector === 'string' ? rawSector : String(rawSector)).toLowerCase();
 
-          // Stage fit
+          // Stage fit (0-35)
           if (investor.stage?.some((s: string) => startupStage.includes(s.toLowerCase()))) {
-            score += 40;
+            score += 35;
           }
-          // Sector fit
+          // Sector fit (0-35)
           if (investor.sectors?.some((s: string) => startupSector.includes(s.toLowerCase()))) {
-            score += 40;
+            score += 35;
           }
-          // Check size fit
+          // Check size fit (0-15)
           const targetRaise = startup.target_raise || startup.funding_amount || 0;
           if (targetRaise >= (investor.check_size_min || 0) && targetRaise <= (investor.check_size_max || Infinity)) {
-            score += 20;
+            score += 15;
           }
+          // Investor GOD score quality bonus (0-15):
+          // Maps 30-100 investor_score → 0-15 match quality pts
+          const godScore = Number(investor.investor_score) || 30;
+          score += Math.round(((godScore - 30) / 70) * 15);
 
           return { investor, score };
         })
-        .filter(m => m.score >= 40)
-        .sort((a, b) => b.score - a.score)
+        .filter(m => m.score >= 35)
+        .sort((a, b) => b.score - a.score || (Number(b.investor.investor_score) || 0) - (Number(a.investor.investor_score) || 0))
         .slice(0, 3);
 
       if (matchingInvestors.length > 0) {
@@ -773,13 +788,18 @@ export async function getInvestorsByType(
         portfolio_companies,
         total_investments,
         successful_exits,
+        investor_score,
+        investor_tier,
+        score_breakdown,
         status,
         is_verified,
+        entity_gate,
         created_at,
         updated_at
       `)
       .eq('status', 'active')
-      .order('name', { ascending: true })
+      .eq('entity_gate', 'qualified')
+      .order('investor_score', { ascending: false })
       .limit(limit);
 
     // Note: investor_type column needs to be added via SQL migration
