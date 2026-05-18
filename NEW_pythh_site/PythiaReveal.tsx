@@ -15,6 +15,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { TrendingUp, Zap, Building2, Clock, ArrowRight, Activity } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 /** Served from repo `public/` (vite publicDir). */
 const PYTHIA_ICON_URL = "/images/pythh_oracle.png";
@@ -34,35 +35,32 @@ interface Signal {
   type: "bullish" | "neutral" | "meeting";
 }
 
-const LIVE_SIGNALS: Signal[] = [
-  {
-    investor: "Sarah Chen",
-    firm: "Sequoia Capital",
-    action: "New position signal",
-    detail: "Closed $12M Series A in AI observability — portfolio gap identified in your vertical",
-    score: 94,
-    time: "2m ago",
-    type: "bullish",
-  },
-  {
-    investor: "Niko Bonatsos",
-    firm: "General Catalyst",
-    action: "Thesis alignment detected",
-    detail: "Published essay on AI-native workflows — 3 LP updates reference your exact market",
-    score: 91,
-    time: "6m ago",
-    type: "bullish",
-  },
-  {
-    investor: "Tomasz Tunguz",
-    firm: "Theory Ventures",
-    action: "Fund cycle: early deploy",
-    detail: "New $700M fund — 12% deployed. Composable AI thesis matches your architecture",
-    score: 88,
-    time: "8m ago",
-    type: "meeting",
-  },
+const ACTIONS = [
+  "New position signal", "Thesis alignment detected", "Fund cycle: early deploy",
+  "Portfolio gap identified", "LP update signal", "Stage alignment detected",
+  "New vertical focus", "Recent co-invest signal",
 ];
+
+const FALLBACK_SIGNALS: Signal[] = [
+  { investor: "Josh Kopelman",  firm: "First Round Capital", action: "Stage alignment detected", detail: "Actively deploying from Fund XIV — seed-to-Series A thesis matches your profile", score: 89, time: "2m ago", type: "bullish" },
+  { investor: "Michael Seibel", firm: "Y Combinator",        action: "Fund cycle: early deploy", detail: "New batch deployment underway — portfolio gap in your vertical", score: 81, time: "6m ago", type: "bullish" },
+  { investor: "Bill Gurley",    firm: "Benchmark",           action: "Thesis alignment detected", detail: "Recent LP update references composable infrastructure — matches your architecture", score: 82, time: "9m ago", type: "meeting" },
+];
+
+/** `signal` is stored as integer×10 on a 0–10 scale in pythh_investors.
+ * Multiply by 10 for a 0–100 display score.
+ */
+function buildSignals(investors: { name: string; firm: string; signal: number; recentActivity?: string | null }[]): Signal[] {
+  return investors.slice(0, 6).map((inv, i) => {
+    const score = Math.max(50, Math.min(99, Math.round(inv.signal * 10) || 70));
+    const type: Signal["type"] = score >= 85 ? "bullish" : score >= 70 ? "neutral" : "meeting";
+    const action = ACTIONS[i % ACTIONS.length];
+    const detail = inv.recentActivity || `Signal strength ${score} — thesis and stage alignment detected for your market`;
+    const ageMinutes = 2 + i * 4;
+    const time = ageMinutes < 60 ? `${ageMinutes}m ago` : `${Math.round(ageMinutes / 60)}h ago`;
+    return { investor: inv.name, firm: inv.firm, action, detail, score, time, type };
+  });
+}
 
 type AnimPhase = "hidden" | "entering" | "scanning" | "pixelating" | "scattering" | "revealed";
 
@@ -93,6 +91,17 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
   const reduceMotion = usePrefersReducedMotion();
   const [phase, setPhase] = useState<AnimPhase>(reduceMotion ? "revealed" : "hidden");
   const [signalIdx, setSignalIdx] = useState(0);
+
+  // Real investor signals from DB — refreshed every 5 minutes
+  const { data: investorData } = trpc.investors.getRankings.useQuery(
+    { limit: 8, sortBy: "signal", sortDir: "desc" },
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const liveSignals: Signal[] = investorData?.investors?.length
+    ? buildSignals(investorData.investors)
+    : FALLBACK_SIGNALS;
+  const liveSignalsRef = useRef<Signal[]>(liveSignals);
+  useEffect(() => { liveSignalsRef.current = liveSignals; }, [liveSignals]);
   const [signalVisible, setSignalVisible] = useState(reduceMotion);
   // Which pixels are currently "scattered" (hidden)
   const [scatteredPixels, setScatteredPixels] = useState<Set<number>>(new Set());
@@ -172,7 +181,7 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
     cycleRef.current = setInterval(() => {
       setSignalVisible(false);
       const t = setTimeout(() => {
-        setSignalIdx(i => (i + 1) % LIVE_SIGNALS.length);
+        setSignalIdx(i => (i + 1) % liveSignalsRef.current.length);
         setSignalVisible(true);
       }, 400);
       scatterRef.current.push(t);
@@ -180,7 +189,7 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
     return () => { if (cycleRef.current) clearInterval(cycleRef.current); };
   }, [phase, reduceMotion]);
 
-  const signal = LIVE_SIGNALS[signalIdx];
+  const signal = liveSignals[signalIdx % liveSignals.length];
   const isPixelPhase = !reduceMotion && (phase === "pixelating" || phase === "scattering");
   const iconVisible =
     !reduceMotion &&
@@ -408,7 +417,7 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
 
           {/* Pagination dots */}
           <div className="flex justify-center gap-1.5 mt-3">
-            {LIVE_SIGNALS.map((_, i) => (
+            {liveSignals.map((_, i) => (
               <div
                 key={i}
                 className="rounded-full transition-all duration-300"

@@ -12,6 +12,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { TrendingUp, Zap, Building2, Star } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 interface Lead {
   id: number;
@@ -24,18 +25,38 @@ interface Lead {
   age: string;
 }
 
-const ALL_LEADS: Lead[] = [
-  { id: 1,  name: "Sarah Chen",       firm: "Sequoia Capital",      role: "Partner",         score: 94, signal: "New fund deploy",       type: "bullish",  age: "2m" },
-  { id: 2,  name: "Niko Bonatsos",    firm: "General Catalyst",     role: "Managing Director", score: 91, signal: "Thesis match",        type: "bullish",  age: "4m" },
-  { id: 3,  name: "Tomasz Tunguz",    firm: "Theory Ventures",      role: "General Partner",  score: 88, signal: "Fund cycle: early",    type: "meeting",  age: "6m" },
-  { id: 4,  name: "Aileen Lee",       firm: "Cowboy Ventures",      role: "Founder & Partner", score: 86, signal: "Portfolio gap",       type: "bullish",  age: "9m" },
-  { id: 5,  name: "Mike Volpi",       firm: "Index Ventures",       role: "Partner",          score: 85, signal: "LP update signal",     type: "hot",      age: "11m" },
-  { id: 6,  name: "Josh Kopelman",    firm: "First Round Capital",  role: "Managing Partner", score: 83, signal: "Stage alignment",      type: "bullish",  age: "14m" },
-  { id: 7,  name: "Kirsten Green",    firm: "Forerunner Ventures",  role: "Founder & Partner", score: 81, signal: "New vertical focus",  type: "meeting",  age: "16m" },
-  { id: 8,  name: "Peter Fenton",     firm: "Benchmark",            role: "General Partner",  score: 80, signal: "Optics: strong fit",   type: "hot",      age: "18m" },
-  { id: 9,  name: "Ann Miura-Ko",     firm: "Floodgate",            role: "Co-Founder",       score: 78, signal: "Thesis update",        type: "bullish",  age: "21m" },
-  { id: 10, name: "Elad Gil",         firm: "Color Capital",        role: "Investor",         score: 76, signal: "Recent co-invest",     type: "meeting",  age: "24m" },
+// Short fallback list — only used if the DB fetch fails
+const FALLBACK_LEADS: Lead[] = [
+  { id: 1, name: "Josh Kopelman",  firm: "First Round Capital", role: "Managing Partner", score: 89, signal: "Stage alignment",   type: "bullish", age: "2m" },
+  { id: 2, name: "Michael Seibel", firm: "Y Combinator",        role: "Partner",          score: 81, signal: "Fund cycle: early", type: "meeting", age: "5m" },
+  { id: 3, name: "Roelof Botha",   firm: "Sequoia Capital",     role: "Partner",          score: 77, signal: "Thesis match",      type: "bullish", age: "9m" },
+  { id: 4, name: "Bill Gurley",    firm: "Benchmark",           role: "General Partner",  score: 82, signal: "New fund deploy",   type: "hot",     age: "13m" },
 ];
+
+const SIGNAL_LABELS = [
+  "New fund deploy", "Thesis match", "Portfolio gap", "Stage alignment",
+  "Fund cycle: early", "LP update signal", "New vertical focus", "Recent co-invest",
+  "Optics: strong fit", "Thesis update",
+];
+
+/** Map real DB investors → Lead cards.
+ * `signal` from pythh_investors is stored as integer×10 (e.g. 86 = 8.6 on 0–10 scale).
+ * Multiply by 10 to get a 0–100 display score, then clamp.
+ */
+function mapInvestorsToLeads(investors: { name: string; firm: string; signal: number; recentActivity?: string | null }[]): Lead[] {
+  return investors.map((inv, i) => {
+    // signal is ×10 on a 0-10 scale → multiply by 10 for 0-100 display
+    const scoreRaw = Math.round(inv.signal * 10);
+    const score = Math.max(50, Math.min(99, scoreRaw || 70));
+    const type: Lead["type"] = score >= 85 ? "hot" : score >= 75 ? "bullish" : "meeting";
+    const signal = inv.recentActivity
+      ? inv.recentActivity.slice(0, 40)
+      : SIGNAL_LABELS[i % SIGNAL_LABELS.length];
+    const ageMinutes = 2 + i * 3;
+    const age = ageMinutes < 60 ? `${ageMinutes}m` : `${Math.round(ageMinutes / 60)}h`;
+    return { id: i + 1, name: inv.name, firm: inv.firm, role: "Partner", score, signal, type, age };
+  });
+}
 
 type FeedPhase = "radar" | "materialize" | "live";
 
@@ -56,6 +77,19 @@ export default function PythiaRadarFeed() {
   const sweepRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
+
+  // Fetch real investor data from DB — refreshed every 5 minutes
+  const { data: investorData } = trpc.investors.getRankings.useQuery(
+    { limit: 20, sortBy: "signal", sortDir: "desc" },
+    { staleTime: 5 * 60 * 1000 }
+  );
+  const allLeads: Lead[] = investorData?.investors?.length
+    ? mapInvestorsToLeads(investorData.investors)
+    : FALLBACK_LEADS;
+
+  // Keep a ref so animation interval closures always read the latest leads pool
+  const allLeadsRef = useRef<Lead[]>(allLeads);
+  useEffect(() => { allLeadsRef.current = allLeads; }, [allLeads]);
 
   // Radar sweep rotation
   useEffect(() => {
@@ -80,7 +114,8 @@ export default function PythiaRadarFeed() {
       setRadarPulse(false);
 
       // Materialize leads bottom-to-top, staggered 180ms
-      const initial = ALL_LEADS.slice(0, VISIBLE_COUNT).map((l, i) => ({
+      const pool = allLeadsRef.current;
+      const initial = pool.slice(0, VISIBLE_COUNT).map((l) => ({
         ...l,
         key: `lead-${l.id}`,
         state: "entering" as const,
@@ -122,10 +157,11 @@ export default function PythiaRadarFeed() {
       setTimeout(() => { if (mountedRef.current) setRadarPulse(false); }, 600);
 
       setLeadPoolIdx(prev => {
-        const nextIdx = prev % ALL_LEADS.length;
+        const pool = allLeadsRef.current;
+        const nextIdx = prev % pool.length;
         const newLead: VisibleLead = {
-          ...ALL_LEADS[nextIdx],
-          key: `lead-${ALL_LEADS[nextIdx].id}-${Date.now()}`,
+          ...pool[nextIdx],
+          key: `lead-${pool[nextIdx].id}-${Date.now()}`,
           state: "entering",
         };
 
@@ -153,7 +189,7 @@ export default function PythiaRadarFeed() {
           return updated;
         });
 
-        return (prev + 1) % ALL_LEADS.length;
+        return (prev + 1) % allLeadsRef.current.length;
       });
     }, 3000);
 

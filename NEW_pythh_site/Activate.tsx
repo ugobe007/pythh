@@ -842,13 +842,11 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
 
 // ─── Step 3: Match Results ────────────────────────────────────────────────────
 
-function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; onActivate: () => void; apiResult?: ApiResult | null; onRefresh?: () => void }) {
+function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: { url: string; onActivate: () => void; apiResult?: ApiResult | null; onRefresh?: () => void; onForceRefresh?: () => void }) {
   const [expanded, setExpanded] = useState<number | null>(1);
   const [refreshing, setRefreshing] = useState(false);
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
-  const investors = apiResult?.matches?.length
-    ? mapApiToMatchedInvestors(apiResult.matches)
-    : MOCK_INVESTORS.slice(0, 5);
+  const investors = mapApiToMatchedInvestors(apiResult?.matches ?? []);
   const startupName = apiResult?.startup?.name || domain;
   const totalMatchCount = apiResult?.matches?.length ?? investors.length;
   const matchCount = investors.length;
@@ -860,15 +858,16 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
   const initialGodScore = apiResult?.startup?.total_god_score ?? null;
   const [liveGodScore, setLiveGodScore] = useState<number | null>(initialGodScore);
   const isNewStartup = Boolean(apiResult?.is_new);
-  const [scorePending, setScorePending] = useState<boolean>(isNewStartup && Boolean(apiResult?.gen_in_progress));
-  // Use a ref so the polling closure always sees the latest match count without re-running the effect
+  // Always poll when we have a startupId — background pipeline improves matches
+  // even for existing startups (speculative → real sector-specific matches).
+  const [scorePending, setScorePending] = useState<boolean>(Boolean(startupId && (apiResult?.gen_in_progress || apiResult?.matches?.length === 0 || isNewStartup)));
   const seenMatchCountRef = useRef<number>(apiResult?.matches?.length ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollAttemptsRef = useRef(0);
-  const MAX_POLL_ATTEMPTS = 18; // ~90 seconds at 5s intervals
+  const MAX_POLL_ATTEMPTS = 12; // ~60 seconds at 5s intervals
 
   useEffect(() => {
-    if (!startupId || !scorePending) return;
+    if (!startupId) return;
 
     const poll = async () => {
       pollAttemptsRef.current++;
@@ -921,8 +920,10 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
             <PythiaAvatar size={36} />
             <div>
               <p className="text-sm font-semibold" style={{ color: "oklch(0.94 0.005 264)" }}>
-                PYTHIA ranked <span style={{ color: "oklch(0.696 0.17 162.48)" }}>top {matchCount} investors</span> for {startupName}
-                {totalMatchCount > matchCount && <span style={{ color: "oklch(0.5 0.01 264)" }}> from {totalMatchCount.toLocaleString()} analyzed</span>}
+                {matchCount > 0
+                  ? <>PYTHIA ranked <span style={{ color: "oklch(0.696 0.17 162.48)" }}>top {matchCount} investors</span> for {startupName}{totalMatchCount > matchCount && <span style={{ color: "oklch(0.5 0.01 264)" }}> from {totalMatchCount.toLocaleString()} analyzed</span>}</>
+                  : <>Computing matches for <span style={{ color: "oklch(0.696 0.17 162.48)" }}>{startupName}</span>…</>
+                }
               </p>
               <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>Ranked by timing × thesis fit × optics</p>
             </div>
@@ -1081,6 +1082,15 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
         </div>
 
         {/* Investor list */}
+        {investors.length === 0 && (
+          <div className="rounded-xl border p-8 mb-6 text-center" style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
+              <span className="text-sm font-mono" style={{ color: "oklch(0.696 0.17 162.48)" }}>Computing investor matches…</span>
+            </div>
+            <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>PYTHIA is scoring 4,000+ investors against your profile. Results will refresh automatically.</p>
+          </div>
+        )}
         <div className="space-y-3 mb-8">
           {investors.map((inv, i) => (
             <div key={inv.id}
@@ -1258,9 +1268,11 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh }: { url: string; o
           <button
             disabled={refreshing}
             onClick={async () => {
-              if (!onRefresh) return;
+              // User-initiated: force_generate=true to bypass cache and re-run pipeline
+              const fn = onForceRefresh ?? onRefresh;
+              if (!fn) return;
               setRefreshing(true);
-              await onRefresh();
+              await fn();
               setRefreshing(false);
             }}
             className="inline-flex items-center gap-1.5 text-xs transition-colors duration-150"
@@ -2076,6 +2088,7 @@ export default function Activate() {
     setStep("results");
   };
 
+  /** Polling-triggered: re-fetch without busting the pipeline cache */
   const handleRefreshMatches = async () => {
     if (!url) return;
     try {
@@ -2084,6 +2097,32 @@ export default function Activate() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: normalized }),
+      });
+      const rawData = await r.json() as Record<string, unknown>;
+      const result: ApiResult = {
+        startup: (rawData.startup as ApiResult["startup"]) ?? null,
+        matches: Array.isArray(rawData.matches) ? (rawData.matches as ApiResult["matches"]) : [],
+        startup_id: (rawData.startup_id as string) ?? null,
+        is_new: Boolean(rawData.is_new),
+        gen_in_progress: Boolean(rawData.gen_in_progress),
+      };
+      if (result.matches.length > 0) {
+        setApiResult(result);
+      }
+    } catch {
+      // silently fail — stale data still shows
+    }
+  };
+
+  /** User-initiated: force_generate=true so pipeline re-runs with fresh sector data */
+  const handleForceRefreshMatches = async () => {
+    if (!url) return;
+    try {
+      const normalized = url.startsWith("http") ? url : `https://${url}`;
+      const r = await fetch("/api/instant/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalized, force_generate: true }),
       });
       const rawData = await r.json() as Record<string, unknown>;
       const result: ApiResult = {
@@ -2143,7 +2182,7 @@ export default function Activate() {
 
       {step === "entry" && <EntryStep onSubmit={handleUrlSubmit} />}
       {step === "scanning" && <ScanningStep url={url} onComplete={handleScanComplete} />}
-      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} apiResult={apiResult} onRefresh={handleRefreshMatches} />}
+      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} apiResult={apiResult} onRefresh={handleRefreshMatches} onForceRefresh={handleForceRefreshMatches} />}
       {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} apiResult={apiResult} />}
     </div>
   );
