@@ -14,19 +14,24 @@ import Rankings from "./Rankings";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
+import Platform from "./pages/Platform";
+import Methodology from "./pages/Methodology";
+import Newsletter from "./pages/Newsletter";
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/activate"} component={Activate} />
+      <Route path={"/platform"} component={Platform} />
+      <Route path={"/methodology"} component={Methodology} />
+      <Route path={"/newsletter"} component={Newsletter} />
+      <Route path={"/rankings"} component={Rankings} />
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
       <Route path={"/checkout/cancel"} component={CheckoutCancel} />
       <Route path={"/account"} component={Account} />
       <Route path={"/profile"} component={Profile} />
       <Route path={"/admin"} component={Admin} />
-      <Route path={"/rankings"} component={Rankings} />
       <Route path={"/login"} component={Login} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />

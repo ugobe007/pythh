@@ -143,14 +143,16 @@ function Navbar() {
             <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>SIGNAL SCIENCE</span>
           </a>
           <div className="hidden md:flex items-center gap-8">
-            {["Platform", "Methodology"].map((item) => (
-              <button key={item}
-                onClick={() => toast(`${item} — coming soon`, { description: "We're building this section. Check back shortly.", duration: 2500 })}
+            {[
+              { label: "Platform", href: "/platform" },
+              { label: "Methodology", href: "/methodology" },
+            ].map(({ label, href }) => (
+              <a key={href} href={href}
                 className="text-sm font-medium transition-colors duration-200"
                 style={{ color: "oklch(0.65 0.01 264)" }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.94 0.005 264)")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-              >{item}</button>
+              >{label}</a>
             ))}
             <a href="/rankings" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
@@ -210,8 +212,11 @@ function Navbar() {
         {menuOpen && (
           <div className="md:hidden py-4 border-t" style={{ borderColor: "oklch(0.25 0.01 264)" }}>
             <div className="flex flex-col gap-4">
-              {["Platform", "Methodology"].map((item) => (
-                <button key={item} onClick={() => { setMenuOpen(false); toast(`${item} — coming soon`, { description: "We're building this section.", duration: 2500 }); }} className="text-sm font-medium text-left" style={{ color: "oklch(0.65 0.01 264)" }}>{item}</button>
+              {[
+                { label: "Platform", href: "/platform" },
+                { label: "Methodology", href: "/methodology" },
+              ].map(({ label, href }) => (
+                <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-sm font-medium text-left" style={{ color: "oklch(0.65 0.01 264)" }}>{label}</a>
               ))}
               <a href="/rankings" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Rankings</a>
               <a href="/pricing" className="text-sm font-medium" style={{ color: "oklch(0.769 0.188 70.08)" }}>Pricing</a>
@@ -569,9 +574,9 @@ function LiveSignalsSection() {
           ))}
           <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "oklch(0.17 0.01 264)" }}>
             <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>Signal = timing · GOD = investment readiness · VC++ = investor optics</p>
-            <button onClick={() => toast("Full rankings — coming soon", { description: "Complete investor rankings are on the way.", duration: 2500 })} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+            <a href="/rankings" className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
               See full rankings <ChevronRight size={12} />
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -612,9 +617,9 @@ function ScienceSection() {
               Her scoring engine combines timing intelligence, thesis alignment, and peer-weighted optics into a single, actionable signal — so she knows exactly who to approach and when.
             </p>
             <div className="mt-8">
-              <button onClick={() => toast("Methodology — coming soon", { description: "Full scoring methodology documentation is on the way.", duration: 2500 })} className="flex items-center gap-2 text-sm font-semibold" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+              <a href="/methodology" className="flex items-center gap-2 text-sm font-semibold" style={{ color: "oklch(0.696 0.17 162.48)" }}>
                 Read the methodology <ArrowRight size={14} />
-              </button>
+              </a>
             </div>
           </div>
           <div className="space-y-4">
@@ -758,11 +763,30 @@ function NewsletterSection() {
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
 function Footer() {
-  const cols = [
-    { title: "Product", links: ["Platform", "PYTHIA Agent", "Rankings", "Explore", "Pricing"] },
-    { title: "Resources", links: ["Methodology", "Newsletter", "API Docs", "Changelog"] },
-    { title: "Company", links: ["About", "Blog", "Careers", "Press"] },
-    { title: "Legal", links: ["Privacy Policy", "Terms of Service", "Cookie Policy"] },
+  const cols: { title: string; links: { label: string; href: string | null }[] }[] = [
+    { title: "Product", links: [
+      { label: "Platform", href: "/platform" },
+      { label: "PYTHIA Agent", href: "/activate" },
+      { label: "Rankings", href: "/rankings" },
+      { label: "Pricing", href: "/pricing" },
+    ]},
+    { title: "Resources", links: [
+      { label: "Methodology", href: "/methodology" },
+      { label: "Newsletter", href: "/newsletter" },
+      { label: "API Docs", href: null },
+      { label: "Changelog", href: null },
+    ]},
+    { title: "Company", links: [
+      { label: "About", href: null },
+      { label: "Blog", href: null },
+      { label: "Careers", href: null },
+      { label: "Press", href: null },
+    ]},
+    { title: "Legal", links: [
+      { label: "Privacy Policy", href: null },
+      { label: "Terms of Service", href: null },
+      { label: "Cookie Policy", href: null },
+    ]},
   ];
 
   return (
@@ -782,14 +806,19 @@ function Footer() {
             <div key={col.title}>
               <h4 className="font-display font-semibold text-sm mb-4" style={{ color: "oklch(0.7 0.01 264)" }}>{col.title}</h4>
               <ul className="space-y-2.5">
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <button
-                      onClick={() => { if (link === "Pricing") { window.location.href = "/pricing"; } else { toast(`${link} — coming soon`, { duration: 2000 }); } }}
-                      className="text-xs transition-colors duration-150 text-left"
-                      style={{ color: "oklch(0.45 0.01 264)" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.7 0.01 264)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.45 0.01 264)")}>{link}</button>
+                {col.links.map(({ label, href }) => (
+                  <li key={label}>
+                    {href ? (
+                      <a
+                        href={href}
+                        className="text-xs transition-colors duration-150"
+                        style={{ color: "oklch(0.45 0.01 264)" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.7 0.01 264)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.45 0.01 264)")}
+                      >{label}</a>
+                    ) : (
+                      <span className="text-xs" style={{ color: "oklch(0.3 0.01 264)" }}>{label}</span>
+                    )}
                   </li>
                 ))}
               </ul>
