@@ -164,6 +164,11 @@ function Navbar() {
               onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.696 0.17 162.48)")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
             >Investors</a>
+            <a href="/portfolio" className="text-sm font-medium transition-colors duration-200"
+              style={{ color: "oklch(0.65 0.01 264)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.696 0.17 162.48)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
+            >Portfolio</a>
             <a href="/pricing" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.769 0.188 70.08)")}
@@ -225,6 +230,7 @@ function Navbar() {
               ))}
               <a href="/rankings" className="text-sm font-medium" style={{ color: "#22d3ee" }} onClick={() => setMenuOpen(false)}>Rankings</a>
               <a href="/investors" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Investors</a>
+              <a href="/portfolio" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Portfolio</a>
               <a href="/pricing" className="text-sm font-medium" style={{ color: "oklch(0.769 0.188 70.08)" }}>Pricing</a>
               <div className="flex gap-3 pt-2">
                 {isAuthenticated ? (
@@ -756,6 +762,7 @@ function Footer() {
       { label: "PYTHIA Agent", href: "/activate" },
       { label: "Rankings", href: "/rankings" },
       { label: "Investors", href: "/investors" },
+      { label: "Portfolio", href: "/portfolio" },
       { label: "Explore", href: "/explore" },
       { label: "Pricing", href: "/pricing" },
     ]},

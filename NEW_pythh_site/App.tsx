@@ -21,6 +21,8 @@ import SignalTrends from "./pages/SignalTrends";
 import About from "./pages/About";
 import Support from "./pages/Support";
 import Explore from "./pages/Explore";
+import Portfolio from "./pages/Portfolio";
+import PortfolioDetail from "./pages/PortfolioDetail";
 function Router() {
   return (
     <Switch>
@@ -35,6 +37,8 @@ function Router() {
       {/* /investors = investor intelligence table */}
       <Route path={"/investors"} component={InvestorRankings} />
       <Route path={"/explore"} component={Explore} />
+      <Route path={"/portfolio"} component={Portfolio} />
+      <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/platform"} component={Platform} />
       <Route path={"/methodology"} component={Methodology} />
       <Route path={"/newsletter"} component={Newsletter} />
