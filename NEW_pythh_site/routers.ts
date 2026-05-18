@@ -81,6 +81,138 @@ export const appRouter = router({
     }),
   }),
 
+  startups: router({
+    /**
+     * Returns the top startup rankings for VC-lens scoring.
+     * Pulls approved startups with all GOD sub-scores so the client can
+     * re-weight them per investor philosophy (YC, Sequoia, a16z, etc.).
+     * Public endpoint — no Oracle gate needed since no PII is exposed.
+     */
+    getRankings: publicProcedure
+      .input(z.object({ limit: z.number().min(1).max(500).optional() }))
+      .query(async ({ input }) => {
+        const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+        const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+        if (!sbUrl || !sbKey) return { startups: [], total: 0 };
+
+        const sbClient = createClient(sbUrl, sbKey);
+        const limit = input.limit ?? 200;
+
+        const [{ count: total }, { data, error }] = await Promise.all([
+          sbClient
+            .from("startup_uploads")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "approved")
+            .not("total_god_score", "is", null),
+          sbClient
+            .from("startup_uploads")
+            .select(
+              "id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit, psychological_multiplier"
+            )
+            .eq("status", "approved")
+            .not("total_god_score", "is", null)
+            .not("name", "is", null)
+            .order("total_god_score", { ascending: false })
+            .limit(limit),
+        ]);
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+
+      return {
+        startups: (data ?? []) as Array<{
+          id: string;
+          name: string;
+          sectors: string | string[] | null;
+          total_god_score: number | null;
+          team_score: number | null;
+          traction_score: number | null;
+          market_score: number | null;
+          product_score: number | null;
+          vision_score: number | null;
+          is_oversubscribed: boolean | null;
+          has_followon: boolean | null;
+          is_competitive: boolean | null;
+          is_bridge_round: boolean | null;
+          has_sector_pivot: boolean | null;
+          has_social_proof_cascade: boolean | null;
+          is_repeat_founder: boolean | null;
+          has_cofounder_exit: boolean | null;
+          psychological_multiplier: number | null;
+        }>,
+        total: total ?? 0,
+      };
+    }),
+
+    /**
+     * Full-text startup search for the /explore page.
+     * Supports name search, sector filter, stage filter, and sort.
+     */
+    search: publicProcedure
+      .input(
+        z.object({
+          query: z.string().max(200).optional(),
+          sector: z.string().max(100).optional(),
+          stage: z.string().max(50).optional(),
+          sortBy: z.enum(["total_god_score", "created_at", "name"]).optional(),
+          limit: z.number().min(1).max(100).optional(),
+          offset: z.number().min(0).optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+        const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+        if (!sbUrl || !sbKey) return { startups: [], total: 0 };
+
+        const sbClient = createClient(sbUrl, sbKey);
+        const limit = input.limit ?? 50;
+        const offset = input.offset ?? 0;
+        const sortBy = input.sortBy ?? "total_god_score";
+
+        let q = sbClient
+          .from("startup_uploads")
+          .select(
+            "id, name, tagline, sectors, stage, website, total_god_score, team_score, traction_score, created_at",
+            { count: "exact" }
+          )
+          .eq("status", "approved")
+          .not("name", "is", null);
+
+        if (input.query?.trim()) {
+          q = q.ilike("name", `%${input.query.trim()}%`);
+        }
+        if (input.sector?.trim()) {
+          q = q.contains("sectors", [input.sector.trim()]);
+        }
+        if (input.stage?.trim()) {
+          q = q.eq("stage", input.stage.trim());
+        }
+
+        q = q
+          .order(sortBy, { ascending: sortBy === "name" })
+          .range(offset, offset + limit - 1);
+
+        const { data, error, count } = await q;
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+
+        return {
+          startups: (data ?? []) as Array<{
+            id: string;
+            name: string;
+            tagline: string | null;
+            sectors: string | string[] | null;
+            stage: string | null;
+            website: string | null;
+            total_god_score: number | null;
+            team_score: number | null;
+            traction_score: number | null;
+            created_at: string | null;
+          }>,
+          total: count ?? 0,
+        };
+      }),
+  }),
+
   investors: router({
     /**
      * Returns paginated investor signal rankings.

@@ -154,6 +154,11 @@ function Navbar() {
                 onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
               >{label}</a>
             ))}
+            <a href="/signal-trends" className="text-sm font-medium transition-colors duration-200"
+              style={{ color: "oklch(0.65 0.01 264)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#22d3ee")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
+            >Signal Trends</a>
             <a href="/rankings" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.696 0.17 162.48)")}
@@ -218,6 +223,7 @@ function Navbar() {
               ].map(({ label, href }) => (
                 <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-sm font-medium text-left" style={{ color: "oklch(0.65 0.01 264)" }}>{label}</a>
               ))}
+              <a href="/signal-trends" className="text-sm font-medium" style={{ color: "#22d3ee" }} onClick={() => setMenuOpen(false)}>Signal Trends</a>
               <a href="/rankings" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Rankings</a>
               <a href="/pricing" className="text-sm font-medium" style={{ color: "oklch(0.769 0.188 70.08)" }}>Pricing</a>
               <div className="flex gap-3 pt-2">
@@ -767,14 +773,16 @@ function Footer() {
     { title: "Product", links: [
       { label: "Platform", href: "/platform" },
       { label: "PYTHIA Agent", href: "/activate" },
+      { label: "Signal Trends", href: "/signal-trends" },
       { label: "Rankings", href: "/rankings" },
+      { label: "Explore", href: "/explore" },
       { label: "Pricing", href: "/pricing" },
     ]},
     { title: "Resources", links: [
       { label: "Methodology", href: "/methodology" },
       { label: "Newsletter", href: "/newsletter" },
-      { label: "API Docs", href: null },
-      { label: "Changelog", href: null },
+      { label: "About", href: "/about" },
+      { label: "Support", href: "/support" },
     ]},
     { title: "Company", links: [
       { label: "About", href: null },

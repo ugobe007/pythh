@@ -17,14 +17,22 @@ import Login from "./pages/Login";
 import Platform from "./pages/Platform";
 import Methodology from "./pages/Methodology";
 import Newsletter from "./pages/Newsletter";
+import SignalTrends from "./pages/SignalTrends";
+import About from "./pages/About";
+import Support from "./pages/Support";
+import Explore from "./pages/Explore";
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/activate"} component={Activate} />
+      <Route path={"/signal-trends"} component={SignalTrends} />
+      <Route path={"/explore"} component={Explore} />
       <Route path={"/platform"} component={Platform} />
       <Route path={"/methodology"} component={Methodology} />
       <Route path={"/newsletter"} component={Newsletter} />
+      <Route path={"/about"} component={About} />
+      <Route path={"/support"} component={Support} />
       <Route path={"/rankings"} component={Rankings} />
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
