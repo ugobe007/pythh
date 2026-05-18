@@ -47,12 +47,10 @@ const FALLBACK_SIGNALS: Signal[] = [
   { investor: "Bill Gurley",    firm: "Benchmark",           action: "Thesis alignment detected", detail: "Recent LP update references composable infrastructure — matches your architecture", score: 82, time: "9m ago", type: "meeting" },
 ];
 
-/** `signal` is stored as integer×10 on a 0–10 scale in pythh_investors.
- * Multiply by 10 for a 0–100 display score.
- */
-function buildSignals(investors: { name: string; firm: string; signal: number; recentActivity?: string | null }[]): Signal[] {
+/** `investorScore` from the main investors table is already 0–100. */
+function buildSignals(investors: { name: string; firm: string; investorScore: number; recentActivity?: string | null }[]): Signal[] {
   return investors.slice(0, 6).map((inv, i) => {
-    const score = Math.max(50, Math.min(99, Math.round(inv.signal * 10) || 70));
+    const score = Math.max(50, Math.min(99, inv.investorScore || 70));
     const type: Signal["type"] = score >= 85 ? "bullish" : score >= 70 ? "neutral" : "meeting";
     const action = ACTIONS[i % ACTIONS.length];
     const detail = inv.recentActivity || `Signal strength ${score} — thesis and stage alignment detected for your market`;
@@ -92,9 +90,9 @@ export default function PythiaReveal({ autoPlay = true }: { autoPlay?: boolean }
   const [phase, setPhase] = useState<AnimPhase>(reduceMotion ? "revealed" : "hidden");
   const [signalIdx, setSignalIdx] = useState(0);
 
-  // Real investor signals from DB — refreshed every 5 minutes
-  const { data: investorData } = trpc.investors.getRankings.useQuery(
-    { limit: 8, sortBy: "signal", sortDir: "desc" },
+  // Real investor signals from the full 6000+ investor pool
+  const { data: investorData } = trpc.investors.getAnimationFeed.useQuery(
+    { limit: 8 },
     { staleTime: 5 * 60 * 1000 }
   );
   const liveSignals: Signal[] = investorData?.investors?.length

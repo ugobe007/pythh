@@ -40,14 +40,11 @@ const SIGNAL_LABELS = [
 ];
 
 /** Map real DB investors → Lead cards.
- * `signal` from pythh_investors is stored as integer×10 (e.g. 86 = 8.6 on 0–10 scale).
- * Multiply by 10 to get a 0–100 display score, then clamp.
+ * `investorScore` from the main investors table is already on a 0–100 scale.
  */
-function mapInvestorsToLeads(investors: { name: string; firm: string; signal: number; recentActivity?: string | null }[]): Lead[] {
+function mapInvestorsToLeads(investors: { name: string; firm: string; investorScore: number; recentActivity?: string | null }[]): Lead[] {
   return investors.map((inv, i) => {
-    // signal is ×10 on a 0-10 scale → multiply by 10 for 0-100 display
-    const scoreRaw = Math.round(inv.signal * 10);
-    const score = Math.max(50, Math.min(99, scoreRaw || 70));
+    const score = Math.max(50, Math.min(99, inv.investorScore || 70));
     const type: Lead["type"] = score >= 85 ? "hot" : score >= 75 ? "bullish" : "meeting";
     const signal = inv.recentActivity
       ? inv.recentActivity.slice(0, 40)
@@ -78,9 +75,9 @@ export default function PythiaRadarFeed() {
   const feedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
-  // Fetch real investor data from DB — refreshed every 5 minutes
-  const { data: investorData } = trpc.investors.getRankings.useQuery(
-    { limit: 20, sortBy: "signal", sortDir: "desc" },
+  // Fetch a random cohort from the full 6000+ investor pool each load
+  const { data: investorData } = trpc.investors.getAnimationFeed.useQuery(
+    { limit: 20 },
     { staleTime: 5 * 60 * 1000 }
   );
   const allLeads: Lead[] = investorData?.investors?.length

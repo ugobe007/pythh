@@ -12,6 +12,7 @@ import {
   getAdminAggregateStats,
   getFounderProfile,
   getInvestorById,
+  getAnimationFeed,
   getInvestorRankings,
   getPipelineFeedbackByRunId,
   getRecentFeedbackWithUsers,
@@ -214,6 +215,18 @@ export const appRouter = router({
   }),
 
   investors: router({
+    /**
+     * Returns a random sample of top qualified investors from the main investors
+     * table (6000+ records) for the home page animation. Each call returns a
+     * different cohort from the top-1800 ranked investors.
+     */
+    getAnimationFeed: publicProcedure
+      .input(z.object({ limit: z.number().min(1).max(30).optional() }))
+      .query(async ({ input }) => {
+        const rows = await getAnimationFeed(input.limit ?? 20);
+        return { investors: rows };
+      }),
+
     /**
      * Returns paginated investor signal rankings.
      * Oracle subscribers see all 44 records; non-subscribers see the 10 public rows.

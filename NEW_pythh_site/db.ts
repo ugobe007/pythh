@@ -789,3 +789,64 @@ export async function listUsersBrief(limit = 100) {
     .orderBy(desc(users.createdAt))
     .limit(limit);
 }
+
+// ─── Animation Feed ───────────────────────────────────────────────────────────
+
+export interface AnimationInvestor {
+  name: string;
+  firm: string;
+  sectors: string[];
+  investorScore: number;
+  recentActivity: string | null;
+}
+
+const ANIMATION_SIGNAL_LABELS = [
+  "New fund deploy", "Thesis match", "Portfolio gap", "Stage alignment",
+  "Fund cycle: early", "LP update signal", "New vertical focus",
+  "Recent co-invest signal", "Optics: strong fit", "Thesis update detected",
+  "Check-writing velocity", "Sector conviction signal",
+];
+
+/**
+ * Returns a random sample of top qualified investors from the main `investors`
+ * table for use in the home page animation. Picks a random page offset so each
+ * load shows a different mix of investors.
+ */
+export async function getAnimationFeed(limit = 20): Promise<AnimationInvestor[]> {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+    const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+    if (!sbUrl || !sbKey) return [];
+
+    const sb = createClient(sbUrl, sbKey);
+
+    // Pick a random offset within the top-2000 qualified investors so every
+    // page load surfaces a different cohort.
+    const POOL_SIZE = 1800;
+    const maxOffset = Math.max(0, POOL_SIZE - limit);
+    const randomOffset = Math.floor(Math.random() * maxOffset);
+
+    const { data, error } = await sb
+      .from("investors")
+      .select("name, firm, sectors, investor_score, investment_thesis")
+      .eq("entity_gate", "qualified")
+      .gte("investor_score", 50)
+      .order("investor_score", { ascending: false })
+      .range(randomOffset, randomOffset + limit - 1);
+
+    if (error || !data?.length) return [];
+
+    return data.map((r, i) => ({
+      name: r.name || r.firm || "Anonymous",
+      firm: r.firm || r.name || "VC Fund",
+      sectors: Array.isArray(r.sectors) ? r.sectors : [],
+      investorScore: typeof r.investor_score === "number" ? r.investor_score : 60,
+      recentActivity: r.investment_thesis
+        ? (r.investment_thesis as string).slice(0, 50) + "…"
+        : ANIMATION_SIGNAL_LABELS[i % ANIMATION_SIGNAL_LABELS.length],
+    }));
+  } catch {
+    return [];
+  }
+}
