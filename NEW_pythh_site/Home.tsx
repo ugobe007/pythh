@@ -154,16 +154,16 @@ function Navbar() {
                 onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
               >{label}</a>
             ))}
-            <a href="/signal-trends" className="text-sm font-medium transition-colors duration-200"
+            <a href="/rankings" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#22d3ee")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-            >Signal Trends</a>
-            <a href="/rankings" className="text-sm font-medium transition-colors duration-200"
+            >Rankings</a>
+            <a href="/investors" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.696 0.17 162.48)")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-            >Rankings</a>
+            >Investors</a>
             <a href="/pricing" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.769 0.188 70.08)")}
@@ -223,8 +223,8 @@ function Navbar() {
               ].map(({ label, href }) => (
                 <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-sm font-medium text-left" style={{ color: "oklch(0.65 0.01 264)" }}>{label}</a>
               ))}
-              <a href="/signal-trends" className="text-sm font-medium" style={{ color: "#22d3ee" }} onClick={() => setMenuOpen(false)}>Signal Trends</a>
-              <a href="/rankings" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Rankings</a>
+              <a href="/rankings" className="text-sm font-medium" style={{ color: "#22d3ee" }} onClick={() => setMenuOpen(false)}>Rankings</a>
+              <a href="/investors" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Investors</a>
               <a href="/pricing" className="text-sm font-medium" style={{ color: "oklch(0.769 0.188 70.08)" }}>Pricing</a>
               <div className="flex gap-3 pt-2">
                 {isAuthenticated ? (
@@ -561,7 +561,7 @@ function LiveSignalsSection() {
           ))}
           <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "oklch(0.17 0.01 264)" }}>
             <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>Signal = timing · GOD = investment readiness · VC++ = investor optics</p>
-            <a href="/rankings" className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+            <a href="/investors" className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
               See full rankings <ChevronRight size={12} />
             </a>
           </div>
@@ -754,8 +754,8 @@ function Footer() {
     { title: "Product", links: [
       { label: "Platform", href: "/platform" },
       { label: "PYTHIA Agent", href: "/activate" },
-      { label: "Signal Trends", href: "/signal-trends" },
       { label: "Rankings", href: "/rankings" },
+      { label: "Investors", href: "/investors" },
       { label: "Explore", href: "/explore" },
       { label: "Pricing", href: "/pricing" },
     ]},

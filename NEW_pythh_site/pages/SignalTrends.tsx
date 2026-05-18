@@ -326,17 +326,17 @@ export default function SignalTrends() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
       <Helmet>
-        <title>Signal Trends — Startup VC Lens Rankings — Pythh.ai</title>
+        <title>Rankings — Startup VC Lens Scoreboard — Pythh.ai</title>
         <meta
           name="description"
           content="See how the same startups rank under different VC scoring philosophies — YC, Sequoia, a16z, Founders Fund and more. Live startup lens rankings powered by GOD score."
         />
-        <meta property="og:title" content="Signal Trends — Pythh.ai" />
+        <meta property="og:title" content="Rankings — Pythh.ai" />
         <meta
           property="og:description"
           content="Live startup VC-lens scoreboard. Switch between investor models and watch the rankings shift in real time."
         />
-        <meta property="og:url" content="https://pythh.ai/signal-trends" />
+        <meta property="og:url" content="https://pythh.ai/rankings" />
       </Helmet>
 
       {/* ── Navbar ── */}
@@ -360,8 +360,8 @@ export default function SignalTrends() {
 
             <div className="hidden md:flex items-center gap-6">
               {[
-                { href: "/signal-trends", label: "Signal Trends" },
                 { href: "/rankings", label: "Rankings" },
+                { href: "/investors", label: "Investors" },
                 { href: "/platform", label: "Platform" },
                 { href: "/methodology", label: "Methodology" },
               ].map(({ href, label }) => (
@@ -370,7 +370,7 @@ export default function SignalTrends() {
                     className="text-sm font-medium cursor-pointer transition-colors"
                     style={{
                       color:
-                        href === "/signal-trends"
+                        href === "/rankings"
                           ? activeLens.accent
                           : "oklch(0.65 0.01 264)",
                     }}

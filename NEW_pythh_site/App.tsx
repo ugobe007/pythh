@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./Home";
@@ -10,7 +10,7 @@ import Pricing from "./Pricing";
 import CheckoutSuccess from "./CheckoutSuccess";
 import CheckoutCancel from "./CheckoutCancel";
 import Account from "./Account";
-import Rankings from "./Rankings";
+import InvestorRankings from "./Rankings";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
@@ -26,14 +26,20 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/activate"} component={Activate} />
-      <Route path={"/signal-trends"} component={SignalTrends} />
+      {/* /rankings = startup VC-lens scoreboard (legacy app canonical route) */}
+      <Route path={"/rankings"} component={SignalTrends} />
+      {/* /signal-trends redirects to /rankings for backward compat */}
+      <Route path={"/signal-trends"}>
+        <Redirect to="/rankings" />
+      </Route>
+      {/* /investors = investor intelligence table */}
+      <Route path={"/investors"} component={InvestorRankings} />
       <Route path={"/explore"} component={Explore} />
       <Route path={"/platform"} component={Platform} />
       <Route path={"/methodology"} component={Methodology} />
       <Route path={"/newsletter"} component={Newsletter} />
       <Route path={"/about"} component={About} />
       <Route path={"/support"} component={Support} />
-      <Route path={"/rankings"} component={Rankings} />
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
       <Route path={"/checkout/cancel"} component={CheckoutCancel} />

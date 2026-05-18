@@ -198,7 +198,7 @@ export default function Rankings() {
         <meta name="description" content="Live investor signal rankings. Filter by sector, sort by GOD score or VCPP, and discover which VCs are most likely to fund your startup right now." />
         <meta property="og:title" content="Investor Rankings — Pythh.ai" />
         <meta property="og:description" content="Real-time investor signal intelligence. 44+ top VCs ranked by thesis alignment, portfolio velocity, and check-writing probability." />
-        <meta property="og:url" content="https://pythh.ai/rankings" />
+        <meta property="og:url" content="https://pythh.ai/investors" />
       </Helmet>
       {/* ── Navbar ── */}
       <nav
