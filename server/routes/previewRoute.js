@@ -85,7 +85,7 @@ async function buildSuggestedInvestorMatches(startup) {
   }
   return (topPace || []).map((inv) => ({
     investor_id: inv.id,
-    match_score: Math.min(100, Math.max(25, 40 + Math.round((Number(inv.investor_score) || 0) / 5))),
+    match_score: Math.min(100, Math.max(25, Math.round(Number(inv.investor_score) || 40))),
     why_you_match:
       'Actively deploying investors (suggested for preview) while we compute your custom fit scores.',
     investor: {

@@ -403,7 +403,7 @@ const PIPELINE_CONFIG = {
   MAX_CANDIDATE_INVESTORS: parseInt(process.env.MAX_CANDIDATE_INVESTORS || '1000', 10),
   FAST_MATCH_LIMIT: parseInt(process.env.FAST_MATCH_LIMIT || '300', 10),
   TOP_RESULTS_TO_SAVE: parseInt(process.env.TOP_RESULTS_TO_SAVE || '100', 10),
-  MIN_INVESTOR_SCORE: parseFloat(process.env.MIN_INVESTOR_SCORE || '5.0'),
+  MIN_INVESTOR_SCORE: parseFloat(process.env.MIN_INVESTOR_SCORE || '30'),  // 0-100 GOD scale (was 5.0 on 0-10)
 };
 
 const STAGE_MAP = {
@@ -461,7 +461,8 @@ function scoreStageMatch(startupStage, investorStages) {
 }
 
 function scoreInvestorQuality(score, tier) {
-  const baseScore = (score || 5) * 2;
+  // investor_score is now on 0-100 GOD scale — divide by 5 to get 0-20 base
+  const baseScore = (score || 50) / 5;
   const tierBonus = { elite: 5, strong: 3, solid: 1, emerging: 0 }[tier] || 0;
   return Math.min(baseScore + tierBonus, MATCH_CONFIG.INVESTOR_QUALITY);
 }
@@ -579,7 +580,7 @@ function generateReasoning(startup, investor, fitAnalysis) {
   else if (fitAnalysis.sector >= 10) reasons.push(`Adjacent sector interest detected`);
   if (fitAnalysis.stage >= 15) reasons.push(`Stage match: ${investor.name || investor.firm} targets ${startup.stage || 'early'}-stage companies`);
   if (fitAnalysis.investor_quality >= 18) reasons.push(`Top-tier investor with strong track record`);
-  else if (fitAnalysis.investor_quality >= 15) reasons.push(`Established investor with relevant portfolio`);
+  else if (fitAnalysis.investor_quality >= 13) reasons.push(`Established investor with relevant portfolio`);
   if (fitAnalysis.startup_quality >= 22) reasons.push(`Exceptional startup fundamentals (GOD Score: ${startup.total_god_score || 'N/A'})`);
   else if (fitAnalysis.startup_quality >= 18) reasons.push(`Strong startup metrics and team`);
   if (fitAnalysis.signal >= 8) reasons.push(`High market signal: strong momentum and investor interest detected`);
