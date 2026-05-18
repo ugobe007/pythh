@@ -529,6 +529,12 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const canSubmit = !!url && emailValid;
 
+  // Pre-warm the Fly.io machine as soon as the entry form mounts so the
+  // backend is ready before the user hits Activate (prevents cold-start lag).
+  useEffect(() => {
+    fetch("/api/instant/health", { method: "GET" }).catch(() => {});
+  }, []);
+
   const handleActivate = () => {
     if (!canSubmit) return;
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
@@ -636,23 +642,26 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
 
 // ─── Step 2: Scanning Animation ───────────────────────────────────────────────
 
+// Milliseconds before we show the "taking longer than expected" message.
+const SLOW_WARN_MS = 18000;
+// Hard client-side timeout — avoids indefinite hang on Fly.io cold start.
+const CLIENT_FETCH_TIMEOUT_MS = 60000;
+
 function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: ApiResult | null) => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [progress, setProgress] = useState(0);
+  const [slowWarn, setSlowWarn] = useState(false);
   const capturedEmail = sessionStorage.getItem("pythia_email") || "";
   const apiResultRef = useRef<ApiResult | null | undefined>(undefined);
   const completeCalledRef = useRef(false);
 
-  // Complete as soon as the API responds — don't gate on animation duration.
-  // The animation keeps playing while we wait, but the moment results are ready
-  // we move on. Minimum 1.2s so the user sees at least one scan step complete.
   const MIN_DISPLAY_MS = 1200;
   const mountTimeRef = useRef(Date.now());
 
   const maybeComplete = () => {
     if (completeCalledRef.current) return;
-    if (apiResultRef.current === undefined) return; // API not done yet
+    if (apiResultRef.current === undefined) return;
     const elapsed = Date.now() - mountTimeRef.current;
     const delay = Math.max(0, MIN_DISPLAY_MS - elapsed);
     completeCalledRef.current = true;
@@ -660,17 +669,22 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
   };
 
   useEffect(() => {
-    // Fire real API call — complete the moment it resolves
     const normalized = url.startsWith("http") ? url : `https://${url}`;
+    const controller = new AbortController();
+
+    // Show slow-warn banner after SLOW_WARN_MS
+    const slowTimer = setTimeout(() => setSlowWarn(true), SLOW_WARN_MS);
+    // Hard client-side abort after CLIENT_FETCH_TIMEOUT_MS
+    const abortTimer = setTimeout(() => controller.abort(), CLIENT_FETCH_TIMEOUT_MS);
+
     fetch("/api/instant/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: normalized }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data: Record<string, unknown>) => {
-        // Preserve startup_id and gen_in_progress from the raw response so
-        // ResultsStep can poll for live score updates.
         const result: ApiResult = {
           startup: (data.startup as ApiStartup) ?? null,
           matches: Array.isArray(data.matches) ? (data.matches as ApiMatch[]) : [],
@@ -681,35 +695,51 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
         apiResultRef.current = result;
       })
       .catch(() => { apiResultRef.current = null; })
-      .finally(maybeComplete);
+      .finally(() => {
+        clearTimeout(slowTimer);
+        clearTimeout(abortTimer);
+        maybeComplete();
+      });
 
-    // Animation plays while we wait — cosmetic only, does not gate completion
+    // Animation loops through steps continuously until the API responds.
     let stepIndex = 0;
-    let totalElapsed = 0;
-    const totalDuration = SCAN_STEPS.reduce((a, s) => a + s.duration, 0);
+    let loopCount = 0;
+    let cancelled = false;
 
     const runStep = () => {
-      if (stepIndex >= SCAN_STEPS.length) return;
-      setCurrentStep(stepIndex);
-      const duration = SCAN_STEPS[stepIndex].duration;
-      const startProgress = (totalElapsed / totalDuration) * 100;
-      const endProgress = ((totalElapsed + duration) / totalDuration) * 100;
+      if (cancelled) return;
+      const realIdx = stepIndex % SCAN_STEPS.length;
+      if (realIdx === 0 && stepIndex > 0) loopCount++;
+      setCurrentStep(realIdx);
+      const duration = SCAN_STEPS[realIdx].duration;
+      // Progress oscillates 0→95 on first pass, 95→75→95 on subsequent loops
+      // so the bar never hits 100 while waiting.
+      const loopBase = loopCount === 0 ? 0 : 75;
+      const loopEnd  = loopCount === 0 ? 95 : 95;
+      const stepFrac = realIdx / SCAN_STEPS.length;
+      const nextFrac = (realIdx + 1) / SCAN_STEPS.length;
+      const startP = loopBase + (loopEnd - loopBase) * stepFrac;
+      const endP   = loopBase + (loopEnd - loopBase) * nextFrac;
       const startTime = Date.now();
       const progressInterval = setInterval(() => {
         const elapsed = Date.now() - startTime;
-        const p = startProgress + ((endProgress - startProgress) * elapsed) / duration;
-        setProgress(Math.min(p, endProgress));
+        const p = startP + (endP - startP) * Math.min(elapsed / duration, 1);
+        setProgress(p);
         if (elapsed >= duration) clearInterval(progressInterval);
       }, 16);
       setTimeout(() => {
-        setCompletedSteps((prev) => [...prev, stepIndex]);
-        totalElapsed += duration;
+        if (cancelled) return;
+        setCompletedSteps((prev) => {
+          const next = [...prev, realIdx];
+          return next.length > SCAN_STEPS.length ? [realIdx] : next;
+        });
         stepIndex++;
         runStep();
       }, duration);
     };
 
     runStep();
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -734,9 +764,24 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
         <h2 className="font-display font-bold mb-2" style={{ fontSize: "clamp(1.5rem, 4vw, 2.25rem)", color: "oklch(0.97 0.005 264)" }}>
           Reading your startup.
         </h2>
-        <p className="text-sm mb-4" style={{ color: "oklch(0.5 0.01 264)" }}>
-          Scoring 5,000+ investors across 40 dimensions. This takes about 60 seconds.
-        </p>
+        {slowWarn ? (
+          <div className="flex items-start gap-3 mb-4 px-4 py-3 rounded-lg"
+            style={{ backgroundColor: "oklch(0.769 0.188 70.08 / 0.08)", border: "1px solid oklch(0.769 0.188 70.08 / 0.25)" }}>
+            <span style={{ color: "oklch(0.769 0.188 70.08)", fontSize: 14, flexShrink: 0 }}>⏳</span>
+            <div>
+              <p className="text-xs font-semibold mb-0.5" style={{ color: "oklch(0.769 0.188 70.08)" }}>
+                Still analyzing — deeper signals take longer
+              </p>
+              <p className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>
+                PYTHIA is cross-referencing fund cycles, LP signals, and 5,000+ investors. Hang tight — results are on the way.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm mb-4" style={{ color: "oklch(0.5 0.01 264)" }}>
+            Scoring 5,000+ investors across 40 dimensions. This takes about 60 seconds.
+          </p>
+        )}
         {capturedEmail && (
           <div className="flex items-center gap-2 mb-8 px-4 py-2.5 rounded-lg"
             style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.07)", border: "1px solid oklch(0.696 0.17 162.48 / 0.2)" }}>
