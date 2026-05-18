@@ -272,17 +272,11 @@ function HeroSection() {
       className="relative min-h-screen flex items-center pt-16 overflow-hidden"
       style={{ backgroundColor: "oklch(0.13 0.01 264)" }}
     >
-      {/* Quiet depth — no decorative sparkle / stock hero texture */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        aria-hidden
-        style={{
-          opacity: 0.35,
-          background:
-            "radial-gradient(ellipse 85% 65% at 100% 35%, oklch(0.2 0.035 162 / 0.45) 0%, transparent 58%)",
-        }}
+      {/* Background */}
+      <div className="absolute inset-0 opacity-25"
+        style={{ backgroundImage: `url(https://d2xsxph8kpxj0f.cloudfront.net/310519663452998285/Gb3VDTJy3RdmPq23Ws9y3c/pythh_hero_bg-YrbG7hFTcwHXUFzhCy4ukf.webp)`, backgroundSize: "cover", backgroundPosition: "center right" }}
       />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(to right, oklch(0.13 0.01 264) 50%, oklch(0.13 0.01 264 / 0.92) 78%, oklch(0.13 0.01 264 / 0.75) 100%)" }} />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(to right, oklch(0.13 0.01 264) 45%, oklch(0.13 0.01 264 / 0.7) 70%, oklch(0.13 0.01 264 / 0.2) 100%)" }} />
       <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.13 0.01 264), transparent)" }} />
 
       <div className="container relative z-10 py-20">
@@ -429,15 +423,16 @@ function AgentIntroSection() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left: PYTHIA Animated Reveal */}
           <div ref={ref} className={`relative flex items-center justify-center ${isVisible ? "animate-fade-in-up" : "opacity-0"}`} style={{ animationFillMode: "forwards", minHeight: 360 }}>
-            <div
-              className="absolute inset-0 rounded-3xl"
-              style={{
-                background: "oklch(0.14 0.012 264)",
-                border: "1px solid oklch(0.25 0.01 264)",
-              }}
-            />
+            {/* Radial dark backdrop */}
+            <div className="absolute inset-0 rounded-3xl" style={{ background: "radial-gradient(ellipse at center, oklch(0.18 0.015 162) 0%, oklch(0.13 0.01 264) 70%)", border: "1px solid oklch(0.696 0.17 162.48 / 0.12)" }} />
+            {/* Corner accent lines */}
+            <div className="absolute top-4 left-4 w-8 h-8" style={{ borderTop: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderLeft: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
+            <div className="absolute top-4 right-4 w-8 h-8" style={{ borderTop: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderRight: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
+            <div className="absolute bottom-4 left-4 w-8 h-8" style={{ borderBottom: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderLeft: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
+            <div className="absolute bottom-4 right-4 w-8 h-8" style={{ borderBottom: "1px solid oklch(0.696 0.17 162.48 / 0.4)", borderRight: "1px solid oklch(0.696 0.17 162.48 / 0.4)" }} />
+            {/* Label */}
             <div className="absolute top-5 left-0 right-0 flex justify-center">
-              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48 / 0.45)" }}>PYTHIA SEES THE SIGNAL</span>
+              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48 / 0.5)" }}>PYTHIA SEES THE SIGNAL</span>
             </div>
             <Suspense
               fallback={
@@ -458,22 +453,8 @@ function AgentIntroSection() {
               <div className="h-px w-8" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
               <span className="section-label">MEET YOUR ORACLE</span>
             </div>
-            <h2
-              className="font-display font-bold mb-2 flex flex-wrap items-center gap-3"
-              style={{ fontSize: "clamp(2rem, 4vw, 3rem)", color: "oklch(0.97 0.005 264)" }}
-            >
-              <img
-                src="/images/pythh_oracle.png"
-                alt=""
-                width={44}
-                height={44}
-                className="rounded-lg object-contain flex-shrink-0"
-                style={{
-                  border: "1px solid oklch(0.28 0.01 264)",
-                  boxShadow: "0 0 0 1px oklch(0.696 0.17 162.48 / 0.12)",
-                }}
-              />
-              <span>Meet PYTHIA.</span>
+            <h2 className="font-display font-bold mb-2" style={{ fontSize: "clamp(2rem, 4vw, 3rem)", color: "oklch(0.97 0.005 264)" }}>
+              Meet PYTHIA.
             </h2>
             <p className="text-lg font-medium mb-6" style={{ color: "oklch(0.769 0.188 70.08)" }}>
               The Oracle of your fundraise.
