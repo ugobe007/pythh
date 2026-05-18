@@ -23,13 +23,21 @@
  *   node scripts/reclassify-zero-signal-junk.js --delete-nulls --execute  # hard-delete null names
  *   node scripts/reclassify-zero-signal-junk.js --pre-gate --execute      # name-junk pre-filter
  *                                                                           # (run before gate)
+ *   node scripts/reclassify-zero-signal-junk.js --approved                # dry-run: count qualified
+ *                                                                           # rows with headline descriptions
+ *   node scripts/reclassify-zero-signal-junk.js --approved --execute      # mark headline-desc qualified rows as junk
+ *   node scripts/reclassify-zero-signal-junk.js --approved --execute --reject  # + set status=pending for review
  *
- * Five eviction paths:
- *   1. Null names   — name IS NULL or empty string → hard DELETE (not just reclassify)
- *   2. Pre-gate junk — name fails junk filter on unclassified rows (entity_gate IS NULL)
- *   3. Zero-signal  — no pitch/raise/metrics at all → entity_gate='junk'
- *   4. Name-junk    — evaluateStartupNameForPipeline() (logic engine → ontology → entity ontology → legacy safety net)
- *   5. Exhausted    — 3+ enrichment attempts, no URL found, no founder metrics
+ * Six eviction paths:
+ *   1. Null names        — name IS NULL or empty string → hard DELETE (not just reclassify)
+ *   2. Pre-gate junk     — name fails junk filter on unclassified rows (entity_gate IS NULL)
+ *   3. Zero-signal       — no pitch/raise/metrics at all → entity_gate='junk'
+ *   4. Name-junk         — evaluateStartupNameForPipeline() (logic engine → ontology → entity ontology → legacy safety net)
+ *   5. Exhausted         — 3+ enrichment attempts, no URL found, no founder metrics
+ *   6. Headline-desc     — [--approved] entity_gate=qualified rows whose description is an RSS news article
+ *                          headline (media attribution suffix, funding verb, currency lead, etc.)
+ *                          AND have no real founder-submitted signals (no pitch, no customers/mrr/arr).
+ *                          The raise_amount alone does NOT count — it was extracted from the article text.
  *
  * RECOMMENDED PIPELINE ORDER:
  *   node scripts/reclassify-zero-signal-junk.js --pre-gate --execute
@@ -62,8 +70,61 @@ const EXECUTE = argv.includes('--execute');
 const REJECT = EXECUTE && argv.includes('--reject');
 const DELETE_NULLS = argv.includes('--delete-nulls');
 const PRE_GATE = argv.includes('--pre-gate');
+const APPROVED_MODE = argv.includes('--approved'); // NEW: also scan entity_gate=qualified rows
 const DEBUG = argv.includes('--debug');
 const DEBUG_LIMIT = 30;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEWS HEADLINE DESCRIPTION DETECTOR
+// Catches approved/qualified startups whose description field is an RSS article
+// headline rather than an actual company description.
+//
+// Patterns detected:
+//   1. Media attribution suffix  — "Startup raises $5M - TechCrunch"
+//   2. Media source prefix       — "Reuters:\nSources: ..."
+//   3. Currency-led headline     — "€7.5M for RAYDIAX to trial..."
+//   4. Funding announcement verb — "CompanyX raises/closes/secures $Xm"
+//   5. Acquisition/M&A headline  — "Acme acquires Rival for $50M"
+//   6. Article verb openers      — "Launches|Announces|Unveils [product] for..."
+//
+// Returns the matched pattern label (truthy) or null (not a headline).
+// ─────────────────────────────────────────────────────────────────────────────
+const HEADLINE_MEDIA_SUFFIX = new RegExp(
+  '[-–]\\s*(' +
+  'techcrunch|sifted|venturebeat|axios|forbes|bloomberg|reuters|businesswire|' +
+  'globenewswire|prnewswire|ft\\.com|wired|crunchbase|pitchbook|the information|' +
+  'wsj|wall street journal|cnbc|cnn|nytimes|businessinsider|eu-startups|' +
+  'dealroom|finsmes|techfundingnews|tech\\.eu|startupbeat|dealstreetasia|' +
+  'fiercebiotech|mobihealthnews|healthcareitnews|pymnts|finextra|coindesk|' +
+  'theblock|decrypt|blockworks|fastcompany|inc\\.com|hbr' +
+  ')\\s*$',
+  'i'
+);
+
+const HEADLINE_MEDIA_PREFIX = /^(reuters|bloomberg|businesswire|globenewswire|prnewswire|ap news|pr newswire|sec|edgar|accesswire)\s*[:\n]/i;
+
+const HEADLINE_CURRENCY_LEAD = /^[\$€£¥₹]\d[\d,.]*\s*([kmb]|\bmillion\b|\bbillion\b)?/i;
+
+const HEADLINE_FUNDING_VERB = /\b(raises?|raised?|closes?|closed?|secures?|secured?|bags?|bagged?|earmarks?|commits?)\s+[\$€£¥₹]?[\d,.]+\s*([kmb]|\bmillion\b|\bbillion\b)/i;
+
+const HEADLINE_MA = /\b(acqui(?:res?|red?|sition)|merger|buyout|ipo\b|goes\s+public|spac\s+deal)\b.{0,60}[\$€£¥₹][\d,.]+/i;
+
+const HEADLINE_ARTICLE_OPENERS = /^(breaking|exclusive|just in|report|sources?:|watch|listen|read|opinion|analysis|interview|q&a)[\s:]/i;
+
+function isNewsHeadlineDescription(row) {
+  // Check description then tagline; name alone is not sufficient as it may be
+  // a valid startup name extracted FROM the headline.
+  const desc = [row.description, row.tagline].filter(Boolean).join(' ').trim();
+  if (!desc || desc.length < 15) return null;
+
+  if (HEADLINE_MEDIA_SUFFIX.test(desc))    return 'media_suffix';
+  if (HEADLINE_MEDIA_PREFIX.test(desc))    return 'media_prefix';
+  if (HEADLINE_CURRENCY_LEAD.test(desc))   return 'currency_lead';
+  if (HEADLINE_FUNDING_VERB.test(desc))    return 'funding_verb';
+  if (HEADLINE_MA.test(desc))              return 'ma_headline';
+  if (HEADLINE_ARTICLE_OPENERS.test(desc)) return 'article_opener';
+  return null;
+}
 
 /**
  * A startup passes the signal check ONLY if it has a field that requires a human
@@ -73,10 +134,15 @@ const DEBUG_LIMIT = 30;
  * essentially every junk row. The only reliable submission-origin signals are:
  *   - pitch: a founder has to actually write this
  *   - raise_amount / customer_count / mrr / arr: explicit numeric business data
+ *
+ * EXCEPTION: raise_amount alone is NOT a signal when the description is a news
+ * headline — the raise_amount was extracted from the article text, not submitted
+ * by a founder.
  */
 function hasAtLeastOneSignal(s) {
   if (s.pitch && s.pitch.trim().length > 20) return true;
-  if (s.raise_amount) return true;
+  // raise_amount from a funding article headline is NOT a founder-submitted signal
+  if (s.raise_amount && !isNewsHeadlineDescription(s)) return true;
   if (s.customer_count || s.mrr || s.arr) return true;
   return false;
 }
@@ -294,15 +360,30 @@ async function run() {
   let zeroSignalIds = [];
   let nameJunkIds = [];
   let exhaustedIds = [];
+  let headlineDescIds = []; // NEW: qualified rows whose description is a news article headline
   let debugPrinted = 0;
+
+  // In --approved mode we run TWO passes:
+  //   Pass A (needs_url): standard zero-signal / name-junk / exhausted checks
+  //   Pass B (qualified): headline-description check on approved+qualified rows
+  const entityGatesToScan = APPROVED_MODE
+    ? ['needs_url', 'qualified']
+    : ['needs_url'];
+
+  for (const gateScope of entityGatesToScan) {
+    page = 0;
+    const isApprovedPass = gateScope === 'qualified';
+    if (APPROVED_MODE) {
+      console.log(`\n=== Scanning entity_gate='${gateScope}' approved startups ===\n`);
+    }
 
   while (true) {
     const from = page * PAGE;
     const { data, error } = await supabase
       .from('startup_uploads')
-      .select('id, name, pitch, sectors, stage, raise_amount, customer_count, mrr, arr, team_size, location, extracted_data, website, company_website, enrichment_attempts, entity_gate')
+      .select('id, name, description, tagline, pitch, sectors, stage, raise_amount, customer_count, mrr, arr, team_size, location, extracted_data, website, company_website, enrichment_attempts, entity_gate')
       .eq('status', 'approved')
-      .eq('entity_gate', 'needs_url')
+      .eq('entity_gate', gateScope)
       .range(from, from + PAGE - 1);
 
     if (error) throw error;
@@ -344,8 +425,36 @@ async function run() {
       }
 
       const exhausted = isEnrichmentExhausted(s);
+      const headlinePattern = isNewsHeadlineDescription(s);
 
-      if (nameJunk) {
+      // In the qualified pass: only flag rows whose description is a news headline
+      // AND which have no real founder-submitted signals beyond raise_amount.
+      // We leave well-formed qualified startups (pitch, customers, mrr) alone.
+      const isHeadlineJunk = isApprovedPass
+        ? (headlinePattern !== null && !hasAtLeastOneSignal(s))
+        : false;
+
+      if (isHeadlineJunk) {
+        headlineDescIds.push(s.id);
+        if (DEBUG) {
+          const desc = [s.description, s.tagline].filter(Boolean).join(' ').slice(0, 100);
+          console.log(`  [headline] "${s.name}" | pattern:${headlinePattern} | desc: "${desc}..."`);
+        }
+        if (mlLogEnabled()) {
+          // Use the existing event_source enum value — ML logging is advisory only.
+          mlJunkBatch.push(
+            buildRowFromSnapshot({
+              startup_id: s.id,
+              name: s.name,
+              event_source: 'reclassify_needs_url',
+              entity_gate: s.entity_gate,
+              bucket: 'headline_description',
+              training_label: 'junk',
+              meta: { execute: EXECUTE, headline_pattern: headlinePattern },
+            }),
+          );
+        }
+      } else if (!isApprovedPass && nameJunk) {
         nameJunkIds.push(s.id);
         if (mlLogEnabled()) {
           mlJunkBatch.push(
@@ -360,7 +469,7 @@ async function run() {
             }),
           );
         }
-      } else if (noSignal) {
+      } else if (!isApprovedPass && noSignal) {
         zeroSignalIds.push(s.id);
         if (mlLogEnabled()) {
           mlJunkBatch.push(
@@ -375,7 +484,7 @@ async function run() {
             }),
           );
         }
-      } else if (exhausted) {
+      } else if (!isApprovedPass && exhausted) {
         exhaustedIds.push(s.id);
         if (mlLogEnabled()) {
           mlJunkBatch.push(
@@ -401,18 +510,20 @@ async function run() {
       }
     }
 
-    if (!DEBUG) console.log(`  Scanned page ${page + 1} (${data.length} rows) — zero-signal: ${zeroSignalIds.length}, exhausted: ${exhaustedIds.length}, name-junk: ${nameJunkIds.length} so far`);
+    if (!DEBUG) console.log(`  Scanned page ${page + 1} (${data.length} rows) — zero-signal: ${zeroSignalIds.length}, exhausted: ${exhaustedIds.length}, name-junk: ${nameJunkIds.length}, headline-desc: ${headlineDescIds.length} so far`);
     if (data.length < PAGE) break;
     page++;
   }
+  } // end for (const gateScope of entityGatesToScan)
 
-  const allJunkIds = [...new Set([...zeroSignalIds, ...nameJunkIds, ...exhaustedIds])];
+  const allJunkIds = [...new Set([...zeroSignalIds, ...nameJunkIds, ...exhaustedIds, ...headlineDescIds])];
 
   console.log('\n─────────────────────────────────────────');
   console.log(`Total scanned:    ${totalScanned}`);
   console.log(`Zero-signal rows: ${zeroSignalIds.length}  (name only — no pitch/sectors/stage/location)`);
   console.log(`Name-junk rows:   ${nameJunkIds.length}  (failed isGarbage or ontologyJunkReason)`);
   console.log(`Exhausted rows:   ${exhaustedIds.length}  (3+ enrichment attempts, no URL, no metrics)`);
+  console.log(`Headline-desc:    ${headlineDescIds.length}  (--approved: qualified rows with news article titles as description)`);
   console.log(`Combined junk:    ${allJunkIds.length}`);
   console.log(`Will remain:      ${totalScanned - allJunkIds.length}`);
   console.log('─────────────────────────────────────────\n');
