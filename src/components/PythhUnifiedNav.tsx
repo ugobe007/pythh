@@ -18,7 +18,7 @@ interface NavLink {
 // Always-visible primary links
 const PRIMARY_LINKS: NavLink[] = [
   { label: "Platform", to: "/platform" },
-  { label: "Brief", to: "/pricing#fundraising-brief" },
+  { label: "Rankings", to: "/rankings" },
   { label: "Explore", to: "/explore" },
   { label: "Submit", to: "/submit" },
   { label: "Pricing", to: "/pricing" },
@@ -26,9 +26,9 @@ const PRIMARY_LINKS: NavLink[] = [
 
 // Secondary links tucked into "More" dropdown
 const MORE_LINKS: NavLink[] = [
+  { label: "Methodology", to: "/methodology" },
   { label: "Find Investors", to: "/lookup" },
   { label: "Hot Matches", to: "/hot-matches" },
-  { label: "Rankings", to: "/rankings" },
   { label: "AI/ML Investors", to: "/ai-ml-investors" },
   { label: "Robotics Investors", to: "/robotics-investors" },
   { label: "SpaceTech Investors", to: "/spacetech-investors" },

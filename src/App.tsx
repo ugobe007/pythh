@@ -96,6 +96,7 @@ const RouteFallback = () => (
 
 const SignalTrends = lazy(() => import("./pages/SignalTrends"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
+const MethodologyPage = lazy(() => import("./pages/MethodologyPage"));
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
@@ -234,6 +235,7 @@ const App = () => {
 
             <Route path="/about" element={<AboutPage />} />
             <Route path="/support" element={<SupportPage />} />
+            <Route path="/methodology" element={<MethodologyPage />} />
             <Route path="/platform" element={<PlatformPage />} />
 
             {/* Legacy/public informational aliases */}

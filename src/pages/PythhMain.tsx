@@ -307,13 +307,14 @@ export default function PythhHome() {
       }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 24, marginBottom: 12 }}>
           {[
-            { label: 'Platform', to: '/platform' },
-            { label: 'Rankings', to: '/rankings' },
-            { label: 'Explore',  to: '/explore'  },
-            { label: 'Newsletter', to: '/newsletter' },
-            { label: 'Pricing',  to: '/pricing'  },
-            { label: 'About',    to: '/about'    },
-            { label: 'Support',  to: '/support'  },
+            { label: 'Platform',    to: '/platform'    },
+            { label: 'Rankings',    to: '/rankings'    },
+            { label: 'Methodology', to: '/methodology' },
+            { label: 'Explore',     to: '/explore'     },
+            { label: 'Newsletter',  to: '/newsletter'  },
+            { label: 'Pricing',     to: '/pricing'     },
+            { label: 'About',       to: '/about'       },
+            { label: 'Support',     to: '/support'     },
           ].map(({ label, to }) => (
             <Link key={label} to={to} style={{
               fontFamily: "'Inter', sans-serif",

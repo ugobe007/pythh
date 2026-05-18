@@ -33,10 +33,10 @@ export default function PythhTopNav({ showSignup = true }: TopNavProps) {
         
         {/* Nav Links */}
         <nav className="flex items-center gap-6">
-          <Link to="/signals" className={linkClass('/signals')}>Signals</Link>
-          <Link to="/matches" className={linkClass('/matches')}>Matches</Link>
+          <Link to="/platform" className={linkClass('/platform')}>Platform</Link>
           <Link to="/rankings" className={linkClass('/rankings')}>Rankings</Link>
-          <Link to="/how-it-works" className={linkClass('/how-it-works')}>How it works</Link>
+          <Link to="/methodology" className={linkClass('/methodology')}>Methodology</Link>
+          <Link to="/explore" className={linkClass('/explore')}>Explore</Link>
           <Link to="/about" className={linkClass('/about')}>About</Link>
           <Link to="/support" className={linkClass('/support')}>Support</Link>
           {showSignup && (
