@@ -26,7 +26,9 @@ import {
   Zap,
   Shield,
   ChevronRight,
-
+  Terminal,
+  Code2,
+  Database,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -248,117 +250,350 @@ function Navbar() {
   );
 }
 
+// ─── MCP Terminal (hero right panel) ─────────────────────────────────────────
+
+const MCP_DEMOS = [
+  {
+    call: `search_startups({\n  sector: "Fintech",\n  min_god_score: 70\n})`,
+    results: [
+      { name: "Stripe",   god: 94, tier: "Elite",  sector: "Fintech" },
+      { name: "Ramp",     god: 89, tier: "Elite",  sector: "Fintech" },
+      { name: "Mercury",  god: 84, tier: "Strong", sector: "Fintech" },
+      { name: "Brex",     god: 81, tier: "Strong", sector: "Fintech" },
+    ],
+    color: "#22d3ee",
+    note: "23 results · data_as_of: today 06:00 UTC",
+  },
+  {
+    call: `match_investors({\n  sector: "AI/ML",\n  min_investor_score: 70\n})`,
+    results: [
+      { name: "Elad Gil",         god: 91, tier: "Elite",  sector: "AI/ML" },
+      { name: "Andreessen Hrwtz", god: 88, tier: "Elite",  sector: "AI/ML" },
+      { name: "Khosla Ventures",  god: 85, tier: "Strong", sector: "AI/ML" },
+      { name: "NEA",              god: 79, tier: "Strong", sector: "AI/ML" },
+    ],
+    color: "#22c55e",
+    note: "18 strong matches · sector_fit: strong",
+  },
+  {
+    call: `get_network_status()`,
+    results: [
+      { name: "Startups scored",   god: 33241, tier: "total",  sector: "" },
+      { name: "Qualified investors",god: 4007,  tier: "active", sector: "" },
+      { name: "Active matches",    god: 91950, tier: "live",   sector: "" },
+      { name: "Updated 24h ago",   god: 142,   tier: "new",    sector: "" },
+    ],
+    color: "#a855f7",
+    note: "network live · scrape completed 06:00 UTC",
+  },
+];
+
+function McpTerminal() {
+  const [demoIdx, setDemoIdx] = useState(0);
+  const [phase, setPhase] = useState<"typing" | "results" | "pause">("typing");
+  const [typedChars, setTypedChars] = useState(0);
+  const [visibleRows, setVisibleRows] = useState(0);
+
+  const demo = MCP_DEMOS[demoIdx];
+
+  useEffect(() => {
+    setTypedChars(0);
+    setVisibleRows(0);
+    setPhase("typing");
+  }, [demoIdx]);
+
+  useEffect(() => {
+    if (phase === "typing") {
+      if (typedChars < demo.call.length) {
+        const t = setTimeout(() => setTypedChars((c) => c + 1), 22);
+        return () => clearTimeout(t);
+      } else {
+        const t = setTimeout(() => setPhase("results"), 400);
+        return () => clearTimeout(t);
+      }
+    }
+    if (phase === "results") {
+      if (visibleRows < demo.results.length) {
+        const t = setTimeout(() => setVisibleRows((r) => r + 1), 220);
+        return () => clearTimeout(t);
+      } else {
+        const t = setTimeout(() => setPhase("pause"), 400);
+        return () => clearTimeout(t);
+      }
+    }
+    if (phase === "pause") {
+      const t = setTimeout(() => setDemoIdx((i) => (i + 1) % MCP_DEMOS.length), 2800);
+      return () => clearTimeout(t);
+    }
+  }, [phase, typedChars, visibleRows, demo]);
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden font-mono text-xs"
+      style={{
+        backgroundColor: "oklch(0.08 0.01 264)",
+        border: "1px solid oklch(0.22 0.01 264)",
+        width: 380,
+        boxShadow: `0 0 40px ${demo.color}18`,
+      }}
+    >
+      {/* Title bar */}
+      <div
+        className="flex items-center gap-2 px-4 py-3"
+        style={{ borderBottom: "1px solid oklch(0.16 0.01 264)", backgroundColor: "oklch(0.105 0.01 264)" }}
+      >
+        <div className="flex gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "oklch(0.5 0.18 25)" }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "oklch(0.65 0.18 75)" }} />
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "oklch(0.55 0.18 145)" }} />
+        </div>
+        <span className="ml-2 text-[10px] tracking-widest uppercase" style={{ color: "oklch(0.4 0.01 264)" }}>
+          pythh:// · MCP tool
+        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+          <span className="text-[10px]" style={{ color: "#22c55e" }}>live</span>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-4 space-y-3" style={{ minHeight: 240 }}>
+        {/* Tool call */}
+        <div>
+          <span style={{ color: "oklch(0.45 0.01 264)" }}>› </span>
+          <span style={{ color: demo.color }}>
+            {demo.call.slice(0, typedChars)}
+          </span>
+          {phase === "typing" && (
+            <span className="animate-pulse" style={{ color: demo.color }}>█</span>
+          )}
+        </div>
+
+        {/* Results */}
+        {phase !== "typing" && (
+          <div className="space-y-1.5 pt-1">
+            {demo.results.slice(0, visibleRows).map((r, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span style={{ color: "oklch(0.4 0.01 264)" }}>{i + 1}.</span>
+                <span className="flex-1 text-white">{r.name}</span>
+                {r.sector && (
+                  <span className="text-[10px]" style={{ color: "oklch(0.45 0.01 264)" }}>{r.sector}</span>
+                )}
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                  style={{ backgroundColor: `${demo.color}20`, color: demo.color }}
+                >
+                  {typeof r.god === "number" && r.god > 1000
+                    ? r.god.toLocaleString()
+                    : r.tier === "total" || r.tier === "active" || r.tier === "live" || r.tier === "new"
+                    ? r.god.toLocaleString()
+                    : r.god}
+                </span>
+              </div>
+            ))}
+            {phase !== "typing" && visibleRows >= demo.results.length && (
+              <div className="pt-1 text-[10px]" style={{ color: "oklch(0.4 0.01 264)" }}>
+                ✓ {demo.note}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div
+        className="px-4 py-2.5 flex items-center justify-between"
+        style={{ borderTop: "1px solid oklch(0.14 0.01 264)", backgroundColor: "oklch(0.09 0.01 264)" }}
+      >
+        <span className="text-[10px]" style={{ color: "oklch(0.35 0.01 264)" }}>
+          mcp.pythh.ai/mcp
+        </span>
+        <div className="flex gap-1">
+          {MCP_DEMOS.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setDemoIdx(i)}
+              className="w-1.5 h-1.5 rounded-full transition-all"
+              style={{ backgroundColor: i === demoIdx ? demo.color : "oklch(0.25 0.01 264)" }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
 function HeroSection() {
   const [url, setUrl] = useState("");
   const [, navigate] = useLocation();
-  const handleSubmit = (e: React.FormEvent) => {
+
+  const handleActivate = (e: React.FormEvent) => {
     e.preventDefault();
     if (url.trim()) {
-      // Normalize URL — add https:// if no protocol given
       const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
       sessionStorage.setItem("pythia_url", normalized);
       navigate("/activate");
     }
   };
-  const submitted = false; // kept for JSX compatibility
 
   return (
     <section
       className="relative min-h-screen flex items-center pt-16 overflow-hidden"
-      style={{ backgroundColor: "oklch(0.13 0.01 264)" }}
+      style={{ backgroundColor: "oklch(0.09 0.01 264)" }}
     >
-      {/* Background */}
-      <div className="absolute inset-0 opacity-25"
-        style={{ backgroundImage: `url(https://d2xsxph8kpxj0f.cloudfront.net/310519663452998285/Gb3VDTJy3RdmPq23Ws9y3c/pythh_hero_bg-YrbG7hFTcwHXUFzhCy4ukf.webp)`, backgroundSize: "cover", backgroundPosition: "center right" }}
+      {/* Subtle grid */}
+      <div
+        className="absolute inset-0 opacity-[0.04]"
+        style={{
+          backgroundImage: "linear-gradient(oklch(0.696 0.17 162.48) 1px, transparent 1px), linear-gradient(90deg, oklch(0.696 0.17 162.48) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
       />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(to right, oklch(0.13 0.01 264) 45%, oklch(0.13 0.01 264 / 0.7) 70%, oklch(0.13 0.01 264 / 0.2) 100%)" }} />
-      <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.13 0.01 264), transparent)" }} />
+      {/* Radial glow */}
+      <div
+        className="absolute top-0 left-0 w-[600px] h-[600px] opacity-10 pointer-events-none"
+        style={{ background: "radial-gradient(circle, #7c3aed 0%, transparent 70%)" }}
+      />
+      <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.09 0.01 264), transparent)" }} />
 
       <div className="container relative z-10 py-20">
-        <div className="max-w-2xl">
-          {/* Label */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-            <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>INVESTOR INTELLIGENCE PLATFORM</span>
-          </div>
+        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-16 lg:gap-20">
 
-          {/* Headline */}
-          <h1 className="font-display font-bold leading-[1.05] mb-6 animate-fade-in-up"
-            style={{ fontSize: "clamp(2.75rem, 6vw, 4.75rem)", color: "oklch(0.97 0.005 264)" }}>
-            Automate your
-            <br />
-            investment
-            <br />
-            <span style={{ color: "oklch(0.696 0.17 162.48)" }}>pipeline.</span>
-          </h1>
+          {/* ── Left column ── */}
+          <div className="flex-1 max-w-xl">
 
-          {/* Subheadline */}
-          <p className="text-lg leading-relaxed mb-4 max-w-xl animate-fade-in-up delay-200"
-            style={{ color: "oklch(0.65 0.01 264)", opacity: 0, animationFillMode: "forwards" }}>
-            Meet <span className="font-semibold" style={{ color: "oklch(0.769 0.188 70.08)" }}>PYTHIA</span> — your AI fundraising oracle. She identifies the right investors, prepares your pitch materials, reaches out on your behalf, and books the meetings.
-          </p>
-          <p className="text-base font-medium mb-8 animate-fade-in-up delay-300"
-            style={{ color: "oklch(0.696 0.17 162.48)", opacity: 0, animationFillMode: "forwards" }}>
-            You approve. You show up. That's it.
-          </p>
+            {/* Badge */}
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-8 text-[11px] font-medium uppercase tracking-widest"
+              style={{
+                backgroundColor: "#7c3aed18",
+                border: "1px solid #7c3aed40",
+                color: "#c4b5fd",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+              Pythh Connect · MCP Server live
+            </div>
 
-          {/* URL Submit CTA */}
-          <form
-            id="hero-cta"
-            onSubmit={handleSubmit}
-            className="flex flex-col sm:flex-row gap-3 mb-6 animate-fade-in-up delay-400"
-            style={{ opacity: 0, animationFillMode: "forwards" }}
-          >
-            {submitted ? (
-              <div className="flex-1 flex items-center gap-3 px-5 py-3.5 rounded-lg border"
-                style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}>
-                <CheckCircle2 size={16} style={{ color: "oklch(0.696 0.17 162.48)" }} />
-                <span className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                  PYTHIA is analyzing your startup — check your email shortly.
+            {/* Headline */}
+            <h1
+              className="font-display font-bold leading-[1.05] mb-6"
+              style={{ fontSize: "clamp(2.6rem, 5.5vw, 4.5rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.02em" }}
+            >
+              Deal intelligence
+              <br />
+              your AI can
+              <br />
+              <span style={{ color: "#7c3aed" }}>query.</span>
+            </h1>
+
+            {/* Sub */}
+            <p className="text-lg leading-relaxed mb-3 max-w-lg" style={{ color: "oklch(0.62 0.01 264)" }}>
+              Connect <span className="text-white font-medium">Claude, Cursor, or any MCP-compatible AI</span> to Pythh's live database of 33,000+ scored startups, 6,250+ investors, and 91,950 active matches.
+            </p>
+            <p className="text-base mb-8" style={{ color: "oklch(0.55 0.01 264)" }}>
+              For VCs: pipe deal flow directly into your AI workflow. For founders: ask your AI assistant to find who funds your sector right now.
+            </p>
+
+            {/* Primary CTA — developers */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <a
+                href="/developers"
+                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-sm transition-all duration-200"
+                style={{
+                  backgroundColor: "#7c3aed",
+                  color: "#fff",
+                  boxShadow: "0 0 32px #7c3aed40",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#8b5cf6"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 40px #7c3aed60"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "#7c3aed"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 32px #7c3aed40"; }}
+              >
+                <Code2 size={16} />
+                Get API access — free
+                <ArrowRight size={15} />
+              </a>
+              <a
+                href="/activate"
+                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-semibold text-sm transition-all duration-200"
+                style={{
+                  border: "1px solid oklch(0.3 0.01 264)",
+                  color: "oklch(0.75 0.01 264)",
+                  backgroundColor: "transparent",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.696 0.17 162.48 / 0.5)"; (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.3 0.01 264)"; (e.currentTarget as HTMLElement).style.color = "oklch(0.75 0.01 264)"; }}
+              >
+                <Zap size={15} />
+                Try PYTHIA live
+              </a>
+            </div>
+
+            {/* Works-with row */}
+            <div className="flex items-center gap-2 flex-wrap mb-8">
+              <span className="text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>Works with</span>
+              {["Claude", "Cursor", "ChatGPT", "Copilot"].map((tool) => (
+                <span
+                  key={tool}
+                  className="text-[11px] px-2.5 py-1 rounded-full font-medium"
+                  style={{ backgroundColor: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.6 0.01 264)" }}
+                >
+                  {tool}
+                </span>
+              ))}
+              <span className="text-xs" style={{ color: "oklch(0.35 0.01 264)" }}>· any MCP client</span>
+            </div>
+
+            {/* Divider + quick-try */}
+            <div className="relative mb-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t" style={{ borderColor: "oklch(0.18 0.01 264)" }} />
+              </div>
+              <div className="relative flex justify-start">
+                <span className="pr-3 text-xs" style={{ backgroundColor: "oklch(0.09 0.01 264)", color: "oklch(0.4 0.01 264)" }}>
+                  or try PYTHIA now — no key needed
                 </span>
               </div>
-            ) : (
-              <>
-                <div className="flex-1 flex items-center gap-3 px-4 py-3.5 rounded-lg border transition-all duration-200"
-                  style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.3 0.01 264)" }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48 / 0.5)")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "oklch(0.3 0.01 264)")}
-                >
-                  <ExternalLink size={16} style={{ color: "oklch(0.5 0.01 264)", flexShrink: 0 }} />
-                  <input
-                    type="text"
-                    placeholder="Submit your startup URL (e.g. dexmate.ai)"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="flex-1 bg-transparent text-sm outline-none"
-                    style={{ color: "oklch(0.94 0.005 264)" }}
-                  />
-                </div>
-                <button type="submit"
-                  className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200 whitespace-nowrap"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 24px oklch(0.696 0.17 162.48 / 0.5)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-                >
-                  Activate PYTHIA
-                  <ArrowRight size={16} />
-                </button>
-              </>
-            )}
-          </form>
+            </div>
 
-          <p className="text-xs animate-fade-in-up delay-500"
-            style={{ color: "oklch(0.5 0.01 264)", opacity: 0, animationFillMode: "forwards" }}>
-            No credit card. No setup calls. PYTHIA starts working in minutes.
-          </p>
-        </div>
+            <form id="hero-cta" onSubmit={handleActivate} className="flex gap-2">
+              <div
+                className="flex-1 flex items-center gap-2 px-4 py-3 rounded-lg border transition-colors"
+                style={{ backgroundColor: "oklch(0.13 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
+              >
+                <ExternalLink size={14} style={{ color: "oklch(0.45 0.01 264)", flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder="your-startup.com"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: "oklch(0.9 0.005 264)" }}
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-5 py-3 rounded-lg font-semibold text-sm transition-all whitespace-nowrap"
+                style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+              >
+                Activate PYTHIA
+              </button>
+            </form>
+            <p className="text-xs mt-2" style={{ color: "oklch(0.38 0.01 264)" }}>
+              GOD score + investor matches in ~20 seconds. No signup required.
+            </p>
+          </div>
 
-        {/* Floating PYTHIA Radar Feed */}
-        <div className="hidden lg:block absolute right-8 top-1/2 -translate-y-1/2 animate-fade-in-up delay-500"
-          style={{ opacity: 0, animationFillMode: "forwards" }}>
-          <PythiaRadarFeed />
+          {/* ── Right column: MCP terminal ── */}
+          <div className="hidden lg:flex flex-col items-center gap-4 pt-8">
+            <McpTerminal />
+            <div className="flex items-center gap-2 text-[11px]" style={{ color: "oklch(0.38 0.01 264)" }}>
+              <Terminal size={11} />
+              <span>Live queries against Pythh's production database</span>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
@@ -368,14 +603,16 @@ function HeroSection() {
 // ─── Track Record Strip ─────────────────────────────────────────────────────
 function TrackRecordStrip() {
   const { ref, isVisible } = useIntersectionObserver();
-  const meetings = useCountUp(4200, 1800, isVisible);
-  const raised = useCountUp(340, 2000, isVisible);
-  const accuracy = useCountUp(91, 1400, isVisible);
+  const startups = useCountUp(33241, 1600, isVisible);
+  const investors = useCountUp(6250, 1800, isVisible);
+  const matches = useCountUp(91950, 2000, isVisible);
+  const tools = useCountUp(9, 800, isVisible);
 
   const stats = [
-    { value: meetings.toLocaleString(), suffix: "+", label: "Meetings Booked", sublabel: "by PYTHIA across all pipelines", color: "oklch(0.696 0.17 162.48)" },
-    { value: `$${raised}M`, suffix: "", label: "Capital Raised", sublabel: "by founders using PYTHIA", color: "oklch(0.769 0.188 70.08)" },
-    { value: `${accuracy}%`, suffix: "", label: "Match Accuracy", sublabel: "investor-to-founder fit score", color: "oklch(0.696 0.17 162.48)" },
+    { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee" },
+    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped", color: "#7c3aed" },
+    { value: matches.toLocaleString(), suffix: "", label: "Active Matches", sublabel: "live startup-investor pairings", color: "#22c55e" },
+    { value: String(tools), suffix: " MCP tools", label: "API Tools", sublabel: "free · pro · enterprise tiers", color: "#f97316" },
   ];
 
   return (
@@ -387,7 +624,7 @@ function TrackRecordStrip() {
         backgroundSize: "40px 40px"
       }} />
       <div className="max-w-5xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-white/10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-y-0 md:divide-x divide-white/10">
           {stats.map((stat, i) => (
             <div key={i} className={`flex flex-col items-center text-center px-8 py-6 transition-all duration-700 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
