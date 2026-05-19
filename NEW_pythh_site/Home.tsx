@@ -144,31 +144,20 @@ function Navbar() {
           </a>
           <div className="hidden md:flex items-center gap-8">
             {[
-              { label: "Platform", href: "/platform" },
-              { label: "Methodology", href: "/methodology" },
-            ].map(({ label, href }) => (
+              { label: "Oracle", href: "/oracle", accent: "oklch(0.696 0.17 162.48)" },
+              { label: "Rankings", href: "/rankings", accent: "#22d3ee" },
+              { label: "Matches", href: "/matches", accent: "#22c55e" },
+              { label: "Investors", href: "/investors", accent: "oklch(0.696 0.17 162.48)" },
+              { label: "Portfolio", href: "/portfolio", accent: "oklch(0.696 0.17 162.48)" },
+              { label: "Platform", href: "/platform", accent: "oklch(0.94 0.005 264)" },
+            ].map(({ label, href, accent }) => (
               <a key={href} href={href}
                 className="text-sm font-medium transition-colors duration-200"
                 style={{ color: "oklch(0.65 0.01 264)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.94 0.005 264)")}
+                onMouseEnter={(e) => (e.currentTarget.style.color = accent)}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
               >{label}</a>
             ))}
-            <a href="/rankings" className="text-sm font-medium transition-colors duration-200"
-              style={{ color: "oklch(0.65 0.01 264)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#22d3ee")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-            >Rankings</a>
-            <a href="/investors" className="text-sm font-medium transition-colors duration-200"
-              style={{ color: "oklch(0.65 0.01 264)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.696 0.17 162.48)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-            >Investors</a>
-            <a href="/portfolio" className="text-sm font-medium transition-colors duration-200"
-              style={{ color: "oklch(0.65 0.01 264)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.696 0.17 162.48)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-            >Portfolio</a>
             <a href="/pricing" className="text-sm font-medium transition-colors duration-200"
               style={{ color: "oklch(0.65 0.01 264)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.769 0.188 70.08)")}
@@ -223,15 +212,17 @@ function Navbar() {
           <div className="md:hidden py-4 border-t" style={{ borderColor: "oklch(0.25 0.01 264)" }}>
             <div className="flex flex-col gap-4">
               {[
-                { label: "Platform", href: "/platform" },
-                { label: "Methodology", href: "/methodology" },
-              ].map(({ label, href }) => (
-                <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-sm font-medium text-left" style={{ color: "oklch(0.65 0.01 264)" }}>{label}</a>
+                { label: "Oracle", href: "/oracle", color: "oklch(0.696 0.17 162.48)" },
+                { label: "Rankings", href: "/rankings", color: "#22d3ee" },
+                { label: "Matches", href: "/matches", color: "#22c55e" },
+                { label: "Investors", href: "/investors", color: "oklch(0.696 0.17 162.48)" },
+                { label: "Portfolio", href: "/portfolio", color: "oklch(0.696 0.17 162.48)" },
+                { label: "Platform", href: "/platform", color: "oklch(0.65 0.01 264)" },
+                { label: "Methodology", href: "/methodology", color: "oklch(0.65 0.01 264)" },
+                { label: "Pricing", href: "/pricing", color: "oklch(0.769 0.188 70.08)" },
+              ].map(({ label, href, color }) => (
+                <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-sm font-medium" style={{ color }}>{label}</a>
               ))}
-              <a href="/rankings" className="text-sm font-medium" style={{ color: "#22d3ee" }} onClick={() => setMenuOpen(false)}>Rankings</a>
-              <a href="/investors" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Investors</a>
-              <a href="/portfolio" className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }} onClick={() => setMenuOpen(false)}>Portfolio</a>
-              <a href="/pricing" className="text-sm font-medium" style={{ color: "oklch(0.769 0.188 70.08)" }}>Pricing</a>
               <div className="flex gap-3 pt-2">
                 {isAuthenticated ? (
                   <>
@@ -758,12 +749,13 @@ function NewsletterSection() {
 function Footer() {
   const cols: { title: string; links: { label: string; href: string | null }[] }[] = [
     { title: "Product", links: [
-      { label: "Platform", href: "/platform" },
-      { label: "PYTHIA Agent", href: "/activate" },
+      { label: "Oracle", href: "/oracle" },
+      { label: "Activate PYTHIA", href: "/activate" },
+      { label: "Matches", href: "/matches" },
       { label: "Rankings", href: "/rankings" },
       { label: "Investors", href: "/investors" },
       { label: "Portfolio", href: "/portfolio" },
-      { label: "Explore", href: "/explore" },
+      { label: "Platform", href: "/platform" },
       { label: "Pricing", href: "/pricing" },
     ]},
     { title: "Resources", links: [

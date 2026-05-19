@@ -214,6 +214,63 @@ export const appRouter = router({
       }),
   }),
 
+  /**
+   * Matches dashboard — aggregate stats + recent high-score pairings
+   * from the pythh_matches table (91,950+ active records).
+   */
+  matches: router({
+    getStats: publicProcedure.query(async () => {
+      const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+      const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+      if (!sbUrl || !sbKey) return { total: 0, highConf: 0, topScore: 0, sectors: [], recentCount: 0 };
+
+      const sb = createClient(sbUrl, sbKey);
+
+      const [
+        { count: total },
+        { count: highConf },
+        { count: topScore },
+        { data: sectorRows },
+        { count: recentCount },
+      ] = await Promise.all([
+        sb.from("pythh_matches").select("*", { count: "exact", head: true }).eq("status", "active"),
+        sb.from("pythh_matches").select("*", { count: "exact", head: true }).eq("status", "active").gte("confidence", 0.75),
+        sb.from("pythh_matches").select("*", { count: "exact", head: true }).eq("status", "active").gte("match_score", 0.85),
+        sb.from("pythh_matches")
+          .select("explanation")
+          .eq("status", "active")
+          .gte("match_score", 0.80)
+          .limit(500),
+        sb.from("pythh_matches")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "active")
+          .gte("matched_at", new Date(Date.now() - 7 * 86400000).toISOString()),
+      ]);
+
+      // Extract sector mentions from explanations
+      const sectorCounts: Record<string, number> = {};
+      for (const row of sectorRows ?? []) {
+        const exps: string[] = Array.isArray(row.explanation) ? row.explanation : [];
+        for (const ex of exps) {
+          const m = ex.match(/focuses on ([A-Za-z/]+)/);
+          if (m) sectorCounts[m[1]] = (sectorCounts[m[1]] ?? 0) + 1;
+        }
+      }
+      const sectors = Object.entries(sectorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, count]) => ({ name, count }));
+
+      return {
+        total: total ?? 0,
+        highConf: highConf ?? 0,
+        topScore: topScore ?? 0,
+        recentCount: recentCount ?? 0,
+        sectors,
+      };
+    }),
+  }),
+
   investors: router({
     /**
      * Returns a random sample of top qualified investors from the main investors

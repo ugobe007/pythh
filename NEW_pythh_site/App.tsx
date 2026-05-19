@@ -23,6 +23,8 @@ import Support from "./pages/Support";
 import Explore from "./pages/Explore";
 import Portfolio from "./pages/Portfolio";
 import PortfolioDetail from "./pages/PortfolioDetail";
+import Oracle from "./pages/Oracle";
+import Matches from "./pages/Matches";
 function Router() {
   return (
     <Switch>
@@ -37,6 +39,8 @@ function Router() {
       {/* /investors = investor intelligence table */}
       <Route path={"/investors"} component={InvestorRankings} />
       <Route path={"/explore"} component={Explore} />
+      <Route path={"/oracle"} component={Oracle} />
+      <Route path={"/matches"} component={Matches} />
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/platform"} component={Platform} />

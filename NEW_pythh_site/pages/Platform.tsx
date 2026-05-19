@@ -349,6 +349,84 @@ export default function Platform() {
           </div>
         </section>
 
+        {/* ── Funding Agent ── */}
+        <section className="mb-20">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+            <h2 className="font-display font-bold text-xl" style={{ color: "oklch(0.97 0.005 264)" }}>
+              Live Funding Agent
+            </h2>
+            <span className="text-[10px] px-2 py-0.5 rounded font-mono uppercase tracking-wider" style={{ backgroundColor: "#22c55e18", color: "#22c55e", border: "1px solid #22c55e40" }}>
+              running daily
+            </span>
+          </div>
+          <p className="text-sm mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
+            PYTHIA's funding agent monitors every portfolio company around the clock — scanning
+            TechCrunch, VentureBeat, and Hacker News for funding rounds, product launches,
+            acquisitions, and revenue milestones. Events are classified by GPT-4o-mini, logged to
+            the portfolio, and delivered via daily digest.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            {[
+              { label: "Events logged", value: "39", sub: "funding, product, revenue, team", color: "#22c55e" },
+              { label: "Funding rounds detected", value: "9", sub: "across active portfolio", color: "#22d3ee" },
+              { label: "Product launches tracked", value: "27", sub: "real-time classification", color: "#a855f7" },
+              { label: "Monitor cadence", value: "Daily", sub: "6 AM UTC + weekly refresh", color: "#f97316" },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="p-4 rounded-xl"
+                style={{ backgroundColor: "oklch(0.115 0.01 264)", border: `1px solid ${s.color}25` }}
+              >
+                <div className="text-2xl font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
+                <div className="text-xs font-medium text-white mb-0.5">{s.label}</div>
+                <div className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {[
+              {
+                title: "Multi-source intelligence",
+                desc: "RSS feeds from TechCrunch Startups/Venture, VentureBeat, and Hacker News Algolia — fetched in a single batch pass, matched against every portfolio company by name.",
+                color: "#22c55e",
+              },
+              {
+                title: "GPT-4o-mini classification",
+                desc: "Each article is classified into: funding_round, acquisition, IPO, product_launch, revenue_milestone, team_milestone, or noise — with confidence scoring. Only signals ≥ 50% confidence are logged.",
+                color: "#22d3ee",
+              },
+              {
+                title: "MOIC auto-update",
+                desc: "When a confirmed funding round is detected, the agent recalculates the portfolio company's current valuation and updates MOIC and IRR in real time.",
+                color: "#a855f7",
+              },
+              {
+                title: "Daily digest email",
+                desc: "Each morning at 6:30 AM UTC, a Resend digest delivers new events, Review-tier alerts, GOD score movements, and auto-seeded new picks to the fund manager.",
+                color: "#f97316",
+              },
+            ].map((c) => (
+              <div
+                key={c.title}
+                className="p-5 rounded-xl"
+                style={{ backgroundColor: "oklch(0.115 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+                  <span className="text-sm font-semibold text-white">{c.title}</span>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{c.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4">
+            <a href="/portfolio" className="text-xs inline-flex items-center gap-1" style={{ color: "#22c55e" }}>
+              View live portfolio →
+            </a>
+          </div>
+        </section>
+
         {/* ── CTA ── */}
         <div className="p-8 rounded-2xl text-center" style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}>
           <h2 className="font-display font-bold text-2xl mb-3" style={{ color: "oklch(0.97 0.005 264)" }}>

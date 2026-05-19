@@ -281,6 +281,11 @@ function SignalBadges({ flags, hot, warming, psych }: {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const SECTOR_FILTERS = [
+  "All", "Fintech", "AI/ML", "SaaS", "Developer Tools",
+  "Gaming", "Climate", "HealthTech", "Cybersecurity", "Consumer",
+];
+
 export default function SignalTrends() {
   const { isAuthenticated } = useAuth();
 
@@ -288,10 +293,11 @@ export default function SignalTrends() {
   const [prevRanks, setPrevRanks] = useState<Map<string, number>>(new Map());
   const [hasUserChangedLens, setHasUserChangedLens] = useState(false);
   const [lensFlash, setLensFlash] = useState(false);
+  const [activeSector, setActiveSector] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const prevLensId = useRef(VC_LENSES[0].id);
 
-  // Pre-warm the Fly.io backend as soon as the component mounts to reduce
-  // cold-start latency before the tRPC query fires.
+  // Pre-warm the Fly.io backend to reduce cold-start latency.
   useEffect(() => {
     fetch("/api/instant/health", { method: "GET", credentials: "include" }).catch(() => {});
   }, []);
@@ -306,9 +312,27 @@ export default function SignalTrends() {
 
   const ranked = useMemo(() => {
     if (!rawStartups.length) return [];
-    const result = rankStartupsForLens(rawStartups, activeLens, prevRanks);
-    return result;
-  }, [rawStartups, activeLens]);
+    let filtered = rawStartups;
+    if (activeSector !== "All") {
+      filtered = filtered.filter((s) => {
+        const sectors = Array.isArray(s.sectors)
+          ? s.sectors
+          : typeof s.sectors === "string"
+          ? [s.sectors]
+          : [];
+        return sectors.some((sec) =>
+          String(sec).toLowerCase().includes(activeSector.toLowerCase())
+        );
+      });
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter((s) =>
+        (s.name || "").toLowerCase().includes(q)
+      );
+    }
+    return rankStartupsForLens(filtered, activeLens, prevRanks);
+  }, [rawStartups, activeLens, activeSector, searchQuery]);
 
   function handleLensChange(lens: VCLens) {
     if (lens.id === activeLens.id) return;
@@ -495,6 +519,44 @@ export default function SignalTrends() {
               </div>
             </>
           )}
+        </div>
+
+        {/* ── Sector + Search filters ── */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          {/* Search */}
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search startup name…"
+            className="px-3 py-2 rounded-lg text-sm bg-transparent outline-none"
+            style={{
+              border: "1px solid oklch(0.22 0.01 264)",
+              color: "oklch(0.85 0.01 264)",
+              backgroundColor: "oklch(0.12 0.01 264)",
+              minWidth: "200px",
+            }}
+          />
+          {/* Sector pills */}
+          <div className="flex flex-wrap gap-1.5">
+            {SECTOR_FILTERS.map((sector) => {
+              const active = activeSector === sector;
+              return (
+                <button
+                  key={sector}
+                  onClick={() => setActiveSector(sector)}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                  style={{
+                    backgroundColor: active ? `${activeLens.accent}20` : "oklch(0.13 0.01 264)",
+                    color: active ? activeLens.accent : "oklch(0.55 0.01 264)",
+                    border: active ? `1px solid ${activeLens.accent}50` : "1px solid oklch(0.2 0.01 264)",
+                  }}
+                >
+                  {sector}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* VC Lens Tabs */}
