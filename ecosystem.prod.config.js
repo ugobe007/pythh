@@ -111,7 +111,8 @@ module.exports = {
 
     // ========================================
     // PORTFOLIO MONITORING AGENT
-    // Scans HN Algolia for each portfolio company, logs events to portfolio_events
+    // Scans RSS feeds + HN Algolia for each portfolio company,
+    // logs events to portfolio_events, updates MOIC on funding rounds.
     // ========================================
     {
       name: 'portfolio-monitor',
@@ -124,6 +125,45 @@ module.exports = {
       watch: false,
       max_memory_restart: '384M',
       cron_restart: '0 6 * * *',   // 6 AM UTC daily
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
+    // PORTFOLIO DIGEST AGENT
+    // Runs 30 min after monitor. Auto-seeds new GOD≥72 picks,
+    // then sends a Resend email digest: events, Review-tier alerts,
+    // GOD movements, top performers. Set PORTFOLIO_DIGEST_EMAIL in env.
+    // ========================================
+    {
+      name: 'portfolio-digest',
+      interpreter: 'node',
+      exec_mode: 'fork',
+      script: 'scripts/portfolio-digest.mjs',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      cron_restart: '30 6 * * *',  // 6:30 AM UTC daily (after monitor)
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
+    // PORTFOLIO SIGNAL REFRESH (weekly)
+    // Scrapes company websites + Google News RSS for funding signals,
+    // detects GOD delta drift, updates MOIC when new rounds close.
+    // ========================================
+    {
+      name: 'portfolio-signal-refresh',
+      interpreter: 'node',
+      exec_mode: 'fork',
+      script: 'scripts/cron/portfolio-signal-refresh.js',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '384M',
+      cron_restart: '0 7 * * 1',   // 7 AM UTC every Monday
       env: { NODE_ENV: 'production' }
     },
 
