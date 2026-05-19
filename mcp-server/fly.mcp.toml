@@ -1,0 +1,39 @@
+# Fly.io config for Pythh Connect MCP server
+# Deploy: fly deploy --config mcp-server/fly.mcp.toml
+# App URL: https://mcp.pythh.ai
+
+app = "pythh-connect-mcp"
+primary_region = "iad"
+
+[build]
+  dockerfile = "mcp-server/Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"   # Keep warm — MCP clients expect low latency
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "5s"
+    interval = "30s"
+    method = "GET"
+    path = "/"
+    timeout = "5s"
+
+[env]
+  PORT = "8080"
+  MCP_SERVER_NAME = "pythh-connect"
+  MCP_SERVER_VERSION = "1.0.0"
+  NODE_ENV = "production"
+
+# Secrets (set via: fly secrets set SUPABASE_URL=... --app pythh-connect-mcp)
+# SUPABASE_URL
+# SUPABASE_SERVICE_KEY
+# PYTHH_API_URL
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
