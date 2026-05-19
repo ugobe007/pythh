@@ -346,9 +346,9 @@ function HeroSection() {
               <a
                 href="/developers"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
-                style={{ backgroundColor: "#7c3aed", color: "#fff", boxShadow: "0 0 24px #7c3aed40" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "#8b5cf6"; el.style.boxShadow = "0 0 40px #7c3aed60"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "#7c3aed"; el.style.boxShadow = "0 0 24px #7c3aed40"; }}
+                style={{ border: "1px solid #7c3aed", color: "#a78bfa" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa"; el.style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
               >
                 <Database size={14} />
                 Get API access — free
@@ -357,9 +357,9 @@ function HeroSection() {
               <a
                 href="/oracle"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
-                style={{ border: "1px solid oklch(0.24 0.01 264)", color: "oklch(0.55 0.01 264)" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa45"; el.style.color = "#c4b5fd"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.24 0.01 264)"; el.style.color = "oklch(0.55 0.01 264)"; }}
+                style={{ border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.48 0.01 264)" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.32 0.01 264)"; el.style.color = "oklch(0.65 0.01 264)"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.22 0.01 264)"; el.style.color = "oklch(0.48 0.01 264)"; }}
               >
                 How it works
               </a>
@@ -446,9 +446,9 @@ function HeroSection() {
                   <button
                     type="submit"
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all"
-                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; }}
+                    style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
+                    onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
+                    onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
                   >
                     Activate PYTHIA <ArrowRight size={14} />
                   </button>
