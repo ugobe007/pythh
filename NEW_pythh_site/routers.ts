@@ -97,7 +97,7 @@ export const appRouter = router({
         if (!sbUrl || !sbKey) return { startups: [], total: 0 };
 
         const sbClient = createClient(sbUrl, sbKey);
-        const limit = input.limit ?? 200;
+        const limit = input.limit ?? 100;
 
         const [{ count: total }, { data, error }] = await Promise.all([
           sbClient

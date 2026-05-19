@@ -18,7 +18,7 @@
  * ══════════════════════════════════════════════════════════════════════
  */
 import { Helmet } from "react-helmet-async";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -290,9 +290,15 @@ export default function SignalTrends() {
   const [lensFlash, setLensFlash] = useState(false);
   const prevLensId = useRef(VC_LENSES[0].id);
 
+  // Pre-warm the Fly.io backend as soon as the component mounts to reduce
+  // cold-start latency before the tRPC query fires.
+  useEffect(() => {
+    fetch("/api/instant/health", { method: "GET", credentials: "include" }).catch(() => {});
+  }, []);
+
   const { data, isLoading, isError, refetch } = trpc.startups.getRankings.useQuery(
-    { limit: 200 },
-    { staleTime: 2 * 60 * 1000 }
+    { limit: 100 },
+    { staleTime: 5 * 60 * 1000 }
   );
 
   const rawStartups = data?.startups ?? [];
@@ -554,10 +560,29 @@ export default function SignalTrends() {
           {/* Table Body */}
           <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
             {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <span className="text-sm" style={{ color: "oklch(0.45 0.01 264)" }}>
-                  Loading market data…
-                </span>
+              <div className="py-2">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="grid gap-4 px-4 py-3 border-b animate-pulse"
+                    style={{
+                      gridTemplateColumns: "52px 1fr 140px 90px 60px 52px",
+                      borderColor: "oklch(0.16 0.01 264)",
+                      opacity: 1 - i * 0.055,
+                    }}
+                  >
+                    <div className="h-4 rounded" style={{ backgroundColor: "oklch(0.18 0.01 264)", width: "28px" }} />
+                    <div className="h-4 rounded" style={{ backgroundColor: "oklch(0.18 0.01 264)", width: `${55 + (i % 4) * 12}%` }} />
+                    <div className="h-4 rounded" style={{ backgroundColor: "oklch(0.18 0.01 264)", width: "80px" }} />
+                    <div className="h-4 rounded" style={{ backgroundColor: "oklch(0.18 0.01 264)", width: "42px" }} />
+                    <div className="h-4 rounded" style={{ backgroundColor: "oklch(0.18 0.01 264)", width: "24px" }} />
+                    <div className="h-4 rounded" style={{ backgroundColor: "oklch(0.18 0.01 264)", width: "20px" }} />
+                  </div>
+                ))}
+                <div className="flex items-center justify-center py-4 gap-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: activeLens.accent }} />
+                  <span className="text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>Loading market data…</span>
+                </div>
               </div>
             ) : isError ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
