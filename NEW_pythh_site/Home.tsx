@@ -268,213 +268,195 @@ function HeroSection() {
       className="relative min-h-screen flex items-center pt-16 overflow-hidden"
       style={{ backgroundColor: "oklch(0.09 0.01 264)" }}
     >
-      {/* Grid */}
+      {/* Subtle grid */}
       <div
-        className="absolute inset-0 opacity-[0.03]"
+        className="absolute inset-0 opacity-[0.025]"
         style={{
-          backgroundImage: "linear-gradient(oklch(0.55 0.01 264) 1px, transparent 1px), linear-gradient(90deg, oklch(0.55 0.01 264) 1px, transparent 1px)",
-          backgroundSize: "52px 52px",
+          backgroundImage: "linear-gradient(oklch(0.6 0.01 264) 1px, transparent 1px), linear-gradient(90deg, oklch(0.6 0.01 264) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
         }}
       />
-      {/* Violet glow */}
+      {/* Violet ambient — top left */}
       <div
-        className="absolute -top-20 -left-20 w-[560px] h-[560px] opacity-[0.09] pointer-events-none"
+        className="absolute -top-32 -left-32 w-[700px] h-[700px] opacity-[0.07] pointer-events-none"
         style={{ background: "radial-gradient(circle, #7c3aed 0%, transparent 65%)" }}
       />
-      <div className="absolute bottom-0 left-0 right-0 h-48" style={{ background: "linear-gradient(to top, oklch(0.09 0.01 264), transparent)" }} />
+      <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.09 0.01 264), transparent)" }} />
 
-      <div className="container relative z-10 py-20">
-        <div className="flex flex-col lg:flex-row items-start gap-14 lg:gap-24">
+      <div className="container relative z-10 py-24">
 
-          {/* ── Left: platform pitch ── */}
-          <div className="flex-1 max-w-[560px]">
+        {/* ── Brand mark — standalone, not inside any pill or button ── */}
+        <div className="mb-10">
+          {/* Icon — stroke only, no fills */}
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-label="Pythh Connect">
+            {/* Hexagon outer shell */}
+            <polygon
+              points="26,4 46,15 46,37 26,48 6,37 6,15"
+              stroke="#a78bfa"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+            {/* Inner triangle connecting nodes */}
+            <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
+            <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
+            <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
+            {/* Three nodes — stroke only */}
+            <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.2" />
+            <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.2" />
+            <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.2" />
+          </svg>
+          {/* Label — plain text, no pill, no button */}
+          <div className="flex items-baseline gap-3 mt-3">
+            <span className="text-sm font-semibold tracking-wider uppercase" style={{ color: "#c4b5fd" }}>
+              Pythh Connect
+            </span>
+            <span className="text-xs" style={{ color: "#22c55e" }}>· MCP live</span>
+          </div>
+        </div>
 
-            {/* Pythh Connect badge with real icon */}
-            <div
-              className="inline-flex items-center gap-3 px-3 py-2 rounded-full mb-8"
-              style={{ backgroundColor: "#7c3aed18", border: "1px solid #7c3aed40" }}
-            >
-              <img
-                src="/pythh-connect-icon.png"
-                alt="Pythh Connect"
-                className="w-5 h-5 rounded object-cover"
-                style={{ filter: "brightness(1.1)" }}
-              />
-              <span className="text-[11px] font-semibold tracking-widest uppercase" style={{ color: "#c4b5fd" }}>
-                Pythh Connect
-              </span>
-              <span
-                className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                style={{ backgroundColor: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e30" }}
-              >
-                MCP live
-              </span>
-            </div>
+        {/* ── Main two-column layout ── */}
+        <div className="flex flex-col lg:flex-row items-start gap-16 lg:gap-28">
 
-            {/* Headline */}
+          {/* ── Left: pitch ── */}
+          <div className="flex-1 max-w-[580px]">
+
             <h1
-              className="font-display font-bold leading-[1.05] mb-5"
-              style={{ fontSize: "clamp(2.7rem, 5.8vw, 4.6rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.02em" }}
+              className="font-display font-bold leading-[1.04] mb-4"
+              style={{ fontSize: "clamp(3rem, 6vw, 5rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.025em" }}
             >
               Pythh's Signal
               <br />
               Intelligence.
             </h1>
+
             <p
-              className="font-display font-semibold mb-6"
-              style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", color: "#a78bfa", letterSpacing: "-0.01em" }}
+              className="font-display font-medium mb-8"
+              style={{ fontSize: "clamp(1.3rem, 2.8vw, 1.9rem)", color: "#a78bfa", letterSpacing: "-0.01em", lineHeight: 1.2 }}
             >
               Now queryable from Claude or Cursor.
             </p>
 
-            {/* Body */}
-            <p className="text-lg leading-relaxed mb-8 max-w-lg" style={{ color: "oklch(0.6 0.01 264)" }}>
+            <p className="text-base leading-relaxed mb-10 max-w-[480px]" style={{ color: "oklch(0.58 0.01 264)" }}>
               33,000+ startups scored. 6,250+ investors qualified. 91,950 active matches.
-              Connect any MCP-compatible AI and query Pythh's live deal network in plain English —
-              updated every 24 hours from continuous market scraping.
+              Point any MCP-compatible AI at Pythh's live deal network and query it in plain English —
+              refreshed every 24 hours from continuous market scraping.
             </p>
 
-            {/* Primary CTA */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-8">
+            <div className="flex flex-col sm:flex-row gap-3 mb-10">
               <a
                 href="/developers"
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-bold text-sm transition-all duration-200"
-                style={{ backgroundColor: "#7c3aed", color: "#fff", boxShadow: "0 0 28px #7c3aed45" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "#8b5cf6"; el.style.boxShadow = "0 0 44px #7c3aed65"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "#7c3aed"; el.style.boxShadow = "0 0 28px #7c3aed45"; }}
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
+                style={{ backgroundColor: "#7c3aed", color: "#fff", boxShadow: "0 0 24px #7c3aed40" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "#8b5cf6"; el.style.boxShadow = "0 0 40px #7c3aed60"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "#7c3aed"; el.style.boxShadow = "0 0 24px #7c3aed40"; }}
               >
-                <Database size={15} />
+                <Database size={14} />
                 Get API access — free
-                <ArrowRight size={15} />
+                <ArrowRight size={14} />
               </a>
               <a
                 href="/oracle"
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl font-semibold text-sm transition-all duration-200"
-                style={{ border: "1px solid oklch(0.26 0.01 264)", color: "oklch(0.6 0.01 264)" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa50"; el.style.color = "#c4b5fd"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.26 0.01 264)"; el.style.color = "oklch(0.6 0.01 264)"; }}
+                className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
+                style={{ border: "1px solid oklch(0.24 0.01 264)", color: "oklch(0.55 0.01 264)" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa45"; el.style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.24 0.01 264)"; el.style.color = "oklch(0.55 0.01 264)"; }}
               >
                 How it works
               </a>
             </div>
 
-            {/* Works-with */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>Works with</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs" style={{ color: "oklch(0.38 0.01 264)" }}>Works with</span>
               {["Claude", "Cursor", "ChatGPT", "Copilot"].map((t) => (
                 <span
                   key={t}
-                  className="text-[11px] px-2.5 py-1 rounded-full"
-                  style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.21 0.01 264)", color: "oklch(0.55 0.01 264)" }}
+                  className="text-[11px]"
+                  style={{ color: "oklch(0.5 0.01 264)" }}
                 >
                   {t}
                 </span>
               ))}
-              <span className="text-xs" style={{ color: "oklch(0.33 0.01 264)" }}>+ any MCP client</span>
+              <span className="text-xs" style={{ color: "oklch(0.3 0.01 264)" }}>+ any MCP client</span>
             </div>
           </div>
 
           {/* ── Right: See Pythh in Action ── */}
-          <div className="hidden lg:flex flex-col gap-0 flex-shrink-0" style={{ width: 360 }}>
-            {/* Card header */}
+          <div className="hidden lg:block flex-shrink-0" style={{ width: 360 }}>
+            {/* Section label — plain, not a pill */}
+            <p className="text-xs font-semibold tracking-widest uppercase mb-4" style={{ color: "oklch(0.45 0.01 264)" }}>
+              See Pythh in Action
+            </p>
+
+            {/* Card */}
             <div
-              className="flex items-center justify-between px-5 py-3.5 rounded-t-2xl"
+              className="rounded-xl overflow-hidden"
               style={{
                 backgroundColor: "oklch(0.115 0.01 264)",
-                border: "1px solid oklch(0.22 0.01 264)",
-                borderBottom: "1px solid oklch(0.18 0.01 264)",
+                border: "1px solid oklch(0.21 0.01 264)",
               }}
             >
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-                <span className="text-xs font-semibold" style={{ color: "oklch(0.8 0.01 264)" }}>
-                  See Pythh in Action
-                </span>
-              </div>
-              <span className="text-[10px]" style={{ color: "oklch(0.4 0.01 264)" }}>
-                PYTHIA · live
-              </span>
-            </div>
-
-            {/* Card body */}
-            <div
-              className="px-5 py-6 rounded-b-2xl"
-              style={{
-                backgroundColor: "oklch(0.11 0.01 264)",
-                border: "1px solid oklch(0.22 0.01 264)",
-                borderTop: "none",
-              }}
-            >
-              <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.58 0.01 264)" }}>
-                Submit your startup URL. PYTHIA reads your signals, computes
-                your GOD score across 7 dimensions, and surfaces the investors
-                most likely to fund you — ranked by sector fit and timing.
-              </p>
-
-              {/* What you get preview */}
+              {/* Card top bar */}
               <div
-                className="flex items-center gap-3 p-3 rounded-lg mb-5"
-                style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+                className="flex items-center justify-between px-5 py-3"
+                style={{ borderBottom: "1px solid oklch(0.17 0.01 264)" }}
               >
-                <div className="text-center px-3 py-1 rounded-md" style={{ backgroundColor: "oklch(0.18 0.01 264)" }}>
-                  <div className="text-xl font-bold" style={{ color: "#22d3ee" }}>74</div>
-                  <div className="text-[9px]" style={{ color: "oklch(0.45 0.01 264)" }}>GOD</div>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                  <span className="text-xs" style={{ color: "oklch(0.65 0.01 264)" }}>PYTHIA · live engine</span>
                 </div>
-                <div>
-                  <div className="text-xs font-medium text-white mb-0.5">Signal Intelligence score</div>
-                  <div className="text-[10px]" style={{ color: "oklch(0.48 0.01 264)" }}>
-                    Team · Traction · Market · Product · Vision · Grit · Momentum
-                  </div>
-                </div>
+                <span className="text-[10px]" style={{ color: "oklch(0.35 0.01 264)" }}>~20 sec</span>
               </div>
 
-              <div
-                className="flex items-center gap-3 p-3 rounded-lg mb-5"
-                style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
-              >
-                <div className="text-center px-3 py-1 rounded-md" style={{ backgroundColor: "oklch(0.18 0.01 264)" }}>
-                  <div className="text-xl font-bold" style={{ color: "#22c55e" }}>18</div>
-                  <div className="text-[9px]" style={{ color: "oklch(0.45 0.01 264)" }}>matches</div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-white mb-0.5">Investor matches ranked</div>
-                  <div className="text-[10px]" style={{ color: "oklch(0.48 0.01 264)" }}>
-                    Sector fit · stage alignment · timing window · thesis depth
-                  </div>
-                </div>
-              </div>
-
-              {/* URL form */}
-              <form id="hero-cta" onSubmit={handleSubmit}>
-                <div
-                  className="flex items-center gap-2 p-1.5 rounded-xl mb-2 transition-all"
-                  style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.26 0.01 264)" }}
-                  onFocusCapture={(e) => (e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48 / 0.5)")}
-                  onBlurCapture={(e) => (e.currentTarget.style.borderColor = "oklch(0.26 0.01 264)")}
-                >
-                  <ExternalLink size={13} className="ml-1.5 flex-shrink-0" style={{ color: "oklch(0.42 0.01 264)" }} />
-                  <input
-                    type="text"
-                    placeholder="your-startup.com"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="flex-1 bg-transparent text-sm outline-none py-2"
-                    style={{ color: "oklch(0.9 0.005 264)" }}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; }}
-                >
-                  Activate PYTHIA <ArrowRight size={15} />
-                </button>
-                <p className="text-[10px] text-center mt-2" style={{ color: "oklch(0.38 0.01 264)" }}>
-                  ~20 seconds · No credit card · No signup
+              <div className="p-5">
+                <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.55 0.01 264)" }}>
+                  Submit your startup URL. PYTHIA reads your signals, scores you across 7 dimensions,
+                  and surfaces the investors most likely to fund you — ranked by sector fit and timing.
                 </p>
-              </form>
+
+                {/* Output preview — what you'll receive */}
+                <div className="flex gap-3 mb-5">
+                  <div className="flex-1 py-3 rounded-lg text-center" style={{ border: "1px solid oklch(0.19 0.01 264)" }}>
+                    <div className="text-2xl font-bold" style={{ color: "#22d3ee" }}>74</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>GOD score</div>
+                  </div>
+                  <div className="flex-1 py-3 rounded-lg text-center" style={{ border: "1px solid oklch(0.19 0.01 264)" }}>
+                    <div className="text-2xl font-bold" style={{ color: "#22c55e" }}>18</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>matched investors</div>
+                  </div>
+                </div>
+
+                {/* URL form */}
+                <form id="hero-cta" onSubmit={handleSubmit}>
+                  <div
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-3 transition-all"
+                    style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.24 0.01 264)" }}
+                    onFocusCapture={(e) => (e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48 / 0.45)")}
+                    onBlurCapture={(e) => (e.currentTarget.style.borderColor = "oklch(0.24 0.01 264)")}
+                  >
+                    <ExternalLink size={13} className="flex-shrink-0" style={{ color: "oklch(0.4 0.01 264)" }} />
+                    <input
+                      type="text"
+                      placeholder="your-startup.com"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      className="flex-1 bg-transparent text-sm outline-none"
+                      style={{ color: "oklch(0.88 0.005 264)" }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all"
+                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; }}
+                  >
+                    Activate PYTHIA <ArrowRight size={14} />
+                  </button>
+                  <p className="text-[10px] text-center mt-2.5" style={{ color: "oklch(0.36 0.01 264)" }}>
+                    No credit card · No signup required
+                  </p>
+                </form>
+              </div>
             </div>
           </div>
 
