@@ -6,7 +6,7 @@ app = "pythh-connect-mcp"
 primary_region = "iad"
 
 [build]
-  dockerfile = "mcp-server/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 8080
