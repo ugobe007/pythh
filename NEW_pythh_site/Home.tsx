@@ -252,15 +252,25 @@ function Navbar() {
 
 function HeroSection() {
   const [url, setUrl] = useState("");
+  const [error, setError] = useState(false);
   const [, navigate] = useLocation();
+
+  // Clear any stale session so returning visitors don't get auto-sent to scanning
+  useEffect(() => {
+    sessionStorage.removeItem("pythia_url");
+    sessionStorage.removeItem("pythia_email");
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (url.trim()) {
-      const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
-      sessionStorage.setItem("pythia_url", normalized);
-      navigate("/activate");
+    if (!url.trim()) {
+      setError(true);
+      return;
     }
+    setError(false);
+    const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+    sessionStorage.setItem("pythia_url", normalized);
+    navigate("/activate");
   };
 
   return (
@@ -380,6 +390,42 @@ function HeroSection() {
             </div>
           </div>
 
+          {/* ── Mobile form — only visible below lg ── */}
+          <div className="lg:hidden w-full">
+            <p className="text-xs font-semibold tracking-widest uppercase mb-4" style={{ color: "oklch(0.45 0.01 264)" }}>
+              See Pythh in Action
+            </p>
+            <form onSubmit={handleSubmit}>
+              <div
+                className="flex items-center gap-2 px-3 py-3 rounded-lg mb-3"
+                style={{
+                  backgroundColor: "oklch(0.115 0.01 264)",
+                  border: `1px solid ${error ? "#f87171" : "oklch(0.22 0.01 264)"}`,
+                }}
+              >
+                <ExternalLink size={13} className="flex-shrink-0" style={{ color: "oklch(0.42 0.01 264)" }} />
+                <input
+                  type="text"
+                  placeholder="your-startup.com"
+                  value={url}
+                  onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: "oklch(0.88 0.005 264)" }}
+                />
+              </div>
+              {error && (
+                <p className="text-xs mb-2" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
+              )}
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm"
+                style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
+              >
+                Activate PYTHIA <ArrowRight size={14} />
+              </button>
+            </form>
+          </div>
+
           {/* ── Right: See Pythh in Action ── */}
           <div className="hidden lg:block flex-shrink-0" style={{ width: 360 }}>
             {/* Section label — plain, not a pill */}
@@ -429,20 +475,28 @@ function HeroSection() {
                 <form id="hero-cta" onSubmit={handleSubmit}>
                   <div
                     className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-3 transition-all"
-                    style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.24 0.01 264)" }}
-                    onFocusCapture={(e) => (e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48 / 0.45)")}
-                    onBlurCapture={(e) => (e.currentTarget.style.borderColor = "oklch(0.24 0.01 264)")}
+                    style={{
+                      backgroundColor: "oklch(0.14 0.01 264)",
+                      border: `1px solid ${error ? "#f87171" : "oklch(0.24 0.01 264)"}`,
+                    }}
+                    onFocusCapture={(e) => { if (!error) e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48 / 0.45)"; }}
+                    onBlurCapture={(e) => { if (!error) e.currentTarget.style.borderColor = "oklch(0.24 0.01 264)"; }}
                   >
-                    <ExternalLink size={13} className="flex-shrink-0" style={{ color: "oklch(0.4 0.01 264)" }} />
+                    <ExternalLink size={13} className="flex-shrink-0" style={{ color: error ? "#f87171" : "oklch(0.4 0.01 264)" }} />
                     <input
                       type="text"
                       placeholder="your-startup.com"
                       value={url}
-                      onChange={(e) => setUrl(e.target.value)}
+                      onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
                       className="flex-1 bg-transparent text-sm outline-none"
                       style={{ color: "oklch(0.88 0.005 264)" }}
                     />
                   </div>
+                  {error && (
+                    <p className="text-xs mb-2" style={{ color: "#f87171" }}>
+                      Enter your startup URL to continue.
+                    </p>
+                  )}
                   <button
                     type="submit"
                     className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all"

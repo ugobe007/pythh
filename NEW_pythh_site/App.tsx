@@ -25,6 +25,7 @@ import Portfolio from "./pages/Portfolio";
 import PortfolioDetail from "./pages/PortfolioDetail";
 import Oracle from "./pages/Oracle";
 import Matches from "./pages/Matches";
+import Developers from "./pages/Developers";
 function Router() {
   return (
     <Switch>
@@ -41,6 +42,7 @@ function Router() {
       <Route path={"/explore"} component={Explore} />
       <Route path={"/oracle"} component={Oracle} />
       <Route path={"/matches"} component={Matches} />
+      <Route path={"/developers"} component={Developers} />
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/platform"} component={Platform} />
