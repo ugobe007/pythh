@@ -98,8 +98,8 @@ export default function Explore() {
   const handleQueryChange = useCallback((val: string) => {
     setQuery(val);
     setPage(0);
-    clearTimeout((window as Record<string, unknown>)._exploreTimer as ReturnType<typeof setTimeout>);
-    (window as Record<string, unknown>)._exploreTimer = setTimeout(() => setDebouncedQuery(val), 320);
+    clearTimeout((window as unknown as Record<string, unknown>)._exploreTimer as ReturnType<typeof setTimeout>);
+    (window as unknown as Record<string, unknown>)._exploreTimer = setTimeout(() => setDebouncedQuery(val), 320);
   }, []);
 
   const handleSector = (s: string) => {
@@ -116,7 +116,7 @@ export default function Explore() {
       limit: PAGE_SIZE,
       offset: page * PAGE_SIZE,
     },
-    { keepPreviousData: true, staleTime: 60_000 }
+    { staleTime: 60_000 }
   );
 
   const startups = data?.startups ?? [];
