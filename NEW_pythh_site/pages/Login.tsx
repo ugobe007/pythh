@@ -136,7 +136,7 @@ export default function Login() {
 
         <p className="text-center text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>
           By signing in you agree to our{" "}
-          <a href="/privacy" style={{ color: "oklch(0.55 0.01 264)" }}>Privacy Policy</a>.
+          <a href="/support" style={{ color: "oklch(0.55 0.01 264)" }}>Privacy Policy</a>.
         </p>
       </div>
     </div>

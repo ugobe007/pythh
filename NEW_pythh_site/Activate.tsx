@@ -525,9 +525,7 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
 function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => void }) {
   const [url, setUrl] = useState("");
   const [email, setEmail] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const canSubmit = !!url && emailValid;
+  const [urlError, setUrlError] = useState(false);
 
   // Pre-warm the Fly.io machine as soon as the entry form mounts so the
   // backend is ready before the user hits Activate (prevents cold-start lag).
@@ -536,9 +534,13 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
   }, []);
 
   const handleActivate = () => {
-    if (!canSubmit) return;
+    if (!url.trim()) {
+      setUrlError(true);
+      return;
+    }
+    setUrlError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
-    sessionStorage.setItem("pythia_email", email);
+    if (email) sessionStorage.setItem("pythia_email", email);
     onSubmit(normalized, email);
   };
 
@@ -569,60 +571,50 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
         </p>
 
         <div className="rounded-xl p-6 border mb-4"
-          style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
+          style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: urlError ? "oklch(0.65 0.2 27)" : "oklch(0.25 0.01 264)" }}>
           <label className="block text-xs font-semibold mb-3 tracking-widest" style={{ color: "oklch(0.5 0.01 264)" }}>
             YOUR STARTUP URL
           </label>
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border mb-4 transition-all duration-200"
-            style={{ backgroundColor: "oklch(0.13 0.01 264)", borderColor: "oklch(0.3 0.01 264)" }}>
-            <Globe size={16} style={{ color: "oklch(0.5 0.01 264)", flexShrink: 0 }} />
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border mb-1 transition-all duration-200"
+            style={{ backgroundColor: "oklch(0.13 0.01 264)", borderColor: urlError ? "oklch(0.65 0.2 27)" : "oklch(0.3 0.01 264)" }}>
+            <Globe size={16} style={{ color: urlError ? "oklch(0.65 0.2 27)" : "oklch(0.5 0.01 264)", flexShrink: 0 }} />
             <input
               type="text"
               placeholder="https://yourstartup.com or yourstartup.com"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && canSubmit && handleActivate()}
+              onChange={(e) => { setUrl(e.target.value); if (urlError) setUrlError(false); }}
+              onKeyDown={(e) => e.key === "Enter" && handleActivate()}
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: "oklch(0.94 0.005 264)" }}
               autoFocus
             />
           </div>
-          {/* Email capture */}
+          {urlError && (
+            <p className="text-xs mb-4" style={{ color: "oklch(0.65 0.2 27)" }}>Please enter your startup URL to continue.</p>
+          )}
+          {/* Email — optional, used to send report copy */}
           <label className="block text-xs font-semibold mb-3 mt-5 tracking-widest" style={{ color: "oklch(0.5 0.01 264)" }}>
-            WHERE SHOULD PYTHIA SEND YOUR REPORT?
+            SEND REPORT TO EMAIL <span style={{ color: "oklch(0.38 0.01 264)", fontWeight: 400 }}>(optional)</span>
           </label>
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg border mb-4 transition-all duration-200"
-            style={{
-              backgroundColor: "oklch(0.13 0.01 264)",
-              borderColor: emailTouched && !emailValid ? "oklch(0.65 0.2 27)" : email && emailValid ? "oklch(0.696 0.17 162.48 / 0.6)" : "oklch(0.3 0.01 264)"
-            }}>
+            style={{ backgroundColor: "oklch(0.13 0.01 264)", borderColor: "oklch(0.3 0.01 264)" }}>
             <Mail size={16} style={{ color: "oklch(0.5 0.01 264)", flexShrink: 0 }} />
             <input
               type="email"
-              placeholder="you@yourstartup.com"
+              placeholder="you@yourstartup.com (optional)"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onBlur={() => setEmailTouched(true)}
-              onKeyDown={(e) => e.key === "Enter" && canSubmit && handleActivate()}
+              onKeyDown={(e) => e.key === "Enter" && handleActivate()}
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: "oklch(0.94 0.005 264)" }}
             />
-            {email && emailValid && <CheckCircle2 size={14} style={{ color: "oklch(0.696 0.17 162.48)", flexShrink: 0 }} />}
           </div>
-          {emailTouched && !emailValid && email && (
-            <p className="text-xs mb-3 -mt-2" style={{ color: "oklch(0.65 0.2 27)" }}>Please enter a valid email address.</p>
-          )}
           <button
             onClick={handleActivate}
-            disabled={!canSubmit}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
-            style={{
-              backgroundColor: canSubmit ? "oklch(0.696 0.17 162.48)" : "oklch(0.22 0.01 264)",
-              color: canSubmit ? "oklch(0.1 0.01 162)" : "oklch(0.4 0.01 264)",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-            }}
-            onMouseEnter={(e) => canSubmit && ((e.currentTarget as HTMLElement).style.boxShadow = "0 0 24px oklch(0.696 0.17 162.48 / 0.4)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.boxShadow = "none")}
+            style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
+            onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
+            onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
           >
             <Sparkles size={16} />
             Activate PYTHIA

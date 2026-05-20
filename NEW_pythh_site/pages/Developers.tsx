@@ -134,7 +134,7 @@ export default function Developers() {
               onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa"; el.style.color = "#c4b5fd"; }}
               onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
             >
-              Request API key <ArrowRight size={14} />
+              Connect AI agent <ArrowRight size={14} />
             </button>
           </form>
           <p className="text-xs mt-3" style={{ color: "oklch(0.38 0.01 264)" }}>

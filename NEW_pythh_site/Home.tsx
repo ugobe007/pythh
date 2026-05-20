@@ -361,7 +361,7 @@ function HeroSection() {
                 onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
               >
                 <Database size={14} />
-                Get API access — free
+                Connect AI agent
                 <ArrowRight size={14} />
               </a>
               <a
