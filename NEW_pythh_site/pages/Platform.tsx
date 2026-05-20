@@ -5,61 +5,10 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { ArrowRight, Zap, Target, Brain, BarChart3, Mail } from "lucide-react";
 
+import SharedNavbar from "@/components/SharedNavbar";
 // ─── Shared nav (matches Rankings.tsx pattern) ────────────────────────────────
 
-function PageNav() {
-  const { user, isAuthenticated } = useAuth();
-  return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50"
-      style={{
-        backgroundColor: "oklch(0.11 0.01 264 / 0.95)",
-        backdropFilter: "blur(12px)",
-        borderBottom: "1px solid oklch(0.2 0.01 264)",
-      }}
-    >
-      <div className="container">
-        <div className="flex items-center justify-between h-14">
-          <Link href="/">
-            <div className="flex flex-col leading-none cursor-pointer">
-              <span className="font-display font-bold text-base text-white tracking-tight">pythh.ai</span>
-              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>SIGNAL SCIENCE</span>
-            </div>
-          </Link>
-          <div className="hidden md:flex items-center gap-6">
-            {[
-              { label: "Rankings", href: "/rankings" },
-              { label: "Methodology", href: "/methodology" },
-              { label: "Pricing", href: "/pricing" },
-            ].map(({ label, href }) => (
-              <Link key={href} href={href}>
-                <span className="text-sm font-medium cursor-pointer transition-colors"
-                  style={{ color: "oklch(0.55 0.01 264)" }}
-                  onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "oklch(0.94 0.005 264)")}
-                  onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
-                >{label}</span>
-              </Link>
-            ))}
-          </div>
-          <div>
-            {isAuthenticated ? (
-              <Link href="/account">
-                <span className="text-sm font-medium cursor-pointer" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                  {user?.name?.split(" ")[0] ?? "Account"}
-                </span>
-              </Link>
-            ) : (
-              <a href={getLoginUrl()} className="text-sm font-semibold px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}>
-                Sign in
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-}
+
 
 // ─── Animated signal bars (live-updating every 3s) ───────────────────────────
 
@@ -224,7 +173,7 @@ export default function Platform() {
         <meta property="og:url" content="https://pythh.ai/platform" />
       </Helmet>
 
-      <PageNav />
+      <SharedNavbar activePath="/platform" />
 
       <div className="container pt-24 pb-20">
 

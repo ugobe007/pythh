@@ -2136,8 +2136,9 @@ export default function Activate() {
     const hasActivePlan =
       subscription?.status === "active" || subscription?.status === "trialing";
     if (!isAuthenticated || !hasActivePlan) {
-      // Gate only at this point — show value first, ask for commitment after
-      navigate("/pricing");
+      // Not subscribed — return to home so they can start the journey
+      navigate("/");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     setStep("pipeline");

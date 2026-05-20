@@ -35,6 +35,7 @@ import {
   GitBranch,
   ArrowUpRight,
 } from "lucide-react";
+import SharedNavbar from "@/components/SharedNavbar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

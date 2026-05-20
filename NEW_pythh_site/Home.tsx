@@ -427,49 +427,51 @@ function HeroSection() {
           </div>
 
           {/* ── Right: See Pythh in Action ── */}
-          <div className="hidden lg:block flex-shrink-0" style={{ width: 360 }}>
-            {/* Section label — plain, not a pill */}
-            <p className="text-xs font-semibold tracking-widest uppercase mb-4" style={{ color: "oklch(0.45 0.01 264)" }}>
+          <div className="hidden lg:block flex-shrink-0" style={{ width: 368 }}>
+            {/* Label */}
+            <p className="text-[11px] font-semibold tracking-widest uppercase mb-5" style={{ color: "oklch(0.42 0.01 264)" }}>
               See Pythh in Action
             </p>
 
             {/* Card */}
             <div
               className="rounded-xl overflow-hidden"
-              style={{
-                backgroundColor: "oklch(0.115 0.01 264)",
-                border: "1px solid oklch(0.21 0.01 264)",
-              }}
+              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
             >
-              {/* Card top bar */}
+              {/* Top bar */}
               <div
-                className="flex items-center justify-between px-5 py-3"
-                style={{ borderBottom: "1px solid oklch(0.17 0.01 264)" }}
+                className="flex items-center justify-between px-5 py-3.5"
+                style={{ borderBottom: "1px solid oklch(0.16 0.01 264)", backgroundColor: "oklch(0.115 0.01 264)" }}
               >
                 <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                  <span className="text-xs" style={{ color: "oklch(0.65 0.01 264)" }}>PYTHIA · live engine</span>
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                  <span className="text-xs font-semibold text-white">PYTHIA</span>
+                  <span className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>· live engine</span>
                 </div>
-                <span className="text-[10px]" style={{ color: "oklch(0.35 0.01 264)" }}>~20 sec</span>
+                <span className="text-[11px]" style={{ color: "oklch(0.38 0.01 264)" }}>~20 sec</span>
               </div>
 
-              <div className="p-5">
-                <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.55 0.01 264)" }}>
-                  Submit your startup URL. PYTHIA reads your signals, scores you across 7 dimensions,
-                  and surfaces the investors most likely to fund you — ranked by sector fit and timing.
+              <div className="px-5 pt-5 pb-5">
+                {/* What you get */}
+                <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.4 0.01 264)" }}>
+                  What you get
                 </p>
-
-                {/* Output preview — what you'll receive */}
                 <div className="flex gap-3 mb-5">
-                  <div className="flex-1 py-3 rounded-lg text-center" style={{ border: "1px solid oklch(0.19 0.01 264)" }}>
-                    <div className="text-2xl font-bold" style={{ color: "#22d3ee" }}>74</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>GOD score</div>
+                  <div className="flex-1 py-4 rounded-lg text-center" style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.18 0.01 264)" }}>
+                    <div className="text-3xl font-bold mb-1" style={{ color: "#22d3ee" }}>74</div>
+                    <div className="text-xs font-medium" style={{ color: "oklch(0.6 0.01 264)" }}>GOD score</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>7-dimension signal</div>
                   </div>
-                  <div className="flex-1 py-3 rounded-lg text-center" style={{ border: "1px solid oklch(0.19 0.01 264)" }}>
-                    <div className="text-2xl font-bold" style={{ color: "#22c55e" }}>18</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>matched investors</div>
+                  <div className="flex-1 py-4 rounded-lg text-center" style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.18 0.01 264)" }}>
+                    <div className="text-3xl font-bold mb-1" style={{ color: "#22c55e" }}>18</div>
+                    <div className="text-xs font-medium" style={{ color: "oklch(0.6 0.01 264)" }}>investor matches</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>ranked by fit</div>
                   </div>
                 </div>
+
+                <p className="text-sm leading-relaxed mb-5 text-white">
+                  Submit your URL. PYTHIA reads your signals and surfaces the investors most likely to fund you now.
+                </p>
 
                 {/* URL form */}
                 <form id="hero-cta" onSubmit={handleSubmit}>

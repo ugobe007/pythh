@@ -13,63 +13,10 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
+import SharedNavbar from "@/components/SharedNavbar";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
-function PageNav() {
-  return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50"
-      style={{
-        backgroundColor: "oklch(0.11 0.01 264 / 0.95)",
-        backdropFilter: "blur(12px)",
-        borderBottom: "1px solid oklch(0.18 0.01 264)",
-      }}
-    >
-      <div className="container">
-        <div className="flex items-center justify-between h-14">
-          <Link href="/">
-            <span className="font-display font-bold text-base text-white tracking-tight cursor-pointer">
-              pythh.ai
-            </span>
-          </Link>
-          <div className="hidden md:flex items-center gap-6">
-            {[
-              { href: "/oracle", label: "Oracle" },
-              { href: "/rankings", label: "Rankings" },
-              { href: "/matches", label: "Matches" },
-              { href: "/investors", label: "Investors" },
-              { href: "/platform", label: "Platform" },
-            ].map(({ href, label }) => (
-              <Link key={href} href={href}>
-                <span
-                  className="text-sm font-medium cursor-pointer transition-colors"
-                  style={{
-                    color: href === "/matches"
-                      ? "#22c55e"
-                      : "oklch(0.6 0.01 264)",
-                  }}
-                >
-                  {label}
-                </span>
-              </Link>
-            ))}
-          </div>
-          <a
-            href="/activate"
-            className="px-4 py-1.5 rounded-md text-sm font-semibold"
-            style={{
-              backgroundColor: "oklch(0.696 0.17 162.48 / 0.15)",
-              color: "oklch(0.696 0.17 162.48)",
-              border: "1px solid oklch(0.696 0.17 162.48 / 0.3)",
-            }}
-          >
-            Get matched →
-          </a>
-        </div>
-      </div>
-    </nav>
-  );
-}
+
 
 // ─── Static match signals (illustrative, reflects real match logic) ────────────
 
@@ -231,7 +178,7 @@ export default function Matches() {
         <meta property="og:url" content="https://pythh.ai/matches" />
       </Helmet>
 
-      <PageNav />
+      <SharedNavbar activePath="/matches" />
 
       <main className="container pt-24 pb-20 max-w-5xl">
 
