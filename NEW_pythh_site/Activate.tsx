@@ -837,6 +837,26 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
 function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: { url: string; onActivate: () => void; apiResult?: ApiResult | null; onRefresh?: () => void; onForceRefresh?: () => void }) {
   const [expanded, setExpanded] = useState<number | null>(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const shareUrl = `https://pythh.ai/activate?startup=${encodeURIComponent(url)}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      // fallback for browsers that block clipboard without HTTPS focus
+      const el = document.createElement("textarea");
+      el.value = shareUrl;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2200);
+  };
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
   const investors = mapApiToMatchedInvestors(apiResult?.matches ?? []);
   const startupName = apiResult?.startup?.name || domain;
@@ -915,16 +935,34 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
               <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>Ranked by timing × thesis fit × optics</p>
             </div>
           </div>
-          <button
-            onClick={onActivate}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap border"
-            style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.1)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-          >
-            <Zap size={12} />
-            Activate PYTHIA
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Share results */}
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap border"
+              style={{
+                color: copied ? "#22c55e" : "oklch(0.52 0.01 264)",
+                backgroundColor: "transparent",
+                borderColor: copied ? "#22c55e50" : "oklch(0.25 0.01 264)",
+              }}
+              title="Copy a shareable link to these results"
+            >
+              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? "Copied!" : "Share"}
+            </button>
+
+            {/* Activate PYTHIA */}
+            <button
+              onClick={onActivate}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap border"
+              style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.1)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+            >
+              <Zap size={12} />
+              Activate PYTHIA
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2054,10 +2092,22 @@ export default function Activate() {
     } catch {}
     return null;
   });
-  const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
+  const [url, setUrl] = useState(() => {
+    // Shared link: ?startup=https://company.com
+    const params = new URLSearchParams(window.location.search);
+    const sharedUrl = params.get("startup");
+    if (sharedUrl) return sharedUrl;
+    return sessionStorage.getItem("pythia_url") || "";
+  });
   const [step, setStep] = useState<Step>(() => {
     if (prefilledInvestor) return "pipeline";
-    // If URL already entered on home page, skip the entry form and go straight to scanning
+    // Shared link auto-starts scanning
+    const params = new URLSearchParams(window.location.search);
+    const sharedUrl = params.get("startup");
+    if (sharedUrl) {
+      sessionStorage.setItem("pythia_url", sharedUrl);
+      return "scanning";
+    }
     if (sessionStorage.getItem("pythia_url")) return "scanning";
     return "entry";
   });
