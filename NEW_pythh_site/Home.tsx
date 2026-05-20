@@ -346,11 +346,27 @@ function HeroSection() {
               Now queryable from Claude or Cursor.
             </p>
 
-            <p className="text-base leading-relaxed mb-10 max-w-[480px]" style={{ color: "oklch(0.58 0.01 264)" }}>
-              33,000+ startups scored. 6,250+ investors qualified. 91,950 active matches.
-              Point any MCP-compatible AI at Pythh's live deal network and query it in plain English —
-              refreshed every 24 hours from continuous market scraping.
+            <p className="text-base leading-relaxed mb-6 max-w-[480px]" style={{ color: "oklch(0.58 0.01 264)" }}>
+              More startup-investor matches than any other platform. Every match is scored by the GOD engine —
+              Grit, Opportunity, Determination — the same criteria that shaped how YC, Sequoia, A16z,
+              Founders Fund, and Greylock pick their best investments.
             </p>
+
+            {/* Stat chips */}
+            <div className="flex flex-wrap gap-x-5 gap-y-2 mb-10">
+              {[
+                { n: "91,950+", l: "active matches",    c: "#22c55e" },
+                { n: "33,241+", l: "startups scored",   c: "#22d3ee" },
+                { n: "6,250+",  l: "investors qualified",c: "#a855f7" },
+                { n: "52",      l: "avg GOD score",      c: "#eab308" },
+                { n: "AI/ML",   l: "top active sector",  c: "#f97316" },
+              ].map(({ n, l, c }) => (
+                <div key={l} className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-bold tabular-nums" style={{ color: c }}>{n}</span>
+                  <span className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{l}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="flex flex-col sm:flex-row gap-3 mb-10">
               <a
@@ -528,13 +544,13 @@ function TrackRecordStrip() {
   const startups = useCountUp(33241, 1600, isVisible);
   const investors = useCountUp(6250, 1800, isVisible);
   const matches = useCountUp(91950, 2000, isVisible);
-  const tools = useCountUp(9, 800, isVisible);
+  const godAvg = useCountUp(52, 1200, isVisible);
 
   const stats = [
+    { value: matches.toLocaleString(), suffix: "+", label: "Active Matches", sublabel: "more than any other matching platform", color: "#22c55e" },
     { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee" },
-    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped", color: "#7c3aed" },
-    { value: matches.toLocaleString(), suffix: "", label: "Active Matches", sublabel: "live startup-investor pairings", color: "#22c55e" },
-    { value: String(tools), suffix: " MCP tools", label: "API Tools", sublabel: "free · pro · enterprise tiers", color: "#f97316" },
+    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped, GOD-ranked", color: "#a855f7" },
+    { value: String(godAvg), suffix: "/100", label: "Avg GOD Score", sublabel: "platform-wide · AI/ML leads all sectors", color: "#eab308" },
   ];
 
   return (
@@ -903,6 +919,208 @@ function NewsletterSection() {
   );
 }
 
+// ─── GOD Score Section ────────────────────────────────────────────────────────
+
+const GOD_PILLARS = [
+  {
+    letter: "G",
+    word: "Grit",
+    color: "#a855f7",
+    desc: "The relentless drive to endure adversity and keep building. Pythh measures founder resilience through prior pivots, time-in-market signals, and survival under pressure — the quality that Y Combinator has always selected for above all others.",
+    vcs: ["Y Combinator"],
+    signals: ["Repeat founder", "Pivot velocity", "Time in market"],
+  },
+  {
+    letter: "O",
+    word: "Opportunity",
+    color: "#22d3ee",
+    desc: "The precision to identify and enter the right market at exactly the right moment. We score category size, creation potential, and timing against technology adoption curves — the framework Sequoia and Greylock have used to back every category-defining company.",
+    vcs: ["Sequoia Capital", "Greylock"],
+    signals: ["Market size signals", "Funding velocity", "Category momentum"],
+  },
+  {
+    letter: "D",
+    word: "Determination",
+    color: "#22c55e",
+    desc: "The clarity of conviction and the magnetic force of execution. We score thesis specificity, product velocity, and the ability to attract world-class talent — the qualities Andreessen Horowitz and Founders Fund use to distinguish missionaries from mercenaries.",
+    vcs: ["Andreessen Horowitz", "Founders Fund"],
+    signals: ["Product velocity", "Team depth", "Thesis coherence"],
+  },
+];
+
+function GODScoreSection() {
+  return (
+    <section
+      className="py-24 border-t border-b"
+      style={{ backgroundColor: "oklch(0.09 0.01 264)", borderColor: "oklch(0.2 0.01 264)" }}
+    >
+      <div className="container" style={{ maxWidth: "1200px" }}>
+
+        {/* ── Header ── */}
+        <div className="text-center mb-16">
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <div className="h-px flex-1" style={{ maxWidth: 80, backgroundColor: "oklch(0.22 0.01 264)" }} />
+            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.42 0.01 264)" }}>
+              The science behind the score
+            </span>
+            <div className="h-px flex-1" style={{ maxWidth: 80, backgroundColor: "oklch(0.22 0.01 264)" }} />
+          </div>
+
+          {/* G · O · D display */}
+          <div className="flex items-center justify-center gap-4 mb-5">
+            {["G", "O", "D"].map((letter, i) => (
+              <span
+                key={letter}
+                style={{
+                  fontSize: "clamp(5rem, 12vw, 8rem)",
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  letterSpacing: "-0.05em",
+                  color: ["#a855f7", "#22d3ee", "#22c55e"][i],
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {letter}
+              </span>
+            ))}
+          </div>
+
+          <h2
+            className="font-display font-bold mb-5"
+            style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", color: "oklch(0.85 0.005 264)", letterSpacing: "-0.02em" }}
+          >
+            Grit · Opportunity · Determination
+          </h2>
+          <p className="text-base leading-relaxed max-w-2xl mx-auto" style={{ color: "oklch(0.55 0.01 264)" }}>
+            Every startup founder is on a hero's journey — facing rejection, uncertainty, and pressure at every turn.
+            Those who endure are the ones who deserve to be backed. The GOD Score quantifies exactly what the greatest
+            investors in history have always looked for. We named it accordingly.
+          </p>
+        </div>
+
+        {/* ── Three pillar cards ── */}
+        <div className="grid md:grid-cols-3 gap-5 mb-12">
+          {GOD_PILLARS.map(({ letter, word, color, desc, vcs, signals }) => (
+            <div
+              key={letter}
+              className="p-7 rounded-2xl flex flex-col"
+              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: `1px solid ${color}28` }}
+            >
+              <div className="flex items-baseline gap-3 mb-5">
+                <span
+                  style={{
+                    fontSize: "3.5rem",
+                    fontWeight: 900,
+                    color,
+                    lineHeight: 1,
+                    letterSpacing: "-0.04em",
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {letter}
+                </span>
+                <span className="text-xl font-bold" style={{ color: "oklch(0.88 0.005 264)" }}>{word}</span>
+              </div>
+              <p className="text-sm leading-relaxed mb-5 flex-1" style={{ color: "oklch(0.57 0.01 264)" }}>{desc}</p>
+
+              {/* Signal chips */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {signals.map((s) => (
+                  <span
+                    key={s}
+                    className="text-[11px] px-2 py-0.5 rounded"
+                    style={{ backgroundColor: `${color}12`, color, border: `1px solid ${color}35` }}
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+
+              {/* VC attribution */}
+              <div className="flex items-center gap-1.5 pt-3" style={{ borderTop: "1px solid oklch(0.18 0.01 264)" }}>
+                <span className="text-[11px]" style={{ color: "oklch(0.36 0.01 264)" }}>Informed by:</span>
+                {vcs.map((v) => (
+                  <span key={v} className="text-[11px] font-semibold" style={{ color: "oklch(0.52 0.01 264)" }}>{v}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Bottom: score scale + hero's journey copy ── */}
+        <div className="grid lg:grid-cols-2 gap-5">
+
+          {/* Score scale */}
+          <div className="p-6 rounded-2xl" style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}>
+            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.4 0.01 264)" }}>
+              GOD Score — 0 to 100
+            </p>
+            <div className="space-y-3">
+              {[
+                { range: "80 – 100", label: "Elite",      color: "#22c55e",              note: "Investment-grade · Surfaces first in all match lists" },
+                { range: "60 – 79",  label: "Strong",     color: "#22d3ee",              note: "High conviction · Core matching pool" },
+                { range: "40 – 59",  label: "Solid",      color: "#eab308",              note: "Signal-building · Included with confidence weighting" },
+                { range: "20 – 39",  label: "Emerging",   color: "#f97316",              note: "Early signals · Monitor for improvement" },
+                { range: "0 – 19",   label: "Pre-signal", color: "oklch(0.38 0.01 264)", note: "Excluded from all matches — protects quality" },
+              ].map(({ range, label, color, note }) => (
+                <div key={range} className="flex items-start gap-4">
+                  <span className="text-xs font-mono mt-0.5 w-16 flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>{range}</span>
+                  <span className="text-sm font-semibold w-20 flex-shrink-0" style={{ color }}>{label}</span>
+                  <span className="text-xs leading-snug" style={{ color: "oklch(0.45 0.01 264)" }}>{note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Philosophy */}
+          <div className="p-6 rounded-2xl" style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}>
+            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.4 0.01 264)" }}>
+              The hero's journey, quantified
+            </p>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: "oklch(0.57 0.01 264)" }}>
+              Joseph Campbell wrote that every hero must face the abyss — and choose to go on. Every startup founder
+              faces that moment too. The GOD Score was built to identify the founders who choose to continue, and the
+              investors who are ready to back them at exactly the right time.
+            </p>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: "oklch(0.57 0.01 264)" }}>
+              The five GOD dimensions — Team, Traction, Market, Product, and Vision — aren't invented criteria.
+              They're derived from the observable selection patterns of the most successful early-stage investors in
+              history: YC, Sequoia, A16z, Founders Fund, and Greylock. We studied how they pick, distilled the signals,
+              and built an engine that runs the same analysis on every startup in the network.
+            </p>
+            <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.57 0.01 264)" }}>
+              No self-reported data. No black boxes. Just 40+ observable signals, scored the same way every time —
+              because founders deserve to be evaluated on what they've built, not what they claim.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <a
+                href="/methodology"
+                className="text-sm font-semibold transition-colors"
+                style={{ color: "#a78bfa" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#a78bfa"; }}
+              >
+                Read the full methodology →
+              </a>
+              <span style={{ color: "oklch(0.28 0.01 264)" }}>·</span>
+              <a
+                href="/activate"
+                className="text-sm font-semibold transition-colors"
+                style={{ color: "oklch(0.696 0.17 162.48)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.78 0.17 162.48)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.696 0.17 162.48)"; }}
+              >
+                Score your startup →
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  );
+}
+
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
 function Footer() {
@@ -994,6 +1212,7 @@ export default function Home() {
       <Navbar />
       <HeroSection />
       <TrackRecordStrip />
+      <GODScoreSection />
       <AgentIntroSection />
       <LiveSignalsSection />
       <ScienceSection />
