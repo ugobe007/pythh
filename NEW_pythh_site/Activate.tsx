@@ -918,6 +918,23 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startupId]);
 
+  // ── Derived display values ─────────────────────────────────────────────────
+  const godScore = Math.round(liveGodScore ?? initialGodScore ?? 0);
+  const godColor = godScore >= 60 ? "#22c55e" : godScore >= 45 ? "#eab308" : "oklch(0.55 0.01 264)";
+  const superCount = investors.filter(i => i.isSuperMatch).length;
+  const primarySector = (apiResult?.startup?.sectors as string[] | undefined)?.[0] ?? "tech";
+  const topFirm = investors[0]?.firm;
+
+  const positioning = (() => {
+    if (!investors.length) return "Evaluating your startup against 6,250+ investors across sector, stage, and timing signals.";
+    const firmNote = topFirm ? ` Top thesis alignment: ${topFirm}.` : "";
+    if (godScore >= 65)
+      return `Strong GOD score positions you well in ${primarySector}. ${superCount > 0 ? `${superCount} super match${superCount > 1 ? "es" : ""} identified — lead your outreach with these.` : ""}${firmNote}`;
+    if (godScore >= 45)
+      return `Solid ${primarySector} positioning at ${(apiResult?.startup?.stage as string | undefined) ?? "your"} stage. ${matchCount} investors ranked by timing × thesis fit × optics.${firmNote}`;
+    return `${matchCount} investors evaluated across sector, stage, and market timing.${firmNote} Lead with your top-ranked matches where thesis alignment is clearest.`;
+  })();
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
       {/* Header */}
@@ -994,125 +1011,90 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
           ))}
         </div>
 
-        {/* ── Startup Profile Card ─────────────────────────────────────────────── */}
+        {/* ── Startup Summary Card ──────────────────────────────────────────────── */}
         {apiResult?.startup && (
-          <div className="rounded-xl border p-4 mb-6 flex items-center gap-4"
-            style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
-            {/* Logo placeholder */}
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 font-display font-bold text-lg"
-              style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.12)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)" }}>
-              {(startupName || "?")[0].toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="font-display font-bold text-base" style={{ color: "oklch(0.94 0.005 264)" }}>{startupName}</span>
-                <a href={url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
-                  <Globe size={10} />{domain}
-                </a>
-              </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                {apiResult.startup.sectors?.slice(0, 3).map((s) => (
-                  <span key={s} className="text-xs px-2 py-0.5 rounded"
-                    style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.08)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.2)" }}>
-                    {s}
-                  </span>
-                ))}
-                {apiResult.startup.stage && (
-                  <span className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
-                    Stage {apiResult.startup.stage}
-                  </span>
-                )}
-              </div>
-            </div>
-            {/* GOD Score — live-updated while background pipeline runs */}
-            {(liveGodScore != null || initialGodScore != null) && (
-              <div className="text-center flex-shrink-0">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="font-display font-bold text-2xl"
-                    style={{
-                      color: (liveGodScore ?? initialGodScore ?? 0) >= 60
-                        ? "oklch(0.696 0.17 162.48)"
-                        : (liveGodScore ?? initialGodScore ?? 0) >= 45
-                          ? "oklch(0.769 0.188 70.08)"
-                          : "oklch(0.65 0.01 264)",
-                      transition: "color 0.6s ease",
-                    }}>
-                    {Math.round(liveGodScore ?? initialGodScore ?? 0)}
-                  </p>
-                  {scorePending && (
-                    <Loader2 size={12} className="animate-spin" style={{ color: "oklch(0.5 0.01 264)", marginTop: "2px" }} />
-                  )}
+          <div className="rounded-xl border mb-6 overflow-hidden" style={{ borderColor: "#a855f728", backgroundColor: "oklch(0.14 0.01 264)" }}>
+            <div className="grid lg:grid-cols-[1fr_auto]">
+
+              {/* Left: identity + positioning */}
+              <div className="p-5 border-b lg:border-b-0 lg:border-r" style={{ borderColor: "oklch(0.19 0.01 264)" }}>
+                {/* Name row */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 font-display font-bold text-base"
+                    style={{ color: "#a855f7", border: "1px solid #a855f740" }}>
+                    {(startupName || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-display font-bold text-base" style={{ color: "oklch(0.94 0.005 264)" }}>{startupName}</span>
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs" style={{ color: "oklch(0.42 0.01 264)" }}>
+                        <Globe size={10} />{domain}
+                      </a>
+                    </div>
+                    {/* Sectors + stage inline */}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                      {(apiResult.startup.sectors ?? []).slice(0, 3).map((s, si) => (
+                        <span key={si} className="text-xs px-2 py-0.5 rounded"
+                          style={{ color: "#a855f7", border: "1px solid #a855f730" }}>
+                          {s}
+                        </span>
+                      ))}
+                      {apiResult.startup.stage ? (
+                        <span className="text-xs px-2 py-0.5 rounded"
+                          style={{ color: "oklch(0.5 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}>
+                          {apiResult.startup.stage}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs font-semibold tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>
-                  {scorePending ? "SCORING…" : "GOD SCORE"}
-                </p>
+
+                {/* Investor positioning */}
+                <div className="rounded-lg p-3" style={{ backgroundColor: "oklch(0.11 0.01 264)", border: "1px solid oklch(0.18 0.01 264)" }}>
+                  <p className="text-[10px] font-semibold tracking-widest mb-1.5" style={{ color: "#a855f7" }}>INVESTOR POSITIONING</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>{positioning}</p>
+                </div>
               </div>
-            )}
+
+              {/* Right: GOD score + CTA */}
+              <div className="flex flex-row lg:flex-col items-center justify-between lg:justify-center gap-5 p-5 lg:min-w-[148px]">
+                {(liveGodScore != null || initialGodScore != null) ? (
+                  <div className="text-center">
+                    <div className="flex items-end justify-center gap-1.5">
+                      <span className="font-display font-bold" style={{ fontSize: "3.25rem", lineHeight: 1, color: godColor, transition: "color 0.6s ease" }}>
+                        {godScore}
+                      </span>
+                      {scorePending && <Loader2 size={13} className="animate-spin mb-2" style={{ color: "oklch(0.5 0.01 264)" }} />}
+                    </div>
+                    <p className="text-[10px] font-semibold tracking-widest mt-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>
+                      {scorePending ? "SCORING…" : "GOD SCORE"}
+                    </p>
+                    <p className="text-[10px]" style={{ color: "oklch(0.3 0.01 264)" }}>out of 100</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-1"
+                      style={{ border: "2px solid oklch(0.22 0.01 264)" }}>
+                      <Loader2 size={20} className="animate-spin" style={{ color: "oklch(0.4 0.01 264)" }} />
+                    </div>
+                    <p className="text-[10px] font-semibold tracking-widest" style={{ color: "oklch(0.35 0.01 264)" }}>SCORING…</p>
+                  </div>
+                )}
+                <button
+                  onClick={onActivate}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border"
+                  style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.08)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+                >
+                  <Zap size={11} />
+                  Start outreach
+                </button>
+              </div>
+            </div>
           </div>
         )}
-
-        {/* ── PYTHIA Activation Banner ─────────────────────────────────────────── */}
-        <div className="rounded-2xl border mb-8 overflow-hidden"
-          style={{ background: "linear-gradient(135deg, oklch(0.696 0.17 162.48 / 0.08) 0%, oklch(0.769 0.188 70.08 / 0.05) 100%)", borderColor: "oklch(0.696 0.17 162.48 / 0.3)" }}>
-          {/* Top strip */}
-          <div className="px-6 pt-6 pb-4 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="relative flex-shrink-0">
-                <PythiaAvatar size={52} />
-                <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 animate-pulse"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", borderColor: "oklch(0.13 0.01 264)" }} />
-              </div>
-              <div>
-                <p className="font-display font-bold text-lg leading-tight mb-0.5" style={{ color: "oklch(0.94 0.005 264)" }}>
-                  Ready to activate PYTHIA?
-                </p>
-                <p className="text-sm" style={{ color: "oklch(0.65 0.01 264)" }}>
-                  She'll reach out to your top {matchCount} investors — personalized pitch, email sequencing, meeting booked.
-                </p>
-              </div>
-            </div>
-            {/* Primary CTA */}
-            <button
-              onClick={onActivate}
-              className="flex items-center gap-2.5 px-7 py-3.5 rounded-xl font-bold text-base transition-all duration-200 whitespace-nowrap flex-shrink-0"
-              style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)", boxShadow: "0 0 0 0 oklch(0.696 0.17 162.48)" }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget as HTMLElement;
-                el.style.backgroundColor = "oklch(0.75 0.17 162.48)";
-                el.style.boxShadow = "0 0 28px oklch(0.696 0.17 162.48 / 0.55)";
-                el.style.transform = "translateY(-1px)";
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget as HTMLElement;
-                el.style.backgroundColor = "oklch(0.696 0.17 162.48)";
-                el.style.boxShadow = "0 0 0 0 oklch(0.696 0.17 162.48)";
-                el.style.transform = "none";
-              }}
-            >
-              <Zap size={18} />
-              Start outreach with PYTHIA
-            </button>
-          </div>
-
-          {/* What Pythia does — three steps */}
-          <div className="grid grid-cols-3 gap-px border-t" style={{ borderColor: "oklch(0.696 0.17 162.48 / 0.15)" }}>
-            {[
-              { icon: <Mail size={14} />, label: "Personalized Outreach", desc: `Drafts & sends emails to all ${matchCount} investors` },
-              { icon: <FileText size={14} />, label: "Pitch Prep", desc: "Builds custom deck & one-pager per investor" },
-              { icon: <CalendarCheck size={14} />, label: "Meeting Booked", desc: "You approve before anything goes out" },
-            ].map((item) => (
-              <div key={item.label} className="flex items-start gap-3 px-5 py-4"
-                style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.04)" }}>
-                <span style={{ color: "oklch(0.696 0.17 162.48)" }} className="mt-0.5 flex-shrink-0">{item.icon}</span>
-                <div>
-                  <p className="text-xs font-semibold mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>{item.label}</p>
-                  <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Investor list */}
         {investors.length === 0 && (
@@ -1144,8 +1126,8 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
                     <span className="font-display font-semibold text-sm" style={{ color: "oklch(0.94 0.005 264)" }}>{inv.name}</span>
                     {inv.isSuperMatch && (
                       <span className="text-xs px-1.5 py-0.5 rounded font-bold"
-                        style={{ backgroundColor: "oklch(0.769 0.188 70.08 / 0.15)", color: "oklch(0.769 0.188 70.08)", border: "1px solid oklch(0.769 0.188 70.08 / 0.3)" }}>
-                        🔥 SUPER
+                        style={{ color: "#a855f7", border: "1px solid #a855f750" }}>
+                        ✦ SUPER
                       </span>
                     )}
                     <span className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>{inv.role}</span>
@@ -1168,7 +1150,7 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
                 <div className="hidden md:flex gap-1.5 flex-wrap">
                   {inv.sector.slice(0, 2).map((s) => (
                     <span key={s} className="text-xs px-2 py-0.5 rounded"
-                      style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.2)" }}>
+                      style={{ color: "oklch(0.55 0.01 264)", border: "1px solid oklch(0.24 0.01 264)" }}>
                       {s}
                     </span>
                   ))}
@@ -1191,9 +1173,8 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
                             return (
                               <span key={ti} className="text-xs px-2 py-0.5 rounded font-medium"
                                 style={{
-                                  backgroundColor: isSuper ? "oklch(0.769 0.188 70.08 / 0.15)" : "oklch(0.696 0.17 162.48 / 0.1)",
-                                  color: isSuper ? "oklch(0.769 0.188 70.08)" : "oklch(0.696 0.17 162.48)",
-                                  border: `1px solid ${isSuper ? "oklch(0.769 0.188 70.08 / 0.3)" : "oklch(0.696 0.17 162.48 / 0.2)"}`,
+                                  color: isSuper ? "#a855f7" : "#22d3ee",
+                                  border: `1px solid ${isSuper ? "#a855f740" : "#22d3ee30"}`,
                                 }}>
                                 {tag}
                               </span>
@@ -1233,9 +1214,8 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 <span className="text-xs px-2 py-0.5 rounded font-medium"
                                   style={{
-                                    backgroundColor: v.confidence === "high" ? "oklch(0.696 0.17 162.48 / 0.12)" : "oklch(0.769 0.188 70.08 / 0.1)",
-                                    color: v.confidence === "high" ? "oklch(0.696 0.17 162.48)" : "oklch(0.769 0.188 70.08)",
-                                    border: `1px solid ${v.confidence === "high" ? "oklch(0.696 0.17 162.48 / 0.25)" : "oklch(0.769 0.188 70.08 / 0.25)"}`
+                                    color: v.confidence === "high" ? "#22c55e" : "#eab308",
+                                    border: `1px solid ${v.confidence === "high" ? "#22c55e40" : "#eab30840"}`,
                                   }}>
                                   {confidenceLabel(v.confidence)}
                                 </span>
@@ -1269,31 +1249,46 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
         </div>
 
         {/* Bottom CTA */}
-        <div className="rounded-2xl p-8 border text-center"
-          style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.696 0.17 162.48 / 0.2)", background: "linear-gradient(135deg, oklch(0.16 0.01 264) 0%, oklch(0.696 0.17 162.48 / 0.05) 100%)" }}>
-          <div className="flex justify-center mb-4">
-            <PythiaAvatar size={52} pulse />
+        <div className="rounded-xl border mb-2 overflow-hidden" style={{ borderColor: "#a855f728" }}>
+          <div className="flex flex-col sm:flex-row items-center gap-5 px-6 py-5">
+            <PythiaAvatar size={44} pulse />
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <p className="font-display font-bold text-base mb-0.5" style={{ color: "oklch(0.94 0.005 264)" }}>
+                Ready to run your pipeline?
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
+                PYTHIA reaches out to your top {matchCount} investors — personalized pitch, email sequencing, meetings booked. You approve before anything goes out.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <button
+                onClick={onActivate}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all border"
+                style={{ color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.5)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.08)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                <Zap size={14} />
+                Start outreach
+              </button>
+            </div>
           </div>
-          <h3 className="font-display font-bold text-xl mb-2" style={{ color: "oklch(0.97 0.005 264)" }}>
-            Ready to run your pipeline?
-          </h3>
-          <p className="text-sm leading-relaxed mb-6 max-w-md mx-auto" style={{ color: "oklch(0.6 0.01 264)" }}>
-            PYTHIA will reach out to your top {matchCount} matched investors, prepare personalized pitch materials for each, and book meetings on your calendar. You approve every action before it goes out.
-          </p>
-          <button
-            onClick={onActivate}
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-base transition-all duration-200"
-            style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 0 32px oklch(0.696 0.17 162.48 / 0.5)"; (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; }}
-          >
-            <Zap size={18} />
-            Run Pipeline with PYTHIA
-            <ArrowRight size={18} />
-          </button>
-          <p className="text-xs mt-3" style={{ color: "oklch(0.4 0.01 264)" }}>
-            You approve every meeting before it's confirmed. PYTHIA does the rest.
-          </p>
+          <div className="grid grid-cols-3 border-t" style={{ borderColor: "oklch(0.18 0.01 264)" }}>
+            {[
+              { icon: <Mail size={12} />, label: "Personalized Outreach", desc: `Emails to all ${matchCount} investors` },
+              { icon: <FileText size={12} />, label: "Pitch Prep", desc: "Custom deck per investor" },
+              { icon: <CalendarCheck size={12} />, label: "Meeting Booked", desc: "You approve first" },
+            ].map((item, i) => (
+              <div key={item.label} className="flex items-start gap-2.5 px-4 py-3"
+                style={{ borderRight: i < 2 ? "1px solid oklch(0.18 0.01 264)" : "none" }}>
+                <span className="mt-0.5 flex-shrink-0" style={{ color: "oklch(0.45 0.01 264)" }}>{item.icon}</span>
+                <div>
+                  <p className="text-xs font-semibold mb-0.5" style={{ color: "oklch(0.7 0.005 264)" }}>{item.label}</p>
+                  <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Re-submit for refresh */}
@@ -1339,9 +1334,8 @@ function CopyTalkingPointsButton({ points }: { points: string[] }) {
       onClick={handleCopy}
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
       style={{
-        backgroundColor: copied ? "oklch(0.696 0.17 162.48 / 0.15)" : "oklch(0.18 0.01 264)",
-        color: copied ? "oklch(0.696 0.17 162.48)" : "oklch(0.55 0.01 264)",
-        border: copied ? "1px solid oklch(0.696 0.17 162.48 / 0.3)" : "1px solid oklch(0.28 0.01 264)",
+        color: copied ? "#22c55e" : "oklch(0.5 0.01 264)",
+        border: copied ? "1px solid #22c55e40" : "1px solid oklch(0.26 0.01 264)",
       }}
     >
       {copied ? <Check size={11} /> : <Copy size={11} />}
