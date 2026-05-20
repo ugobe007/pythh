@@ -478,6 +478,86 @@ export default function SignalTrends() {
           </span>
         </p>
 
+        {/* ── GOD Score Science ── */}
+        <div
+          className="grid lg:grid-cols-2 gap-6 mb-8 p-5 rounded-2xl"
+          style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+        >
+          {/* Left: Formula */}
+          <div>
+            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.45 0.01 264)" }}>
+              GOD Score Formula
+            </p>
+            <div className="space-y-3 mb-5">
+              {[
+                { dim: "Team",     range: "0–20", weight: "Founder track record, team depth, cofounder dynamics",  color: "#a855f7" },
+                { dim: "Traction", range: "0–20", weight: "Revenue signals, growth rate, customer evidence",       color: "#22d3ee" },
+                { dim: "Market",   range: "0–20", weight: "TAM, sector timing, competitive landscape",            color: "#f97316" },
+                { dim: "Product",  range: "0–20", weight: "Shipping velocity, differentiation, IP signals",       color: "#eab308" },
+                { dim: "Vision",   range: "0–20", weight: "Thesis coherence, contrarian insight, conviction",     color: "#22c55e" },
+              ].map(({ dim, range, weight, color }) => (
+                <div key={dim} className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-sm font-semibold" style={{ color }}>{dim}</span>
+                      <span className="text-xs font-mono" style={{ color: "oklch(0.48 0.01 264)" }}>{range}</span>
+                    </div>
+                    <p className="text-xs" style={{ color: "oklch(0.48 0.01 264)" }}>{weight}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div
+              className="flex items-center gap-3 px-4 py-3 rounded-lg"
+              style={{ backgroundColor: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}
+            >
+              <span className="text-2xl font-bold" style={{ color: "#22d3ee" }}>Σ</span>
+              <div>
+                <p className="text-sm font-semibold text-white">Total GOD Score = 0–100</p>
+                <p className="text-xs" style={{ color: "oklch(0.48 0.01 264)" }}>
+                  5 × 20 = 100 max · Behavioral multipliers shift scores above tier thresholds
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Behavioral multipliers + VC lens rationale */}
+          <div>
+            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.45 0.01 264)" }}>
+              Behavioral Multipliers
+            </p>
+            <div className="space-y-2.5 mb-6">
+              {[
+                { flag: "Repeat Founder",        impact: "Prior exit or notable startup — conviction signal",    color: "#22c55e" },
+                { flag: "Social Proof Cascade",   impact: "Viral signal from influential investors or founders",  color: "#22d3ee" },
+                { flag: "Follow-on Financing",    impact: "Existing investors doubling down — confidence signal", color: "#a78bfa" },
+                { flag: "Sector Pivot",           impact: "Intentional, high-signal direction change",           color: "#ec4899" },
+                { flag: "Oversubscribed Round",   impact: "Demand exceeds supply — urgency multiplier",          color: "#f97316" },
+              ].map(({ flag, impact, color }) => (
+                <div key={flag} className="flex items-start gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0" style={{ backgroundColor: color }} />
+                  <div className="flex-1">
+                    <span className="text-xs font-semibold" style={{ color: "oklch(0.78 0.01 264)" }}>{flag}</span>
+                    <span className="text-xs ml-2" style={{ color: "oklch(0.48 0.01 264)" }}>{impact}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div
+              className="px-4 py-3 rounded-lg"
+              style={{ backgroundColor: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}
+            >
+              <p className="text-xs font-semibold text-white mb-2">Why VC Lenses?</p>
+              <p className="text-xs leading-relaxed" style={{ color: "oklch(0.5 0.01 264)" }}>
+                Different investors weight these 5 dimensions differently. YC prioritizes team and traction.
+                Sequoia weights market size above all. a16z rewards product depth. Switch lenses above to see
+                the same startups reorder under each philosophy — the delta between lenses is the real signal.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Live Stats Strip */}
         <div
           className="flex flex-wrap items-center gap-4 mb-5 py-3 px-4 rounded-xl"
