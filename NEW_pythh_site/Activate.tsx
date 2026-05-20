@@ -853,7 +853,6 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
   // Always poll when we have a startupId — background pipeline improves matches
   // even for existing startups (speculative → real sector-specific matches).
   const [scorePending, setScorePending] = useState<boolean>(Boolean(startupId && (apiResult?.gen_in_progress || apiResult?.matches?.length === 0 || isNewStartup)));
-  const seenMatchCountRef = useRef<number>(apiResult?.matches?.length ?? 0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollAttemptsRef = useRef(0);
   const MAX_POLL_ATTEMPTS = 12; // ~60 seconds at 5s intervals
@@ -879,17 +878,13 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
         const newScore = data.startup?.total_god_score ?? null;
         if (newScore != null) setLiveGodScore(newScore);
 
-        const newMatchCount = data.match_count ?? 0;
-        // When background matching finishes with significantly more matches, trigger a refresh.
-        // Use ref so this fires at most once even though the interval keeps running.
-        if (newMatchCount > seenMatchCountRef.current + 3 && onRefresh) {
-          seenMatchCountRef.current = newMatchCount;
-          onRefresh();
-        }
-
         if (data.status === "ready") {
           setScorePending(false);
           if (pollRef.current) clearInterval(pollRef.current);
+          // Fetch updated match list once — only when pipeline is fully done.
+          // Do NOT call onRefresh in a loop — it re-submits to the backend
+          // and causes the scoring engine to loop indefinitely.
+          if (onRefresh) onRefresh();
         }
       } catch {
         // silently ignore transient errors
@@ -2077,6 +2072,9 @@ export default function Activate() {
 
   const handleScanComplete = (result: ApiResult | null) => {
     setApiResult(result);
+    // Clear sessionStorage so a component remount can't restart the scan.
+    sessionStorage.removeItem("pythia_url");
+    sessionStorage.removeItem("pythia_email");
     setStep("results");
   };
 
