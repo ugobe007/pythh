@@ -4,7 +4,7 @@
  * Live investor signal table with search, sector filters, column sort, and Oracle gate.
  */
 import { Helmet } from "react-helmet-async";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -20,10 +20,10 @@ import {
   TrendingDown,
   Minus,
   RefreshCw,
-  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import InvestorDetailModal from "@/components/InvestorDetailModal";
+import SharedNavbar from "@/components/SharedNavbar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -200,65 +200,77 @@ export default function Rankings() {
         <meta property="og:description" content="Real-time investor signal intelligence. 44+ top VCs ranked by thesis alignment, portfolio velocity, and check-writing probability." />
         <meta property="og:url" content="https://pythh.ai/investors" />
       </Helmet>
-      {/* ── Navbar ── */}
-      <nav
-        className="fixed top-0 left-0 right-0 z-50"
-        style={{
-          backgroundColor: "oklch(0.11 0.01 264 / 0.95)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid oklch(0.2 0.01 264)",
-        }}
-      >
-        <div className="container">
-          <div className="flex items-center justify-between h-14">
-            <Link href="/">
-              <span className="font-display font-bold text-base text-white tracking-tight cursor-pointer">
-                pythh.ai
-              </span>
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link href="/pricing">
-                <span className="text-sm font-medium cursor-pointer transition-colors"
-                  style={{ color: "oklch(0.55 0.01 264)" }}
-                  onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "oklch(0.769 0.188 70.08)")}
-                  onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
-                >Pricing</span>
-              </Link>
-              {isAuthenticated ? (
-                <Link href="/account">
-                  <span className="text-sm font-medium cursor-pointer" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                    {user?.name?.split(" ")[0] ?? "Account"}
-                  </span>
-                </Link>
-              ) : (
-                <a href={getLoginUrl()} className="text-sm font-semibold px-3 py-1.5 rounded-lg"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}>
-                  Sign in
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
+      <SharedNavbar activePath="/investors" />
 
       <div className="container pt-24 pb-20">
-        {/* ── Header ── */}
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-            <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-              INVESTOR INTELLIGENCE
-            </span>
+        {/* ── Header (2-panel) ── */}
+        <div className="grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-16 mb-10 items-start pt-4">
+
+          {/* Left: headline + copy */}
+          <div>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+                Investor Intelligence
+              </span>
+            </div>
+            <h1
+              className="font-display font-bold mb-5 leading-tight"
+              style={{ fontSize: "clamp(2rem, 4.5vw, 3rem)", color: "oklch(0.97 0.005 264)" }}
+            >
+              The investors who are<br />
+              <span style={{ color: "oklch(0.696 0.17 162.48)" }}>funding right now.</span>
+            </h1>
+            <p className="text-base leading-relaxed mb-3" style={{ color: "oklch(0.62 0.01 264)" }}>
+              Pythh's investor intelligence database isn't a contact list. Every record is entity-verified,
+              GOD-scored, and ranked by deployment readiness — updated weekly by PYTHIA's composite
+              activity model.
+            </p>
+            <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.52 0.01 264)" }}>
+              Signal scores reflect thesis alignment, fund velocity, portfolio cadence, and timing signals.
+              The investors surfacing at the top aren't just active — they're active in your space,
+              at your stage, right now.
+            </p>
+            {!isAuthenticated && (
+              <a
+                href={getLoginUrl()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
+                style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
+              >
+                Match me to investors <ArrowRight size={14} />
+              </a>
+            )}
           </div>
-          <h1 className="font-display font-bold mb-3" style={{ fontSize: "clamp(2rem, 4vw, 3rem)", color: "oklch(0.97 0.005 264)" }}>
-            Investor Rankings
-          </h1>
-          <p className="text-base max-w-xl" style={{ color: "oklch(0.55 0.01 264)" }}>
-            PYTHIA's live signal intelligence on {isOracle ? (total > 0 ? total : "44") : "44"}+ active investors, ranked by composite
-            activity score. {isOracle
-              ? "Full Oracle access — all signal data visible."
-              : `Showing ${publicCount > 0 ? publicCount : "public"} profiles. Upgrade to Oracle to unlock all 44+ records.`}
-          </p>
+
+          {/* Right: live stats */}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { value: isOracle ? (total > 0 ? total.toLocaleString() : "4,007") : "4,007", label: "Qualified investors", color: "oklch(0.696 0.17 162.48)" },
+              { value: "6,250+",   label: "Investors tracked",       color: "#22d3ee" },
+              { value: "91,950",   label: "Active matches",          color: "#a855f7" },
+              { value: "Weekly",   label: "Signal score cadence",    color: "#f97316" },
+            ].map(({ value, label, color }) => (
+              <div
+                key={label}
+                className="p-4 rounded-xl"
+                style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+              >
+                <div className="text-2xl font-bold mb-0.5" style={{ color }}>{value}</div>
+                <div className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>{label}</div>
+              </div>
+            ))}
+            <div
+              className="col-span-2 px-4 py-3 rounded-xl text-xs leading-relaxed"
+              style={{ backgroundColor: "oklch(0.115 0.01 264)", border: "1px solid oklch(0.2 0.01 264)", color: "oklch(0.5 0.01 264)" }}
+            >
+              {isOracle
+                ? <span style={{ color: "oklch(0.696 0.17 162.48)" }}>Full Oracle access — all signal data, GOD scores, and VCPP visible.</span>
+                : <>Showing {publicCount > 0 ? publicCount : "public"} profiles. <Link href="/pricing"><span className="underline cursor-pointer" style={{ color: "oklch(0.696 0.17 162.48)" }}>Upgrade to Oracle</span></Link> to unlock all 44+ records with full scoring data.</>
+              }
+            </div>
+          </div>
         </div>
 
         {/* ── Search + Filters ── */}

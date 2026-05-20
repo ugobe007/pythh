@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -10,71 +10,92 @@ const GOD_DIMS = [
     label: "Team",
     weight: "20 pts",
     color: "#a855f7",
-    desc: "Founder background, domain expertise, repeat-founder status, advisor network. We score what founders have publicly demonstrated — not what they claim.",
+    desc: "Founder background, domain expertise, repeat-founder status, technical depth, and advisor network. We score what founders have publicly demonstrated — not what they claim on an about page. A repeat founder with a prior exit scores differently than a first-time founder in an adjacent field.",
   },
   {
     label: "Traction",
     weight: "20 pts",
     color: "#22d3ee",
-    desc: "Revenue indicators, customer count, MRR/ARR proxies, growth velocity from public signals — job posts, press, product launches.",
+    desc: "Revenue indicators, customer count, MRR/ARR proxies, and growth velocity — inferred from public signals like job posts, press coverage, and product launch cadence. A startup hiring its third enterprise sales rep is sending a very different signal than one posting junior dev roles.",
   },
   {
     label: "Market",
     weight: "20 pts",
     color: "#f97316",
-    desc: "Total addressable market size, sector momentum, comparable funding activity, and timing relative to macro trends.",
+    desc: "Total addressable market size, sector momentum, comparable funding activity in adjacent categories, and timing relative to macro trends and technology cycles. We look at whether investors are already clustering in this space — and whether the timing window is opening or closing.",
   },
   {
     label: "Product",
     weight: "20 pts",
     color: "#eab308",
-    desc: "Product clarity, differentiation signals, technical depth, and evidence of shipping velocity from the public footprint.",
+    desc: "Product clarity, differentiation signals, technical depth, and shipping velocity from the public footprint. A startup with a live product, documented API, and three recent changelog posts scores materially higher than one with a landing page and a waitlist.",
   },
   {
     label: "Vision",
     weight: "20 pts",
     color: "#22c55e",
-    desc: "Narrative coherence, mission clarity, and long-arc thesis alignment with the market opportunity.",
+    desc: "Narrative coherence, mission clarity, and long-arc thesis alignment with the market opportunity. PYTHIA looks for founders who articulate a specific point of view on why this moment matters — not just what the product does.",
+  },
+];
+
+const GATE_STAGES = [
+  {
+    n: "1",
+    label: "Logic Engine",
+    desc: "Structural template check: startup name vs investor, descriptor, or RSS headline pattern. Catches obvious artifacts immediately — names that parse as news headlines or investor firm strings are routed out before any further analysis.",
+  },
+  {
+    n: "2",
+    label: "Ontology + Inference",
+    desc: "Name ontology flags news wire junk, scraper concatenation artifacts, and known garbage patterns. A custom lexicon of sector terms, entity types, and known bad actors allows high-confidence disambiguation at scale.",
+  },
+  {
+    n: "3",
+    label: "Entity Disambiguation",
+    desc: "Geographic, person, and brand disambiguation to avoid misclassifying proper nouns. 'River Capital' is an investor. 'Capital River' is a geographic descriptor. 'River' alone is noise. The gate knows the difference.",
+  },
+  {
+    n: "4",
+    label: "URL Gate",
+    desc: "A verified website is the final signal of a real entity. A startup that can be reached at its stated URL is promoted to qualified status. Without one, it enters the needs_url enrichment queue — or is classified as junk.",
   },
 ];
 
 const INVESTOR_DIMS = [
-  { label: "Profile Completeness", weight: "25 pts", desc: "Firm name, sectors, stage, check size, thesis, and contact info." },
-  { label: "Investment Focus",     weight: "25 pts", desc: "Sector + stage specificity. Generalists dilute; specialists score higher." },
-  { label: "Capital Readiness",    weight: "20 pts", desc: "Active fund size, dry powder estimates, deployment velocity index." },
-  { label: "Track Record",         weight: "20 pts", desc: "Investment count, successful exits, notable portfolio companies." },
-  { label: "Activity & Velocity",  weight: "10 pts", desc: "Recency of last investment and deployment cadence over trailing 12 months." },
+  { label: "Profile Completeness", weight: "25 pts", desc: "Firm name, sectors, stage, check size, thesis, and contact info. Sparse records score lower — incomplete data means incomplete matching." },
+  { label: "Investment Focus",     weight: "25 pts", desc: "Sector + stage specificity. Generalists who invest in everything score lower than specialists with a clear thesis. Focus is a proxy for conviction." },
+  { label: "Capital Readiness",    weight: "20 pts", desc: "Active fund size, dry powder estimates, and deployment velocity index — inferred from public filing data and deal cadence." },
+  { label: "Track Record",         weight: "20 pts", desc: "Investment count, successful exits, and notable portfolio companies. A strong track record isn't disqualifying, but it does set the bar for thesis expectation." },
+  { label: "Activity & Velocity",  weight: "10 pts", desc: "Recency of last investment and deployment cadence over the trailing 12 months. An investor who hasn't written a check in 18 months scores lower regardless of their historical track record." },
 ];
 
 const TIERS = [
-  { label: "Elite",    range: "70 – 100", color: "#eab308",              desc: "Top-quartile investors. Rich data, active deployment, strong track record." },
-  { label: "Strong",   range: "50 – 69",  color: "oklch(0.696 0.17 162.48)", desc: "High-quality investors with solid focus and meaningful activity." },
-  { label: "Solid",    range: "30 – 49",  color: "oklch(0.65 0.12 162.48)", desc: "Minimum viable signal — included in the matching pool." },
-  { label: "Emerging", range: "0 – 29",   color: "oklch(0.35 0.01 264)",  desc: "Insufficient data — excluded to protect match quality." },
-];
-
-const GATE_STAGES = [
-  { n: "1", label: "Logic Engine",           desc: "Structural template check: startup name vs investor, descriptor, or RSS headline pattern." },
-  { n: "2", label: "Ontology + Inference",   desc: "Name ontology flags news wire junk, scraper concatenation artifacts, and known garbage patterns." },
-  { n: "3", label: "Entity Disambiguation",  desc: "Geographic, person, and brand disambiguation to avoid misclassifying proper nouns." },
-  { n: "4", label: "URL Gate",               desc: "A verified website promotes a startup to qualified. Without one: needs_url queue or junk." },
+  { label: "Elite",    range: "70 – 100", color: "#eab308",              desc: "Top-quartile investors. Rich data, active deployment, strong track record. First to surface in match results." },
+  { label: "Strong",   range: "50 – 69",  color: "oklch(0.696 0.17 162.48)", desc: "High-quality investors with solid focus and meaningful activity. Core of the matching pool." },
+  { label: "Solid",    range: "30 – 49",  color: "oklch(0.65 0.12 162.48)", desc: "Minimum viable signal — included in the matching pool with appropriate confidence weighting." },
+  { label: "Emerging", range: "0 – 29",   color: "oklch(0.35 0.01 264)",  desc: "Insufficient data or inactive — excluded entirely to protect match quality." },
 ];
 
 const PRINCIPLES = [
-  "No self-reported data. Every score is derived from publicly observable behavior.",
-  "No pay-to-play. Investor placement is determined by GOD score and fit, not spend.",
-  "No opaque rankings. Every score component is visible in the score_breakdown field.",
-  "Garbage in, garbage out — the entity gate exists to protect match quality at the source.",
-  "Both sides are scored. Founder readiness and investor quality must both meet a floor.",
+  { rule: "No self-reported data.", detail: "Every score is derived from publicly observable behavior. A startup can't game a GOD score by updating its about page." },
+  { rule: "No pay-to-play.",        detail: "Investor placement is determined entirely by GOD score and fit metrics. No one buys their way to the top of a match list." },
+  { rule: "No opaque rankings.",    detail: "Every score component is visible in the score_breakdown field. If your score is 68, you can see exactly which dimension held it back." },
+  { rule: "Garbage in, garbage out.", detail: "The entity gate exists because match quality is only as good as the data that feeds it. We'd rather exclude 10,000 records than poison results with noise." },
+  { rule: "Both sides are scored.", detail: "Founder readiness and investor quality must both meet a floor. A high-GOD startup matched to a low-quality investor is a bad outcome. We prevent it by design." },
 ];
 
-// ─── Section divider ─────────────────────────────────────────────────────────
+// ─── Shared section header ────────────────────────────────────────────────────
 
-function SectionDivider({ n, title }: { n: string; title: string }) {
+function SectionHeader({ n, title, subtitle }: { n: string; title: string; subtitle?: string }) {
   return (
-    <div className="flex items-center gap-3 mb-8">
-      <span className="text-xs font-mono" style={{ color: "oklch(0.35 0.01 264)" }}>{n}</span>
-      <h2 className="font-display font-semibold text-2xl" style={{ color: "oklch(0.85 0.01 264)" }}>{title}</h2>
+    <div className="mb-8">
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-sm font-mono font-bold" style={{ color: "oklch(0.35 0.01 264)" }}>{n}</span>
+        <h2 className="font-display font-semibold text-2xl" style={{ color: "oklch(0.88 0.005 264)", letterSpacing: "-0.01em" }}>{title}</h2>
+      </div>
+      {subtitle && (
+        <p className="text-sm leading-relaxed" style={{ color: "oklch(0.5 0.01 264)", paddingLeft: "2.25rem" }}>{subtitle}</p>
+      )}
     </div>
   );
 }
@@ -93,240 +114,230 @@ export default function Methodology() {
 
       <SharedNavbar activePath="/methodology" />
 
-      <div className="container pt-24 pb-20" style={{ maxWidth: "1200px" }}>
+      <div className="container pt-24 pb-20" style={{ maxWidth: "960px" }}>
 
-        {/* ── Hero (2-panel) ── */}
-        <div className="grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-20 mb-20 items-start pt-4">
-
-          {/* Left */}
-          <div>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                Pythh Capital · Methodology
-              </span>
-            </div>
-            <h1
-              className="font-display font-bold mb-5 leading-tight"
-              style={{ fontSize: "clamp(2.2rem, 5vw, 3.4rem)", color: "oklch(0.97 0.005 264)" }}
-            >
-              How we score.<br />
-              <span style={{ color: "oklch(0.55 0.01 264)" }}>How we match.</span>
-            </h1>
-            <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.62 0.01 264)" }}>
+        {/* ── Hero ── */}
+        <div className="mb-20 pt-4">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
+            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+              Pythh Capital · Methodology
+            </span>
+          </div>
+          <h1
+            className="font-display font-bold mb-6 leading-tight"
+            style={{ fontSize: "clamp(2.4rem, 5vw, 3.6rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.02em" }}
+          >
+            How we score.<br />
+            <span style={{ color: "oklch(0.55 0.01 264)" }}>How we match.</span>
+          </h1>
+          <div className="grid sm:grid-cols-2 gap-8 max-w-3xl">
+            <p className="text-base leading-relaxed" style={{ color: "oklch(0.62 0.01 264)" }}>
               Every number on Pythh is derived from observed signals — public behavior, funding data,
-              product velocity, and market timing. No self-reported information. No black boxes.
+              product velocity, and market timing. No self-reported information. No editorial judgment.
+              No black boxes.
             </p>
             <p className="text-base leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>
-              The same scoring model runs for every startup and every investor. The methodology is
-              deterministic, explainable, and sharpens continuously as new data surfaces.
+              The same scoring model runs for every startup and every investor. It's deterministic,
+              explainable, and continuously sharpened by the same analytical mind that designed it.
+              When you see a score, you can understand exactly what drove it.
             </p>
-          </div>
-
-          {/* Right: Core Principles */}
-          <div
-            className="p-6 rounded-2xl"
-            style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
-          >
-            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.45 0.01 264)" }}>
-              Core principles
-            </p>
-            <ul className="space-y-4">
-              {PRINCIPLES.map((p, i) => (
-                <li key={i} className="flex gap-3">
-                  <span
-                    className="flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full"
-                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }}
-                  />
-                  <span className="text-sm leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>{p}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
 
-        {/* ── Section 01: GOD Score (2-panel) ── */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* SECTION 01 — GOD Score                                     */}
+        {/* ─────────────────────────────────────────────────────────── */}
         <section className="mb-20">
-          <SectionDivider n="01" title="The GOD Score (0–100)" />
-          <div className="grid lg:grid-cols-[40%_60%] gap-10">
+          <SectionHeader
+            n="01"
+            title="The GOD Score (0–100)"
+            subtitle="Every startup receives a GOD score — a 100-point composite across five independently weighted signal dimensions. Scores update automatically as new data surfaces. No single dimension dominates; strength must be multi-dimensional to score high."
+          />
 
-            {/* Left: description + score bands */}
-            <div>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
-                Every startup receives a GOD score — a 100-point composite across five signal
-                dimensions. Scores update automatically as new data surfaces. No dimension can
-                be gamed in isolation.
-              </p>
-              <div className="space-y-2 mb-6">
-                {[
-                  { range: "≥ 80",  label: "Elite",       color: "#22c55e" },
-                  { range: "60–79", label: "Strong",      color: "#22d3ee" },
-                  { range: "40–59", label: "Solid",       color: "#eab308" },
-                  { range: "20–39", label: "Emerging",    color: "#f97316" },
-                  { range: "< 20",  label: "Pre-signal",  color: "oklch(0.42 0.01 264)" },
-                ].map(({ range, label, color }) => (
-                  <div key={range} className="flex items-center gap-3">
-                    <span
-                      className="font-mono text-xs font-bold w-14 text-center px-1.5 py-0.5 rounded flex-shrink-0"
-                      style={{ color, backgroundColor: `${color === "oklch(0.42 0.01 264)" ? "oklch(0.18 0.01 264)" : `${color}15`}` }}
-                    >
-                      {range}
-                    </span>
-                    <span className="text-sm" style={{ color: "oklch(0.62 0.01 264)" }}>{label}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>
-                Pre-signal startups are excluded from investor match ranking.
-              </p>
-            </div>
-
-            {/* Right: 5 dimension cards */}
-            <div className="space-y-3">
-              {GOD_DIMS.map((d) => (
-                <div
-                  key={d.label}
-                  className="flex items-start gap-4 p-4 rounded-xl"
-                  style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
-                >
-                  <div className="flex-shrink-0 pt-0.5">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="text-sm font-semibold" style={{ color: "oklch(0.88 0.005 264)" }}>{d.label}</span>
-                      <span
-                        className="text-[11px] font-mono px-2 py-0.5 rounded-full"
-                        style={{ color: d.color, backgroundColor: `${d.color}15` }}
-                      >
-                        {d.weight}
-                      </span>
-                    </div>
-                    <p className="text-xs leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>{d.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── Section 02: Entity Gate (2-panel) ── */}
-        <section className="mb-20">
-          <SectionDivider n="02" title="Entity Resolution Gate" />
-          <div className="grid lg:grid-cols-[40%_60%] gap-10">
-
-            {/* Left: description + outcomes */}
-            <div>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
-                Before any startup or investor enters the scoring pipeline, it passes through a
-                four-stage entity gate. Real companies and VCs are separated from RSS junk, scraper
-                artifacts, and concatenated fragments. This gate is the foundation of match quality.
-              </p>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.52 0.01 264)" }}>
-                The gate processes tens of thousands of inbound records per week and makes
-                deterministic routing decisions — no human review required at scale.
-              </p>
-              <div className="space-y-2">
-                {[
-                  { label: "qualified",   desc: "→ scoring + matching pipeline", color: "oklch(0.696 0.17 162.48)" },
-                  { label: "needs_url",   desc: "→ enrichment queue",            color: "#eab308" },
-                  { label: "junk",        desc: "→ excluded permanently",         color: "#ef4444" },
-                ].map(({ label, desc, color }) => (
-                  <div key={label} className="flex items-center gap-3 text-xs">
-                    <code
-                      className="px-2 py-0.5 rounded font-mono"
-                      style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}30` }}
-                    >
-                      {label}
-                    </code>
-                    <span style={{ color: "oklch(0.5 0.01 264)" }}>{desc}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: 4 gate stages */}
-            <div className="space-y-3">
-              {GATE_STAGES.map((s) => (
-                <div
-                  key={s.n}
-                  className="flex gap-4 p-4 rounded-xl items-start"
-                  style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
-                >
-                  <div
-                    className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-mono font-bold"
-                    style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", border: "1px solid oklch(0.696 0.17 162.48 / 0.3)", color: "oklch(0.696 0.17 162.48)" }}
-                  >
-                    {s.n}
-                  </div>
+          {/* 5 dimension cards */}
+          <div className="space-y-3 mb-8">
+            {GOD_DIMS.map((d) => (
+              <div
+                key={d.label}
+                className="grid sm:grid-cols-[160px_1fr] gap-5 p-5 rounded-xl"
+                style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: d.color }} />
                   <div>
-                    <p className="text-sm font-semibold mb-1" style={{ color: "oklch(0.85 0.01 264)" }}>{s.label}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>{s.desc}</p>
+                    <p className="text-sm font-semibold" style={{ color: "oklch(0.88 0.005 264)" }}>{d.label}</p>
+                    <span
+                      className="text-[11px] font-mono px-2 py-0.5 rounded-full mt-1 inline-block"
+                      style={{ color: d.color, backgroundColor: `${d.color}18` }}
+                    >
+                      {d.weight}
+                    </span>
                   </div>
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{d.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Score bands */}
+          <div
+            className="p-5 rounded-xl"
+            style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+          >
+            <p className="text-xs font-bold tracking-widest uppercase mb-4" style={{ color: "oklch(0.42 0.01 264)" }}>
+              Score bands
+            </p>
+            <div className="grid sm:grid-cols-5 gap-3">
+              {[
+                { range: "80–100", label: "Elite",       color: "#22c55e",              note: "Investment-grade" },
+                { range: "60–79",  label: "Strong",      color: "#22d3ee",              note: "High conviction" },
+                { range: "40–59",  label: "Solid",       color: "#eab308",              note: "Signal-building" },
+                { range: "20–39",  label: "Emerging",    color: "#f97316",              note: "Early signals" },
+                { range: "0–19",   label: "Pre-signal",  color: "oklch(0.42 0.01 264)", note: "Excluded from matches" },
+              ].map(({ range, label, color, note }) => (
+                <div key={range} className="text-center">
+                  <div
+                    className="text-sm font-mono font-bold mb-1"
+                    style={{ color }}
+                  >
+                    {range}
+                  </div>
+                  <div className="text-xs font-semibold text-white mb-0.5">{label}</div>
+                  <div className="text-[10px]" style={{ color: "oklch(0.42 0.01 264)" }}>{note}</div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Section 03: Investor GOD Score (2-panel) ── */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* SECTION 02 — Entity Resolution Gate                        */}
+        {/* ─────────────────────────────────────────────────────────── */}
         <section className="mb-20">
-          <SectionDivider n="03" title="Investor GOD Score (0–100)" />
-          <div className="grid lg:grid-cols-[60%_40%] gap-10">
+          <SectionHeader
+            n="02"
+            title="Entity Resolution Gate"
+            subtitle="Before any startup or investor enters the scoring pipeline, it passes through a four-stage entity gate. Real companies and VCs are separated from RSS junk, scraper artifacts, and concatenated fragments. This gate processes tens of thousands of inbound records weekly — match quality depends on it."
+          />
 
-            {/* Left: 5 investor dimension cards in 2-col grid */}
-            <div>
-              <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
-                Investors are scored on the same 0–100 scale. Only Solid tier or above (≥ 30) enter
-                the matching pool — preventing low-signal records from surfacing as matches.
-                The investor score gates match quality on both sides.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {INVESTOR_DIMS.map((d) => (
-                  <div
-                    key={d.label}
-                    className="p-4 rounded-xl"
-                    style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm font-medium" style={{ color: "oklch(0.85 0.01 264)" }}>{d.label}</span>
-                      <span className="text-[11px] font-mono" style={{ color: "oklch(0.45 0.01 264)" }}>{d.weight}</span>
-                    </div>
-                    <p className="text-xs leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>{d.desc}</p>
-                  </div>
-                ))}
+          <div className="space-y-3 mb-6">
+            {GATE_STAGES.map((s) => (
+              <div
+                key={s.n}
+                className="grid sm:grid-cols-[48px_1fr] gap-4 p-5 rounded-xl"
+                style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-mono font-bold flex-shrink-0"
+                  style={{
+                    backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)",
+                    border: "1px solid oklch(0.696 0.17 162.48 / 0.3)",
+                    color: "oklch(0.696 0.17 162.48)",
+                  }}
+                >
+                  {s.n}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold mb-1" style={{ color: "oklch(0.88 0.005 264)" }}>{s.label}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{s.desc}</p>
+                </div>
               </div>
-            </div>
+            ))}
+          </div>
 
-            {/* Right: 4 investor tiers */}
-            <div>
-              <p className="text-xs font-bold tracking-widest uppercase mb-4" style={{ color: "oklch(0.45 0.01 264)" }}>
-                Investor tiers
-              </p>
-              <div className="space-y-3">
-                {TIERS.map((t) => (
-                  <div
-                    key={t.label}
-                    className="p-4 rounded-xl"
-                    style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
-                  >
-                    <div className="flex items-center gap-3 mb-1.5">
-                      <span className="text-sm font-semibold" style={{ color: t.color }}>{t.label}</span>
-                      <span className="text-xs font-mono" style={{ color: "oklch(0.42 0.01 264)" }}>{t.range}</span>
-                    </div>
-                    <p className="text-xs leading-relaxed" style={{ color: "oklch(0.5 0.01 264)" }}>{t.desc}</p>
-                  </div>
-                ))}
+          {/* Routing outcomes */}
+          <div className="flex flex-wrap gap-3">
+            {[
+              { code: "qualified",  desc: "enters scoring + matching pipeline",  color: "oklch(0.696 0.17 162.48)" },
+              { code: "needs_url",  desc: "enters enrichment queue",             color: "#eab308" },
+              { code: "junk",       desc: "excluded permanently",                 color: "#ef4444" },
+            ].map(({ code, desc, color }) => (
+              <div key={code} className="flex items-center gap-2 text-xs">
+                <code
+                  className="px-2 py-1 rounded font-mono font-semibold"
+                  style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}35` }}
+                >
+                  {code}
+                </code>
+                <span style={{ color: "oklch(0.5 0.01 264)" }}>{desc}</span>
               </div>
-              <p className="text-xs mt-4 px-1" style={{ color: "oklch(0.38 0.01 264)" }}>
-                Only Solid (≥ 30) and above enter the matching pool.
-              </p>
-            </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* SECTION 03 — Investor GOD Score                            */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        <section className="mb-20">
+          <SectionHeader
+            n="03"
+            title="Investor GOD Score (0–100)"
+            subtitle="Investors are scored on the same 0–100 scale as startups. Only Solid tier or above (≥ 30) enter the matching pool. This threshold exists to protect match quality — a low-signal investor record, no matter how prominent the name, does not surface as a match."
+          />
+
+          {/* Investor dimension cards */}
+          <div className="grid sm:grid-cols-2 gap-3 mb-8">
+            {INVESTOR_DIMS.map((d) => (
+              <div
+                key={d.label}
+                className="p-4 rounded-xl"
+                style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold" style={{ color: "oklch(0.85 0.01 264)" }}>{d.label}</span>
+                  <span className="text-xs font-mono" style={{ color: "oklch(0.45 0.01 264)" }}>{d.weight}</span>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>{d.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Investor tiers */}
+          <div className="grid sm:grid-cols-4 gap-3">
+            {TIERS.map((t) => (
+              <div
+                key={t.label}
+                className="p-4 rounded-xl"
+                style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+              >
+                <p className="text-sm font-semibold mb-0.5" style={{ color: t.color }}>{t.label}</p>
+                <p className="text-xs font-mono mb-2" style={{ color: "oklch(0.4 0.01 264)" }}>{t.range}</p>
+                <p className="text-xs leading-relaxed" style={{ color: "oklch(0.48 0.01 264)" }}>{t.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* SECTION 04 — Core Principles                               */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        <section className="mb-16">
+          <SectionHeader
+            n="04"
+            title="Core principles"
+            subtitle="The rules that govern every scoring decision, match result, and data inclusion on Pythh."
+          />
+
+          <div className="space-y-4">
+            {PRINCIPLES.map(({ rule, detail }) => (
+              <div
+                key={rule}
+                className="flex gap-4 p-5 rounded-xl"
+                style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
+              >
+                <CheckCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: "oklch(0.696 0.17 162.48)" }} />
+                <div>
+                  <p className="text-sm font-semibold text-white mb-1">{rule}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{detail}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* ── CTA ── */}
-        <div className="flex flex-wrap gap-3 pt-4">
+        <div className="flex flex-wrap gap-3 pt-2">
           <a
             href="/activate"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
@@ -360,7 +371,10 @@ export default function Methodology() {
 
       </div>
 
-      <footer className="border-t py-8 mt-4" style={{ borderColor: "oklch(0.2 0.01 264)", backgroundColor: "oklch(0.11 0.01 264)" }}>
+      <footer
+        className="border-t py-8 mt-4"
+        style={{ borderColor: "oklch(0.2 0.01 264)", backgroundColor: "oklch(0.11 0.01 264)" }}
+      >
         <div className="container flex flex-wrap gap-6 justify-center">
           {[
             { label: "Platform",  href: "/platform" },
