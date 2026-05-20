@@ -1,0 +1,40 @@
+{
+  "name": "@pythh/connect",
+  "version": "1.0.0",
+  "description": "Pythh Connect MCP proxy — connect Claude, Cursor, or any MCP client to live startup scoring and investor matching",
+  "type": "module",
+  "bin": {
+    "pythh-connect": "./index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "keywords": [
+    "mcp",
+    "pythh",
+    "startup",
+    "investor",
+    "deal-intelligence",
+    "claude",
+    "cursor",
+    "ai-agent"
+  ],
+  "license": "MIT",
+  "author": "Pythh Capital <api@pythh.ai> (https://pythh.ai)",
+  "homepage": "https://pythh.ai/developers",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ugobe007/pythh.git",
+    "directory": "npm-package"
+  },
+  "bugs": {
+    "url": "mailto:api@pythh.ai"
+  }
+}

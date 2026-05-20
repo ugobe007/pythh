@@ -37,11 +37,11 @@ const OUTCOMES = [
 
 type SetupTab = "cli" | "desktop" | "cursor";
 
-const SETUP: Record<SetupTab, { label: string; filename?: string; code: string }> = {
+const SETUP: Record<SetupTab, { label: string; filename?: string; code: string; note?: string }> = {
   cli: {
     label: "npx (recommended)",
-    code: `# Auto-configures Claude Desktop & Cursor
-npx @pythh/connect --key YOUR_API_KEY`,
+    code: `npx @pythh/connect --key YOUR_API_KEY`,
+    note: "Requires Node 18+  ·  Key injected automatically  ·  Works with any MCP client",
   },
   desktop: {
     label: "Claude Desktop",
@@ -49,29 +49,25 @@ npx @pythh/connect --key YOUR_API_KEY`,
     code: `{
   "mcpServers": {
     "pythh": {
-      "type": "http",
-      "url": "https://mcp.pythh.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
+      "command": "npx",
+      "args": ["-y", "@pythh/connect", "--key", "YOUR_API_KEY"]
     }
   }
 }`,
+    note: "Restart Claude Desktop after saving  ·  Pythh will appear in your tools list",
   },
   cursor: {
     label: "Cursor",
-    filename: ".cursor/mcp.json",
+    filename: "~/.cursor/mcp.json",
     code: `{
   "mcpServers": {
     "pythh": {
-      "type": "http",
-      "url": "https://mcp.pythh.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
+      "command": "npx",
+      "args": ["-y", "@pythh/connect", "--key", "YOUR_API_KEY"]
     }
   }
 }`,
+    note: "Reload Cursor window after saving  ·  Use Cmd+Shift+P → \"MCP: List Servers\" to verify",
   },
 };
 
@@ -239,9 +235,9 @@ export default function Developers() {
                   style={{ backgroundColor: "oklch(0.105 0.01 264)", color: "oklch(0.72 0.01 264)", fontFamily: "monospace" }}
                 >{SETUP[tab].code}</pre>
               </div>
-              {tab === "cli" && (
+              {SETUP[tab].note && (
                 <p className="text-[11px] mt-2" style={{ color: "oklch(0.38 0.01 264)" }}>
-                  Requires Node 18+ · Auto-configures Claude Desktop &amp; Cursor
+                  {SETUP[tab].note}
                 </p>
               )}
             </div>
