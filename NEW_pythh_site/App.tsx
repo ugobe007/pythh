@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch, Redirect } from "wouter";
+import { Route, Switch, Redirect, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./Home";
@@ -26,9 +27,19 @@ import PortfolioDetail from "./pages/PortfolioDetail";
 import Oracle from "./pages/Oracle";
 import Matches from "./pages/Matches";
 import Developers from "./pages/Developers";
+
+// Scroll to top on every client-side navigation
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [location]);
+  return null;
+}
+
 function Router() {
   return (
-    <Switch>
+    <>
+      <ScrollToTop />
+      <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/activate"} component={Activate} />
       {/* /rankings = startup VC-lens scoreboard (legacy app canonical route) */}
@@ -60,6 +71,7 @@ function Router() {
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 
