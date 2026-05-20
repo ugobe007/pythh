@@ -330,6 +330,15 @@ function HeroSection() {
           {/* ── Left: pitch ── */}
           <div className="flex-1 max-w-[580px]">
 
+            {/* Super-headline */}
+            <div className="flex items-center gap-2 mb-5">
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+              <span className="text-sm font-bold" style={{ color: "#22c55e" }}>
+                Over 1.2 million investor matches and counting
+              </span>
+              <span className="text-xs" style={{ color: "oklch(0.32 0.01 264)" }}>· updated daily</span>
+            </div>
+
             <h1
               className="font-display font-bold leading-[1.04] mb-4"
               style={{ fontSize: "clamp(3rem, 6vw, 5rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.025em" }}
@@ -355,11 +364,11 @@ function HeroSection() {
             {/* Stat chips */}
             <div className="flex flex-wrap gap-x-5 gap-y-2 mb-10">
               {[
-                { n: "91,950+", l: "active matches",    c: "#22c55e" },
-                { n: "33,241+", l: "startups scored",   c: "#22d3ee" },
-                { n: "6,250+",  l: "investors qualified",c: "#a855f7" },
-                { n: "52",      l: "avg GOD score",      c: "#eab308" },
-                { n: "AI/ML",   l: "top active sector",  c: "#f97316" },
+                { n: "1.2M+",   l: "active matches",     c: "#22c55e" },
+                { n: "33,241+", l: "startups scored",    c: "#22d3ee" },
+                { n: "6,250+",  l: "investors qualified", c: "#a855f7" },
+                { n: "52",      l: "avg GOD score",       c: "#eab308" },
+                { n: "AI/ML",   l: "top active sector",   c: "#f97316" },
               ].map(({ n, l, c }) => (
                 <div key={l} className="flex items-baseline gap-1.5">
                   <span className="text-sm font-bold tabular-nums" style={{ color: c }}>{n}</span>
@@ -437,7 +446,7 @@ function HeroSection() {
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm"
                 style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
               >
-                Activate PYTHIA <ArrowRight size={14} />
+                Find my investors <ArrowRight size={14} />
               </button>
             </form>
           </div>
@@ -522,7 +531,7 @@ function HeroSection() {
                     onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
                     onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
                   >
-                    Activate PYTHIA <ArrowRight size={14} />
+                    Find my investors <ArrowRight size={14} />
                   </button>
                   <p className="text-[10px] text-center mt-2.5" style={{ color: "oklch(0.36 0.01 264)" }}>
                     No credit card · No signup required
@@ -543,11 +552,10 @@ function TrackRecordStrip() {
   const { ref, isVisible } = useIntersectionObserver();
   const startups = useCountUp(33241, 1600, isVisible);
   const investors = useCountUp(6250, 1800, isVisible);
-  const matches = useCountUp(91950, 2000, isVisible);
   const godAvg = useCountUp(52, 1200, isVisible);
 
   const stats = [
-    { value: matches.toLocaleString(), suffix: "+", label: "Active Matches", sublabel: "more than any other matching platform", color: "#22c55e" },
+    { value: "1.2M", suffix: "+", label: "Active Matches", sublabel: "more than any other matching platform", color: "#22c55e" },
     { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee" },
     { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped, GOD-ranked", color: "#a855f7" },
     { value: String(godAvg), suffix: "/100", label: "Avg GOD Score", sublabel: "platform-wide · AI/ML leads all sectors", color: "#eab308" },
@@ -1127,7 +1135,7 @@ function Footer() {
   const cols: { title: string; links: { label: string; href: string | null }[] }[] = [
     { title: "Product", links: [
       { label: "Oracle", href: "/oracle" },
-      { label: "Activate PYTHIA", href: "/activate" },
+      { label: "Find my investors", href: "/activate" },
       { label: "Matches", href: "/matches" },
       { label: "Rankings", href: "/rankings" },
       { label: "Investors", href: "/investors" },

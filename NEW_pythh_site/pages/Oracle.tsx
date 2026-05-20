@@ -97,7 +97,7 @@ const CAPABILITIES = [
     icon: Shield,
     label: "Pattern Recognition",
     color: "#ec4899",
-    desc: "91,950 active startup-investor matches across the network. The Oracle has seen enough deals to recognize which signals actually predict fundability.",
+    desc: "1.2M+ active startup-investor matches across the network. The Oracle has seen enough deals to recognize which signals actually predict fundability.",
   },
   {
     icon: Users,
@@ -108,7 +108,7 @@ const CAPABILITIES = [
 ];
 
 const STATS = [
-  { label: "Active matches",          value: "91,950" },
+  { label: "Active matches",          value: "1.2M+" },
   { label: "Qualified investors",     value: "4,007" },
   { label: "Investment-grade startups",value: "1,774" },
   { label: "Signals per startup",     value: "40+" },
@@ -423,7 +423,7 @@ export default function Oracle() {
               onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
               onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
             >
-              Activate PYTHIA <ArrowRight size={16} />
+              Find my investors <ArrowRight size={16} />
             </a>
             <Link href="/matches">
               <span

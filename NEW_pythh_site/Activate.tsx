@@ -617,7 +617,7 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
           >
             <Sparkles size={16} />
-            Activate PYTHIA
+            Find my investors
             <ArrowRight size={16} />
           </button>
         </div>
@@ -921,67 +921,75 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
       {/* Header */}
-      <div className="sticky top-0 z-20 border-b" style={{ backgroundColor: "oklch(0.13 0.01 264 / 0.95)", borderColor: "oklch(0.22 0.01 264)", backdropFilter: "blur(12px)" }}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <PythiaAvatar size={36} />
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "oklch(0.94 0.005 264)" }}>
+      <div className="sticky top-0 z-20 border-b" style={{ backgroundColor: "oklch(0.13 0.01 264 / 0.97)", borderColor: "oklch(0.2 0.01 264)", backdropFilter: "blur(12px)" }}>
+
+        {/* Nav row */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between" style={{ borderBottom: "1px solid oklch(0.17 0.01 264)" }}>
+          <a href="/" className="flex items-center gap-1.5 text-xs font-bold transition-colors" style={{ color: "oklch(0.696 0.17 162.48)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.78 0.17 162.48)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.696 0.17 162.48)"; }}
+          >
+            ← pythh.ai
+          </a>
+          <div className="hidden sm:flex items-center gap-5">
+            {[["Platform", "/platform"], ["Investors", "/investors"], ["Methodology", "/methodology"], ["Pricing", "/pricing"]].map(([label, href]) => (
+              <a key={href} href={href} className="text-xs transition-colors" style={{ color: "oklch(0.42 0.01 264)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.7 0.01 264)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.42 0.01 264)"; }}
+              >{label}</a>
+            ))}
+          </div>
+        </div>
+
+        {/* PYTHIA context row */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <PythiaAvatar size={30} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate" style={{ color: "oklch(0.88 0.005 264)" }}>
                 {matchCount > 0
-                  ? <>PYTHIA ranked <span style={{ color: "oklch(0.696 0.17 162.48)" }}>top {matchCount} investors</span> for {startupName}{totalMatchCount > matchCount && <span style={{ color: "oklch(0.5 0.01 264)" }}> from {totalMatchCount.toLocaleString()} analyzed</span>}</>
-                  : <>Computing matches for <span style={{ color: "oklch(0.696 0.17 162.48)" }}>{startupName}</span>…</>
+                  ? <><span style={{ color: "#22d3ee" }}>{matchCount} investors</span> ranked for <span style={{ color: "oklch(0.75 0.005 264)" }}>{startupName}</span>{totalMatchCount > matchCount && <span style={{ color: "oklch(0.45 0.01 264)" }}> · {totalMatchCount.toLocaleString()} analyzed</span>}</>
+                  : <>Scoring investors for <span style={{ color: "#22d3ee" }}>{startupName}</span>…</>
                 }
               </p>
-              <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>Ranked by timing × thesis fit × optics</p>
+              <p className="text-xs hidden sm:block" style={{ color: "oklch(0.45 0.01 264)" }}>Ranked by timing × thesis fit × GOD score</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Share results */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={handleShare}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap border"
-              style={{
-                color: copied ? "#22c55e" : "oklch(0.52 0.01 264)",
-                backgroundColor: "transparent",
-                borderColor: copied ? "#22c55e50" : "oklch(0.25 0.01 264)",
-              }}
-              title="Copy a shareable link to these results"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border"
+              style={{ color: copied ? "#22c55e" : "oklch(0.5 0.01 264)", backgroundColor: "transparent", borderColor: copied ? "#22c55e40" : "oklch(0.22 0.01 264)" }}
             >
-              {copied ? <Check size={12} /> : <Copy size={12} />}
+              {copied ? <Check size={11} /> : <Copy size={11} />}
               {copied ? "Copied!" : "Share"}
             </button>
-
-            {/* Activate PYTHIA */}
             <button
               onClick={onActivate}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs transition-all duration-200 whitespace-nowrap border"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border"
               style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.1)"; }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.08)"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
             >
-              <Zap size={12} />
-              Activate PYTHIA
+              <Zap size={11} />
+              Start outreach
             </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        {/* Summary stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+
+        {/* Summary stats — inline row */}
+        <div className="flex items-stretch mb-7 rounded-xl overflow-hidden" style={{ border: "1px solid oklch(0.2 0.01 264)", backgroundColor: "oklch(0.14 0.01 264)" }}>
           {[
-            { label: "TOP INVESTORS", value: String(matchCount), sub: `from ${totalMatchCount.toLocaleString()} analyzed`, color: "emerald" },
-            { label: "TOP MATCH SCORE", value: String(investors[0]?.matchScore ?? "—"), sub: "out of 100", color: "amber" },
-            { label: "SUPER MATCHES", value: String(investors.filter(i => i.isSuperMatch).length), sub: "highest thesis alignment", color: "emerald" },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-xl p-4 border text-center"
-              style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
-              <p className="font-display font-bold text-2xl mb-1"
-                style={{ color: stat.color === "emerald" ? "oklch(0.696 0.17 162.48)" : "oklch(0.769 0.188 70.08)" }}>
-                {stat.value}
-              </p>
-              <p className="text-xs font-semibold tracking-widest mb-0.5" style={{ color: "oklch(0.5 0.01 264)" }}>{stat.label}</p>
-              <p className="text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>{stat.sub}</p>
+            { label: "Investors ranked",   value: String(matchCount),                                   color: "#22d3ee" },
+            { label: "Top match score",    value: `${investors[0]?.matchScore ?? "—"}/100`,             color: "#eab308" },
+            { label: "Super matches",      value: String(investors.filter(i => i.isSuperMatch).length), color: "#a855f7" },
+          ].map((stat, i) => (
+            <div key={stat.label} className="flex-1 px-5 py-3.5 text-center" style={{ borderRight: i < 2 ? "1px solid oklch(0.2 0.01 264)" : "none" }}>
+              <div className="text-xl font-bold mb-0.5" style={{ color: stat.color }}>{stat.value}</div>
+              <div className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "oklch(0.42 0.01 264)" }}>{stat.label}</div>
             </div>
           ))}
         </div>
@@ -1083,7 +1091,7 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
               }}
             >
               <Zap size={18} />
-              Activate PYTHIA
+              Start outreach with PYTHIA
             </button>
           </div>
 

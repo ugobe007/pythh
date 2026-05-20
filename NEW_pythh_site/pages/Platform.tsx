@@ -178,7 +178,7 @@ export default function Platform() {
                 onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
                 onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
               >
-                Activate PYTHIA <ArrowRight size={14} />
+                Find my investors <ArrowRight size={14} />
               </a>
               <Link href="/rankings">
                 <span
@@ -413,7 +413,7 @@ export default function Platform() {
             Ready to see who's ready for you?
           </h2>
           <p className="text-sm mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
-            Activate PYTHIA. She'll find the investors, time the outreach, and write the intro.
+            Submit your URL. PYTHIA finds your investors, times the outreach, and writes the intro.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
             <a
@@ -423,7 +423,7 @@ export default function Platform() {
               onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
               onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
             >
-              Activate PYTHIA <ArrowRight size={14} />
+              Find my investors <ArrowRight size={14} />
             </a>
             <Link href="/methodology">
               <span
