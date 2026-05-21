@@ -112,19 +112,41 @@ router.get("/contacts", async (req, res) => {
 });
 
 // ── POST /api/webhooks/resend-outreach ────────────────────────────────────────
-// Resend sends events: email.opened, email.clicked, email.bounced, email.unsubscribed
+// Resend sends events via Svix: email.opened, email.clicked, email.bounced, email.unsubscribed
+// Svix signing: HMAC-SHA256 over "{svix-id}.{svix-timestamp}.{raw body}"
+// Secret format: whsec_<base64> — strip prefix and base64-decode to get raw key bytes
 router.post("/webhook/resend", express.raw({ type: "application/json" }), async (req, res) => {
-  // Verify Resend webhook signature if secret is configured
   if (RESEND_WEBHOOK_SECRET) {
-    const sig = req.headers["svix-signature"] || req.headers["resend-signature"] || "";
+    const sig = req.headers["svix-signature"] || "";
     const ts  = req.headers["svix-timestamp"] || "";
     const id  = req.headers["svix-id"] || "";
-    const payload = `${id}.${ts}.${req.body.toString()}`;
-    const expected = crypto
-      .createHmac("sha256", RESEND_WEBHOOK_SECRET)
-      .update(payload)
-      .digest("base64");
-    if (!sig.split(" ").some((s) => s.replace(/^v1,/, "") === expected)) {
+
+    if (!sig || !ts || !id) {
+      return res.status(401).json({ error: "Missing Svix headers" });
+    }
+
+    // Reject timestamps older than 5 minutes (replay protection)
+    const tsNum = parseInt(ts, 10);
+    if (Math.abs(Date.now() / 1000 - tsNum) > 300) {
+      return res.status(401).json({ error: "Timestamp too old" });
+    }
+
+    // whsec_ prefix → strip it, base64-decode the rest to get raw key bytes
+    const rawSecret = Buffer.from(
+      RESEND_WEBHOOK_SECRET.replace(/^whsec_/, ""),
+      "base64"
+    );
+
+    const toSign  = `${id}.${ts}.${req.body.toString()}`;
+    const computed = crypto.createHmac("sha256", rawSecret).update(toSign).digest("base64");
+
+    // svix-signature can be "v1,<sig1> v1,<sig2>" — any match is valid
+    const valid = sig.split(" ").some((s) => {
+      const part = s.replace(/^v1,/, "");
+      return crypto.timingSafeEqual(Buffer.from(part), Buffer.from(computed));
+    });
+
+    if (!valid) {
       return res.status(401).json({ error: "Invalid signature" });
     }
   }
