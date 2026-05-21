@@ -27,6 +27,8 @@ import PortfolioDetail from "./pages/PortfolioDetail";
 import Oracle from "./pages/Oracle";
 import Matches from "./pages/Matches";
 import Developers from "./pages/Developers";
+import Outreach from "./pages/Outreach";
+import Calendar from "./pages/Calendar";
 
 // Scroll to top on every client-side navigation
 function ScrollToTop() {
@@ -54,6 +56,8 @@ function Router() {
       <Route path={"/oracle"} component={Oracle} />
       <Route path={"/matches"} component={Matches} />
       <Route path={"/developers"} component={Developers} />
+      <Route path={"/outreach"} component={Outreach} />
+      <Route path={"/calendar"} component={Calendar} />
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/platform"} component={Platform} />

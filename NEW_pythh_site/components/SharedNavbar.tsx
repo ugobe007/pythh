@@ -14,6 +14,11 @@ const NAV_LINKS = [
   { label: "Pricing",   href: "/pricing" },
 ];
 
+const ADMIN_LINKS = [
+  { label: "Outreach",  href: "/outreach" },
+  { label: "Calendar",  href: "/calendar" },
+];
+
 export default function SharedNavbar({ activePath }: { activePath?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -58,6 +63,19 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
                 onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.85 0.01 264)")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = activePath === href ? "oklch(0.85 0.01 264)" : "oklch(0.55 0.01 264)")}
               >
+                {label}
+              </a>
+            ))}
+          </div>
+
+          {/* Admin links — small, after main nav */}
+          <div className="hidden md:flex items-center gap-4 border-l border-white/5 pl-4">
+            {ADMIN_LINKS.map(({ label, href }) => (
+              <a key={href} href={href}
+                className="text-xs font-mono transition-colors duration-150"
+                style={{ color: activePath === href ? "oklch(0.75 0.15 270)" : "oklch(0.4 0.01 264)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.75 0.15 270)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = activePath === href ? "oklch(0.75 0.15 270)" : "oklch(0.4 0.01 264)")}>
                 {label}
               </a>
             ))}

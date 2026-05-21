@@ -5983,6 +5983,11 @@ app.use('/api/deck', deckUploadRouter);
 const enrichRouter = require('./routes/enrich');
 app.use('/api/enrich', enrichRouter);
 
+// Outreach dashboard + Resend webhook
+const outreachDashboard = require('./routes/outreachDashboard');
+app.use('/api/outreach', outreachDashboard);
+app.use('/api/webhooks', outreachDashboard);
+
 // Public shareable match preview (no auth required)
 const previewRoute = require('./routes/previewRoute');
 app.use('/api/preview', previewRoute);
