@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Terminal, RefreshCw, Zap, Globe } from "lucide-react";
+import { ArrowRight, Terminal, RefreshCw, Zap, Globe, Copy, Check } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -70,6 +70,62 @@ const SETUP: Record<SetupTab, { label: string; filename?: string; code: string; 
     note: "Reload Cursor window after saving  ·  Use Cmd+Shift+P → \"MCP: List Servers\" to verify",
   },
 };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all"
+      style={{
+        color: copied ? "#22c55e" : "oklch(0.45 0.01 264)",
+        border: `1px solid ${copied ? "#22c55e40" : "oklch(0.2 0.01 264)"}`,
+        backgroundColor: "oklch(0.1 0.01 264)",
+        opacity: 1,
+      }}
+      title="Copy to clipboard"
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+/** Very lightweight JSON syntax tinting — no external dep */
+function SyntaxJson({ code }: { code: string }) {
+  const tokens: { text: string; color: string }[] = [];
+  const lines = code.split("\n");
+
+  lines.forEach((line, li) => {
+    const keyMatch = line.match(/^(\s*)("[\w-]+")(\s*:\s*)(.*)$/);
+    if (keyMatch) {
+      const [, indent, key, colon, value] = keyMatch;
+      tokens.push({ text: indent, color: "inherit" });
+      tokens.push({ text: key, color: "#a78bfa" });
+      tokens.push({ text: colon, color: "oklch(0.55 0.01 264)" });
+      tokens.push({ text: value, color: "#22d3ee" });
+    } else {
+      tokens.push({ text: line, color: "oklch(0.55 0.01 264)" });
+    }
+    if (li < lines.length - 1) tokens.push({ text: "\n", color: "inherit" });
+  });
+
+  return (
+    <>
+      {tokens.map((tok, i) => (
+        <span key={i} style={{ color: tok.color }}>{tok.text}</span>
+      ))}
+    </>
+  );
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -196,78 +252,116 @@ export default function Developers() {
           {/* ─── RIGHT: Setup + Tool catalog ─── */}
           <div className="lg:sticky lg:top-24 lg:self-start">
 
-            {/* Setup tabs */}
+            {/* ── Setup block ── */}
             <div className="mb-8">
-              <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
+              <p className="text-xs font-mono tracking-widest uppercase mb-4" style={{ color: "oklch(0.42 0.01 264)" }}>
                 Connect in 30 seconds
               </p>
-              <div className="flex gap-0" style={{ borderBottom: "1px solid oklch(0.19 0.01 264)" }}>
-                {(Object.keys(SETUP) as SetupTab[]).map((key) => (
-                  <button
-                    key={key}
-                    onClick={() => setTab(key)}
-                    className="px-4 py-2.5 text-xs font-medium transition-all"
-                    style={{
-                      color: tab === key ? "#c4b5fd" : "oklch(0.45 0.01 264)",
-                      borderBottom: tab === key ? "2px solid #a78bfa" : "2px solid transparent",
-                      marginBottom: "-1px",
-                    }}
-                  >
-                    {SETUP[key].label}
-                  </button>
-                ))}
-              </div>
-              <div
-                className="rounded-b-xl overflow-hidden"
-                style={{ border: "1px solid oklch(0.19 0.01 264)", borderTop: "none" }}
-              >
+
+              {/* Terminal window */}
+              <div className="rounded-xl overflow-hidden" style={{ border: "2px solid oklch(0.22 0.01 264)", backgroundColor: "oklch(0.08 0.01 264)" }}>
+
+                {/* Window chrome — tab bar */}
+                <div className="flex items-center gap-0 px-4 border-b" style={{ borderColor: "oklch(0.17 0.01 264)", backgroundColor: "oklch(0.105 0.01 264)" }}>
+                  {/* Traffic lights */}
+                  <div className="flex items-center gap-1.5 pr-4 py-3 border-r flex-shrink-0" style={{ borderColor: "oklch(0.17 0.01 264)" }}>
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#ff5f57" }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#febc2e" }} />
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#28c840" }} />
+                  </div>
+                  {/* Tabs */}
+                  <div className="flex items-stretch gap-0 flex-1">
+                    {(Object.keys(SETUP) as SetupTab[]).map((key) => (
+                      <button
+                        key={key}
+                        onClick={() => setTab(key)}
+                        className="px-4 py-3 text-xs font-mono font-medium transition-all border-r"
+                        style={{
+                          color: tab === key ? "#c4b5fd" : "oklch(0.4 0.01 264)",
+                          backgroundColor: tab === key ? "oklch(0.08 0.01 264)" : "transparent",
+                          borderColor: "oklch(0.17 0.01 264)",
+                          borderBottom: tab === key ? "2px solid #a78bfa" : "2px solid transparent",
+                          marginBottom: "-1px",
+                        }}
+                      >
+                        {SETUP[key].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* File path bar */}
                 {SETUP[tab].filename && (
-                  <div
-                    className="flex items-center gap-2 px-4 py-2.5"
-                    style={{ backgroundColor: "oklch(0.12 0.01 264)", borderBottom: "1px solid oklch(0.17 0.01 264)" }}
-                  >
-                    <Terminal size={11} style={{ color: "oklch(0.42 0.01 264)" }} />
-                    <span className="text-xs font-mono" style={{ color: "oklch(0.46 0.01 264)" }}>{SETUP[tab].filename}</span>
+                  <div className="flex items-center gap-2 px-4 py-2 border-b" style={{ backgroundColor: "oklch(0.09 0.01 264)", borderColor: "oklch(0.14 0.01 264)" }}>
+                    <Terminal size={11} style={{ color: "oklch(0.38 0.01 264)" }} />
+                    <span className="text-[11px] font-mono" style={{ color: "oklch(0.42 0.01 264)" }}>{SETUP[tab].filename}</span>
                   </div>
                 )}
-                <pre
-                  className="px-5 py-5 text-xs overflow-x-auto leading-relaxed"
-                  style={{ backgroundColor: "oklch(0.105 0.01 264)", color: "oklch(0.72 0.01 264)", fontFamily: "monospace" }}
-                >{SETUP[tab].code}</pre>
+
+                {/* Code body */}
+                <div className="relative group">
+                  <pre
+                    className="px-6 py-5 overflow-x-auto leading-relaxed"
+                    style={{
+                      backgroundColor: "oklch(0.08 0.01 264)",
+                      color: tab === "cli" ? "#22c55e" : "oklch(0.82 0.01 264)",
+                      fontFamily: "'Menlo', 'Monaco', 'Consolas', monospace",
+                      fontSize: "0.875rem",
+                      lineHeight: "1.7",
+                    }}
+                  >
+                    {tab === "cli" ? (
+                      <>
+                        <span style={{ color: "oklch(0.5 0.01 264)", userSelect: "none" }}>$ </span>
+                        <span style={{ color: "#c4b5fd" }}>npx </span>
+                        <span style={{ color: "oklch(0.88 0.005 264)" }}>@pythh/connect </span>
+                        <span style={{ color: "#22d3ee" }}>--key </span>
+                        <span style={{ color: "#eab308" }}>YOUR_API_KEY</span>
+                      </>
+                    ) : (
+                      <SyntaxJson code={SETUP[tab].code} />
+                    )}
+                  </pre>
+
+                  {/* Copy button */}
+                  <CopyButton text={SETUP[tab].code} />
+                </div>
+
+                {/* Note bar */}
+                {SETUP[tab].note && (
+                  <div className="px-5 py-2.5 border-t" style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.09 0.01 264)" }}>
+                    <p className="text-[11px] font-mono" style={{ color: "oklch(0.42 0.01 264)" }}>{SETUP[tab].note}</p>
+                  </div>
+                )}
               </div>
-              {SETUP[tab].note && (
-                <p className="text-[11px] mt-2" style={{ color: "oklch(0.38 0.01 264)" }}>
-                  {SETUP[tab].note}
-                </p>
-              )}
             </div>
 
             {/* Tool catalog */}
             <div>
-              <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
+              <p className="text-xs font-mono tracking-widest uppercase mb-3" style={{ color: "oklch(0.42 0.01 264)" }}>
                 Available tools
               </p>
-              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid oklch(0.19 0.01 264)" }}>
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid oklch(0.17 0.01 264)" }}>
                 {TOOLS.map((tool, i) => (
                   <div
                     key={tool.name}
                     className="flex items-start gap-4 px-4 py-3"
                     style={{
-                      backgroundColor: i % 2 === 0 ? "oklch(0.115 0.01 264)" : "oklch(0.1 0.01 264)",
-                      borderBottom: i < TOOLS.length - 1 ? "1px solid oklch(0.15 0.01 264)" : "none",
+                      backgroundColor: i % 2 === 0 ? "oklch(0.105 0.01 264)" : "oklch(0.095 0.01 264)",
+                      borderBottom: i < TOOLS.length - 1 ? "1px solid oklch(0.14 0.01 264)" : "none",
                     }}
                   >
                     <code
                       className="text-xs font-mono mt-0.5 flex-shrink-0"
-                      style={{ color: tool.tier === "pro" ? "#22d3ee" : "#a78bfa", width: "10.5rem" }}
+                      style={{ color: tool.tier === "pro" ? "#22d3ee" : "#a78bfa", minWidth: "10.5rem" }}
                     >
                       {tool.name}
                     </code>
-                    <p className="text-xs flex-1 leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
+                    <p className="text-xs flex-1 leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>
                       {tool.desc}
                     </p>
                     <span
-                      className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0 mt-0.5"
+                      className="text-[10px] font-mono font-semibold uppercase tracking-wider flex-shrink-0 mt-0.5"
                       style={{ color: tool.tier === "pro" ? "#22d3ee" : "#a78bfa" }}
                     >
                       {tool.tier}
@@ -275,14 +369,14 @@ export default function Developers() {
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-4 mt-3 text-[11px]" style={{ color: "oklch(0.38 0.01 264)" }}>
+              <div className="flex items-center gap-4 mt-3 text-[11px] font-mono" style={{ color: "oklch(0.36 0.01 264)" }}>
                 <span className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a78bfa" }} />
-                  Free — 50 calls/day
+                  free — 50 calls/day
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#22d3ee" }} />
-                  Pro — unlimited
+                  pro — unlimited
                 </span>
               </div>
             </div>
