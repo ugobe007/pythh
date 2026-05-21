@@ -293,35 +293,7 @@ function HeroSection() {
       />
       <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.09 0.01 264), transparent)" }} />
 
-      <div className="container relative z-10 py-24">
-
-        {/* ── Brand mark — standalone, not inside any pill or button ── */}
-        <div className="mb-10">
-          {/* Icon — stroke only, no fills */}
-          <svg width="76" height="76" viewBox="0 0 52 52" fill="none" aria-label="Pythh Connect">
-            <polygon
-              points="26,4 46,15 46,37 26,48 6,37 6,15"
-              stroke="#a78bfa"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-            <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-            <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-            <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-            <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.2" />
-            <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.2" />
-            <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.2" />
-          </svg>
-          <div className="flex items-center gap-2.5 mt-4">
-            <span className="text-base font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>
-              Pythh Connect
-            </span>
-            <span className="flex items-center gap-1 text-xs font-mono" style={{ color: "#22c55e" }}>
-              <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-              MCP live
-            </span>
-          </div>
-        </div>
+      <div className="container relative z-10 py-12">
 
         {/* ── Main two-column layout ── */}
         <div className="flex flex-col lg:flex-row items-start gap-16 lg:gap-28">
@@ -329,8 +301,26 @@ function HeroSection() {
           {/* ── Left: pitch ── */}
           <div className="flex-1 max-w-[580px]">
 
+            {/* Brand mark — compact inline, no standalone block */}
+            <div className="flex items-center gap-3 mb-5">
+              <svg width="28" height="28" viewBox="0 0 52 52" fill="none" aria-label="Pythh Connect">
+                <polygon points="26,4 46,15 46,37 26,48 6,37 6,15" stroke="#a78bfa" strokeWidth="1.8" strokeLinejoin="round" />
+                <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3 3" />
+                <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3 3" />
+                <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3 3" />
+                <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.4" />
+                <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.4" />
+                <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.4" />
+              </svg>
+              <span className="text-xs font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.1em" }}>Pythh Connect</span>
+              <span className="flex items-center gap-1 text-xs font-mono" style={{ color: "#22c55e" }}>
+                <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+                MCP live
+              </span>
+            </div>
+
             {/* Super-headline */}
-            <div className="inline-flex items-center gap-3 mb-6 px-4 py-2 rounded-lg" style={{ border: "1px solid #22c55e28", backgroundColor: "#22c55e0a" }}>
+            <div className="inline-flex items-center gap-3 mb-4 px-3 py-1.5 rounded-lg" style={{ border: "1px solid #22c55e28", backgroundColor: "#22c55e0a" }}>
               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
               <span className="text-sm font-bold font-mono" style={{ color: "#22c55e" }}>
                 1,200,000+ investor matches
@@ -339,7 +329,7 @@ function HeroSection() {
             </div>
 
             <h1
-              className="font-display font-bold leading-[1.04] mb-4"
+              className="font-display font-bold leading-[1.04] mb-3"
               style={{ fontSize: "clamp(3rem, 6vw, 5rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.025em" }}
             >
               Pythh's Signal
@@ -348,35 +338,18 @@ function HeroSection() {
             </h1>
 
             <p
-              className="font-display font-medium mb-8"
-              style={{ fontSize: "clamp(1.3rem, 2.8vw, 1.9rem)", color: "#a78bfa", letterSpacing: "-0.01em", lineHeight: 1.2 }}
+              className="font-display font-medium mb-4"
+              style={{ fontSize: "clamp(1.2rem, 2.5vw, 1.7rem)", color: "#a78bfa", letterSpacing: "-0.01em", lineHeight: 1.2 }}
             >
               Now queryable from Claude or Cursor.
             </p>
 
-            <p className="text-base leading-relaxed mb-6 max-w-[480px]" style={{ color: "oklch(0.58 0.01 264)" }}>
-              More startup-investor matches than any other platform. Every match is scored by the GOD engine —
-              Grit, Opportunity, Determination — the same criteria that shaped how YC, Sequoia, A16z,
-              Founders Fund, and Greylock pick their best investments.
+            <p className="text-sm leading-relaxed mb-5 max-w-[480px]" style={{ color: "oklch(0.58 0.01 264)" }}>
+              More matches than any other platform. Every match is scored by the GOD engine — Grit, Opportunity,
+              Determination — the criteria used by YC, Sequoia, A16z, Founders Fund, and Greylock.
             </p>
 
-            {/* Stat chips */}
-            <div className="flex flex-wrap gap-x-5 gap-y-2 mb-10">
-              {[
-                { n: "1.2M+",   l: "active matches",     c: "#22c55e" },
-                { n: "33,241+", l: "startups scored",    c: "#22d3ee" },
-                { n: "6,250+",  l: "investors qualified", c: "#a855f7" },
-                { n: "52",      l: "avg GOD score",       c: "#eab308" },
-                { n: "AI/ML",   l: "top active sector",   c: "#f97316" },
-              ].map(({ n, l, c }) => (
-                <div key={l} className="flex items-baseline gap-1.5">
-                  <span className="text-sm font-bold tabular-nums" style={{ color: c }}>{n}</span>
-                  <span className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{l}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 mb-10">
+            <div className="flex flex-col sm:flex-row gap-3 mb-5">
               <a
                 href="/developers"
                 className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
@@ -399,18 +372,28 @@ function HeroSection() {
               </a>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap mb-6">
               <span className="text-xs" style={{ color: "oklch(0.38 0.01 264)" }}>Works with</span>
               {["Claude", "Cursor", "ChatGPT", "Copilot"].map((t) => (
-                <span
-                  key={t}
-                  className="text-[11px]"
-                  style={{ color: "oklch(0.5 0.01 264)" }}
-                >
-                  {t}
-                </span>
+                <span key={t} className="text-[11px]" style={{ color: "oklch(0.5 0.01 264)" }}>{t}</span>
               ))}
               <span className="text-xs" style={{ color: "oklch(0.3 0.01 264)" }}>+ any MCP client</span>
+            </div>
+
+            {/* Stat chips — below CTAs so they don't push buttons off screen */}
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {[
+                { n: "1.2M+",   l: "active matches",      c: "#22c55e" },
+                { n: "33,241+", l: "startups scored",     c: "#22d3ee" },
+                { n: "6,250+",  l: "investors qualified",  c: "#a855f7" },
+                { n: "52",      l: "avg GOD score",        c: "#eab308" },
+                { n: "AI/ML",   l: "top active sector",    c: "#f97316" },
+              ].map(({ n, l, c }) => (
+                <div key={l} className="flex items-baseline gap-1.5">
+                  <span className="text-sm font-bold tabular-nums" style={{ color: c }}>{n}</span>
+                  <span className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{l}</span>
+                </div>
+              ))}
             </div>
           </div>
 
