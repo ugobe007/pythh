@@ -4,6 +4,8 @@
  * GET  /api/outreach/stats          — campaign summary stats
  * GET  /api/outreach/contacts       — paginated contact list with status
  * GET  /api/outreach/campaigns      — list of distinct campaign slugs
+ * POST /api/outreach/run            — spawn the outreach agent (vc|startup, dry-run optional)
+ * GET  /api/outreach/run/:id        — poll status of a running campaign job
  * POST /api/webhooks/resend-outreach — Resend webhook: open/click/bounce events
  */
 
@@ -11,6 +13,15 @@ const express = require("express");
 const router  = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const crypto  = require("crypto");
+const { spawn } = require("child_process");
+const path    = require("path");
+
+// ── In-memory job store (per-process; resets on restart) ─────────────────────
+const jobs = new Map(); // jobId → { status, log, startedAt, finishedAt, exitCode }
+
+function makeJobId() {
+  return crypto.randomBytes(6).toString("hex");
+}
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -109,6 +120,70 @@ router.get("/contacts", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── POST /api/outreach/run ────────────────────────────────────────────────────
+// Spawns the outreach agent. Returns a jobId immediately for polling.
+router.post("/run", express.json(), async (req, res) => {
+  const { mode = "vc", limit = 20, dryRun = true, campaign, testTo } = req.body ?? {};
+
+  if (!["vc", "startup"].includes(mode)) {
+    return res.status(400).json({ error: "mode must be 'vc' or 'startup'" });
+  }
+  if (typeof limit !== "number" || limit < 1 || limit > 500) {
+    return res.status(400).json({ error: "limit must be 1–500" });
+  }
+
+  const jobId = makeJobId();
+  const job = { status: "running", log: [], startedAt: new Date().toISOString(), finishedAt: null, exitCode: null, mode, limit, dryRun };
+  jobs.set(jobId, job);
+
+  // Build args
+  const agentScript = path.resolve(__dirname, "../../scripts/outreach-agent.js");
+  const args = ["--mode", mode, "--limit", String(limit)];
+  if (dryRun)   args.push("--dry-run");
+  if (campaign) args.push("--campaign", campaign);
+  if (testTo)   args.push("--test-to", testTo);
+
+  const child = spawn("node", [agentScript, ...args], {
+    env: { ...process.env },
+    cwd: path.resolve(__dirname, "../../"),
+  });
+
+  function appendLog(line) {
+    job.log.push(line);
+    if (job.log.length > 2000) job.log.shift(); // cap at 2000 lines
+  }
+
+  child.stdout.on("data", (d) => d.toString().split("\n").forEach((l) => l && appendLog(l)));
+  child.stderr.on("data", (d) => d.toString().split("\n").forEach((l) => l && appendLog(`[err] ${l}`)));
+
+  child.on("close", (code) => {
+    job.status    = code === 0 ? "done" : "error";
+    job.exitCode  = code;
+    job.finishedAt = new Date().toISOString();
+    // Auto-clean after 1 hour
+    setTimeout(() => jobs.delete(jobId), 60 * 60 * 1000);
+  });
+
+  res.json({ jobId, status: "running" });
+});
+
+// ── GET /api/outreach/run/:id ─────────────────────────────────────────────────
+router.get("/run/:id", (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json({
+    jobId: req.params.id,
+    status:     job.status,
+    log:        job.log,
+    startedAt:  job.startedAt,
+    finishedAt: job.finishedAt,
+    exitCode:   job.exitCode,
+    mode:       job.mode,
+    limit:      job.limit,
+    dryRun:     job.dryRun,
+  });
 });
 
 // ── POST /api/webhooks/resend-outreach ────────────────────────────────────────
