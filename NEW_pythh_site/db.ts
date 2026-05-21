@@ -19,6 +19,34 @@ import { ENV } from "./env";
 let pool: Pool | null = null;
 let _db: ReturnType<typeof drizzle> | null = null;
 
+/** Run a raw parameterised SQL query. Used by admin tRPC procedures that need
+ *  tables outside the Drizzle schema (god_weight_versions, rss_sources, etc.). */
+export async function rawQuery<T = Record<string, unknown>>(
+  text: string,
+  values?: unknown[],
+): Promise<T[]> {
+  await getDb(); // ensure pool is initialised
+  if (!pool) return [];
+  try {
+    const result = await pool.query(text, values);
+    return result.rows as T[];
+  } catch {
+    return [];
+  }
+}
+
+/** Run a raw write (INSERT/UPDATE/DELETE) and return affected-row count. */
+export async function rawExecute(text: string, values?: unknown[]): Promise<number> {
+  await getDb();
+  if (!pool) return 0;
+  try {
+    const result = await pool.query(text, values);
+    return result.rowCount ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Postgres (Supabase) — use `DATABASE_URL` (pooler or direct). */
 export async function getDb() {
   const url = process.env.DATABASE_URL?.trim();

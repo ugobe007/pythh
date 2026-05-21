@@ -29,6 +29,11 @@ import Matches from "./pages/Matches";
 import Developers from "./pages/Developers";
 import Outreach from "./pages/Outreach";
 import Calendar from "./pages/Calendar";
+import GodScores from "./pages/admin/GodScores";
+import SignalScores from "./pages/admin/SignalScores";
+import MlAgent from "./pages/admin/MlAgent";
+import RssManager from "./pages/admin/RssManager";
+import Analytics from "./pages/admin/Analytics";
 
 // Scroll to top on every client-side navigation
 function ScrollToTop() {
@@ -56,8 +61,10 @@ function Router() {
       <Route path={"/oracle"} component={Oracle} />
       <Route path={"/matches"} component={Matches} />
       <Route path={"/developers"} component={Developers} />
-      <Route path={"/outreach"} component={Outreach} />
-      <Route path={"/calendar"} component={Calendar} />
+      <Route path={"/outreach"}><Redirect to="/admin/outreach" /></Route>
+      <Route path={"/calendar"}><Redirect to="/admin/calendar" /></Route>
+      <Route path={"/admin/outreach"} component={Outreach} />
+      <Route path={"/admin/calendar"} component={Calendar} />
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/platform"} component={Platform} />
@@ -71,6 +78,11 @@ function Router() {
       <Route path={"/account"} component={Account} />
       <Route path={"/profile"} component={Profile} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/admin/analytics"} component={Analytics} />
+      <Route path={"/admin/god"}       component={GodScores} />
+      <Route path={"/admin/signals"}   component={SignalScores} />
+      <Route path={"/admin/ml"}        component={MlAgent} />
+      <Route path={"/admin/rss"}       component={RssManager} />
       <Route path={"/login"} component={Login} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />

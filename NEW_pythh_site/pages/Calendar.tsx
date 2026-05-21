@@ -1,5 +1,5 @@
 import { useState } from "react";
-import SharedNavbar from "../components/SharedNavbar";
+import DashboardLayout from "../components/DashboardLayout";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -215,9 +215,7 @@ export default function Calendar() {
   const filtered = meetings.filter((m) => filter === "all" || m.type === filter);
 
   return (
-    <div style={{ background: "#0b0f1a", minHeight: "100vh", color: "#f1f5f9" }}>
-      <SharedNavbar />
-
+    <DashboardLayout>
       {/* Toast */}
       {toast && (
         <div style={{ position: "fixed", top: 80, left: "50%", transform: "translateX(-50%)", background: "#1e293b", color: "#f1f5f9", padding: "8px 20px", borderRadius: 8, fontSize: 13, zIndex: 9999, border: "1px solid #334155" }}>
@@ -225,7 +223,7 @@ export default function Calendar() {
         </div>
       )}
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
 
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
@@ -246,7 +244,7 @@ export default function Calendar() {
               style={{ fontSize: 12, color: "#64748b", border: "1px solid #1e293b", padding: "5px 12px", borderRadius: 6, textDecoration: "none" }}>
               Check Gmail (ugobe07) →
             </a>
-            <a href="/outreach"
+            <a href="/admin/outreach"
               style={{ fontSize: 12, color: "#a78bfa", border: "1px solid #3b1d6e", padding: "5px 12px", borderRadius: 6, textDecoration: "none" }}>
               ← Outreach Dashboard
             </a>
@@ -302,12 +300,12 @@ export default function Calendar() {
           <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6 }}>
             <span style={{ color: "#f59e0b", fontFamily: "monospace", fontWeight: 700 }}>NOTE: </span>
             Meeting cards above are generated from your current outreach campaign contacts. Once a contact replies and confirms a slot,
-            update their status in <a href="/outreach" style={{ color: "#a78bfa" }}>Outreach Dashboard</a>.
+            update their status in <a href="/admin/outreach" style={{ color: "#a78bfa" }}>Outreach Dashboard</a>.
             Future versions will auto-detect replies via Gmail API and confirm meetings automatically.
           </div>
         </div>
 
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

@@ -19,6 +19,8 @@ import {
   getSubscriptionByUserId,
   listRecentPipelineRunsForUser,
   listUsersBrief,
+  rawExecute,
+  rawQuery,
   upsertFounderProfile,
   upsertPipelineFeedback,
   upsertSubscription,
@@ -1063,6 +1065,195 @@ export const appRouter = router({
     getStats: adminProcedure.query(async () => getAdminAggregateStats()),
     getRecentFeedback: adminProcedure.query(async () => getRecentFeedbackWithUsers(20)),
     listUsers: adminProcedure.query(async () => listUsersBrief(100)),
+
+    // ── GOD Score Manager ──────────────────────────────────────────────────
+    getGodScoreSummary: adminProcedure.query(async () => {
+      const [distribution, runtime, weights] = await Promise.all([
+        rawQuery<{ bucket: string; cnt: string }>(`
+          SELECT
+            CASE
+              WHEN total_god_score IS NULL THEN 'unscored'
+              WHEN total_god_score < 20    THEN '0–20'
+              WHEN total_god_score < 40    THEN '20–40'
+              WHEN total_god_score < 60    THEN '40–60'
+              WHEN total_god_score < 80    THEN '60–80'
+              ELSE '80–100'
+            END AS bucket,
+            COUNT(*) AS cnt
+          FROM startup_uploads
+          GROUP BY 1
+          ORDER BY 1
+        `),
+        rawQuery(`SELECT * FROM god_runtime_config LIMIT 1`),
+        rawQuery(`
+          SELECT weights_version, status, weights, comment, created_at
+          FROM god_weight_versions
+          ORDER BY created_at DESC
+          LIMIT 10
+        `),
+      ]);
+
+      const scoreStats = await rawQuery<{ avg: string; max: string; min: string; total: string }>(`
+        SELECT
+          ROUND(AVG(total_god_score)::numeric, 2) AS avg,
+          MAX(total_god_score)                    AS max,
+          MIN(total_god_score)                    AS min,
+          COUNT(*)                                AS total
+        FROM startup_uploads
+        WHERE total_god_score IS NOT NULL
+      `);
+
+      return {
+        distribution,
+        runtime: runtime[0] ?? null,
+        weightHistory: weights,
+        stats: scoreStats[0] ?? null,
+      };
+    }),
+
+    freezeGodScoring: adminProcedure
+      .input(z.object({ freeze: z.boolean() }))
+      .mutation(async ({ input }) => {
+        await rawExecute(
+          `UPDATE god_runtime_config SET freeze = $1, updated_at = now() WHERE id = (SELECT id FROM god_runtime_config LIMIT 1)`,
+          [input.freeze],
+        );
+        return { ok: true };
+      }),
+
+    // ── Signal Scores ──────────────────────────────────────────────────────
+    getSignalSummary: adminProcedure.query(async () => {
+      const [summary, topStartups, bottomStartups, recentHistory] = await Promise.all([
+        rawQuery<{ avg_total: string; count: string }>(`
+          SELECT ROUND(AVG(signals_total)::numeric, 2) AS avg_total, COUNT(*) AS count
+          FROM startup_signal_scores
+        `),
+        rawQuery(`
+          SELECT s.company_name, ss.signals_total, ss.founder_language_shift,
+                 ss.investor_receptivity, ss.news_momentum, ss.capital_convergence,
+                 ss.execution_velocity, ss.as_of
+          FROM startup_signal_scores ss
+          JOIN startup_uploads s ON s.id = ss.startup_id
+          ORDER BY ss.signals_total DESC
+          LIMIT 15
+        `),
+        rawQuery(`
+          SELECT s.company_name, ss.signals_total, ss.as_of
+          FROM startup_signal_scores ss
+          JOIN startup_uploads s ON s.id = ss.startup_id
+          ORDER BY ss.signals_total ASC
+          LIMIT 10
+        `),
+        rawQuery(`
+          SELECT startup_id, dimension, old_value, new_value, applied, created_at
+          FROM signal_history
+          ORDER BY created_at DESC
+          LIMIT 50
+        `),
+      ]);
+      return { summary: summary[0] ?? null, topStartups, bottomStartups, recentHistory };
+    }),
+
+    // ── ML Agent ──────────────────────────────────────────────────────────
+    getMlRecommendations: adminProcedure.query(async () => {
+      const [pending, recent, entityGateStats] = await Promise.all([
+        rawQuery(`
+          SELECT id, weights_version, recommendation_type, confidence, reasoning,
+                 expected_improvement, status, requires_manual_approval,
+                 current_weights, recommended_weights, created_at
+          FROM ml_recommendations
+          WHERE status = 'pending'
+          ORDER BY created_at DESC
+          LIMIT 20
+        `),
+        rawQuery(`
+          SELECT id, recommendation_type, confidence, status, reviewed_at, rejection_reason, created_at
+          FROM ml_recommendations
+          WHERE status != 'pending'
+          ORDER BY created_at DESC
+          LIMIT 20
+        `),
+        rawQuery<{ gate: string; cnt: string }>(`
+          SELECT entity_gate AS gate, COUNT(*) AS cnt
+          FROM startup_uploads
+          GROUP BY entity_gate
+          ORDER BY cnt DESC
+        `),
+      ]);
+      return { pending, recent, entityGateStats };
+    }),
+
+    reviewMlRecommendation: adminProcedure
+      .input(z.object({ id: z.string(), action: z.enum(["approve", "reject"]), reason: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const status = input.action === "approve" ? "approved" : "rejected";
+        await rawExecute(
+          `UPDATE ml_recommendations
+           SET status = $1, reviewed_at = now(), reviewed_by = $2, rejection_reason = $3
+           WHERE id = $4`,
+          [status, ctx.user.id, input.reason ?? null, input.id],
+        );
+        return { ok: true };
+      }),
+
+    // ── RSS Feed Manager ───────────────────────────────────────────────────
+    getRssFeeds: adminProcedure.query(async () => {
+      return rawQuery(`
+        SELECT id, name, url, category, active, priority,
+               last_scraped, total_discoveries, avg_yield_per_scrape,
+               consecutive_failures, created_at
+        FROM rss_sources
+        ORDER BY active DESC, priority ASC, name ASC
+      `);
+    }),
+
+    toggleRssFeed: adminProcedure
+      .input(z.object({ id: z.number(), active: z.boolean() }))
+      .mutation(async ({ input }) => {
+        await rawExecute(
+          `UPDATE rss_sources SET active = $1 WHERE id = $2`,
+          [input.active, input.id],
+        );
+        return { ok: true };
+      }),
+
+    // ── Analytics ─────────────────────────────────────────────────────────
+    getAnalytics: adminProcedure.query(async () => {
+      const [eventBreakdown, dailySignups, pageViews, usageStats] = await Promise.all([
+        rawQuery<{ event_name: string; cnt: string }>(`
+          SELECT event_name, COUNT(*) AS cnt
+          FROM events
+          WHERE created_at > now() - interval '30 days'
+          GROUP BY event_name
+          ORDER BY cnt DESC
+          LIMIT 25
+        `),
+        rawQuery<{ day: string; cnt: string }>(`
+          SELECT DATE(created_at) AS day, COUNT(*) AS cnt
+          FROM pythh_users
+          WHERE created_at > now() - interval '30 days'
+          GROUP BY 1
+          ORDER BY 1
+        `),
+        rawQuery<{ page: string; cnt: string }>(`
+          SELECT page, COUNT(*) AS cnt
+          FROM events
+          WHERE event_name = 'page_viewed'
+            AND created_at > now() - interval '30 days'
+          GROUP BY page
+          ORDER BY cnt DESC
+          LIMIT 20
+        `),
+        rawQuery<{ total_users: string; avg_analysis_count: string; active_30d: string }>(`
+          SELECT
+            COUNT(*) AS total_users,
+            ROUND(AVG(analysis_count)::numeric, 1) AS avg_analysis_count,
+            COUNT(*) FILTER (WHERE updated_at > now() - interval '30 days') AS active_30d
+          FROM profiles
+        `),
+      ]);
+      return { eventBreakdown, dailySignups, pageViews, usageStats: usageStats[0] ?? null };
+    }),
   }),
 });
 

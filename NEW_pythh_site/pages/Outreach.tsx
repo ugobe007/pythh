@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import SharedNavbar from "../components/SharedNavbar";
+import DashboardLayout from "../components/DashboardLayout";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -116,10 +116,9 @@ export default function Outreach() {
   const block = stats ? (mode === "vc_leads" ? stats.vc : mode === "startup_matches" ? stats.startup : stats.total) : null;
 
   return (
-    <div style={{ background: "#0b0f1a", minHeight: "100vh", color: "#f1f5f9" }}>
-      <SharedNavbar />
+    <DashboardLayout>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 20px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
@@ -282,6 +281,6 @@ export default function Outreach() {
         </div>
 
       </div>
-    </div>
+    </DashboardLayout>
   );
 }

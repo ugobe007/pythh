@@ -14,11 +14,6 @@ const NAV_LINKS = [
   { label: "Pricing",   href: "/pricing" },
 ];
 
-const ADMIN_LINKS = [
-  { label: "Outreach",  href: "/outreach" },
-  { label: "Calendar",  href: "/calendar" },
-];
-
 export default function SharedNavbar({ activePath }: { activePath?: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -68,23 +63,18 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
             ))}
           </div>
 
-          {/* Admin links — small, after main nav */}
-          <div className="hidden md:flex items-center gap-4 border-l border-white/5 pl-4">
-            {ADMIN_LINKS.map(({ label, href }) => (
-              <a key={href} href={href}
-                className="text-xs font-mono transition-colors duration-150"
-                style={{ color: activePath === href ? "oklch(0.75 0.15 270)" : "oklch(0.4 0.01 264)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.75 0.15 270)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = activePath === href ? "oklch(0.75 0.15 270)" : "oklch(0.4 0.01 264)")}>
-                {label}
-              </a>
-            ))}
-          </div>
-
           {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
               <>
+                {user?.role === "admin" && (
+                  <a href="/admin" className="text-xs font-mono px-2 py-1 rounded"
+                    style={{ border: "1px solid oklch(0.25 0.01 264)", color: "oklch(0.5 0.01 264)", textDecoration: "none" }}
+                    onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = "oklch(0.75 0.15 270)"; el.style.borderColor = "oklch(0.35 0.01 264)"; }}
+                    onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.color = "oklch(0.5 0.01 264)"; el.style.borderColor = "oklch(0.25 0.01 264)"; }}>
+                    Admin
+                  </a>
+                )}
                 <Link href="/account">
                   <span className="text-sm font-medium cursor-pointer transition-colors" style={{ color: "oklch(0.55 0.01 264)" }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.85 0.01 264)")}
@@ -150,6 +140,9 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
               <div className="flex gap-4 pt-2 border-t" style={{ borderColor: "oklch(0.18 0.01 264)" }}>
                 {isAuthenticated ? (
                   <>
+                    {user?.role === "admin" && (
+                      <a href="/admin" onClick={() => setMenuOpen(false)} className="text-sm font-medium" style={{ color: "oklch(0.75 0.15 270)" }}>Admin</a>
+                    )}
                     <Link href="/account" onClick={() => setMenuOpen(false)}>
                       <span className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
                         {user?.name?.split(" ")[0] ?? "Account"}
