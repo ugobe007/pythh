@@ -298,29 +298,28 @@ function HeroSection() {
         {/* ── Brand mark — standalone, not inside any pill or button ── */}
         <div className="mb-10">
           {/* Icon — stroke only, no fills */}
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none" aria-label="Pythh Connect">
-            {/* Hexagon outer shell */}
+          <svg width="76" height="76" viewBox="0 0 52 52" fill="none" aria-label="Pythh Connect">
             <polygon
               points="26,4 46,15 46,37 26,48 6,37 6,15"
               stroke="#a78bfa"
               strokeWidth="1.4"
               strokeLinejoin="round"
             />
-            {/* Inner triangle connecting nodes */}
             <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
             <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
             <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-            {/* Three nodes — stroke only */}
             <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.2" />
             <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.2" />
             <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.2" />
           </svg>
-          {/* Label — plain text, no pill, no button */}
-          <div className="flex items-baseline gap-3 mt-3">
-            <span className="text-sm font-semibold tracking-wider uppercase" style={{ color: "#c4b5fd" }}>
+          <div className="flex items-center gap-2.5 mt-4">
+            <span className="text-base font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>
               Pythh Connect
             </span>
-            <span className="text-xs" style={{ color: "#22c55e" }}>· MCP live</span>
+            <span className="flex items-center gap-1 text-xs font-mono" style={{ color: "#22c55e" }}>
+              <span className="w-1.5 h-1.5 rounded-full inline-block animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+              MCP live
+            </span>
           </div>
         </div>
 
@@ -331,12 +330,12 @@ function HeroSection() {
           <div className="flex-1 max-w-[580px]">
 
             {/* Super-headline */}
-            <div className="flex items-center gap-2 mb-5">
+            <div className="inline-flex items-center gap-3 mb-6 px-4 py-2 rounded-lg" style={{ border: "1px solid #22c55e28", backgroundColor: "#22c55e0a" }}>
               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-              <span className="text-sm font-bold" style={{ color: "#22c55e" }}>
-                Over 1.2 million investor matches and counting
+              <span className="text-sm font-bold font-mono" style={{ color: "#22c55e" }}>
+                1,200,000+ investor matches
               </span>
-              <span className="text-xs" style={{ color: "oklch(0.32 0.01 264)" }}>· updated daily</span>
+              <span className="text-xs font-mono" style={{ color: "oklch(0.38 0.01 264)" }}>· updated daily</span>
             </div>
 
             <h1
@@ -959,168 +958,136 @@ const GOD_PILLARS = [
 function GODScoreSection() {
   return (
     <section
-      className="py-24 border-t border-b"
-      style={{ backgroundColor: "oklch(0.09 0.01 264)", borderColor: "oklch(0.2 0.01 264)" }}
+      className="py-20 border-t border-b"
+      style={{ backgroundColor: "oklch(0.09 0.01 264)", borderColor: "oklch(0.16 0.01 264)" }}
     >
-      <div className="container" style={{ maxWidth: "1200px" }}>
+      <div className="container px-6" style={{ maxWidth: "1200px" }}>
 
-        {/* ── Header ── */}
-        <div className="text-center mb-16">
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className="h-px flex-1" style={{ maxWidth: 80, backgroundColor: "oklch(0.22 0.01 264)" }} />
-            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.42 0.01 264)" }}>
-              The science behind the score
-            </span>
-            <div className="h-px flex-1" style={{ maxWidth: 80, backgroundColor: "oklch(0.22 0.01 264)" }} />
+        {/* ── Header row ── */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+          <div>
+            <p className="text-[10px] font-mono tracking-widest uppercase mb-2" style={{ color: "oklch(0.36 0.01 264)" }}>
+              scoring framework
+            </p>
+            <h2 className="text-xl font-bold" style={{ color: "oklch(0.9 0.005 264)", letterSpacing: "-0.02em" }}>
+              GOD Score <span style={{ color: "oklch(0.45 0.01 264)", fontWeight: 400 }}>—</span> Grit · Opportunity · Determination
+            </h2>
+            <p className="text-sm mt-1" style={{ color: "oklch(0.48 0.01 264)" }}>
+              40+ observable signals · derived from YC, Sequoia, A16z, Founders Fund, Greylock selection patterns
+            </p>
           </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-xs font-mono px-3 py-1.5 rounded" style={{ color: "#22c55e", border: "1px solid #22c55e28" }}>
+              0 – 100
+            </span>
+            <a
+              href="/methodology"
+              className="text-xs font-mono transition-colors"
+              style={{ color: "oklch(0.45 0.01 264)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#a78bfa"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.45 0.01 264)"; }}
+            >
+              Full methodology →
+            </a>
+          </div>
+        </div>
 
-          {/* G · O · D display */}
-          <div className="flex items-center justify-center gap-4 mb-5">
-            {["G", "O", "D"].map((letter, i) => (
-              <span
-                key={letter}
-                style={{
-                  fontSize: "clamp(5rem, 12vw, 8rem)",
-                  fontWeight: 900,
-                  lineHeight: 1,
-                  letterSpacing: "-0.05em",
-                  color: ["#a855f7", "#22d3ee", "#22c55e"][i],
-                  fontFamily: "'Inter', sans-serif",
-                }}
-              >
-                {letter}
-              </span>
+        {/* ── Dimension table ── */}
+        <div className="rounded-xl overflow-hidden mb-6" style={{ border: "1px solid oklch(0.17 0.01 264)" }}>
+
+          {/* Column headers */}
+          <div className="hidden md:grid grid-cols-[160px_1fr_180px_180px] px-5 py-2.5 border-b"
+            style={{ borderColor: "oklch(0.15 0.01 264)", backgroundColor: "oklch(0.105 0.01 264)" }}>
+            {["DIMENSION", "WHAT WE MEASURE", "SIGNALS", "VC BENCHMARK"].map((h) => (
+              <span key={h} className="text-[10px] font-mono tracking-widest" style={{ color: "oklch(0.33 0.01 264)" }}>{h}</span>
             ))}
           </div>
 
-          <h2
-            className="font-display font-bold mb-5"
-            style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", color: "oklch(0.85 0.005 264)", letterSpacing: "-0.02em" }}
-          >
-            Grit · Opportunity · Determination
-          </h2>
-          <p className="text-base leading-relaxed max-w-2xl mx-auto" style={{ color: "oklch(0.55 0.01 264)" }}>
-            Every startup founder is on a hero's journey — facing rejection, uncertainty, and pressure at every turn.
-            Those who endure are the ones who deserve to be backed. The GOD Score quantifies exactly what the greatest
-            investors in history have always looked for. We named it accordingly.
-          </p>
-        </div>
-
-        {/* ── Three pillar cards ── */}
-        <div className="grid md:grid-cols-3 gap-5 mb-12">
-          {GOD_PILLARS.map(({ letter, word, color, desc, vcs, signals }) => (
+          {/* Rows */}
+          {GOD_PILLARS.map(({ letter, word, color, desc, vcs, signals }, i) => (
             <div
               key={letter}
-              className="p-7 rounded-2xl flex flex-col"
-              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: `1px solid ${color}28` }}
+              className="grid md:grid-cols-[160px_1fr_180px_180px] gap-0 px-5 py-5 border-b last:border-b-0"
+              style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: i % 2 === 0 ? "transparent" : "oklch(0.105 0.01 264)" }}
             >
-              <div className="flex items-baseline gap-3 mb-5">
-                <span
-                  style={{
-                    fontSize: "3.5rem",
-                    fontWeight: 900,
-                    color,
-                    lineHeight: 1,
-                    letterSpacing: "-0.04em",
-                    fontFamily: "'Inter', sans-serif",
-                  }}
-                >
-                  {letter}
-                </span>
-                <span className="text-xl font-bold" style={{ color: "oklch(0.88 0.005 264)" }}>{word}</span>
+              {/* Dimension label */}
+              <div className="flex items-center gap-3 mb-3 md:mb-0">
+                <span className="font-mono font-bold text-lg w-6 text-center" style={{ color }}>{letter}</span>
+                <span className="text-sm font-semibold" style={{ color: "oklch(0.78 0.005 264)" }}>{word}</span>
               </div>
-              <p className="text-sm leading-relaxed mb-5 flex-1" style={{ color: "oklch(0.57 0.01 264)" }}>{desc}</p>
 
-              {/* Signal chips */}
-              <div className="flex flex-wrap gap-1.5 mb-4">
+              {/* Description */}
+              <p className="text-xs leading-relaxed pr-6 mb-3 md:mb-0" style={{ color: "oklch(0.52 0.01 264)" }}>
+                {desc.split(" — ")[0].trim()}
+              </p>
+
+              {/* Signals */}
+              <div className="flex flex-col gap-1 pr-4 mb-3 md:mb-0">
                 {signals.map((s) => (
-                  <span
-                    key={s}
-                    className="text-[11px] px-2 py-0.5 rounded"
-                    style={{ backgroundColor: `${color}12`, color, border: `1px solid ${color}35` }}
-                  >
-                    {s}
+                  <span key={s} className="text-[11px] font-mono" style={{ color: "oklch(0.48 0.01 264)" }}>
+                    — {s}
                   </span>
                 ))}
               </div>
 
-              {/* VC attribution */}
-              <div className="flex items-center gap-1.5 pt-3" style={{ borderTop: "1px solid oklch(0.18 0.01 264)" }}>
-                <span className="text-[11px]" style={{ color: "oklch(0.36 0.01 264)" }}>Informed by:</span>
+              {/* VCs */}
+              <div className="flex flex-col gap-1">
                 {vcs.map((v) => (
-                  <span key={v} className="text-[11px] font-semibold" style={{ color: "oklch(0.52 0.01 264)" }}>{v}</span>
+                  <span key={v} className="text-[11px]" style={{ color: "oklch(0.42 0.01 264)" }}>{v}</span>
                 ))}
               </div>
             </div>
           ))}
         </div>
 
-        {/* ── Bottom: score scale + hero's journey copy ── */}
-        <div className="grid lg:grid-cols-2 gap-5">
+        {/* ── Score bands + methodology note — two columns ── */}
+        <div className="grid lg:grid-cols-2 gap-4">
 
-          {/* Score scale */}
-          <div className="p-6 rounded-2xl" style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}>
-            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.4 0.01 264)" }}>
-              GOD Score — 0 to 100
+          {/* Score bands */}
+          <div className="rounded-xl p-5" style={{ border: "1px solid oklch(0.16 0.01 264)", backgroundColor: "oklch(0.105 0.01 264)" }}>
+            <p className="text-[10px] font-mono tracking-widest uppercase mb-4" style={{ color: "oklch(0.36 0.01 264)" }}>
+              score bands
             </p>
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {[
-                { range: "80 – 100", label: "Elite",      color: "#22c55e",              note: "Investment-grade · Surfaces first in all match lists" },
-                { range: "60 – 79",  label: "Strong",     color: "#22d3ee",              note: "High conviction · Core matching pool" },
-                { range: "40 – 59",  label: "Solid",      color: "#eab308",              note: "Signal-building · Included with confidence weighting" },
-                { range: "20 – 39",  label: "Emerging",   color: "#f97316",              note: "Early signals · Monitor for improvement" },
-                { range: "0 – 19",   label: "Pre-signal", color: "oklch(0.38 0.01 264)", note: "Excluded from all matches — protects quality" },
+                { range: "80–100", label: "Elite",      color: "#22c55e",              note: "Investment-grade · surfaces first" },
+                { range: "60–79",  label: "Strong",     color: "#22d3ee",              note: "High conviction · core matching pool" },
+                { range: "40–59",  label: "Solid",      color: "#eab308",              note: "Signal-building · confidence-weighted" },
+                { range: "20–39",  label: "Emerging",   color: "#f97316",              note: "Early signals · monitored" },
+                { range: "0–19",   label: "Pre-signal", color: "oklch(0.35 0.01 264)", note: "Excluded — protects match quality" },
               ].map(({ range, label, color, note }) => (
-                <div key={range} className="flex items-start gap-4">
-                  <span className="text-xs font-mono mt-0.5 w-16 flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>{range}</span>
-                  <span className="text-sm font-semibold w-20 flex-shrink-0" style={{ color }}>{label}</span>
-                  <span className="text-xs leading-snug" style={{ color: "oklch(0.45 0.01 264)" }}>{note}</span>
+                <div key={range} className="flex items-center gap-3">
+                  <span className="text-xs font-mono w-14 flex-shrink-0 tabular-nums" style={{ color: "oklch(0.33 0.01 264)" }}>{range}</span>
+                  <div className="w-0.5 h-3.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="text-xs font-semibold w-16 flex-shrink-0" style={{ color }}>{label}</span>
+                  <span className="text-xs" style={{ color: "oklch(0.42 0.01 264)" }}>{note}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Philosophy */}
-          <div className="p-6 rounded-2xl" style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}>
-            <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.4 0.01 264)" }}>
-              The hero's journey, quantified
+          {/* Methodology note */}
+          <div className="rounded-xl p-5" style={{ border: "1px solid oklch(0.16 0.01 264)", backgroundColor: "oklch(0.105 0.01 264)" }}>
+            <p className="text-[10px] font-mono tracking-widest uppercase mb-4" style={{ color: "oklch(0.36 0.01 264)" }}>
+              methodology basis
             </p>
-            <p className="text-sm leading-relaxed mb-4" style={{ color: "oklch(0.57 0.01 264)" }}>
-              Joseph Campbell wrote that every hero must face the abyss — and choose to go on. Every startup founder
-              faces that moment too. The GOD Score was built to identify the founders who choose to continue, and the
-              investors who are ready to back them at exactly the right time.
+            <p className="text-sm leading-relaxed mb-3" style={{ color: "oklch(0.52 0.01 264)" }}>
+              The GOD dimensions are derived from the observable selection patterns of the most successful early-stage
+              investors in history. No self-reported data. No black boxes. 40+ observable signals, scored consistently.
             </p>
-            <p className="text-sm leading-relaxed mb-4" style={{ color: "oklch(0.57 0.01 264)" }}>
-              The five GOD dimensions — Team, Traction, Market, Product, and Vision — aren't invented criteria.
-              They're derived from the observable selection patterns of the most successful early-stage investors in
-              history: YC, Sequoia, A16z, Founders Fund, and Greylock. We studied how they pick, distilled the signals,
-              and built an engine that runs the same analysis on every startup in the network.
+            <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.52 0.01 264)" }}>
+              Every startup founder faces the moment of choosing to continue against the odds. The GOD Score was built
+              to identify the founders who make that choice — and the investors who are ready to back them.
             </p>
-            <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.57 0.01 264)" }}>
-              No self-reported data. No black boxes. Just 40+ observable signals, scored the same way every time —
-              because founders deserve to be evaluated on what they've built, not what they claim.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <a
-                href="/methodology"
-                className="text-sm font-semibold transition-colors"
-                style={{ color: "#a78bfa" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#c4b5fd"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#a78bfa"; }}
-              >
-                Read the full methodology →
-              </a>
-              <span style={{ color: "oklch(0.28 0.01 264)" }}>·</span>
-              <a
-                href="/activate"
-                className="text-sm font-semibold transition-colors"
-                style={{ color: "oklch(0.696 0.17 162.48)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.78 0.17 162.48)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "oklch(0.696 0.17 162.48)"; }}
-              >
-                Score your startup →
-              </a>
-            </div>
+            <a
+              href="/methodology"
+              className="text-xs font-mono transition-colors"
+              style={{ color: "#a78bfa" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#c4b5fd"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#a78bfa"; }}
+            >
+              Read the full methodology →
+            </a>
           </div>
         </div>
 
