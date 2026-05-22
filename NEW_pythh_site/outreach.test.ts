@@ -58,8 +58,23 @@ import {
   getOutreachEmailsByRunId,
 } from "./db";
 import { appRouter } from "./routers";
+import { getSubscriptionByUserId } from "./db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ORACLE_SUB = {
+  id: 1,
+  userId: 1,
+  stripeSubscriptionId: "sub_test",
+  stripeCustomerId: "cus_test",
+  plan: "oracle" as const,
+  billingCycle: "monthly" as const,
+  status: "active" as const,
+  currentPeriodEnd: Date.now() + 30 * 86400000,
+  cancelAtPeriodEnd: 0,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
 
 const AUTHED_USER = {
   id: 1,
@@ -249,6 +264,7 @@ describe("outreach.updateDeck", () => {
 describe("outreach.generateEmailPitch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getSubscriptionByUserId).mockResolvedValue(ORACLE_SUB as any);
     vi.mocked(getOutreachEmailsByRunId).mockResolvedValue([]);
     vi.mocked(invokeLLM).mockResolvedValue(MOCK_LLM_EMAIL_RESPONSE as any);
     vi.mocked(createOutreachEmail).mockResolvedValue({ id: 10 } as any);
@@ -375,6 +391,7 @@ describe("outreach.updateEmail", () => {
 describe("outreach.approveEmail", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getSubscriptionByUserId).mockResolvedValue(ORACLE_SUB as any);
     vi.mocked(updateOutreachEmailStatus).mockResolvedValue(undefined as any);
   });
 
@@ -412,6 +429,7 @@ describe("outreach.sendEmail", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getSubscriptionByUserId).mockResolvedValue(ORACLE_SUB as any);
     vi.mocked(getOutreachEmailsByRunId).mockResolvedValue([DRAFT_EMAIL] as any);
     vi.mocked(updateOutreachEmailStatus).mockResolvedValue(undefined as any);
     vi.stubGlobal(

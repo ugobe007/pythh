@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import DashboardLayout from "../components/DashboardLayout";
-import { Send, RefreshCw, Mail, Eye, ExternalLink, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import {
+  Send, RefreshCw, Mail, Eye, ExternalLink, CheckCircle, XCircle, Loader2,
+  FileText, Inbox, MessageSquare, X, CheckSquare, Square,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,60 +20,38 @@ interface Contact {
   clicked_at: string | null; bounced_at: string | null;
   unsubscribed_at: string | null; campaign_slug: string;
   resend_message_id: string | null;
+  target_name?: string | null;
+  actual_recipient?: string | null;
+  status?: string;
+}
+interface DraftRow {
+  id: string; email: string; actual_recipient?: string | null;
+  email_type: "vc_leads" | "startup_matches"; subject: string;
+  target_name?: string | null; campaign_slug: string; sent_at: string;
+  status: string;
+}
+interface ReplyRow {
+  id: string; from_email: string; to_email: string; subject: string;
+  text_body: string; html_body?: string | null; created_at: string;
+  read_at?: string | null;
+}
+interface MessageDetail {
+  id: string; email: string; actual_recipient?: string | null;
+  subject: string; html_body?: string | null; text_body?: string | null;
+  target_name?: string | null; email_type: string; status: string;
+  sent_at: string; campaign_slug: string;
 }
 interface Job {
   jobId: string; status: "running" | "done" | "error";
   log: string[]; startedAt: string; finishedAt: string | null;
-  exitCode: number | null; mode: string; limit: number; dryRun: boolean;
+  exitCode: number | null; mode: string; limit: number;
+  dryRun?: boolean; draftOnly?: boolean;
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const API = import.meta.env.VITE_API_URL || "https://hot-honey.fly.dev";
 const LIMIT_PER_PAGE = 50;
-
-// ── Email templates (preview) ─────────────────────────────────────────────────
-
-const VC_TEMPLATE = `Subject: 10 investment-grade [SECTOR] startups matched to [FIRM]'s thesis
-
-Hi [NAME],
-
-I'm PYTHIA, the AI matching engine at Pythh.ai. Our platform surfaces
-founder–investor fit signals before they hit TechCrunch.
-
-We've identified 10 startups whose trajectory, team, and market timing
-align with [FIRM]'s recent portfolio thesis. Here's a sample:
-
-  1. [Company A] — [Sector] · GOD Score 87 · Seed · Raising $2M
-     "Why it matches: [reason]"
-  2. [Company B] — [Sector] · GOD Score 81 · Pre-Seed · Raising $800K
-     "Why it matches: [reason]"
-  … (8 more)
-
-Want the full ranked list + data room access?
-→ pythh.ai/activate  |  Try our MCP for AI-native deal flow
-
-— PYTHIA
-pythia@pythh.ai  ·  Reply to this email to connect`;
-
-const STARTUP_TEMPLATE = `Subject: Your top 5 investor matches — [COMPANY]
-
-Hi [FOUNDER],
-
-I'm PYTHIA, Pythh.ai's AI matching engine. Based on your startup's
-signals, team, and market timing, here are your top 5 investor matches:
-
-  1. [Investor A] — [Firm] · $2M–$10M checks · Focus: [sector]
-     "Why they match: [reason]"
-  2. [Investor B] — [Firm] · $500K–$2M checks · Focus: [sector]
-     "Why they match: [reason]"
-  … (3 more)
-
-Get the full ranked list + intro requests:
-→ pythh.ai/activate  |  Upgrade to access 6,000+ investor profiles
-
-— PYTHIA
-pythia@pythh.ai  ·  Replies go to ugobe07@gmail.com`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -84,6 +65,7 @@ function pill(bg: string, color: string): React.CSSProperties {
     fontWeight: 700, padding: "2px 7px", fontFamily: "monospace", letterSpacing: "0.05em",
     textTransform: "uppercase" as const };
 }
+
 function StatusPill({ c }: { c: Contact }) {
   if (c.bounced_at)      return <span style={pill("#7f1d1d","#ef4444")}>Bounced</span>;
   if (c.unsubscribed_at) return <span style={pill("#1e1b4b","#818cf8")}>Unsub</span>;
@@ -102,26 +84,292 @@ function StatCard({ label, value, sub, color = "#22c55e" }: { label: string; val
   );
 }
 
+const S = {
+  box: { background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "20px 24px" },
+  label: { fontSize: 10, fontWeight: 700, color: "oklch(0.4 0.01 264)", letterSpacing: "0.1em", textTransform: "uppercase" as const, display: "block", marginBottom: 6 },
+  input: { padding: "7px 10px", background: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 6, color: "oklch(0.9 0.005 264)", fontSize: 12, width: "100%", boxSizing: "border-box" as const },
+};
+
+// ── Message Preview Modal ─────────────────────────────────────────────────────
+
+function MessagePreviewModal({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const [msg, setMsg] = useState<MessageDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API}/api/outreach/message/${messageId}`)
+      .then((r) => r.json())
+      .then((d) => setMsg(d.message ?? null))
+      .finally(() => setLoading(false));
+  }, [messageId]);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      onClick={onClose}>
+      <div style={{ background: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.25 0.01 264)", borderRadius: 12, width: "100%", maxWidth: 720, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
+        onClick={(e) => e.stopPropagation()}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid oklch(0.22 0.01 264)", display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "oklch(0.5 0.01 264)", marginBottom: 4 }}>EMAIL PREVIEW</div>
+            {loading ? <div style={{ color: "oklch(0.4 0.01 264)", fontSize: 12 }}>Loading…</div> : msg && (
+              <>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "oklch(0.9 0.01 264)" }}>{msg.subject}</div>
+                <div style={{ fontSize: 11, color: "oklch(0.5 0.01 264)", marginTop: 4 }}>
+                  To: {msg.actual_recipient || msg.email}
+                  {msg.target_name && ` · ${msg.target_name}`}
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", cursor: "pointer", color: "oklch(0.5 0.01 264)", padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: 0 }}>
+          {loading && <div style={{ padding: 32, textAlign: "center", color: "oklch(0.4 0.01 264)" }}>Loading email…</div>}
+          {!loading && msg?.html_body && (
+            <iframe
+              srcDoc={msg.html_body}
+              title="Email preview"
+              sandbox=""
+              style={{ width: "100%", height: 480, border: "none", background: "#fff" }}
+            />
+          )}
+          {!loading && msg && !msg.html_body && msg.text_body && (
+            <pre style={{ padding: 20, fontSize: 12, lineHeight: 1.7, color: "oklch(0.7 0.01 264)", whiteSpace: "pre-wrap", margin: 0 }}>{msg.text_body}</pre>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Web Inbox (Drafts / Sent / Replies) ───────────────────────────────────────
+
+function WebInbox({ onRefresh }: { onRefresh: () => void }) {
+  const [tab, setTab] = useState<"drafts" | "sent" | "replies">("drafts");
+  const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [sent, setSent] = useState<Contact[]>([]);
+  const [replies, setReplies] = useState<ReplyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const loadInbox = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/outreach/inbox`);
+      if (!r.ok) throw new Error("Failed to load inbox");
+      const d = await r.json();
+      setDrafts(d.drafts ?? []);
+      setSent(d.sent ?? []);
+      setReplies(d.replies ?? []);
+    } catch {
+      setDrafts([]); setSent([]); setReplies([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadInbox(); }, [loadInbox]);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllDrafts() {
+    if (selected.size === drafts.length) setSelected(new Set());
+    else setSelected(new Set(drafts.map((d) => d.id)));
+  }
+
+  async function sendSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Send ${selected.size} approved draft(s) via Resend? This cannot be undone.`)) return;
+    setSending(true);
+    try {
+      const r = await fetch(`${API}/api/outreach/send-drafts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? "Send failed"); return; }
+      alert(`Sent ${d.sent}, failed ${d.failed}`);
+      setSelected(new Set());
+      loadInbox();
+      onRefresh();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function markRead(id: string) {
+    await fetch(`${API}/api/outreach/replies/${id}/read`, { method: "POST" });
+    loadInbox();
+  }
+
+  const tabs = [
+    { key: "drafts" as const, label: "Drafts", count: drafts.length, icon: FileText, color: "oklch(0.75 0.15 270)" },
+    { key: "sent" as const, label: "Sent", count: sent.length, icon: Send, color: "oklch(0.85 0.17 162)" },
+    { key: "replies" as const, label: "Replies", count: replies.filter((r) => !r.read_at).length, icon: MessageSquare, color: "oklch(0.78 0.15 200)" },
+  ];
+
+  return (
+    <div style={S.box}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <Inbox size={16} style={{ color: "oklch(0.85 0.17 162)" }} />
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.85 0.17 162)" }}>
+          PYTHH INBOX
+        </div>
+        <span style={{ fontSize: 10, color: "oklch(0.4 0.01 264)" }}>Review drafts before sending · track sent mail · read replies</span>
+        <button onClick={loadInbox} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", background: "transparent", border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.5 0.01 264)", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>
+          <RefreshCw size={11} /> Refresh
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {tabs.map(({ key, label, count, icon: Icon, color }) => (
+          <button key={key} onClick={() => setTab(key)}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              border: `1px solid ${tab === key ? color : "oklch(0.22 0.01 264)"}`,
+              background: tab === key ? "oklch(0.18 0.01 264)" : "transparent",
+              color: tab === key ? color : "oklch(0.5 0.01 264)" }}>
+            <Icon size={13} /> {label}
+            {count > 0 && <span style={{ fontSize: 10, opacity: 0.8 }}>({count})</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Draft actions */}
+      {tab === "drafts" && drafts.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: "oklch(0.12 0.01 264)", borderRadius: 8 }}>
+          <button onClick={selectAllDrafts} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "transparent", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 6, cursor: "pointer", fontSize: 11, color: "oklch(0.6 0.01 264)" }}>
+            {selected.size === drafts.length ? <CheckSquare size={13} /> : <Square size={13} />}
+            {selected.size === drafts.length ? "Deselect all" : "Select all"}
+          </button>
+          <span style={{ fontSize: 11, color: "oklch(0.45 0.01 264)" }}>{selected.size} selected</span>
+          <button onClick={sendSelected} disabled={selected.size === 0 || sending}
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+              border: "1px solid oklch(0.65 0.2 25)", background: selected.size > 0 ? "oklch(0.55 0.2 25)" : "transparent",
+              color: selected.size > 0 ? "#fff" : "oklch(0.4 0.01 264)", opacity: sending ? 0.6 : 1 }}>
+            {sending ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Approve & Send Selected</>}
+          </button>
+        </div>
+      )}
+
+      {/* List */}
+      <div style={{ border: "1px solid oklch(0.2 0.01 264)", borderRadius: 8, overflow: "hidden" }}>
+        {loading && <div style={{ padding: 32, textAlign: "center", color: "oklch(0.4 0.01 264)", fontSize: 12 }}>Loading…</div>}
+
+        {!loading && tab === "drafts" && drafts.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <FileText size={28} style={{ color: "oklch(0.3 0.01 264)", marginBottom: 10 }} />
+            <div style={{ color: "oklch(0.45 0.01 264)", fontSize: 13 }}>No drafts yet</div>
+            <div style={{ color: "oklch(0.35 0.01 264)", fontSize: 11, marginTop: 4 }}>Use "Generate Drafts" below to create emails for review</div>
+          </div>
+        )}
+
+        {!loading && tab === "drafts" && drafts.map((d, i) => (
+          <div key={d.id} style={{ padding: "12px 16px", borderBottom: "1px solid oklch(0.18 0.01 264)", background: i % 2 === 0 ? "oklch(0.15 0.01 264)" : "oklch(0.14 0.01 264)", display: "flex", alignItems: "center", gap: 12 }}>
+            <button onClick={() => toggleSelect(d.id)} style={{ background: "transparent", border: "none", cursor: "pointer", color: selected.has(d.id) ? "oklch(0.75 0.15 270)" : "oklch(0.35 0.01 264)", padding: 0 }}>
+              {selected.has(d.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "oklch(0.85 0.01 264)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {d.target_name || d.email}
+              </div>
+              <div style={{ fontSize: 11, color: "oklch(0.5 0.01 264)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.subject}</div>
+              <div style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", marginTop: 2 }}>
+                {d.actual_recipient || d.email} · {d.campaign_slug}
+              </div>
+            </div>
+            <button onClick={() => setPreviewId(d.id)}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer", border: "1px solid oklch(0.25 0.01 264)", background: "transparent", color: "oklch(0.6 0.01 264)" }}>
+              <Eye size={12} /> Preview
+            </button>
+          </div>
+        ))}
+
+        {!loading && tab === "sent" && sent.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center", color: "oklch(0.4 0.01 264)", fontSize: 12 }}>No sent emails yet</div>
+        )}
+        {!loading && tab === "sent" && sent.map((c, i) => (
+          <div key={c.id} style={{ padding: "12px 16px", borderBottom: "1px solid oklch(0.18 0.01 264)", background: i % 2 === 0 ? "oklch(0.15 0.01 264)" : "oklch(0.14 0.01 264)", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "oklch(0.85 0.01 264)" }}>{c.target_name || c.email}</div>
+              <div style={{ fontSize: 11, color: "oklch(0.5 0.01 264)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.subject}</div>
+            </div>
+            <StatusPill c={c} />
+            <div style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", fontFamily: "monospace", minWidth: 90, textAlign: "right" }}>{fmt(c.sent_at)}</div>
+            <button onClick={() => setPreviewId(c.id)}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer", border: "1px solid oklch(0.25 0.01 264)", background: "transparent", color: "oklch(0.6 0.01 264)" }}>
+              <Eye size={12} />
+            </button>
+          </div>
+        ))}
+
+        {!loading && tab === "replies" && replies.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <MessageSquare size={28} style={{ color: "oklch(0.3 0.01 264)", marginBottom: 10 }} />
+            <div style={{ color: "oklch(0.45 0.01 264)", fontSize: 13 }}>No replies captured yet</div>
+            <div style={{ color: "oklch(0.35 0.01 264)", fontSize: 11, marginTop: 4 }}>
+              Replies appear here when Resend inbound webhook is configured
+            </div>
+            <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 14, fontSize: 11, color: "oklch(0.75 0.15 270)" }}>
+              <ExternalLink size={11} /> Check Gmail (ugobe07@gmail.com)
+            </a>
+          </div>
+        )}
+        {!loading && tab === "replies" && replies.map((r, i) => (
+          <div key={r.id} style={{ padding: "12px 16px", borderBottom: "1px solid oklch(0.18 0.01 264)", background: i % 2 === 0 ? "oklch(0.15 0.01 264)" : "oklch(0.14 0.01 264)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              {!r.read_at && <span style={pill("#1a2e05","#84cc16")}>New</span>}
+              <span style={{ fontSize: 12, fontWeight: 600, color: "oklch(0.85 0.01 264)" }}>{r.from_email}</span>
+              <span style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", marginLeft: "auto", fontFamily: "monospace" }}>{fmt(r.created_at)}</span>
+              {!r.read_at && (
+                <button onClick={() => markRead(r.id)} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", border: "1px solid oklch(0.25 0.01 264)", background: "transparent", color: "oklch(0.5 0.01 264)" }}>
+                  Mark read
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "oklch(0.6 0.01 264)", marginBottom: 6 }}>{r.subject}</div>
+            <div style={{ fontSize: 11, color: "oklch(0.5 0.01 264)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {(r.text_body || "").slice(0, 300)}{(r.text_body || "").length > 300 ? "…" : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {previewId && <MessagePreviewModal messageId={previewId} onClose={() => setPreviewId(null)} />}
+    </div>
+  );
+}
+
 // ── Campaign Launcher ─────────────────────────────────────────────────────────
 
 function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
   const [mode, setMode]         = useState<"vc" | "startup">("vc");
   const [limit, setLimit]       = useState(20);
-  const [dryRun, setDryRun]     = useState(true);
   const [campaign, setCampaign] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [dryRun, setDryRun]     = useState(false);
   const [testTo, setTestTo]     = useState("");
-  const [showPreview, setShowPreview] = useState(false);
   const [job, setJob]           = useState<Job | null>(null);
   const [launching, setLaunching] = useState(false);
   const pollRef                 = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef                  = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll log
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [job?.log.length]);
 
-  // Poll job status while running
   useEffect(() => {
     if (job?.status !== "running") {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -135,37 +383,38 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [job?.status, job?.jobId, onLaunched]);
 
-  async function launch() {
+  async function launch(draftOnly: boolean) {
     setLaunching(true);
     setJob(null);
     try {
       const r = await fetch(`${API}/api/outreach/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, limit, dryRun, campaign: campaign || undefined, testTo: testTo || undefined }),
+        body: JSON.stringify({
+          mode, limit, draftOnly,
+          dryRun: draftOnly ? false : dryRun,
+          campaign: campaign || undefined,
+          testTo: testTo || undefined,
+        }),
       });
       const j = await r.json();
       if (!r.ok) { alert(j.error ?? "Launch failed"); return; }
-      setJob({ ...j, log: [], mode, limit, dryRun, startedAt: new Date().toISOString(), finishedAt: null, exitCode: null });
+      setJob({ ...j, log: [], mode, limit, dryRun, draftOnly, startedAt: new Date().toISOString(), finishedAt: null, exitCode: null });
     } finally {
       setLaunching(false);
     }
   }
 
-  const S = {
-    box: { background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "20px 24px" },
-    label: { fontSize: 10, fontWeight: 700, color: "oklch(0.4 0.01 264)", letterSpacing: "0.1em", textTransform: "uppercase" as const, display: "block", marginBottom: 6 },
-    input: { padding: "7px 10px", background: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 6, color: "oklch(0.9 0.005 264)", fontSize: 12, width: "100%", boxSizing: "border-box" as const },
-  };
-
   return (
     <div style={S.box}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.75 0.15 270)", marginBottom: 16 }}>
-        CAMPAIGN LAUNCHER
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.75 0.15 270)", marginBottom: 8 }}>
+        GENERATE CAMPAIGN
+      </div>
+      <div style={{ fontSize: 12, color: "oklch(0.5 0.01 264)", marginBottom: 16 }}>
+        Step 1: Generate drafts → Step 2: Preview in inbox above → Step 3: Approve & send selected
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
-        {/* Mode */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
         <div>
           <label style={S.label}>Mode</label>
           <div style={{ display: "flex", gap: 6 }}>
@@ -180,81 +429,59 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
             ))}
           </div>
         </div>
-
-        {/* Limit */}
         <div>
           <label style={S.label}>Limit (recipients)</label>
           <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} style={{ ...S.input }}>
             {[5, 10, 20, 50, 100, 200, 500].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
-
-        {/* Campaign slug */}
         <div>
           <label style={S.label}>Campaign slug (optional)</label>
           <input type="text" placeholder={`${mode}-${new Date().toISOString().slice(0, 7)}`}
             value={campaign} onChange={(e) => setCampaign(e.target.value)} style={S.input} />
         </div>
-
-        {/* Test to */}
-        <div>
-          <label style={S.label}>Test to email (optional)</label>
-          <input type="email" placeholder="you@example.com"
-            value={testTo} onChange={(e) => setTestTo(e.target.value)} style={S.input} />
-        </div>
       </div>
 
-      {/* Dry run toggle + buttons */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
-          <div
-            onClick={() => setDryRun(!dryRun)}
-            style={{ width: 38, height: 20, borderRadius: 10, position: "relative", cursor: "pointer",
-              background: dryRun ? "oklch(0.75 0.15 270)" : "oklch(0.65 0.2 25)",
-              transition: "background 0.2s" }}>
-            <div style={{ position: "absolute", top: 2, left: dryRun ? 2 : 20, width: 16, height: 16,
-              borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-          </div>
-          <span style={{ color: dryRun ? "oklch(0.75 0.15 270)" : "oklch(0.65 0.2 25)", fontWeight: 600, fontSize: 12 }}>
-            {dryRun ? "DRY RUN — no emails sent" : "LIVE — emails will be sent"}
-          </span>
-        </label>
-
-        <button onClick={() => setShowPreview(!showPreview)}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", fontSize: 12, borderRadius: 6, cursor: "pointer",
-            border: "1px solid oklch(0.25 0.01 264)", background: "transparent", color: "oklch(0.55 0.01 264)" }}>
-          <Eye size={13} /> {showPreview ? "Hide" : "Preview"} Template
-        </button>
-
-        <button onClick={launch} disabled={launching || job?.status === "running"}
-          style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, padding: "8px 22px",
-            fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer",
-            border: `1px solid ${dryRun ? "oklch(0.75 0.15 270)" : "oklch(0.65 0.2 25)"}`,
-            background: dryRun ? "transparent" : "oklch(0.55 0.2 25)", 
-            color: dryRun ? "oklch(0.75 0.15 270)" : "#fff",
+        <button onClick={() => launch(true)} disabled={launching || job?.status === "running"}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+            border: "1px solid oklch(0.75 0.15 270)", background: "oklch(0.18 0.01 264)", color: "oklch(0.75 0.15 270)",
             opacity: launching || job?.status === "running" ? 0.5 : 1 }}>
           {launching || job?.status === "running"
-            ? <><Loader2 size={14} className="animate-spin" /> Running…</>
-            : <><Send size={14} /> {dryRun ? "Run Preview" : `Send to ${limit} Recipients`}</>}
+            ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
+            : <><FileText size={14} /> Generate {limit} Drafts</>}
+        </button>
+
+        <button onClick={() => setShowAdvanced(!showAdvanced)}
+          style={{ fontSize: 11, padding: "6px 12px", background: "transparent", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 6, cursor: "pointer", color: "oklch(0.45 0.01 264)" }}>
+          {showAdvanced ? "Hide" : "Show"} advanced options
         </button>
       </div>
 
-      {/* Template preview */}
-      {showPreview && (
+      {showAdvanced && (
         <div style={{ marginTop: 16, padding: "14px 16px", background: "oklch(0.12 0.01 264)", borderRadius: 8, border: "1px solid oklch(0.2 0.01 264)" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "oklch(0.4 0.01 264)", marginBottom: 10 }}>
-            EMAIL TEMPLATE PREVIEW — {mode === "vc" ? "VC LEADS" : "STARTUP MATCHES"}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "oklch(0.4 0.01 264)", marginBottom: 12 }}>ADVANCED — skip draft review</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={S.label}>Test to email (optional)</label>
+              <input type="email" placeholder="you@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} style={S.input} />
+            </div>
           </div>
-          <pre style={{ fontSize: 11, color: "oklch(0.65 0.01 264)", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
-            {mode === "vc" ? VC_TEMPLATE : STARTUP_TEMPLATE}
-          </pre>
-          <div style={{ marginTop: 10, fontSize: 10, color: "oklch(0.4 0.01 264)" }}>
-            Placeholders are filled from the Supabase database at send time. GOD scores, sector, and match reasons are generated dynamically per recipient.
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
+              <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+              Dry run (terminal log only, no DB drafts)
+            </label>
+            <button onClick={() => launch(false)} disabled={launching || job?.status === "running" || dryRun}
+              style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+                border: "1px solid oklch(0.65 0.2 25)", background: dryRun ? "transparent" : "oklch(0.55 0.2 25)", color: dryRun ? "oklch(0.4 0.01 264)" : "#fff",
+                opacity: dryRun ? 0.5 : 1 }}>
+              <Send size={13} /> Send immediately (no review)
+            </button>
           </div>
         </div>
       )}
 
-      {/* Job log */}
       {job && (
         <div style={{ marginTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -262,24 +489,19 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
             {job.status === "done"    && <CheckCircle size={13} style={{ color: "oklch(0.85 0.17 162)" }} />}
             {job.status === "error"   && <XCircle size={13} style={{ color: "oklch(0.65 0.2 25)" }} />}
             <span style={{ fontSize: 11, fontWeight: 700, color: job.status === "done" ? "oklch(0.85 0.17 162)" : job.status === "error" ? "oklch(0.65 0.2 25)" : "oklch(0.75 0.15 270)" }}>
-              {job.status === "running" ? "Running…" : job.status === "done" ? "Complete" : "Error"}
+              {job.status === "running" ? "Running…" : job.status === "done" ? "Complete — check Drafts tab above" : "Error"}
             </span>
-            <span style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", marginLeft: 8 }}>
-              {job.mode.toUpperCase()} · {job.limit} limit · {job.dryRun ? "DRY RUN" : "LIVE"}
+            <span style={{ fontSize: 10, color: "oklch(0.4 0.01 264)" }}>
+              {job.mode?.toUpperCase()} · {job.limit} limit · {job.draftOnly ? "DRAFTS" : job.dryRun ? "DRY RUN" : "LIVE SEND"}
             </span>
-            {job.finishedAt && (
-              <span style={{ fontSize: 10, color: "oklch(0.4 0.01 264)" }}>
-                · Finished {fmt(job.finishedAt)}
-              </span>
-            )}
           </div>
           <div ref={logRef}
-            style={{ height: 200, overflowY: "auto", background: "oklch(0.1 0.01 264)", borderRadius: 8, padding: "10px 12px",
+            style={{ height: 160, overflowY: "auto", background: "oklch(0.1 0.01 264)", borderRadius: 8, padding: "10px 12px",
               fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "oklch(0.6 0.01 264)" }}>
             {job.log.length === 0
               ? <span style={{ color: "oklch(0.35 0.01 264)" }}>Starting…</span>
               : job.log.map((line, i) => {
-                  const isGood = line.includes("✓") || line.includes("Done");
+                  const isGood = line.includes("✓") || line.includes("Done") || line.includes("draft");
                   const isBad  = line.includes("[err]") || line.includes("✗");
                   return (
                     <div key={i} style={{ color: isGood ? "oklch(0.85 0.17 162)" : isBad ? "oklch(0.65 0.2 25)" : "oklch(0.6 0.01 264)" }}>
@@ -290,77 +512,6 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Reply Inbox Section ────────────────────────────────────────────────────────
-
-function ReplyInbox() {
-  const gmailSearchUrl = "https://mail.google.com/mail/u/0/#search/from%3Apythh.ai+OR+subject%3APythh+OR+subject%3APYTHIA";
-  const gmailInboxUrl  = "https://mail.google.com/mail/u/0/#inbox";
-
-  return (
-    <div style={{ background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "20px 24px" }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.85 0.17 162)", marginBottom: 16 }}>
-        REPLY INBOX
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {/* How replies work */}
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: "oklch(0.8 0.01 264)" }}>How replies work</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {[
-              ["1. Email sent", "Pythh sends from pythia@pythh.ai via Resend"],
-              ["2. Reply-To set", "All replies route to ugobe07@gmail.com"],
-              ["3. You reply", "Respond directly from Gmail — they see it as coming from you"],
-              ["4. Tracking", "Opens, clicks, bounces tracked in the table below via Resend webhook"],
-            ].map(([step, desc]) => (
-              <div key={step as string} style={{ display: "flex", gap: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "monospace", color: "oklch(0.5 0.01 264)", minWidth: 100 }}>{step}</span>
-                <span style={{ fontSize: 12, color: "oklch(0.55 0.01 264)" }}>{desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick links */}
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: "oklch(0.8 0.01 264)" }}>Check your replies</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <a href={gmailSearchUrl} target="_blank" rel="noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 8, textDecoration: "none" }}>
-              <Mail size={14} style={{ color: "oklch(0.85 0.17 162)" }} />
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "oklch(0.85 0.01 264)" }}>Gmail — Search Pythh replies</div>
-                <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Filters for emails from/about Pythh · ugobe07@gmail.com</div>
-              </div>
-              <ExternalLink size={11} style={{ color: "oklch(0.4 0.01 264)", marginLeft: "auto" }} />
-            </a>
-
-            <a href={gmailInboxUrl} target="_blank" rel="noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 8, textDecoration: "none" }}>
-              <Mail size={14} style={{ color: "oklch(0.75 0.15 270)" }} />
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "oklch(0.85 0.01 264)" }}>Gmail Inbox (ugobe07)</div>
-                <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>All inbound — check for replies from VCs and founders</div>
-              </div>
-              <ExternalLink size={11} style={{ color: "oklch(0.4 0.01 264)", marginLeft: "auto" }} />
-            </a>
-
-            <a href="https://resend.com/emails" target="_blank" rel="noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 8, textDecoration: "none" }}>
-              <ExternalLink size={14} style={{ color: "oklch(0.65 0.18 300)" }} />
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "oklch(0.85 0.01 264)" }}>Resend Dashboard</div>
-                <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Delivery logs, bounce details, open events</div>
-              </div>
-              <ExternalLink size={11} style={{ color: "oklch(0.4 0.01 264)", marginLeft: "auto" }} />
-            </a>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -377,6 +528,7 @@ export default function Outreach() {
   const [page, setPage]           = useState(0);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
+  const [inboxKey, setInboxKey]   = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -395,6 +547,13 @@ export default function Outreach() {
     } finally { setLoading(false); }
   }, [campaign, modeFilter, page]);
 
+  const refreshAll = useCallback(() => {
+    load();
+    setInboxKey((k) => k + 1);
+    fetch(`${API}/api/outreach/campaigns`).then((r) => r.json())
+      .then((d) => setCampaigns(d.campaigns ?? [])).catch(() => {});
+  }, [load]);
+
   useEffect(() => {
     fetch(`${API}/api/outreach/campaigns`).then((r) => r.json())
       .then((d) => setCampaigns(d.campaigns ?? [])).catch(() => {});
@@ -410,31 +569,28 @@ export default function Outreach() {
     <DashboardLayout>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-xl font-bold">Outreach Dashboard</h1>
           <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-            Draft, send, and track prospecting campaigns. Replies land at{" "}
-            <code style={{ color: "oklch(0.75 0.15 270)" }}>ugobe07@gmail.com</code>.
+            Generate drafts, preview each email, approve before sending. Sent mail and replies live in the inbox below.
           </p>
         </div>
 
-        {/* Campaign Launcher */}
+        {/* Web inbox first — primary workflow */}
         <div style={{ marginBottom: 24 }}>
-          <CampaignLauncher onLaunched={() => { load(); fetch(`${API}/api/outreach/campaigns`).then((r) => r.json()).then((d) => setCampaigns(d.campaigns ?? [])).catch(() => {}); }} />
+          <WebInbox key={inboxKey} onRefresh={refreshAll} />
         </div>
 
-        {/* Reply inbox */}
+        {/* Campaign generator */}
         <div style={{ marginBottom: 24 }}>
-          <ReplyInbox />
+          <CampaignLauncher onLaunched={refreshAll} />
         </div>
 
         {/* Tracking section */}
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.4 0.01 264)", marginBottom: 14 }}>
-          EMAIL TRACKING
+          DELIVERY TRACKING
         </div>
 
-        {/* Filters */}
         <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ display: "flex", gap: 4, background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 8, padding: 4 }}>
             {(["all", "vc_leads", "startup_matches"] as const).map((m) => (
@@ -457,7 +613,6 @@ export default function Outreach() {
           </button>
         </div>
 
-        {/* Stat cards */}
         {block && (
           <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
             <StatCard label="Sent"         value={block.sent}          color="oklch(0.75 0.15 270)" />
@@ -468,26 +623,6 @@ export default function Outreach() {
           </div>
         )}
 
-        {/* VC vs Startup split */}
-        {stats && modeFilter === "all" && (
-          <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-            {[{ label: "VC Leads", data: stats.vc, color: "oklch(0.75 0.15 270)" }, { label: "Startup Matches", data: stats.startup, color: "oklch(0.85 0.17 162)" }].map(({ label, data, color }) => (
-              <div key={label} style={{ flex: 1, background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "14px 18px" }}>
-                <div style={{ fontSize: 9, fontFamily: "monospace", color: "oklch(0.4 0.01 264)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{label}</div>
-                <div style={{ display: "flex", gap: 20 }}>
-                  {(["sent","opened","clicked","bounced"] as const).map((k) => (
-                    <div key={k}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color, fontFamily: "monospace" }}>{(data as any)[k]}</div>
-                      <div style={{ fontSize: 10, color: "oklch(0.4 0.01 264)" }}>{k}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Contact log */}
         <div style={{ background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
           <div style={{ padding: "10px 16px", borderBottom: "1px solid oklch(0.2 0.01 264)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "oklch(0.35 0.01 264)", fontFamily: "monospace" }}>
@@ -502,7 +637,7 @@ export default function Outreach() {
             <div style={{ padding: 40, textAlign: "center" }}>
               <div style={{ color: "oklch(0.35 0.01 264)", fontSize: 13, marginBottom: 6 }}>No emails sent yet.</div>
               <div style={{ color: "oklch(0.3 0.01 264)", fontSize: 11, fontFamily: "monospace" }}>
-                Use the Campaign Launcher above to send your first campaign.
+                Generate drafts above, review them, then approve & send.
               </div>
             </div>
           )}
@@ -511,7 +646,7 @@ export default function Outreach() {
               background: i % 2 === 0 ? "oklch(0.15 0.01 264)" : "oklch(0.14 0.01 264)",
               display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
               <div style={{ flex: "0 0 190px", minWidth: 140 }}>
-                <div style={{ fontSize: 12, color: "oklch(0.85 0.01 264)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</div>
+                <div style={{ fontSize: 12, color: "oklch(0.85 0.01 264)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.target_name || c.email}</div>
                 <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)", marginTop: 2 }}>
                   <span style={{ border: `1px solid ${c.email_type === "vc_leads" ? "oklch(0.35 0.15 270)" : "oklch(0.3 0.17 162)"}`,
                     color: c.email_type === "vc_leads" ? "oklch(0.75 0.15 270)" : "oklch(0.75 0.17 162)",
@@ -533,7 +668,6 @@ export default function Outreach() {
           ))}
         </div>
 
-        {/* Pagination */}
         {total > LIMIT_PER_PAGE && (
           <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
@@ -543,6 +677,19 @@ export default function Outreach() {
               style={{ padding: "5px 14px", background: "transparent", border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.5 0.01 264)", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>Next →</button>
           </div>
         )}
+
+        {/* External links */}
+        <div style={{ marginTop: 32, padding: "16px 20px", background: "oklch(0.12 0.01 264)", borderRadius: 8, border: "1px solid oklch(0.2 0.01 264)" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "oklch(0.4 0.01 264)", marginBottom: 10 }}>EXTERNAL</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "oklch(0.6 0.01 264)", display: "flex", alignItems: "center", gap: 5 }}>
+              <Mail size={12} /> Gmail (ugobe07@gmail.com) <ExternalLink size={10} />
+            </a>
+            <a href="https://resend.com/emails" target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "oklch(0.6 0.01 264)", display: "flex", alignItems: "center", gap: 5 }}>
+              <ExternalLink size={12} /> Resend delivery logs <ExternalLink size={10} />
+            </a>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );

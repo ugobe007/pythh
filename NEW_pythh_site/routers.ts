@@ -680,8 +680,11 @@ export const appRouter = router({
         const PAID_PLANS = new Set(["oracle", "pantheon", "scout"]);
 
         const sub = await getSubscriptionByUserId(ctx.user.id).catch(() => null);
+        // paused = temporarily suspended but still a paid account — keep access
         const activePlan =
-          sub && (sub.status === "active" || sub.status === "trialing") ? sub.plan : null;
+          sub && (sub.status === "active" || sub.status === "trialing" || sub.status === "paused")
+            ? sub.plan
+            : null;
         const isAdmin = ctx.user.role === "admin";
 
         if (!isAdmin && !activePlan) {

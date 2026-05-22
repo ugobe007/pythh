@@ -57,6 +57,7 @@
     "outreach:vc:dry": "node scripts/outreach-agent.js --mode vc --dry-run",
     "outreach:startup": "node scripts/outreach-agent.js --mode startup",
     "outreach:startup:dry": "node scripts/outreach-agent.js --mode startup --dry-run",
+    "outreach:audit": "node scripts/audit-outreach-emails.js",
     "outreach:all:dry": "node scripts/outreach-agent.js --mode vc --dry-run && node scripts/outreach-agent.js --mode startup --dry-run",
     "outreach:cron": "node scripts/cron/outreach-scheduler.js",
     "outreach:cron:daemon": "node scripts/cron/outreach-scheduler.js --daemon",

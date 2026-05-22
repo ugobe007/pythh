@@ -36,6 +36,8 @@ vi.mock("./db", async (importOriginal) => {
       return { rows, total: rows.length };
     }),
     getSubscriptionByUserId: vi.fn(async () => undefined),
+    // Return FREE_TRIAL_LIMIT (3) by default so no-subscription tests hit the FORBIDDEN gate
+    countPipelineRunsForUser: vi.fn().mockResolvedValue(3),
   };
 });
 
@@ -109,11 +111,12 @@ describe("pipeline.analyzeStartup", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("throws FORBIDDEN when user has a non-oracle subscription", async () => {
+  it("throws FORBIDDEN when user has a non-paid subscription plan", async () => {
     const { getSubscriptionByUserId } = await import("./db");
+    // "starter" is not in PAID_PLANS → else-if branch throws FORBIDDEN
     vi.mocked(getSubscriptionByUserId).mockResolvedValueOnce({
       ...ORACLE_SUB,
-      plan: "scout" as any,
+      plan: "starter" as any,
     });
 
     const caller = makeCaller(ORACLE_USER);

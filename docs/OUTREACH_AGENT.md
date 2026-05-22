@@ -121,9 +121,61 @@ where bounced_at is not null;
 
 ---
 
-## Email design
+## Matching engine
 
-Both email templates use:
+Outreach uses the same **6-component match model** as instant submit (`lib/outreachMatch.js`):
+
+| Component | Weight | What it measures |
+|-----------|--------|------------------|
+| Sector fit | up to 40 | Taxonomy-aware sector overlap |
+| Stage fit | up to 20 | Startup stage vs investor stage prefs |
+| Investor quality | up to 20 | Investor GOD score + tier bonus |
+| Startup quality | up to 25 | Startup GOD score |
+| Signal bonus | up to 10 | Market momentum from GOD-derived signal |
+| Faith alignment | up to 15 | Conviction themes from investor signals |
+
+Each email row includes a **match score** and a **human-readable reason** generated from the fit analysis — not generic sector substring matching.
+
+---
+
+## Email quality audit
+
+Before campaigns, audit investor email types:
+
+```bash
+npm run outreach:audit
+```
+
+| Type | % (typical) | Greeting | Subject pattern |
+|------|-------------|----------|-----------------|
+| **Personal** | ~24% | `Hi {firstName},` | Signals forming in {sector} — aligned with your orbit |
+| **Intake** | ~76% | `Hi team at {firm},` | Signal digest: {sector} clusters entering {firm}'s orbit |
+| **Generic** | ~0% | Treat as intake | Same as intake |
+
+---
+
+## Copy positioning (Observatory / Oracle)
+
+**VC emails** frame Pythh as observatory-grade intelligence — patterns forming before the market notices. Not a pitch inbox. CTA: connect MCP observatory.
+
+**Startup emails** use the oracle frame: *"Who recognizes you now. Who will recognize you next."* Match reasons come from the real scoring model.
+
+---
+
+## Preview sends (safe testing)
+
+```bash
+# Dry run — no send
+node scripts/outreach-agent.js --mode vc --limit 1 --dry-run --test-to you@yourmail.com
+
+# Live preview to your inbox (uses onboarding@resend.dev when --test-to is set)
+node scripts/outreach-agent.js --mode vc --limit 1 --campaign preview-test --test-to you@yourmail.com
+node scripts/outreach-agent.js --mode startup --limit 1 --campaign preview-test --test-to you@yourmail.com
+```
+
+Production sends use `pythia@pythh.ai` (requires verified domain in Resend).
+
+---
 - Dark background (`#0b0f1a`) matching pythh.ai
 - Inline CSS (no external stylesheets — email-safe)
 - Monospace fonts for scores and data tables

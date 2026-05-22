@@ -268,27 +268,32 @@ app.use((req, res, next) => {
 });
 
 // Pythh NEW site — tRPC (same origin as SPA: /api/trpc)
-// Uses a synchronous slot registered NOW (before the /api 404 catch-all further down)
-// so Express routes /api/trpc correctly. The actual handler is patched in once the
-// async TypeScript import resolves.
-let _trpcHandler = null;
-app.use('/api/trpc', (req, res, next) => {
-  if (_trpcHandler) return _trpcHandler(req, res, next);
-  res.status(503).json({ ok: false, error: { code: 'service_unavailable', message: 'tRPC initializing' } });
-});
-
+// tsx registers a .ts require extension; plain node does not.
+// In production the TypeScript is pre-compiled, so we try both paths.
 (function mountPythhTrpcApi() {
-  const { pathToFileURL } = require('url');
-  const trpcEntry = path.join(__dirname, '..', 'NEW_pythh_site', 'trpcExpressMount.ts');
-  import(pathToFileURL(trpcEntry).href)
-    .then((mod) => {
-      // Capture the tRPC handler by intercepting app.use('/api/trpc', handler)
-      mod.mountPythhTrpc({ use: (_path, handler) => { _trpcHandler = handler; } });
-      console.log('[pythh] /api/trpc mounted (NEW_pythh_site)');
-    })
-    .catch((err) => {
-      console.error('[pythh] Failed to mount /api/trpc:', err);
+  const hasTsxExtension = !!require.extensions['.ts'];
+  const tsEntry = path.join(__dirname, '..', 'NEW_pythh_site', 'trpcExpressMount.ts');
+  const jsEntry = path.join(__dirname, '..', 'dist', 'trpcExpressMount.js');
+  const entry = hasTsxExtension ? tsEntry : (require('fs').existsSync(jsEntry) ? jsEntry : null);
+
+  if (!entry) {
+    console.info('[pythh] /api/trpc: no mount (run with tsx or deploy to Fly for tRPC support)');
+    app.use('/api/trpc', (_req, res) => {
+      res.status(503).json({ ok: false, error: { code: 'service_unavailable', message: 'tRPC not available in this runtime mode' } });
     });
+    return;
+  }
+
+  try {
+    const { mountPythhTrpc } = require(entry);
+    mountPythhTrpc(app);
+    console.log('[pythh] /api/trpc mounted (NEW_pythh_site)');
+  } catch (err) {
+    console.error('[pythh] Failed to mount /api/trpc:', err.message);
+    app.use('/api/trpc', (_req, res) => {
+      res.status(503).json({ ok: false, error: { code: 'service_unavailable', message: 'tRPC mount failed' } });
+    });
+  }
 })();
 
 // Request ID middleware (for tracing)

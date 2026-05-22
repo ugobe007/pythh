@@ -21,7 +21,12 @@
  */
 
 import { config } from "dotenv";
+import { createRequire } from "module";
 import { createClient } from "@supabase/supabase-js";
+
+const require = createRequire(import.meta.url);
+const { rankStartupsForInvestor, rankInvestorsForStartup } = require("../lib/outreachMatch.js");
+const { classifyOutreachEmail, outreachGreeting } = require("../lib/investorEmailInfer.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
 const envPath = new URL("../.env", import.meta.url).pathname;
@@ -38,22 +43,26 @@ const has = (name) => args.includes(name);
 
 const MODE     = flag("--mode")     ?? "vc";           // 'vc' | 'startup'
 const LIMIT    = parseInt(flag("--limit") ?? "20", 10);
-const DRY_RUN  = has("--dry-run");
-const TEST_TO  = flag("--test-to");                    // override all To: addresses
-const CAMPAIGN = flag("--campaign") ?? `${MODE}-${new Date().toISOString().slice(0, 7)}`; // e.g. vc-2026-05
+const DRY_RUN    = has("--dry-run");
+const DRAFT_ONLY = has("--draft-only");
+const TEST_TO    = flag("--test-to");                    // override all To: addresses
+const CAMPAIGN   = flag("--campaign") ?? `${MODE}-${new Date().toISOString().slice(0, 7)}`; // e.g. vc-2026-05
+const NOTIFY_TO  = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 const RESEND_KEY    = process.env.RESEND_API_KEY;
-const FROM_ADDRESS  = "pythia@pythh.ai";
+const FROM_ADDRESS  = TEST_TO
+  ? (process.env.OUTREACH_TEST_FROM || "onboarding@resend.dev")
+  : (process.env.OUTREACH_FROM || "pythia@pythh.ai");
 const FROM_NAME     = "PYTHIA at Pythh";
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("[outreach-agent] ✗ Missing SUPABASE_URL or SUPABASE_SERVICE_KEY");
   process.exit(1);
 }
-if (!RESEND_KEY && !DRY_RUN) {
-  console.error("[outreach-agent] ✗ Missing RESEND_API_KEY. Use --dry-run to preview without sending.");
+if (!RESEND_KEY && !DRY_RUN && !DRAFT_ONLY) {
+  console.error("[outreach-agent] ✗ Missing RESEND_API_KEY. Use --dry-run or --draft-only to preview without sending.");
   process.exit(1);
 }
 
@@ -75,12 +84,42 @@ function sleep(ms) {
 
 // ── Resend ───────────────────────────────────────────────────────────────────
 
-async function sendEmail({ to, subject, html, text }) {
+async function sendEmail({ to, subject, html, text, meta = {} }) {
   const recipient = TEST_TO ?? to;
+  const finalSubject = TEST_TO ? `[PYTHH PREVIEW] ${subject}` : subject;
 
   if (DRY_RUN) {
-    console.log(`  [DRY RUN] → ${recipient}  |  "${subject}"`);
-    return { ok: true, id: "dry-run-" + Math.random().toString(36).slice(2) };
+    console.log(`  [DRY RUN] → ${recipient}  |  "${finalSubject}"`);
+    return { ok: true, id: "dry-run-" + Math.random().toString(36).slice(2), recipient, subject: finalSubject, html, text };
+  }
+
+  if (DRAFT_ONLY) {
+    await logDraft({
+      email: to,
+      actualRecipient: recipient,
+      emailType: meta.emailType,
+      targetId: meta.targetId,
+      targetName: meta.targetName,
+      subject: finalSubject,
+      html,
+      text,
+      campaign: CAMPAIGN,
+    });
+    console.log(`  [DRAFT] saved for ${meta.targetName ?? to} → review in /admin/outreach`);
+    return { ok: true, id: "draft-" + Math.random().toString(36).slice(2), recipient, subject: finalSubject, html, text };
+  }
+
+  const payload = {
+    from: `${FROM_NAME} <${FROM_ADDRESS}>`,
+    to: [recipient],
+    reply_to: NOTIFY_TO,
+    subject: finalSubject,
+    html,
+    text,
+  };
+  // Always BCC admin so outreach copies land in your inbox
+  if (NOTIFY_TO && NOTIFY_TO !== recipient) {
+    payload.bcc = [NOTIFY_TO];
   }
 
   const resp = await fetch("https://api.resend.com/emails", {
@@ -89,48 +128,72 @@ async function sendEmail({ to, subject, html, text }) {
       Authorization: `Bearer ${RESEND_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from: `${FROM_NAME} <${FROM_ADDRESS}>`,
-      to: [recipient],
-      reply_to: "ugobe07@gmail.com",
-      subject,
-      html,
-      text,
-    }),
+    body: JSON.stringify(payload),
   });
 
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     console.error(`  [outreach-agent] Resend error for ${recipient}:`, data);
-    return { ok: false, error: data };
+    return { ok: false, error: data, recipient, subject: finalSubject, html, text };
   }
-  return { ok: true, id: data.id ?? "" };
+  return { ok: true, id: data.id ?? "", recipient, subject: finalSubject, html, text };
 }
 
 // ── Dedup log ─────────────────────────────────────────────────────────────────
 
 async function alreadySent({ email, emailType, campaign }) {
-  if (DRY_RUN) return false;
+  if (DRY_RUN || DRAFT_ONLY) return false;
   const { data } = await db
     .from("pythh_prospecting_log")
     .select("id")
     .eq("email", email)
     .eq("email_type", emailType)
     .eq("campaign_slug", campaign)
+    .eq("status", "sent")
     .limit(1);
   return (data?.length ?? 0) > 0;
 }
 
-async function logSent({ email, emailType, targetId, subject, resendId, campaign }) {
+async function logDraft({ email, actualRecipient, emailType, targetId, targetName, subject, html, text, campaign }) {
+  // Replace existing draft for same target in this campaign
+  await db
+    .from("pythh_prospecting_log")
+    .delete()
+    .eq("email", email)
+    .eq("email_type", emailType)
+    .eq("campaign_slug", campaign)
+    .eq("status", "draft");
+
+  await db.from("pythh_prospecting_log").insert({
+    email,
+    actual_recipient: actualRecipient,
+    email_type: emailType,
+    target_id: String(targetId ?? ""),
+    target_name: targetName ?? null,
+    subject,
+    html_body: html,
+    text_body: text,
+    campaign_slug: campaign,
+    status: "draft",
+    sent_at: new Date().toISOString(),
+  });
+}
+
+async function logSent({ email, actualRecipient, emailType, targetId, targetName, subject, html, text, resendId, campaign }) {
   if (DRY_RUN) return;
   await db.from("pythh_prospecting_log").insert({
     email,
-    email_type:        emailType,
-    target_id:         String(targetId ?? ""),
+    actual_recipient: actualRecipient ?? email,
+    email_type: emailType,
+    target_id: String(targetId ?? ""),
+    target_name: targetName ?? null,
     subject,
+    html_body: html,
+    text_body: text,
     resend_message_id: resendId,
-    campaign_slug:     campaign,
-    sent_at:           new Date().toISOString(),
+    campaign_slug: campaign,
+    status: "sent",
+    sent_at: new Date().toISOString(),
   });
 }
 
@@ -143,14 +206,24 @@ async function runVcMode() {
 
   const { data: investors, error } = await db
     .from("investors")
-    .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, email_best_guess, notable_investments")
+    .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, email_best_guess, notable_investments, signals, investment_thesis")
     .not("email_best_guess", "is", null)
     .in("email_status", ["inferred", "verified"])
     .order("investor_score", { ascending: false, nullsFirst: false })
     .limit(LIMIT * 3);
 
   if (error) { console.error("[VC mode] DB error:", error); return; }
-  console.log(`[VC mode] Found ${investors?.length ?? 0} candidate investors\n`);
+  console.log(`[VC mode] Found ${investors?.length ?? 0} candidate investors`);
+
+  const { data: startupPool } = await db
+    .from("startup_uploads")
+    .select("id, name, website, sectors, total_god_score, stage, tagline")
+    .gte("total_god_score", 40)
+    .eq("status", "approved")
+    .order("total_god_score", { ascending: false })
+    .limit(500);
+
+  console.log(`[VC mode] Scoring against ${startupPool?.length ?? 0} approved startups\n`);
 
   let sent = 0;
 
@@ -160,49 +233,25 @@ async function runVcMode() {
     const email = inv.email_best_guess;
     if (!email) continue;
 
-    // Dedup check
     if (await alreadySent({ email, emailType: "vc_leads", campaign: CAMPAIGN })) {
       console.log(`  [skip] ${email} already contacted in campaign ${CAMPAIGN}`);
       continue;
     }
 
-    // Determine primary sector (sectors is an array)
     const invSectors = Array.isArray(inv.sectors) ? inv.sectors : [inv.sectors ?? "technology"];
     const primarySector = invSectors[0] ?? "technology";
+    const emailType = classifyOutreachEmail(email, inv.name);
 
-    // Fetch top 10 matching startups for this investor's sector
-    let { data: leads } = await db
-      .from("startup_uploads")
-      .select("id, name, website, sectors, total_god_score, stage, tagline")
-      .gte("total_god_score", 55)
-      .eq("status", "approved")
-      .order("total_god_score", { ascending: false })
-      .limit(50);
-
-    leads = (leads ?? []).filter((s) => {
-      const sSectors = Array.isArray(s.sectors) ? s.sectors : [s.sectors ?? ""];
-      return invSectors.some((is) =>
-        sSectors.some((ss) =>
-          (ss ?? "").toLowerCase().includes((is ?? "").toLowerCase()) ||
-          (is ?? "").toLowerCase().includes((ss ?? "").toLowerCase())
-        )
-      );
-    }).slice(0, 10);
-
-    // Fallback to top GOD score startups if no sector match
-    if (leads.length < 5) {
-      const { data: fallback } = await db
-        .from("startup_uploads")
-        .select("id, name, website, sectors, total_god_score, stage, tagline")
-        .gte("total_god_score", 60)
-        .eq("status", "approved")
-        .order("total_god_score", { ascending: false })
-        .limit(10);
-      leads = fallback ?? [];
-    }
+    const ranked = rankStartupsForInvestor(inv, startupPool ?? [], { limit: 10, minScore: 35 });
+    const leads = ranked.map((r) => ({
+      ...r.startup,
+      match_score: r.match_score,
+      match_reason: r.match_reason,
+      is_super_match: r.is_super_match,
+    }));
 
     if (leads.length === 0) {
-      console.log(`  [skip] No startup leads found for ${inv.name}`);
+      console.log(`  [skip] No scored matches for ${inv.name}`);
       continue;
     }
 
@@ -211,17 +260,41 @@ async function runVcMode() {
       : "seed to Series A";
 
     const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
-    const subject = `${leads.length} investment-grade ${primarySector} startups matched to ${firmLabel}'s thesis`;
-    const html    = vcEmail({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize: checkSize }, leads });
-    const text    = vcEmailText({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize: checkSize }, leads });
+    const greeting = outreachGreeting({ ...inv, firm: firmLabel }, emailType);
+    const subject = emailType === "personal"
+      ? `Signals forming in ${primarySector} — aligned with your orbit`
+      : `Signal digest: ${primarySector} clusters entering ${firmLabel}'s orbit`;
 
-    process.stdout.write(`  Sending to ${inv.name} <${email}> (${leads.length} leads)… `);
-    const result = await sendEmail({ to: email, subject, html, text });
+    const html = vcEmail({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType }, leads, greeting });
+    const text = vcEmailText({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType }, leads, greeting });
 
-    if (result.ok) {
-      await logSent({ email, emailType: "vc_leads", targetId: inv.id, subject, resendId: result.id, campaign: CAMPAIGN });
+    process.stdout.write(`  Sending to ${inv.name} <${email}> [${emailType}] (${leads.length} signals)… `);
+    const result = await sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+      meta: { emailType: "vc_leads", targetId: inv.id, targetName: inv.name ?? firmLabel },
+    });
+
+    if (result.ok && !DRAFT_ONLY) {
+      await logSent({
+        email,
+        actualRecipient: result.recipient,
+        emailType: "vc_leads",
+        targetId: inv.id,
+        targetName: inv.name ?? firmLabel,
+        subject: result.subject,
+        html: result.html,
+        text: result.text,
+        resendId: result.id,
+        campaign: CAMPAIGN,
+      });
       sent++;
       console.log(`✓ (${sent}/${LIMIT})`);
+    } else if (result.ok && DRAFT_ONLY) {
+      sent++;
+      console.log(`✓ draft (${sent}/${LIMIT})`);
     } else {
       console.log("✗ failed");
     }
@@ -239,8 +312,6 @@ async function runVcMode() {
 async function runStartupMode() {
   console.log("\n[Startup mode] Fetching startups with contact emails…");
 
-  // startup_uploads has submitted_email — use that as the founder contact
-  // Exclude known bulk/placeholder import addresses
   const BLOCKED_EMAILS = ["bulk@import.com", "auto@test.com", "test@test.com", "noreply@", "admin@hotmoneyhoney.com"];
 
   const { data: startups, error } = await db
@@ -253,7 +324,15 @@ async function runStartupMode() {
     .limit(LIMIT * 5);
 
   if (error) { console.error("[Startup mode] DB error:", error); return; }
-  console.log(`[Startup mode] Found ${startups?.length ?? 0} startups with emails\n`);
+  console.log(`[Startup mode] Found ${startups?.length ?? 0} startups with emails`);
+
+  const { data: investorPool } = await db
+    .from("investors")
+    .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, notable_investments, signals, investment_thesis")
+    .order("investor_score", { ascending: false, nullsFirst: false })
+    .limit(800);
+
+  console.log(`[Startup mode] Scoring against ${investorPool?.length ?? 0} investors\n`);
 
   let sent = 0;
 
@@ -263,7 +342,6 @@ async function runStartupMode() {
     const email = startup.submitted_email;
     if (!email) continue;
 
-    // Skip placeholder/bulk import addresses
     if (BLOCKED_EMAILS.some((b) => email.toLowerCase().includes(b.toLowerCase()))) {
       console.log(`  [skip] ${email} is a blocked/placeholder address`);
       continue;
@@ -274,60 +352,47 @@ async function runStartupMode() {
       continue;
     }
 
-    // Find top 5 investors matching this startup's sector
-    const startupSectors = Array.isArray(startup.sectors)
-      ? startup.sectors
-      : [startup.sectors ?? "technology"];
-
-    const { data: investors } = await db
-      .from("investors")
-      .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, notable_investments")
-      .not("email_best_guess", "is", null)
-      .order("investor_score", { ascending: false, nullsFirst: false })
-      .limit(100);
-
-    // Score each investor by sector overlap
-    const ranked = (investors ?? [])
-      .map((inv) => {
-        const invSecs = Array.isArray(inv.sectors) ? inv.sectors : [inv.sectors ?? ""];
-        const overlap = startupSectors.filter((ss) =>
-          invSecs.some((is) =>
-            (is ?? "").toLowerCase().includes((ss ?? "").toLowerCase()) ||
-            (ss ?? "").toLowerCase().includes((is ?? "").toLowerCase())
-          )
-        ).length;
-        return { ...inv, _overlap: overlap };
-      })
-      .sort((a, b) => b._overlap - a._overlap || (b.investor_score ?? 0) - (a.investor_score ?? 0))
-      .slice(0, 5)
-      .map((inv) => ({
-        ...inv,
-        match_score: Math.min(99, Math.round((inv.investor_score ?? 50) * 0.6 + inv._overlap * 10)),
-        match_reason: inv._overlap > 0
-          ? `Sector overlap confirmed (${startupSectors.slice(0, 2).join(", ")}). ${inv.investor_tier ? `${inv.investor_tier} tier investor.` : ""}`
-          : `Strong investor profile. ${inv.investor_tier ? `${inv.investor_tier} tier.` : ""}`,
-        is_super_match: inv._overlap > 0 && (inv.investor_score ?? 0) >= 80,
-      }));
+    const ranked = rankInvestorsForStartup(startup, investorPool ?? [], { limit: 5, minScore: 35 });
 
     if (ranked.length === 0) {
-      console.log(`  [skip] No investor matches for ${startup.name ?? startup.website}`);
+      console.log(`  [skip] No scored matches for ${startup.name ?? startup.website}`);
       continue;
     }
 
     const founderName = email.split("@")[0].replace(/[._+-]/g, " ");
     const user = { name: founderName, email };
-    const startupLabel = startup.name ?? startup.website ?? "your startup";
-    const subject = `Your top ${ranked.length} investor matches — ${startupLabel}`;
-    const html    = startupEmail({ user, startup, matches: ranked });
-    const text    = startupEmailText({ user, startup, matches: ranked });
+    const startupLabel = (startup.name ?? startup.website ?? "your startup").trim();
+    const subject = `Who recognizes ${startupLabel} now — ${ranked.length} investors aligned`;
+    const html = startupEmail({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
+    const text = startupEmailText({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
 
-    process.stdout.write(`  Sending to ${email} (${startup.name ?? startup.website}, ${ranked.length} matches)… `);
-    const result = await sendEmail({ to: email, subject, html, text });
+    process.stdout.write(`  Sending to ${email} (${startupLabel}, ${ranked.length} matches)… `);
+    const result = await sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+      meta: { emailType: "startup_matches", targetId: startup.id, targetName: startupLabel },
+    });
 
-    if (result.ok) {
-      await logSent({ email, emailType: "startup_matches", targetId: startup.id, subject, resendId: result.id, campaign: CAMPAIGN });
+    if (result.ok && !DRAFT_ONLY) {
+      await logSent({
+        email,
+        actualRecipient: result.recipient,
+        emailType: "startup_matches",
+        targetId: startup.id,
+        targetName: startupLabel,
+        subject: result.subject,
+        html: result.html,
+        text: result.text,
+        resendId: result.id,
+        campaign: CAMPAIGN,
+      });
       sent++;
       console.log(`✓ (${sent}/${LIMIT})`);
+    } else if (result.ok && DRAFT_ONLY) {
+      sent++;
+      console.log(`✓ draft (${sent}/${LIMIT})`);
     } else {
       console.log("✗ failed");
     }
@@ -344,18 +409,23 @@ async function runStartupMode() {
 
 // ── VC leads email (HTML) ─────────────────────────────────────────────────────
 
-function vcEmail({ investor, leads }) {
+function vcEmail({ investor, leads, greeting }) {
   const sector = investor.sector ?? "technology";
-  const firstName = (investor.name ?? "").split(" ")[0] || investor.name;
+  const emailType = investor.emailType ?? "intake";
+  const isPersonal = emailType === "personal";
 
-  const rows = leads.slice(0, 10).map((s, i) => {
-    const score   = s.total_god_score ?? 0;
-    const color   = scoreColor(score);
+  const rows = leads.slice(0, 10).map((s) => {
+    const score = s.match_score ?? s.total_god_score ?? 0;
+    const godScore = s.total_god_score ?? 0;
+    const color = scoreColor(score);
     const sectors = Array.isArray(s.sectors)
       ? s.sectors.slice(0, 2).join(" · ")
       : (s.sectors ?? sector);
-    const label = s.name ?? s.website ?? "Startup";
+    const label = s.name ?? s.website ?? "Signal cluster";
     const website = s.website ? encodeURIComponent(s.website) : "";
+    const reason = s.match_reason
+      ? s.match_reason.split(".")[0]
+      : "Thesis and sector alignment";
 
     return `<tr>
       <td style="padding:14px 16px;border-bottom:1px solid #1e293b;vertical-align:top;">
@@ -366,74 +436,76 @@ function vcEmail({ investor, leads }) {
                         line-height:44px;font-family:monospace;">${score}</div>
           </td>
           <td style="vertical-align:top;padding-left:12px;">
-            <div style="font-weight:600;color:#f1f5f9;font-size:14px;margin-bottom:2px;">${label}</div>
-            <div style="font-size:12px;color:#64748b;">${sectors}${s.stage ? " · " + s.stage : ""}</div>
-            ${s.tagline ? `<div style="font-size:12px;color:#475569;margin-top:2px;font-style:italic;">${s.tagline}</div>` : ""}
+            <div style="font-weight:600;color:#f1f5f9;font-size:14px;margin-bottom:2px;">${label}${s.is_super_match ? ' <span style="color:#a855f7;font-size:10px;">&#10022;</span>' : ""}</div>
+            <div style="font-size:12px;color:#64748b;">${sectors}${s.stage ? " · " + s.stage : ""}${godScore ? " · GOD " + godScore : ""}</div>
+            <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.45;">${reason}</div>
           </td>
           <td width="90" style="vertical-align:middle;text-align:right;">
-            ${website ? `<a href="https://pythh.ai/activate?startup=${website}" style="color:#a78bfa;font-size:12px;text-decoration:none;white-space:nowrap;">View →</a>` : ""}
+            ${website ? `<a href="https://pythh.ai/activate?startup=${website}" style="color:#a78bfa;font-size:12px;text-decoration:none;white-space:nowrap;">Observe &rarr;</a>` : ""}
           </td>
         </tr></table>
       </td>
     </tr>`;
   }).join("");
 
+  const headline = isPersonal
+    ? `${leads.length} signal clusters forming in ${sector}.<br>Aligned with your orbit.`
+    : `${leads.length} ${sector} signals entering ${investor.firm}&apos;s orbit.`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${leads.length} startup matches for ${investor.firm}</title></head>
+<title>Pythh observatory preview — ${investor.firm}</title></head>
 <body style="margin:0;padding:0;background:#0b0f1a;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
 
-  <!-- Brand -->
   <div style="margin-bottom:32px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                color:#a78bfa;font-family:monospace;margin-bottom:6px;">PYTHIA · Pythh.ai</div>
+                color:#a78bfa;font-family:monospace;margin-bottom:6px;">PYTHIA · Observatory Preview</div>
     <div style="width:28px;height:2px;background:#a78bfa;margin-bottom:24px;"></div>
+    <p style="color:#94a3b8;font-size:13px;font-style:italic;margin:0 0 16px;">
+      Everyone sees the surface. You see the patterns.
+    </p>
     <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
-      ${leads.length} investment-grade ${sector} startups<br>matched to ${investor.firm}&apos;s thesis.
+      ${headline}
     </h1>
     <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0;">
-      Hi ${firstName}, Pythh&rsquo;s signal engine scored these startups across 40+ behavioral indicators —
-      Grit, Opportunity, and Determination — then ranked them against ${investor.firm}&apos;s known thesis.
-      GOD scores above 60 indicate investment-grade quality.
+      ${greeting} Pythh tracked behavioral signals across sector, stage, conviction themes, and momentum —
+      then ranked what is entering ${investor.firm}&apos;s alignment orbit. This is observatory-grade intelligence:
+      patterns forming before the market notices. Not a pitch inbox.
     </p>
   </div>
 
-  <!-- Table header -->
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;overflow:hidden;margin-bottom:24px;">
     <div style="padding:10px 16px;border-bottom:1px solid #1e293b;background:#0d1424;">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
         <td style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                   color:#334155;font-family:monospace;">GOD · STARTUP · SECTOR</td>
-        <td style="text-align:right;font-size:10px;color:#22c55e;font-family:monospace;">&#x25cf; live · updated daily</td>
+                   color:#334155;font-family:monospace;">MATCH · SIGNAL · WHY</td>
+        <td style="text-align:right;font-size:10px;color:#22c55e;font-family:monospace;">&#x25cf; live signals</td>
       </tr></table>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
   </div>
 
-  <!-- Why these matches -->
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px;margin-bottom:24px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                color:#475569;font-family:monospace;margin-bottom:10px;">HOW PYTHH MATCHED THESE</div>
+                color:#475569;font-family:monospace;margin-bottom:10px;">HOW THESE SIGNALS WERE DETECTED</div>
     <p style="color:#64748b;font-size:13px;line-height:1.65;margin:0;">
-      Each startup was scored against ${investor.firm}&apos;s stated thesis signals: sector focus
-      (${sector}), stage preference (${investor.stage ?? "early-stage"}), and check size
-      (${investor.check_size ?? "seed to Series A"}). Matches derive from 1.2M+ active pairings
-      updated daily from real-time market signals &mdash; funding announcements, job posts,
-      founder activity, and VC behavioral shifts.
+      Scored with Pythh&apos;s 6-component match model: sector fit, stage fit, investor quality,
+      startup fundamentals (GOD score), market momentum, and conviction-theme alignment.
+      Filtered for ${investor.firm}&apos;s focus (${sector}, ${investor.stage ?? "early-stage"},
+      ${investor.checkSize ?? "seed to Series A"}). Updated daily from market signals.
     </p>
   </div>
 
-  <!-- CTA -->
   <div style="background:linear-gradient(135deg,#160929,#0f172a);border:1px solid #3b1d6e;
               border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
     <div style="font-size:13px;font-weight:700;color:#c4b5fd;margin-bottom:8px;">
-      Want continuous deal flow &mdash; connected to your AI agent?
+      Connect the observatory to your AI agent
     </div>
     <p style="color:#64748b;font-size:13px;line-height:1.55;margin:0 0 22px;">
-      Connect Pythh to Claude, Cursor, or any MCP-compatible AI agent. Query 33,000+ scored startups
-      and 6,250+ investors in plain English. No SQL. No API spec. New deals every day.
+      Query live signals in plain English inside Claude, Cursor, or any MCP client.
+      Watch discovery form around your thesis — continuously, not as a static list.
     </p>
     <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
       <tr>
@@ -447,13 +519,12 @@ function vcEmail({ investor, leads }) {
           <a href="https://pythh.ai/investors"
              style="display:inline-block;padding:12px 22px;border:1px solid #1e293b;color:#64748b;
                     text-decoration:none;border-radius:8px;font-size:13px;background:transparent;">
-            Browse investor rankings</a>
+            Browse rankings</a>
         </td>
       </tr>
     </table>
   </div>
 
-  <!-- Footer -->
   <div style="text-align:center;padding-top:16px;border-top:1px solid #1e293b;">
     <p style="color:#334155;font-size:11px;margin:0 0 4px;font-family:monospace;">
       Pythh Capital &middot; pythh.ai &middot; ai@pythh.ai
@@ -470,36 +541,35 @@ function vcEmail({ investor, leads }) {
 </html>`;
 }
 
-function vcEmailText({ investor, leads }) {
-  const sector    = investor.sector ?? "technology";
-  const firstName = (investor.name ?? "").split(" ")[0] || investor.name;
+function vcEmailText({ investor, leads, greeting }) {
+  const sector = investor.sector ?? "technology";
 
   const leadsText = leads
     .slice(0, 10)
     .map((s, i) => {
       const sectors = Array.isArray(s.sectors) ? s.sectors[0] : (s.sectors ?? "");
-      return `  ${i + 1}. ${s.name ?? s.website}  |  GOD: ${s.total_god_score ?? "—"}  |  ${sectors}${s.stage ? "  |  " + s.stage : ""}`;
+      const score = s.match_score ?? s.total_god_score ?? "—";
+      const reason = s.match_reason ? s.match_reason.split(".")[0] : "";
+      return `  ${i + 1}. ${s.name ?? s.website}  |  Match: ${score}  |  GOD: ${s.total_god_score ?? "—"}  |  ${sectors}${reason ? "\n     " + reason : ""}`;
     })
     .join("\n");
 
-  return `Hi ${firstName},
+  return `${greeting}
 
-Pythh identified ${leads.length} investment-grade ${sector} startups that match ${investor.firm}'s thesis:
+Everyone sees the surface. You see the patterns.
+
+Pythh detected ${leads.length} signal clusters forming in ${sector}, aligned with ${investor.firm}'s orbit:
 
 ${leadsText}
 
-Each startup scored against Grit, Opportunity, and Determination across 40+ behavioral signals.
-GOD scores above 60 indicate investment-grade quality. Pythh's database has 1.2M+ active matches,
-updated daily.
+Scored with sector fit, stage fit, conviction themes, startup fundamentals, and market momentum.
+This is observatory-grade intelligence — patterns forming before the market notices. Not a pitch inbox.
 
 ─────────────────────────────────────────────────
 
-Want continuous deal flow connected to your AI agent?
-Connect Pythh to Claude, Cursor, or any MCP-compatible AI.
-Query 33,000+ scored startups in plain English.
-
-→ Connect AI agent: https://pythh.ai/developers
-→ Browse investor rankings: https://pythh.ai/investors
+Connect the observatory to your AI agent (Claude, Cursor, MCP):
+→ https://pythh.ai/developers
+→ https://pythh.ai/investors
 
 ─────────────────────────────────────────────────
 Pythh Capital · pythh.ai · ai@pythh.ai
@@ -510,18 +580,18 @@ Unsubscribe: https://pythh.ai/support
 // ── Startup matches email (HTML) ──────────────────────────────────────────────
 
 function startupEmail({ user, startup, matches }) {
-  const firstName   = (user.name ?? "Founder").split(" ")[0];
+  const firstName = (user.name ?? "Founder").split(" ")[0];
   const startupName = startup.name ?? startup.website ?? "your startup";
-  const godScore    = startup.total_god_score ?? 0;
-  const color       = scoreColor(godScore);
-  const scoreLabel  = godScore >= 70 ? "Strong · Investment-grade"
+  const godScore = startup.total_god_score ?? 0;
+  const color = scoreColor(godScore);
+  const scoreLabel = godScore >= 70 ? "Strong · Investment-grade"
     : godScore >= 55 ? "Solid · Signal-building"
     : "Emerging · Keep building";
 
   const rows = matches.map((m, i) => {
     const score = m.match_score ?? 0;
-    const col   = scoreColor(score);
-    const bg    = i % 2 === 0 ? "#0f172a" : "#0d1424";
+    const col = scoreColor(score);
+    const bg = i % 2 === 0 ? "#0f172a" : "#0d1424";
     const checkRange = m.check_size_min
       ? ` · $${Math.round(m.check_size_min / 1000)}K–$${Math.round((m.check_size_max ?? m.check_size_min * 5) / 1000)}K`
       : "";
@@ -559,26 +629,27 @@ function startupEmail({ user, startup, matches }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Your top investor matches — ${startupName}</title></head>
+<title>Who recognizes ${startupName} — Pythh</title></head>
 <body style="margin:0;padding:0;background:#0b0f1a;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
 
-  <!-- Brand -->
   <div style="margin-bottom:32px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                color:#22c55e;font-family:monospace;margin-bottom:6px;">PYTHIA · Pythh.ai</div>
+                color:#22c55e;font-family:monospace;margin-bottom:6px;">PYTHIA · Cause–Effect Oracle</div>
     <div style="width:28px;height:2px;background:#22c55e;margin-bottom:24px;"></div>
+    <p style="color:#94a3b8;font-size:13px;font-style:italic;margin:0 0 16px;">
+      Who recognizes you now. Who will recognize you next.
+    </p>
     <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
-      Your top ${matches.length} investor matches<br>are ready, ${firstName}.
+      ${matches.length} investors aligned with<br>${startupName}.
     </h1>
     <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0;">
-      PYTHIA analyzed <strong style="color:#94a3b8;">${startupName}</strong> against 6,250+ investors
-      and ranked these as your strongest thesis matches &mdash; scored by timing, sector alignment,
-      check size fit, and GOD score proximity.
+      Hi ${firstName}, PYTHIA scored <strong style="color:#94a3b8;">${startupName}</strong> against 6,000+ investors
+      using sector fit, stage fit, conviction themes, and market momentum — the same model that powers
+      instant matching on pythh.ai. These are your strongest alignment signals right now.
     </p>
   </div>
 
-  <!-- GOD score card -->
   ${godScore ? `
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;
               padding:16px 20px;margin-bottom:20px;">
@@ -596,24 +667,22 @@ function startupEmail({ user, startup, matches }) {
     </tr></table>
   </div>` : ""}
 
-  <!-- Match table -->
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;overflow:hidden;margin-bottom:24px;">
     <div style="padding:10px 16px;border-bottom:1px solid #1e293b;background:#0d1424;">
       <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                  color:#334155;font-family:monospace;">MATCH SCORE · INVESTOR · WHY YOU MATCH</div>
+                  color:#334155;font-family:monospace;">MATCH · INVESTOR · WHY YOU ALIGN</div>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
   </div>
 
-  <!-- CTA -->
   <div style="background:linear-gradient(135deg,#051a0c,#0f172a);border:1px solid #14532d;
               border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
     <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:8px;">
-      See all your matches. Automate your outreach.
+      See who recognizes you next
     </div>
     <p style="color:#64748b;font-size:13px;line-height:1.55;margin:0 0 22px;">
-      Pythh has 1.2M+ active matches. Connect your AI agent to get unlimited access &mdash;
-      query investors, refine your GOD score, and generate personalized outreach in plain English.
+      Unlock your full match list, refine your GOD score, and generate personalized outreach —
+      or connect Pythh to your AI agent for continuous investor intelligence.
     </p>
     <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
       <tr>
@@ -633,7 +702,6 @@ function startupEmail({ user, startup, matches }) {
     </table>
   </div>
 
-  <!-- Footer -->
   <div style="text-align:center;padding-top:16px;border-top:1px solid #1e293b;">
     <p style="color:#334155;font-size:11px;margin:0 0 4px;font-family:monospace;">
       Pythh Capital &middot; pythh.ai &middot; ai@pythh.ai
@@ -651,7 +719,7 @@ function startupEmail({ user, startup, matches }) {
 }
 
 function startupEmailText({ user, startup, matches }) {
-  const firstName   = (user.name ?? "Founder").split(" ")[0];
+  const firstName = (user.name ?? "Founder").split(" ")[0];
   const startupName = startup.name ?? startup.website ?? "your startup";
 
   const matchesText = matches
@@ -665,18 +733,19 @@ function startupEmailText({ user, startup, matches }) {
 
   return `Hi ${firstName},
 
-PYTHIA matched ${startupName} to ${matches.length} investors from our database of 6,250+:
+Who recognizes you now. Who will recognize you next.
+
+PYTHIA scored ${startupName} against 6,000+ investors. These ${matches.length} show the strongest alignment signals right now:
 
 ${matchesText}
 
 ${startup.total_god_score ? `Your GOD Score: ${startup.total_god_score}/100\n` : ""}
 ─────────────────────────────────────────────────
 
-See all your matches and start outreach:
+See your full match list:
 → https://pythh.ai/activate${encodedUrl ? "?startup=" + encodedUrl : ""}
 
-Want unlimited access? Connect Pythh to your AI agent (Claude, Cursor, etc.)
-for continuous investor matching and outreach automation.
+Connect Pythh to your AI agent for continuous investor intelligence:
 → https://pythh.ai/developers
 
 ─────────────────────────────────────────────────
@@ -696,6 +765,7 @@ console.log(`│  mode:     ${MODE.padEnd(38)}│`);
 console.log(`│  limit:    ${String(LIMIT).padEnd(38)}│`);
 console.log(`│  campaign: ${CAMPAIGN.padEnd(38)}│`);
 console.log(`│  dry run:  ${String(DRY_RUN).padEnd(38)}│`);
+console.log(`│  drafts:   ${String(DRAFT_ONLY).padEnd(38)}│`);
 console.log(`│  test to:  ${(TEST_TO ?? "—").padEnd(38)}│`);
 console.log("└─────────────────────────────────────────────────┘");
 

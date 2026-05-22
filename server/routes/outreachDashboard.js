@@ -68,6 +68,7 @@ router.get("/stats", async (req, res) => {
 
     let query = db.from("pythh_prospecting_log").select("*");
     if (campaign) query = query.eq("campaign_slug", campaign);
+    query = query.eq("status", "sent");
 
     const { data, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
@@ -107,6 +108,7 @@ router.get("/contacts", async (req, res) => {
     let query = db
       .from("pythh_prospecting_log")
       .select("*", { count: "exact" })
+      .eq("status", "sent")
       .order("sent_at", { ascending: false })
       .range(page * limit, page * limit + limit - 1);
 
@@ -125,7 +127,7 @@ router.get("/contacts", async (req, res) => {
 // ── POST /api/outreach/run ────────────────────────────────────────────────────
 // Spawns the outreach agent. Returns a jobId immediately for polling.
 router.post("/run", express.json(), async (req, res) => {
-  const { mode = "vc", limit = 20, dryRun = true, campaign, testTo } = req.body ?? {};
+  const { mode = "vc", limit = 20, dryRun = true, draftOnly = false, campaign, testTo } = req.body ?? {};
 
   if (!["vc", "startup"].includes(mode)) {
     return res.status(400).json({ error: "mode must be 'vc' or 'startup'" });
@@ -135,15 +137,15 @@ router.post("/run", express.json(), async (req, res) => {
   }
 
   const jobId = makeJobId();
-  const job = { status: "running", log: [], startedAt: new Date().toISOString(), finishedAt: null, exitCode: null, mode, limit, dryRun };
+  const job = { status: "running", log: [], startedAt: new Date().toISOString(), finishedAt: null, exitCode: null, mode, limit, dryRun, draftOnly };
   jobs.set(jobId, job);
 
-  // Build args
   const agentScript = path.resolve(__dirname, "../../scripts/outreach-agent.js");
   const args = ["--mode", mode, "--limit", String(limit)];
-  if (dryRun)   args.push("--dry-run");
-  if (campaign) args.push("--campaign", campaign);
-  if (testTo)   args.push("--test-to", testTo);
+  if (dryRun)     args.push("--dry-run");
+  if (draftOnly)  args.push("--draft-only");
+  if (campaign)   args.push("--campaign", campaign);
+  if (testTo)     args.push("--test-to", testTo);
 
   const child = spawn("node", [agentScript, ...args], {
     env: { ...process.env },
@@ -183,7 +185,173 @@ router.get("/run/:id", (req, res) => {
     mode:       job.mode,
     limit:      job.limit,
     dryRun:     job.dryRun,
+    draftOnly:  job.draftOnly,
   });
+});
+
+// ── GET /api/outreach/drafts?campaign=... ─────────────────────────────────────
+router.get("/drafts", async (req, res) => {
+  try {
+    const campaign = req.query.campaign || null;
+    let query = db
+      .from("pythh_prospecting_log")
+      .select("id, email, actual_recipient, email_type, subject, target_name, campaign_slug, sent_at, status")
+      .eq("status", "draft")
+      .order("sent_at", { ascending: false })
+      .limit(100);
+    if (campaign) query = query.eq("campaign_slug", campaign);
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ drafts: data ?? [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/outreach/message/:id ─────────────────────────────────────────────
+router.get("/message/:id", async (req, res) => {
+  try {
+    const { data, error } = await db
+      .from("pythh_prospecting_log")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: "Not found" });
+    res.json({ message: data });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/outreach/inbox ───────────────────────────────────────────────────
+router.get("/inbox", async (req, res) => {
+  try {
+    const [draftsRes, sentRes, repliesRes] = await Promise.all([
+      db.from("pythh_prospecting_log").select("id, email, actual_recipient, email_type, subject, target_name, campaign_slug, sent_at, status, opened_at, bounced_at").eq("status", "draft").order("sent_at", { ascending: false }).limit(50),
+      db.from("pythh_prospecting_log").select("id, email, actual_recipient, email_type, subject, target_name, campaign_slug, sent_at, status, opened_at, bounced_at, resend_message_id").eq("status", "sent").order("sent_at", { ascending: false }).limit(50),
+      db.from("pythh_outreach_replies").select("*").order("created_at", { ascending: false }).limit(50),
+    ]);
+    if (draftsRes.error) return res.status(500).json({ error: draftsRes.error.message });
+    if (sentRes.error) return res.status(500).json({ error: sentRes.error.message });
+    if (repliesRes.error && !repliesRes.error.message.includes("does not exist")) {
+      return res.status(500).json({ error: repliesRes.error.message });
+    }
+    res.json({
+      drafts: draftsRes.data ?? [],
+      sent: sentRes.data ?? [],
+      replies: repliesRes.data ?? [],
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/outreach/send-drafts ────────────────────────────────────────────
+router.post("/send-drafts", express.json(), async (req, res) => {
+  const { ids } = req.body ?? {};
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "ids array required" });
+  }
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return res.status(503).json({ error: "RESEND_API_KEY not configured" });
+
+  const fromAddress = process.env.OUTREACH_FROM || "pythia@pythh.ai";
+  const fromName = "PYTHIA at Pythh";
+  const notifyTo = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
+
+  const { data: drafts, error } = await db
+    .from("pythh_prospecting_log")
+    .select("*")
+    .in("id", ids)
+    .eq("status", "draft");
+  if (error) return res.status(500).json({ error: error.message });
+
+  const results = [];
+  for (const draft of drafts ?? []) {
+    const recipient = draft.actual_recipient || draft.email;
+    const payload = {
+      from: `${fromName} <${fromAddress}>`,
+      to: [recipient],
+      reply_to: notifyTo,
+      subject: draft.subject,
+      html: draft.html_body,
+      text: draft.text_body || "",
+    };
+    if (notifyTo && notifyTo !== recipient) payload.bcc = [notifyTo];
+
+    try {
+      const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        results.push({ id: draft.id, ok: false, error: data });
+        await db.from("pythh_prospecting_log").update({ status: "failed", notes: JSON.stringify(data).slice(0, 200) }).eq("id", draft.id);
+        continue;
+      }
+      await db.from("pythh_prospecting_log").update({
+        status: "sent",
+        resend_message_id: data.id,
+        approved_at: new Date().toISOString(),
+        sent_at: new Date().toISOString(),
+      }).eq("id", draft.id);
+      results.push({ id: draft.id, ok: true, resendId: data.id });
+    } catch (e) {
+      results.push({ id: draft.id, ok: false, error: e.message });
+    }
+  }
+
+  res.json({ sent: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, results });
+});
+
+// ── POST /api/outreach/replies/:id/read ───────────────────────────────────────
+router.post("/replies/:id/read", async (req, res) => {
+  const { error } = await db
+    .from("pythh_outreach_replies")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
+// ── POST /api/outreach/webhook/inbound ────────────────────────────────────────
+router.post("/webhook/inbound", express.json(), async (req, res) => {
+  const event = req.body;
+  const type = event?.type || "";
+  if (type !== "email.received") return res.status(200).json({ ok: true });
+
+  const data = event.data || {};
+  const fromEmail = data.from || data.from_email || "unknown";
+  const toEmail = Array.isArray(data.to) ? data.to[0] : data.to;
+  const subject = data.subject || "(no subject)";
+  const textBody = data.text || data.text_body || "";
+  const htmlBody = data.html || data.html_body || null;
+  const inReplyTo = data.in_reply_to || data.message_id || null;
+
+  let prospectingLogId = null;
+  if (inReplyTo) {
+    const { data: logRow } = await db
+      .from("pythh_prospecting_log")
+      .select("id")
+      .eq("resend_message_id", inReplyTo)
+      .maybeSingle();
+    prospectingLogId = logRow?.id ?? null;
+  }
+
+  await db.from("pythh_outreach_replies").insert({
+    from_email: fromEmail,
+    to_email: toEmail,
+    subject,
+    text_body: textBody,
+    html_body: htmlBody,
+    in_reply_to_message_id: inReplyTo,
+    prospecting_log_id: prospectingLogId,
+  });
+
+  res.status(200).json({ ok: true });
 });
 
 // ── POST /api/webhooks/resend-outreach ────────────────────────────────────────
