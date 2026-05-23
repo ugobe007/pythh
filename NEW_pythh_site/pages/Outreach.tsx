@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import {
   Send, RefreshCw, Mail, Eye, ExternalLink, Loader2,
-  FileText, Inbox, MessageSquare, X, CheckSquare, Square,
+  FileText, Inbox, MessageSquare, X, CheckSquare, Square, AlertCircle,
 } from "lucide-react";
+import { apiUrl } from "../lib/apiConfig";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ interface DraftRow {
   email_type: "vc_leads" | "startup_matches"; subject: string;
   target_name?: string | null; campaign_slug: string; sent_at: string;
   status: string;
+  notes?: string | null;
 }
 interface ReplyRow {
   id: string; from_email: string; to_email: string; subject: string;
@@ -50,7 +52,6 @@ interface Job {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const API = import.meta.env.VITE_API_URL || "https://hot-honey.fly.dev";
 const LIMIT_PER_PAGE = 50;
 const DEFAULT_CAMPAIGN = `vc-${new Date().toISOString().slice(0, 7)}`;
 
@@ -59,6 +60,16 @@ const DEFAULT_CAMPAIGN = `vc-${new Date().toISOString().slice(0, 7)}`;
 function fmt(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function parseResendError(notes?: string | null): string | null {
+  if (!notes) return null;
+  try {
+    const j = JSON.parse(notes);
+    return j.message || j.error || null;
+  } catch {
+    return notes.slice(0, 120);
+  }
 }
 
 function pill(bg: string, color: string): React.CSSProperties {
@@ -98,7 +109,7 @@ function MessagePreviewModal({ messageId, onClose }: { messageId: string; onClos
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/outreach/message/${messageId}`)
+    fetch(apiUrl(`/api/outreach/message/${messageId}`))
       .then((r) => r.json())
       .then((d) => setMsg(d.message ?? null))
       .finally(() => setLoading(false));
@@ -148,26 +159,29 @@ function MessagePreviewModal({ messageId, onClose }: { messageId: string; onClos
 // ── Web Inbox (Drafts / Sent / Replies) ───────────────────────────────────────
 
 function WebInbox({ onRefresh }: { onRefresh: () => void }) {
-  const [tab, setTab] = useState<"drafts" | "sent" | "replies">("drafts");
+  const [tab, setTab] = useState<"drafts" | "sent" | "failed" | "replies">("drafts");
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [sent, setSent] = useState<Contact[]>([]);
+  const [failed, setFailed] = useState<DraftRow[]>([]);
   const [replies, setReplies] = useState<ReplyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const loadInbox = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}/api/outreach/inbox`);
+      const r = await fetch(apiUrl("/api/outreach/inbox"));
       if (!r.ok) throw new Error("Failed to load inbox");
       const d = await r.json();
       setDrafts(d.drafts ?? []);
       setSent(d.sent ?? []);
+      setFailed(d.failed ?? []);
       setReplies(d.replies ?? []);
     } catch {
-      setDrafts([]); setSent([]); setReplies([]);
+      setDrafts([]); setSent([]); setFailed([]); setReplies([]);
     } finally {
       setLoading(false);
     }
@@ -193,14 +207,24 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
     if (!confirm(`Send ${selected.size} approved draft(s) via Resend? This cannot be undone.`)) return;
     setSending(true);
     try {
-      const r = await fetch(`${API}/api/outreach/send-drafts`, {
+      const r = await fetch(apiUrl("/api/outreach/send-drafts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
       const d = await r.json();
       if (!r.ok) { alert(d.error ?? "Send failed"); return; }
-      alert(`Sent ${d.sent}, failed ${d.failed}`);
+      if (d.failed > 0) {
+        const firstErr = d.results?.find((x: { ok?: boolean; message?: string }) => !x.ok)?.message;
+        const lines = [`Sent ${d.sent}, failed ${d.failed}.`];
+        if (firstErr) lines.push(firstErr);
+        if (d.hint) lines.push(d.hint);
+        if (d.from) lines.push(`From: ${d.from}`);
+        alert(lines.join("\n\n"));
+        if (d.failed === d.results?.length) setTab("failed");
+      } else {
+        alert(`Sent ${d.sent} email(s) via ${d.from ?? "Resend"}.`);
+      }
       setSelected(new Set());
       loadInbox();
       onRefresh();
@@ -209,13 +233,30 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
+  async function resetFailed() {
+    if (!confirm(`Move ${failed.length} failed draft(s) back to Drafts for retry?`)) return;
+    setResetting(true);
+    try {
+      const r = await fetch(apiUrl("/api/outreach/reset-failed"), { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? "Reset failed"); return; }
+      alert(`Reset ${d.reset ?? 0} draft(s). They are back under Drafts — approve & send again.`);
+      setTab("drafts");
+      loadInbox();
+      onRefresh();
+    } finally {
+      setResetting(false);
+    }
+  }
+
   async function markRead(id: string) {
-    await fetch(`${API}/api/outreach/replies/${id}/read`, { method: "POST" });
+    await fetch(apiUrl(`/api/outreach/replies/${id}/read`), { method: "POST" });
     loadInbox();
   }
 
   const tabs = [
     { key: "drafts" as const, label: "Drafts", count: drafts.length, icon: FileText, color: "oklch(0.75 0.15 270)" },
+    { key: "failed" as const, label: "Failed", count: failed.length, icon: AlertCircle, color: "oklch(0.65 0.2 25)" },
     { key: "sent" as const, label: "Sent", count: sent.length, icon: Send, color: "oklch(0.85 0.17 162)" },
     { key: "replies" as const, label: "Replies", count: replies.filter((r) => !r.read_at).length, icon: MessageSquare, color: "oklch(0.78 0.15 200)" },
   ];
@@ -264,6 +305,19 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
         </div>
       )}
 
+      {tab === "failed" && failed.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: "oklch(0.12 0.01 264)", borderRadius: 8 }}>
+          <span style={{ fontSize: 11, color: "oklch(0.55 0.01 264)" }}>
+            Send failed — usually because pythh.ai is not verified in Resend yet. Retries use onboarding@resend.dev until you verify the domain.
+          </span>
+          <button onClick={resetFailed} disabled={resetting}
+            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+              border: "1px solid oklch(0.65 0.2 25)", background: "oklch(0.55 0.2 25)", color: "#fff", opacity: resetting ? 0.6 : 1 }}>
+            {resetting ? <><Loader2 size={13} className="animate-spin" /> Resetting…</> : <><RefreshCw size={13} /> Retry all (move to Drafts)</>}
+          </button>
+        </div>
+      )}
+
       {/* List */}
       <div style={{ border: "1px solid oklch(0.2 0.01 264)", borderRadius: 8, overflow: "hidden" }}>
         {loading && <div style={{ padding: 32, textAlign: "center", color: "oklch(0.4 0.01 264)", fontSize: 12 }}>Loading…</div>}
@@ -291,6 +345,27 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
               <div style={{ fontSize: 10, color: "oklch(0.4 0.01 264)", marginTop: 2 }}>
                 {d.actual_recipient || d.email} · {d.campaign_slug}
               </div>
+            </div>
+            <button onClick={() => setPreviewId(d.id)}
+              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer", border: "1px solid oklch(0.25 0.01 264)", background: "transparent", color: "oklch(0.6 0.01 264)" }}>
+              <Eye size={12} /> Preview
+            </button>
+          </div>
+        ))}
+
+        {!loading && tab === "failed" && failed.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center", color: "oklch(0.4 0.01 264)", fontSize: 12 }}>No failed sends</div>
+        )}
+        {!loading && tab === "failed" && failed.map((d, i) => (
+          <div key={d.id} style={{ padding: "12px 16px", borderBottom: "1px solid oklch(0.18 0.01 264)", background: i % 2 === 0 ? "oklch(0.15 0.01 264)" : "oklch(0.14 0.01 264)", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "oklch(0.85 0.01 264)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {d.target_name || d.email}
+              </div>
+              <div style={{ fontSize: 11, color: "oklch(0.5 0.01 264)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.subject}</div>
+              {parseResendError(d.notes) && (
+                <div style={{ fontSize: 10, color: "oklch(0.65 0.2 25)", marginTop: 4 }}>{parseResendError(d.notes)}</div>
+              )}
             </div>
             <button onClick={() => setPreviewId(d.id)}
               style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer", border: "1px solid oklch(0.25 0.01 264)", background: "transparent", color: "oklch(0.6 0.01 264)" }}>
@@ -385,7 +460,7 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
       return;
     }
     pollRef.current = setInterval(async () => {
-      const r = await fetch(`${API}/api/outreach/run/${job.jobId}`);
+      const r = await fetch(apiUrl(`/api/outreach/run/${job.jobId}`));
       if (r.ok) { const j = await r.json(); setJob(j); }
     }, 1500);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -396,7 +471,7 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
     if (autoRanRef.current) return;
     autoRanRef.current = true;
     setAutoStatus("Checking for drafts…");
-    fetch(`${API}/api/outreach/dedupe-drafts`, {
+    fetch(apiUrl("/api/outreach/dedupe-drafts"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ campaign }),
@@ -404,7 +479,7 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
       .then((r) => r.json())
       .then((dedupe) => {
         if (dedupe.removed > 0) onLaunched();
-        return fetch(`${API}/api/outreach/ensure-drafts`, {
+        return fetch(apiUrl("/api/outreach/ensure-drafts"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ limit, campaign }),
@@ -457,7 +532,7 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
     setJob(null);
     setAutoStatus(null);
     try {
-      const r = await fetch(`${API}/api/outreach/run`, {
+      const r = await fetch(apiUrl("/api/outreach/run"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -585,8 +660,8 @@ export default function Outreach() {
       const camp = campaign === "all" ? "" : `campaign=${encodeURIComponent(campaign)}&`;
       const type = modeFilter === "all" ? "" : `type=${modeFilter}&`;
       const [sRes, cRes] = await Promise.all([
-        fetch(`${API}/api/outreach/stats?${camp}`),
-        fetch(`${API}/api/outreach/contacts?${camp}${type}page=${page}&limit=${LIMIT_PER_PAGE}`),
+        fetch(apiUrl(`/api/outreach/stats?${camp}`)),
+        fetch(apiUrl(`/api/outreach/contacts?${camp}${type}page=${page}&limit=${LIMIT_PER_PAGE}`)),
       ]);
       if (!sRes.ok || !cRes.ok) throw new Error("API error");
       const [s, c] = await Promise.all([sRes.json(), cRes.json()]);
@@ -599,12 +674,12 @@ export default function Outreach() {
   const refreshAll = useCallback(() => {
     load();
     setInboxKey((k) => k + 1);
-    fetch(`${API}/api/outreach/campaigns`).then((r) => r.json())
+    fetch(apiUrl("/api/outreach/campaigns")).then((r) => r.json())
       .then((d) => setCampaigns(d.campaigns ?? [])).catch(() => {});
   }, [load]);
 
   useEffect(() => {
-    fetch(`${API}/api/outreach/campaigns`).then((r) => r.json())
+    fetch(apiUrl("/api/outreach/campaigns")).then((r) => r.json())
       .then((d) => setCampaigns(d.campaigns ?? [])).catch(() => {});
   }, []);
 

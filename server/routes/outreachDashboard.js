@@ -79,7 +79,6 @@ function runningDraftJob() {
   }
   return null;
 }
-
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || "";
@@ -92,6 +91,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 const { normalizeFirmKey, recipientRank } = require("../../lib/outreachFirmDedup.js");
+const { getOutreachFromAddress } = require("../../lib/outreachFrom.js");
 
 /** Remove duplicate VC drafts — keep one recipient per firm (prefer intake@). */
 async function dedupeVcDrafts(campaign) {
@@ -406,19 +406,22 @@ router.get("/message/:id", async (req, res) => {
 // ── GET /api/outreach/inbox ───────────────────────────────────────────────────
 router.get("/inbox", async (req, res) => {
   try {
-    const [draftsRes, sentRes, repliesRes] = await Promise.all([
+    const [draftsRes, sentRes, failedRes, repliesRes] = await Promise.all([
       db.from("pythh_prospecting_log").select("id, email, actual_recipient, email_type, subject, target_name, campaign_slug, sent_at, status, opened_at, bounced_at").eq("status", "draft").order("sent_at", { ascending: false }).limit(50),
       db.from("pythh_prospecting_log").select("id, email, actual_recipient, email_type, subject, target_name, campaign_slug, sent_at, status, opened_at, bounced_at, resend_message_id").eq("status", "sent").order("sent_at", { ascending: false }).limit(50),
+      db.from("pythh_prospecting_log").select("id, email, actual_recipient, email_type, subject, target_name, campaign_slug, sent_at, status, notes").eq("status", "failed").order("sent_at", { ascending: false }).limit(50),
       db.from("pythh_outreach_replies").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
     if (draftsRes.error) return res.status(500).json({ error: draftsRes.error.message });
     if (sentRes.error) return res.status(500).json({ error: sentRes.error.message });
+    if (failedRes.error) return res.status(500).json({ error: failedRes.error.message });
     if (repliesRes.error && !repliesRes.error.message.includes("does not exist")) {
       return res.status(500).json({ error: repliesRes.error.message });
     }
     res.json({
       drafts: draftsRes.data ?? [],
       sent: sentRes.data ?? [],
+      failed: failedRes.data ?? [],
       replies: repliesRes.data ?? [],
     });
   } catch (e) {
@@ -435,15 +438,15 @@ router.post("/send-drafts", express.json(), async (req, res) => {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) return res.status(503).json({ error: "RESEND_API_KEY not configured" });
 
-  const fromAddress = process.env.OUTREACH_FROM || "pythia@pythh.ai";
-  const fromName = "PYTHIA at Pythh";
+  const fromAddress = getOutreachFromAddress();
+  const fromName = process.env.OUTREACH_FROM_NAME || "PYTHIA at Pythh";
   const notifyTo = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
 
   const { data: drafts, error } = await db
     .from("pythh_prospecting_log")
     .select("*")
     .in("id", ids)
-    .eq("status", "draft");
+    .in("status", ["draft", "failed"]);
   if (error) return res.status(500).json({ error: error.message });
 
   const results = [];
@@ -467,8 +470,9 @@ router.post("/send-drafts", express.json(), async (req, res) => {
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        results.push({ id: draft.id, ok: false, error: data });
-        await db.from("pythh_prospecting_log").update({ status: "failed", notes: JSON.stringify(data).slice(0, 200) }).eq("id", draft.id);
+        const errMsg = data.message || data.error || JSON.stringify(data);
+        results.push({ id: draft.id, ok: false, error: data, message: errMsg });
+        await db.from("pythh_prospecting_log").update({ status: "failed", notes: JSON.stringify(data).slice(0, 500) }).eq("id", draft.id);
         continue;
       }
       await db.from("pythh_prospecting_log").update({
@@ -476,14 +480,40 @@ router.post("/send-drafts", express.json(), async (req, res) => {
         resend_message_id: data.id,
         approved_at: new Date().toISOString(),
         sent_at: new Date().toISOString(),
+        notes: null,
       }).eq("id", draft.id);
-      results.push({ id: draft.id, ok: true, resendId: data.id });
+      results.push({ id: draft.id, ok: true, resendId: data.id, from: fromAddress });
     } catch (e) {
-      results.push({ id: draft.id, ok: false, error: e.message });
+      results.push({ id: draft.id, ok: false, error: e.message, message: e.message });
     }
   }
 
-  res.json({ sent: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, results });
+  const sent = results.filter((r) => r.ok).length;
+  const failed = results.filter((r) => !r.ok).length;
+  res.json({
+    sent,
+    failed,
+    from: fromAddress,
+    results,
+    hint: failed > 0 && fromAddress.includes("resend.dev")
+      ? "Sending via onboarding@resend.dev until pythh.ai is verified in Resend."
+      : failed > 0
+        ? "Verify pythh.ai at resend.com/domains, then set RESEND_VERIFIED_DOMAIN=pythh.ai on Fly."
+        : undefined,
+  });
+});
+
+// ── POST /api/outreach/reset-failed ───────────────────────────────────────────
+router.post("/reset-failed", express.json(), async (req, res) => {
+  const campaign = req.body?.campaign || null;
+  let query = db
+    .from("pythh_prospecting_log")
+    .update({ status: "draft", notes: null })
+    .eq("status", "failed");
+  if (campaign) query = query.eq("campaign_slug", campaign);
+  const { data, error } = await query.select("id");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ reset: data?.length ?? 0 });
 });
 
 // ── POST /api/outreach/replies/:id/read ───────────────────────────────────────
@@ -537,7 +567,8 @@ router.post("/webhook/inbound", express.json(), async (req, res) => {
 // Resend sends events via Svix: email.opened, email.clicked, email.bounced, email.unsubscribed
 // Svix signing: HMAC-SHA256 over "{svix-id}.{svix-timestamp}.{raw body}"
 // Secret format: whsec_<base64> — strip prefix and base64-decode to get raw key bytes
-router.post("/webhook/resend", express.raw({ type: "application/json" }), async (req, res) => {
+// Resend webhook — POST /api/webhooks/webhook/resend or /api/webhooks/resend
+async function handleResendWebhook(req, res) {
   if (RESEND_WEBHOOK_SECRET) {
     const sig = req.headers["svix-signature"] || "";
     const ts  = req.headers["svix-timestamp"] || "";
@@ -547,13 +578,11 @@ router.post("/webhook/resend", express.raw({ type: "application/json" }), async 
       return res.status(401).json({ error: "Missing Svix headers" });
     }
 
-    // Reject timestamps older than 5 minutes (replay protection)
     const tsNum = parseInt(ts, 10);
     if (Math.abs(Date.now() / 1000 - tsNum) > 300) {
       return res.status(401).json({ error: "Timestamp too old" });
     }
 
-    // whsec_ prefix → strip it, base64-decode the rest to get raw key bytes
     const rawSecret = Buffer.from(
       RESEND_WEBHOOK_SECRET.replace(/^whsec_/, ""),
       "base64"
@@ -562,7 +591,6 @@ router.post("/webhook/resend", express.raw({ type: "application/json" }), async 
     const toSign  = `${id}.${ts}.${req.body.toString()}`;
     const computed = crypto.createHmac("sha256", rawSecret).update(toSign).digest("base64");
 
-    // svix-signature can be "v1,<sig1> v1,<sig2>" — any match is valid
     const valid = sig.split(" ").some((s) => {
       const part = s.replace(/^v1,/, "");
       return crypto.timingSafeEqual(Buffer.from(part), Buffer.from(computed));
@@ -583,7 +611,7 @@ router.post("/webhook/resend", express.raw({ type: "application/json" }), async 
   const messageId = event?.data?.email_id || event?.data?.id || "";
   const type      = event?.type || "";
 
-  if (!messageId) return res.status(200).json({ ok: true }); // ignore unknown events
+  if (!messageId) return res.status(200).json({ ok: true });
 
   const update = {};
   if (type === "email.opened")       update.opened_at        = new Date().toISOString();
@@ -592,13 +620,21 @@ router.post("/webhook/resend", express.raw({ type: "application/json" }), async 
   if (type === "email.unsubscribed") update.unsubscribed_at  = new Date().toISOString();
 
   if (Object.keys(update).length > 0) {
-    await db
-      .from("pythh_prospecting_log")
+    res.status(200).json({ ok: true });
+    db.from("pythh_prospecting_log")
       .update(update)
-      .eq("resend_message_id", messageId);
+      .eq("resend_message_id", messageId)
+      .then(({ error }) => {
+        if (error) console.error("[webhook/resend] DB update failed:", error.message);
+      });
+    return;
   }
 
   res.status(200).json({ ok: true });
-});
+}
+
+const resendWebhookRaw = express.raw({ type: "application/json" });
+router.post("/webhook/resend", resendWebhookRaw, handleResendWebhook);
+router.post("/resend", resendWebhookRaw, handleResendWebhook);
 
 module.exports = router;

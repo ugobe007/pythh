@@ -7,8 +7,7 @@ import { getLoginUrl } from "@/const";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Loader2, Send } from "lucide-react";
 import { Link } from "wouter";
-
-const API = import.meta.env.VITE_API_URL || "https://hot-honey.fly.dev";
+import { apiUrl } from "../lib/apiConfig";
 
 function StatCard({ label, value, color = "oklch(0.92 0.005 264)" }: { label: string; value: string | number | undefined; color?: string }) {
   return (
@@ -39,11 +38,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user?.role !== "admin") return;
-    fetch(`${API}/api/outreach/stats`)
+    fetch(apiUrl("/api/outreach/stats"))
       .then((r) => r.json())
       .then(setOutreachStats)
       .catch(() => {});
-    fetch(`${API}/api/outreach/inbox`)
+    fetch(apiUrl("/api/outreach/inbox"))
       .then((r) => r.json())
       .then((d) => setDraftCount((d.drafts ?? []).length))
       .catch(() => {});

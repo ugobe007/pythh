@@ -3,6 +3,7 @@ import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Loader2, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { apiUrl } from "../../lib/apiConfig";
 
 const S = {
   card: { background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "18px 20px" },
@@ -24,10 +25,6 @@ type Feed = {
   consecutive_failures: number;
   created_at: string;
 };
-
-const API = typeof window !== "undefined"
-  ? (import.meta.env?.VITE_API_URL || "https://hot-honey.fly.dev")
-  : "https://hot-honey.fly.dev";
 
 export default function RssManagerPage() {
   const { data: feeds = [], isLoading, refetch } = trpc.admin.getRssFeeds.useQuery() as { data: Feed[]; isLoading: boolean; refetch: () => void };
@@ -51,7 +48,7 @@ export default function RssManagerPage() {
   async function triggerRefresh() {
     setRefreshing(true);
     try {
-      await fetch(`${API}/api/rss/refresh`, { method: "POST" });
+      await fetch(apiUrl("/api/rss/refresh"), { method: "POST" });
     } finally {
       setTimeout(() => setRefreshing(false), 3000);
       setTimeout(() => refetch(), 5000);

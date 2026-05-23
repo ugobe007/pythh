@@ -27,7 +27,20 @@ import { createClient } from "@supabase/supabase-js";
 const require = createRequire(import.meta.url);
 const { rankStartupsForInvestor, rankInvestorsForStartup } = require("../lib/outreachMatch.js");
 const { classifyOutreachEmail, outreachGreeting } = require("../lib/investorEmailInfer.js");
+const {
+  vcSubject,
+  vcHeadline,
+  vcIntro,
+  vcFootnote,
+  vcMethodology,
+  vcCtaTitle,
+  vcCtaBody,
+  vcCtaText,
+  vcEmailKicker,
+  vcFromName,
+} = require("../lib/pythiaVoice.js");
 const { normalizeFirmKey, pickOnePerFirm } = require("../lib/outreachFirmDedup.js");
+const { getOutreachFromAddress } = require("../lib/outreachFrom.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
 const envPath = new URL("../.env", import.meta.url).pathname;
@@ -55,8 +68,8 @@ const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPAB
 const RESEND_KEY    = process.env.RESEND_API_KEY;
 const FROM_ADDRESS  = TEST_TO
   ? (process.env.OUTREACH_TEST_FROM || "onboarding@resend.dev")
-  : (process.env.OUTREACH_FROM || "pythia@pythh.ai");
-const FROM_NAME     = "PYTHIA at Pythh";
+  : getOutreachFromAddress();
+const FROM_NAME     = vcFromName();
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("[outreach-agent] ✗ Missing SUPABASE_URL or SUPABASE_SERVICE_KEY");
@@ -299,9 +312,12 @@ async function runVcMode() {
     const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
     const displayName = inv.name ? `${inv.name} · ${firmLabel}` : firmLabel;
     const greeting = outreachGreeting({ ...inv, firm: firmLabel }, emailType);
-    const subject = emailType === "personal"
-      ? `Signals forming in ${primarySector} — aligned with your orbit`
-      : `Signal digest: ${primarySector} clusters entering ${firmLabel}'s orbit`;
+    const subject = vcSubject({
+      sector: primarySector,
+      firm: firmLabel,
+      emailType,
+      count: leads.length,
+    });
 
     const html = vcEmail({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType }, leads, greeting });
     const text = vcEmailText({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType }, leads, greeting });
@@ -461,11 +477,11 @@ function vcEmail({ investor, leads, greeting }) {
     const sectors = Array.isArray(s.sectors)
       ? s.sectors.slice(0, 2).join(" · ")
       : (s.sectors ?? sector);
-    const label = s.name ?? s.website ?? "Signal cluster";
+    const label = s.name ?? s.website ?? "Startup";
     const website = s.website ? encodeURIComponent(s.website) : "";
     const reason = s.match_reason
       ? s.match_reason.split(".")[0]
-      : "Thesis and sector alignment";
+      : "Strong sector and stage match";
 
     return `<tr>
       <td style="padding:14px 16px;border-bottom:1px solid #1e293b;vertical-align:top;">
@@ -481,38 +497,46 @@ function vcEmail({ investor, leads, greeting }) {
             <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.45;">${reason}</div>
           </td>
           <td width="90" style="vertical-align:middle;text-align:right;">
-            ${website ? `<a href="https://pythh.ai/activate?startup=${website}" style="color:#a78bfa;font-size:12px;text-decoration:none;white-space:nowrap;">Observe &rarr;</a>` : ""}
+            ${website ? `<a href="https://pythh.ai/activate?startup=${website}" style="color:#a78bfa;font-size:12px;text-decoration:none;white-space:nowrap;">View &rarr;</a>` : ""}
           </td>
         </tr></table>
       </td>
     </tr>`;
   }).join("");
 
-  const headline = isPersonal
-    ? `${leads.length} signal clusters forming in ${sector}.<br>Aligned with your orbit.`
-    : `${leads.length} ${sector} signals entering ${investor.firm}&apos;s orbit.`;
+  const headline = vcHeadline({ sector, firm: investor.firm, count: leads.length, isPersonal });
+  const intro = vcIntro({ count: leads.length, sector, firm: investor.firm, isPersonal });
+  const footnote = vcFootnote();
+  const methodology = vcMethodology({
+    firm: investor.firm,
+    sector,
+    stage: investor.stage,
+    checkSize: investor.checkSize,
+    isPersonal,
+  });
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pythh observatory preview — ${investor.firm}</title></head>
+<title>PYTHIA · ${investor.firm}</title></head>
 <body style="margin:0;padding:0;background:#0b0f1a;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
 
   <div style="margin-bottom:32px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                color:#a78bfa;font-family:monospace;margin-bottom:6px;">PYTHIA · Observatory Preview</div>
+                color:#a78bfa;font-family:monospace;margin-bottom:6px;">${vcEmailKicker()}</div>
     <div style="width:28px;height:2px;background:#a78bfa;margin-bottom:24px;"></div>
-    <p style="color:#94a3b8;font-size:13px;font-style:italic;margin:0 0 16px;">
-      Everyone sees the surface. You see the patterns.
-    </p>
     <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
       ${headline}
     </h1>
-    <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0;">
-      ${greeting} Pythh tracked behavioral signals across sector, stage, conviction themes, and momentum —
-      then ranked what is entering ${investor.firm}&apos;s alignment orbit. This is observatory-grade intelligence:
-      patterns forming before the market notices. Not a pitch inbox.
+    <p style="color:#94a3b8;font-size:14px;line-height:1.65;margin:0 0 12px;">
+      ${greeting}
+    </p>
+    <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0 0 8px;">
+      ${intro}
+    </p>
+    <p style="color:#475569;font-size:13px;line-height:1.55;margin:0;font-style:italic;">
+      ${footnote}
     </p>
   </div>
 
@@ -520,8 +544,8 @@ function vcEmail({ investor, leads, greeting }) {
     <div style="padding:10px 16px;border-bottom:1px solid #1e293b;background:#0d1424;">
       <table width="100%" cellpadding="0" cellspacing="0"><tr>
         <td style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                   color:#334155;font-family:monospace;">MATCH · SIGNAL · WHY</td>
-        <td style="text-align:right;font-size:10px;color:#22c55e;font-family:monospace;">&#x25cf; live signals</td>
+                   color:#334155;font-family:monospace;">RANK · COMPANY · WHY</td>
+        <td style="text-align:right;font-size:10px;color:#22c55e;font-family:monospace;">&#x25cf; live</td>
       </tr></table>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
@@ -529,23 +553,19 @@ function vcEmail({ investor, leads, greeting }) {
 
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px;margin-bottom:24px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                color:#475569;font-family:monospace;margin-bottom:10px;">HOW THESE SIGNALS WERE DETECTED</div>
+                color:#475569;font-family:monospace;margin-bottom:10px;">HOW I PICKED THESE</div>
     <p style="color:#64748b;font-size:13px;line-height:1.65;margin:0;">
-      Scored with Pythh&apos;s 6-component match model: sector fit, stage fit, investor quality,
-      startup fundamentals (GOD score), market momentum, and conviction-theme alignment.
-      Filtered for ${investor.firm}&apos;s focus (${sector}, ${investor.stage ?? "early-stage"},
-      ${investor.checkSize ?? "seed to Series A"}). Updated daily from market signals.
+      ${methodology}
     </p>
   </div>
 
   <div style="background:linear-gradient(135deg,#160929,#0f172a);border:1px solid #3b1d6e;
               border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
     <div style="font-size:13px;font-weight:700;color:#c4b5fd;margin-bottom:8px;">
-      Connect the observatory to your AI agent
+      ${vcCtaTitle()}
     </div>
     <p style="color:#64748b;font-size:13px;line-height:1.55;margin:0 0 22px;">
-      Query live signals in plain English inside Claude, Cursor, or any MCP client.
-      Watch discovery form around your thesis — continuously, not as a static list.
+      ${vcCtaBody()}
     </p>
     <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
       <tr>
@@ -553,7 +573,7 @@ function vcEmail({ investor, leads, greeting }) {
           <a href="https://pythh.ai/developers"
              style="display:inline-block;padding:12px 22px;border:1px solid #7c3aed;color:#a78bfa;
                     text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;
-                    background:transparent;">Connect AI agent &rarr;</a>
+                    background:transparent;">MCP setup &rarr;</a>
         </td>
         <td>
           <a href="https://pythh.ai/investors"
@@ -583,6 +603,16 @@ function vcEmail({ investor, leads, greeting }) {
 
 function vcEmailText({ investor, leads, greeting }) {
   const sector = investor.sector ?? "technology";
+  const isPersonal = (investor.emailType ?? "intake") === "personal";
+  const headline = vcHeadline({ sector, firm: investor.firm, count: leads.length, isPersonal });
+  const intro = vcIntro({ count: leads.length, sector, firm: investor.firm, isPersonal });
+  const methodology = vcMethodology({
+    firm: investor.firm,
+    sector,
+    stage: investor.stage,
+    checkSize: investor.checkSize,
+    isPersonal,
+  });
 
   const leadsText = leads
     .slice(0, 10)
@@ -596,23 +626,21 @@ function vcEmailText({ investor, leads, greeting }) {
 
   return `${greeting}
 
-Everyone sees the surface. You see the patterns.
+${headline}
 
-Pythh detected ${leads.length} signal clusters forming in ${sector}, aligned with ${investor.firm}'s orbit:
+${intro}
+${vcFootnote()}
 
 ${leadsText}
 
-Scored with sector fit, stage fit, conviction themes, startup fundamentals, and market momentum.
-This is observatory-grade intelligence — patterns forming before the market notices. Not a pitch inbox.
+${methodology}
 
 ─────────────────────────────────────────────────
 
-Connect the observatory to your AI agent (Claude, Cursor, MCP):
-→ https://pythh.ai/developers
-→ https://pythh.ai/investors
+${vcCtaText()}
 
 ─────────────────────────────────────────────────
-Pythh Capital · pythh.ai · ai@pythh.ai
+PYTHIA · Pythh Capital · pythh.ai · ai@pythh.ai
 Unsubscribe: https://pythh.ai/support
 `;
 }
