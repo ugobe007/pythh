@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import {
-  Send, RefreshCw, Mail, Eye, ExternalLink, CheckCircle, XCircle, Loader2,
+  Send, RefreshCw, Mail, Eye, ExternalLink, Loader2,
   FileText, Inbox, MessageSquare, X, CheckSquare, Square,
 } from "lucide-react";
 
@@ -52,6 +52,7 @@ interface Job {
 
 const API = import.meta.env.VITE_API_URL || "https://hot-honey.fly.dev";
 const LIMIT_PER_PAGE = 50;
+const DEFAULT_CAMPAIGN = `vc-${new Date().toISOString().slice(0, 7)}`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -271,7 +272,9 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
           <div style={{ padding: 40, textAlign: "center" }}>
             <FileText size={28} style={{ color: "oklch(0.3 0.01 264)", marginBottom: 10 }} />
             <div style={{ color: "oklch(0.45 0.01 264)", fontSize: 13 }}>No drafts yet</div>
-            <div style={{ color: "oklch(0.35 0.01 264)", fontSize: 11, marginTop: 4 }}>Use "Generate Drafts" below to create emails for review</div>
+            <div style={{ color: "oklch(0.35 0.01 264)", fontSize: 11, marginTop: 4 }}>
+              Drafts auto-generate when you open this page. One email per firm — no duplicate partners.
+            </div>
           </div>
         )}
 
@@ -352,19 +355,21 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
-// ── Campaign Launcher ─────────────────────────────────────────────────────────
+// ── Draft generator (top bar) ─────────────────────────────────────────────────
 
-function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
+function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
   const [mode, setMode]         = useState<"vc" | "startup">("vc");
   const [limit, setLimit]       = useState(20);
-  const [campaign, setCampaign] = useState("");
+  const [campaign, setCampaign] = useState(DEFAULT_CAMPAIGN);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [dryRun, setDryRun]     = useState(false);
   const [testTo, setTestTo]     = useState("");
   const [job, setJob]           = useState<Job | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [autoStatus, setAutoStatus] = useState<string | null>(null);
   const pollRef                 = useRef<ReturnType<typeof setInterval> | null>(null);
   const logRef                  = useRef<HTMLDivElement>(null);
+  const autoRanRef              = useRef(false);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -373,7 +378,10 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
   useEffect(() => {
     if (job?.status !== "running") {
       if (pollRef.current) clearInterval(pollRef.current);
-      if (job?.status === "done") onLaunched();
+      if (job?.status === "done") {
+        setAutoStatus("Drafts ready — review in inbox below");
+        onLaunched();
+      }
       return;
     }
     pollRef.current = setInterval(async () => {
@@ -383,9 +391,59 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [job?.status, job?.jobId, onLaunched]);
 
+  // Auto-generate VC drafts on first page load when inbox is low
+  useEffect(() => {
+    if (autoRanRef.current) return;
+    autoRanRef.current = true;
+    setAutoStatus("Checking for drafts…");
+    fetch(`${API}/api/outreach/ensure-drafts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limit, campaign }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.triggered && d.jobId) {
+          setAutoStatus(`Auto-generating ${limit} VC drafts (one per firm)…`);
+          setJob({
+            jobId: d.jobId,
+            status: "running",
+            log: [],
+            startedAt: new Date().toISOString(),
+            finishedAt: null,
+            exitCode: null,
+            mode: "vc",
+            limit,
+            draftOnly: true,
+          });
+        } else if (d.reason === "enough_drafts") {
+          setAutoStatus(`${d.draftCount} drafts ready`);
+        } else if (d.reason === "already_running") {
+          setAutoStatus("Draft generation already in progress…");
+          if (d.jobId) {
+            setJob({
+              jobId: d.jobId,
+              status: "running",
+              log: [],
+              startedAt: new Date().toISOString(),
+              finishedAt: null,
+              exitCode: null,
+              mode: "vc",
+              limit,
+              draftOnly: true,
+            });
+          }
+        } else {
+          setAutoStatus(null);
+        }
+      })
+      .catch(() => setAutoStatus(null));
+  }, [limit, campaign]);
+
   async function launch(draftOnly: boolean) {
     setLaunching(true);
     setJob(null);
+    setAutoStatus(null);
     try {
       const r = await fetch(`${API}/api/outreach/run`, {
         method: "POST",
@@ -393,7 +451,7 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
         body: JSON.stringify({
           mode, limit, draftOnly,
           dryRun: draftOnly ? false : dryRun,
-          campaign: campaign || undefined,
+          campaign: campaign || DEFAULT_CAMPAIGN,
           testTo: testTo || undefined,
         }),
       });
@@ -407,61 +465,59 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
 
   return (
     <div style={S.box}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.75 0.15 270)", marginBottom: 8 }}>
-        GENERATE CAMPAIGN
-      </div>
-      <div style={{ fontSize: 12, color: "oklch(0.5 0.01 264)", marginBottom: 16 }}>
-        Step 1: Generate drafts → Step 2: Preview in inbox above → Step 3: Approve & send selected
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
-        <div>
-          <label style={S.label}>Mode</label>
-          <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "oklch(0.75 0.15 270)", marginBottom: 6 }}>
+            GENERATE DRAFTS
+          </div>
+          <div style={{ fontSize: 12, color: "oklch(0.5 0.01 264)" }}>
+            One email per firm — highest-scored partner only. Drafts appear in the inbox below for preview and approval.
+          </div>
+          {autoStatus && (
+            <div style={{ fontSize: 11, color: "oklch(0.75 0.15 270)", marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              {(job?.status === "running" || autoStatus.includes("progress")) && <Loader2 size={12} className="animate-spin" />}
+              {autoStatus}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} style={{ ...S.input, width: 72 }}>
+            {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <div style={{ display: "flex", gap: 4 }}>
             {(["vc", "startup"] as const).map((m) => (
               <button key={m} onClick={() => setMode(m)}
-                style={{ flex: 1, padding: "7px 0", fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: "pointer",
+                style={{ padding: "7px 12px", fontSize: 11, fontWeight: 600, borderRadius: 6, cursor: "pointer",
                   border: `1px solid ${mode === m ? "oklch(0.75 0.15 270)" : "oklch(0.22 0.01 264)"}`,
                   background: mode === m ? "oklch(0.18 0.01 264)" : "transparent",
                   color: mode === m ? "oklch(0.75 0.15 270)" : "oklch(0.5 0.01 264)" }}>
-                {m === "vc" ? "VC Leads" : "Startups"}
+                {m === "vc" ? "VC" : "Startup"}
               </button>
             ))}
           </div>
-        </div>
-        <div>
-          <label style={S.label}>Limit (recipients)</label>
-          <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} style={{ ...S.input }}>
-            {[5, 10, 20, 50, 100, 200, 500].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={S.label}>Campaign slug (optional)</label>
-          <input type="text" placeholder={`${mode}-${new Date().toISOString().slice(0, 7)}`}
-            value={campaign} onChange={(e) => setCampaign(e.target.value)} style={S.input} />
+          <button onClick={() => launch(true)} disabled={launching || job?.status === "running"}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+              border: "1px solid oklch(0.75 0.15 270)", background: "oklch(0.55 0.2 25)", color: "#fff",
+              opacity: launching || job?.status === "running" ? 0.5 : 1 }}>
+            {launching || job?.status === "running"
+              ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
+              : <><FileText size={14} /> Generate {limit} Drafts</>}
+          </button>
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-        <button onClick={() => launch(true)} disabled={launching || job?.status === "running"}
-          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", fontSize: 13, fontWeight: 700, borderRadius: 6, cursor: "pointer",
-            border: "1px solid oklch(0.75 0.15 270)", background: "oklch(0.18 0.01 264)", color: "oklch(0.75 0.15 270)",
-            opacity: launching || job?.status === "running" ? 0.5 : 1 }}>
-          {launching || job?.status === "running"
-            ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
-            : <><FileText size={14} /> Generate {limit} Drafts</>}
-        </button>
-
-        <button onClick={() => setShowAdvanced(!showAdvanced)}
-          style={{ fontSize: 11, padding: "6px 12px", background: "transparent", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 6, cursor: "pointer", color: "oklch(0.45 0.01 264)" }}>
-          {showAdvanced ? "Hide" : "Show"} advanced options
-        </button>
-      </div>
+      <button onClick={() => setShowAdvanced(!showAdvanced)}
+        style={{ fontSize: 11, padding: "4px 0", background: "transparent", border: "none", cursor: "pointer", color: "oklch(0.45 0.01 264)", marginBottom: showAdvanced ? 12 : 0 }}>
+        {showAdvanced ? "Hide" : "Show"} advanced options
+      </button>
 
       {showAdvanced && (
-        <div style={{ marginTop: 16, padding: "14px 16px", background: "oklch(0.12 0.01 264)", borderRadius: 8, border: "1px solid oklch(0.2 0.01 264)" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "oklch(0.4 0.01 264)", marginBottom: 12 }}>ADVANCED — skip draft review</div>
+        <div style={{ padding: "14px 16px", background: "oklch(0.12 0.01 264)", borderRadius: 8, border: "1px solid oklch(0.2 0.01 264)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={S.label}>Campaign slug</label>
+              <input type="text" value={campaign} onChange={(e) => setCampaign(e.target.value)} style={S.input} />
+            </div>
             <div>
               <label style={S.label}>Test to email (optional)</label>
               <input type="email" placeholder="you@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} style={S.input} />
@@ -470,46 +526,27 @@ function CampaignLauncher({ onLaunched }: { onLaunched: () => void }) {
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
               <input type="checkbox" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
-              Dry run (terminal log only, no DB drafts)
+              Dry run (log only)
             </label>
             <button onClick={() => launch(false)} disabled={launching || job?.status === "running" || dryRun}
               style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
                 border: "1px solid oklch(0.65 0.2 25)", background: dryRun ? "transparent" : "oklch(0.55 0.2 25)", color: dryRun ? "oklch(0.4 0.01 264)" : "#fff",
                 opacity: dryRun ? 0.5 : 1 }}>
-              <Send size={13} /> Send immediately (no review)
+              <Send size={13} /> Send immediately
             </button>
           </div>
         </div>
       )}
 
-      {job && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            {job.status === "running" && <Loader2 size={13} className="animate-spin" style={{ color: "oklch(0.75 0.15 270)" }} />}
-            {job.status === "done"    && <CheckCircle size={13} style={{ color: "oklch(0.85 0.17 162)" }} />}
-            {job.status === "error"   && <XCircle size={13} style={{ color: "oklch(0.65 0.2 25)" }} />}
-            <span style={{ fontSize: 11, fontWeight: 700, color: job.status === "done" ? "oklch(0.85 0.17 162)" : job.status === "error" ? "oklch(0.65 0.2 25)" : "oklch(0.75 0.15 270)" }}>
-              {job.status === "running" ? "Running…" : job.status === "done" ? "Complete — check Drafts tab above" : "Error"}
-            </span>
-            <span style={{ fontSize: 10, color: "oklch(0.4 0.01 264)" }}>
-              {job.mode?.toUpperCase()} · {job.limit} limit · {job.draftOnly ? "DRAFTS" : job.dryRun ? "DRY RUN" : "LIVE SEND"}
-            </span>
-          </div>
-          <div ref={logRef}
-            style={{ height: 160, overflowY: "auto", background: "oklch(0.1 0.01 264)", borderRadius: 8, padding: "10px 12px",
-              fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "oklch(0.6 0.01 264)" }}>
-            {job.log.length === 0
-              ? <span style={{ color: "oklch(0.35 0.01 264)" }}>Starting…</span>
-              : job.log.map((line, i) => {
-                  const isGood = line.includes("✓") || line.includes("Done") || line.includes("draft");
-                  const isBad  = line.includes("[err]") || line.includes("✗");
-                  return (
-                    <div key={i} style={{ color: isGood ? "oklch(0.85 0.17 162)" : isBad ? "oklch(0.65 0.2 25)" : "oklch(0.6 0.01 264)" }}>
-                      {line}
-                    </div>
-                  );
-                })}
-          </div>
+      {job && job.log.length > 0 && (
+        <div ref={logRef}
+          style={{ marginTop: 12, height: 100, overflowY: "auto", background: "oklch(0.1 0.01 264)", borderRadius: 8, padding: "8px 10px",
+            fontFamily: "monospace", fontSize: 10, lineHeight: 1.5, color: "oklch(0.6 0.01 264)" }}>
+          {job.log.slice(-30).map((line, i) => (
+            <div key={i} style={{ color: line.includes("✓") || line.includes("draft") ? "oklch(0.85 0.17 162)" : line.includes("[err]") ? "oklch(0.65 0.2 25)" : "oklch(0.6 0.01 264)" }}>
+              {line}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -572,18 +609,16 @@ export default function Outreach() {
         <div className="mb-6">
           <h1 className="text-xl font-bold">Outreach Dashboard</h1>
           <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-            Generate drafts, preview each email, approve before sending. Sent mail and replies live in the inbox below.
+            Drafts auto-fill when you open this page. Preview, approve, and send — one email per firm.
           </p>
         </div>
 
-        {/* Web inbox first — primary workflow */}
         <div style={{ marginBottom: 24 }}>
-          <WebInbox key={inboxKey} onRefresh={refreshAll} />
+          <DraftGeneratorBar onLaunched={refreshAll} />
         </div>
 
-        {/* Campaign generator */}
         <div style={{ marginBottom: 24 }}>
-          <CampaignLauncher onLaunched={refreshAll} />
+          <WebInbox key={inboxKey} onRefresh={refreshAll} />
         </div>
 
         {/* Tracking section */}

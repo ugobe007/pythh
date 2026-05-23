@@ -141,15 +141,46 @@ async function sendEmail({ to, subject, html, text, meta = {} }) {
 
 // ── Dedup log ─────────────────────────────────────────────────────────────────
 
-async function alreadySent({ email, emailType, campaign }) {
-  if (DRY_RUN || DRAFT_ONLY) return false;
+function normalizeFirmKey(inv) {
+  const firm = (inv.firm && inv.firm !== "null" ? String(inv.firm) : "").trim();
+  if (firm) return firm.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const email = (inv.email_best_guess ?? "").toLowerCase();
+  const domain = email.split("@")[1] ?? "";
+  const generic = new Set(["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"]);
+  if (domain && !generic.has(domain)) return `domain:${domain}`;
+  return `investor:${inv.id}`;
+}
+
+async function loadContactedFirmKeys(emailType, campaign) {
+  const { data: rows } = await db
+    .from("pythh_prospecting_log")
+    .select("target_id")
+    .eq("email_type", emailType)
+    .eq("campaign_slug", campaign)
+    .in("status", ["sent", "draft"]);
+
+  const ids = [...new Set((rows ?? []).map((r) => r.target_id).filter(Boolean))];
+  if (ids.length === 0) return new Set();
+
+  const { data: invs } = await db
+    .from("investors")
+    .select("id, firm, name, email_best_guess")
+    .in("id", ids);
+
+  const keys = new Set();
+  for (const inv of invs ?? []) keys.add(normalizeFirmKey(inv));
+  return keys;
+}
+
+async function alreadyContacted({ email, emailType, campaign }) {
+  if (DRY_RUN) return false;
   const { data } = await db
     .from("pythh_prospecting_log")
     .select("id")
     .eq("email", email)
     .eq("email_type", emailType)
     .eq("campaign_slug", campaign)
-    .eq("status", "sent")
+    .in("status", ["sent", "draft"])
     .limit(1);
   return (data?.length ?? 0) > 0;
 }
@@ -210,10 +241,14 @@ async function runVcMode() {
     .not("email_best_guess", "is", null)
     .in("email_status", ["inferred", "verified"])
     .order("investor_score", { ascending: false, nullsFirst: false })
-    .limit(LIMIT * 3);
+    .limit(LIMIT * 8);
 
   if (error) { console.error("[VC mode] DB error:", error); return; }
   console.log(`[VC mode] Found ${investors?.length ?? 0} candidate investors`);
+
+  const contactedFirms = await loadContactedFirmKeys("vc_leads", CAMPAIGN);
+  const seenFirms = new Set(contactedFirms);
+  console.log(`[VC mode] Firm dedup: ${seenFirms.size} firm(s) already drafted/sent in ${CAMPAIGN}`);
 
   const { data: startupPool } = await db
     .from("startup_uploads")
@@ -233,8 +268,16 @@ async function runVcMode() {
     const email = inv.email_best_guess;
     if (!email) continue;
 
-    if (await alreadySent({ email, emailType: "vc_leads", campaign: CAMPAIGN })) {
-      console.log(`  [skip] ${email} already contacted in campaign ${CAMPAIGN}`);
+    const firmKey = normalizeFirmKey(inv);
+    if (seenFirms.has(firmKey)) {
+      const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? email;
+      console.log(`  [skip] ${inv.name ?? email} — firm already covered (${firmLabel})`);
+      continue;
+    }
+
+    if (await alreadyContacted({ email, emailType: "vc_leads", campaign: CAMPAIGN })) {
+      console.log(`  [skip] ${email} already drafted/sent in campaign ${CAMPAIGN}`);
+      seenFirms.add(firmKey);
       continue;
     }
 
@@ -260,6 +303,7 @@ async function runVcMode() {
       : "seed to Series A";
 
     const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
+    const displayName = inv.name ? `${inv.name} · ${firmLabel}` : firmLabel;
     const greeting = outreachGreeting({ ...inv, firm: firmLabel }, emailType);
     const subject = emailType === "personal"
       ? `Signals forming in ${primarySector} — aligned with your orbit`
@@ -274,7 +318,7 @@ async function runVcMode() {
       subject,
       html,
       text,
-      meta: { emailType: "vc_leads", targetId: inv.id, targetName: inv.name ?? firmLabel },
+      meta: { emailType: "vc_leads", targetId: inv.id, targetName: displayName },
     });
 
     if (result.ok && !DRAFT_ONLY) {
@@ -283,7 +327,7 @@ async function runVcMode() {
         actualRecipient: result.recipient,
         emailType: "vc_leads",
         targetId: inv.id,
-        targetName: inv.name ?? firmLabel,
+        targetName: displayName,
         subject: result.subject,
         html: result.html,
         text: result.text,
@@ -291,9 +335,11 @@ async function runVcMode() {
         campaign: CAMPAIGN,
       });
       sent++;
+      seenFirms.add(firmKey);
       console.log(`✓ (${sent}/${LIMIT})`);
     } else if (result.ok && DRAFT_ONLY) {
       sent++;
+      seenFirms.add(firmKey);
       console.log(`✓ draft (${sent}/${LIMIT})`);
     } else {
       console.log("✗ failed");
@@ -347,8 +393,8 @@ async function runStartupMode() {
       continue;
     }
 
-    if (await alreadySent({ email, emailType: "startup_matches", campaign: CAMPAIGN })) {
-      console.log(`  [skip] ${email} already contacted in campaign ${CAMPAIGN}`);
+    if (await alreadyContacted({ email, emailType: "startup_matches", campaign: CAMPAIGN })) {
+      console.log(`  [skip] ${email} already drafted/sent in campaign ${CAMPAIGN}`);
       continue;
     }
 

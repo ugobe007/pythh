@@ -41,7 +41,7 @@ function runMode(mode) {
 
   const child = spawn(
     process.execPath,
-    [AGENT, "--mode", mode, "--limit", LIMIT],
+    [AGENT, "--mode", mode, "--limit", LIMIT, "--draft-only"],
     { stdio: "inherit", env: process.env }
   );
 

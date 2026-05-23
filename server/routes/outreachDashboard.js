@@ -23,6 +23,63 @@ function makeJobId() {
   return crypto.randomBytes(6).toString("hex");
 }
 
+function defaultVcCampaign() {
+  return `vc-${new Date().toISOString().slice(0, 7)}`;
+}
+
+function spawnOutreachJob({ mode, limit, dryRun, draftOnly, campaign, testTo }) {
+  const jobId = makeJobId();
+  const job = {
+    status: "running",
+    log: [],
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    exitCode: null,
+    mode,
+    limit,
+    dryRun,
+    draftOnly,
+    campaign: campaign ?? defaultVcCampaign(),
+  };
+  jobs.set(jobId, job);
+
+  const agentScript = path.resolve(__dirname, "../../scripts/outreach-agent.js");
+  const args = ["--mode", mode, "--limit", String(limit)];
+  if (dryRun) args.push("--dry-run");
+  if (draftOnly) args.push("--draft-only");
+  if (job.campaign) args.push("--campaign", job.campaign);
+  if (testTo) args.push("--test-to", testTo);
+
+  const child = spawn("node", [agentScript, ...args], {
+    env: { ...process.env },
+    cwd: path.resolve(__dirname, "../../"),
+  });
+
+  function appendLog(line) {
+    job.log.push(line);
+    if (job.log.length > 2000) job.log.shift();
+  }
+
+  child.stdout.on("data", (d) => d.toString().split("\n").forEach((l) => l && appendLog(l)));
+  child.stderr.on("data", (d) => d.toString().split("\n").forEach((l) => l && appendLog(`[err] ${l}`)));
+
+  child.on("close", (code) => {
+    job.status = code === 0 ? "done" : "error";
+    job.exitCode = code;
+    job.finishedAt = new Date().toISOString();
+    setTimeout(() => jobs.delete(jobId), 60 * 60 * 1000);
+  });
+
+  return jobId;
+}
+
+function runningDraftJob() {
+  for (const [jobId, job] of jobs.entries()) {
+    if (job.status === "running" && job.draftOnly) return { jobId, job };
+  }
+  return null;
+}
+
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESEND_WEBHOOK_SECRET = process.env.RESEND_WEBHOOK_SECRET || "";
@@ -136,39 +193,61 @@ router.post("/run", express.json(), async (req, res) => {
     return res.status(400).json({ error: "limit must be 1–500" });
   }
 
-  const jobId = makeJobId();
-  const job = { status: "running", log: [], startedAt: new Date().toISOString(), finishedAt: null, exitCode: null, mode, limit, dryRun, draftOnly };
-  jobs.set(jobId, job);
-
-  const agentScript = path.resolve(__dirname, "../../scripts/outreach-agent.js");
-  const args = ["--mode", mode, "--limit", String(limit)];
-  if (dryRun)     args.push("--dry-run");
-  if (draftOnly)  args.push("--draft-only");
-  if (campaign)   args.push("--campaign", campaign);
-  if (testTo)     args.push("--test-to", testTo);
-
-  const child = spawn("node", [agentScript, ...args], {
-    env: { ...process.env },
-    cwd: path.resolve(__dirname, "../../"),
-  });
-
-  function appendLog(line) {
-    job.log.push(line);
-    if (job.log.length > 2000) job.log.shift(); // cap at 2000 lines
-  }
-
-  child.stdout.on("data", (d) => d.toString().split("\n").forEach((l) => l && appendLog(l)));
-  child.stderr.on("data", (d) => d.toString().split("\n").forEach((l) => l && appendLog(`[err] ${l}`)));
-
-  child.on("close", (code) => {
-    job.status    = code === 0 ? "done" : "error";
-    job.exitCode  = code;
-    job.finishedAt = new Date().toISOString();
-    // Auto-clean after 1 hour
-    setTimeout(() => jobs.delete(jobId), 60 * 60 * 1000);
-  });
-
+  const jobId = spawnOutreachJob({ mode, limit, dryRun, draftOnly, campaign, testTo });
   res.json({ jobId, status: "running" });
+});
+
+// ── POST /api/outreach/ensure-drafts ──────────────────────────────────────────
+// Auto-generate VC drafts when inbox is empty (or below threshold).
+router.post("/ensure-drafts", express.json(), async (req, res) => {
+  try {
+    const minDrafts = parseInt(process.env.OUTREACH_MIN_DRAFTS ?? "10", 10);
+    const limit = parseInt(process.env.OUTREACH_AUTO_LIMIT ?? String(req.body?.limit ?? 20), 10);
+    const campaign = req.body?.campaign || defaultVcCampaign();
+
+    const running = runningDraftJob();
+    if (running) {
+      return res.json({
+        triggered: false,
+        reason: "already_running",
+        jobId: running.jobId,
+        draftCount: null,
+      });
+    }
+
+    const { count, error } = await db
+      .from("pythh_prospecting_log")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "draft")
+      .eq("email_type", "vc_leads")
+      .eq("campaign_slug", campaign);
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    const draftCount = count ?? 0;
+    if (draftCount >= minDrafts) {
+      return res.json({ triggered: false, reason: "enough_drafts", draftCount, campaign });
+    }
+
+    const jobId = spawnOutreachJob({
+      mode: "vc",
+      limit,
+      dryRun: false,
+      draftOnly: true,
+      campaign,
+    });
+
+    res.json({
+      triggered: true,
+      reason: "generating",
+      jobId,
+      draftCount,
+      target: minDrafts,
+      campaign,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── GET /api/outreach/run/:id ─────────────────────────────────────────────────
