@@ -27,7 +27,7 @@ function defaultVcCampaign() {
   return `vc-${new Date().toISOString().slice(0, 7)}`;
 }
 
-function spawnOutreachJob({ mode, limit, dryRun, draftOnly, campaign, testTo }) {
+function spawnOutreachJob({ mode, limit, dryRun, draftOnly, campaign, testTo, regenerateIds }) {
   const jobId = makeJobId();
   const job = {
     status: "running",
@@ -35,20 +35,26 @@ function spawnOutreachJob({ mode, limit, dryRun, draftOnly, campaign, testTo }) 
     startedAt: new Date().toISOString(),
     finishedAt: null,
     exitCode: null,
-    mode,
+    mode: regenerateIds?.length ? "regenerate" : mode,
     limit,
     dryRun,
     draftOnly,
+    regenerate: Boolean(regenerateIds?.length),
     campaign: campaign ?? defaultVcCampaign(),
   };
   jobs.set(jobId, job);
 
   const agentScript = path.resolve(__dirname, "../../scripts/outreach-agent.js");
-  const args = ["--mode", mode, "--limit", String(limit)];
-  if (dryRun) args.push("--dry-run");
-  if (draftOnly) args.push("--draft-only");
-  if (job.campaign) args.push("--campaign", job.campaign);
-  if (testTo) args.push("--test-to", testTo);
+  const args = [];
+  if (regenerateIds?.length) {
+    args.push("--regenerate-ids", regenerateIds.join(","));
+  } else {
+    args.push("--mode", mode, "--limit", String(limit));
+    if (dryRun) args.push("--dry-run");
+    if (draftOnly) args.push("--draft-only");
+    if (job.campaign) args.push("--campaign", job.campaign);
+    if (testTo) args.push("--test-to", testTo);
+  }
 
   const child = spawn("node", [agentScript, ...args], {
     env: { ...process.env },
@@ -73,9 +79,16 @@ function spawnOutreachJob({ mode, limit, dryRun, draftOnly, campaign, testTo }) 
   return jobId;
 }
 
+function runningOutreachJob() {
+  for (const [jobId, job] of jobs.entries()) {
+    if (job.status === "running") return { jobId, job };
+  }
+  return null;
+}
+
 function runningDraftJob() {
   for (const [jobId, job] of jobs.entries()) {
-    if (job.status === "running" && job.draftOnly) return { jobId, job };
+    if (job.status === "running" && job.draftOnly && !job.regenerate) return { jobId, job };
   }
   return null;
 }
@@ -364,7 +377,7 @@ router.get("/run/:id", (req, res) => {
     mode:       job.mode,
     limit:      job.limit,
     dryRun:     job.dryRun,
-    draftOnly:  job.draftOnly,
+    regenerate:  job.regenerate,
   });
 });
 
@@ -429,11 +442,57 @@ router.get("/inbox", async (req, res) => {
   }
 });
 
+// ── POST /api/outreach/regenerate-drafts ──────────────────────────────────────
+router.post("/regenerate-drafts", express.json(), async (req, res) => {
+  try {
+    const { ids, all } = req.body ?? {};
+    let draftIds = Array.isArray(ids) ? ids.filter(Boolean) : [];
+
+    if (all) {
+      const { data, error } = await db
+        .from("pythh_prospecting_log")
+        .select("id")
+        .eq("status", "draft");
+      if (error) return res.status(500).json({ error: error.message });
+      draftIds = (data ?? []).map((d) => d.id);
+    }
+
+    if (draftIds.length === 0) {
+      return res.status(400).json({ error: "ids array required, or set all: true" });
+    }
+    if (draftIds.length > 100) {
+      return res.status(400).json({ error: "Max 100 drafts per regenerate job" });
+    }
+
+    const running = runningOutreachJob();
+    if (running) {
+      return res.json({
+        triggered: false,
+        reason: "already_running",
+        jobId: running.jobId,
+      });
+    }
+
+    const jobId = spawnOutreachJob({ regenerateIds: draftIds });
+    res.json({ triggered: true, jobId, status: "running", count: draftIds.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── POST /api/outreach/send-drafts ────────────────────────────────────────────
 router.post("/send-drafts", express.json(), async (req, res) => {
-  const { ids } = req.body ?? {};
+  let { ids, all } = req.body ?? {};
+  if (all) {
+    const { data, error } = await db
+      .from("pythh_prospecting_log")
+      .select("id")
+      .eq("status", "draft");
+    if (error) return res.status(500).json({ error: error.message });
+    ids = (data ?? []).map((d) => d.id);
+  }
   if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: "ids array required" });
+    return res.status(400).json({ error: "ids array required, or set all: true" });
   }
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) return res.status(503).json({ error: "RESEND_API_KEY not configured" });

@@ -42,6 +42,7 @@ const {
 } = require("../lib/pythiaVoice.js");
 const { normalizeFirmKey, pickOnePerFirm } = require("../lib/outreachFirmDedup.js");
 const { getOutreachFromAddress } = require("../lib/outreachFrom.js");
+const { pickMarketObservation } = require("../lib/outreachMarketIntel.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
 const envPath = new URL("../.env", import.meta.url).pathname;
@@ -62,6 +63,10 @@ const DRY_RUN    = has("--dry-run");
 const DRAFT_ONLY = has("--draft-only");
 const TEST_TO    = flag("--test-to");                    // override all To: addresses
 const CAMPAIGN   = flag("--campaign") ?? `${MODE}-${new Date().toISOString().slice(0, 7)}`; // e.g. vc-2026-05
+const REGENERATE_IDS = (flag("--regenerate-ids") ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const NOTIFY_TO  = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
@@ -233,6 +238,223 @@ async function logSent({ email, actualRecipient, emailType, targetId, targetName
   });
 }
 
+// ── Shared email builders (draft + regenerate) ────────────────────────────────
+
+function buildVcEmailBundle(inv, startupPool, usedObservationCompanies, campaign) {
+  const email = inv.email_best_guess;
+  if (!email) return null;
+
+  const invSectors = Array.isArray(inv.sectors) ? inv.sectors : [inv.sectors ?? "technology"];
+  const primarySector = invSectors[0] ?? "technology";
+  const emailType = classifyOutreachEmail(email, inv.name);
+
+  const ranked = rankStartupsForInvestor(inv, startupPool ?? [], { limit: 10, minScore: 35 });
+  const leads = ranked.map((r) => ({
+    ...r.startup,
+    match_score: r.match_score,
+    match_reason: r.match_reason,
+    is_super_match: r.is_super_match,
+  }));
+
+  if (leads.length === 0) return null;
+
+  const checkSize = inv.check_size_min
+    ? `$${Math.round(inv.check_size_min / 1000)}K–$${Math.round((inv.check_size_max ?? inv.check_size_min * 5) / 1000)}K`
+    : "seed to Series A";
+
+  const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
+  const displayName = inv.name ? `${inv.name} · ${firmLabel}` : firmLabel;
+  const greeting = outreachGreeting({ ...inv, firm: firmLabel }, emailType);
+  const marketObservation = pickMarketObservation({
+    investor: inv,
+    leads,
+    usedCompanies: usedObservationCompanies,
+    campaign,
+  });
+  const subject = vcSubject({
+    sector: primarySector,
+    firm: firmLabel,
+    emailType,
+    count: leads.length,
+  });
+  const investorCtx = { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType };
+  const html = vcEmail({ investor: investorCtx, leads, greeting, marketObservation });
+  const text = vcEmailText({ investor: investorCtx, leads, greeting, marketObservation });
+
+  return { email, subject, html, text, displayName, emailType, leadCount: leads.length };
+}
+
+function buildStartupEmailBundle(startup, investorPool) {
+  const email = startup.submitted_email;
+  if (!email) return null;
+
+  const ranked = rankInvestorsForStartup(startup, investorPool ?? [], { limit: 5, minScore: 35 });
+  if (ranked.length === 0) return null;
+
+  const founderName = email.split("@")[0].replace(/[._+-]/g, " ");
+  const user = { name: founderName, email };
+  const startupLabel = (startup.name ?? startup.website ?? "your startup").trim();
+  const subject = `Who recognizes ${startupLabel} now — ${ranked.length} investors aligned`;
+  const html = startupEmail({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
+  const text = startupEmailText({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
+
+  return { email, subject, html, text, displayName: startupLabel, matchCount: ranked.length };
+}
+
+const INVESTOR_SELECT =
+  "id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, email_best_guess, notable_investments, signals, investment_thesis";
+const STARTUP_POOL_SELECT =
+  "id, name, website, sectors, total_god_score, stage, tagline, latest_funding_amount, raise_amount, extracted_data";
+const STARTUP_CONTACT_SELECT =
+  "id, name, website, sectors, total_god_score, stage, tagline, submitted_email";
+
+async function loadStartupPool() {
+  const { data, error } = await db
+    .from("startup_uploads")
+    .select(STARTUP_POOL_SELECT)
+    .gte("total_god_score", 40)
+    .eq("status", "approved")
+    .order("total_god_score", { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadInvestorPool() {
+  const { data, error } = await db
+    .from("investors")
+    .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, notable_investments, signals, investment_thesis")
+    .order("investor_score", { ascending: false, nullsFirst: false })
+    .limit(800);
+  if (error) throw error;
+  return data ?? [];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REGENERATE — refresh HTML/subject for existing draft rows
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function runRegenerateMode() {
+  console.log(`\n[Regenerate] Refreshing ${REGENERATE_IDS.length} draft(s)…\n`);
+
+  const { data: drafts, error } = await db
+    .from("pythh_prospecting_log")
+    .select("*")
+    .in("id", REGENERATE_IDS)
+    .eq("status", "draft");
+
+  if (error) {
+    console.error("[Regenerate] DB error:", error);
+    return;
+  }
+  if (!drafts?.length) {
+    console.log("[Regenerate] No draft rows found for those ids.");
+    return;
+  }
+
+  const needsVc = drafts.some((d) => d.email_type === "vc_leads");
+  const needsStartup = drafts.some((d) => d.email_type === "startup_matches");
+
+  let startupPool = [];
+  let investorPool = [];
+  if (needsVc) {
+    startupPool = await loadStartupPool();
+    console.log(`[Regenerate] Loaded ${startupPool.length} startups for VC drafts`);
+  }
+  if (needsStartup) {
+    investorPool = await loadInvestorPool();
+    console.log(`[Regenerate] Loaded ${investorPool.length} investors for startup drafts\n`);
+  }
+
+  const usedObservationCompanies = new Set();
+  let updated = 0;
+
+  for (const draft of drafts) {
+    process.stdout.write(`  Regenerating ${draft.target_name ?? draft.email}… `);
+
+    if (draft.email_type === "vc_leads") {
+      const { data: inv, error: invErr } = await db
+        .from("investors")
+        .select(INVESTOR_SELECT)
+        .eq("id", draft.target_id)
+        .maybeSingle();
+
+      if (invErr || !inv) {
+        console.log("✗ investor not found");
+        continue;
+      }
+
+      const bundle = buildVcEmailBundle(
+        inv,
+        startupPool,
+        usedObservationCompanies,
+        draft.campaign_slug ?? CAMPAIGN
+      );
+      if (!bundle) {
+        console.log("✗ no matches");
+        continue;
+      }
+
+      const { error: upErr } = await db
+        .from("pythh_prospecting_log")
+        .update({
+          subject: bundle.subject,
+          html_body: bundle.html,
+          text_body: bundle.text,
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", draft.id)
+        .eq("status", "draft");
+
+      if (upErr) {
+        console.log("✗ update failed");
+        continue;
+      }
+      updated++;
+      console.log(`✓ (${bundle.leadCount} signals)`);
+    } else if (draft.email_type === "startup_matches") {
+      const { data: startup, error: stErr } = await db
+        .from("startup_uploads")
+        .select(STARTUP_CONTACT_SELECT)
+        .eq("id", draft.target_id)
+        .maybeSingle();
+
+      if (stErr || !startup) {
+        console.log("✗ startup not found");
+        continue;
+      }
+
+      const bundle = buildStartupEmailBundle(startup, investorPool);
+      if (!bundle) {
+        console.log("✗ no matches");
+        continue;
+      }
+
+      const { error: upErr } = await db
+        .from("pythh_prospecting_log")
+        .update({
+          subject: bundle.subject,
+          html_body: bundle.html,
+          text_body: bundle.text,
+          sent_at: new Date().toISOString(),
+        })
+        .eq("id", draft.id)
+        .eq("status", "draft");
+
+      if (upErr) {
+        console.log("✗ update failed");
+        continue;
+      }
+      updated++;
+      console.log(`✓ (${bundle.matchCount} matches)`);
+    } else {
+      console.log("✗ unknown email type");
+    }
+  }
+
+  console.log(`\n[Regenerate] Done. Updated ${updated}/${drafts.length} draft(s).`);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // VC MODE — send 10 hot startup leads to VC firms
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -242,7 +464,7 @@ async function runVcMode() {
 
   const { data: investors, error } = await db
     .from("investors")
-    .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, email_best_guess, notable_investments, signals, investment_thesis")
+    .select(INVESTOR_SELECT)
     .not("email_best_guess", "is", null)
     .in("email_status", ["inferred", "verified"])
     .order("investor_score", { ascending: false, nullsFirst: false })
@@ -258,17 +480,11 @@ async function runVcMode() {
   const seenFirms = new Set(contactedFirms);
   console.log(`[VC mode] ${seenFirms.size} firm(s) already drafted/sent in ${CAMPAIGN}`);
 
-  const { data: startupPool } = await db
-    .from("startup_uploads")
-    .select("id, name, website, sectors, total_god_score, stage, tagline")
-    .gte("total_god_score", 40)
-    .eq("status", "approved")
-    .order("total_god_score", { ascending: false })
-    .limit(500);
-
-  console.log(`[VC mode] Scoring against ${startupPool?.length ?? 0} approved startups\n`);
+  const startupPool = await loadStartupPool();
+  console.log(`[VC mode] Scoring against ${startupPool.length} approved startups\n`);
 
   let sent = 0;
+  const usedObservationCompanies = new Set();
 
   for (const inv of deduped) {
     if (sent >= LIMIT) break;
@@ -289,41 +505,16 @@ async function runVcMode() {
       continue;
     }
 
-    const invSectors = Array.isArray(inv.sectors) ? inv.sectors : [inv.sectors ?? "technology"];
-    const primarySector = invSectors[0] ?? "technology";
-    const emailType = classifyOutreachEmail(email, inv.name);
-
-    const ranked = rankStartupsForInvestor(inv, startupPool ?? [], { limit: 10, minScore: 35 });
-    const leads = ranked.map((r) => ({
-      ...r.startup,
-      match_score: r.match_score,
-      match_reason: r.match_reason,
-      is_super_match: r.is_super_match,
-    }));
-
-    if (leads.length === 0) {
+    const bundle = buildVcEmailBundle(inv, startupPool, usedObservationCompanies, CAMPAIGN);
+    if (!bundle) {
       console.log(`  [skip] No scored matches for ${inv.name}`);
       continue;
     }
 
-    const checkSize = inv.check_size_min
-      ? `$${Math.round(inv.check_size_min / 1000)}K–$${Math.round((inv.check_size_max ?? inv.check_size_min * 5) / 1000)}K`
-      : "seed to Series A";
-
+    const { subject, html, text, displayName, emailType, leadCount } = bundle;
     const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
-    const displayName = inv.name ? `${inv.name} · ${firmLabel}` : firmLabel;
-    const greeting = outreachGreeting({ ...inv, firm: firmLabel }, emailType);
-    const subject = vcSubject({
-      sector: primarySector,
-      firm: firmLabel,
-      emailType,
-      count: leads.length,
-    });
 
-    const html = vcEmail({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType }, leads, greeting });
-    const text = vcEmailText({ investor: { ...inv, firm: firmLabel, sector: primarySector, checkSize, emailType }, leads, greeting });
-
-    process.stdout.write(`  Sending to ${inv.name} <${email}> [${emailType}] (${leads.length} signals)… `);
+    process.stdout.write(`  Sending to ${inv.name} <${email}> [${emailType}] (${leadCount} signals)… `);
     const result = await sendEmail({
       to: email,
       subject,
@@ -383,13 +574,8 @@ async function runStartupMode() {
   if (error) { console.error("[Startup mode] DB error:", error); return; }
   console.log(`[Startup mode] Found ${startups?.length ?? 0} startups with emails`);
 
-  const { data: investorPool } = await db
-    .from("investors")
-    .select("id, name, firm, sectors, stage, check_size_min, check_size_max, investor_score, investor_tier, notable_investments, signals, investment_thesis")
-    .order("investor_score", { ascending: false, nullsFirst: false })
-    .limit(800);
-
-  console.log(`[Startup mode] Scoring against ${investorPool?.length ?? 0} investors\n`);
+  const investorPool = await loadInvestorPool();
+  console.log(`[Startup mode] Scoring against ${investorPool.length} investors\n`);
 
   let sent = 0;
 
@@ -409,21 +595,15 @@ async function runStartupMode() {
       continue;
     }
 
-    const ranked = rankInvestorsForStartup(startup, investorPool ?? [], { limit: 5, minScore: 35 });
-
-    if (ranked.length === 0) {
+    const bundle = buildStartupEmailBundle(startup, investorPool);
+    if (!bundle) {
       console.log(`  [skip] No scored matches for ${startup.name ?? startup.website}`);
       continue;
     }
 
-    const founderName = email.split("@")[0].replace(/[._+-]/g, " ");
-    const user = { name: founderName, email };
-    const startupLabel = (startup.name ?? startup.website ?? "your startup").trim();
-    const subject = `Who recognizes ${startupLabel} now — ${ranked.length} investors aligned`;
-    const html = startupEmail({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
-    const text = startupEmailText({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
+    const { subject, html, text, displayName: startupLabel, matchCount } = bundle;
 
-    process.stdout.write(`  Sending to ${email} (${startupLabel}, ${ranked.length} matches)… `);
+    process.stdout.write(`  Sending to ${email} (${startupLabel}, ${matchCount} matches)… `);
     const result = await sendEmail({
       to: email,
       subject,
@@ -466,7 +646,7 @@ async function runStartupMode() {
 
 // ── VC leads email (HTML) ─────────────────────────────────────────────────────
 
-function vcEmail({ investor, leads, greeting }) {
+function vcEmail({ investor, leads, greeting, marketObservation }) {
   const sector = investor.sector ?? "technology";
   const emailType = investor.emailType ?? "intake";
   const isPersonal = emailType === "personal";
@@ -511,6 +691,7 @@ function vcEmail({ investor, leads, greeting }) {
     firm: investor.firm,
     isPersonal,
     count: leads.length,
+    marketObservation,
   });
   const footnote = vcFootnote();
   const methodology = vcMethodology({
@@ -604,7 +785,7 @@ function vcEmail({ investor, leads, greeting }) {
 </html>`;
 }
 
-function vcEmailText({ investor, leads, greeting }) {
+function vcEmailText({ investor, leads, greeting, marketObservation }) {
   const sector = investor.sector ?? "technology";
   const isPersonal = (investor.emailType ?? "intake") === "personal";
   const headline = vcHeadline({ sector, count: leads.length });
@@ -613,6 +794,7 @@ function vcEmailText({ investor, leads, greeting }) {
     firm: investor.firm,
     isPersonal,
     count: leads.length,
+    marketObservation,
   });
   const methodology = vcMethodology({
     firm: investor.firm,
@@ -840,10 +1022,13 @@ console.log(`│  limit:    ${String(LIMIT).padEnd(38)}│`);
 console.log(`│  campaign: ${CAMPAIGN.padEnd(38)}│`);
 console.log(`│  dry run:  ${String(DRY_RUN).padEnd(38)}│`);
 console.log(`│  drafts:   ${String(DRAFT_ONLY).padEnd(38)}│`);
+console.log(`│  regen:    ${String(REGENERATE_IDS.length || "—").padEnd(38)}│`);
 console.log(`│  test to:  ${(TEST_TO ?? "—").padEnd(38)}│`);
 console.log("└─────────────────────────────────────────────────┘");
 
-if (MODE === "vc") {
+if (REGENERATE_IDS.length > 0) {
+  await runRegenerateMode();
+} else if (MODE === "vc") {
   await runVcMode();
 } else if (MODE === "startup") {
   await runStartupMode();

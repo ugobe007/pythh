@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Send, RefreshCw, Mail, Eye, ExternalLink, Loader2,
-  FileText, Inbox, MessageSquare, X, CheckSquare, Square, AlertCircle,
+  FileText, Inbox, MessageSquare, X, CheckSquare, Square, AlertCircle, RotateCw,
 } from "lucide-react";
 import { apiUrl } from "../lib/apiConfig";
 
@@ -167,6 +167,8 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenJobId, setRegenJobId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
   const loadInbox = useCallback(async () => {
@@ -188,6 +190,28 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
 
   useEffect(() => { loadInbox(); }, [loadInbox]);
 
+  useEffect(() => {
+    if (!regenJobId) return;
+    const interval = setInterval(async () => {
+      const r = await fetch(apiUrl(`/api/outreach/run/${regenJobId}`));
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j.status === "running") return;
+      clearInterval(interval);
+      setRegenJobId(null);
+      setRegenerating(false);
+      if (j.status === "done") {
+        alert("Draft(s) regenerated — preview to confirm before sending.");
+        setSelected(new Set());
+        loadInbox();
+        onRefresh();
+      } else {
+        alert("Regenerate failed — check server logs.");
+      }
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [regenJobId, loadInbox, onRefresh]);
+
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -201,34 +225,72 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
     else setSelected(new Set(drafts.map((d) => d.id)));
   }
 
-  async function sendSelected() {
-    if (selected.size === 0) return;
-    if (!confirm(`Send ${selected.size} approved draft(s) via Resend? This cannot be undone.`)) return;
+  function reportSendResult(d: { sent?: number; failed?: number; from?: string; hint?: string; results?: { ok?: boolean; message?: string }[] }, rOk: boolean, err?: string) {
+    if (!rOk) { alert(err ?? "Send failed"); return false; }
+    if ((d.failed ?? 0) > 0) {
+      const firstErr = d.results?.find((x) => !x.ok)?.message;
+      const lines = [`Sent ${d.sent}, failed ${d.failed}.`];
+      if (firstErr) lines.push(firstErr);
+      if (d.hint) lines.push(d.hint);
+      if (d.from) lines.push(`From: ${d.from}`);
+      alert(lines.join("\n\n"));
+      if (d.failed === d.results?.length) setTab("failed");
+    } else {
+      alert(`Sent ${d.sent} email(s) via ${d.from ?? "Resend"}.`);
+    }
+    return true;
+  }
+
+  async function sendDraftPayload(body: { ids?: string[]; all?: boolean }) {
     setSending(true);
     try {
       const r = await fetch(apiUrl("/api/outreach/send-drafts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected) }),
+        body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (!r.ok) { alert(d.error ?? "Send failed"); return; }
-      if (d.failed > 0) {
-        const firstErr = d.results?.find((x: { ok?: boolean; message?: string }) => !x.ok)?.message;
-        const lines = [`Sent ${d.sent}, failed ${d.failed}.`];
-        if (firstErr) lines.push(firstErr);
-        if (d.hint) lines.push(d.hint);
-        if (d.from) lines.push(`From: ${d.from}`);
-        alert(lines.join("\n\n"));
-        if (d.failed === d.results?.length) setTab("failed");
-      } else {
-        alert(`Sent ${d.sent} email(s) via ${d.from ?? "Resend"}.`);
-      }
+      if (!reportSendResult(d, r.ok, d.error)) return;
       setSelected(new Set());
       loadInbox();
       onRefresh();
     } finally {
       setSending(false);
+    }
+  }
+
+  async function sendSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Send ${selected.size} approved draft(s) via Resend? This cannot be undone.`)) return;
+    await sendDraftPayload({ ids: Array.from(selected) });
+  }
+
+  async function sendAllDrafts() {
+    if (drafts.length === 0) return;
+    if (!confirm(`Send all ${drafts.length} draft(s) via Resend? This cannot be undone.`)) return;
+    await sendDraftPayload({ all: true });
+  }
+
+  async function regenerateSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Regenerate ${selected.size} draft(s)? Fresh matches, voice, and market intel — same recipients.`)) return;
+    setRegenerating(true);
+    try {
+      const r = await fetch(apiUrl("/api/outreach/regenerate-drafts"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error ?? "Regenerate failed"); setRegenerating(false); return; }
+      if (!d.triggered) {
+        alert(d.reason === "already_running" ? "Another outreach job is already running." : "Regenerate failed");
+        setRegenerating(false);
+        return;
+      }
+      setRegenJobId(d.jobId);
+    } catch {
+      setRegenerating(false);
     }
   }
 
@@ -289,17 +351,28 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
 
       {/* Draft actions */}
       {tab === "drafts" && drafts.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: "oklch(0.12 0.01 264)", borderRadius: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: "oklch(0.12 0.01 264)", borderRadius: 8, flexWrap: "wrap" }}>
           <button onClick={selectAllDrafts} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", background: "transparent", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 6, cursor: "pointer", fontSize: 11, color: "oklch(0.6 0.01 264)" }}>
             {selected.size === drafts.length ? <CheckSquare size={13} /> : <Square size={13} />}
             {selected.size === drafts.length ? "Deselect all" : "Select all"}
           </button>
           <span style={{ fontSize: 11, color: "oklch(0.45 0.01 264)" }}>{selected.size} selected</span>
-          <button onClick={sendSelected} disabled={selected.size === 0 || sending}
-            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+          <button onClick={regenerateSelected} disabled={selected.size === 0 || regenerating || sending}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: "pointer",
+              border: "1px solid oklch(0.35 0.15 270)", background: selected.size > 0 && !regenerating ? "oklch(0.18 0.01 264)" : "transparent",
+              color: selected.size > 0 ? "oklch(0.75 0.15 270)" : "oklch(0.4 0.01 264)", opacity: regenerating ? 0.6 : 1 }}>
+            {regenerating ? <><Loader2 size={13} className="animate-spin" /> Regenerating…</> : <><RotateCw size={13} /> Regenerate Selected</>}
+          </button>
+          <button onClick={sendAllDrafts} disabled={sending || regenerating}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
+              border: "1px solid oklch(0.55 0.2 25)", background: "oklch(0.45 0.18 25)", color: "#fff", marginLeft: "auto", opacity: sending ? 0.6 : 1 }}>
+            {sending ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Send All ({drafts.length})</>}
+          </button>
+          <button onClick={sendSelected} disabled={selected.size === 0 || sending || regenerating}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",
               border: "1px solid oklch(0.65 0.2 25)", background: selected.size > 0 ? "oklch(0.55 0.2 25)" : "transparent",
               color: selected.size > 0 ? "#fff" : "oklch(0.4 0.01 264)", opacity: sending ? 0.6 : 1 }}>
-            {sending ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Approve & Send Selected</>}
+            {sending ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : <><Send size={13} /> Send Selected</>}
           </button>
         </div>
       )}
