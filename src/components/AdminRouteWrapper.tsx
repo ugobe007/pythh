@@ -37,6 +37,7 @@ export function AdminRouteWrapper() {
       'portfolio': 'Virtual Portfolio',
       'lp-targets': 'LP Targets',
       'signal-feed': 'Signal Feed',
+      'outreach': 'Outreach',
     };
     return pageNames[path] || path.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };

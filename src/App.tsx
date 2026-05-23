@@ -196,6 +196,7 @@ const PortfolioDetailPage = lazy(() => import("./pages/PortfolioDetailPage"));
 const IntelligencePage = lazy(() => import("./pages/IntelligencePage"));
 const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
 const LPTargetsPage = lazy(() => import("./pages/LPTargetsPage"));
+const AdminOutreachPage = lazy(() => import("./pages/AdminOutreachPage"));
 
 // -----------------------------------------------------------------------------
 // APP
@@ -322,6 +323,7 @@ const App = () => {
             <Route path="/matches/preview/:startupId" element={<MatchPreviewPage />} />
 
             <Route path="/admin-bypass" element={<AdminBypass />} />
+            <Route path="/outreach" element={<Navigate to="/admin/outreach" replace />} />
 
             {/* -----------------------------------------------------------------
                 APP (instrument mode)
@@ -390,6 +392,7 @@ const App = () => {
               <Route path="ml-dashboard" element={<MLDashboard />} />
               <Route path="portfolio" element={<AdminPortfolioPage />} />
               <Route path="lp-targets" element={<LPTargetsPage />} />
+              <Route path="outreach" element={<AdminOutreachPage />} />
             </Route>
 
             {/* 404 */}

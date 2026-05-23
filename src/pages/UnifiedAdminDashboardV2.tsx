@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Database, Activity, Cpu, RefreshCw, 
   Settings, ArrowRight, Rss, Users, BarChart3,
-  FileText, Search, Shield, AlertCircle, Brain, Briefcase
+  FileText, Search, Shield, AlertCircle, Brain, Briefcase, Send
 } from 'lucide-react';
 import { adminRpc } from '../services/adminRpc';
 import { GODScoreMonitor, SocialSignalsMonitor, SystemHealthAlerts } from '../components/admin';
@@ -200,6 +200,7 @@ export default function UnifiedAdminDashboard() {
               <QuickLink icon={Search} label="RSS Discoveries" route="/admin/discovered-startups" color="cyan" />
               <QuickLink icon={Users} label="Investors" route="/admin/discovered-investors" color="cyan" stat={`${stats.investors_total} total`} />
               <QuickLink icon={Rss} label="RSS Manager" route="/admin/rss-manager" color="cyan" />
+              <QuickLink icon={Send} label="Outreach (Peter)" route="/admin/outreach" color="emerald" />
             </div>
           </div>
         </div>

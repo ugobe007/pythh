@@ -4,7 +4,7 @@
  */
 
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck, Briefcase, Users, Radio } from 'lucide-react';
+import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck, Briefcase, Users, Radio, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AdminNavBarProps {
@@ -124,6 +124,18 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         >
           <Radio className="w-4 h-4" />
           <span>Signals</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
+          to="/admin/outreach" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/outreach')
+              ? 'bg-emerald-500/20 text-emerald-300 font-semibold' 
+              : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400/80 hover:text-emerald-300'
+          }`}
+        >
+          <Send className="w-4 h-4" />
+          <span>Outreach</span>
         </Link>
         <span className="text-gray-600">|</span>
         <Link 
