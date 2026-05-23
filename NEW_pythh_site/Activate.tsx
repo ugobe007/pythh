@@ -2077,7 +2077,7 @@ Worth a conversation?
 // ─── Main Flow ────────────────────────────────────────────────────────────────
 
 export default function Activate() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [, navigate] = useLocation();
 
   // tRPC subscription check — only used when user tries to activate pipeline
@@ -2184,7 +2184,9 @@ export default function Activate() {
 
   const handleActivatePipeline = () => {
     const hasActivePlan =
-      subscription?.status === "active" || subscription?.status === "trialing";
+      user?.role === "admin" ||
+      subscription?.status === "active" ||
+      subscription?.status === "trialing";
     if (!isAuthenticated || !hasActivePlan) {
       // Not subscribed — return to home so they can start the journey
       navigate("/");

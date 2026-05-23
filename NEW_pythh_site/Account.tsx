@@ -7,6 +7,7 @@
  *
  * Access rules:
  *   - Unauthenticated → redirect to login
+ *   - Authenticated admin, no subscription → admin console links (no paywall)
  *   - Authenticated, no subscription → prompt to upgrade
  *   - Authenticated, active subscription → full dashboard
  */
@@ -27,6 +28,7 @@ import {
   ExternalLink,
   Loader2,
   LogOut,
+  Send,
   User,
   ArrowRight,
   FileText,
@@ -324,6 +326,53 @@ function PipelineRunHistoryCard() {
   );
 }
 
+// ─── Admin without Stripe subscription ──────────────────────────────────────
+
+function AdminAccountPanel({ userName }: { userName: string | null }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="max-w-lg mx-auto text-center py-16"
+    >
+      <div
+        className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+        style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)" }}
+      >
+        <ShieldCheck size={28} style={{ color: "oklch(0.696 0.17 162.48)" }} />
+      </div>
+      <h2 className="font-display font-bold text-2xl mb-3" style={{ color: "oklch(0.97 0.005 264)" }}>
+        Admin access{userName ? `, ${userName.split(" ")[0]}` : ""}
+      </h2>
+      <p className="text-sm leading-relaxed mb-8" style={{ color: "oklch(0.55 0.01 264)" }}>
+        Platform admin — outreach, scoring, and campaigns do not require an Oracle subscription.
+        Use the admin console to generate drafts, review emails, and run campaigns.
+      </p>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <Link href="/admin/outreach">
+          <button
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all"
+            style={{ backgroundColor: "oklch(0.55 0.2 25)", color: "#fff", border: "1px solid oklch(0.65 0.2 25)" }}
+          >
+            <Send size={15} />
+            Outreach
+          </button>
+        </Link>
+        <Link href="/admin">
+          <button
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all border"
+            style={{ borderColor: "oklch(0.696 0.17 162.48 / 0.35)", color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent" }}
+          >
+            <ShieldCheck size={15} />
+            Admin console
+          </button>
+        </Link>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── No-subscription state ────────────────────────────────────────────────────
 
 function NoSubscription({ userName }: { userName: string | null }) {
@@ -524,7 +573,10 @@ export default function Account() {
         </motion.div>
 
         {/* No subscription */}
-        {!subscription && (
+        {!subscription && user?.role === "admin" && (
+          <AdminAccountPanel userName={user?.name ?? null} />
+        )}
+        {!subscription && user?.role !== "admin" && (
           <NoSubscription userName={user?.name ?? null} />
         )}
 
