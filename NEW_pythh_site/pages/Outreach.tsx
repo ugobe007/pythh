@@ -308,7 +308,7 @@ function WebInbox({ onRefresh }: { onRefresh: () => void }) {
       {tab === "failed" && failed.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, padding: "10px 14px", background: "oklch(0.12 0.01 264)", borderRadius: 8 }}>
           <span style={{ fontSize: 11, color: "oklch(0.55 0.01 264)" }}>
-            Send failed — usually because pythh.ai is not verified in Resend yet. Retries use onboarding@resend.dev until you verify the domain.
+            Send failed — verify pythh.ai at resend.com/domains, then set OUTREACH_USE_PYTHH_DOMAIN=true on Fly. Until then, sends use onboarding@resend.dev automatically.
           </span>
           <button onClick={resetFailed} disabled={resetting}
             style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, borderRadius: 6, cursor: "pointer",

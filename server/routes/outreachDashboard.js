@@ -91,7 +91,7 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 const { normalizeFirmKey, recipientRank } = require("../../lib/outreachFirmDedup.js");
-const { getOutreachFromAddress } = require("../../lib/outreachFrom.js");
+const { getOutreachFromAddress, getOutreachFallbackAddress, isDomainNotVerifiedError } = require("../../lib/outreachFrom.js");
 
 /** Remove duplicate VC drafts — keep one recipient per firm (prefer intake@). */
 async function dedupeVcDrafts(campaign) {
@@ -438,9 +438,9 @@ router.post("/send-drafts", express.json(), async (req, res) => {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) return res.status(503).json({ error: "RESEND_API_KEY not configured" });
 
-  const fromAddress = getOutreachFromAddress();
   const fromName = process.env.OUTREACH_FROM_NAME || "PYTHIA at Pythh";
   const notifyTo = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
+  const fallbackFrom = getOutreachFallbackAddress();
 
   const { data: drafts, error } = await db
     .from("pythh_prospecting_log")
@@ -450,25 +450,44 @@ router.post("/send-drafts", express.json(), async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
 
   const results = [];
+  let usedFallback = false;
+
   for (const draft of drafts ?? []) {
     const recipient = draft.actual_recipient || draft.email;
-    const payload = {
-      from: `${fromName} <${fromAddress}>`,
-      to: [recipient],
-      reply_to: notifyTo,
-      subject: draft.subject,
-      html: draft.html_body,
-      text: draft.text_body || "",
+    let fromAddress = getOutreachFromAddress();
+
+    const buildPayload = (from) => {
+      const payload = {
+        from: `${fromName} <${from}>`,
+        to: [recipient],
+        reply_to: notifyTo,
+        subject: draft.subject,
+        html: draft.html_body,
+        text: draft.text_body || "",
+      };
+      if (notifyTo && notifyTo !== recipient) payload.bcc = [notifyTo];
+      return payload;
     };
-    if (notifyTo && notifyTo !== recipient) payload.bcc = [notifyTo];
 
     try {
-      const resp = await fetch("https://api.resend.com/emails", {
+      let resp = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildPayload(fromAddress)),
       });
-      const data = await resp.json().catch(() => ({}));
+      let data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok && isDomainNotVerifiedError(data) && fromAddress !== fallbackFrom) {
+        fromAddress = fallbackFrom;
+        usedFallback = true;
+        resp = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify(buildPayload(fromAddress)),
+        });
+        data = await resp.json().catch(() => ({}));
+      }
+
       if (!resp.ok) {
         const errMsg = data.message || data.error || JSON.stringify(data);
         results.push({ id: draft.id, ok: false, error: data, message: errMsg });
@@ -490,16 +509,19 @@ router.post("/send-drafts", express.json(), async (req, res) => {
 
   const sent = results.filter((r) => r.ok).length;
   const failed = results.filter((r) => !r.ok).length;
+  const primaryFrom = getOutreachFromAddress();
   res.json({
     sent,
     failed,
-    from: fromAddress,
+    from: sent > 0 ? (results.find((r) => r.ok)?.from ?? primaryFrom) : primaryFrom,
     results,
-    hint: failed > 0 && fromAddress.includes("resend.dev")
-      ? "Sending via onboarding@resend.dev until pythh.ai is verified in Resend."
-      : failed > 0
-        ? "Verify pythh.ai at resend.com/domains, then set RESEND_VERIFIED_DOMAIN=pythh.ai on Fly."
-        : undefined,
+    hint: sent > 0 && usedFallback
+      ? `pythh.ai is not verified in Resend yet — sent via ${fallbackFrom}. Verify at resend.com/domains, then set OUTREACH_USE_PYTHH_DOMAIN=true on Fly.`
+      : failed > 0 && primaryFrom.includes("pythh.ai")
+        ? "Verify pythh.ai at resend.com/domains before setting OUTREACH_USE_PYTHH_DOMAIN=true on Fly."
+        : failed > 0
+          ? `Check Resend logs. Fallback sender: ${fallbackFrom}`
+          : undefined,
   });
 });
 
