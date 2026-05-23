@@ -396,13 +396,25 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
     if (autoRanRef.current) return;
     autoRanRef.current = true;
     setAutoStatus("Checking for drafts…");
-    fetch(`${API}/api/outreach/ensure-drafts`, {
+    fetch(`${API}/api/outreach/dedupe-drafts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limit, campaign }),
+      body: JSON.stringify({ campaign }),
     })
       .then((r) => r.json())
+      .then((dedupe) => {
+        if (dedupe.removed > 0) onLaunched();
+        return fetch(`${API}/api/outreach/ensure-drafts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit, campaign }),
+        }).then((r) => r.json()).then((d) => ({ ...d, deduped: dedupe.removed ?? 0 }));
+      })
       .then((d) => {
+        if (d.deduped > 0) {
+          setAutoStatus(`Removed ${d.deduped} duplicate firm(s)…`);
+          onLaunched();
+        }
         if (d.triggered && d.jobId) {
           setAutoStatus(`Auto-generating ${limit} VC drafts (one per firm)…`);
           setJob({
@@ -417,7 +429,7 @@ function DraftGeneratorBar({ onLaunched }: { onLaunched: () => void }) {
             draftOnly: true,
           });
         } else if (d.reason === "enough_drafts") {
-          setAutoStatus(`${d.draftCount} drafts ready`);
+          setAutoStatus(`${d.draftCount} unique firms ready`);
         } else if (d.reason === "already_running") {
           setAutoStatus("Draft generation already in progress…");
           if (d.jobId) {

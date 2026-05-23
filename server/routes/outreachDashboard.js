@@ -91,6 +91,94 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
+const { normalizeFirmKey, recipientRank } = require("../../lib/outreachFirmDedup.js");
+
+/** Remove duplicate VC drafts — keep one recipient per firm (prefer intake@). */
+async function dedupeVcDrafts(campaign) {
+  const slug = campaign || defaultVcCampaign();
+  const { data: drafts, error } = await db
+    .from("pythh_prospecting_log")
+    .select("id, target_id, email, target_name")
+    .eq("status", "draft")
+    .eq("email_type", "vc_leads")
+    .eq("campaign_slug", slug);
+
+  if (error) throw new Error(error.message);
+  if (!drafts?.length) return { removed: 0, kept: 0, campaign: slug };
+
+  const ids = [...new Set(drafts.map((d) => d.target_id).filter(Boolean))];
+  let invById = {};
+  if (ids.length > 0) {
+    const { data: invs } = await db
+      .from("investors")
+      .select("id, name, firm, email_best_guess, investor_score")
+      .in("id", ids);
+    invById = Object.fromEntries((invs ?? []).map((i) => [String(i.id), i]));
+  }
+
+  const groups = new Map();
+  for (const draft of drafts) {
+    const inv = invById[String(draft.target_id)] ?? {
+      id: draft.target_id,
+      email_best_guess: draft.email,
+      name: draft.target_name,
+      firm: null,
+      investor_score: 0,
+    };
+    const key = normalizeFirmKey(inv);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ draft, inv });
+  }
+
+  const toDelete = [];
+  for (const items of groups.values()) {
+    if (items.length <= 1) continue;
+    items.sort((a, b) => recipientRank(b.inv) - recipientRank(a.inv));
+    for (let i = 1; i < items.length; i++) toDelete.push(items[i].draft.id);
+  }
+
+  if (toDelete.length > 0) {
+    const { error: delErr } = await db.from("pythh_prospecting_log").delete().in("id", toDelete);
+    if (delErr) throw new Error(delErr.message);
+  }
+
+  return { removed: toDelete.length, kept: drafts.length - toDelete.length, campaign: slug };
+}
+
+async function countUniqueVcFirmDrafts(campaign) {
+  const slug = campaign || defaultVcCampaign();
+  const { data: drafts, error } = await db
+    .from("pythh_prospecting_log")
+    .select("id, target_id, email, target_name")
+    .eq("status", "draft")
+    .eq("email_type", "vc_leads")
+    .eq("campaign_slug", slug);
+
+  if (error) throw new Error(error.message);
+  if (!drafts?.length) return 0;
+
+  const ids = [...new Set(drafts.map((d) => d.target_id).filter(Boolean))];
+  let invById = {};
+  if (ids.length > 0) {
+    const { data: invs } = await db
+      .from("investors")
+      .select("id, name, firm, email_best_guess, investor_score")
+      .in("id", ids);
+    invById = Object.fromEntries((invs ?? []).map((i) => [String(i.id), i]));
+  }
+
+  const keys = new Set();
+  for (const draft of drafts) {
+    const inv = invById[String(draft.target_id)] ?? {
+      id: draft.target_id,
+      email_best_guess: draft.email,
+      name: draft.target_name,
+      firm: null,
+    };
+    keys.add(normalizeFirmKey(inv));
+  }
+  return keys.size;
+}
 
 // ── GET /api/outreach/campaigns ───────────────────────────────────────────────
 router.get("/campaigns", async (req, res) => {
@@ -197,6 +285,17 @@ router.post("/run", express.json(), async (req, res) => {
   res.json({ jobId, status: "running" });
 });
 
+// ── POST /api/outreach/dedupe-drafts ──────────────────────────────────────────
+router.post("/dedupe-drafts", express.json(), async (req, res) => {
+  try {
+    const campaign = req.body?.campaign || defaultVcCampaign();
+    const result = await dedupeVcDrafts(campaign);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── POST /api/outreach/ensure-drafts ──────────────────────────────────────────
 // Auto-generate VC drafts when inbox is empty (or below threshold).
 router.post("/ensure-drafts", express.json(), async (req, res) => {
@@ -205,6 +304,8 @@ router.post("/ensure-drafts", express.json(), async (req, res) => {
     const limit = parseInt(process.env.OUTREACH_AUTO_LIMIT ?? String(req.body?.limit ?? 20), 10);
     const campaign = req.body?.campaign || defaultVcCampaign();
 
+    const dedupeResult = await dedupeVcDrafts(campaign);
+
     const running = runningDraftJob();
     if (running) {
       return res.json({
@@ -212,21 +313,19 @@ router.post("/ensure-drafts", express.json(), async (req, res) => {
         reason: "already_running",
         jobId: running.jobId,
         draftCount: null,
+        deduped: dedupeResult.removed,
       });
     }
 
-    const { count, error } = await db
-      .from("pythh_prospecting_log")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "draft")
-      .eq("email_type", "vc_leads")
-      .eq("campaign_slug", campaign);
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    const draftCount = count ?? 0;
+    const draftCount = await countUniqueVcFirmDrafts(campaign);
     if (draftCount >= minDrafts) {
-      return res.json({ triggered: false, reason: "enough_drafts", draftCount, campaign });
+      return res.json({
+        triggered: false,
+        reason: "enough_drafts",
+        draftCount,
+        campaign,
+        deduped: dedupeResult.removed,
+      });
     }
 
     const jobId = spawnOutreachJob({
@@ -244,6 +343,7 @@ router.post("/ensure-drafts", express.json(), async (req, res) => {
       draftCount,
       target: minDrafts,
       campaign,
+      deduped: dedupeResult.removed,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

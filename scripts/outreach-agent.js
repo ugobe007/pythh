@@ -27,6 +27,7 @@ import { createClient } from "@supabase/supabase-js";
 const require = createRequire(import.meta.url);
 const { rankStartupsForInvestor, rankInvestorsForStartup } = require("../lib/outreachMatch.js");
 const { classifyOutreachEmail, outreachGreeting } = require("../lib/investorEmailInfer.js");
+const { normalizeFirmKey, pickOnePerFirm } = require("../lib/outreachFirmDedup.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
 const envPath = new URL("../.env", import.meta.url).pathname;
@@ -141,16 +142,6 @@ async function sendEmail({ to, subject, html, text, meta = {} }) {
 
 // ── Dedup log ─────────────────────────────────────────────────────────────────
 
-function normalizeFirmKey(inv) {
-  const firm = (inv.firm && inv.firm !== "null" ? String(inv.firm) : "").trim();
-  if (firm) return firm.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const email = (inv.email_best_guess ?? "").toLowerCase();
-  const domain = email.split("@")[1] ?? "";
-  const generic = new Set(["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com"]);
-  if (domain && !generic.has(domain)) return `domain:${domain}`;
-  return `investor:${inv.id}`;
-}
-
 async function loadContactedFirmKeys(emailType, campaign) {
   const { data: rows } = await db
     .from("pythh_prospecting_log")
@@ -246,9 +237,12 @@ async function runVcMode() {
   if (error) { console.error("[VC mode] DB error:", error); return; }
   console.log(`[VC mode] Found ${investors?.length ?? 0} candidate investors`);
 
+  const deduped = pickOnePerFirm(investors ?? []);
+  console.log(`[VC mode] After firm dedup: ${deduped.length} unique firms (from ${investors?.length ?? 0} contacts)`);
+
   const contactedFirms = await loadContactedFirmKeys("vc_leads", CAMPAIGN);
   const seenFirms = new Set(contactedFirms);
-  console.log(`[VC mode] Firm dedup: ${seenFirms.size} firm(s) already drafted/sent in ${CAMPAIGN}`);
+  console.log(`[VC mode] ${seenFirms.size} firm(s) already drafted/sent in ${CAMPAIGN}`);
 
   const { data: startupPool } = await db
     .from("startup_uploads")
@@ -262,7 +256,7 @@ async function runVcMode() {
 
   let sent = 0;
 
-  for (const inv of investors ?? []) {
+  for (const inv of deduped) {
     if (sent >= LIMIT) break;
 
     const email = inv.email_best_guess;
