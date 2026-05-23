@@ -26,7 +26,7 @@ const NAV = [
   {
     group: "OUTREACH",
     links: [
-      { label: "Campaign Stats",  href: "/admin/outreach" },
+      { label: "Outreach",        href: "/admin/outreach" },
       { label: "Meeting Pipeline",href: "/admin/calendar" },
     ],
   },

@@ -5,7 +5,8 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
+import { Link } from "wouter";
 
 const API = import.meta.env.VITE_API_URL || "https://hot-honey.fly.dev";
 
@@ -22,6 +23,7 @@ export default function AdminPage() {
   const [, setLocation] = useLocation();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [outreachStats, setOutreachStats] = useState<any>(null);
+  const [draftCount, setDraftCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.href = getLoginUrl();
@@ -40,6 +42,10 @@ export default function AdminPage() {
     fetch(`${API}/api/outreach/stats`)
       .then((r) => r.json())
       .then(setOutreachStats)
+      .catch(() => {});
+    fetch(`${API}/api/outreach/inbox`)
+      .then((r) => r.json())
+      .then((d) => setDraftCount((d.drafts ?? []).length))
       .catch(() => {});
   }, [user]);
 
@@ -110,22 +116,22 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Run commands */}
-        <div className="rounded-lg border mt-3 p-3" style={{ borderColor: "oklch(0.22 0.01 264)", background: "oklch(0.15 0.01 264)" }}>
-          <div className="text-[10px] font-bold tracking-widest mb-2" style={{ color: "oklch(0.45 0.01 264)" }}>RUN OUTREACH AGENT</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {[
-              ["VC dry run",      "npm run outreach:vc:dry"],
-              ["Startup dry run", "npm run outreach:startup:dry"],
-              ["VC live",         "npm run outreach:vc -- --limit 50"],
-              ["Startup live",    "npm run outreach:startup -- --limit 100"],
-            ].map(([label, cmd]) => (
-              <div key={cmd} className="rounded border p-2" style={{ borderColor: "oklch(0.2 0.01 264)", background: "oklch(0.12 0.01 264)" }}>
-                <div className="text-[10px] mb-1" style={{ color: "oklch(0.4 0.01 264)" }}>{label}</div>
-                <code className="text-[11px] font-mono" style={{ color: "oklch(0.75 0.15 270)" }}>{cmd}</code>
-              </div>
-            ))}
+        {/* Outreach launcher */}
+        <div className="rounded-lg border mt-3 p-4 flex flex-col sm:flex-row sm:items-center gap-4" style={{ borderColor: "oklch(0.22 0.01 264)", background: "oklch(0.15 0.01 264)" }}>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-bold tracking-widest mb-1" style={{ color: "oklch(0.45 0.01 264)" }}>OUTREACH</div>
+            <p className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>
+              Generate drafts, preview each email, approve before sending.
+              {draftCount != null && draftCount > 0 && (
+                <span style={{ color: "oklch(0.85 0.17 162)" }}> {draftCount} draft{draftCount === 1 ? "" : "s"} waiting for review.</span>
+              )}
+            </p>
           </div>
+          <Link href="/admin/outreach"
+            className="inline-flex items-center justify-center gap-2 shrink-0 px-5 py-2.5 rounded-lg text-sm font-bold no-underline transition-opacity hover:opacity-90"
+            style={{ background: "oklch(0.55 0.2 25)", color: "#fff", border: "1px solid oklch(0.65 0.2 25)" }}>
+            <Send size={15} /> Outreach
+          </Link>
         </div>
       </section>
 
