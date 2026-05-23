@@ -30,7 +30,7 @@ const { classifyOutreachEmail, outreachGreeting } = require("../lib/investorEmai
 const {
   vcSubject,
   vcHeadline,
-  vcIntro,
+  vcOpening,
   vcFootnote,
   vcMethodology,
   vcCtaTitle,
@@ -38,6 +38,7 @@ const {
   vcCtaText,
   vcEmailKicker,
   vcFromName,
+  vcEmailSignoff,
 } = require("../lib/pythiaVoice.js");
 const { normalizeFirmKey, pickOnePerFirm } = require("../lib/outreachFirmDedup.js");
 const { getOutreachFromAddress } = require("../lib/outreachFrom.js");
@@ -504,8 +505,13 @@ function vcEmail({ investor, leads, greeting }) {
     </tr>`;
   }).join("");
 
-  const headline = vcHeadline({ sector, firm: investor.firm, count: leads.length, isPersonal });
-  const intro = vcIntro({ count: leads.length, sector, firm: investor.firm, isPersonal });
+  const headline = vcHeadline({ sector, count: leads.length });
+  const opening = vcOpening({
+    greeting,
+    firm: investor.firm,
+    isPersonal,
+    count: leads.length,
+  });
   const footnote = vcFootnote();
   const methodology = vcMethodology({
     firm: investor.firm,
@@ -518,7 +524,7 @@ function vcEmail({ investor, leads, greeting }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PYTHIA · ${investor.firm}</title></head>
+<title>Peter · Pythh · ${investor.firm}</title></head>
 <body style="margin:0;padding:0;background:#0b0f1a;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
 
@@ -529,11 +535,8 @@ function vcEmail({ investor, leads, greeting }) {
     <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
       ${headline}
     </h1>
-    <p style="color:#94a3b8;font-size:14px;line-height:1.65;margin:0 0 12px;">
-      ${greeting}
-    </p>
     <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0 0 8px;">
-      ${intro}
+      ${opening}
     </p>
     <p style="color:#475569;font-size:13px;line-height:1.55;margin:0;font-style:italic;">
       ${footnote}
@@ -553,7 +556,7 @@ function vcEmail({ investor, leads, greeting }) {
 
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px;margin-bottom:24px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                color:#475569;font-family:monospace;margin-bottom:10px;">HOW I PICKED THESE</div>
+                color:#475569;font-family:monospace;margin-bottom:10px;">HOW THESE WERE RANKED</div>
     <p style="color:#64748b;font-size:13px;line-height:1.65;margin:0;">
       ${methodology}
     </p>
@@ -587,7 +590,7 @@ function vcEmail({ investor, leads, greeting }) {
 
   <div style="text-align:center;padding-top:16px;border-top:1px solid #1e293b;">
     <p style="color:#334155;font-size:11px;margin:0 0 4px;font-family:monospace;">
-      Pythh Capital &middot; pythh.ai &middot; ai@pythh.ai
+      ${vcEmailSignoff()}
     </p>
     <p style="font-size:11px;margin:0;">
       <a href="https://pythh.ai/support" style="color:#334155;text-decoration:none;">Unsubscribe</a>
@@ -604,8 +607,13 @@ function vcEmail({ investor, leads, greeting }) {
 function vcEmailText({ investor, leads, greeting }) {
   const sector = investor.sector ?? "technology";
   const isPersonal = (investor.emailType ?? "intake") === "personal";
-  const headline = vcHeadline({ sector, firm: investor.firm, count: leads.length, isPersonal });
-  const intro = vcIntro({ count: leads.length, sector, firm: investor.firm, isPersonal });
+  const headline = vcHeadline({ sector, count: leads.length });
+  const opening = vcOpening({
+    greeting,
+    firm: investor.firm,
+    isPersonal,
+    count: leads.length,
+  });
   const methodology = vcMethodology({
     firm: investor.firm,
     sector,
@@ -624,11 +632,9 @@ function vcEmailText({ investor, leads, greeting }) {
     })
     .join("\n");
 
-  return `${greeting}
+  return `${headline}
 
-${headline}
-
-${intro}
+${opening}
 ${vcFootnote()}
 
 ${leadsText}
@@ -640,7 +646,7 @@ ${methodology}
 ${vcCtaText()}
 
 ─────────────────────────────────────────────────
-PYTHIA · Pythh Capital · pythh.ai · ai@pythh.ai
+${vcEmailSignoff()}
 Unsubscribe: https://pythh.ai/support
 `;
 }

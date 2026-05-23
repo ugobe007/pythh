@@ -438,7 +438,7 @@ router.post("/send-drafts", express.json(), async (req, res) => {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) return res.status(503).json({ error: "RESEND_API_KEY not configured" });
 
-  const fromName = process.env.OUTREACH_FROM_NAME || "PYTHIA at Pythh";
+  const fromName = process.env.OUTREACH_FROM_NAME || "Peter at Pythh";
   const notifyTo = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
   const fallbackFrom = getOutreachFallbackAddress();
 
