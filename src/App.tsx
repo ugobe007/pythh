@@ -197,6 +197,7 @@ const IntelligencePage = lazy(() => import("./pages/IntelligencePage"));
 const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
 const LPTargetsPage = lazy(() => import("./pages/LPTargetsPage"));
 const AdminOutreachPage = lazy(() => import("./pages/AdminOutreachPage"));
+const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
 
 // -----------------------------------------------------------------------------
 // APP
@@ -393,6 +394,7 @@ const App = () => {
               <Route path="portfolio" element={<AdminPortfolioPage />} />
               <Route path="lp-targets" element={<LPTargetsPage />} />
               <Route path="outreach" element={<AdminOutreachPage />} />
+              <Route path="analytics" element={<AdminAnalyticsPage />} />
             </Route>
 
             {/* 404 */}

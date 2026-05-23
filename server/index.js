@@ -5993,6 +5993,9 @@ const outreachDashboard = require('./routes/outreachDashboard');
 app.use('/api/outreach', outreachDashboard);
 app.use('/api/webhooks', outreachDashboard);
 
+const adminPlatformAnalytics = require('./routes/adminPlatformAnalytics');
+app.use('/api/admin', adminPlatformAnalytics);
+
 // Public shareable match preview (no auth required)
 const previewRoute = require('./routes/previewRoute');
 app.use('/api/preview', previewRoute);

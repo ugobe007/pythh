@@ -66,6 +66,12 @@ function Sparkline({ data }: { data: { day: string; cnt: string }[] }) {
   );
 }
 
+function formatDay(day: unknown): string {
+  if (!day) return "—";
+  if (day instanceof Date) return day.toISOString().slice(0, 10);
+  return String(day).slice(0, 10);
+}
+
 export default function AnalyticsPage() {
   const { data, isLoading } = trpc.admin.getAnalytics.useQuery();
   const adminStats = trpc.admin.getStats.useQuery();
@@ -132,9 +138,9 @@ export default function AnalyticsPage() {
             <Sparkline data={data?.dailySignups ?? []} />
             {(data?.dailySignups ?? []).length > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "oklch(0.4 0.01 264)", marginTop: 6 }}>
-                <span>{data?.dailySignups?.[0]?.day}</span>
+                <span>{formatDay(data?.dailySignups?.[0]?.day)}</span>
                 <span>Total: {(data?.dailySignups ?? []).reduce((acc: number, d: any) => acc + Number(d.cnt), 0).toLocaleString()} signups</span>
-                <span>{data?.dailySignups?.[data.dailySignups.length - 1]?.day}</span>
+                <span>{formatDay(data?.dailySignups?.[data.dailySignups.length - 1]?.day)}</span>
               </div>
             )}
           </div>

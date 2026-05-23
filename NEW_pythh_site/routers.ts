@@ -1232,7 +1232,7 @@ export const appRouter = router({
           LIMIT 25
         `),
         rawQuery<{ day: string; cnt: string }>(`
-          SELECT DATE(created_at) AS day, COUNT(*) AS cnt
+          SELECT TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt
           FROM pythh_users
           WHERE created_at > now() - interval '30 days'
           GROUP BY 1

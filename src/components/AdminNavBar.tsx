@@ -127,6 +127,18 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         </Link>
         <span className="text-gray-600">|</span>
         <Link 
+          to="/admin/analytics" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/analytics')
+              ? 'bg-pink-500/20 text-pink-300 font-semibold' 
+              : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>Analytics</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
           to="/admin/outreach" 
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
             isActive('/admin/outreach')

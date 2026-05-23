@@ -200,6 +200,7 @@ export default function UnifiedAdminDashboard() {
               <QuickLink icon={Search} label="RSS Discoveries" route="/admin/discovered-startups" color="cyan" />
               <QuickLink icon={Users} label="Investors" route="/admin/discovered-investors" color="cyan" stat={`${stats.investors_total} total`} />
               <QuickLink icon={Rss} label="RSS Manager" route="/admin/rss-manager" color="cyan" />
+              <QuickLink icon={BarChart3} label="Analytics" route="/admin/analytics" color="purple" />
               <QuickLink icon={Send} label="Outreach (Peter)" route="/admin/outreach" color="emerald" />
             </div>
           </div>
