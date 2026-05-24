@@ -5,6 +5,8 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import DashboardLayout from "@/components/DashboardLayout";
+import AdminToolsGrid from "@/components/AdminToolsGrid";
+import { ADMIN_TOOLS } from "@/config/adminToolsRegistry";
 import { Loader2, Send } from "lucide-react";
 import { Link } from "wouter";
 import { apiUrl } from "../lib/apiConfig";
@@ -64,9 +66,24 @@ export default function AdminPage() {
       <div className="mb-6">
         <h1 className="text-xl font-bold">Dashboard</h1>
         <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-          Pythh admin console — platform stats, outreach, users.
+          Pythh admin console — {ADMIN_TOOLS.length} tools for scoring, matching, scrapers, outreach.
         </p>
       </div>
+
+      {/* Core control tools */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[10px] font-bold tracking-widest m-0" style={{ color: "oklch(0.45 0.01 264)" }}>CONTROL TOOLS</h2>
+          <a href="/admin/tools" className="text-[10px] no-underline" style={{ color: "oklch(0.85 0.17 162)" }}>All tools →</a>
+        </div>
+        <AdminToolsGrid category="scoring" compact />
+        <div className="mt-3">
+          <AdminToolsGrid category="matching" compact />
+        </div>
+        <div className="mt-3">
+          <AdminToolsGrid category="pipeline" compact />
+        </div>
+      </section>
 
       {/* Platform stats */}
       <section className="mb-8">

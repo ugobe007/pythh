@@ -40,7 +40,10 @@ export default function SignalScoresPage() {
       <div className="mb-6">
         <h1 className="text-xl font-bold">Signal Score Dashboard</h1>
         <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-          5-dimension signal scores (0–10) for startups in the pipeline.
+          5-dimension signal scores (0–10). Edit weights in{" "}
+          <a href="/admin/signal-weights" style={{ color: "oklch(0.85 0.17 162)" }}>Signal Weights</a>
+          {" "}· GOD weights in{" "}
+          <a href="/admin/god/weights" style={{ color: "oklch(0.85 0.17 162)" }}>GOD Weights</a>.
         </p>
       </div>
 

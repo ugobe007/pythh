@@ -30,7 +30,12 @@ import Developers from "./pages/Developers";
 import Outreach from "./pages/Outreach";
 import Calendar from "./pages/Calendar";
 import GodScores from "./pages/admin/GodScores";
+import GodWeights from "./pages/admin/GodWeights";
 import SignalScores from "./pages/admin/SignalScores";
+import SignalWeights from "./pages/admin/SignalWeights";
+import MatchingAdmin from "./pages/admin/Matching";
+import Scrapers from "./pages/admin/Scrapers";
+import ToolsHub from "./pages/admin/ToolsHub";
 import MlAgent from "./pages/admin/MlAgent";
 import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
@@ -78,9 +83,14 @@ function Router() {
       <Route path={"/account"} component={Account} />
       <Route path={"/profile"} component={Profile} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/admin/tools"} component={ToolsHub} />
       <Route path={"/admin/analytics"} component={Analytics} />
+      <Route path={"/admin/god/weights"} component={GodWeights} />
       <Route path={"/admin/god"}       component={GodScores} />
       <Route path={"/admin/signals"}   component={SignalScores} />
+      <Route path={"/admin/signal-weights"} component={SignalWeights} />
+      <Route path={"/admin/matching"}  component={MatchingAdmin} />
+      <Route path={"/admin/scrapers"}  component={Scrapers} />
       <Route path={"/admin/ml"}        component={MlAgent} />
       <Route path={"/admin/rss"}       component={RssManager} />
       <Route path={"/login"} component={Login} />

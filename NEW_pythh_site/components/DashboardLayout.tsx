@@ -6,6 +6,7 @@ const NAV = [
     group: "OVERVIEW",
     links: [
       { label: "Dashboard",       href: "/admin" },
+      { label: "All Tools",       href: "/admin/tools" },
       { label: "Analytics",       href: "/admin/analytics" },
     ],
   },
@@ -13,14 +14,24 @@ const NAV = [
     group: "SCORING",
     links: [
       { label: "GOD Score Manager", href: "/admin/god" },
+      { label: "GOD Weights",       href: "/admin/god/weights" },
       { label: "Signal Scores",     href: "/admin/signals" },
+      { label: "Signal Weights",    href: "/admin/signal-weights" },
       { label: "ML Agent",          href: "/admin/ml" },
     ],
   },
   {
-    group: "DATA",
+    group: "MATCHING",
     links: [
-      { label: "RSS Feeds",       href: "/admin/rss" },
+      { label: "Matching Engine",   href: "/admin/matching" },
+      { label: "Live Matches",      href: "/matches" },
+    ],
+  },
+  {
+    group: "PIPELINE",
+    links: [
+      { label: "Scrapers",          href: "/admin/scrapers" },
+      { label: "RSS Feeds",         href: "/admin/rss" },
     ],
   },
   {
@@ -68,7 +79,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div key={group} className="mb-3">
             <div className="text-[9px] font-bold tracking-widest mb-1.5 px-2" style={{ color: "oklch(0.38 0.01 264)" }}>{group}</div>
             {links.map(({ label, href }) => {
-              const active = location === href;
+              const active = location === href || (href !== "/admin" && location.startsWith(href + "/"));
               return (
                 <Link key={href} href={href}
                   className="block text-xs px-2 py-1.5 rounded transition-colors"

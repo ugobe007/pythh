@@ -52,7 +52,8 @@ export default function GodScoresPage() {
       <div className="mb-6">
         <h1 className="text-xl font-bold">GOD Score Manager</h1>
         <p className="text-xs mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-          Score distribution, weight versions, runtime controls, and freeze guard.
+          Score distribution, weight versions, runtime controls, and freeze guard.{" "}
+          <a href="/admin/god/weights" style={{ color: "oklch(0.85 0.17 162)" }}>Edit GOD weights →</a>
         </p>
       </div>
 

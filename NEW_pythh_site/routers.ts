@@ -1157,6 +1157,43 @@ export const appRouter = router({
       return { summary: summary[0] ?? null, topStartups, bottomStartups, recentHistory };
     }),
 
+    getMatchSummary: adminProcedure.query(async () => {
+      const [totals, buckets] = await Promise.all([
+        rawQuery<{ total: string; high_score: string; strong_fit: string; recent7d: string; avg_score: string }>(`
+          SELECT
+            COUNT(*)::text AS total,
+            COUNT(*) FILTER (WHERE score >= 0.75)::text AS high_score,
+            COUNT(*) FILTER (WHERE score >= 0.85)::text AS strong_fit,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::text AS recent7d,
+            ROUND(AVG(score)::numeric, 3)::text AS avg_score
+          FROM startup_investor_matches
+        `),
+        rawQuery<{ bucket: string; cnt: string }>(`
+          SELECT
+            CASE
+              WHEN score IS NULL THEN 'unscored'
+              WHEN score < 0.5  THEN '0.0–0.5'
+              WHEN score < 0.7  THEN '0.5–0.7'
+              WHEN score < 0.85 THEN '0.7–0.85'
+              ELSE '0.85+'
+            END AS bucket,
+            COUNT(*)::text AS cnt
+          FROM startup_investor_matches
+          GROUP BY 1
+          ORDER BY 1
+        `),
+      ]);
+      const row = totals[0] ?? {};
+      return {
+        total: row.total ?? "0",
+        highScore: row.high_score ?? "0",
+        strongFit: row.strong_fit ?? "0",
+        recent7d: row.recent7d ?? "0",
+        avgScore: row.avg_score ?? null,
+        buckets,
+      };
+    }),
+
     // ── ML Agent ──────────────────────────────────────────────────────────
     getMlRecommendations: adminProcedure.query(async () => {
       const [pending, recent, entityGateStats] = await Promise.all([
