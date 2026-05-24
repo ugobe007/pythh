@@ -23,8 +23,8 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { API_BASE } from '../lib/apiConfig';
+import { supabase } from '@/lib/supabase';
+import { API_BASE } from '@/lib/apiConfig';
 
 interface MatchStats {
   totalMatches: number;

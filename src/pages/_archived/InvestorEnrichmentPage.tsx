@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Users, TrendingUp, CheckCircle, Clock, Play, RefreshCw, Loader2, Home, Settings, BarChart3, Upload, Building2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 interface EnrichmentStats {
   total: number;

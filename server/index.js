@@ -5996,6 +5996,14 @@ app.use('/api/webhooks', outreachDashboard);
 const adminPlatformAnalytics = require('./routes/adminPlatformAnalytics');
 app.use('/api/admin', adminPlatformAnalytics);
 
+const adminScoringConsole = require('./routes/adminScoringConsole');
+app.use('/api/admin', adminScoringConsole);
+
+const { loadSignalWeightConfig } = require('../lib/signalWeightConfig');
+loadSignalWeightConfig(getSupabaseClient()).catch((e) => {
+  console.warn('[startup] signal weight config preload skipped:', e.message);
+});
+
 // Public shareable match preview (no auth required)
 const previewRoute = require('./routes/previewRoute');
 app.use('/api/preview', previewRoute);

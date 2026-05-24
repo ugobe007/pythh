@@ -34,7 +34,8 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { fetchAll, upsertInBatches } = require('../lib/supabaseUtils');
-const { clamp, applyGodBlendToSignalDimensions } = require('../lib/signalScoreGodBlend');
+const { loadSignalWeightConfig } = require('../lib/signalWeightConfig');
+const { computeSignalScoresFromEvents } = require('../lib/computeSignalDimensions');
 
 /** Same default as instantSubmit (`scores.total_god_score || 50`) when GOD is missing in DB. */
 const DEFAULT_GOD_SCORE_BLEND = 50;
@@ -53,150 +54,15 @@ const DRY  = !args.includes('--apply');
 const LIMIT_ARG = (() => { const l = args.find(a => a.startsWith('--limit=')); return l ? parseInt(l.split('=')[1]) : null; })();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIMENSION WEIGHTS
-// Each signal_class contributes to one or more dimensions.
-// Weight = how strongly a single detection contributes to that dimension.
-// Final score = Σ(confidence × signal_strength × class_weight) — capped at dimension max.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FOUNDER_LANGUAGE_CLASSES = {
-  exploratory_signal:    1.0,
-  product_signal:        0.9,
-  market_position_signal:0.8,
-  gtm_signal:            0.8,
-  expansion_signal:      0.6,
-  buyer_signal:          0.5,
-  exit_signal:           0.5,  // founders actively communicating exit narrative
-};
-
-const INVESTOR_RECEPTIVITY_CLASSES = {
-  fundraising_signal:    1.0,
-  revenue_signal:        0.9,
-  growth_signal:         0.85,
-  acquisition_signal:    0.8,
-  enterprise_signal:     0.75,
-  demand_signal:         0.7,
-  efficiency_signal:     0.65,
-  distress_signal:       0.3,  // negative, but creates urgency
-};
-
-const CAPITAL_CONVERGENCE_CLASSES = {
-  fundraising_signal:    1.0,
-  diligence_signal:      0.95,
-  acquisition_signal:    0.9,
-  exit_signal:           0.85,
-  revenue_signal:        0.75,
-  growth_signal:         0.65,
-  distress_signal:       0.4,
-};
-
-const EXECUTION_VELOCITY_CLASSES = {
-  product_signal:        1.0,
-  hiring_signal:         0.9,
-  gtm_hiring_signal:     0.92,
-  engineering_hiring_signal: 0.91,
-  growth_signal:         0.85,
-  expansion_signal:      0.8,
-  partnership_signal:    0.75,
-  gtm_signal:            0.7,
-  demand_signal:         0.6,
-};
-
-// News momentum: source-type-based (class-agnostic — any signal from press/web counts)
-//
-// Source type values come from ingest-pythh-signals.js, which uses extracted_data field
-// names as source types. execution_signals and web_signals originate from RSS scrapers.
-const NEWS_SOURCE_WEIGHTS = {
-  // RSS / web-scraped external sources
-  execution_signals: 0.85,  // from ssot-rss-scraper / simple-rss-scraper (external RSS)
-  web_signals:       0.65,  // web-scraped content
-  rss_scrape:        1.0,   // explicit RSS, future-proofed
-  sec_edgar:         0.85,  // SEC filings — high-credibility external
-
-  // Partially external sources
-  llm_enrichment:    0.35,  // LLM-inferred, not direct press
-  social_signal:     0.45,  // social media mentions
-
-  // Internal/founder-authored — don't count as press
-  description:       0.0,
-  pitch:             0.0,
-  problem:           0.0,
-  solution:          0.0,
-  value_proposition: 0.0,
-  tagline:           0.0,
-  market:            0.0,
-  founder_upload:    0.0,
-  structured_metrics:0.0,
-};
-
-// Dimension caps (from startup_signal_scores schema CHECK constraints)
-const CAP = {
-  founder_language_shift: 2.0,
-  investor_receptivity:   2.5,
-  news_momentum:          1.5,
-  capital_convergence:    2.0,
-  execution_velocity:     2.0,
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Milliseconds since detected_at, clamped to 0. */
-function ageMs(detectedAt) {
-  return Math.max(0, Date.now() - new Date(detectedAt).getTime());
-}
-
-const DAY_MS = 86_400_000;
-
-/**
- * Recency multiplier: signals that are very fresh get a boost.
- *   < 7 days  → 1.5×
- *   < 30 days → 1.0×
- *   < 90 days → 0.7×
- *   older     → 0.4×
- */
-function recencyMult(detectedAt) {
-  const ageDays = ageMs(detectedAt) / DAY_MS;
-  if (ageDays <  7) return 1.5;
-  if (ageDays < 30) return 1.0;
-  if (ageDays < 90) return 0.7;
-  return 0.4;
-}
-
-/** Sum contributions from a list of signals for a given class-weight map. */
-function sumDimension(signals, classWeights, recency = false) {
-  let score = 0;
-  for (const s of signals) {
-    const w = classWeights[s.primary_signal];
-    if (!w) continue;
-    const conf     = s.confidence      ?? 0.5;
-    const strength = s.signal_strength ?? 0.5;
-    const rec      = recency ? recencyMult(s.detected_at) : 1.0;
-    score += conf * strength * w * rec;
-  }
-  return score;
-}
-
-/** Compute news_momentum from source-type weights (ignores signal class). */
-function computeNewsMomentum(signals) {
-  let score = 0;
-  for (const s of signals) {
-    const w = NEWS_SOURCE_WEIGHTS[s.source_type] ?? 0;
-    if (!w) continue;
-    const conf = s.confidence ?? 0.5;
-    const rec  = recencyMult(s.detected_at);
-    score += conf * w * rec * 0.15; // divisor keeps it calibrated to 0-1.5 range
-  }
-  return score;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log(`\n🔄  sync-signal-scores  ${DRY ? '(DRY RUN)' : '(APPLY)'}\n`);
+
+  const weightConfig = await loadSignalWeightConfig(supabase);
+  const caps = weightConfig.dimensionCaps;
+  console.log(`  Active signal weights: ${weightConfig.version}\n`);
 
   // 1. Load all entities linked to startup_uploads
   console.log('  Loading pythh_entities with startup_upload_id…');
@@ -285,39 +151,10 @@ async function main() {
       classCounts[s.primary_signal] = (classCounts[s.primary_signal] || 0) + 1;
     }
 
-    const founder_language_shift_raw = clamp(
-      sumDimension(signals, FOUNDER_LANGUAGE_CLASSES, false),
-      CAP.founder_language_shift
-    );
-    const investor_receptivity_raw = clamp(
-      sumDimension(signals, INVESTOR_RECEPTIVITY_CLASSES, false),
-      CAP.investor_receptivity
-    );
-    const news_momentum_raw = clamp(computeNewsMomentum(signals), CAP.news_momentum);
-    const capital_convergence_raw = clamp(
-      sumDimension(signals, CAPITAL_CONVERGENCE_CLASSES, true),
-      CAP.capital_convergence
-    );
-    const execution_velocity_raw = clamp(
-      sumDimension(signals, EXECUTION_VELOCITY_CLASSES, true),
-      CAP.execution_velocity
-    );
-
     const rawGod = godByUploadId[uploadId];
     if (rawGod == null || rawGod === '' || !Number.isFinite(Number(rawGod))) godScoreDefaulted++;
     const godScore = resolveGodScoreForBlend(rawGod);
-    const blended = applyGodBlendToSignalDimensions(
-      {
-        founder_language_shift: founder_language_shift_raw,
-        investor_receptivity: investor_receptivity_raw,
-        news_momentum: news_momentum_raw,
-        capital_convergence: capital_convergence_raw,
-        execution_velocity: execution_velocity_raw,
-      },
-      signals.length,
-      godScore,
-      CAP
-    );
+    const blended = computeSignalScoresFromEvents(signals, weightConfig, godScore);
     const {
       founder_language_shift,
       investor_receptivity,
@@ -328,6 +165,7 @@ async function main() {
       eventSum,
       blendWeight,
       godPrior,
+      weightConfigVersion,
     } = blended;
 
     dimTotals.founder_language_shift += founder_language_shift;
@@ -353,6 +191,7 @@ async function main() {
         blend_weight: godPrior != null ? blendWeight : null,
         god_score_db: rawGod != null && rawGod !== '' && Number.isFinite(Number(rawGod)) ? Number(rawGod) : null,
         god_score_used_for_blend: godScore,
+        weight_config_version: weightConfigVersion,
         source: 'sync-signal-scores.js',
         computed_at: new Date().toISOString(),
       },
@@ -371,15 +210,15 @@ async function main() {
   if (rows.length > 0) {
     const n = rows.length;
     console.log('\n  Average dimension scores:');
-    console.log(`    founder_language_shift : ${(dimTotals.founder_language_shift / n).toFixed(2)} / 2.0`);
-    console.log(`    investor_receptivity   : ${(dimTotals.investor_receptivity   / n).toFixed(2)} / 2.5`);
-    console.log(`    news_momentum          : ${(dimTotals.news_momentum          / n).toFixed(2)} / 1.5`);
-    console.log(`    capital_convergence    : ${(dimTotals.capital_convergence    / n).toFixed(2)} / 2.0`);
-    console.log(`    execution_velocity     : ${(dimTotals.execution_velocity     / n).toFixed(2)} / 2.0`);
+    console.log(`    founder_language_shift : ${(dimTotals.founder_language_shift / n).toFixed(2)} / ${caps.founder_language_shift}`);
+    console.log(`    investor_receptivity   : ${(dimTotals.investor_receptivity   / n).toFixed(2)} / ${caps.investor_receptivity}`);
+    console.log(`    news_momentum          : ${(dimTotals.news_momentum          / n).toFixed(2)} / ${caps.news_momentum}`);
+    console.log(`    capital_convergence    : ${(dimTotals.capital_convergence    / n).toFixed(2)} / ${caps.capital_convergence}`);
+    console.log(`    execution_velocity     : ${(dimTotals.execution_velocity     / n).toFixed(2)} / ${caps.execution_velocity}`);
 
     const totalAvg = (dimTotals.founder_language_shift + dimTotals.investor_receptivity + dimTotals.news_momentum + dimTotals.capital_convergence + dimTotals.execution_velocity) / n;
     console.log(`    ──────────────────────────────────────────`);
-    console.log(`    signals_total avg      : ${totalAvg.toFixed(2)} / 10.0`);
+    console.log(`    signals_total avg      : ${totalAvg.toFixed(2)} / ${weightConfig.totalCap}`);
 
     console.log('\n  Top signal classes:');
     const sorted = Object.entries(classCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);

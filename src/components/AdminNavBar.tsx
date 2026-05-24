@@ -4,7 +4,7 @@
  */
 
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck, Briefcase, Users, Radio, Send } from 'lucide-react';
+import { Home, Settings, BarChart3, Activity, ArrowLeft, Sparkles, Database, Cpu, ClipboardCheck, Briefcase, Users, Radio, Send, GitMerge, RefreshCw, LayoutGrid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AdminNavBarProps {
@@ -67,15 +67,51 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         </Link>
         <span className="text-gray-600">|</span>
         <Link 
-          to="/admin/god-scores" 
+          to="/admin/god-settings" 
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
-            isActive('/admin/god-scores') || isActive('/admin/god-settings')
+            isActive('/admin/god-settings') || isActive('/admin/god-manager') || isActive('/admin/god-scores')
               ? 'bg-amber-500/20 text-amber-300 font-semibold' 
               : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>GOD Scores</span>
+          <span>GOD</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
+          to="/admin/signals" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/signals') || isActive('/admin/signal-weights') || isActive('/admin/signal-feed')
+              ? 'bg-amber-500/20 text-amber-300 font-semibold' 
+              : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+          }`}
+        >
+          <Radio className="w-4 h-4" />
+          <span>Signals</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
+          to="/admin/matching" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/matching') || isActive('/admin/tier-matching')
+              ? 'bg-purple-500/20 text-purple-300 font-semibold' 
+              : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+          }`}
+        >
+          <GitMerge className="w-4 h-4" />
+          <span>Matching</span>
+        </Link>
+        <span className="text-gray-600">|</span>
+        <Link 
+          to="/admin/scrapers" 
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
+            isActive('/admin/scrapers')
+              ? 'bg-green-500/20 text-green-300 font-semibold' 
+              : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+          }`}
+        >
+          <RefreshCw className="w-4 h-4" />
+          <span>Scrapers</span>
         </Link>
         <span className="text-gray-600">|</span>
         <Link 
@@ -163,15 +199,15 @@ export default function AdminNavBar({ showBack = true, currentPage }: AdminNavBa
         </Link>
         <span className="text-gray-600">|</span>
         <Link 
-          to="/admin/lp-targets" 
+          to="/admin/tools" 
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg transition-all ${
-            isActive('/admin/lp-targets')
-              ? 'bg-amber-500/20 text-amber-300 font-semibold' 
-              : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
+            isActive('/admin/tools')
+              ? 'bg-orange-500/20 text-orange-300 font-semibold' 
+              : 'bg-orange-500/10 hover:bg-orange-500/20 text-orange-400/80 hover:text-orange-300'
           }`}
         >
-          <Users className="w-4 h-4" />
-          <span>LP Targets</span>
+          <LayoutGrid className="w-4 h-4" />
+          <span>All Tools</span>
         </Link>
       </div>
     </nav>

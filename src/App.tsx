@@ -198,6 +198,16 @@ const AdminPortfolioPage = lazy(() => import("./pages/AdminPortfolioPage"));
 const LPTargetsPage = lazy(() => import("./pages/LPTargetsPage"));
 const AdminOutreachPage = lazy(() => import("./pages/AdminOutreachPage"));
 const AdminAnalyticsPage = lazy(() => import("./pages/AdminAnalyticsPage"));
+const AdminGodManagerPage = lazy(() => import("./pages/AdminGodManagerPage"));
+const AdminSignalScoresPage = lazy(() => import("./pages/AdminSignalScoresPage"));
+const AdminSignalWeightsPage = lazy(() => import("./pages/AdminSignalWeightsPage"));
+const AdminAgentPage = lazy(() => import("./pages/AdminAgentPage"));
+const AdminToolsHubPage = lazy(() => import("./pages/AdminToolsHubPage"));
+const MatchingEngineAdmin = lazy(() => import("./pages/_archived/admin-cleanup-2026/MatchingEngineAdmin"));
+const TierMatchingAdmin = lazy(() => import("./pages/_archived/admin-cleanup-2026/TierMatchingAdmin"));
+const StartupBenchmarksDashboard = lazy(() => import("./pages/_archived/StartupBenchmarksDashboard"));
+const InvestorEnrichmentPage = lazy(() => import("./pages/_archived/InvestorEnrichmentPage"));
+const AdminMetricsPage = lazy(() => import("./pages/_archived/admin-cleanup-2026/AdminMetricsPage"));
 
 // -----------------------------------------------------------------------------
 // APP
@@ -395,6 +405,16 @@ const App = () => {
               <Route path="lp-targets" element={<LPTargetsPage />} />
               <Route path="outreach" element={<AdminOutreachPage />} />
               <Route path="analytics" element={<AdminAnalyticsPage />} />
+              <Route path="tools" element={<AdminToolsHubPage />} />
+              <Route path="god-manager" element={<AdminGodManagerPage />} />
+              <Route path="signals" element={<AdminSignalScoresPage />} />
+              <Route path="signal-weights" element={<AdminSignalWeightsPage />} />
+              <Route path="matching" element={<MatchingEngineAdmin />} />
+              <Route path="tier-matching" element={<TierMatchingAdmin />} />
+              <Route path="agent" element={<AdminAgentPage />} />
+              <Route path="benchmarks" element={<StartupBenchmarksDashboard />} />
+              <Route path="investor-enrichment" element={<InvestorEnrichmentPage />} />
+              <Route path="metrics" element={<AdminMetricsPage />} />
             </Route>
 
             {/* 404 */}

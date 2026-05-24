@@ -38,6 +38,18 @@ export function AdminRouteWrapper() {
       'lp-targets': 'LP Targets',
       'signal-feed': 'Signal Feed',
       'outreach': 'Outreach',
+      'tools': 'All Tools',
+      'god-manager': 'GOD Manager',
+      'god-settings': 'GOD Weights',
+      'signals': 'Signal Scores',
+      'signal-weights': 'Signal Weights',
+      'matching': 'Matching Engine',
+      'tier-matching': 'Tier Matching',
+      'scrapers': 'Scraper Management',
+      'agent': 'AI Agent',
+      'benchmarks': 'Startup Benchmarks',
+      'investor-enrichment': 'Investor Enrichment',
+      'metrics': 'Conversion Metrics',
     };
     return pageNames[path] || path.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };

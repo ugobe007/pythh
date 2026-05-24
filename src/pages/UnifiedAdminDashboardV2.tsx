@@ -8,10 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Database, Activity, Cpu, RefreshCw, 
   Settings, ArrowRight, Rss, Users, BarChart3,
-  FileText, Search, Shield, AlertCircle, Brain, Briefcase, Send
+  FileText, Search, Shield, AlertCircle, Brain, Briefcase, Send, Sliders
 } from 'lucide-react';
 import { adminRpc } from '../services/adminRpc';
 import { GODScoreMonitor, SocialSignalsMonitor, SystemHealthAlerts } from '../components/admin';
+import AdminToolsGrid from '../components/admin/AdminToolsGrid';
+import { ADMIN_TOOLS } from '../config/adminToolsRegistry';
 
 interface QuickStats {
   startups_approved: number;
@@ -93,7 +95,28 @@ export default function UnifiedAdminDashboard() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
             Admin Dashboard
           </h1>
-          <p className="text-slate-400 mt-1">GOD Score Management & System Monitoring</p>
+          <p className="text-slate-400 mt-1">GOD Score Management, matching, scrapers & system monitoring</p>
+        </div>
+
+        {/* Core tools — user-requested: GOD weights, signals, matching, scrapers */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-slate-300">Core Admin Tools</h2>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/tools')}
+              className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              All {ADMIN_TOOLS.length} tools →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <QuickLink icon={Settings} label="GOD Weights" route="/admin/god-settings" color="amber" />
+            <QuickLink icon={BarChart3} label="Signal Scores" route="/admin/signals" color="amber" />
+            <QuickLink icon={Sliders} label="Signal Weights" route="/admin/signal-weights" color="amber" />
+            <QuickLink icon={Users} label="Matching Engine" route="/admin/matching" color="purple" />
+            <QuickLink icon={RefreshCw} label="Scrapers" route="/admin/scrapers" color="green" />
+          </div>
         </div>
 
         {/* Quick Stats - Clickable KPI Cards */}
@@ -236,6 +259,15 @@ export default function UnifiedAdminDashboard() {
               <QuickLink icon={RefreshCw} label="Refresh Stats" route="/admin" color="slate" />
             </div>
           </div>
+        </div>
+
+        {/* Full tools registry */}
+        <div className="mt-8 bg-slate-800/30 border border-slate-700/60 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Settings className="w-5 h-5 text-slate-400" />
+            <h3 className="font-bold text-white">All Admin Tools</h3>
+          </div>
+          <AdminToolsGrid compact />
         </div>
 
         {/* Footer */}

@@ -9,7 +9,7 @@
  */
 
 import React, { useState } from 'react';
-import { useAdminMetrics, SourceData, DailyRow } from '../hooks/useAdminMetrics';
+import { useAdminMetrics, SourceData, DailyRow } from '@/hooks/useAdminMetrics';
 import { ArrowUpRight, ArrowDownRight, RefreshCw, TrendingUp, Mail, Share2, Users, DollarSign, Calendar, Activity } from 'lucide-react';
 
 // Range options
