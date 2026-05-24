@@ -119,6 +119,64 @@ export default function SignalScoresPage() {
             </div>
           </div>
 
+          {/* Founder voice / culture breakdown */}
+          {data?.founderVoice && (
+            <div style={S.card}>
+              <div style={S.label}>Founder Voice & Culture</div>
+              <p style={{ fontSize: 11, color: "oklch(0.45 0.01 264)", marginBottom: 12 }}>
+                Team credit ratio, excellence/cunning markers, and founder-culture signal classes.
+                Recompute with <code style={{ fontSize: 10 }}>node scripts/sync-signal-scores.js --apply</code> after weight changes.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Avg team credit (we vs I)</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "oklch(0.75 0.15 270)" }}>
+                    {data.founderVoice.avgTeamCreditRatio != null
+                      ? `${(Number(data.founderVoice.avgTeamCreditRatio) * 100).toFixed(0)}% we`
+                      : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Avg culture score</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "oklch(0.85 0.17 162)" }}>
+                    {data.founderVoice.avgCultureScore ?? "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Startups with voice metrics</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "monospace", color: "oklch(0.7 0.15 80)" }}>
+                    {Number(data.founderVoice.startupsWithVoiceMetrics ?? 0).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ ...S.label, marginBottom: 6 }}>Culture signal events</div>
+                  {Object.entries(data.founderVoice.classTotals ?? {}).map(([cls, cnt]) => (
+                    <div key={cls} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                      <span style={{ color: "oklch(0.55 0.01 264)" }}>{data.founderVoice.classLabels?.[cls] ?? cls}</span>
+                      <span style={{ fontFamily: "monospace", color: Number(cnt) > 0 ? "oklch(0.85 0.17 162)" : "oklch(0.35 0.01 264)" }}>{cnt as number}</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{ ...S.label, marginBottom: 6 }}>Top culture scores</div>
+                  {(data.topCultureStartups ?? []).length === 0 && (
+                    <div style={{ fontSize: 11, color: "oklch(0.35 0.01 264)" }}>Run sync-signal-scores to populate.</div>
+                  )}
+                  {(data.topCultureStartups ?? []).map((s: any, i: number) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                      <span style={{ color: "oklch(0.55 0.01 264)" }}>{s.company_name ?? s.startup_id?.slice?.(0, 8)}</span>
+                      <span style={{ fontFamily: "monospace", color: "oklch(0.85 0.17 162)" }}>
+                        {Number(s.culture_score ?? s.cultureScore ?? 0).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bottom startups + recent history side-by-side */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div style={S.card}>

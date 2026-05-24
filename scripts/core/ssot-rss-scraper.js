@@ -38,6 +38,7 @@ const { isVcNewsDailyHomepageUrl, fetchVcNewsDailyHomepageItems } = require('../
 const { isValidStartupName } = require('../../lib/startupNameValidator');
 // RSS headline + publisher gate (reduces noise in startup_events — see lib/source-quality-filter.js)
 const sourceQuality = require('../../lib/source-quality-filter');
+const { isArticleFresh } = require('../../lib/rssArticleFreshness');
 
 /** Cap per-process GOD scorer error lines (set GOD_SCORE_ERROR_LOG_CAP=0 for unlimited; VERBOSE_GOD_SCORING=1 ignores cap). */
 const GOD_SCORE_ERROR_LOG_CAP = Math.max(0, Number(process.env.GOD_SCORE_ERROR_LOG_CAP || 12));
@@ -296,6 +297,7 @@ const metrics = {
   source_quality: {}, // lib/source-quality-filter — counts by reason (NOISY_PUBLISHER, etc.)
   filtered_reasons: {},
   graph_safe_false_reasons: {},
+  stale_articles_skipped: 0,
 };
 
 function recordMetric(category, reason) {
@@ -412,6 +414,14 @@ async function scrapeRssFeeds() {
         const titleRaw = coerceRssText(item.title);
         if (!titleRaw || !linkStr) {
           rejected++;
+          continue;
+        }
+
+        const freshness = isArticleFresh(item.pubDate || item.isoDate);
+        if (!freshness.fresh) {
+          rejected++;
+          metrics.stale_articles_skipped++;
+          recordMetric('reject_reasons', 'stale_article');
           continue;
         }
         
@@ -802,6 +812,7 @@ async function scrapeRssFeeds() {
   console.log('='.repeat(60));
   console.log(`RSS Items Total:       ${metrics.rss_items_total}`);
   console.log(`Events Inserted:       ${metrics.events_inserted}`);
+  console.log(`Stale Items Skipped:   ${metrics.stale_articles_skipped} (>${require('../../lib/rssArticleFreshness').maxArticleAgeDays()}d)`);
   console.log(`Graph Edges Inserted:  ${metrics.graph_edges_inserted}`);
   console.log(`Sources Skipped (backoff): ${skippedBackoff}`);
   console.log();

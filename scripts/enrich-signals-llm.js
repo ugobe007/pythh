@@ -73,8 +73,14 @@ const VALID_CLASSES = [
   'buyer_signal', 'buyer_pain_signal', 'buyer_budget_signal',
   // GTM / market
   'gtm_signal', 'demand_signal', 'market_signal',
-  // Founder psychology (LinkedIn/X — precedes events by 3–12 months)
+  // Founder psychology & culture (LinkedIn/X — precedes events by 3–12 months)
   'founder_psychology_signal',
+  'founder_excellence_signal',
+  'founder_cunning_signal',
+  'customer_delight_signal',
+  'talent_magnet_signal',
+  'failure_learning_signal',
+  'failure_exit_signal',
   // Low certainty
   'exploratory_signal',
 ];
@@ -149,8 +155,24 @@ Valid posture values: ${VALID_POSTURES.join(', ')}
 
 ### Founder psychology signals (founder_psychology_signal):
 - Gratitude + excitement ("couldn't be more excited", "humbled by support") → strength 0.70–0.80, likely precedes fundraise/launch
-- Reflective / farewell ("on to next adventure", "bittersweet", "stepping back") → strength 0.75–0.88, likely precedes shutdown/departure
-- Reconsideration ("revisiting roadmap", "customers kept asking for") → strength 0.70–0.80, pivot likely
+- Reflective / reconsideration ("revisiting roadmap", "customers kept asking for") → strength 0.70–0.80, pivot likely
+
+### Founder excellence (founder_excellence_signal):
+- "raise the bar", "world-class", "obsessed with quality/excellence" → strength 0.75–0.85
+
+### Founder cunning (founder_cunning_signal):
+- "ship fast", "bias for action", "build in public", "dogfooding" → strength 0.70–0.82
+
+### Customer delight (customer_delight_signal):
+- "delight our customers", "customer obsessed", "customers love" → strength 0.75–0.88
+
+### Talent magnet (talent_magnet_signal):
+- "thrilled to welcome", "joined us from [FAANG]", senior hire announcements → strength 0.80–0.90
+
+### Failure learning vs exit:
+- failure_learning_signal: prior failure + forward motion ("learned a lot and now building", "trying again", "second act")
+- failure_exit_signal: farewell tone ("bittersweet", "on to next adventure", "stepping back", "shutting down", "we learned a lot" without forward build)
+- Reflective / farewell ("on to next adventure", "bittersweet", "stepping back") → failure_exit_signal, strength 0.75–0.88
 
 ### Colloquial / informal language:
 - "snags $X", "bags funding", "scores round", "pockets $Xm" → fundraising_signal, confirmed (0.90)

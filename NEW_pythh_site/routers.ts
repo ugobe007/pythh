@@ -1126,7 +1126,13 @@ export const appRouter = router({
 
     // ── Signal Scores ──────────────────────────────────────────────────────
     getSignalSummary: adminProcedure.query(async () => {
-      const [summary, topStartups, bottomStartups, recentHistory] = await Promise.all([
+      const cultureClasses = [
+        'founder_psychology_signal', 'founder_excellence_signal', 'founder_cunning_signal',
+        'customer_delight_signal', 'talent_magnet_signal', 'failure_learning_signal', 'failure_exit_signal',
+      ];
+      const classList = cultureClasses.map((c) => `'${c}'`).join(', ');
+
+      const [summary, topStartups, bottomStartups, recentHistory, cultureEvents, voiceAgg, topCulture] = await Promise.all([
         rawQuery<{ avg_total: string; count: string }>(`
           SELECT ROUND(AVG(signals_total)::numeric, 2) AS avg_total, COUNT(*) AS count
           FROM startup_signal_scores
@@ -1153,8 +1159,63 @@ export const appRouter = router({
           ORDER BY created_at DESC
           LIMIT 50
         `),
+        rawQuery<{ primary_signal: string; cnt: string }>(`
+          SELECT primary_signal, COUNT(*)::text AS cnt
+          FROM pythh_signal_events
+          WHERE primary_signal IN (${classList})
+          GROUP BY primary_signal
+          ORDER BY COUNT(*) DESC
+        `),
+        rawQuery<{ avg_team_credit: string; avg_culture: string; n: string }>(`
+          SELECT
+            ROUND(AVG((debug->'founder_voice'->>'teamCreditRatio')::numeric), 2)::text AS avg_team_credit,
+            ROUND(AVG((debug->'founder_voice'->>'cultureScore')::numeric), 2)::text AS avg_culture,
+            COUNT(*) FILTER (WHERE debug->'founder_voice' IS NOT NULL)::text AS n
+          FROM startup_signal_scores
+          WHERE debug->'founder_voice' IS NOT NULL
+        `),
+        rawQuery(`
+          SELECT s.company_name,
+                 (ss.debug->'founder_voice'->>'cultureScore')::numeric AS culture_score,
+                 (ss.debug->'founder_voice'->>'teamCreditRatio')::numeric AS team_credit_ratio
+          FROM startup_signal_scores ss
+          JOIN startup_uploads s ON s.id = ss.startup_id
+          WHERE ss.debug->'founder_voice' IS NOT NULL
+          ORDER BY culture_score DESC NULLS LAST
+          LIMIT 10
+        `),
       ]);
-      return { summary: summary[0] ?? null, topStartups, bottomStartups, recentHistory };
+
+      const classLabels: Record<string, string> = {
+        founder_psychology_signal: 'Psychology',
+        founder_excellence_signal: 'Excellence',
+        founder_cunning_signal: 'Cunning / ship fast',
+        customer_delight_signal: 'Customer delight',
+        talent_magnet_signal: 'Talent magnet',
+        failure_learning_signal: 'Failure → learning',
+        failure_exit_signal: 'Failure → exit',
+      };
+      const classTotals: Record<string, number> = {};
+      for (const c of cultureClasses) classTotals[c] = 0;
+      for (const row of cultureEvents) {
+        classTotals[row.primary_signal] = Number(row.cnt) || 0;
+      }
+
+      const voiceRow = voiceAgg[0] ?? {};
+      return {
+        summary: summary[0] ?? null,
+        topStartups,
+        bottomStartups,
+        recentHistory,
+        founderVoice: {
+          classTotals,
+          classLabels,
+          avgTeamCreditRatio: voiceRow.avg_team_credit ?? null,
+          avgCultureScore: voiceRow.avg_culture ?? null,
+          startupsWithVoiceMetrics: Number(voiceRow.n ?? 0),
+        },
+        topCultureStartups: topCulture,
+      };
     }),
 
     getMatchSummary: adminProcedure.query(async () => {

@@ -7,6 +7,7 @@
 
 const { loadSignalWeightConfig } = require('../../lib/signalWeightConfig');
 const { computeSignalScoresFromEvents } = require('../../lib/computeSignalDimensions');
+const { extractVoiceTexts } = require('../../lib/founderVoiceAnalysis');
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -47,7 +48,15 @@ async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId
   }
 
   const weightConfig = await loadSignalWeightConfig(supabase);
-  const blended = computeSignalScoresFromEvents(signals, weightConfig, godScore);
+
+  const { data: uploadRow } = await supabase
+    .from('startup_uploads')
+    .select('pitch, description, tagline, extracted_data, execution_signals, team_signals, grit_signals')
+    .eq('id', startupUploadId)
+    .maybeSingle();
+  const voiceTexts = extractVoiceTexts(uploadRow);
+
+  const blended = computeSignalScoresFromEvents(signals, weightConfig, godScore, { voiceTexts });
   const {
     founder_language_shift,
     investor_receptivity,
@@ -59,6 +68,7 @@ async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId
     blendWeight,
     godPrior,
     weightConfigVersion,
+    founderVoice,
   } = blended;
 
   const { error: upErr } = await supabase.from('startup_signal_scores').upsert(
@@ -79,6 +89,7 @@ async function recomputeStartupSignalScoresFromPythh(supabase, { startupUploadId
         blend_weight: godPrior != null ? blendWeight : null,
         god_score_input: godScore ?? null,
         weight_config_version: weightConfigVersion,
+        founder_voice: founderVoice ?? null,
         source: 'recomputeStartupSignalScoresFromPythh',
         computed_at: new Date().toISOString(),
       },

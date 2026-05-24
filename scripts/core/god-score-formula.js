@@ -811,7 +811,7 @@ function calculateTractionScore(startup) {
   let signals = 0;
   
   // ARR (Annual Recurring Revenue) - THE key metric
-  const arr = startup.arr || 0;
+  const arr = startup.arr || startup.arr_usd || 0;
   if (arr >= 10000000) { score += 40; signals++; }      // $10M+ ARR = exceptional
   else if (arr >= 5000000) { score += 35; signals++; }  // $5M+ ARR
   else if (arr >= 1000000) { score += 30; signals++; }  // $1M+ ARR = strong
@@ -866,7 +866,7 @@ function calculateTractionScore(startup) {
   else if (growth > 0) { score += 2; signals++; }
   
   // Customer Count
-  const customers = startup.customer_count || 0;
+  const customers = startup.customer_count || startup.parsed_customers || startup.parsed_users || 0;
   if (customers >= 1000) { score += 15; signals++; }
   else if (customers >= 500) { score += 12; signals++; }
   else if (customers >= 100) { score += 9; signals++; }
@@ -1295,7 +1295,7 @@ function calculateCustomerValidationScore(startup) {
   }
   
   // Customer Count (early validation)
-  const customers = startup.customer_count || 0;
+  const customers = startup.customer_count || startup.parsed_customers || startup.parsed_users || 0;
   if (customers >= 100) { score += 20; }
   else if (customers >= 50) { score += 15; }
   else if (customers >= 10) { score += 10; }
@@ -1572,29 +1572,35 @@ async function main() {
   const limitIndex = args.indexOf('--limit');
   const limit = limitIndex !== -1 ? parseInt(args[limitIndex + 1]) || 100 : null;
   
-  // Fetch startups
-  let query = supabase
-    .from('startup_uploads')
-    .select('*')
-    .eq('status', 'approved')
-    .order('updated_at', { ascending: true });
-  
-  if (limit) {
-    query = query.limit(limit);
-  }
-  
-  const { data: startups, error } = await query;
-  
-  if (error) {
-    console.error('❌ Error fetching startups:', error.message);
-    process.exit(1);
-  }
-  
-  console.log(`📊 Processing ${startups.length} startups...\n`);
-  
+  const batchSize = 1000;
   let updated = 0;
   let errors = 0;
+  let processed = 0;
   const scoreDistribution = { '0-19': 0, '20-39': 0, '40-59': 0, '60-79': 0, '80-100': 0 };
+  
+  while (true) {
+    const remaining = limit ? limit - processed : null;
+    if (remaining !== null && remaining <= 0) break;
+    
+    const fetchSize = remaining !== null ? Math.min(batchSize, remaining) : batchSize;
+    const { data: startups, error } = await supabase
+      .from('startup_uploads')
+      .select('*')
+      .eq('status', 'approved')
+      .order('id', { ascending: true })
+      .range(processed, processed + fetchSize - 1);
+    
+    if (error) {
+      console.error('❌ Error fetching startups:', error.message);
+      process.exit(1);
+    }
+    
+    if (!startups?.length) break;
+    
+    if (processed === 0) {
+      console.log(`📊 Processing startups in batches of ${batchSize}${limit ? ` (limit ${limit})` : ''}...\n`);
+    }
+    console.log(`--- Batch ${Math.floor(processed / batchSize) + 1}: ${startups.length} startups ---\n`);
   
   for (const startup of startups) {
     try {
@@ -1673,6 +1679,10 @@ async function main() {
       console.error(`❌ ${startup.name}: ${err.message}`);
       errors++;
     }
+  }
+  
+    processed += startups.length;
+    if (startups.length < fetchSize) break;
   }
   
   console.log('\n=====================================');

@@ -10,8 +10,18 @@
  */
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const { extractCompanyDomain } = require('./startup-domain-normalizer');
+const { normalizeCompanyDomain } = require('./startup-domain-normalizer');
 const { runStartupPipeline, formatAmount } = require('./startup-metric-parser');
+
+/** Adapter: v2 normalizer → shape expected by backfill UPDATE batch */
+function extractCompanyDomain(startup) {
+  const d = normalizeCompanyDomain(startup);
+  return {
+    company_domain: d.company_domain,
+    confidence: d.company_domain_confidence,
+    source: d.domain_source,
+  };
+}
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,

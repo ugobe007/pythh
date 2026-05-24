@@ -1741,7 +1741,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
           {
             model: 'gpt-4o-mini',
             messages: [
-              { role: 'system', content: 'You are a startup signal classifier. For each sentence, return a JSON object with key "signals" containing an array of {sentence_index, primary_signal, signal_strength, confidence, posture, action_tag}. primary_signal must be one of: fundraising_signal, growth_signal, revenue_signal, product_signal, hiring_signal, gtm_hiring_signal, engineering_hiring_signal, diligence_signal, expansion_signal, enterprise_signal, efficiency_signal, distress_signal, exit_signal, buyer_pain_signal, demand_signal, market_signal, founder_psychology_signal, exploratory_signal.' },
+              { role: 'system', content: 'You are a startup signal classifier. For each sentence, return a JSON object with key "signals" containing an array of {sentence_index, primary_signal, signal_strength, confidence, posture, action_tag}. primary_signal must be one of: fundraising_signal, growth_signal, revenue_signal, product_signal, hiring_signal, gtm_hiring_signal, engineering_hiring_signal, diligence_signal, expansion_signal, enterprise_signal, efficiency_signal, distress_signal, exit_signal, buyer_pain_signal, demand_signal, market_signal, founder_psychology_signal, founder_excellence_signal, founder_cunning_signal, customer_delight_signal, talent_magnet_signal, failure_learning_signal, failure_exit_signal, exploratory_signal.' },
               { role: 'user', content: `Classify signals in these sentences from a startup:\n\n${userContent}\n\nReturn ONLY valid JSON with a "signals" key.` },
             ],
             response_format: { type: 'json_object' },
@@ -1760,7 +1760,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         const VALID = ['fundraising_signal','growth_signal','revenue_signal','product_signal','hiring_signal',
           'gtm_hiring_signal','engineering_hiring_signal','diligence_signal',
           'expansion_signal','enterprise_signal','efficiency_signal','distress_signal','exit_signal',
-          'buyer_pain_signal','demand_signal','market_signal','founder_psychology_signal','exploratory_signal',
+          'buyer_pain_signal','demand_signal','market_signal','founder_psychology_signal',
+          'founder_excellence_signal','founder_cunning_signal','customer_delight_signal','talent_magnet_signal',
+          'failure_learning_signal','failure_exit_signal','exploratory_signal',
           'acquisition_signal','partnership_signal','gtm_signal','buyer_signal'];
 
         const toInsert = sigs

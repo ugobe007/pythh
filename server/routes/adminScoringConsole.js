@@ -14,6 +14,7 @@ const {
   setCachedSignalWeightConfig,
   DIMENSION_KEYS,
 } = require("../../lib/signalWeightConfig");
+const { FOUNDER_CULTURE_CLASSES, CLASS_LABELS } = require("../../lib/founderVoiceAnalysis");
 
 async function safeQuery(run) {
   try {
@@ -157,11 +158,50 @@ router.get("/signal-summary", async (_req, res) => {
         .limit(50)
     );
 
+    const cultureClassTotals = Object.fromEntries(FOUNDER_CULTURE_CLASSES.map((c) => [c, 0]));
+    const cultureEventsRes = await safeQuery(() =>
+      supabase.from("pythh_signal_events").select("primary_signal").in("primary_signal", FOUNDER_CULTURE_CLASSES)
+    );
+    for (const ev of cultureEventsRes?.data ?? []) {
+      if (cultureClassTotals[ev.primary_signal] != null) cultureClassTotals[ev.primary_signal]++;
+    }
+
+    const { data: debugScores } = await supabase.from("startup_signal_scores").select("startup_id, debug").limit(5000);
+    let teamCreditSum = 0;
+    let teamCreditN = 0;
+    let cultureSum = 0;
+    let cultureN = 0;
+    const cultureLeaders = [];
+    for (const r of debugScores ?? []) {
+      const fv = r.debug?.founder_voice;
+      if (!fv) continue;
+      if (typeof fv.teamCreditRatio === "number") {
+        teamCreditSum += fv.teamCreditRatio;
+        teamCreditN++;
+      }
+      if (typeof fv.cultureScore === "number") {
+        cultureSum += fv.cultureScore;
+        cultureN++;
+        cultureLeaders.push({ startup_id: r.startup_id, cultureScore: fv.cultureScore, teamCreditRatio: fv.teamCreditRatio ?? null });
+      }
+    }
+    cultureLeaders.sort((a, b) => b.cultureScore - a.cultureScore);
+
+    const founderVoice = {
+      classTotals: cultureClassTotals,
+      classLabels: CLASS_LABELS,
+      avgTeamCreditRatio: teamCreditN ? Math.round((teamCreditSum / teamCreditN) * 100) / 100 : null,
+      avgCultureScore: cultureN ? Math.round((cultureSum / cultureN) * 100) / 100 : null,
+      startupsWithVoiceMetrics: cultureN,
+    };
+
     res.json({
       summary,
       topStartups: enriched.slice(0, 15),
       bottomStartups: [...enriched].sort((a, b) => (Number(a.signals_total) || 0) - (Number(b.signals_total) || 0)).slice(0, 10),
       recentHistory: recentHistoryRes?.data ?? [],
+      founderVoice,
+      topCultureStartups: cultureLeaders.slice(0, 10),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

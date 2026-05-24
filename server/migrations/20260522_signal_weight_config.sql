@@ -10,7 +10,7 @@ create table if not exists public.signal_weight_config (
 );
 
 insert into public.signal_weight_config (id, config, version)
-values (1, '{}'::jsonb, 'signals_v1')
+values (1, '{}'::jsonb, 'signals_v2')
 on conflict (id) do nothing;
 
 create table if not exists public.signal_weight_history (

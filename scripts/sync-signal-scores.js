@@ -34,8 +34,9 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { fetchAll, upsertInBatches } = require('../lib/supabaseUtils');
-const { loadSignalWeightConfig } = require('../lib/signalWeightConfig');
+const { loadSignalWeightConfigWithMeta } = require('../lib/signalWeightConfig');
 const { computeSignalScoresFromEvents } = require('../lib/computeSignalDimensions');
+const { extractVoiceTexts } = require('../lib/founderVoiceAnalysis');
 
 /** Same default as instantSubmit (`scores.total_god_score || 50`) when GOD is missing in DB. */
 const DEFAULT_GOD_SCORE_BLEND = 50;
@@ -60,9 +61,11 @@ const LIMIT_ARG = (() => { const l = args.find(a => a.startsWith('--limit=')); r
 async function main() {
   console.log(`\n🔄  sync-signal-scores  ${DRY ? '(DRY RUN)' : '(APPLY)'}\n`);
 
-  const weightConfig = await loadSignalWeightConfig(supabase);
+  const { config: weightConfig, meta: weightMeta } = await loadSignalWeightConfigWithMeta(supabase);
   const caps = weightConfig.dimensionCaps;
-  console.log(`  Active signal weights: ${weightConfig.version}\n`);
+  const overrideNote = weightMeta.hasAdminOverrides ? ' (+ admin overrides)' : ' (code defaults)';
+  console.log(`  DB version label:      ${weightMeta.dbVersion ?? '(none)'}`);
+  console.log(`  Effective weights:     ${weightMeta.effectiveVersion}${overrideNote}\n`);
 
   // 1. Load all entities linked to startup_uploads
   console.log('  Loading pythh_entities with startup_upload_id…');
@@ -81,6 +84,7 @@ async function main() {
 
   const uploadIds = [...new Set(entityList.map(e => e.startup_upload_id).filter(Boolean))];
   const godByUploadId = {};
+  const voiceTextByUploadId = {};
   if (uploadIds.length > 0) {
     // PostgREST URL/query limits: a single .in() with tens of thousands of UUIDs returns 0 rows silently.
     const GOD_ID_CHUNK = 150;
@@ -98,8 +102,25 @@ async function main() {
         godByUploadId[r.id] = r.total_god_score;
       }
     }
+    for (let i = 0; i < uploadIds.length; i += GOD_ID_CHUNK) {
+      const idChunk = uploadIds.slice(i, i + GOD_ID_CHUNK);
+      const { data: voiceRows, error: voiceErr } = await supabase
+        .from('startup_uploads')
+        .select('id, pitch, description, tagline, extracted_data, execution_signals, team_signals, grit_signals')
+        .in('id', idChunk);
+      if (voiceErr) {
+        console.warn(`  voice text chunk ${i} warning:`, voiceErr.message);
+        continue;
+      }
+      for (const r of voiceRows || []) {
+        voiceTextByUploadId[r.id] = extractVoiceTexts(r);
+      }
+    }
     console.log(
-      `  Loaded total_god_score for ${Object.keys(godByUploadId).length} / ${uploadIds.length} startup_uploads (chunked)\n`
+      `  Loaded total_god_score for ${Object.keys(godByUploadId).length} / ${uploadIds.length} startup_uploads (chunked)`
+    );
+    console.log(
+      `  Loaded founder voice text for ${Object.keys(voiceTextByUploadId).length} / ${uploadIds.length} startup_uploads\n`
     );
   }
 
@@ -154,7 +175,9 @@ async function main() {
     const rawGod = godByUploadId[uploadId];
     if (rawGod == null || rawGod === '' || !Number.isFinite(Number(rawGod))) godScoreDefaulted++;
     const godScore = resolveGodScoreForBlend(rawGod);
-    const blended = computeSignalScoresFromEvents(signals, weightConfig, godScore);
+    const blended = computeSignalScoresFromEvents(signals, weightConfig, godScore, {
+      voiceTexts: voiceTextByUploadId[uploadId] || [],
+    });
     const {
       founder_language_shift,
       investor_receptivity,
@@ -166,6 +189,7 @@ async function main() {
       blendWeight,
       godPrior,
       weightConfigVersion,
+      founderVoice,
     } = blended;
 
     dimTotals.founder_language_shift += founder_language_shift;
@@ -192,6 +216,7 @@ async function main() {
         god_score_db: rawGod != null && rawGod !== '' && Number.isFinite(Number(rawGod)) ? Number(rawGod) : null,
         god_score_used_for_blend: godScore,
         weight_config_version: weightConfigVersion,
+        founder_voice: founderVoice ?? null,
         source: 'sync-signal-scores.js',
         computed_at: new Date().toISOString(),
       },

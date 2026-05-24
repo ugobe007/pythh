@@ -21,6 +21,7 @@ const { extractNames: extractNamesFromSentence } = require('../../lib/sentenceEx
 // Pythh Signal Intelligence — extracts structured business signals from article text
 const { parseSignal } = require('../../lib/signalParser');
 const { shouldProcessEvent } = require('../../lib/source-quality-filter');
+const { isArticleFresh } = require('../../lib/rssArticleFreshness');
 
 // Import v2 Inference Extractor for better sector detection (18 categories vs 5)
 let v2ExtractSectors, extractInferenceData;
@@ -202,6 +203,7 @@ async function scrapeRssFeeds() {
   let totalDiscovered = 0;
   let totalAdded = 0;
   let sourcesSkipped = 0;
+  let staleSkipped = 0;
   
   for (const source of sources || []) {
     // Check if source should be skipped due to backoff
@@ -246,6 +248,12 @@ async function scrapeRssFeeds() {
 
         if (!item.title || !item.link) {
           skipped++;
+          continue;
+        }
+
+        if (!isArticleFresh(item.pubDate || item.isoDate).fresh) {
+          skipped++;
+          staleSkipped++;
           continue;
         }
 
@@ -431,6 +439,7 @@ async function scrapeRssFeeds() {
   console.log('='.repeat(50));
   console.log(`Total discovered: ${totalDiscovered}`);
   console.log(`Total added: ${totalAdded}`);
+  console.log(`Stale items skipped: ${staleSkipped}`);
   console.log(`Sources skipped (backoff): ${sourcesSkipped}`);
   console.log('='.repeat(50));
 }

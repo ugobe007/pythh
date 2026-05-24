@@ -129,6 +129,36 @@ export default function AdminSignalScoresPage() {
               </div>
             </div>
 
+            {data.founderVoice && (
+              <div style={S.card}>
+                <div style={S.label}>Founder Voice & Culture</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Avg team credit</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: "oklch(0.75 0.15 270)" }}>
+                      {data.founderVoice.avgTeamCreditRatio != null
+                        ? `${(Number(data.founderVoice.avgTeamCreditRatio) * 100).toFixed(0)}% we`
+                        : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: "oklch(0.45 0.01 264)" }}>Avg culture score</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: "oklch(0.85 0.17 162)" }}>
+                      {data.founderVoice.avgCultureScore ?? "—"}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 11 }}>
+                  {Object.entries(data.founderVoice.classTotals ?? {}).map(([cls, cnt]) => (
+                    <div key={cls} style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "oklch(0.55 0.01 264)" }}>{data.founderVoice.classLabels?.[cls] ?? cls}</span>
+                      <span style={{ fontFamily: "monospace" }}>{String(cnt)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {(data.recentHistory ?? []).length > 0 && (
               <div style={S.card}>
                 <div style={S.label}>Recent signal history</div>
