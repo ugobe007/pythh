@@ -536,7 +536,7 @@ function PortfolioTeaser() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/portfolio?sort=god").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/portfolio?sort=god&limit=8&status=active&lite=1").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/portfolio/metrics").then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([listData, metricsData]) => {

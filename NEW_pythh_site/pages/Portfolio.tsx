@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   Award, Target, TrendingUp, Star, DollarSign, Clock,
-  Activity, ExternalLink, Zap, ChevronDown,
+  ExternalLink, Zap, ChevronDown,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -292,7 +292,8 @@ function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
 export default function Portfolio() {
   const [entries, setEntries]   = useState<PortfolioEntry[]>([]);
   const [metrics, setMetrics]   = useState<PortfolioMetrics | null>(null);
-  const [loading, setLoading]   = useState(true);
+  const [listLoading, setListLoading] = useState(true);
+  const [metricsLoading, setMetricsLoading] = useState(true);
   const [error, setError]       = useState<string | null>(null);
   const [filter, setFilter]     = useState<"all" | "active" | "exited">("all");
   const [tierFilter, setTierFilter] = useState<"all" | HealthTier>("all");
@@ -302,23 +303,29 @@ export default function Portfolio() {
   useEffect(() => { loadData(); }, [sortBy]);
 
   async function loadData() {
-    setLoading(true);
+    setListLoading(true);
+    setMetricsLoading(true);
     setError(null);
+
+    const sortQ = sortBy === "health" ? "health" : "god";
+    const listUrl = `/api/portfolio?sort=${sortQ}&limit=80&lite=1`;
+
+    // Metrics is fast — paint the header bar as soon as it lands.
+    fetch("/api/portfolio/metrics")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load metrics"))))
+      .then((metricsData) => setMetrics(metricsData.metrics ?? null))
+      .catch(() => {})
+      .finally(() => setMetricsLoading(false));
+
     try {
-      const q = sortBy === "health" ? "?sort=health" : "?sort=god";
-      const [listRes, metricsRes] = await Promise.all([
-        fetch(`/api/portfolio${q}`),
-        fetch("/api/portfolio/metrics"),
-      ]);
-      if (!listRes.ok || !metricsRes.ok) throw new Error("Failed to load portfolio");
-      const listData    = await listRes.json();
-      const metricsData = await metricsRes.json();
+      const listRes = await fetch(listUrl);
+      if (!listRes.ok) throw new Error("Failed to load portfolio");
+      const listData = await listRes.json();
       setEntries(listData.entries ?? []);
-      setMetrics(metricsData.metrics ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setLoading(false);
+      setListLoading(false);
     }
   }
 
@@ -377,7 +384,13 @@ export default function Portfolio() {
         </div>
 
         {/* ── Metrics Bar ── */}
-        {metrics && (
+        {metricsLoading && !metrics ? (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-12">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="rounded-xl border p-4 animate-pulse" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)", height: 88 }} />
+            ))}
+          </div>
+        ) : metrics ? (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-12">
             {[
               { icon: <Target size={14} />,    label: "Total Picks",    value: String(metrics.total_picks ?? 0),                     sub: `${metrics.active_picks ?? 0} active` },
@@ -396,7 +409,7 @@ export default function Portfolio() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
 
         {/* ── Filters ── */}
         <div className="space-y-3 mb-6">
@@ -460,10 +473,11 @@ export default function Portfolio() {
         </div>
 
         {/* ── Content ── */}
-        {loading ? (
-          <div className="text-center py-24" style={{ color: DIM }}>
-            <Activity size={24} className="mx-auto mb-3 animate-spin" style={{ color: G }} />
-            <p className="text-sm">Loading portfolio…</p>
+        {listLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="rounded-xl border animate-pulse" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)", height: 120 }} />
+            ))}
           </div>
         ) : error ? (
           <div className="text-center py-24 text-red-400">{error}</div>

@@ -8958,6 +8958,7 @@ app.get('/api/portfolio', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || '200', 10), 500);
     const status = req.query.status || null;
     const sort = String(req.query.sort || 'god').toLowerCase();
+    const lite = req.query.lite === '1' || req.query.lite === 'true';
 
     let query = supabase.from('portfolio_health').select('*').limit(limit);
 
@@ -8976,37 +8977,42 @@ app.get('/api/portfolio', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
 
     const rows = data || [];
-    const ids = rows.map((e) => e.startup_id).filter(Boolean);
-    let propMap = new Map();
-    if (ids.length > 0) {
-      const chunkSize = 120;
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const chunk = ids.slice(i, i + chunkSize);
-        const { data: propRows, error: propErr } = await supabase
-          .from('startup_uploads')
-          .select(
-            'id, exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
-          )
-          .in('id', chunk);
-        if (!propErr && propRows?.length) {
-          for (const r of propRows) propMap.set(r.id, r);
+    let entries = rows;
+
+    if (!lite) {
+      const ids = rows.map((e) => e.startup_id).filter(Boolean);
+      let propMap = new Map();
+      if (ids.length > 0) {
+        const chunkSize = 120;
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          const chunk = ids.slice(i, i + chunkSize);
+          const { data: propRows, error: propErr } = await supabase
+            .from('startup_uploads')
+            .select(
+              'id, exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
+            )
+            .in('id', chunk);
+          if (!propErr && propRows?.length) {
+            for (const r of propRows) propMap.set(r.id, r);
+          }
         }
       }
+
+      entries = rows.map((e) => {
+        const p = propMap.get(e.startup_id);
+        if (!p) return e;
+        return {
+          ...e,
+          exit_propensity_score: p.exit_propensity_score,
+          exit_propensity_confidence: p.exit_propensity_confidence,
+          exit_propensity_tier: p.exit_propensity_tier,
+          exit_propensity_breakdown: p.exit_propensity_breakdown,
+          exit_propensity_at: p.exit_propensity_at,
+        };
+      });
     }
 
-    const entries = rows.map((e) => {
-      const p = propMap.get(e.startup_id);
-      if (!p) return e;
-      return {
-        ...e,
-        exit_propensity_score: p.exit_propensity_score,
-        exit_propensity_confidence: p.exit_propensity_confidence,
-        exit_propensity_tier: p.exit_propensity_tier,
-        exit_propensity_breakdown: p.exit_propensity_breakdown,
-        exit_propensity_at: p.exit_propensity_at,
-      };
-    });
-
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ entries, count: entries.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -9019,6 +9025,7 @@ app.get('/api/portfolio/metrics', async (req, res) => {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('portfolio_metrics').select('*').maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ metrics: data || {} });
   } catch (err) {
     res.status(500).json({ error: err.message });
