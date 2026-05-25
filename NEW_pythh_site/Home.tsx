@@ -336,17 +336,17 @@ function HeroResultsPreview() {
   const signals = preview?.signals ?? [];
   const dims = startup?.dimensions ?? [];
   const displayDomain = startup?.domain ?? startup?.name ?? "startup";
-  const headerLabel = showTransition
+  const statusLabel = showTransition
     ? holdComplete
-      ? `${displayDomain} verified`
-      : `scanning ${displayDomain}…`
-    : `${displayDomain} scored`;
+      ? "verified"
+      : "scanning…"
+    : "scored";
 
   return (
     <div className="w-full" style={{ maxWidth: 520 }}>
       <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
         {startup
-          ? `Live · ${startup.domain ?? startup.name}${pool.length > 1 ? ` · ${startupIndex + 1}/${pool.length}` : ""}`
+          ? `Live preview${pool.length > 1 ? ` · ${startupIndex + 1}/${pool.length}` : ""}`
           : "What you get in ~20 seconds"}
       </p>
       <div
@@ -355,16 +355,26 @@ function HeroResultsPreview() {
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-5 py-3.5 border-b"
+          className="px-5 py-4 border-b"
           style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-            <span className="text-xs font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
-              PYTHIA · {headerLabel}
-            </span>
+          {startup && (
+            <p
+              className="font-display font-bold truncate leading-tight mb-2.5"
+              style={{ fontSize: "1.4rem", color: "#a78bfa", letterSpacing: "-0.02em" }}
+            >
+              {displayDomain}
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+              <span className="text-xs font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
+                PYTHIA · {statusLabel}
+              </span>
+            </div>
+            <span className="text-[11px] font-mono flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
           </div>
-          <span className="text-[11px] font-mono flex-shrink-0 ml-2" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
         </div>
 
         <div key={startup?.id ?? `slot-${startupIndex}`}>
