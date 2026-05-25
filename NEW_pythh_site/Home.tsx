@@ -251,6 +251,13 @@ function Navbar() {
 // ─── Hero results preview (right panel — show, don't ask) ─────────────────────
 
 function HeroResultsPreview() {
+  const signals = [
+    { label: "Hiring velocity", value: 0.81, color: "#22d3ee" },
+    { label: "Product shipping", value: 0.85, color: "#a855f7" },
+    { label: "Funding activity", value: 0.73, color: "#22c55e" },
+    { label: "Social proof", value: 0.71, color: "#22d3ee" },
+    { label: "Market momentum", value: 0.58, color: "#eab308" },
+  ];
   const dims = [
     { label: "TEAM", score: 78, color: "#a855f7" },
     { label: "TRACTION", score: 62, color: "#22d3ee" },
@@ -258,78 +265,156 @@ function HeroResultsPreview() {
     { label: "PRODUCT", score: 67, color: "#22d3ee" },
     { label: "VISION", score: 82, color: "#a855f7" },
   ];
+  const matches = [
+    { firm: "General Catalyst", fit: 94, stage: "Series A" },
+    { firm: "Sequoia Capital", fit: 91, stage: "Series A–B" },
+    { firm: "Conviction Partners", fit: 88, stage: "Seed" },
+    { firm: "a16z", fit: 86, stage: "Series A" },
+  ];
+
+  // 0 scan → 1 signals → 2 GOD dims → 3 composite → 4 ranked investors
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setPhase((p) => (p + 1) % 3), 3200);
+    const id = setInterval(() => setPhase((p) => (p + 1) % 5), 4500);
     return () => clearInterval(id);
   }, []);
 
-  const barWidth = phase === 0 ? 0 : 1;
+  const showSignals = phase >= 1;
+  const showDims = phase >= 2;
+  const showComposite = phase >= 3;
+  const showMatches = phase >= 4;
 
   return (
-    <div className="w-full" style={{ maxWidth: 420 }}>
-      <p className="text-[11px] font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.42 0.01 264)" }}>
+    <div className="w-full" style={{ maxWidth: 520 }}>
+      <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
         What you get in ~20 seconds
       </p>
       <div
         className="rounded-xl overflow-hidden"
-        style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.2)", backgroundColor: "oklch(0.1 0.01 264)" }}
+        style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.22)", backgroundColor: "oklch(0.1 0.01 264)", boxShadow: "0 0 48px oklch(0.696 0.17 162.48 / 0.06)" }}
       >
+        {/* Header */}
         <div
-          className="flex items-center justify-between px-4 py-3 border-b"
+          className="flex items-center justify-between px-5 py-3.5 border-b"
           style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}
         >
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-            <span className="text-[11px] font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
-              PYTHIA · {phase === 0 ? "reading signals…" : "startup.com analyzed"}
+            <span className="text-xs font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
+              PYTHIA · {phase === 0 ? "reading public signals…" : "your-startup.com scored"}
             </span>
           </div>
-          <span className="text-[10px] font-mono flex-shrink-0 ml-2" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
+          <span className="text-[11px] font-mono flex-shrink-0 ml-2" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
         </div>
 
-        <div className="px-4 py-2 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
+        {/* Observable signals */}
+        <div className="px-5 py-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
           <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
-            GOD score · 5-dimension breakdown
+            Observable signals · market behavior
           </span>
         </div>
+        <div className="px-5 py-4 space-y-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
+          {signals.map(({ label, value, color }) => (
+            <div key={label} className="flex items-center gap-3">
+              <span className="text-[11px] font-mono w-[108px] flex-shrink-0 truncate" style={{ color: "oklch(0.45 0.01 264)" }}>{label}</span>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
+                <div
+                  className="h-2 rounded-full"
+                  style={{
+                    width: showSignals ? `${value * 100}%` : "0%",
+                    backgroundColor: color,
+                    transition: "width 1.4s ease-out",
+                  }}
+                />
+              </div>
+              <span className="text-xs font-mono font-bold w-8 text-right tabular-nums flex-shrink-0" style={{ color: showSignals ? color : "oklch(0.35 0.01 264)" }}>
+                {showSignals ? value.toFixed(2) : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
 
+        {/* GOD dimensions */}
+        <div className="px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
+          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
+            GOD score · 5-dimension composite
+          </span>
+        </div>
         {dims.map(({ label, score, color }) => (
-          <div key={label} className="flex items-center gap-3 px-4 py-2 border-b" style={{ borderColor: "oklch(0.11 0.01 264)" }}>
-            <span className="text-[10px] font-mono w-14 flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>{label}</span>
-            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
+          <div key={label} className="flex items-center gap-3 px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.11 0.01 264)" }}>
+            <span className="text-[11px] font-mono w-16 flex-shrink-0" style={{ color: "oklch(0.4 0.01 264)" }}>{label}</span>
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
               <div
-                className="h-1 rounded-full"
-                style={{ width: `${score * barWidth}%`, backgroundColor: color, transition: "width 1.2s ease-out" }}
+                className="h-1.5 rounded-full"
+                style={{ width: showDims ? `${score}%` : "0%", backgroundColor: color, transition: "width 1.4s ease-out" }}
               />
             </div>
-            <span className="text-xs font-mono font-bold w-6 text-right flex-shrink-0 tabular-nums" style={{ color: phase === 0 ? "oklch(0.35 0.01 264)" : color }}>
-              {phase === 0 ? "—" : score}
+            <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showDims ? color : "oklch(0.35 0.01 264)" }}>
+              {showDims ? score : "—"}
             </span>
           </div>
         ))}
 
-        <div className="grid grid-cols-2">
-          <div className="px-4 py-4 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
-            <p className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
+        {/* Composite + investor ranking */}
+        <div className="grid grid-cols-2 border-b" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
+          <div className="px-5 py-5 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
+            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold tabular-nums" style={{ color: phase >= 1 ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
-                {phase >= 1 ? "76" : "—"}
+              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
+                {showComposite ? "76" : "—"}
               </span>
-              {phase >= 1 && <span className="text-xs font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
+              {showComposite && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
             </div>
-          </div>
-          <div className="px-4 py-4">
-            <p className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "oklch(0.38 0.01 264)" }}>Investors</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-bold tabular-nums text-white">{phase >= 2 ? "18" : "—"}</span>
-              {phase >= 2 && <span className="text-xs font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>ranked</span>}
-            </div>
-            {phase >= 2 && (
-              <p className="text-[10px] mt-1 truncate" style={{ color: "#22d3ee" }}>Sequoia · a16z · GC…</p>
+            {showComposite && (
+              <p className="text-[11px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>Strong · investment-grade</p>
             )}
           </div>
+          <div className="px-5 py-5">
+            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>Matches</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tabular-nums text-white">{showComposite ? "18" : "—"}</span>
+              {showComposite && <span className="text-sm font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>investors</span>}
+            </div>
+            {showComposite && (
+              <p className="text-[11px] mt-1" style={{ color: "#22d3ee" }}>thesis + stage aligned</p>
+            )}
+          </div>
+        </div>
+
+        {/* Ranked shortlist */}
+        <div className="px-5 py-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}>
+          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
+            Ranked investor shortlist
+          </span>
+        </div>
+        <div className="px-5 py-2">
+          {matches.map(({ firm, fit, stage }, i) => (
+            <div
+              key={firm}
+              className="flex items-center gap-3 py-2.5 border-b last:border-0"
+              style={{
+                borderColor: "oklch(0.11 0.01 264)",
+                opacity: showMatches ? 1 : 0.35,
+                transform: showMatches ? "translateY(0)" : "translateY(4px)",
+                transition: `opacity 0.6s ease ${i * 0.12}s, transform 0.6s ease ${i * 0.12}s`,
+              }}
+            >
+              <span className="text-[11px] font-mono w-4 flex-shrink-0 tabular-nums" style={{ color: "oklch(0.38 0.01 264)" }}>
+                {showMatches ? i + 1 : "·"}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{firm}</p>
+                <p className="text-[10px] font-mono truncate" style={{ color: "oklch(0.42 0.01 264)" }}>{stage}</p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <span className="text-sm font-bold tabular-nums" style={{ color: showMatches ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
+                  {showMatches ? `${fit}%` : "—"}
+                </span>
+                <p className="text-[9px] font-mono uppercase" style={{ color: "oklch(0.38 0.01 264)" }}>fit</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -477,17 +562,13 @@ function HeroSection() {
             </div>
 
             <div
-              className="space-y-3 text-[15px] leading-[1.65] mb-5 max-w-[500px]"
+              className="text-[15px] leading-[1.65] mb-5 max-w-[500px]"
               style={{ color: "oklch(0.58 0.01 264)" }}
             >
               <p>
                 Pythh's scoring algorithms remove market noise to uncover patterns that matter,
                 not marketing hype. Built on 40+ observable signals and 33,000+ startup outcomes —
                 the same engine institutional investors query through Pythh Connect.
-              </p>
-              <p style={{ color: "oklch(0.68 0.01 264)" }}>
-                Submit your URL. PYTHIA scores your startup 0–100, ranks investors by thesis fit
-                and deployment timing, and returns a reasoned shortlist in about twenty seconds.
               </p>
             </div>
 
@@ -507,7 +588,7 @@ function HeroSection() {
           </div>
 
           {/* ── Right: live results preview (desktop) ── */}
-          <div className="hidden lg:flex flex-shrink-0 flex-1 justify-end lg:sticky lg:top-20">
+          <div className="hidden lg:flex flex-shrink-0 flex-1 justify-end lg:sticky lg:top-16 self-stretch">
             <HeroResultsPreview />
           </div>
 
