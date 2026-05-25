@@ -48,6 +48,11 @@ export default defineConfig({
   server: {
     host: 'localhost',
     proxy: {
+      '/api/hero-preview': {
+        target: 'https://hot-honey.fly.dev',
+        changeOrigin: true,
+        secure: true,
+      },
       '/api': {
         target: 'http://localhost:3002',
         changeOrigin: true,

@@ -1537,7 +1537,8 @@ async function buildHeroPreviewEntry(supabase, pick) {
     key,
     label,
     color,
-    score: Math.round(Number(pick[key]) || 0),
+    // DB stores 0–100 per dimension; hero panel displays 0–20 bars
+    score: Math.min(20, Math.round((Number(pick[key]) || 0) / 5)),
     max: 20,
   }));
 

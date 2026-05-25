@@ -319,9 +319,9 @@ function HeroResultsPreview() {
   }, [phase, pool.length]);
 
   const preview = pool[startupIndex] ?? null;
-  const showSignals = phase >= 1 && phase <= 3;
-  const showDims = phase >= 2 && phase <= 3;
-  const showComposite = phase >= 3 && phase <= 3;
+  const showSignals = phase >= 1;
+  const showDims = phase >= 2;
+  const showComposite = phase >= 3;
   const showConfirm = phase === 4;
 
   const startup = preview?.startup;
@@ -342,6 +342,7 @@ function HeroResultsPreview() {
           : "What you get in ~20 seconds"}
       </p>
       <div
+        key={startup?.id ?? `slot-${startupIndex}`}
         className="relative rounded-xl overflow-hidden"
         style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.22)", backgroundColor: "oklch(0.1 0.01 264)", boxShadow: "0 0 48px oklch(0.696 0.17 162.48 / 0.06)" }}
       >
