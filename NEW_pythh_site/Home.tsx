@@ -250,23 +250,45 @@ function Navbar() {
 
 // ─── Hero results preview (right panel — show, don't ask) ─────────────────────
 
+interface HeroPreviewSignal {
+  label: string;
+  value: number;
+  raw: number;
+  color: string;
+}
+
+interface HeroPreviewDimension {
+  label: string;
+  score: number;
+  max: number;
+  color: string;
+}
+
+interface HeroPreviewData {
+  startup: {
+    id: string;
+    name: string;
+    domain: string | null;
+    godScore: number;
+    godLabel: string;
+    matchCount: number;
+    dimensions: HeroPreviewDimension[];
+  };
+  signals: HeroPreviewSignal[];
+}
+
+const DIM_COLORS = ["#a855f7", "#22d3ee", "#22c55e", "#22d3ee", "#a855f7"];
+
 function HeroResultsPreview() {
-  const signals = [
-    { label: "Hiring velocity", value: 0.81, color: "#22d3ee" },
-    { label: "Product shipping", value: 0.85, color: "#a855f7" },
-    { label: "Funding activity", value: 0.73, color: "#22c55e" },
-    { label: "Social proof", value: 0.71, color: "#22d3ee" },
-    { label: "Market momentum", value: 0.58, color: "#eab308" },
-  ];
-  const dims = [
-    { label: "TEAM", score: 78, color: "#a855f7" },
-    { label: "TRACTION", score: 62, color: "#22d3ee" },
-    { label: "MARKET", score: 91, color: "#22c55e" },
-    { label: "PRODUCT", score: 67, color: "#22d3ee" },
-    { label: "VISION", score: 82, color: "#a855f7" },
-  ];
-  // 0 scan → 1 signals → 2 GOD dims → 3 composite
+  const [preview, setPreview] = useState<HeroPreviewData | null>(null);
   const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/hero-preview")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview failed"))))
+      .then((data: HeroPreviewData) => setPreview(data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setPhase((p) => (p + 1) % 4), 2800);
@@ -277,10 +299,21 @@ function HeroResultsPreview() {
   const showDims = phase >= 2;
   const showComposite = phase >= 3;
 
+  const startup = preview?.startup;
+  const signals = preview?.signals ?? [];
+  const dims = startup?.dimensions ?? [];
+  const headerLabel = phase === 0
+    ? "reading public signals…"
+    : startup?.domain
+    ? `${startup.domain} scored`
+    : startup?.name
+    ? `${startup.name} scored`
+    : "startup scored";
+
   return (
     <div className="w-full" style={{ maxWidth: 520 }}>
       <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
-        What you get in ~20 seconds
+        {startup ? `Live · ${startup.name}` : "What you get in ~20 seconds"}
       </p>
       <div
         className="rounded-xl overflow-hidden"
@@ -294,7 +327,7 @@ function HeroResultsPreview() {
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
             <span className="text-xs font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
-              PYTHIA · {phase === 0 ? "reading public signals…" : "your-startup.com scored"}
+              PYTHIA · {headerLabel}
             </span>
           </div>
           <span className="text-[11px] font-mono flex-shrink-0 ml-2" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
@@ -307,21 +340,27 @@ function HeroResultsPreview() {
           </span>
         </div>
         <div className="px-5 py-4 space-y-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
-          {signals.map(({ label, value, color }) => (
+          {(signals.length > 0 ? signals : [
+            { label: "Execution velocity", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
+            { label: "Investor receptivity", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
+            { label: "News momentum", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
+            { label: "Capital convergence", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
+            { label: "Founder language", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
+          ]).map(({ label, value, raw, color }) => (
             <div key={label} className="flex items-center gap-3">
               <span className="text-[11px] font-mono w-[108px] flex-shrink-0 truncate" style={{ color: "oklch(0.45 0.01 264)" }}>{label}</span>
               <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
                 <div
                   className="h-2 rounded-full"
                   style={{
-                    width: showSignals ? `${value * 100}%` : "0%",
+                    width: showSignals && preview ? `${value * 100}%` : "0%",
                     backgroundColor: color,
                     transition: "width 0.9s ease-out",
                   }}
                 />
               </div>
-              <span className="text-xs font-mono font-bold w-8 text-right tabular-nums flex-shrink-0" style={{ color: showSignals ? color : "oklch(0.35 0.01 264)" }}>
-                {showSignals ? value.toFixed(2) : "—"}
+              <span className="text-xs font-mono font-bold w-8 text-right tabular-nums flex-shrink-0" style={{ color: showSignals && preview ? color : "oklch(0.35 0.01 264)" }}>
+                {showSignals && preview ? raw.toFixed(2) : "—"}
               </span>
             </div>
           ))}
@@ -333,17 +372,26 @@ function HeroResultsPreview() {
             GOD score · 5-dimension composite
           </span>
         </div>
-        {dims.map(({ label, score, color }) => (
+        {(dims.length > 0 ? dims : ["TEAM", "TRACTION", "MARKET", "PRODUCT", "VISION"].map((label, i) => ({
+          label,
+          score: 0,
+          max: 20,
+          color: DIM_COLORS[i],
+        }))).map(({ label, score, max, color }) => (
           <div key={label} className="flex items-center gap-3 px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.11 0.01 264)" }}>
             <span className="text-[11px] font-mono w-16 flex-shrink-0" style={{ color: "oklch(0.4 0.01 264)" }}>{label}</span>
             <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
               <div
                 className="h-1.5 rounded-full"
-                style={{ width: showDims ? `${score}%` : "0%", backgroundColor: color, transition: "width 0.9s ease-out" }}
+                style={{
+                  width: showDims && preview ? `${(score / max) * 100}%` : "0%",
+                  backgroundColor: color,
+                  transition: "width 0.9s ease-out",
+                }}
               />
             </div>
-            <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showDims ? color : "oklch(0.35 0.01 264)" }}>
-              {showDims ? score : "—"}
+            <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showDims && preview ? color : "oklch(0.35 0.01 264)" }}>
+              {showDims && preview ? score : "—"}
             </span>
           </div>
         ))}
@@ -353,22 +401,22 @@ function HeroResultsPreview() {
           <div className="px-5 py-5 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
             <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
-                {showComposite ? "76" : "—"}
+              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite && startup ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
+                {showComposite && startup ? startup.godScore : "—"}
               </span>
-              {showComposite && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
+              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
             </div>
-            {showComposite && (
-              <p className="text-[11px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>Strong · investment-grade</p>
+            {showComposite && startup && (
+              <p className="text-[11px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>{startup.godLabel}</p>
             )}
           </div>
           <div className="px-5 py-5">
             <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>Matches</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums text-white">{showComposite ? "18" : "—"}</span>
-              {showComposite && <span className="text-sm font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>investors</span>}
+              <span className="text-3xl font-bold tabular-nums text-white">{showComposite && startup ? startup.matchCount : "—"}</span>
+              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>investors</span>}
             </div>
-            {showComposite && (
+            {showComposite && startup && (
               <p className="text-[11px] mt-1" style={{ color: "#22d3ee" }}>thesis + stage aligned</p>
             )}
           </div>

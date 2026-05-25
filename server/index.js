@@ -1462,6 +1462,123 @@ app.get('/api/platform-stats', async (req, res) => {
 });
 
 // ============================================================
+// GET /api/hero-preview — live startup showcase for homepage hero
+// Rotates hourly through top scored startups with real signal + GOD data.
+// ============================================================
+const HERO_SIGNAL_CAP = 2.0;
+const HERO_SIGNAL_META = [
+  { key: 'execution_velocity', label: 'Execution velocity', color: '#a855f7', cap: 2.0 },
+  { key: 'investor_receptivity', label: 'Investor receptivity', color: '#22c55e', cap: 2.5 },
+  { key: 'news_momentum', label: 'News momentum', color: '#22d3ee', cap: 1.5 },
+  { key: 'capital_convergence', label: 'Capital convergence', color: '#eab308', cap: 2.0 },
+  { key: 'founder_language_shift', label: 'Founder language', color: '#22d3ee', cap: 2.0 },
+];
+const HERO_GOD_DIMS = [
+  { key: 'team_score', label: 'TEAM', color: '#a855f7' },
+  { key: 'traction_score', label: 'TRACTION', color: '#22d3ee' },
+  { key: 'market_score', label: 'MARKET', color: '#22c55e' },
+  { key: 'product_score', label: 'PRODUCT', color: '#22d3ee' },
+  { key: 'vision_score', label: 'VISION', color: '#a855f7' },
+];
+
+function heroGodBand(score) {
+  const s = Number(score) || 0;
+  if (s >= 80) return 'Elite · investment-grade';
+  if (s >= 60) return 'Strong · high conviction';
+  if (s >= 40) return 'Solid · signal-building';
+  if (s >= 20) return 'Emerging · early signals';
+  return 'Pre-signal · forming';
+}
+
+function heroDomainFromWebsite(website) {
+  if (!website || typeof website !== 'string') return null;
+  try {
+    const u = website.trim().startsWith('http') ? website.trim() : `https://${website.trim()}`;
+    return new URL(u).hostname.replace(/^www\./i, '');
+  } catch {
+    return null;
+  }
+}
+
+app.get('/api/hero-preview', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: rows, error } = await supabase
+      .from('startup_uploads')
+      .select(`
+        id, name, website, total_god_score,
+        team_score, traction_score, market_score, product_score, vision_score,
+        startup_signal_scores (
+          founder_language_shift, investor_receptivity, news_momentum,
+          capital_convergence, execution_velocity, signals_total
+        )
+      `)
+      .eq('status', 'approved')
+      .not('total_god_score', 'is', null)
+      .gte('total_god_score', 65)
+      .not('name', 'is', null)
+      .order('total_god_score', { ascending: false })
+      .limit(36);
+
+    if (error) throw error;
+
+    const eligible = (rows || []).filter((r) => {
+      const sig = Array.isArray(r.startup_signal_scores)
+        ? r.startup_signal_scores[0]
+        : r.startup_signal_scores;
+      return sig && sig.signals_total != null;
+    });
+
+    const pool = eligible.length > 0 ? eligible : (rows || []).slice(0, 12);
+    if (pool.length === 0) {
+      return res.status(404).json({ error: 'no_startups' });
+    }
+
+    const pick = pool[new Date().getUTCHours() % pool.length];
+    const sigRow = Array.isArray(pick.startup_signal_scores)
+      ? pick.startup_signal_scores[0]
+      : pick.startup_signal_scores;
+
+    const { count: matchCount } = await supabase
+      .from('startup_investor_matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('startup_id', pick.id);
+
+    const godScore = Math.round(Number(pick.total_god_score) || 0);
+    const signals = HERO_SIGNAL_META.map(({ key, label, color, cap }) => {
+      const raw = Number(sigRow?.[key]) || 0;
+      const value = Math.min(0.98, Math.max(0.05, raw / cap));
+      return { key, label, color, raw: +raw.toFixed(2), value: +value.toFixed(2) };
+    });
+
+    const dimensions = HERO_GOD_DIMS.map(({ key, label, color }) => ({
+      key,
+      label,
+      color,
+      score: Math.round(Number(pick[key]) || 0),
+      max: 20,
+    }));
+
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+    res.json({
+      startup: {
+        id: pick.id,
+        name: pick.name,
+        domain: heroDomainFromWebsite(pick.website),
+        godScore,
+        godLabel: heroGodBand(godScore),
+        matchCount: matchCount ?? 0,
+        dimensions,
+      },
+      signals,
+    });
+  } catch (err) {
+    console.error('[hero-preview]', err.message);
+    res.status(500).json({ error: 'hero_preview_unavailable', message: err.message });
+  }
+});
+
+// ============================================================
 // Newsletter endpoints — Daily Signal Digest
 // Public endpoints — no auth required
 // ============================================================
