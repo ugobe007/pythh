@@ -1100,7 +1100,8 @@ function Footer() {
       { label: "Support", href: "/support" },
     ]},
     { title: "Company", links: [
-      { label: "About", href: null },
+      { label: "Pythiam Ventures", href: "/pythiam" },
+      { label: "About", href: "/about" },
       { label: "Blog", href: null },
       { label: "Careers", href: null },
       { label: "Press", href: null },

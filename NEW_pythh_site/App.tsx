@@ -39,6 +39,7 @@ import ToolsHub from "./pages/admin/ToolsHub";
 import MlAgent from "./pages/admin/MlAgent";
 import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
+import Pythiam from "./pages/Pythiam";
 
 // Scroll to top on every client-side navigation
 function ScrollToTop() {
@@ -76,6 +77,7 @@ function Router() {
       <Route path={"/methodology"} component={Methodology} />
       <Route path={"/newsletter"} component={Newsletter} />
       <Route path={"/about"} component={About} />
+      <Route path={"/pythiam"} component={Pythiam} />
       <Route path={"/support"} component={Support} />
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />

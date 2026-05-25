@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { label: "Matches",   href: "/matches" },
   { label: "Investors", href: "/investors" },
   { label: "Platform",  href: "/platform" },
+  { label: "Pythiam",   href: "/pythiam" },
   { label: "Pricing",   href: "/pricing" },
 ];
 
