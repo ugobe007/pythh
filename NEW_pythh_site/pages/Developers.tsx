@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, Terminal, RefreshCw, Zap, Globe, Copy, Check } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import PythiaIcon from "@/components/PythiaIcon";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -141,15 +142,7 @@ export default function Developers() {
         {/* ── Page header ── */}
         <div className="mb-14">
           <div className="flex items-center gap-3 mb-5">
-            <svg width="32" height="32" viewBox="0 0 52 52" fill="none">
-              <polygon points="26,4 46,15 46,37 26,48 6,37 6,15" stroke="#a78bfa" strokeWidth="1.4" strokeLinejoin="round" />
-              <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-              <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-              <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-              <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.2" />
-              <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.2" />
-              <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.2" />
-            </svg>
+            <PythiaIcon size={32} ring />
             <span className="text-sm font-semibold tracking-wider uppercase" style={{ color: "#c4b5fd" }}>Pythh Connect</span>
             <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ backgroundColor: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e35" }}>
               MCP API

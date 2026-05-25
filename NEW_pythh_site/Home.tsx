@@ -13,6 +13,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
+import PythiaIcon from "@/components/PythiaIcon";
 import {
   ArrowRight,
   ExternalLink,
@@ -264,7 +265,7 @@ interface HeroPreviewDimension {
   color: string;
 }
 
-interface HeroPreviewData {
+interface HeroPreviewEntry {
   startup: {
     id: string;
     name: string;
@@ -277,46 +278,71 @@ interface HeroPreviewData {
   signals: HeroPreviewSignal[];
 }
 
+interface HeroPreviewResponse extends HeroPreviewEntry {
+  startups?: HeroPreviewEntry[];
+}
+
 const DIM_COLORS = ["#a855f7", "#22d3ee", "#22c55e", "#22d3ee", "#a855f7"];
+const PYTHH_GLYPH_URL = "/images/delphi-pythia-icon-glyph-dark.jpg";
+const HERO_PHASE_MS = 2800;
+const HERO_CONFIRM_MS = 1400;
 
 function HeroResultsPreview() {
-  const [preview, setPreview] = useState<HeroPreviewData | null>(null);
+  const [pool, setPool] = useState<HeroPreviewEntry[]>([]);
+  const [startupIndex, setStartupIndex] = useState(0);
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
     fetch("/api/hero-preview")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview failed"))))
-      .then((data: HeroPreviewData) => setPreview(data))
+      .then((data: HeroPreviewResponse) => {
+        const entries = data.startups?.length ? data.startups : [data];
+        setPool(entries);
+        setStartupIndex(0);
+        setPhase(0);
+      })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 2800);
-    return () => clearInterval(id);
-  }, []);
+    if (pool.length === 0) return;
+    const ms = phase === 4 ? HERO_CONFIRM_MS : HERO_PHASE_MS;
+    const id = setTimeout(() => {
+      if (phase >= 4) {
+        setStartupIndex((i) => (i + 1) % pool.length);
+        setPhase(0);
+      } else {
+        setPhase((p) => p + 1);
+      }
+    }, ms);
+    return () => clearTimeout(id);
+  }, [phase, pool.length]);
 
-  const showSignals = phase >= 1;
-  const showDims = phase >= 2;
-  const showComposite = phase >= 3;
+  const preview = pool[startupIndex] ?? null;
+  const showSignals = phase >= 1 && phase <= 3;
+  const showDims = phase >= 2 && phase <= 3;
+  const showComposite = phase >= 3 && phase <= 3;
+  const showConfirm = phase === 4;
 
   const startup = preview?.startup;
   const signals = preview?.signals ?? [];
   const dims = startup?.dimensions ?? [];
+  const displayDomain = startup?.domain ?? startup?.name ?? "startup";
   const headerLabel = phase === 0
     ? "reading public signals…"
-    : startup?.domain
-    ? `${startup.domain} scored`
-    : startup?.name
-    ? `${startup.name} scored`
-    : "startup scored";
+    : phase === 4
+    ? `${displayDomain} verified`
+    : `${displayDomain} scored`;
 
   return (
     <div className="w-full" style={{ maxWidth: 520 }}>
       <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
-        {startup ? `Live · ${startup.name}` : "What you get in ~20 seconds"}
+        {startup
+          ? `Live · ${startup.domain ?? startup.name}${pool.length > 1 ? ` · ${startupIndex + 1}/${pool.length}` : ""}`
+          : "What you get in ~20 seconds"}
       </p>
       <div
-        className="rounded-xl overflow-hidden"
+        className="relative rounded-xl overflow-hidden"
         style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.22)", backgroundColor: "oklch(0.1 0.01 264)", boxShadow: "0 0 48px oklch(0.696 0.17 162.48 / 0.06)" }}
       >
         {/* Header */}
@@ -421,6 +447,29 @@ function HeroResultsPreview() {
             )}
           </div>
         </div>
+
+        {showConfirm && (
+          <div
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 pointer-events-none"
+            style={{ backgroundColor: "transparent" }}
+          >
+            <img
+              src={PYTHH_GLYPH_URL}
+              alt="PYTHIA verified"
+              draggable={false}
+              className="animate-spin select-none"
+              style={{
+                width: 56,
+                height: 56,
+                animationDuration: "1.1s",
+                backgroundColor: "transparent",
+              }}
+            />
+            <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "#22c55e" }}>
+              PYTHIA · verified
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -614,15 +663,7 @@ function InvestorStrip() {
       <div className="container py-10">
         <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-16">
           <div className="flex items-center gap-3 flex-shrink-0">
-            <svg width="32" height="32" viewBox="0 0 52 52" fill="none" aria-hidden>
-              <polygon points="26,4 46,15 46,37 26,48 6,37 6,15" stroke="#a78bfa" strokeWidth="1.8" strokeLinejoin="round" />
-              <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3 3" />
-              <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3 3" />
-              <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3 3" />
-              <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.4" />
-              <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.4" />
-              <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.4" />
-            </svg>
+            <PythiaIcon size={32} ring alt="" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>For investors</span>

@@ -8,6 +8,7 @@ import {
   CheckCircle, Clock, Activity, Shield, Star, ChevronRight,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import PythiaIcon from "@/components/PythiaIcon";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -121,22 +122,6 @@ const SCORE_BANDS = [
   { range: "0–19",   label: "Pre-signal · Forming",       color: "oklch(0.5 0.01 264)" },
 ];
 
-// ─── Pythh hex icon SVG ───────────────────────────────────────────────────────
-
-function PythhhIcon({ size = 56 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 52 52" fill="none" aria-label="Pythh">
-      <polygon points="26,4 46,15 46,37 26,48 6,37 6,15" stroke="#a78bfa" strokeWidth="1.4" strokeLinejoin="round" />
-      <line x1="26" y1="17" x2="16" y2="33" stroke="#a78bfa" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-      <line x1="26" y1="17" x2="36" y2="33" stroke="#22d3ee" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-      <line x1="16" y1="33" x2="36" y2="33" stroke="#22c55e" strokeWidth="1" strokeLinecap="round" strokeDasharray="3 3" />
-      <circle cx="26" cy="17" r="2.5" stroke="#a78bfa" strokeWidth="1.2" />
-      <circle cx="16" cy="33" r="2.5" stroke="#22d3ee" strokeWidth="1.2" />
-      <circle cx="36" cy="33" r="2.5" stroke="#22c55e" strokeWidth="1.2" />
-    </svg>
-  );
-}
-
 // ─── Oracle terminal preview ──────────────────────────────────────────────────
 
 function OracleTerminal() {
@@ -224,7 +209,7 @@ export default function Oracle() {
             <div>
               {/* Brand mark */}
               <div className="flex items-center gap-3 mb-6">
-                <PythhhIcon size={44} />
+                <PythiaIcon size={44} ring />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>PYTHIA</span>
@@ -490,7 +475,7 @@ export default function Oracle() {
         {/* ── Final CTA ── */}
         <section className="text-center pb-20">
           <div className="flex justify-center mb-5">
-            <PythhhIcon size={52} />
+            <PythiaIcon size={52} ring />
           </div>
           <h2 className="text-3xl font-bold text-white mb-3" style={{ letterSpacing: "-0.02em" }}>
             Let the Oracle read your startup.
