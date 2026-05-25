@@ -27,8 +27,13 @@ const SB_URL  = process.env.SUPABASE_URL;
 const SB_KEY  = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = process.argv.includes('--dry-run');
 const SINGLE  = (process.argv.find(a => a.startsWith('--id=')) || '').replace('--id=', '') || null;
-const CONCURRENCY = 5;
+const CONCURRENCY = 2;
 const FETCH_TIMEOUT_MS = 10_000;
+const BATCH_PAUSE_MS = 400;
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function sb() {
   return createClient(SB_URL, SB_KEY);
@@ -44,17 +49,33 @@ function fetchText(url, timeoutMs = FETCH_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const lib = parsed.protocol === 'https:' ? https : http;
+    let settled = false;
+    const finish = (err, body = '') => {
+      if (settled) return;
+      settled = true;
+      if (err) reject(err);
+      else resolve(body);
+    };
     const req = lib.get(
       { hostname: parsed.hostname, path: parsed.pathname + parsed.search, headers: { 'User-Agent': 'Pythh-PortfolioBot/1.0' }, timeout: timeoutMs },
       (res) => {
         let body = '';
         res.setEncoding('utf8');
-        res.on('data', d => { body += d; if (body.length > 200_000) req.destroy(); });
-        res.on('end', () => resolve(body));
+        res.on('data', (d) => {
+          body += d;
+          if (body.length > 200_000) {
+            req.destroy();
+            finish(null, body);
+          }
+        });
+        res.on('end', () => finish(null, body));
       }
     );
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', (err) => finish(err));
+    req.on('timeout', () => {
+      req.destroy();
+      finish(new Error('timeout'));
+    });
   });
 }
 
@@ -238,6 +259,7 @@ async function processPortfolioCompany(pick, portfolioId) {
 async function runBatch(items, concurrency, fn) {
   for (let i = 0; i < items.length; i += concurrency) {
     await Promise.allSettled(items.slice(i, i + concurrency).map(fn));
+    if (i + concurrency < items.length) await sleep(BATCH_PAUSE_MS);
   }
 }
 
@@ -294,8 +316,6 @@ async function main() {
     console.log(`  Avg MOIC: ${metrics.avg_moic}x | Best MOIC: ${metrics.best_moic}x`);
     console.log(`  Win rate: ${metrics.win_rate_pct}% | Deployed: $${Math.round(metrics.total_virtual_deployed_usd/1e6)}M`);
   }
-
-  process.exit(0);
 }
 
 main().catch(e => { console.error('Fatal:', e.message); process.exit(1); });
