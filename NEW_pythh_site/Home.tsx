@@ -14,7 +14,7 @@ import { getLoginUrl } from "@/const";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
-import PythhGlyphIcon from "@/components/PythhGlyphIcon";
+import HeroScoringDots from "@/components/HeroScoringDots";
 import {
   ArrowRight,
   ExternalLink,
@@ -285,7 +285,7 @@ interface HeroPreviewResponse extends HeroPreviewEntry {
 
 const DIM_COLORS = ["#a855f7", "#22d3ee", "#22c55e", "#22d3ee", "#a855f7"];
 const HERO_STEP_MS = 2800;
-const HERO_TRANSITION_MS = 1100;
+const HERO_TRANSITION_MS = 1400;
 
 function HeroResultsPreview() {
   const [pool, setPool] = useState<HeroPreviewEntry[]>([]);
@@ -463,9 +463,16 @@ function HeroResultsPreview() {
             className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 pointer-events-none"
             style={{ backgroundColor: "transparent" }}
           >
-            <PythhGlyphIcon size={56} spin alt="" />
-            <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "#22c55e" }}>
-              PYTHIA · next startup
+            <HeroScoringDots
+              active={showTransition}
+              durationMs={HERO_TRANSITION_MS}
+              tone={holdComplete ? "purple" : "emerald"}
+            />
+            <p
+              className="text-[11px] font-mono tracking-widest uppercase"
+              style={{ color: holdComplete ? "#a78bfa" : "#22c55e" }}
+            >
+              PYTHIA · {holdComplete ? "next startup" : "reading signals"}
             </p>
           </div>
         )}
