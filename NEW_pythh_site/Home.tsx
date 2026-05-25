@@ -265,25 +265,17 @@ function HeroResultsPreview() {
     { label: "PRODUCT", score: 67, color: "#22d3ee" },
     { label: "VISION", score: 82, color: "#a855f7" },
   ];
-  const matches = [
-    { firm: "General Catalyst", fit: 94, stage: "Series A" },
-    { firm: "Sequoia Capital", fit: 91, stage: "Series A–B" },
-    { firm: "Conviction Partners", fit: 88, stage: "Seed" },
-    { firm: "a16z", fit: 86, stage: "Series A" },
-  ];
-
-  // 0 scan → 1 signals → 2 GOD dims → 3 composite → 4 ranked investors
+  // 0 scan → 1 signals → 2 GOD dims → 3 composite
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setPhase((p) => (p + 1) % 5), 4500);
+    const id = setInterval(() => setPhase((p) => (p + 1) % 4), 2800);
     return () => clearInterval(id);
   }, []);
 
   const showSignals = phase >= 1;
   const showDims = phase >= 2;
   const showComposite = phase >= 3;
-  const showMatches = phase >= 4;
 
   return (
     <div className="w-full" style={{ maxWidth: 520 }}>
@@ -324,7 +316,7 @@ function HeroResultsPreview() {
                   style={{
                     width: showSignals ? `${value * 100}%` : "0%",
                     backgroundColor: color,
-                    transition: "width 1.4s ease-out",
+                    transition: "width 0.9s ease-out",
                   }}
                 />
               </div>
@@ -347,7 +339,7 @@ function HeroResultsPreview() {
             <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
               <div
                 className="h-1.5 rounded-full"
-                style={{ width: showDims ? `${score}%` : "0%", backgroundColor: color, transition: "width 1.4s ease-out" }}
+                style={{ width: showDims ? `${score}%` : "0%", backgroundColor: color, transition: "width 0.9s ease-out" }}
               />
             </div>
             <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showDims ? color : "oklch(0.35 0.01 264)" }}>
@@ -356,8 +348,8 @@ function HeroResultsPreview() {
           </div>
         ))}
 
-        {/* Composite + investor ranking */}
-        <div className="grid grid-cols-2 border-b" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
+        {/* Composite summary */}
+        <div className="grid grid-cols-2">
           <div className="px-5 py-5 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
             <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
             <div className="flex items-baseline gap-1">
@@ -380,41 +372,6 @@ function HeroResultsPreview() {
               <p className="text-[11px] mt-1" style={{ color: "#22d3ee" }}>thesis + stage aligned</p>
             )}
           </div>
-        </div>
-
-        {/* Ranked shortlist */}
-        <div className="px-5 py-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}>
-          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
-            Ranked investor shortlist
-          </span>
-        </div>
-        <div className="px-5 py-2">
-          {matches.map(({ firm, fit, stage }, i) => (
-            <div
-              key={firm}
-              className="flex items-center gap-3 py-2.5 border-b last:border-0"
-              style={{
-                borderColor: "oklch(0.11 0.01 264)",
-                opacity: showMatches ? 1 : 0.35,
-                transform: showMatches ? "translateY(0)" : "translateY(4px)",
-                transition: `opacity 0.6s ease ${i * 0.12}s, transform 0.6s ease ${i * 0.12}s`,
-              }}
-            >
-              <span className="text-[11px] font-mono w-4 flex-shrink-0 tabular-nums" style={{ color: "oklch(0.38 0.01 264)" }}>
-                {showMatches ? i + 1 : "·"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{firm}</p>
-                <p className="text-[10px] font-mono truncate" style={{ color: "oklch(0.42 0.01 264)" }}>{stage}</p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <span className="text-sm font-bold tabular-nums" style={{ color: showMatches ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
-                  {showMatches ? `${fit}%` : "—"}
-                </span>
-                <p className="text-[9px] font-mono uppercase" style={{ color: "oklch(0.38 0.01 264)" }}>fit</p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>
