@@ -195,7 +195,7 @@ function Navbar() {
                   onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
                 >Sign in</button>
                 <button
-                  onClick={() => { const el = document.getElementById("hero-cta-mobile") ?? document.getElementById("hero-cta"); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }}
+                  onClick={() => { const el = document.getElementById("hero-cta"); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }}
                   className="text-sm font-semibold px-4 py-2 rounded-md transition-all duration-200"
                   style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px oklch(0.696 0.17 162.48 / 0.4)"; }}
@@ -236,7 +236,7 @@ function Navbar() {
                 ) : (
                   <>
                     <button onClick={() => { setMenuOpen(false); window.location.href = getLoginUrl(); }} className="text-sm font-medium" style={{ color: "oklch(0.65 0.01 264)" }}>Sign in</button>
-                    <button onClick={() => { const el = document.getElementById("hero-cta-mobile") ?? document.getElementById("hero-cta"); if (el) { setMenuOpen(false); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 100); } }} className="text-sm font-semibold px-4 py-2 rounded-md" style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}>Find investors</button>
+                    <button onClick={() => { const el = document.getElementById("hero-cta"); if (el) { setMenuOpen(false); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 100); } }} className="text-sm font-semibold px-4 py-2 rounded-md" style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}>Find investors</button>
                   </>
                 )}
               </div>
@@ -245,6 +245,94 @@ function Navbar() {
         )}
       </div>
     </nav>
+  );
+}
+
+// ─── Hero results preview (right panel — show, don't ask) ─────────────────────
+
+function HeroResultsPreview() {
+  const dims = [
+    { label: "TEAM", score: 78, color: "#a855f7" },
+    { label: "TRACTION", score: 62, color: "#22d3ee" },
+    { label: "MARKET", score: 91, color: "#22c55e" },
+    { label: "PRODUCT", score: 67, color: "#22d3ee" },
+    { label: "VISION", score: 82, color: "#a855f7" },
+  ];
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setPhase((p) => (p + 1) % 3), 3200);
+    return () => clearInterval(id);
+  }, []);
+
+  const barWidth = phase === 0 ? 0 : 1;
+
+  return (
+    <div className="w-full" style={{ maxWidth: 420 }}>
+      <p className="text-[11px] font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.42 0.01 264)" }}>
+        What you get in ~20 seconds
+      </p>
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.2)", backgroundColor: "oklch(0.1 0.01 264)" }}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-3 border-b"
+          style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+            <span className="text-[11px] font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
+              PYTHIA · {phase === 0 ? "reading signals…" : "startup.com analyzed"}
+            </span>
+          </div>
+          <span className="text-[10px] font-mono flex-shrink-0 ml-2" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
+        </div>
+
+        <div className="px-4 py-2 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
+          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
+            GOD score · 5-dimension breakdown
+          </span>
+        </div>
+
+        {dims.map(({ label, score, color }) => (
+          <div key={label} className="flex items-center gap-3 px-4 py-2 border-b" style={{ borderColor: "oklch(0.11 0.01 264)" }}>
+            <span className="text-[10px] font-mono w-14 flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>{label}</span>
+            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
+              <div
+                className="h-1 rounded-full"
+                style={{ width: `${score * barWidth}%`, backgroundColor: color, transition: "width 1.2s ease-out" }}
+              />
+            </div>
+            <span className="text-xs font-mono font-bold w-6 text-right flex-shrink-0 tabular-nums" style={{ color: phase === 0 ? "oklch(0.35 0.01 264)" : color }}>
+              {phase === 0 ? "—" : score}
+            </span>
+          </div>
+        ))}
+
+        <div className="grid grid-cols-2">
+          <div className="px-4 py-4 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
+            <p className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-bold tabular-nums" style={{ color: phase >= 1 ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
+                {phase >= 1 ? "76" : "—"}
+              </span>
+              {phase >= 1 && <span className="text-xs font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
+            </div>
+          </div>
+          <div className="px-4 py-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "oklch(0.38 0.01 264)" }}>Investors</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-bold tabular-nums text-white">{phase >= 2 ? "18" : "—"}</span>
+              {phase >= 2 && <span className="text-xs font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>ranked</span>}
+            </div>
+            {phase >= 2 && (
+              <p className="text-[10px] mt-1 truncate" style={{ color: "#22d3ee" }}>Sequoia · a16z · GC…</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -273,13 +361,13 @@ function HeroSection() {
     navigate("/activate");
   };
 
-  const urlForm = (id: string, compact = false) => (
-    <form id={id} onSubmit={handleSubmit}>
+  const urlForm = () => (
+    <form id="hero-cta" onSubmit={handleSubmit} className="w-full max-w-[480px]">
       <p className="text-[11px] font-semibold tracking-widest uppercase mb-2.5" style={{ color: "oklch(0.696 0.17 162.48)" }}>
         Submit your startup URL
       </p>
       <div
-        className={`flex items-center gap-2 px-3 ${compact ? "py-2.5" : "py-3.5"} rounded-lg mb-3 transition-all`}
+        className="flex items-center gap-2 px-3 py-3.5 rounded-lg mb-3 transition-all w-full"
         style={{
           backgroundColor: "oklch(0.115 0.01 264)",
           border: `1px solid ${error ? "#f87171" : "oklch(0.696 0.17 162.48 / 0.45)"}`,
@@ -294,7 +382,7 @@ function HeroSection() {
           placeholder="your-startup.com"
           value={url}
           onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-          className="flex-1 bg-transparent text-sm outline-none"
+          className="flex-1 min-w-0 bg-transparent text-sm outline-none"
           style={{ color: "oklch(0.94 0.005 264)" }}
         />
       </div>
@@ -303,14 +391,24 @@ function HeroSection() {
       )}
       <button
         type="submit"
-        className={`w-full flex items-center justify-center gap-2 ${compact ? "py-3" : "py-3.5"} rounded-lg font-semibold text-sm transition-all`}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-lg font-semibold text-sm transition-all"
         style={{
-          backgroundColor: "oklch(0.696 0.17 162.48)",
-          color: "oklch(0.1 0.01 162)",
-          boxShadow: "0 0 28px oklch(0.696 0.17 162.48 / 0.35)",
+          backgroundColor: "transparent",
+          border: "1px solid #7c3aed",
+          color: "#a78bfa",
         }}
-        onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "oklch(0.75 0.17 162.48)"; }}
-        onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.backgroundColor = "oklch(0.696 0.17 162.48)"; }}
+        onMouseEnter={(e) => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.borderColor = "#a78bfa";
+          el.style.color = "#c4b5fd";
+          el.style.backgroundColor = "#7c3aed12";
+        }}
+        onMouseLeave={(e) => {
+          const el = e.currentTarget as HTMLElement;
+          el.style.borderColor = "#7c3aed";
+          el.style.color = "#a78bfa";
+          el.style.backgroundColor = "transparent";
+        }}
       >
         Find my investors <ArrowRight size={15} />
       </button>
@@ -367,15 +465,15 @@ function HeroSection() {
             </h1>
 
             <p
-              className="font-display font-medium mb-4"
+              className="font-display font-medium mb-5"
               style={{ fontSize: "clamp(1.05rem, 2vw, 1.4rem)", color: "#a78bfa", letterSpacing: "-0.01em", lineHeight: 1.35 }}
             >
               Pythh signal intelligence identifies investors that match your thesis in real time.
             </p>
 
-            {/* Mobile + tablet: form above the fold, before prose */}
-            <div className="lg:hidden mb-6 p-4 rounded-xl" style={{ backgroundColor: "oklch(0.11 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}>
-              {urlForm("hero-cta-mobile")}
+            {/* Primary CTA — left column on all breakpoints */}
+            <div className="mb-6">
+              {urlForm()}
             </div>
 
             <div
@@ -408,38 +506,9 @@ function HeroSection() {
             </p>
           </div>
 
-          {/* ── Right: URL form + preview (desktop) ── */}
-          <div className="hidden lg:block flex-shrink-0 w-full" style={{ maxWidth: 380 }}>
-            <div
-              className="rounded-xl overflow-hidden"
-              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)", boxShadow: "0 0 40px oklch(0.696 0.17 162.48 / 0.08)" }}
-            >
-              <div
-                className="flex items-center justify-between px-5 py-3"
-                style={{ borderBottom: "1px solid oklch(0.16 0.01 264)", backgroundColor: "oklch(0.115 0.01 264)" }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                  <span className="text-xs font-semibold text-white">PYTHIA</span>
-                  <span className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>· live engine</span>
-                </div>
-                <span className="text-[11px]" style={{ color: "oklch(0.38 0.01 264)" }}>~20 sec</span>
-              </div>
-
-              <div className="px-5 pt-4 pb-5">
-                <div className="flex gap-3 mb-4">
-                  <div className="flex-1 py-3 rounded-lg text-center" style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.18 0.01 264)" }}>
-                    <div className="text-2xl font-bold mb-0.5" style={{ color: "#22d3ee" }}>74</div>
-                    <div className="text-[10px] font-medium" style={{ color: "oklch(0.55 0.01 264)" }}>GOD score</div>
-                  </div>
-                  <div className="flex-1 py-3 rounded-lg text-center" style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.18 0.01 264)" }}>
-                    <div className="text-2xl font-bold mb-0.5" style={{ color: "#22c55e" }}>18</div>
-                    <div className="text-[10px] font-medium" style={{ color: "oklch(0.55 0.01 264)" }}>investor matches</div>
-                  </div>
-                </div>
-                {urlForm("hero-cta", true)}
-              </div>
-            </div>
+          {/* ── Right: live results preview (desktop) ── */}
+          <div className="hidden lg:flex flex-shrink-0 flex-1 justify-end lg:sticky lg:top-20">
+            <HeroResultsPreview />
           </div>
 
         </div>
