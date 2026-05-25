@@ -55,6 +55,7 @@ const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
 const intel = require('../services/submitUrlIntelligence');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { enrichSocialScore } = require('../services/newsSignalService');
+const { signalTotalFromGod, DEFAULT_GOD_SCORE_BLEND } = require('../../lib/signalScoreGodBlend');
 
 /**
  * JSON-LD descriptions (SoftwareApplication / Organization / WebApplication) —
@@ -790,10 +791,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
     );
 
     // Initial Signal row: derived from GOD so the UI always has a number on first paint.
-    // Range ~5.5–9.5 maps GOD 35→100. Reconcile jobs / real signal pipelines may overwrite later.
-    const godScore = scores.total_god_score || 50;
-    const normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-    const signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+    const signalTotal = signalTotalFromGod(scores.total_god_score);
     const factor = signalTotal / 7.0;
     try {
       await supabase.from('startup_signal_scores').upsert(
@@ -874,15 +872,6 @@ function buildInstantMatchRow(startupId, placeholderStartup, investor, fitResult
     updated_at: new Date().toISOString(),
     feature_snapshot: matchFeatureSnapshotFor('instant_submit', 'sync_response', placeholderStartup, investor, {}),
   };
-}
-
-/**
- * God → same seed signal as sync/tier scoring (0–9 scale in practice after Math.round)
- */
-function signalTotalFromGod(god) {
-  const g = typeof god === 'number' && Number.isFinite(god) ? god : 50;
-  const normalized = Math.max(0, Math.min(1, (g - 35) / 65));
-  return parseFloat((5.5 + normalized * 4.0).toFixed(1));
 }
 
 /**
@@ -1208,9 +1197,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
         };
         completenessResult = { percentage: row.data_completeness ?? 0 };
         dataTier = row.extracted_data?.data_tier || 'B';
-        godScore = row.total_god_score ?? 50;
-        normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-        signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+        godScore = row.total_god_score ?? DEFAULT_GOD_SCORE_BLEND;
+        signalTotal = signalTotalFromGod(godScore);
         console.log(`  ⚡ [BG] Phase 2 skipped (request sync) — GOD ${scores.total_god_score}`);
       }
     }
@@ -1422,9 +1410,8 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       .eq('id', startupId);
 
     // ── Seed signal score (awaited — ensures score is readable before match gen) ──
-    godScore = scores.total_god_score || 50;
-    normalized = Math.max(0, Math.min(1, (godScore - 35) / 65));
-    signalTotal = parseFloat((5.5 + normalized * 4.0).toFixed(1));
+    godScore = scores.total_god_score || DEFAULT_GOD_SCORE_BLEND;
+    signalTotal = signalTotalFromGod(godScore);
     const factor = signalTotal / 7.0;
     try {
       await supabase
@@ -1445,7 +1432,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     }
     } // end if (!skipPhase2Fetch)
 
-    const factor = (typeof signalTotal === 'number' ? signalTotal : 5.5) / 7.0;
+    const factor = (typeof signalTotal === 'number' ? signalTotal : signalTotalFromGod(DEFAULT_GOD_SCORE_BLEND)) / 7.0;
 
     // ── Write signal_events (Layer 1 raw evidence) ──
     // Create signal events from enrichment evidence: execution_velocity (always),
@@ -2255,7 +2242,7 @@ router.post('/submit', async (req, res) => {
       const speculativePromise = generateSyncTopMatchesForHttpResponse(supabase, {
         startupId,
         placeholderStartup: speculativePlaceholder,
-        signalTotal: signalTotalFromGod(50),
+        signalTotal: signalTotalFromGod(DEFAULT_GOD_SCORE_BLEND),
         maxMs: Math.min(2000, timeLeft() - 500),
       }).catch(() => ({ matches: [], match_count: 0 }));
 

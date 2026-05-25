@@ -124,25 +124,22 @@ function inferTractionFlags(startup) {
     if (!reasons.includes('has_customers')) reasons.push('has_customers');
   }
 
-  const hasWebsite = typeof startup.website === 'string' && startup.website.trim().length > 8;
-  const hasFunding =
-    hasNum(startup.last_round_amount_usd) ||
-    hasNum(startup.latest_funding_amount) ||
-    hasNum(startup.total_funding_usd);
+  const hasDemo = startup.has_demo === true || ext.has_demo === true;
+  const hasProductEvidence =
+    hasDemo ||
+    ext.launched === true ||
+    (typeof ext.product === 'string' && ext.product.trim().length > 10) ||
+    (ext.product && typeof ext.product === 'object');
 
-  const hasLaunchedEvidence =
-    startup.is_launched === true ||
-    startup.has_demo === true ||
-    !!ext.launched ||
-    !!ext.has_demo ||
-    ext.product !== undefined ||
-    hasRevenueEvidence ||
-    hasCustomerEvidence ||
-    (hasFunding && hasWebsite);
+  // Strict launch: demo, explicit product signal, or verified revenue/customers — NOT funding+website alone.
+  const shouldBeLaunched = hasProductEvidence || hasRevenueEvidence || hasCustomerEvidence;
 
-  if (hasLaunchedEvidence && startup.is_launched !== true) {
+  if (shouldBeLaunched && startup.is_launched !== true) {
     updates.is_launched = true;
     reasons.push('is_launched');
+  } else if (startup.is_launched === true && !shouldBeLaunched) {
+    updates.is_launched = false;
+    reasons.push('revoke_loose_launch');
   }
 
   if (!hasNum(startup.team_size) && !hasNum(startup.team_size_estimate)) {
@@ -198,6 +195,7 @@ async function main() {
     has_revenue: 0,
     has_customers: 0,
     is_launched: 0,
+    revoke_loose_launch: 0,
     arr: 0,
     mrr: 0,
     customer_count: 0,
@@ -212,7 +210,14 @@ async function main() {
     if (Object.keys(updates).length === 0) continue;
 
     stats.changed++;
+    for (const r of reasons) {
+      if (r === 'revoke_loose_launch') stats.revoke_loose_launch++;
+    }
     for (const key of Object.keys(updates)) {
+      if (key === 'is_launched') {
+        if (updates.is_launched === true) stats.is_launched++;
+        continue;
+      }
       if (stats[key] != null) stats[key]++;
     }
 
@@ -247,6 +252,7 @@ async function main() {
   console.log(`  has_revenue:    +${stats.has_revenue}`);
   console.log(`  has_customers:  +${stats.has_customers}`);
   console.log(`  is_launched:    +${stats.is_launched}`);
+  console.log(`  launch revoked: ${stats.revoke_loose_launch}`);
   console.log(`  arr bridged:    ${stats.arr}`);
   console.log(`  mrr bridged:    ${stats.mrr}`);
   console.log(`  customer_count: ${stats.customer_count}`);

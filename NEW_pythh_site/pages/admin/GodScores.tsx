@@ -1,8 +1,8 @@
 import { Helmet } from "react-helmet-async";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
+import { apiUrl } from "@/lib/apiConfig";
 
 const S = {
   card:   { background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "18px 20px" },
@@ -38,9 +38,46 @@ function Bar({ label, count, total, color }: { label: string; count: number; tot
 }
 
 export default function GodScoresPage() {
-  const { data, isLoading, refetch } = trpc.admin.getGodScoreSummary.useQuery();
-  const freeze = trpc.admin.freezeGodScoring.useMutation({ onSuccess: () => refetch() });
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmFreeze, setConfirmFreeze] = useState(false);
+  const [freezing, setFreezing] = useState(false);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetch(apiUrl("/api/admin/god-score-summary"));
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Failed to load GOD summary");
+      setData(body);
+    } catch (e: unknown) {
+      setLoadError(e instanceof Error ? e.message : "Failed to load");
+      setData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleFreeze(freeze: boolean) {
+    setFreezing(true);
+    try {
+      const r = await fetch(apiUrl("/api/admin/god-freeze"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ freeze }),
+      });
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Freeze update failed");
+      await load();
+    } finally {
+      setFreezing(false);
+      setConfirmFreeze(false);
+    }
+  }
 
   const totalStartups = (data?.distribution ?? []).reduce((acc, b) => acc + Number(b.cnt), 0);
   const isFrozen = data?.runtime?.freeze;
@@ -56,6 +93,13 @@ export default function GodScoresPage() {
           <a href="/admin/god/weights" style={{ color: "oklch(0.85 0.17 162)" }}>Edit GOD weights →</a>
         </p>
       </div>
+
+      {loadError && (
+        <div className="mb-4 px-3 py-2 rounded-lg text-xs" style={{ color: "oklch(0.65 0.18 25)", border: "1px solid oklch(0.55 0.2 25 / 0.4)" }}>
+          {loadError}{" "}
+          <button type="button" onClick={load} className="underline ml-1" style={{ color: "oklch(0.85 0.17 162)" }}>Retry</button>
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex items-center gap-2" style={{ color: "oklch(0.5 0.01 264)" }}>
@@ -144,13 +188,13 @@ export default function GodScoresPage() {
                         </p>
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
-                            onClick={() => { freeze.mutate({ freeze: !isFrozen }); setConfirmFreeze(false); }}
-                            disabled={freeze.isPending}
+                            onClick={() => { handleFreeze(!isFrozen); }}
+                            disabled={freezing}
                             style={{ flex: 1, padding: "6px 0", fontSize: 11, fontWeight: 600, borderRadius: 5, cursor: "pointer",
                               background: isFrozen ? "oklch(0.85 0.17 162)" : "oklch(0.55 0.2 25)", border: "none",
                               color: isFrozen ? "oklch(0.1 0.01 264)" : "#fff" }}
                           >
-                            {freeze.isPending ? "…" : "Confirm"}
+                            {freezing ? "…" : "Confirm"}
                           </button>
                           <button onClick={() => setConfirmFreeze(false)}
                             style={{ flex: 1, padding: "6px 0", fontSize: 11, borderRadius: 5, cursor: "pointer",

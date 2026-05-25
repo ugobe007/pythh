@@ -10,7 +10,7 @@ const S = {
 };
 
 export default function MatchingAdminPage() {
-  const { data, isLoading } = trpc.admin.getMatchSummary.useQuery();
+  const { data, isLoading, isError } = trpc.admin.getMatchSummary.useQuery(undefined, { retry: false });
 
   return (
     <DashboardLayout>
@@ -22,6 +22,12 @@ export default function MatchingAdminPage() {
           Match queue stats. View live matches on <Link href="/matches" style={{ color: "oklch(0.85 0.17 162)" }}>/matches</Link>.
         </p>
       </div>
+
+      {isError && (
+        <p className="text-xs mb-4" style={{ color: "oklch(0.65 0.18 25)" }}>
+          Failed to load match stats. Sign in with an admin account and refresh.
+        </p>
+      )}
 
       {isLoading && (
         <div className="flex items-center gap-2" style={{ color: "oklch(0.5 0.01 264)" }}>

@@ -37,14 +37,10 @@ const { fetchAll, upsertInBatches } = require('../lib/supabaseUtils');
 const { loadSignalWeightConfigWithMeta } = require('../lib/signalWeightConfig');
 const { computeSignalScoresFromEvents } = require('../lib/computeSignalDimensions');
 const { extractVoiceTexts } = require('../lib/founderVoiceAnalysis');
-
-/** Same default as instantSubmit (`scores.total_god_score || 50`) when GOD is missing in DB. */
-const DEFAULT_GOD_SCORE_BLEND = 50;
-
-function resolveGodScoreForBlend(raw) {
-  if (raw != null && raw !== '' && Number.isFinite(Number(raw))) return Number(raw);
-  return DEFAULT_GOD_SCORE_BLEND;
-}
+const {
+  DEFAULT_GOD_SCORE_BLEND,
+  resolveGodScoreForSignalBlend,
+} = require('../lib/signalScoreGodBlend');
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -174,7 +170,7 @@ async function main() {
 
     const rawGod = godByUploadId[uploadId];
     if (rawGod == null || rawGod === '' || !Number.isFinite(Number(rawGod))) godScoreDefaulted++;
-    const godScore = resolveGodScoreForBlend(rawGod);
+    const godScore = resolveGodScoreForSignalBlend(rawGod);
     const blended = computeSignalScoresFromEvents(signals, weightConfig, godScore, {
       voiceTexts: voiceTextByUploadId[uploadId] || [],
     });

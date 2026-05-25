@@ -34,9 +34,9 @@ export default function AdminPage() {
     if (!authLoading && user && user.role !== "admin") setLocation("/");
   }, [authLoading, user, setLocation]);
 
-  const stats    = trpc.admin.getStats.useQuery(undefined, { enabled: user?.role === "admin" });
-  const feedback = trpc.admin.getRecentFeedback.useQuery(undefined, { enabled: user?.role === "admin" });
-  const users    = trpc.admin.listUsers.useQuery(undefined, { enabled: user?.role === "admin" });
+  const stats    = trpc.admin.getStats.useQuery(undefined, { enabled: user?.role === "admin", retry: false });
+  const feedback = trpc.admin.getRecentFeedback.useQuery(undefined, { enabled: user?.role === "admin", retry: false });
+  const users    = trpc.admin.listUsers.useQuery(undefined, { enabled: user?.role === "admin", retry: false });
 
   useEffect(() => {
     if (user?.role !== "admin") return;

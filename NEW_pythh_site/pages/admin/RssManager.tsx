@@ -1,7 +1,6 @@
 import { Helmet } from "react-helmet-async";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { trpc } from "@/lib/trpc";
 import { Loader2, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { apiUrl } from "../../lib/apiConfig";
 
@@ -27,8 +26,46 @@ type Feed = {
 };
 
 export default function RssManagerPage() {
-  const { data: feeds = [], isLoading, refetch } = trpc.admin.getRssFeeds.useQuery() as { data: Feed[]; isLoading: boolean; refetch: () => void };
-  const toggleFeed = trpc.admin.toggleRssFeed.useMutation({ onSuccess: () => refetch() });
+  const [feeds, setFeeds] = useState<Feed[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  const load = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetch(apiUrl("/api/admin/rss-sources"));
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Failed to load RSS feeds");
+      setFeeds(Array.isArray(body) ? body : body.sources ?? []);
+    } catch (e: unknown) {
+      setLoadError(e instanceof Error ? e.message : "Failed to load");
+      setFeeds([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  async function toggleFeed(id: number, active: boolean) {
+    setTogglingId(id);
+    try {
+      const r = await fetch(apiUrl(`/api/admin/rss-sources/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active }),
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error || "Toggle failed");
+      }
+      await load();
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [search, setSearch] = useState("");
@@ -51,7 +88,7 @@ export default function RssManagerPage() {
       await fetch(apiUrl("/api/rss/refresh"), { method: "POST" });
     } finally {
       setTimeout(() => setRefreshing(false), 3000);
-      setTimeout(() => refetch(), 5000);
+      setTimeout(() => load(), 5000);
     }
   }
 
@@ -65,6 +102,13 @@ export default function RssManagerPage() {
           Activate, deactivate, and monitor RSS feeds powering the discovery pipeline.
         </p>
       </div>
+
+      {loadError && (
+        <div className="mb-4 px-3 py-2 rounded-lg text-xs" style={{ color: "oklch(0.65 0.18 25)", border: "1px solid oklch(0.55 0.2 25 / 0.4)" }}>
+          {loadError}{" "}
+          <button type="button" onClick={load} className="underline ml-1" style={{ color: "oklch(0.85 0.17 162)" }}>Retry</button>
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex items-center gap-2" style={{ color: "oklch(0.5 0.01 264)" }}>
@@ -165,8 +209,8 @@ export default function RssManagerPage() {
                         </td>
                         <td style={S.td}>
                           <button
-                            onClick={() => toggleFeed.mutate({ id: f.id, active: !f.active })}
-                            disabled={toggleFeed.isPending}
+                            onClick={() => toggleFeed(f.id, !f.active)}
+                            disabled={togglingId === f.id}
                             style={{
                               padding: "3px 10px", fontSize: 10, fontWeight: 700, borderRadius: 4, cursor: "pointer",
                               border: `1px solid ${f.active ? "oklch(0.65 0.2 25)" : "oklch(0.85 0.17 162)"}`,

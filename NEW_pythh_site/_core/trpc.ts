@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { UNAUTHED_ERR_MSG } from "../shared/const";
 import { getSubscriptionByUserId } from "../db";
+import { ENV } from "../env";
 
 export type AuthedUser = {
   id: number;
@@ -35,8 +36,15 @@ const requireUser = t.middleware(({ ctx, next }) => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+function isAdminUser(user: AuthedUser | null | undefined): user is AuthedUser {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  const email = user.email?.trim().toLowerCase();
+  return !!email && ENV.ownerEmails.includes(email);
+}
+
 const requireAdmin = t.middleware(({ ctx, next }) => {
-  if (!ctx.user || ctx.user.role !== "admin") {
+  if (!isAdminUser(ctx.user)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Admin only." });
   }
   return next({ ctx: { ...ctx, user: ctx.user } });
@@ -55,7 +63,7 @@ const requireOutreachPlan = t.middleware(async ({ ctx, next }) => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
   // Admin users bypass subscription gate
-  if (ctx.user.role === "admin") {
+  if (isAdminUser(ctx.user)) {
     return next({ ctx: { ...ctx, user: ctx.user } });
   }
   const sub = await getSubscriptionByUserId(ctx.user.id).catch(() => null);

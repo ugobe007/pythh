@@ -193,11 +193,13 @@ async function main() {
   });
 
   console.log('\n── Recommended lift pipeline (in order) ──\n');
-  console.log('  1. Parse metrics from text (funding, ARR, customers, stage):');
+  console.log('  1. Bridge tagline, pitch, website, founders from extracted_data:');
+  console.log('       node scripts/enrich-god-hard-fields.js');
+  console.log('  2. Parse metrics from text (funding, ARR, customers, stage):');
   console.log('       node scripts/backfill-startup-metrics.js');
-  console.log('  2. Infer boolean flags + bridge parsed metrics → scoring columns:');
+  console.log('  3. Infer boolean flags (strict launch) + bridge parsed metrics:');
   console.log('       node scripts/infer-traction-flags.js');
-  console.log('  3. Recalculate GOD scores:');
+  console.log('  4. Recalculate GOD scores (calibrated formula):');
   console.log('       node scripts/core/god-score-formula.js');
   console.log('  4. Re-sync signal scores with real GOD blend:');
   console.log('       node scripts/sync-signal-scores.js --apply');

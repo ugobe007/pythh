@@ -5,7 +5,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { getSupabaseClient } = require("../lib/supabaseClient");
+const { getSupabaseClient, paginateStartupUploads } = require("../lib/supabaseClient");
 const {
   getDefaultSignalWeightConfig,
   loadSignalWeightConfig,
@@ -28,10 +28,7 @@ router.get("/god-score-summary", async (_req, res) => {
   try {
     const supabase = getSupabaseClient();
 
-    const { data: startups, error: suErr } = await supabase
-      .from("startup_uploads")
-      .select("total_god_score");
-    if (suErr) throw suErr;
+    const startups = await paginateStartupUploads(supabase, "total_god_score", (q) => q);
 
     const buckets = {
       unscored: 0,

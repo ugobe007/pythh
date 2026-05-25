@@ -897,29 +897,25 @@ function calculateTractionScore(startup) {
   // Revenue is NOT expected at these stages
   if (signals === 0) {
     if (stage <= 2) {
-      // Pre-seed/Seed: Give base score based on other signals
-      score = 25; // Increased from 15 - more generous for early-stage
-      
-      // Bonus for having product launched
+      // Pre-seed/Seed: modest floor when no hard traction numbers exist
+      score = 10;
+
       const ext = startup.extracted_data || {};
-      if (startup.is_launched || ext.has_demo || ext.launched || ext.product !== undefined) {
-        score += 8; // Increased from 5
+      if (startup.is_launched === true) {
+        score += 4;
       }
-      
-      // Bonus for having users/engagement signals
+
       if (startup.customer_count > 0) {
-        score += Math.min(12, startup.customer_count / 10); // Up to +12 for users (was 10)
+        score += Math.min(10, startup.customer_count / 10);
       }
-      
-      // Bonus if they have funding (from extracted_data)
+
       if (ext.funding || ext.funding_amount) {
-        score += 5; // Having raised funding is a positive signal
+        score += 3;
       }
-      
-      return Math.min(40, score); // Increased cap from 30 to 40 for pre-revenue early-stage
+
+      return Math.min(28, score);
     } else {
-      // Series A+: Revenue IS expected
-      return 8; // Slightly more generous than 5
+      return 5;
     }
   }
   
@@ -930,7 +926,7 @@ function calculateTractionScore(startup) {
 // TEAM SCORE (0-100) - Weight: 25%
 // =============================================================================
 function calculateTeamScore(startup) {
-  let score = 25; // Base score (increased from 20 to be more generous)
+  let score = 12;
   const stage = startup.stage || 1;
   
   // Technical cofounder - CRITICAL for tech startups
@@ -1010,7 +1006,7 @@ function calculateTeamScore(startup) {
 // MARKET SCORE (0-100) - Weight: 20%
 // =============================================================================
 function calculateMarketScore(startup) {
-  let score = 20; // Base score
+  let score = 10;
   
   // TAM (Total Addressable Market)
   const tam = (startup.tam_estimate || '').toLowerCase();
@@ -1067,24 +1063,17 @@ function calculateMarketScore(startup) {
 // PRODUCT SCORE (0-100) - Weight: 15%
 // =============================================================================
 function calculateProductScore(startup) {
-  let score = 20; // Base score (increased from 15)
+  let score = 10;
   
-  // Check extracted_data for product signals
   const ext = startup.extracted_data || {};
   
-  // Is launched?
-  const isLaunched = startup.is_launched || ext.has_demo || ext.launched || ext.product !== undefined;
-  if (isLaunched === true) {
-    score += 20;
-  } else if (isLaunched === false) {
-    score -= 5; // Not launched = penalty
+  if (startup.is_launched === true) {
+    score += 12;
   }
-  // If unknown, don't penalize (stay at base)
   
-  // Has demo?
-  const hasDemo = startup.has_demo || ext.has_demo || ext.demo !== undefined;
-  if (hasDemo === true) {
-    score += 10;
+  const hasDemo = startup.has_demo === true || ext.has_demo === true;
+  if (hasDemo) {
+    score += 8;
   }
   
   // Speed to MVP
@@ -1130,8 +1119,8 @@ function calculateProductScore(startup) {
   else if (disappointed >= 10) score += 3;
   
   // Ensure minimum score if product exists (has demo or launched)
-  if ((isLaunched || hasDemo) && score < 30) {
-    score = 30; // Minimum score if they have a working product
+  if ((startup.is_launched === true || hasDemo) && score < 22) {
+    score = 22;
   }
   
   return Math.min(100, Math.max(0, score));
@@ -1142,7 +1131,7 @@ function calculateProductScore(startup) {
 // Qualitative signals - lowest weight because subjective
 // =============================================================================
 function calculateVisionScore(startup) {
-  let score = 25; // Base score (increased from 20)
+  let score = 12;
   
   // Smell tests (YC style)
   if (startup.smell_test_lean === true) score += 10;
@@ -1197,7 +1186,7 @@ function getStageNumber(startup) {
 // Speed to MVP, deployment frequency, features shipped
 // =============================================================================
 function calculateProductVelocityScore(startup) {
-  let score = 20; // Base score
+  let score = 10;
   
   // Speed to MVP
   const daysToMvp = startup.days_from_idea_to_mvp || 0;
@@ -1238,7 +1227,7 @@ function calculateProductVelocityScore(startup) {
 // Why Now, sector heat, location
 // =============================================================================
 function calculateMarketTimingScore(startup) {
-  let score = 20; // Base score
+  let score = 10;
   
   // Why Now signal
   if (startup.why_now && startup.why_now.length > 50) {
@@ -1280,18 +1269,16 @@ function calculateMarketTimingScore(startup) {
 // Early user signals, NPS, engagement
 // =============================================================================
 function calculateCustomerValidationScore(startup) {
-  let score = 15; // Base score
+  let score = 5;
   
-  // Is launched?
   if (startup.is_launched === true) {
-    score += 25;
+    score += 12;
   } else {
-    score -= 10; // Not launched = penalty
+    score -= 5;
   }
   
-  // Has demo?
   if (startup.has_demo === true) {
-    score += 15;
+    score += 10;
   }
   
   // Customer Count (early validation)
@@ -1328,6 +1315,9 @@ function calculateCustomerValidationScore(startup) {
 // Community validation and social proof
 // =============================================================================
 async function calculateSocialBuzzScore(startupName) {
+  if (process.env.GOD_SKIP_SOCIAL === '1' || process.env.GOD_SKIP_SOCIAL === 'true') {
+    return 0;
+  }
   try {
     // Query social signals from database
     const { data: signals, error } = await supabase

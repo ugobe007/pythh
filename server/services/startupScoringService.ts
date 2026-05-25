@@ -197,7 +197,7 @@ const GOD_SCORE_CONFIG = {
   
   // Base boost minimum - floor for data-poor startups
   // ACCEPTABLE RANGE: 0.5 - 3.0 (enforced by validation)
-  baseBoostMinimum: 2.5,
+  baseBoostMinimum: 2.0,
   
   // Vibe bonus cap - qualitative signal boost
   // ACCEPTABLE RANGE: 0.5 - 1.5 (enforced by validation)
@@ -1067,6 +1067,12 @@ function scoreTeam(startup: StartupProfile): number {
 function scoreTraction(startup: StartupProfile): number {
   let score = 0;
   
+  const hasStructuredTraction =
+    !!(startup.revenue || startup.mrr || startup.gmv || startup.growth_rate ||
+      startup.active_users || startup.customers || startup.prepaying_customers ||
+      startup.signed_contracts || (startup as any).arr || (startup as any).arr_usd ||
+      (startup as any).has_revenue || (startup as any).has_customers);
+  
   // Combine all available text for pattern-based analysis
   const allText = [
     startup.pitch || '',
@@ -1139,10 +1145,13 @@ function scoreTraction(startup: StartupProfile): number {
   }
   
   // ============================================================================
-  // SECTION 2: PATTERN-BASED TRACTION (ALWAYS derive from text)
-  // This runs for ALL startups to ensure sparse-data startups get scored
+  // SECTION 2: PATTERN-BASED TRACTION — reduced when no hard metrics exist.
+  // Text keywords must not substitute for ARR / customer counts.
   // ============================================================================
+  const patternMul = hasStructuredTraction ? 0 : 0.35;
+  let patternBonus = 0;
   
+  if (patternMul > 0) {
   // --- 2A. Revenue/Business Model Signals ---
   const revenuePatterns = [
     /\b(revenue|profitable|monetiz|paying customers|subscription|saas|arr|mrr)/i,
@@ -1151,9 +1160,9 @@ function scoreTraction(startup: StartupProfile): number {
     /\b(funded|backed by|investors|seed|series [a-d]|pe funding|vc)/i
   ];
   const revenueMatches = revenuePatterns.filter(p => p.test(allText)).length;
-  if (revenueMatches >= 3) score += 0.5;
-  else if (revenueMatches >= 2) score += 0.35;
-  else if (revenueMatches >= 1) score += 0.2;
+  if (revenueMatches >= 3) patternBonus += 0.5;
+  else if (revenueMatches >= 2) patternBonus += 0.35;
+  else if (revenueMatches >= 1) patternBonus += 0.2;
   
   // --- 2B. User/Customer Traction Signals ---
   const userPatterns = [
@@ -1163,9 +1172,9 @@ function scoreTraction(startup: StartupProfile): number {
     /\b(active|daily|monthly|engagement|retention)/i
   ];
   const userMatches = userPatterns.filter(p => p.test(allText)).length;
-  if (userMatches >= 3) score += 0.4;
-  else if (userMatches >= 2) score += 0.3;
-  else if (userMatches >= 1) score += 0.15;
+  if (userMatches >= 3) patternBonus += 0.4;
+  else if (userMatches >= 2) patternBonus += 0.3;
+  else if (userMatches >= 1) patternBonus += 0.15;
   
   // --- 2C. Product Maturity Signals ---
   const productMaturityPatterns = [
@@ -1174,8 +1183,8 @@ function scoreTraction(startup: StartupProfile): number {
     /\b(integration|api|sdk|platform|app store|marketplace)/i
   ];
   const maturityMatches = productMaturityPatterns.filter(p => p.test(allText)).length;
-  if (maturityMatches >= 2) score += 0.35;
-  else if (maturityMatches >= 1) score += 0.15;
+  if (maturityMatches >= 2) patternBonus += 0.35;
+  else if (maturityMatches >= 1) patternBonus += 0.15;
   
   // --- 2D. Market Validation Signals ---
   const validationPatterns = [
@@ -1184,8 +1193,8 @@ function scoreTraction(startup: StartupProfile): number {
     /\b(accelerator|incubator|program|yc|techstars|500)/i
   ];
   const validationMatches = validationPatterns.filter(p => p.test(allText)).length;
-  if (validationMatches >= 2) score += 0.3;
-  else if (validationMatches >= 1) score += 0.1;
+  if (validationMatches >= 2) patternBonus += 0.3;
+  else if (validationMatches >= 1) patternBonus += 0.1;
   
   // --- 2E. Technology/Innovation Signals (NEW - catches AI/ML, fintech, etc.) ---
   const techInnovationPatterns = [
@@ -1196,9 +1205,9 @@ function scoreTraction(startup: StartupProfile): number {
     /\b(revolutioniz|transform|disrupt|innovati|cutting-edge|next.?gen)/i
   ];
   const techMatches = techInnovationPatterns.filter(p => p.test(allText)).length;
-  if (techMatches >= 3) score += 0.4;
-  else if (techMatches >= 2) score += 0.25;
-  else if (techMatches >= 1) score += 0.1;
+  if (techMatches >= 3) patternBonus += 0.4;
+  else if (techMatches >= 2) patternBonus += 0.25;
+  else if (techMatches >= 1) patternBonus += 0.1;
   
   // --- 2F. Company Existence Signals (baseline for minimal data) ---
   const existencePatterns = [
@@ -1207,15 +1216,21 @@ function scoreTraction(startup: StartupProfile): number {
     /\b(health|healthcare|medical|enterprise|consumer|b2c)/i
   ];
   const existenceMatches = existencePatterns.filter(p => p.test(allText)).length;
-  if (existenceMatches >= 2 && score < 0.2) score += 0.15; // Floor for identified companies
+  if (existenceMatches >= 2 && patternBonus < 0.2) patternBonus += 0.15;
+
+  score += patternBonus * patternMul;
+  }
   
   // ============================================================================
   // SECTION 3: BOOLEAN FLAGS (direct from database)
   // ============================================================================
   
-  if ((startup as any).has_revenue) score += 1.4;    // Raised from 1.0 — revenue is the strongest traction signal
-  if ((startup as any).has_customers) score += 1.0;  // Raised from 0.6 — paying/using customers = real validation
-  if (startup.launched || (startup as any).is_launched) score += 0.8;  // Raised from 0.4 — shipped product matters significantly
+  if ((startup as any).has_revenue) score += 1.4;
+  if ((startup as any).has_customers) score += 1.0;
+  const hasHardCommerce = (startup as any).has_revenue || (startup as any).has_customers;
+  if (startup.launched || (startup as any).is_launched) {
+    score += hasHardCommerce ? 0.8 : 0.35;
+  }
   if (startup.demo_available || (startup as any).has_demo) score += 0.3; // Raised from 0.15 — demo shows build progress
   // Self-use / dogfooding (Dalton: "are they using their own product?" = evidence of demand)
   // Weaker than has_customers but still real signal — they built something real enough to use.

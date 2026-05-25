@@ -1,7 +1,8 @@
 import { Helmet } from "react-helmet-async";
+import { useEffect, useState, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { trpc } from "@/lib/trpc";
 import { Loader2 } from "lucide-react";
+import { apiUrl } from "@/lib/apiConfig";
 
 const S = {
   card: { background: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", borderRadius: 10, padding: "18px 20px" },
@@ -31,7 +32,27 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
 }
 
 export default function SignalScoresPage() {
-  const { data, isLoading } = trpc.admin.getSignalSummary.useQuery();
+  const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const r = await fetch(apiUrl("/api/admin/signal-summary"));
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error || "Failed to load signal summary");
+      setData(body);
+    } catch (e: unknown) {
+      setLoadError(e instanceof Error ? e.message : "Failed to load");
+      setData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   return (
     <DashboardLayout>
@@ -46,6 +67,13 @@ export default function SignalScoresPage() {
           <a href="/admin/god/weights" style={{ color: "oklch(0.85 0.17 162)" }}>GOD Weights</a>.
         </p>
       </div>
+
+      {loadError && (
+        <div className="mb-4 px-3 py-2 rounded-lg text-xs" style={{ color: "oklch(0.65 0.18 25)", border: "1px solid oklch(0.55 0.2 25 / 0.4)" }}>
+          {loadError}{" "}
+          <button type="button" onClick={load} className="underline ml-1" style={{ color: "oklch(0.85 0.17 162)" }}>Retry</button>
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex items-center gap-2" style={{ color: "oklch(0.5 0.01 264)" }}>

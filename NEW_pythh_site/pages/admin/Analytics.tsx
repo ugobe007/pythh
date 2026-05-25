@@ -73,8 +73,8 @@ function formatDay(day: unknown): string {
 }
 
 export default function AnalyticsPage() {
-  const { data, isLoading } = trpc.admin.getAnalytics.useQuery();
-  const adminStats = trpc.admin.getStats.useQuery();
+  const { data, isLoading } = trpc.admin.getAnalytics.useQuery(undefined, { retry: false });
+  const adminStats = trpc.admin.getStats.useQuery(undefined, { retry: false });
 
   const maxEvent = Math.max(...(data?.eventBreakdown ?? []).map((e: any) => Number(e.cnt)), 1);
   const maxPage  = Math.max(...(data?.pageViews ?? []).map((p: any) => Number(p.cnt)), 1);

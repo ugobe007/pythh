@@ -126,7 +126,7 @@ const GATE_COLOR: Record<string, string> = {
 };
 
 export default function MlAgentPage() {
-  const { data, isLoading, refetch } = trpc.admin.getMlRecommendations.useQuery();
+  const { data, isLoading, refetch } = trpc.admin.getMlRecommendations.useQuery(undefined, { retry: false });
   const review = trpc.admin.reviewMlRecommendation.useMutation({ onSuccess: () => refetch() });
 
   function handleAction(id: string, action: "approve" | "reject", reason?: string) {

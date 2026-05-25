@@ -44,7 +44,16 @@ export const appRouter = router({
   system: systemRouter,
   outreach: outreachRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(async (opts) => {
+      const user = opts.ctx.user;
+      if (!user) return null;
+      const email = user.email?.trim().toLowerCase();
+      if (email && ENV.ownerEmails.includes(email) && user.role !== "admin") {
+        await upsertUser({ openId: user.openId, email, role: "admin" });
+        return { ...user, role: "admin" as const };
+      }
+      return user;
+    }),
 
     /**
      * Email-based login — creates or retrieves a user account and sets the
@@ -1138,7 +1147,7 @@ export const appRouter = router({
           FROM startup_signal_scores
         `),
         rawQuery(`
-          SELECT s.company_name, ss.signals_total, ss.founder_language_shift,
+          SELECT COALESCE(s.name, s.company_name, ss.startup_id::text) AS company_name, ss.signals_total, ss.founder_language_shift,
                  ss.investor_receptivity, ss.news_momentum, ss.capital_convergence,
                  ss.execution_velocity, ss.as_of
           FROM startup_signal_scores ss
@@ -1147,7 +1156,7 @@ export const appRouter = router({
           LIMIT 15
         `),
         rawQuery(`
-          SELECT s.company_name, ss.signals_total, ss.as_of
+          SELECT COALESCE(s.name, s.company_name, ss.startup_id::text) AS company_name, ss.signals_total, ss.as_of
           FROM startup_signal_scores ss
           JOIN startup_uploads s ON s.id = ss.startup_id
           ORDER BY ss.signals_total ASC
@@ -1175,7 +1184,7 @@ export const appRouter = router({
           WHERE debug->'founder_voice' IS NOT NULL
         `),
         rawQuery(`
-          SELECT s.company_name,
+          SELECT COALESCE(s.name, s.company_name, ss.startup_id::text) AS company_name,
                  (ss.debug->'founder_voice'->>'cultureScore')::numeric AS culture_score,
                  (ss.debug->'founder_voice'->>'teamCreditRatio')::numeric AS team_credit_ratio
           FROM startup_signal_scores ss

@@ -2,7 +2,6 @@ import { Helmet } from "react-helmet-async";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
-import { trpc } from "@/lib/trpc";
 import { Loader2, Save } from "lucide-react";
 import { apiUrl } from "@/lib/apiConfig";
 
@@ -20,10 +19,19 @@ const COMPONENT_LABELS: Record<string, string> = {
 };
 
 export default function GodWeightsPage() {
-  const { data: summary, isLoading } = trpc.admin.getGodScoreSummary.useQuery();
+  const [summary, setSummary] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [weights, setWeights] = useState<ComponentWeights>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(apiUrl("/api/admin/god-score-summary"))
+      .then((r) => r.json())
+      .then(setSummary)
+      .catch(() => setSummary(null))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   useEffect(() => {
     const active = (summary?.weightHistory ?? []).find((w: any) => w.status === "active") ?? summary?.weightHistory?.[0];
