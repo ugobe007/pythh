@@ -206,9 +206,9 @@ export default function Oracle() {
       style={{ backgroundColor: "oklch(0.09 0.01 264)", color: "oklch(0.9 0.01 264)", fontFamily: "'Inter', sans-serif" }}
     >
       <Helmet>
-        <title>PYTHIA Oracle — How It Works — Pythh.ai</title>
-        <meta name="description" content="PYTHIA Oracle analyzes your startup URL, computes a GOD score across 5 signal dimensions, and matches you to the right investors at the right time." />
-        <meta property="og:title" content="PYTHIA Oracle — Pythh.ai" />
+        <title>How It Works — Pythh.ai</title>
+        <meta name="description" content="Submit your startup URL. PYTHIA scores your signals, computes a GOD score, and matches you to investors deploying in your sector — in about twenty seconds." />
+        <meta property="og:title" content="How It Works — Pythh.ai" />
         <meta property="og:url" content="https://pythh.ai/oracle" />
       </Helmet>
 
@@ -228,11 +228,11 @@ export default function Oracle() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>PYTHIA</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ color: "#22c55e", border: "1px solid #22c55e30" }}>Oracle</span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ color: "#22c55e", border: "1px solid #22c55e30" }}>For founders</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                    <span className="text-[11px] font-mono" style={{ color: "#22c55e" }}>live engine · scoring now</span>
+                    <span className="text-[11px] font-mono" style={{ color: "#22c55e" }}>How it works · live engine</span>
                   </div>
                 </div>
               </div>
@@ -241,20 +241,20 @@ export default function Oracle() {
                 className="font-display font-bold leading-tight mb-5"
                 style={{ fontSize: "clamp(2.4rem, 5vw, 3.8rem)", letterSpacing: "-0.03em", color: "oklch(0.97 0.005 264)" }}
               >
-                The Oracle doesn't<br />
-                score your deck.<br />
-                <span style={{ color: "#22c55e" }}>It reads your signals.</span>
+                Submit your URL.<br />
+                Get ranked investors.<br />
+                <span style={{ color: "#22c55e" }}>In about twenty seconds.</span>
               </h1>
 
               <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.6 0.01 264)", maxWidth: 520 }}>
                 PYTHIA doesn't run keyword searches or match sector tags. She cross-references
                 <strong style={{ color: "oklch(0.78 0.005 264)" }}> 40+ behavioral signals</strong> against a scoring model
-                built on <strong style={{ color: "oklch(0.78 0.005 264)" }}>33,000+ startup outcomes</strong>. The Oracle is wise because
-                she has seen enough to know what actually matters.
+                built on <strong style={{ color: "oklch(0.78 0.005 264)" }}>33,000+ startup outcomes</strong> — then ranks
+                the investors most likely to fund you now.
               </p>
               <p className="text-sm leading-relaxed mb-7" style={{ color: "oklch(0.5 0.01 264)", maxWidth: 480 }}>
-                Submit your URL. No deck. No warm intro. GOD score in seconds, ranked investor
-                shortlist ready, outreach drafted. The whole pipeline — automated.
+                No deck. No warm intro. GOD score, investor shortlist, and outreach angles — the
+                whole founder pipeline from one URL.
               </p>
 
               <div className="flex flex-wrap gap-3 mb-10">
@@ -426,7 +426,9 @@ export default function Oracle() {
                   <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ color: "#eab308", border: "1px solid #eab30830" }}>0 – 100</span>
                 </div>
                 <p className="text-sm leading-relaxed mb-4" style={{ color: "oklch(0.6 0.01 264)" }}>
-                  GOD stands for <strong style={{ color: "oklch(0.78 0.005 264)" }}>Grit · Opportunity · Determination</strong> — the three qualities every founder must demonstrate, and that every great investor has always looked for. The score isn't a confidence meter. It's a predictive composite built on 33,000+ startup outcomes.
+                  The GOD score is a 0–100 predictive composite across five observable dimensions —
+                  Team, Traction, Market, Product, and Vision — built on 33,000+ startup outcomes.
+                  It isn't a confidence meter. It's what the signals actually say.
                 </p>
                 <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.5 0.01 264)" }}>
                   Five dimensions. Each independently observable. No self-reporting. No editorial override. Updates automatically as new signals surface.
@@ -452,6 +454,35 @@ export default function Oracle() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── For investors ── */}
+        <section className="mb-20">
+          <div
+            className="rounded-2xl p-8 lg:p-10"
+            style={{ background: "linear-gradient(135deg, oklch(0.11 0.02 280) 0%, oklch(0.1 0.015 264) 100%)", border: "1px solid #7c3aed28" }}
+          >
+            <div className="grid lg:grid-cols-[1fr_auto] gap-8 items-center">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: "#a78bfa" }}>For investors</p>
+                <h2 className="text-xl font-bold text-white mb-3">Looking for startups, not sending a URL?</h2>
+                <p className="text-sm leading-relaxed max-w-xl" style={{ color: "oklch(0.58 0.01 264)" }}>
+                  Pythh Connect exposes the full signal engine through MCP — query ranked startups,
+                  GOD scores, thesis fit, and deployment windows from Claude, Cursor, or any agent
+                  client. Same data. Live pipeline. No exports.
+                </p>
+              </div>
+              <a
+                href="/developers"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold flex-shrink-0 transition-all"
+                style={{ border: "1px solid #7c3aed", color: "#a78bfa" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa"; el.style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
+              >
+                Pythh Connect <ArrowRight size={14} />
+              </a>
             </div>
           </div>
         </section>

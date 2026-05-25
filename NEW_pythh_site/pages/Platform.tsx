@@ -134,7 +134,7 @@ export default function Platform() {
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)", fontFamily: "'Inter', sans-serif" }}>
       <Helmet>
         <title>Platform — Pythh.ai</title>
-        <meta name="description" content="PYTHIA's signal intelligence engine: proprietary GOD scoring, behavioral multipliers, and real-time investor matching. Not generic AI — field-tested human insight." />
+        <meta name="description" content="Pythh's signal intelligence engine: GOD scoring, investor matching for founders, and Pythh Connect MCP for investors. One engine, two paths." />
         <meta property="og:title" content="Platform — Pythh.ai" />
         <meta property="og:url" content="https://pythh.ai/platform" />
       </Helmet>
@@ -151,24 +151,24 @@ export default function Platform() {
             <div className="flex items-center gap-3 mb-5">
               <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
               <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                Pythh Capital · Platform
+                The signal engine
               </span>
             </div>
             <h1
               className="font-display font-bold mb-5 leading-tight"
               style={{ fontSize: "clamp(2.2rem, 5vw, 3.4rem)", color: "oklch(0.97 0.005 264)" }}
             >
-              Signal intelligence<br />
-              <span style={{ color: "oklch(0.696 0.17 162.48)" }}>shaped by human insight.</span>
+              One engine.<br />
+              <span style={{ color: "oklch(0.696 0.17 162.48)" }}>Two ways in.</span>
             </h1>
             <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.62 0.01 264)" }}>
-              PYTHIA doesn't return AI summaries or keyword matches. She runs a multi-stage scoring cascade
-              across 40+ observable signals — each weighted, normalized, and continuously recalibrated by the
-              same analytical mind that designed them. Real-time. Market-aware. Behaviorally tuned.
+              Pythh ingests what companies and investors do in the wild — hiring velocity,
+              product shipping, funding language, thesis shifts — and scores every startup 0–100
+              across five dimensions. The matches are pre-computed. The pipeline updates daily.
             </p>
             <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.52 0.01 264)" }}>
-              While generic AI models apply fixed rules, Pythh's methodology is alive. The logic sharpens every
-              quarter as new market patterns surface. PYTHIA is a sage — and her results reflect it.
+              Founders submit a URL and get ranked investors. Investors query the same data
+              through Pythh Connect MCP. Same signals. Same scores. No stale spreadsheets.
             </p>
             <div className="flex flex-wrap gap-3">
               <a
@@ -180,16 +180,15 @@ export default function Platform() {
               >
                 Find my investors <ArrowRight size={14} />
               </a>
-              <Link href="/rankings">
-                <span
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors"
-                  style={{ border: "1px solid oklch(0.25 0.01 264)", color: "oklch(0.65 0.01 264)" }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.94 0.005 264)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.65 0.01 264)")}
-                >
-                  Live rankings
-                </span>
-              </Link>
+              <a
+                href="/developers"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all"
+                style={{ border: "1px solid #7c3aed", color: "#a78bfa" }}
+                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa"; el.style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
+              >
+                Pythh Connect MCP <ArrowRight size={14} />
+              </a>
             </div>
           </div>
 
@@ -225,6 +224,48 @@ export default function Platform() {
             </p>
           </div>
         </div>
+
+        {/* ── Two paths ── */}
+        <section className="mb-20">
+          <div className="grid md:grid-cols-2 gap-5">
+            <div
+              className="p-6 rounded-xl"
+              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)" }}
+            >
+              <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "oklch(0.696 0.17 162.48)" }}>For founders</p>
+              <h2 className="text-lg font-bold text-white mb-3">Submit your URL → ranked investors</h2>
+              <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.58 0.01 264)" }}>
+                PYTHIA extracts your public signal profile, computes a GOD score across Team,
+                Traction, Market, Product, and Vision, then ranks investors by thesis fit, stage,
+                check size, and deployment timing. Outreach angles included.
+              </p>
+              <a href="/oracle" className="inline-flex items-center gap-1 text-xs font-semibold transition-colors" style={{ color: "oklch(0.696 0.17 162.48)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
+              >
+                How it works <ArrowRight size={12} />
+              </a>
+            </div>
+            <div
+              className="p-6 rounded-xl"
+              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid #7c3aed40" }}
+            >
+              <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "#a78bfa" }}>For investors</p>
+              <h2 className="text-lg font-bold text-white mb-3">Query deal flow via MCP</h2>
+              <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.58 0.01 264)" }}>
+                Pythh Connect exposes ranked startups, GOD scores, sector momentum, and thesis
+                alignment to any MCP client — Claude, Cursor, ChatGPT, Copilot. Filter by stage,
+                sector, score band, or deployment signal. Live data, not exports.
+              </p>
+              <a href="/developers" className="inline-flex items-center gap-1 text-xs font-semibold transition-colors" style={{ color: "#a78bfa" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#a78bfa"; }}
+              >
+                Pythh Connect docs <ArrowRight size={12} />
+              </a>
+            </div>
+          </div>
+        </section>
 
         {/* ── Signal Science Pillars ── */}
         <section className="mb-20">
@@ -266,10 +307,10 @@ export default function Platform() {
         <section className="mb-20">
           <div className="mb-8">
             <h2 className="font-display font-semibold text-xl mb-2" style={{ color: "oklch(0.85 0.01 264)" }}>
-              The PYTHIA pipeline
+              The founder pipeline
             </h2>
             <p className="text-sm" style={{ color: "oklch(0.5 0.01 264)" }}>
-              Five deterministic stages. Explainable by design. Improving every quarter.
+              Five deterministic stages from URL to ranked investor shortlist. Explainable by design.
             </p>
           </div>
           <div className="space-y-4">

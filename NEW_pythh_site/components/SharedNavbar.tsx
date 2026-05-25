@@ -6,13 +6,14 @@ import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
 
 const NAV_LINKS = [
-  { label: "Oracle",    href: "/oracle" },
-  { label: "Rankings",  href: "/rankings" },
-  { label: "Matches",   href: "/matches" },
-  { label: "Investors", href: "/investors" },
-  { label: "Platform",  href: "/platform" },
-  { label: "Pythiam",   href: "/pythiam" },
-  { label: "Pricing",   href: "/pricing" },
+  { label: "How it works", href: "/oracle" },
+  { label: "Rankings",     href: "/rankings" },
+  { label: "Matches",      href: "/matches" },
+  { label: "Investors",    href: "/investors" },
+  { label: "Portfolio",    href: "/portfolio" },
+  { label: "Platform",     href: "/platform" },
+  { label: "Pythiam",      href: "/pythiam" },
+  { label: "Pricing",      href: "/pricing" },
 ];
 
 export default function SharedNavbar({ activePath }: { activePath?: string }) {
