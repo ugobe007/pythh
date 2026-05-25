@@ -14,6 +14,7 @@ import { getLoginUrl } from "@/const";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
+import PythhGlyphIcon from "@/components/PythhGlyphIcon";
 import {
   ArrowRight,
   ExternalLink,
@@ -283,14 +284,14 @@ interface HeroPreviewResponse extends HeroPreviewEntry {
 }
 
 const DIM_COLORS = ["#a855f7", "#22d3ee", "#22c55e", "#22d3ee", "#a855f7"];
-const PYTHH_GLYPH_URL = "/images/delphi-pythia-icon-glyph-dark.jpg";
-const HERO_PHASE_MS = 2800;
-const HERO_CONFIRM_MS = 1400;
+const HERO_STEP_MS = 2800;
+const HERO_TRANSITION_MS = 1100;
 
 function HeroResultsPreview() {
   const [pool, setPool] = useState<HeroPreviewEntry[]>([]);
   const [startupIndex, setStartupIndex] = useState(0);
   const [phase, setPhase] = useState(0);
+  const [holdComplete, setHoldComplete] = useState(false);
 
   useEffect(() => {
     fetch("/api/hero-preview")
@@ -299,6 +300,7 @@ function HeroResultsPreview() {
         const entries = data.startups?.length ? data.startups : [data];
         setPool(entries);
         setStartupIndex(0);
+        setHoldComplete(false);
         setPhase(0);
       })
       .catch(() => {});
@@ -306,32 +308,38 @@ function HeroResultsPreview() {
 
   useEffect(() => {
     if (pool.length === 0) return;
-    const ms = phase === 4 ? HERO_CONFIRM_MS : HERO_PHASE_MS;
+    const ms = phase === 0 ? HERO_TRANSITION_MS : HERO_STEP_MS;
     const id = setTimeout(() => {
-      if (phase >= 4) {
-        setStartupIndex((i) => (i + 1) % pool.length);
+      if (phase === 3) {
+        setHoldComplete(true);
         setPhase(0);
+      } else if (phase === 0) {
+        if (holdComplete) {
+          setStartupIndex((i) => (i + 1) % pool.length);
+          setHoldComplete(false);
+        }
+        setPhase(1);
       } else {
         setPhase((p) => p + 1);
       }
     }, ms);
     return () => clearTimeout(id);
-  }, [phase, pool.length]);
+  }, [phase, pool.length, holdComplete]);
 
   const preview = pool[startupIndex] ?? null;
-  const showSignals = phase >= 1;
-  const showDims = phase >= 2;
-  const showComposite = phase >= 3;
-  const showConfirm = phase === 4;
+  const showTransition = phase === 0;
+  const showSignals = phase >= 1 || (showTransition && holdComplete);
+  const showDims = phase >= 2 || (showTransition && holdComplete);
+  const showComposite = phase >= 3 || (showTransition && holdComplete);
 
   const startup = preview?.startup;
   const signals = preview?.signals ?? [];
   const dims = startup?.dimensions ?? [];
   const displayDomain = startup?.domain ?? startup?.name ?? "startup";
-  const headerLabel = phase === 0
-    ? "reading public signals…"
-    : phase === 4
-    ? `${displayDomain} verified`
+  const headerLabel = showTransition
+    ? holdComplete
+      ? `${displayDomain} verified`
+      : `scanning ${displayDomain}…`
     : `${displayDomain} scored`;
 
   return (
@@ -342,7 +350,6 @@ function HeroResultsPreview() {
           : "What you get in ~20 seconds"}
       </p>
       <div
-        key={startup?.id ?? `slot-${startupIndex}`}
         className="relative rounded-xl overflow-hidden"
         style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.22)", backgroundColor: "oklch(0.1 0.01 264)", boxShadow: "0 0 48px oklch(0.696 0.17 162.48 / 0.06)" }}
       >
@@ -360,6 +367,7 @@ function HeroResultsPreview() {
           <span className="text-[11px] font-mono flex-shrink-0 ml-2" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
         </div>
 
+        <div key={startup?.id ?? `slot-${startupIndex}`}>
         {/* Observable signals */}
         <div className="px-5 py-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
           <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
@@ -448,26 +456,16 @@ function HeroResultsPreview() {
             )}
           </div>
         </div>
+        </div>
 
-        {showConfirm && (
+        {showTransition && (
           <div
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 pointer-events-none"
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 pointer-events-none"
             style={{ backgroundColor: "transparent" }}
           >
-            <img
-              src={PYTHH_GLYPH_URL}
-              alt="PYTHIA verified"
-              draggable={false}
-              className="animate-spin select-none"
-              style={{
-                width: 56,
-                height: 56,
-                animationDuration: "1.1s",
-                backgroundColor: "transparent",
-              }}
-            />
+            <PythhGlyphIcon size={56} spin alt="" />
             <p className="text-[11px] font-mono tracking-widest uppercase" style={{ color: "#22c55e" }}>
-              PYTHIA · verified
+              PYTHIA · next startup
             </p>
           </div>
         )}

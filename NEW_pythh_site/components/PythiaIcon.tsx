@@ -23,13 +23,11 @@ export default function PythiaIcon({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0a0a0a] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent ${className}`}
       style={{
         width: size,
         height: size,
-        ...(ring
-          ? { boxShadow: '0 0 0 1px rgba(168,85,247,0.35)' }
-          : { boxShadow: '0 0 0 1px rgba(255,255,255,0.08)' }),
+        ...(ring ? { boxShadow: '0 0 0 1px rgba(168,85,247,0.35)' } : undefined),
       }}
       aria-hidden={alt === ''}
     >
