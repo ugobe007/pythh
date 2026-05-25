@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
+import PythhNavIcon from "@/components/PythhNavIcon";
 
 const NAV_LINKS = [
   { label: "Oracle",    href: "/oracle" },
@@ -40,10 +41,13 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
       <div className="container">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <a href="/" className="flex flex-col leading-none">
-            <span className="font-display font-bold text-base text-white tracking-tight">pythh.ai</span>
-            <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-              Signal Science
+          <a href="/" className="flex items-center gap-2.5 leading-none">
+            <PythhNavIcon size={30} />
+            <span className="flex flex-col leading-none">
+              <span className="font-display font-bold text-base text-white tracking-tight">pythh.ai</span>
+              <span className="text-[9px] font-semibold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+                Signal Science
+              </span>
             </span>
           </a>
 

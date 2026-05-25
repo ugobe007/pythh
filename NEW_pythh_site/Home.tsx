@@ -13,6 +13,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
+import PythhNavIcon from "@/components/PythhNavIcon";
 import {
   ArrowRight,
   ExternalLink,
@@ -138,9 +139,12 @@ function Navbar() {
     >
       <div className="container">
         <div className="flex items-center justify-between h-16">
-          <a href="/" className="flex flex-col leading-none">
-            <span className="font-display font-bold text-lg text-white tracking-tight">pythh.ai</span>
-            <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>SIGNAL SCIENCE</span>
+          <a href="/" className="flex items-center gap-2.5 leading-none">
+            <PythhNavIcon size={32} />
+            <span className="flex flex-col leading-none">
+              <span className="font-display font-bold text-lg text-white tracking-tight">pythh.ai</span>
+              <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>SIGNAL SCIENCE</span>
+            </span>
           </a>
           <div className="hidden md:flex items-center gap-8">
             {[
