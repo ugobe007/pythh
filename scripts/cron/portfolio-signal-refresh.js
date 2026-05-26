@@ -151,8 +151,6 @@ async function processPortfolioCompany(pick, portfolioId) {
         .limit(1);
 
       if (!existing?.length) {
-        const newPostMoney = event.amount_usd ? calcNewValuation(event.amount_usd, event.round_type) : null;
-
         await client.from('portfolio_events').insert({
           startup_id,
           portfolio_id: portfolioId,

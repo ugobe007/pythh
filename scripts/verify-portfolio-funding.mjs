@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Re-assess portfolio funding events for press verification (Google News + amount + source URL).
+ * Re-assess portfolio funding events for press verification.
+ * Pass 1: stored headline + source URL (fast, no external fetch).
+ * Pass 2: Google News RSS (when stored metadata is incomplete).
  *
  * Usage:
  *   node scripts/verify-portfolio-funding.mjs
@@ -15,11 +17,13 @@ import * as dotenv from 'dotenv';
 import {
   parseGoogleNewsRss,
   assessVerifiedNewsHit,
+  verifyStoredFundingEvent,
 } from '../server/lib/portfolioFundingVerify.js';
 
 dotenv.config();
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const USE_NEWS = process.argv.includes('--news');
 const FETCH_TIMEOUT_MS = 10_000;
 
 function sb() {
@@ -44,7 +48,7 @@ function fetchText(url, timeoutMs = FETCH_TIMEOUT_MS) {
       {
         hostname: parsed.hostname,
         path: parsed.pathname + parsed.search,
-        headers: { 'User-Agent': 'Pythh-PortfolioBot/1.0' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Pythh-PortfolioBot/1.0)' },
         timeout: timeoutMs,
       },
       (res) => {
@@ -73,20 +77,43 @@ async function scrapeGoogleNews(companyName) {
   const url = `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
   try {
     const xml = await fetchText(url);
+    if (!xml.includes('<item>')) return [];
     return parseGoogleNewsRss(xml);
   } catch {
     return [];
   }
 }
 
+async function applyVerification(client, event, hit) {
+  if (!hit?.verified) return false;
+  console.log(`  ✓ ${hit.headline.slice(0, 72)}…`);
+  if (!DRY_RUN) {
+    await client
+      .from('portfolio_events')
+      .update({
+        verified: true,
+        source_url: hit.source_url,
+        source_name: hit.source_name,
+        headline: hit.headline,
+        amount_usd: hit.amount_usd || event.amount_usd,
+        round_type: hit.round_type || event.round_type,
+        lead_investor: hit.lead_investor || event.lead_investor,
+      })
+      .eq('id', event.id);
+  }
+  return true;
+}
+
 async function main() {
   console.log('🔍 Portfolio funding verification pass');
-  if (DRY_RUN) console.log('   (dry-run — no DB writes)\n');
+  if (DRY_RUN) console.log('   (dry-run — no DB writes)');
+  if (!USE_NEWS) console.log('   (stored metadata only — pass --news to query Google RSS)\n');
+  else console.log('');
 
   const client = sb();
   const { data: events, error } = await client
     .from('portfolio_events')
-    .select('id, startup_id, portfolio_id, verified, headline, amount_usd, source_url')
+    .select('id, startup_id, portfolio_id, verified, headline, amount_usd, round_type, lead_investor, source_url, source_name')
     .eq('event_type', 'funding_round')
     .order('event_date', { ascending: false });
 
@@ -98,16 +125,18 @@ async function main() {
   const startupIds = [...new Set((events || []).map((e) => e.startup_id).filter(Boolean))];
   const { data: startups } = await client
     .from('startup_uploads')
-    .select('id, name')
+    .select('id, name, website')
     .in('id', startupIds);
 
-  const nameById = new Map((startups || []).map((s) => [s.id, s.name]));
+  const companyById = new Map((startups || []).map((s) => [s.id, s]));
   let verified = 0;
   let checked = 0;
+  let fromStored = 0;
+  let fromNews = 0;
 
   for (const ev of events || []) {
-    const name = nameById.get(ev.startup_id);
-    if (!name) continue;
+    const company = companyById.get(ev.startup_id);
+    if (!company) continue;
     checked += 1;
 
     if (ev.verified && ev.source_url) {
@@ -115,32 +144,29 @@ async function main() {
       continue;
     }
 
-    const newsItems = await scrapeGoogleNews(name);
-    const hit = assessVerifiedNewsHit(name, newsItems);
-    if (!hit) continue;
-
-    console.log(`  ✓ ${name}: ${hit.headline.slice(0, 72)}…`);
-    verified += 1;
-
-    if (!DRY_RUN) {
-      await client
-        .from('portfolio_events')
-        .update({
-          verified: true,
-          source_url: hit.source_url,
-          source_name: hit.source_name,
-          headline: hit.headline,
-          amount_usd: hit.amount_usd || ev.amount_usd,
-          round_type: hit.round_type,
-          lead_investor: hit.lead_investor,
-        })
-        .eq('id', ev.id);
+    const storedHit = verifyStoredFundingEvent(ev, company);
+    if (storedHit && (await applyVerification(client, ev, storedHit))) {
+      verified += 1;
+      fromStored += 1;
+      continue;
     }
 
-    await new Promise((r) => setTimeout(r, 350));
+    // Already has press URL but failed entity check — don't hammer Google RSS.
+    if (ev.source_url) continue;
+
+    if (!USE_NEWS) continue;
+
+    const newsItems = await scrapeGoogleNews(company.name);
+    const newsHit = assessVerifiedNewsHit(company.name, newsItems);
+    if (newsHit && (await applyVerification(client, ev, newsHit))) {
+      verified += 1;
+      fromNews += 1;
+    }
+
+    await new Promise((r) => setTimeout(r, 300));
   }
 
-  console.log(`\nDone — ${verified} verified of ${checked} funding events checked.`);
+  console.log(`\nDone — ${verified} verified of ${checked} funding events (${fromStored} from press metadata, ${fromNews} from news RSS).`);
 }
 
 main().catch((e) => {

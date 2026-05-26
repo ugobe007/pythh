@@ -31,6 +31,46 @@ import {
   Database,
 } from "lucide-react";
 
+// ─── Platform stats (live from /api/platform-stats) ─────────────────────────
+
+interface PlatformStats {
+  startups: number;
+  investors: number;
+  matches: number;
+}
+
+function formatMatchCompact(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return m >= 10 ? `${Math.round(m)}M` : `${m.toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1000)}K`;
+  return String(n);
+}
+
+function formatMatchFull(n: number): string {
+  const rounded = n >= 1_000_000 ? Math.floor(n / 10_000) * 10_000 : n;
+  return rounded.toLocaleString();
+}
+
+function usePlatformStats() {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  useEffect(() => {
+    fetch("/api/platform-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setStats({
+          startups: Number(d.startups) || 0,
+          investors: Number(d.investors) || 0,
+          matches: Number(d.matches) || 0,
+        });
+      })
+      .catch(() => {});
+  }, []);
+  return stats;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface InvestorSignal {
@@ -493,7 +533,7 @@ function HeroResultsPreview() {
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
-function HeroSection() {
+function HeroSection({ platformStats }: { platformStats: PlatformStats | null }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
   const [, navigate] = useLocation();
@@ -515,6 +555,10 @@ function HeroSection() {
     sessionStorage.setItem("pythia_url", normalized);
     navigate("/activate");
   };
+
+  const matchCount = platformStats?.matches ?? 1_812_680;
+  const startupCount = platformStats?.startups ?? 11_298;
+  const investorCount = platformStats?.investors ?? 6_376;
 
   const urlForm = () => (
     <form id="hero-cta" onSubmit={handleSubmit} className="w-full max-w-[480px]">
@@ -605,7 +649,7 @@ function HeroSection() {
             <div className="inline-flex items-center gap-3 mb-3 px-3 py-1.5 rounded-lg" style={{ border: "1px solid #22c55e28", backgroundColor: "#22c55e0a" }}>
               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
               <span className="text-sm font-bold font-mono" style={{ color: "#22c55e" }}>
-                1,800,000+ investor matches
+                {formatMatchFull(matchCount)}+ investor matches
               </span>
               <span className="text-xs font-mono hidden sm:inline" style={{ color: "oklch(0.38 0.01 264)" }}>· updated daily</span>
             </div>
@@ -653,7 +697,7 @@ function HeroSection() {
             </a>
 
             <p className="text-xs leading-relaxed max-w-[480px]" style={{ color: "oklch(0.42 0.01 264)" }}>
-              11,000+ startups scored · 6,300+ investors mapped · 1.8M+ pre-computed matches
+              {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
             </p>
           </div>
 
@@ -853,14 +897,17 @@ function PortfolioTeaser() {
 }
 
 // ─── Track Record Strip ─────────────────────────────────────────────────────
-function TrackRecordStrip() {
+function TrackRecordStrip({ platformStats }: { platformStats: PlatformStats | null }) {
   const { ref, isVisible } = useIntersectionObserver();
-  const startups = useCountUp(33241, 1600, isVisible);
-  const investors = useCountUp(6250, 1800, isVisible);
+  const matchCount = platformStats?.matches ?? 1_812_680;
+  const startupsTarget = platformStats?.startups ?? 33_241;
+  const investorsTarget = platformStats?.investors ?? 6_250;
+  const startups = useCountUp(startupsTarget, 1600, isVisible);
+  const investors = useCountUp(investorsTarget, 1800, isVisible);
   const godAvg = useCountUp(52, 1200, isVisible);
 
   const stats = [
-    { value: "1.2M", suffix: "+", label: "Active Matches", sublabel: "more than any other matching platform", color: "#22c55e" },
+    { value: formatMatchCompact(matchCount), suffix: "+", label: "Pre-computed Matches", sublabel: "startup ↔ investor pairs · updated daily", color: "#22c55e" },
     { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee" },
     { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped, GOD-ranked", color: "#a855f7" },
     { value: String(godAvg), suffix: "/100", label: "Avg GOD Score", sublabel: "platform-wide · AI/ML leads all sectors", color: "#eab308" },
@@ -1489,12 +1536,14 @@ function Footer() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const platformStats = usePlatformStats();
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
       <Navbar />
-      <HeroSection />
+      <HeroSection platformStats={platformStats} />
       <InvestorStrip />
-      <TrackRecordStrip />
+      <TrackRecordStrip platformStats={platformStats} />
       <PortfolioTeaser />
       <GODScoreSection />
       <AgentIntroSection />

@@ -157,7 +157,7 @@ export default function Matches() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const total = stats?.total ?? 1200000;
+  const total = stats?.total ?? 0;
   const highConf = stats?.highConf ?? 1128;
   const topScore = stats?.topScore ?? 1650;
   const recentCount = stats?.recentCount ?? 0;

@@ -59,6 +59,59 @@ function parseGoogleNewsRss(xml) {
   });
 }
 
+function isLikelyWrongEntity(headline, companyName, website) {
+  const text = headline.toLowerCase();
+  const name = (companyName || '').trim();
+  if (!name) return false;
+
+  const nameTokens = name.split(/\s+/).filter((t) => t.length > 2);
+  if (nameTokens.length >= 2) return false;
+
+  // Single-token names: reject headlines that attach a distinct product suffix (e.g. "Pluto Mobility" vs Pluto fintech).
+  const suffixMatch = text.match(new RegExp(`\\b${escapeRegExp(name.toLowerCase())}\\s+([a-z]{4,})`, 'i'));
+  if (!suffixMatch) return false;
+  const suffix = suffixMatch[1].toLowerCase();
+  const generic = new Set(['raises', 'raised', 'secures', 'secured', 'closes', 'closed', 'announces', 'announced', 'startup', 'company', 'platform', 'funding', 'round', 'series', 'seed']);
+  if (generic.has(suffix)) return false;
+
+  let host = '';
+  try {
+    host = new URL(website?.startsWith('http') ? website : `https://${website || ''}`).hostname.replace(/^www\./, '');
+  } catch {
+    host = '';
+  }
+  const brand = host.split('.')[0];
+  if (brand && brand.length > 3 && text.includes(brand.toLowerCase())) return false;
+
+  return true;
+}
+
+function verifyStoredFundingEvent(event, company) {
+  const name = typeof company === 'string' ? company : company?.name;
+  const website = typeof company === 'string' ? null : company?.website;
+  const headline = (event?.headline || '').trim();
+  const text = headline;
+  if (!event?.source_url || !/^https?:\/\//i.test(event.source_url)) return null;
+  if (!text || !FUNDING_RE.test(text)) return null;
+  if (!companyMentioned(text, name)) return null;
+  if (isLikelyWrongEntity(text, name, website)) return null;
+
+  const amount = event.amount_usd || extractAmountUsd(text);
+  const roundType = extractRoundType(text);
+  if (!amount && !roundType) return null;
+
+  return {
+    verified: true,
+    event_type: 'funding_round',
+    amount_usd: amount,
+    round_type: roundType,
+    lead_investor: event.lead_investor || extractLeadInvestor(text),
+    headline: headline.slice(0, 240),
+    source_url: event.source_url,
+    source_name: event.source_name || 'Press',
+  };
+}
+
 function assessVerifiedNewsHit(companyName, newsItems) {
   for (const item of newsItems) {
     const text = `${item.title} ${item.desc}`.trim();
@@ -110,5 +163,6 @@ module.exports = {
   parseGoogleNewsRss,
   assessFundingSignal,
   assessVerifiedNewsHit,
+  verifyStoredFundingEvent,
   companyMentioned,
 };

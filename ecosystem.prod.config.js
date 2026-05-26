@@ -168,6 +168,24 @@ module.exports = {
     },
 
     // ========================================
+    // PORTFOLIO FUNDING VERIFICATION (weekly)
+    // Press-confirms funding events; upgrades verified_funded metrics.
+    // ========================================
+    {
+      name: 'portfolio-verify-funding',
+      interpreter: 'node',
+      exec_mode: 'fork',
+      script: 'scripts/verify-portfolio-funding.mjs',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '256M',
+      cron_restart: '0 8 * * 1',   // 8 AM UTC every Monday (after signal refresh)
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // SOCIAL SIGNALS FETCHER
     // Enriches data-sparse startups (GOD 40-60) with public-API signals:
     //   Google News RSS count, GitHub stars/commits, iTunes rating count
