@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   Award, Target, TrendingUp, Star, DollarSign, Clock,
-  ExternalLink, Zap, ChevronDown,
+  ExternalLink, Zap, ChevronDown, Shield,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -67,6 +67,9 @@ interface PortfolioMetrics {
   ipos: number;
   funded_picks?: number;
   funded_rate_pct?: number;
+  verified_funded_picks?: number;
+  verified_funded_rate_pct?: number;
+  signal_funded_picks?: number;
   win_rate_pct: number;
   avg_moic: number | null;
   best_moic: number | null;
@@ -387,19 +390,20 @@ export default function Portfolio() {
 
         {/* ── Metrics Bar ── */}
         {metricsLoading && !metrics ? (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-12">
-            {[1, 2, 3, 4, 5].map((i) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-12">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="rounded-xl border p-4 animate-pulse" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)", height: 88 }} />
             ))}
           </div>
         ) : metrics ? (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-12">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-12">
             {[
-              { icon: <Target size={14} />,    label: "Total Picks",    value: String(metrics.total_picks ?? 0),                     sub: `${metrics.active_picks ?? 0} active` },
-              { icon: <TrendingUp size={14} />, label: "Funded",         value: String(metrics.funded_picks ?? 0),                   sub: metrics.funded_rate_pct ? `${metrics.funded_rate_pct}% of picks · raises detected` : "raises detected" },
-              { icon: <Star size={14} />,       label: "Avg MOIC",       value: metrics.avg_moic ? `${metrics.avg_moic}×` : "—",       sub: `best: ${metrics.best_moic ? `${metrics.best_moic}×` : "—"}` },
-              { icon: <DollarSign size={14} />, label: "Virtual Capital", value: fmtUSD(metrics.total_virtual_deployed_usd),            sub: "$100K / pick" },
-              { icon: <Award size={14} />,      label: "Exited",         value: String(metrics.successful_exits ?? 0),                 sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
+              { icon: <Target size={14} />,     label: "Total Picks",     value: String(metrics.total_picks ?? 0),                      sub: `${metrics.active_picks ?? 0} active` },
+              { icon: <Shield size={14} />,     label: "Verified",        value: String(metrics.verified_funded_picks ?? 0),            sub: metrics.verified_funded_rate_pct ? `${metrics.verified_funded_rate_pct}% · press-confirmed` : "press-confirmed raises" },
+              { icon: <TrendingUp size={14} />, label: "Signals",         value: String(metrics.signal_funded_picks ?? Math.max(0, (metrics.funded_picks ?? 0) - (metrics.verified_funded_picks ?? 0))), sub: metrics.funded_rate_pct ? `${metrics.funded_picks ?? 0} total · ${metrics.funded_rate_pct}%` : "early detection" },
+              { icon: <Award size={14} />,      label: "Exited",          value: String(metrics.successful_exits ?? 0),                 sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
+              { icon: <Star size={14} />,       label: "Avg MOIC",        value: metrics.avg_moic ? `${metrics.avg_moic}×` : "—",       sub: "markup on verified raises only" },
+              { icon: <DollarSign size={14} />, label: "Virtual Capital", value: fmtUSD(metrics.total_virtual_deployed_usd),             sub: "$100K / pick" },
             ].map((m) => (
               <div key={m.label} className="rounded-xl border p-4" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)" }}>
                 <div className="flex items-center gap-2 mb-2" style={{ color: G }}>

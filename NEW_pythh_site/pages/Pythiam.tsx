@@ -2,6 +2,7 @@
  * /pythiam — Pythiam Ventures LP page
  * How the Pythh platform powers the fund's deal flow and selection edge.
  */
+import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
 import {
@@ -22,6 +23,28 @@ const G = "oklch(0.696 0.17 162.48)";
 const MUTED = "oklch(0.55 0.01 264)";
 const BORDER = "oklch(0.18 0.01 264)";
 const CARD = "oklch(0.12 0.01 264)";
+
+interface TrackRecord {
+  oracle?: {
+    total_picks?: number;
+    verified_funded_picks?: number;
+    verified_funded_rate_pct?: number;
+    funded_picks?: number;
+    funded_rate_pct?: number;
+    successful_exits?: number;
+    median_days_to_funding?: number | null;
+    verified_avg_moic?: number | null;
+    avg_moic?: number | null;
+    entry_god_threshold?: number;
+  };
+  by_god_tier?: Array<{
+    tier: string;
+    picks: number;
+    funded: number;
+    verified_funded: number;
+    funded_rate_pct: number;
+  }>;
+}
 
 const PLATFORM_STATS = [
   { label: "Scored startups", value: "11,300+", sub: "approved & GOD-rated" },
@@ -134,6 +157,17 @@ function SectionHeader({ n, title, subtitle }: { n: string; title: string; subti
 }
 
 export default function PythiamPage() {
+  const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
+
+  useEffect(() => {
+    fetch("/api/portfolio/track-record")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setTrackRecord(data))
+      .catch(() => {});
+  }, []);
+
+  const oracle = trackRecord?.oracle;
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
       <Helmet>
@@ -300,10 +334,74 @@ export default function PythiamPage() {
           </p>
         </section>
 
-        {/* Fund positioning */}
+        {/* Oracle track record */}
         <section className="border-t py-12" style={{ borderColor: BORDER }}>
           <SectionHeader
             n="05"
+            title="Oracle track record"
+            subtitle="Public proof sheet for the virtual fund — press-verified raises vs early signals, broken down by GOD tier at entry."
+          />
+          {oracle ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                {[
+                  { label: "Oracle picks", value: oracle.total_picks ?? "—", sub: `GOD ≥ ${oracle.entry_god_threshold ?? 70} at entry` },
+                  { label: "Verified funded", value: oracle.verified_funded_picks ?? 0, sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks` },
+                  { label: "Signal funded", value: Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0)), sub: `${oracle.funded_rate_pct ?? 0}% total detection` },
+                  { label: "Exited", value: oracle.successful_exits ?? 0, sub: "acq · IPO" },
+                  { label: "Median days to raise", value: oracle.median_days_to_funding ?? "—", sub: "after Oracle entry" },
+                  { label: "Verified avg MOIC", value: oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—", sub: "press-confirmed markups only" },
+                ].map(({ label, value, sub }) => (
+                  <div key={label} className="p-4 rounded-xl" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+                    <div className="text-2xl font-bold font-mono text-white mb-1">{value}</div>
+                    <div className="text-xs font-medium text-white mb-1">{label}</div>
+                    <div className="text-[10px]" style={{ color: "oklch(0.42 0.01 264)" }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {trackRecord?.by_god_tier?.length ? (
+                <div className="overflow-x-auto rounded-xl mb-4" style={{ border: `1px solid ${BORDER}` }}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: CARD }}>
+                        <th className="text-left p-3 font-medium" style={{ color: MUTED }}>GOD at entry</th>
+                        <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Picks</th>
+                        <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded</th>
+                        <th className="text-right p-3 font-medium" style={{ color: G }}>Verified</th>
+                        <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trackRecord.by_god_tier.map((row) => (
+                        <tr key={row.tier} style={{ borderTop: `1px solid ${BORDER}` }}>
+                          <td className="p-3 text-white">{row.tier}</td>
+                          <td className="p-3 text-right" style={{ color: MUTED }}>{row.picks}</td>
+                          <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded}</td>
+                          <td className="p-3 text-right font-medium" style={{ color: G }}>{row.verified_funded}</td>
+                          <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded_rate_pct}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              <Link href="/portfolio">
+                <span className="text-sm cursor-pointer transition-colors" style={{ color: G }}>
+                  Full Oracle portfolio →
+                </span>
+              </Link>
+            </>
+          ) : (
+            <div className="p-6 rounded-xl animate-pulse" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, height: 120 }} />
+          )}
+        </section>
+
+        {/* Fund positioning */}
+        <section className="border-t py-12" style={{ borderColor: BORDER }}>
+          <SectionHeader
+            n="06"
             title="Why LPs should care"
             subtitle="Pythiam is not buying software — we built the software. The fund and the platform share one data flywheel."
           />

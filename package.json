@@ -136,6 +136,8 @@
     "portfolio:monitor": "node scripts/portfolio-monitor.mjs",
     "portfolio:monitor:dry": "node scripts/portfolio-monitor.mjs --dry-run --verbose",
     "portfolio:health": "node -e \"require('dotenv').config();const {createClient}=require('@supabase/supabase-js');const sb=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY);sb.from('portfolio_metrics').select('*').maybeSingle().then(({data})=>console.log(JSON.stringify(data,null,2)));\"",
+    "portfolio:verify-funding": "node scripts/verify-portfolio-funding.mjs",
+    "portfolio:track-record": "node -e \"require('dotenv').config();const {createClient}=require('@supabase/supabase-js');const {computeTrackRecord}=require('./server/lib/portfolioTrackRecord');computeTrackRecord(createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY)).then(r=>console.log(JSON.stringify(r,null,2)));\"",
     "intel:scrape-vc": "node scripts/intelligence/scrape-vc-intelligence.js",
     "intel:profile-vc": "node scripts/intelligence/build-vc-profiles.js",
     "intel:discover": "node scripts/intelligence/discover-hot-startups.js",

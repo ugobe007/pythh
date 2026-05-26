@@ -97,6 +97,9 @@ interface PortfolioMetrics {
   ipos: number;
   funded_picks?: number;
   funded_rate_pct?: number;
+  verified_funded_picks?: number;
+  verified_funded_rate_pct?: number;
+  signal_funded_picks?: number;
   win_rate_pct: number;
   avg_moic: number | null;
   best_moic: number | null;
@@ -258,8 +261,8 @@ export default function PortfolioPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12">
             {[
               { icon: <Target size={16} />, label: 'Total Picks', value: String(metrics.total_picks ?? 0), sub: `${metrics.active_picks ?? 0} active` },
-              { icon: <TrendingUp size={16} />, label: 'Funded', value: String(metrics.funded_picks ?? 0), sub: metrics.funded_rate_pct ? `${metrics.funded_rate_pct}% of picks · raises detected` : 'raises detected' },
-              { icon: <Star size={16} />, label: 'Avg MOIC', value: metrics.avg_moic ? `${metrics.avg_moic}×` : '—', sub: `best: ${metrics.best_moic ? `${metrics.best_moic}×` : '—'}` },
+              { icon: <TrendingUp size={16} />, label: 'Verified', value: String(metrics.verified_funded_picks ?? 0), sub: metrics.verified_funded_rate_pct ? `${metrics.verified_funded_rate_pct}% · press-confirmed` : 'press-confirmed raises' },
+              { icon: <Star size={16} />, label: 'Signals', value: String(metrics.signal_funded_picks ?? Math.max(0, (metrics.funded_picks ?? 0) - (metrics.verified_funded_picks ?? 0))), sub: metrics.funded_rate_pct ? `${metrics.funded_picks ?? 0} total · ${metrics.funded_rate_pct}%` : 'early detection' },
               { icon: <DollarSign size={16} />, label: 'Virtual Capital', value: formatUSD(metrics.total_virtual_deployed_usd), sub: '$100K / pick' },
               { icon: <Award size={16} />, label: 'Exited', value: String(metrics.successful_exits ?? 0), sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
             ].map((m) => (

@@ -9162,17 +9162,7 @@ app.get('/api/portfolio', async (req, res) => {
 });
 
 // GET /api/portfolio/metrics — headline stats from portfolio_metrics view
-function enrichPortfolioMetrics(metrics) {
-  if (!metrics || typeof metrics !== 'object') return metrics || {};
-  const total = Number(metrics.total_picks) || 0;
-  const exits = Number(metrics.successful_exits) || 0;
-  if (metrics.funded_picks == null && total > 0) {
-    const winHits = Math.round(total * (Number(metrics.win_rate_pct) || 0) / 100);
-    metrics.funded_picks = Math.max(0, winHits - exits);
-    metrics.funded_rate_pct = Math.round((1000 * metrics.funded_picks) / total) / 10;
-  }
-  return metrics;
-}
+const { enrichPortfolioMetrics, computeTrackRecord } = require('./lib/portfolioTrackRecord');
 
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
@@ -9181,6 +9171,18 @@ app.get('/api/portfolio/metrics', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ metrics: enrichPortfolioMetrics(data || {}) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/portfolio/track-record — Oracle proof sheet (verified vs signal + GOD tiers)
+app.get('/api/portfolio/track-record', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const record = await computeTrackRecord(supabase);
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
+    res.json(record);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

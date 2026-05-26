@@ -22,6 +22,10 @@ const https   = require('https');
 const http    = require('http');
 const { URL } = require('url');
 const { createClient } = require('@supabase/supabase-js');
+const {
+  parseGoogleNewsRss,
+  assessFundingSignal,
+} = require('../../server/lib/portfolioFundingVerify');
 
 const SB_URL  = process.env.SUPABASE_URL;
 const SB_KEY  = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -39,11 +43,7 @@ function sb() {
   return createClient(SB_URL, SB_KEY);
 }
 
-// ── Funding signal patterns ───────────────────────────────────────────────────
-const FUNDING_RE = /\b(raises?|raised|secures?|closed|announces?\s+\$|seed\s+round|series\s+[a-e]|pre[- ]?seed|funding\s+round|venture\s+capital|vc\s+backed|unicorn|billion|million.*round|round.*investment)\b/i;
-const AMOUNT_RE  = /\$\s*(\d[\d,.]*)\s*(million|billion|M|B)\b/gi;
-const ROUND_RE   = /\b(pre[- ]?seed|seed|series\s+[a-e]\+?|growth\s+round|late\s+stage)\b/i;
-const INVESTOR_RE = /\b(led\s+by|co[- ]?led\s+by|backed\s+by)\s+([A-Z][A-Za-z\s,&]+?)(?:\s+and\s+|\.|,|\n)/;
+// ── Funding signal patterns (helpers in portfolioFundingVerify) ───────────────
 
 function fetchText(url, timeoutMs = FETCH_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
@@ -79,30 +79,6 @@ function fetchText(url, timeoutMs = FETCH_TIMEOUT_MS) {
   });
 }
 
-function extractAmountUsd(text) {
-  let match;
-  let amount = null;
-  const re = new RegExp(AMOUNT_RE.source, 'gi');
-  while ((match = re.exec(text)) !== null) {
-    const num = parseFloat(match[1].replace(/,/g, ''));
-    const mult = match[2].toLowerCase().startsWith('b') ? 1_000_000_000 : 1_000_000;
-    amount = Math.round(num * mult);
-    break; // take first
-  }
-  return amount;
-}
-
-function extractRoundType(text) {
-  const m = text.match(ROUND_RE);
-  if (!m) return null;
-  return m[1].toLowerCase().replace(/\s+/g, '-').replace(/\+/, 'plus');
-}
-
-function extractLeadInvestor(text) {
-  const m = text.match(INVESTOR_RE);
-  return m ? m[2].trim().slice(0, 80) : null;
-}
-
 async function scrapeWebsite(website) {
   if (!website) return '';
   try {
@@ -118,36 +94,20 @@ async function scrapeGoogleNews(companyName) {
   const url = `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
   try {
     const xml = await fetchText(url);
-    // pull title + description text from RSS items
-    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(m => m[1]);
-    return items.slice(0, 5).map(i => {
-      const title = (i.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || [])[1] || '';
-      const desc  = (i.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || [])[1] || '';
-      return `${title} ${desc}`;
-    }).join(' ');
+    return parseGoogleNewsRss(xml);
   } catch {
-    return '';
+    return [];
   }
 }
 
 async function detectFundingEvent(company) {
   const { name, website } = company;
-  const [homeText, newsText] = await Promise.all([
+  const [homeText, newsItems] = await Promise.all([
     scrapeWebsite(website),
     scrapeGoogleNews(name),
   ]);
-  const combined = `${homeText} ${newsText}`;
 
-  if (!FUNDING_RE.test(combined)) return null;
-
-  return {
-    event_type:    'funding_round',
-    round_type:    extractRoundType(combined),
-    amount_usd:    extractAmountUsd(combined),
-    lead_investor: extractLeadInvestor(combined),
-    headline:      `${name} funding signal detected`,
-    verified:      false,
-  };
+  return assessFundingSignal(name, { homeText, newsItems });
 }
 
 function calcNewValuation(amountUsd, roundType) {
@@ -177,7 +137,7 @@ async function processPortfolioCompany(pick, portfolioId) {
   // 1. Check for funding events
   const event = await detectFundingEvent({ name: startup_name, website });
   if (event) {
-    console.log(`    💰 Funding signal: ${event.round_type || '?'} round, amount=$${event.amount_usd || '?'}`);
+    console.log(`    💰 Funding ${event.verified ? 'verified' : 'signal'}: ${event.round_type || '?'} round, amount=$${event.amount_usd || '?'}`);
 
     if (!DRY_RUN) {
       // Check if we already logged this event recently (avoid dupes within 30 days)
@@ -202,17 +162,21 @@ async function processPortfolioCompany(pick, portfolioId) {
           round_type:    event.round_type,
           lead_investor: event.lead_investor,
           headline:      event.headline,
-          verified:      false,
+          source_url:    event.source_url ?? null,
+          source_name:   event.source_name ?? null,
+          verified:      event.verified ?? false,
         });
 
-        // Update current_valuation_usd + MOIC if we have amount
-        if (newPostMoney) {
+        // Only mark up MOIC on press-verified raises (signals stay in the funded count)
+        if (newPostMoney && event.verified) {
           const newMoic = calcMoic(newPostMoney, entry_valuation_usd, virtual_check_usd);
           await client.from('virtual_portfolio')
             .update({ current_valuation_usd: newPostMoney, moic: newMoic })
             .eq('startup_id', startup_id)
             .eq('status', 'active');
-          console.log(`    📈 Updated valuation: $${Math.round(newPostMoney/1e6)}M, MOIC: ${newMoic}x`);
+          console.log(`    📈 Verified markup: $${Math.round(newPostMoney/1e6)}M, MOIC: ${newMoic}x`);
+        } else if (newPostMoney) {
+          console.log('    (signal logged — MOIC unchanged until press-verified)');
         }
       } else {
         console.log('    (funding event already logged in last 30 days, skipping)');
@@ -314,7 +278,7 @@ async function main() {
     console.log('\n📊 Portfolio Metrics:');
     console.log(`  Total picks: ${metrics.total_picks} | Active: ${metrics.active_picks}`);
     console.log(`  Avg MOIC: ${metrics.avg_moic}x | Best MOIC: ${metrics.best_moic}x`);
-    console.log(`  Funded: ${metrics.funded_picks ?? '—'} (${metrics.funded_rate_pct ?? metrics.win_rate_pct}%) | Exited: ${metrics.successful_exits ?? 0} | Deployed: $${Math.round(metrics.total_virtual_deployed_usd/1e6)}M`);
+    console.log(`  Funded: ${metrics.funded_picks ?? '—'} (${metrics.funded_rate_pct ?? metrics.win_rate_pct}%) | Verified: ${metrics.verified_funded_picks ?? 0} | Exited: ${metrics.successful_exits ?? 0} | Deployed: $${Math.round(metrics.total_virtual_deployed_usd/1e6)}M`);
   }
 }
 

@@ -153,6 +153,24 @@ const steps = [
             )
           ) / NULLIF(COUNT(*), 0)
         , 1)                                                                          AS funded_rate_pct,
+        COUNT(*) FILTER (
+          WHERE id IN (
+            SELECT DISTINCT portfolio_id FROM portfolio_events
+            WHERE event_type = 'funding_round'
+              AND portfolio_id IS NOT NULL
+              AND verified = TRUE
+          )
+        )                                                                           AS verified_funded_picks,
+        ROUND(
+          100.0 * COUNT(*) FILTER (
+            WHERE id IN (
+              SELECT DISTINCT portfolio_id FROM portfolio_events
+              WHERE event_type = 'funding_round'
+                AND portfolio_id IS NOT NULL
+                AND verified = TRUE
+            )
+          ) / NULLIF(COUNT(*), 0)
+        , 1)                                                                          AS verified_funded_rate_pct,
         ROUND(
           100.0 * COUNT(*) FILTER (
             WHERE status IN ('exited','acquired','ipo')

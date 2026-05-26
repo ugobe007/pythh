@@ -734,6 +734,7 @@ interface PortfolioMetrics {
   successful_exits?: number;
   funded_picks?: number;
   funded_rate_pct?: number;
+  verified_funded_picks?: number;
   avg_moic: number | null;
 }
 
@@ -789,7 +790,8 @@ function PortfolioTeaser() {
               {[
                 { n: metrics.total_picks, l: "total picks" },
                 { n: metrics.active_picks, l: "active" },
-                { n: metrics.funded_picks ?? 0, l: "funded" },
+                { n: metrics.verified_funded_picks ?? 0, l: "verified" },
+                { n: metrics.funded_picks ?? 0, l: "signals" },
                 { n: metrics.successful_exits ?? 0, l: "exited" },
               ].map(({ n, l }) => (
                 <div key={l} className="text-center lg:text-right">
