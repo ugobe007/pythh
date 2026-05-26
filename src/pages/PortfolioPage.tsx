@@ -95,6 +95,8 @@ interface PortfolioMetrics {
   successful_exits: number;
   acquisitions: number;
   ipos: number;
+  funded_picks?: number;
+  funded_rate_pct?: number;
   win_rate_pct: number;
   avg_moic: number | null;
   best_moic: number | null;
@@ -256,10 +258,10 @@ export default function PortfolioPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-12">
             {[
               { icon: <Target size={16} />, label: 'Total Picks', value: String(metrics.total_picks ?? 0), sub: `${metrics.active_picks ?? 0} active` },
-              { icon: <TrendingUp size={16} />, label: 'Win Rate', value: metrics.win_rate_pct ? `${metrics.win_rate_pct}%` : '—', sub: 'funded or exited' },
+              { icon: <TrendingUp size={16} />, label: 'Funded', value: String(metrics.funded_picks ?? 0), sub: metrics.funded_rate_pct ? `${metrics.funded_rate_pct}% of picks · raises detected` : 'raises detected' },
               { icon: <Star size={16} />, label: 'Avg MOIC', value: metrics.avg_moic ? `${metrics.avg_moic}×` : '—', sub: `best: ${metrics.best_moic ? `${metrics.best_moic}×` : '—'}` },
               { icon: <DollarSign size={16} />, label: 'Virtual Capital', value: formatUSD(metrics.total_virtual_deployed_usd), sub: '$100K / pick' },
-              { icon: <Award size={16} />, label: 'Exits', value: String(metrics.successful_exits ?? 0), sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
+              { icon: <Award size={16} />, label: 'Exited', value: String(metrics.successful_exits ?? 0), sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
             ].map((m) => (
               <div key={m.label} className="border border-white/10 rounded-lg p-5">
                 <div className="flex items-center gap-2 text-cyan-400 mb-2">

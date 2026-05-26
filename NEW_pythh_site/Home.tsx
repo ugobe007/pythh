@@ -731,7 +731,9 @@ interface PortfolioPick {
 interface PortfolioMetrics {
   total_picks: number;
   active_picks: number;
-  win_rate_pct: number;
+  successful_exits?: number;
+  funded_picks?: number;
+  funded_rate_pct?: number;
   avg_moic: number | null;
 }
 
@@ -787,7 +789,8 @@ function PortfolioTeaser() {
               {[
                 { n: metrics.total_picks, l: "total picks" },
                 { n: metrics.active_picks, l: "active" },
-                { n: `${metrics.win_rate_pct}%`, l: "win rate" },
+                { n: metrics.funded_picks ?? 0, l: "funded" },
+                { n: metrics.successful_exits ?? 0, l: "exited" },
               ].map(({ n, l }) => (
                 <div key={l} className="text-center lg:text-right">
                   <div className="text-xl font-bold tabular-nums" style={{ color: "oklch(0.696 0.17 162.48)" }}>{n}</div>

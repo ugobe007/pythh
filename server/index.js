@@ -9162,13 +9162,25 @@ app.get('/api/portfolio', async (req, res) => {
 });
 
 // GET /api/portfolio/metrics — headline stats from portfolio_metrics view
+function enrichPortfolioMetrics(metrics) {
+  if (!metrics || typeof metrics !== 'object') return metrics || {};
+  const total = Number(metrics.total_picks) || 0;
+  const exits = Number(metrics.successful_exits) || 0;
+  if (metrics.funded_picks == null && total > 0) {
+    const winHits = Math.round(total * (Number(metrics.win_rate_pct) || 0) / 100);
+    metrics.funded_picks = Math.max(0, winHits - exits);
+    metrics.funded_rate_pct = Math.round((1000 * metrics.funded_picks) / total) / 10;
+  }
+  return metrics;
+}
+
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('portfolio_metrics').select('*').maybeSingle();
     if (error) return res.status(500).json({ error: error.message });
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-    res.json({ metrics: data || {} });
+    res.json({ metrics: enrichPortfolioMetrics(data || {}) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

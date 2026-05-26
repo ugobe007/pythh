@@ -314,7 +314,7 @@ async function main() {
     console.log('\n📊 Portfolio Metrics:');
     console.log(`  Total picks: ${metrics.total_picks} | Active: ${metrics.active_picks}`);
     console.log(`  Avg MOIC: ${metrics.avg_moic}x | Best MOIC: ${metrics.best_moic}x`);
-    console.log(`  Win rate: ${metrics.win_rate_pct}% | Deployed: $${Math.round(metrics.total_virtual_deployed_usd/1e6)}M`);
+    console.log(`  Funded: ${metrics.funded_picks ?? '—'} (${metrics.funded_rate_pct ?? metrics.win_rate_pct}%) | Exited: ${metrics.successful_exits ?? 0} | Deployed: $${Math.round(metrics.total_virtual_deployed_usd/1e6)}M`);
   }
 }
 

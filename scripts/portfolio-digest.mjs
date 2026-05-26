@@ -217,11 +217,12 @@ function buildEmailHtml({ recentEvents, reviewCompanies, metrics, godChanges, to
   // ── Metrics bar
   const m = metrics || {};
   const metricsHtml = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:16px 0;">
       ${[
         ['Total Picks',  m.total_picks ?? '—'],
         ['Active',       m.active_picks ?? '—'],
-        ['Win Rate',     m.win_rate_pct ? `${m.win_rate_pct}%` : '—'],
+        ['Funded',       m.funded_picks != null ? `${m.funded_picks}${m.funded_rate_pct ? ` (${m.funded_rate_pct}%)` : ''}` : '—'],
+        ['Exited',       m.successful_exits ?? '—'],
         ['Avg MOIC',     m.avg_moic ? `${m.avg_moic}×` : '—'],
       ].map(([label, val]) => `
         <div style="background:#111827;border:1px solid #1f2937;border-radius:8px;padding:12px;text-align:center;">

@@ -131,13 +131,28 @@ const steps = [
   {
     name: 'portfolio_metrics view',
     sql: `
-      CREATE OR REPLACE VIEW portfolio_metrics AS
+      DROP VIEW IF EXISTS portfolio_metrics;
+      CREATE VIEW portfolio_metrics AS
       SELECT
         COUNT(*)                                                                      AS total_picks,
         COUNT(*) FILTER (WHERE status = 'active')                                     AS active_picks,
         COUNT(*) FILTER (WHERE status IN ('exited','acquired','ipo'))                  AS successful_exits,
         COUNT(*) FILTER (WHERE status = 'acquired')                                   AS acquisitions,
         COUNT(*) FILTER (WHERE status = 'ipo')                                        AS ipos,
+        COUNT(*) FILTER (
+          WHERE id IN (
+            SELECT DISTINCT portfolio_id FROM portfolio_events
+            WHERE event_type = 'funding_round' AND portfolio_id IS NOT NULL
+          )
+        )                                                                           AS funded_picks,
+        ROUND(
+          100.0 * COUNT(*) FILTER (
+            WHERE id IN (
+              SELECT DISTINCT portfolio_id FROM portfolio_events
+              WHERE event_type = 'funding_round' AND portfolio_id IS NOT NULL
+            )
+          ) / NULLIF(COUNT(*), 0)
+        , 1)                                                                          AS funded_rate_pct,
         ROUND(
           100.0 * COUNT(*) FILTER (
             WHERE status IN ('exited','acquired','ipo')

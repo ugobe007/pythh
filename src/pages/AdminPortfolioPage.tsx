@@ -203,8 +203,8 @@ export default function AdminPortfolioPage() {
             {[
               { label: 'Total Picks', value: metrics.total_picks ?? 0 },
               { label: 'Active', value: metrics.active_picks ?? 0 },
-              { label: 'Exits', value: metrics.successful_exits ?? 0 },
-              { label: 'Win Rate', value: metrics.win_rate_pct ? `${metrics.win_rate_pct}%` : '—' },
+              { label: 'Funded', value: metrics.funded_picks != null ? `${metrics.funded_picks}${metrics.funded_rate_pct ? ` (${metrics.funded_rate_pct}%)` : ''}` : (metrics.win_rate_pct ? `${metrics.win_rate_pct}%` : '—') },
+              { label: 'Exited', value: metrics.successful_exits ?? 0 },
               { label: 'Avg MOIC', value: metrics.avg_moic ? `${metrics.avg_moic}×` : '—' },
               { label: 'Deployed', value: fmt(metrics.total_virtual_deployed_usd) },
             ].map(m => (
