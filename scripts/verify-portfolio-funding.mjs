@@ -18,12 +18,14 @@ import {
   parseGoogleNewsRss,
   assessVerifiedNewsHit,
   verifyStoredFundingEvent,
+  passesFundingVerification,
 } from '../server/lib/portfolioFundingVerify.js';
 
 dotenv.config();
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const USE_NEWS = process.argv.includes('--news');
+const RECHECK = process.argv.includes('--recheck');
 const FETCH_TIMEOUT_MS = 10_000;
 
 function sb() {
@@ -139,7 +141,21 @@ async function main() {
     if (!company) continue;
     checked += 1;
 
-    if (ev.verified && ev.source_url) {
+    if (ev.verified && ev.source_url && !RECHECK) {
+      verified += 1;
+      continue;
+    }
+
+    if (ev.verified && RECHECK) {
+      const stillValid = verifyStoredFundingEvent(ev, company)
+        || passesFundingVerification(ev.headline || '', company);
+      if (!stillValid) {
+        console.log(`  ↩ unverify ${company.name}: ${(ev.headline || '').slice(0, 60)}…`);
+        if (!DRY_RUN) {
+          await client.from('portfolio_events').update({ verified: false }).eq('id', ev.id);
+        }
+        continue;
+      }
       verified += 1;
       continue;
     }
@@ -157,7 +173,7 @@ async function main() {
     if (!USE_NEWS) continue;
 
     const newsItems = await scrapeGoogleNews(company.name);
-    const newsHit = assessVerifiedNewsHit(company.name, newsItems);
+    const newsHit = assessVerifiedNewsHit(company, newsItems);
     if (newsHit && (await applyVerification(client, ev, newsHit))) {
       verified += 1;
       fromNews += 1;

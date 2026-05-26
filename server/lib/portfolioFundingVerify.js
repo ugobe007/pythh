@@ -39,8 +39,35 @@ function companyMentioned(text, companyName) {
   if (!companyName) return false;
   const tokens = companyName.split(/\s+/).filter((t) => t.length > 2);
   if (!tokens.length) return false;
+  if (tokens.length >= 2) {
+    return tokens.every((t) => new RegExp(`\\b${escapeRegExp(t)}\\b`, 'i').test(text));
+  }
   const primary = escapeRegExp(tokens[0]);
   return new RegExp(`\\b${primary}\\b`, 'i').test(text);
+}
+
+const NON_FUNDING_HEADLINE_RE = /\b(acquires?|acquired|acquisition|merger|merged|ipo|in talks|talks to raise|reportedly|could raise|seeking funding|considering raise|to cover .+ exploit|relief effort)\b/i;
+const COMPANY_LED_RE = /^[\w\s.-]+-led\b/i;
+
+function isInvalidFundingHeadline(text, companyName) {
+  if (!text) return true;
+  if (NON_FUNDING_HEADLINE_RE.test(text)) return true;
+  const name = (companyName || '').trim();
+  if (name && COMPANY_LED_RE.test(text)) {
+    const lead = text.match(/^([\w\s.-]+)-led\b/i)?.[1]?.trim().toLowerCase();
+    if (lead && name.toLowerCase().startsWith(lead)) return true;
+  }
+  return false;
+}
+
+function passesFundingVerification(text, company) {
+  const name = typeof company === 'string' ? company : company?.name;
+  const website = typeof company === 'string' ? null : company?.website;
+  if (!text || !FUNDING_RE.test(text)) return false;
+  if (!companyMentioned(text, name)) return false;
+  if (isInvalidFundingHeadline(text, name)) return false;
+  if (isLikelyWrongEntity(text, name, website)) return false;
+  return true;
 }
 
 function parseGoogleNewsRss(xml) {
@@ -92,9 +119,7 @@ function verifyStoredFundingEvent(event, company) {
   const headline = (event?.headline || '').trim();
   const text = headline;
   if (!event?.source_url || !/^https?:\/\//i.test(event.source_url)) return null;
-  if (!text || !FUNDING_RE.test(text)) return null;
-  if (!companyMentioned(text, name)) return null;
-  if (isLikelyWrongEntity(text, name, website)) return null;
+  if (!passesFundingVerification(text, company)) return null;
 
   const amount = event.amount_usd || extractAmountUsd(text);
   const roundType = extractRoundType(text);
@@ -112,11 +137,10 @@ function verifyStoredFundingEvent(event, company) {
   };
 }
 
-function assessVerifiedNewsHit(companyName, newsItems) {
+function assessVerifiedNewsHit(company, newsItems) {
   for (const item of newsItems) {
     const text = `${item.title} ${item.desc}`.trim();
-    if (!text || !FUNDING_RE.test(text)) continue;
-    if (!companyMentioned(text, companyName)) continue;
+    if (!passesFundingVerification(text, company)) continue;
     const amount = extractAmountUsd(text);
     const roundType = extractRoundType(text);
     if (!item.link) continue;
@@ -135,12 +159,13 @@ function assessVerifiedNewsHit(companyName, newsItems) {
   return null;
 }
 
-function assessFundingSignal(companyName, { homeText = '', newsItems = [] } = {}) {
+function assessFundingSignal(companyName, { homeText = '', newsItems = [], website = null } = {}) {
   const newsText = newsItems.map((n) => `${n.title} ${n.desc}`).join(' ');
   const combined = `${homeText} ${newsText}`.trim();
   if (!FUNDING_RE.test(combined)) return null;
 
-  const verifiedHit = assessVerifiedNewsHit(companyName, newsItems);
+  const company = { name: companyName, website };
+  const verifiedHit = assessVerifiedNewsHit(company, newsItems);
   if (verifiedHit) return verifiedHit;
 
   return {
@@ -164,5 +189,6 @@ module.exports = {
   assessFundingSignal,
   assessVerifiedNewsHit,
   verifyStoredFundingEvent,
+  passesFundingVerification,
   companyMentioned,
 };

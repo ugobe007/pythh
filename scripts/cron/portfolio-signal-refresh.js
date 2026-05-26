@@ -31,6 +31,7 @@ const SB_URL  = process.env.SUPABASE_URL;
 const SB_KEY  = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = process.argv.includes('--dry-run');
 const SINGLE  = (process.argv.find(a => a.startsWith('--id=')) || '').replace('--id=', '') || null;
+const MISSING_ONLY = process.argv.includes('--missing-only');
 const CONCURRENCY = 2;
 const FETCH_TIMEOUT_MS = 10_000;
 const BATCH_PAUSE_MS = 400;
@@ -107,7 +108,7 @@ async function detectFundingEvent(company) {
     scrapeGoogleNews(name),
   ]);
 
-  return assessFundingSignal(name, { homeText, newsItems });
+  return assessFundingSignal(name, { homeText, newsItems, website });
 }
 
 function calcNewValuation(amountUsd, roundType) {
@@ -151,6 +152,8 @@ async function processPortfolioCompany(pick, portfolioId) {
         .limit(1);
 
       if (!existing?.length) {
+        const newPostMoney = event.amount_usd ? calcNewValuation(event.amount_usd, event.round_type) : null;
+
         await client.from('portfolio_events').insert({
           startup_id,
           portfolio_id: portfolioId,
@@ -230,6 +233,7 @@ async function main() {
   console.log('═'.repeat(50));
   console.log('Run at:', new Date().toISOString());
   if (DRY_RUN) console.log('⚠️  DRY-RUN mode — no DB writes');
+  if (MISSING_ONLY) console.log('📋 Missing-only — picks with no funding_round event');
   console.log('');
 
   const client = sb();
@@ -244,10 +248,24 @@ async function main() {
   if (error) { console.error('DB error:', error.message); process.exit(1); }
   if (!picks?.length) { console.log('No active portfolio picks found.'); process.exit(0); }
 
-  console.log(`Processing ${picks.length} active picks...\n`);
+  let filteredPicks = picks;
+  if (MISSING_ONLY && !SINGLE) {
+    const portfolioIds = picks.map((p) => p.id);
+    const { data: fundedRows } = await client
+      .from('portfolio_events')
+      .select('portfolio_id')
+      .eq('event_type', 'funding_round')
+      .in('portfolio_id', portfolioIds);
+    const fundedIds = new Set((fundedRows || []).map((r) => r.portfolio_id));
+    filteredPicks = picks.filter((p) => !fundedIds.has(p.id));
+  }
+
+  if (!filteredPicks.length) { console.log('No picks to process.'); process.exit(0); }
+
+  console.log(`Processing ${filteredPicks.length} active picks...\n`);
 
   // Map to a usable shape — portfolio_summary has startup data joined
-  const companies = picks.map(p => ({
+  const companies = filteredPicks.map(p => ({
     startup_id:            p.startup_id,
     startup_name:          p.startup_name,
     website:               p.website,
