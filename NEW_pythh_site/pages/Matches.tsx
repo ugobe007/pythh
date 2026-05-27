@@ -7,6 +7,7 @@
  */
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
+import StartupCTA from "@/components/design/StartupCTA";
 import {
   Zap, Target, TrendingUp, Activity, ArrowRight,
   CircleDot, BarChart3, CheckCircle, Users, Flame,
@@ -443,13 +444,9 @@ export default function Matches() {
             in seconds — ranked by timing, thesis fit, and sector alignment.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <a
-              href="/activate"
-              className="inline-flex items-center gap-2 px-7 py-3 rounded-lg text-sm font-semibold"
-              style={{ backgroundColor: "#22c55e", color: "oklch(0.09 0.01 264)" }}
-            >
-              Activate matching <ArrowRight size={16} />
-            </a>
+            <StartupCTA href="/activate" size="lg" showArrow arrowSize={16}>
+              Activate matching
+            </StartupCTA>
             <Link href="/oracle">
               <span
                 className="inline-flex items-center gap-2 px-7 py-3 rounded-lg text-sm font-semibold cursor-pointer"

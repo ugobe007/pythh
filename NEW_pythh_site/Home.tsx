@@ -15,6 +15,14 @@ const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
 import HeroScoringDots from "@/components/HeroScoringDots";
+import StatStrip from "@/components/design/StatStrip";
+import FilterTabs from "@/components/design/FilterTabs";
+import InlineMeta from "@/components/design/InlineMeta";
+import StartupCTA from "@/components/design/StartupCTA";
+import {
+  G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT,
+  deltaColor, godScoreColor,
+} from "@/lib/designTokens";
 import {
   ArrowRight,
   ExternalLink,
@@ -208,7 +216,7 @@ function Navbar() {
             {[
               { label: "How it works", href: "/oracle", accent: "oklch(0.696 0.17 162.48)" },
               { label: "Rankings", href: "/rankings", accent: "#22d3ee" },
-              { label: "Matches", href: "/matches", accent: "#22c55e" },
+              { label: "Matches", href: "/matches", accent: G },
               { label: "Investors", href: "/investors", accent: "oklch(0.696 0.17 162.48)" },
               { label: "Portfolio", href: "/portfolio", accent: "oklch(0.696 0.17 162.48)" },
               { label: "Platform", href: "/platform", accent: "oklch(0.94 0.005 264)" },
@@ -276,7 +284,7 @@ function Navbar() {
               {[
                 { label: "How it works", href: "/oracle", color: "oklch(0.696 0.17 162.48)" },
                 { label: "Rankings", href: "/rankings", color: "#22d3ee" },
-                { label: "Matches", href: "/matches", color: "#22c55e" },
+                { label: "Matches", href: "/matches", color: G },
                 { label: "Investors", href: "/investors", color: "oklch(0.696 0.17 162.48)" },
                 { label: "Portfolio", href: "/portfolio", color: "oklch(0.696 0.17 162.48)" },
                 { label: "Platform", href: "/platform", color: "oklch(0.65 0.01 264)" },
@@ -343,7 +351,7 @@ interface HeroPreviewResponse extends HeroPreviewEntry {
   startups?: HeroPreviewEntry[];
 }
 
-const DIM_COLORS = ["#a855f7", "#22d3ee", "#22c55e", "#22d3ee", "#a855f7"];
+const DIM_COLORS = [PURPLE, CYAN, G, CYAN, PURPLE];
 const HERO_STEP_MS = 2800;
 const HERO_TRANSITION_MS = 1400;
 
@@ -428,8 +436,8 @@ function HeroResultsPreview() {
           )}
           <div className="flex items-center justify-between gap-3 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-              <span className="text-xs font-mono font-semibold truncate" style={{ color: "#22c55e" }}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: G }} />
+              <span className="text-xs font-mono font-semibold truncate" style={{ color: G }}>
                 PYTHIA · {statusLabel}
               </span>
             </div>
@@ -506,7 +514,7 @@ function HeroResultsPreview() {
           <div className="px-5 py-5 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
             <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite && startup ? "#22c55e" : "oklch(0.35 0.01 264)" }}>
+              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite && startup ? G : "oklch(0.35 0.01 264)" }}>
                 {showComposite && startup ? startup.godScore : "—"}
               </span>
               {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
@@ -540,7 +548,7 @@ function HeroResultsPreview() {
             />
             <p
               className="text-[11px] font-mono tracking-widest uppercase"
-              style={{ color: holdComplete ? "#a78bfa" : "#22c55e" }}
+              style={{ color: holdComplete ? "#a78bfa" : G }}
             >
               PYTHIA · {holdComplete ? "next startup" : "reading signals"}
             </p>
@@ -614,29 +622,9 @@ function HeroSection({
       {error && (
         <p className="text-xs mb-2" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
       )}
-      <button
-        type="submit"
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-lg font-semibold text-sm transition-all"
-        style={{
-          backgroundColor: "transparent",
-          border: "1px solid #7c3aed",
-          color: "#a78bfa",
-        }}
-        onMouseEnter={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "#a78bfa";
-          el.style.color = "#c4b5fd";
-          el.style.backgroundColor = "#7c3aed12";
-        }}
-        onMouseLeave={(e) => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "#7c3aed";
-          el.style.color = "#a78bfa";
-          el.style.backgroundColor = "transparent";
-        }}
-      >
-        Find my investors <ArrowRight size={15} />
-      </button>
+      <StartupCTA type="submit" fullWidth showArrow arrowSize={15}>
+        Find my investors
+      </StartupCTA>
       <p className="text-[10px] text-center mt-2.5" style={{ color: "oklch(0.4 0.01 264)" }}>
         No credit card · No signup · ~20 seconds
       </p>
@@ -672,13 +660,10 @@ function HeroSection({
           <div className="flex-1 max-w-[580px]">
 
             {/* Super-headline */}
-            <div className="inline-flex items-center gap-3 mb-3 px-3 py-1.5 rounded-lg" style={{ border: "1px solid #22c55e28", backgroundColor: "#22c55e0a" }}>
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-              <span className="text-sm font-bold font-mono" style={{ color: "#22c55e" }}>
-                {formatMatchFull(matchCount)}+ investor matches
-              </span>
-              <span className="text-xs font-mono hidden sm:inline" style={{ color: "oklch(0.38 0.01 264)" }}>· updated daily</span>
-            </div>
+            <p className="text-sm font-bold font-mono mb-3" style={{ color: G }}>
+              {formatMatchFull(matchCount)}+ investor matches
+              <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
+            </p>
 
             <h1
               className="font-display font-bold leading-[1.05] mb-3"
@@ -774,10 +759,7 @@ function InvestorStrip() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>For investors</span>
-                <span className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ color: "#22c55e", border: "1px solid #22c55e30" }}>
-                  <span className="w-1 h-1 rounded-full inline-block animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                  MCP live
-                </span>
+                <span className="text-[10px] font-mono uppercase" style={{ color: G }}>MCP live</span>
               </div>
               <p className="text-sm font-semibold text-white mt-0.5">Pythh Connect</p>
             </div>
@@ -827,12 +809,6 @@ interface PortfolioMetrics {
   funded_rate_pct?: number;
   verified_funded_picks?: number;
   avg_moic: number | null;
-}
-
-function portfolioGodColor(score: number): string {
-  if (score >= 85) return "oklch(0.696 0.17 162.48)";
-  if (score >= 70) return "#22d3ee";
-  return "oklch(0.55 0.01 264)";
 }
 
 function PortfolioTeaser() {
@@ -913,12 +889,12 @@ function PortfolioTeaser() {
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <span className="text-sm font-semibold text-white truncate">{pick.startup_name}</span>
-                      <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: portfolioGodColor(god) }}>{god}</span>
+                      <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: godScoreColor(god) }}>{god}</span>
                     </div>
                     <p className="text-xs truncate mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
                       {pick.primary_sector ?? "Multi-sector"}
                     </p>
-                    <span className="text-[10px] font-mono uppercase" style={{ color: "#22c55e" }}>Active pick</span>
+                    <span className="text-[10px] font-mono uppercase" style={{ color: G }}>Active pick</span>
                   </div>
                 </Link>
               );
@@ -971,53 +947,25 @@ function TrackRecordStrip({
       value: verified > 0 ? String(verified) : "—",
       suffix: "",
       label: "Verified Funded",
-      sublabel:
-        verifiedPct != null
-          ? `${verifiedPct}% of Oracle picks · press-confirmed`
-          : "Oracle scoreboard · press-verified raises",
-      color: "oklch(0.696 0.17 162.48)",
+      sub: verifiedPct != null ? `${verifiedPct}% of Oracle picks · press-confirmed` : "Oracle scoreboard · press-verified raises",
+      accent: true,
       href: "/portfolio",
     },
-    { value: formatMatchCompact(matchCount), suffix: "+", label: "Pre-computed Matches", sublabel: "startup ↔ investor pairs · updated daily", color: "#22c55e", href: null },
-    { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee", href: null },
-    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped, GOD-ranked", color: "#a855f7", href: null },
+    { value: formatMatchCompact(matchCount), suffix: "+", label: "Pre-computed Matches", sub: "startup ↔ investor pairs · updated daily", color: G, href: null },
+    { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sub: "in the Pythh network, updated daily", color: CYAN, href: null },
+    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sub: "entity-resolved, thesis-mapped, GOD-ranked", color: PURPLE, href: null },
   ];
 
   return (
     <div ref={ref} className="relative py-12 overflow-hidden"
-      style={{ borderTop: "1px solid oklch(0.22 0.01 264)", borderBottom: "1px solid oklch(0.22 0.01 264)", backgroundColor: "oklch(0.145 0.01 264)" }}>
-      {/* Subtle grid background */}
+      style={{ borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`, backgroundColor: "oklch(0.145 0.01 264)" }}>
       <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: "linear-gradient(oklch(0.696 0.17 162.48) 1px, transparent 1px), linear-gradient(90deg, oklch(0.696 0.17 162.48) 1px, transparent 1px)",
+        backgroundImage: `linear-gradient(${G} 1px, transparent 1px), linear-gradient(90deg, ${G} 1px, transparent 1px)`,
         backgroundSize: "40px 40px"
       }} />
       <div className="max-w-5xl mx-auto px-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-y-0 md:divide-x divide-white/10">
-          {stats.map((stat, i) => {
-            const inner = (
-              <>
-                <div className="font-display font-bold mb-1 tabular-nums"
-                  style={{ fontSize: "clamp(2.5rem, 5vw, 3.5rem)", color: stat.color, lineHeight: 1, letterSpacing: "-0.02em" }}>
-                  {stat.value}{stat.suffix}
-                </div>
-                <div className="font-semibold text-sm mb-1" style={{ color: "oklch(0.85 0.005 264)" }}>
-                  {stat.label}
-                </div>
-                <div className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
-                  {stat.sublabel}
-                </div>
-              </>
-            );
-            return (
-            <div key={i} className={`flex flex-col items-center text-center px-8 py-6 transition-all duration-700 ${
-              isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-            }`} style={{ transitionDelay: `${i * 150}ms` }}>
-              {stat.href ? (
-                <a href={stat.href} className="block transition-opacity hover:opacity-90">{inner}</a>
-              ) : inner}
-            </div>
-            );
-          })}
+        <div className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <StatStrip items={stats} cols={4} />
         </div>
       </div>
     </div>
@@ -1077,26 +1025,16 @@ function AgentIntroSection() {
               She reads your startup, maps your thesis against 5,000+ investors, drafts personalized outreach, follows up intelligently, and only surfaces a meeting request when an investor says yes. Your one job: approve and show up.
             </p>
 
-            {/* Capability pills */}
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: "Investor Matching", color: "emerald" },
-                { label: "Pitch Prep", color: "amber" },
-                { label: "Outreach Automation", color: "emerald" },
-                { label: "Follow-up Sequences", color: "amber" },
-                { label: "Meeting Scheduling", color: "emerald" },
-                { label: "Conversation Briefings", color: "amber" },
-              ].map((cap) => (
-                <span key={cap.label} className="text-xs px-3 py-1.5 rounded-full font-medium"
-                  style={{
-                    backgroundColor: cap.color === "emerald" ? "oklch(0.696 0.17 162.48 / 0.1)" : "oklch(0.769 0.188 70.08 / 0.1)",
-                    color: cap.color === "emerald" ? "oklch(0.696 0.17 162.48)" : "oklch(0.769 0.188 70.08)",
-                    border: `1px solid ${cap.color === "emerald" ? "oklch(0.696 0.17 162.48 / 0.25)" : "oklch(0.769 0.188 70.08 / 0.25)"}`,
-                  }}>
-                  {cap.label}
-                </span>
-              ))}
-            </div>
+            <InlineMeta
+              items={[
+                { text: "Investor Matching", color: G },
+                { text: "Pitch Prep", color: GOLD },
+                { text: "Outreach Automation", color: G },
+                { text: "Follow-up Sequences", color: GOLD },
+                { text: "Meeting Scheduling", color: G },
+                { text: "Conversation Briefings", color: GOLD },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -1128,15 +1066,13 @@ function LiveSignalsSection() {
               PYTHIA monitors 40+ behavioral dimensions — from LP updates to check-size changes — 6 to 18 months before major funding events.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {SECTORS.map((sector) => (
-              <button key={sector} onClick={() => setActiveSector(sector)}
-                className="text-xs px-3 py-1.5 rounded-md font-medium transition-all duration-150"
-                style={{ backgroundColor: activeSector === sector ? "oklch(0.696 0.17 162.48 / 0.15)" : "oklch(0.19 0.012 264)", color: activeSector === sector ? "oklch(0.696 0.17 162.48)" : "oklch(0.55 0.01 264)", border: `1px solid ${activeSector === sector ? "oklch(0.696 0.17 162.48 / 0.3)" : "oklch(0.25 0.01 264)"}` }}>
-                {sector}
-              </button>
-            ))}
-          </div>
+          <FilterTabs
+            label="Sector"
+            value={activeSector}
+            onChange={setActiveSector}
+            labelWidth="w-0"
+            options={SECTORS.map((s) => ({ id: s, label: s }))}
+          />
         </div>
 
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: "oklch(0.25 0.01 264)" }}>
@@ -1160,13 +1096,13 @@ function LiveSignalsSection() {
                 <span className="font-mono-data font-semibold text-sm" style={{ color: inv.signal >= 8 ? "oklch(0.696 0.17 162.48)" : "oklch(0.769 0.188 70.08)" }}>{inv.signal}</span>
                 <SignalBar value={inv.signal} max={10} color={inv.signal >= 8 ? "emerald" : "amber"} />
               </div>
-              <span className="font-mono-data text-xs self-center" style={{ color: inv.delta > 0 ? "oklch(0.696 0.17 162.48)" : inv.delta < 0 ? "oklch(0.65 0.22 25)" : "oklch(0.5 0.01 264)" }}>
+              <span className="font-mono-data text-xs self-center" style={{ color: deltaColor(inv.delta) }}>
                 {inv.delta > 0 ? "+" : ""}{inv.delta}
               </span>
               <span className="font-mono-data text-xs self-center" style={{ color: "oklch(0.65 0.01 264)" }}>{inv.god}</span>
               <span className="font-mono-data text-xs self-center" style={{ color: "oklch(0.65 0.01 264)" }}>{inv.vcpp}</span>
               <div className="self-center">
-                <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.2)" }}>{inv.sector}</span>
+                <span className="text-xs font-mono" style={{ color: CYAN }}>{inv.sector}</span>
               </div>
             </div>
           ))}
@@ -1380,7 +1316,7 @@ const GOD_PILLARS = [
   {
     letter: "D",
     word: "Determination",
-    color: "#22c55e",
+    color: G,
     desc: "The clarity of conviction and the magnetic force of execution. We score thesis specificity, product velocity, and the ability to attract world-class talent — the qualities Andreessen Horowitz and Founders Fund use to distinguish missionaries from mercenaries.",
     vcs: ["Andreessen Horowitz", "Founders Fund"],
     signals: ["Product velocity", "Team depth", "Thesis coherence"],
@@ -1409,7 +1345,7 @@ function GODScoreSection() {
             </p>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-xs font-mono px-3 py-1.5 rounded" style={{ color: "#22c55e", border: "1px solid #22c55e28" }}>
+            <span className="text-xs font-mono" style={{ color: G }}>
               0 – 100
             </span>
             <a
@@ -1482,7 +1418,7 @@ function GODScoreSection() {
             </p>
             <div className="space-y-2.5">
               {[
-                { range: "80–100", label: "Elite",      color: "#22c55e",              note: "Investment-grade · surfaces first" },
+                { range: "80–100", label: "Elite",      color: G,              note: "Investment-grade · surfaces first" },
                 { range: "60–79",  label: "Strong",     color: "#22d3ee",              note: "High conviction · core matching pool" },
                 { range: "40–59",  label: "Solid",      color: "#eab308",              note: "Signal-building · confidence-weighted" },
                 { range: "20–39",  label: "Emerging",   color: "#f97316",              note: "Early signals · monitored" },

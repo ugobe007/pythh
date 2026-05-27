@@ -1,20 +1,22 @@
 /**
  * Pythh Virtual Portfolio — /portfolio
- *
- * The Oracle's Picks: YC-style virtual fund tracking every startup that
- * crosses GOD 70. Shows metrics bar, active/exited grid, and "how we pick".
- *
- * Data: /api/portfolio  +  /api/portfolio/metrics  (Fly.io backend)
+ * Oracle scoreboard: verified picks, live signals, GOD-tier tracking.
  */
 
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import { Helmet } from "react-helmet-async";
+import { ExternalLink, ChevronDown } from "lucide-react";
+import SharedNavbar from "@/components/SharedNavbar";
+import InlineMeta from "@/components/design/InlineMeta";
+import FilterTabs from "@/components/design/FilterTabs";
+import StatStrip from "@/components/design/StatStrip";
+import SectionLabel from "@/components/design/SectionLabel";
 import {
-  Award, Target, TrendingUp, Star, DollarSign, Clock,
-  ExternalLink, Zap, ChevronDown, Shield,
-} from "lucide-react";
+  G, CYAN, AMBER, MUTED, DIM, BORDER, CARD, PAGE,
+  tierColor, tierLabel, moicColor, signalScoreColor,
+} from "@/lib/designTokens";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type HealthTier = "core" | "watch" | "review" | "exited";
 
 interface PortfolioEntry {
@@ -23,40 +25,28 @@ interface PortfolioEntry {
   startup_name: string;
   tagline?: string;
   website?: string;
-  sectors?: string[];
-  current_stage?: string;
   entry_date: string;
-  entry_stage?: string;
   entry_god_score: number;
   current_god_score?: number;
   entry_valuation_usd?: number;
-  current_valuation_usd?: number;
-  virtual_check_usd: number;
   status: string;
-  exit_date?: string;
-  exit_type?: string;
-  exit_valuation_usd?: number;
-  exit_acquirer?: string;
   moic?: number;
   irr_annualized?: number;
-  holding_days?: number;
-  entry_rationale?: string;
   latest_round_type?: string;
   latest_round_post_money?: number;
-  latest_lead_investor?: string;
-  total_rounds_tracked?: number;
+  exit_acquirer?: string;
   primary_sector?: string | null;
   sector_god_percentile?: number | null;
   god_delta?: number | null;
   days_since_last_event?: number | null;
-  events_last_180d?: number | null;
+  total_rounds_tracked?: number;
   health_tier?: HealthTier | string;
-  maturity_level?: string | null;
   goldilocks_alignment?: string;
   exit_propensity_score?: number | null;
-  exit_propensity_confidence?: number | null;
   exit_propensity_tier?: string | null;
-  in_goldilocks_god_zone?: boolean;
+  signal_score?: number | null;
+  brief_description?: string | null;
+  entry_rationale?: string | null;
 }
 
 interface PortfolioMetrics {
@@ -70,13 +60,10 @@ interface PortfolioMetrics {
   verified_funded_picks?: number;
   verified_funded_rate_pct?: number;
   signal_funded_picks?: number;
-  win_rate_pct: number;
   avg_moic: number | null;
-  best_moic: number | null;
   total_virtual_deployed_usd: number;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtUSD(n?: number | null) {
   if (!n) return "—";
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
@@ -90,232 +77,184 @@ function fmtDate(s?: string | null) {
   return new Date(s).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-function healthLabel(tier: string) {
-  const map: Record<string, string> = { core: "Core", watch: "Watch", review: "Review ⚠", exited: "Exited" };
-  return map[tier] ?? tier;
-}
-
-function healthColor(tier: string): string {
-  if (tier === "core")   return "oklch(0.696 0.17 162.48)";
-  if (tier === "watch")  return "oklch(0.769 0.188 70.08)";
-  if (tier === "review") return "oklch(0.65 0.22 25)";
-  return "oklch(0.5 0.01 264)";
-}
-
-function godColor(score: number): string {
-  if (score >= 85) return "oklch(0.696 0.17 162.48)";
-  if (score >= 70) return "oklch(0.65 0.15 220)";
-  return "oklch(0.6 0.01 264)";
-}
-
-function statusLabel(status: string): { label: string; color: string } {
-  const map: Record<string, { label: string; color: string }> = {
-    active:      { label: "Active",      color: "oklch(0.696 0.17 162.48)" },
-    acquired:    { label: "Acquired 🎯", color: "oklch(0.65 0.15 220)" },
-    ipo:         { label: "IPO 🚀",      color: "oklch(0.65 0.15 220)" },
-    exited:      { label: "Exited",      color: "oklch(0.5 0.01 264)" },
-    written_off: { label: "Written Off", color: "oklch(0.65 0.22 25)" },
+function statusWord(status: string): string {
+  const map: Record<string, string> = {
+    active: "Active",
+    acquired: "Acquired",
+    ipo: "IPO",
+    exited: "Exited",
+    written_off: "Written off",
   };
-  return map[status] ?? map.active;
+  return map[status] ?? status;
 }
 
-// ── Portfolio Card ────────────────────────────────────────────────────────────
-function PortfolioCard({ entry }: { entry: PortfolioEntry }) {
+function PortfolioRow({ entry }: { entry: PortfolioEntry }) {
   const tier = (entry.health_tier as string) || "core";
-  const st = statusLabel(entry.status);
+  const moic = entry.moic ?? 1;
+  const moicClr = moicColor(moic);
   const delta = entry.god_delta;
-  const moicDelta = (entry.moic ?? 1) - 1;
   const isExit = ["acquired", "ipo", "exited"].includes(entry.status);
 
+  const headlineMeta = [
+    { text: statusWord(entry.status), color: entry.status === "active" ? G : MUTED },
+    { text: tierLabel(tier), color: tierColor(tier) },
+    {
+      text:
+        entry.current_god_score != null && entry.current_god_score !== entry.entry_god_score
+          ? `GOD ${entry.entry_god_score} → ${entry.current_god_score}`
+          : `GOD ${entry.entry_god_score}`,
+      color: G,
+    },
+    entry.latest_round_type
+      ? {
+          text: `${entry.latest_round_type}${entry.latest_round_post_money ? ` ${fmtUSD(entry.latest_round_post_money)}` : ""}`,
+          color: CYAN,
+        }
+      : { text: "" },
+    entry.signal_score != null
+      ? { text: `Signal ${entry.signal_score.toFixed(1)}/10`, color: signalScoreColor(entry.signal_score) }
+      : { text: "" },
+    entry.status === "active" && entry.exit_propensity_score != null && entry.exit_propensity_tier
+      ? { text: `Exit ${entry.exit_propensity_score} ${entry.exit_propensity_tier}`, color: MUTED }
+      : { text: "" },
+  ];
+
+  const footMeta = [
+    entry.primary_sector ? { text: entry.primary_sector, color: CYAN } : { text: "" },
+    entry.sector_god_percentile != null
+      ? { text: `sector ${entry.sector_god_percentile.toFixed(0)}th pct` }
+      : { text: "" },
+    delta != null && delta !== 0
+      ? {
+          text: `ΔGOD ${delta > 0 ? "+" : ""}${delta}`,
+          color: delta < 0 ? AMBER : G,
+        }
+      : { text: "" },
+    entry.days_since_last_event != null
+      ? { text: `last signal ${entry.days_since_last_event}d` }
+      : { text: "" },
+    { text: `picked ${fmtDate(entry.entry_date)}` },
+    { text: `entry ${fmtUSD(entry.entry_valuation_usd)}` },
+    entry.total_rounds_tracked
+      ? { text: `${entry.total_rounds_tracked} round${entry.total_rounds_tracked > 1 ? "s" : ""}` }
+      : { text: "" },
+    isExit && entry.exit_acquirer
+      ? { text: `acq ${entry.exit_acquirer}`, color: CYAN }
+      : { text: "" },
+  ];
+
   return (
-    <div
-      className="rounded-xl border overflow-hidden"
-      style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}
+    <article
+      className="py-5 border-b last:border-b-0"
+      style={{ borderColor: BORDER }}
     >
-      <div className="p-5 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
-        {/* Left */}
-        <div className="space-y-2">
-          {/* Name + badges */}
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 md:gap-8">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <Link
               href={`/portfolio/${entry.startup_id}`}
-              className="text-base font-bold transition-colors"
+              className="text-base font-semibold tracking-tight transition-colors"
               style={{ color: "oklch(0.94 0.005 264)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.94 0.005 264)")}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.color = G;
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.color = "oklch(0.94 0.005 264)";
+              }}
             >
               {entry.startup_name}
             </Link>
-
-            {/* Status */}
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-              style={{ color: st.color, borderColor: `${st.color}55` }}
-            >
-              {st.label}
-            </span>
-
-            {/* Health tier */}
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-              style={{ color: healthColor(tier), borderColor: `${healthColor(tier)}55` }}
-            >
-              {healthLabel(tier)}
-            </span>
-
-            {/* GOD score */}
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-              style={{ color: godColor(entry.entry_god_score), borderColor: `${godColor(entry.entry_god_score)}55` }}
-            >
-              GOD {entry.entry_god_score}
-              {entry.current_god_score != null && entry.current_god_score !== entry.entry_god_score
-                ? <span style={{ color: "oklch(0.5 0.01 264)", fontWeight: 400 }}> → {entry.current_god_score}</span>
-                : null}
-            </span>
-
-            {/* Latest round */}
-            {entry.latest_round_type && (
-              <span
-                className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                style={{ color: "oklch(0.65 0.15 220)", borderColor: "oklch(0.65 0.15 220 / 0.4)" }}
-              >
-                {entry.latest_round_type}
-                {entry.latest_round_post_money ? ` · ${fmtUSD(entry.latest_round_post_money)}` : ""}
-              </span>
-            )}
-
-            {/* Exit propensity */}
-            {entry.status === "active" && entry.exit_propensity_score != null && entry.exit_propensity_tier && (
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full border"
-                style={{ color: "oklch(0.769 0.188 70.08)", borderColor: "oklch(0.769 0.188 70.08 / 0.4)" }}
-                title={`Exit propensity: ${entry.exit_propensity_score}/100`}
-              >
-                Exit {entry.exit_propensity_score} · {entry.exit_propensity_tier}
-              </span>
-            )}
           </div>
 
-          {/* Tagline */}
-          {entry.tagline && (
-            <p className="text-sm leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
-              {entry.tagline}
+          <InlineMeta items={headlineMeta} />
+
+          {(entry.brief_description || entry.tagline) && (
+            <p className="text-sm leading-relaxed max-w-2xl" style={{ color: MUTED }}>
+              {entry.brief_description || entry.tagline}
             </p>
           )}
 
-          {/* Goldilocks warning */}
           {entry.goldilocks_alignment === "thin_signals" && (
-            <p
-              className="text-xs border-l-2 pl-2 py-0.5"
-              style={{ color: "oklch(0.769 0.188 70.08)", borderColor: "oklch(0.769 0.188 70.08 / 0.6)" }}
-            >
-              Goldilocks: maturity signals thin vs. what this GOD score implies.
+            <p className="text-xs font-mono" style={{ color: AMBER }}>
+              Goldilocks: maturity signals thin vs. entry GOD score.
             </p>
           )}
 
-          {/* Meta row */}
-          <div className="flex flex-wrap gap-4 text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
-            {entry.primary_sector && (
-              <span style={{ color: "oklch(0.65 0.15 220)" }}>{entry.primary_sector}</span>
-            )}
-            {entry.sector_god_percentile != null && (
-              <span>Sector {entry.sector_god_percentile.toFixed(0)}th pct</span>
-            )}
-            {delta != null && delta !== 0 && (
-              <span style={{ color: delta < 0 ? "oklch(0.65 0.22 25)" : "oklch(0.696 0.17 162.48)" }}>
-                ΔGOD {delta > 0 ? "+" : ""}{delta}
-              </span>
-            )}
-            {entry.days_since_last_event != null && (
-              <span>Last signal {entry.days_since_last_event}d ago</span>
-            )}
-            <span className="flex items-center gap-1">
-              <Clock size={10} /> Picked {fmtDate(entry.entry_date)}
-            </span>
-            <span>Entry val: {fmtUSD(entry.entry_valuation_usd)}</span>
-            {entry.total_rounds_tracked ? (
-              <span>{entry.total_rounds_tracked} round{entry.total_rounds_tracked > 1 ? "s" : ""} tracked</span>
-            ) : null}
-            {isExit && entry.exit_acquirer && (
-              <span style={{ color: "oklch(0.65 0.15 220)" }}>Acquired by {entry.exit_acquirer}</span>
-            )}
-          </div>
+          <InlineMeta items={footMeta} />
         </div>
 
-        {/* Right — MOIC */}
-        <div className="text-right min-w-[90px]">
-          <div
-            className="text-2xl font-bold tracking-tight"
-            style={{
-              color: moicDelta > 0.05
-                ? "oklch(0.696 0.17 162.48)"
-                : moicDelta < -0.05
-                ? "oklch(0.65 0.22 25)"
-                : "oklch(0.94 0.005 264)",
-            }}
-          >
-            {(entry.moic ?? 1).toFixed(2)}×
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: "oklch(0.45 0.01 264)" }}>MOIC</div>
-          {entry.irr_annualized != null && (
-            <div className="text-xs mt-0.5" style={{ color: "oklch(0.45 0.01 264)" }}>
-              IRR {(entry.irr_annualized * 100).toFixed(1)}%
+        <div className="md:text-right shrink-0 flex md:flex-col items-end justify-between gap-3">
+          <div>
+            <div className="text-2xl font-bold font-mono tabular-nums tracking-tight" style={{ color: moicClr }}>
+              {moic.toFixed(2)}×
             </div>
-          )}
-          <div className="flex flex-col items-end gap-1.5 mt-2">
+            <div className="text-[10px] font-mono uppercase tracking-widest mt-0.5" style={{ color: DIM }}>
+              MOIC
+            </div>
+            {entry.irr_annualized != null && (
+              <div className="text-xs font-mono mt-1" style={{ color: DIM }}>
+                IRR {(entry.irr_annualized * 100).toFixed(1)}%
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-4 text-xs font-mono">
             {entry.website && (
               <a
                 href={entry.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs transition-colors"
-                style={{ color: "oklch(0.5 0.01 264)" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.65 0.15 220)")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.5 0.01 264)")}
+                className="inline-flex items-center gap-1 transition-colors"
+                style={{ color: MUTED }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = CYAN;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = MUTED;
+                }}
               >
-                <ExternalLink size={10} /> Visit
+                Visit <ExternalLink size={10} />
               </a>
             )}
             <Link
               href={`/portfolio/${entry.startup_id}`}
-              className="inline-flex items-center gap-1 text-xs transition-colors"
-              style={{ color: "oklch(0.696 0.17 162.48 / 0.7)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48 / 0.7)")}
+              className="transition-colors"
+              style={{ color: G }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.color = G;
+              }}
             >
-              Full dossier →
+              Dossier →
             </Link>
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function Portfolio() {
-  const [entries, setEntries]   = useState<PortfolioEntry[]>([]);
-  const [metrics, setMetrics]   = useState<PortfolioMetrics | null>(null);
+  const [entries, setEntries] = useState<PortfolioEntry[]>([]);
+  const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(true);
-  const [error, setError]       = useState<string | null>(null);
-  const [filter, setFilter]     = useState<"all" | "active" | "exited">("all");
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "active" | "exited">("all");
   const [tierFilter, setTierFilter] = useState<"all" | HealthTier>("all");
-  const [sortBy, setSortBy]     = useState<"health" | "god">("health");
-  const [showAll, setShowAll]   = useState(false);
+  const [sortBy, setSortBy] = useState<"health" | "god">("health");
+  const [showAll, setShowAll] = useState(false);
 
-  useEffect(() => { loadData(); }, [sortBy]);
+  useEffect(() => {
+    loadData();
+  }, [sortBy]);
 
   async function loadData() {
     setListLoading(true);
     setMetricsLoading(true);
     setError(null);
 
-    const sortQ = sortBy === "health" ? "health" : "god";
-    const listUrl = `/api/portfolio?sort=${sortQ}&limit=80&lite=1`;
-
-    // Metrics is fast — paint the header bar as soon as it lands.
     fetch("/api/portfolio/metrics")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load metrics"))))
       .then((metricsData) => setMetrics(metricsData.metrics ?? null))
@@ -323,7 +262,8 @@ export default function Portfolio() {
       .finally(() => setMetricsLoading(false));
 
     try {
-      const listRes = await fetch(listUrl);
+      const sortQ = sortBy === "health" ? "health" : "god";
+      const listRes = await fetch(`/api/portfolio?sort=${sortQ}&limit=80&lite=1`);
       if (!listRes.ok) throw new Error("Failed to load portfolio");
       const listData = await listRes.json();
       setEntries(listData.entries ?? []);
@@ -348,192 +288,229 @@ export default function Portfolio() {
   const displayed = showAll ? filtered.slice(0, 50) : filtered.slice(0, 10);
   const hasMore = filtered.length > (showAll ? 50 : 10);
 
-  const G = "oklch(0.696 0.17 162.48)";
-  const DIM = "oklch(0.5 0.01 264)";
-  const BORDER = "oklch(0.25 0.01 264)";
+  const statStrip = metrics
+    ? [
+        {
+          value: String(metrics.verified_funded_picks ?? 0),
+          label: "Verified funded",
+          sub: metrics.verified_funded_rate_pct ? `${metrics.verified_funded_rate_pct}% of picks` : undefined,
+          accent: true,
+        },
+        {
+          value: String(metrics.signal_funded_picks ?? Math.max(0, (metrics.funded_picks ?? 0) - (metrics.verified_funded_picks ?? 0))),
+          label: "Signal funded",
+          sub: metrics.funded_picks ? `${metrics.funded_picks} total detected` : undefined,
+        },
+        {
+          value: String(metrics.successful_exits ?? 0),
+          label: "Exited",
+          sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO`,
+        },
+        {
+          value: String(metrics.total_picks ?? 0),
+          label: "Oracle picks",
+          sub: `${metrics.active_picks ?? 0} active`,
+        },
+        {
+          value: metrics.avg_moic ? `${metrics.avg_moic}×` : "—",
+          label: "Avg MOIC",
+          sub: "verified markups",
+        },
+        {
+          value: fmtUSD(metrics.total_virtual_deployed_usd),
+          label: "Virtual capital",
+          sub: "$100K / pick",
+        },
+      ]
+    : [];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)", color: "oklch(0.94 0.005 264)" }}>
-      {/* ── Nav ── */}
-      <div className="sticky top-0 z-20 border-b" style={{ backgroundColor: "oklch(0.13 0.01 264 / 0.95)", borderColor: BORDER, backdropFilter: "blur(12px)" }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="font-display font-bold text-base" style={{ color: G }}>PYTHIA</span>
-            <span className="text-xs" style={{ color: DIM }}>/ Portfolio</span>
-          </Link>
-          <nav className="flex gap-5 text-sm" style={{ color: DIM }}>
-            <Link href="/rankings" className="transition-colors hover:text-white">Rankings</Link>
-            <Link href="/explore"  className="transition-colors hover:text-white">Explore</Link>
-            <Link href="/activate" className="transition-colors" style={{ color: G }}>Activate</Link>
-          </nav>
-        </div>
-      </div>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE, color: "oklch(0.94 0.005 264)" }}>
+      <Helmet>
+        <title>Oracle Portfolio — Pythh.ai</title>
+        <meta
+          name="description"
+          content="Public scoreboard for the Pythh virtual fund — verified funded picks, GOD-tier tracking, and live portfolio signals."
+        />
+      </Helmet>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
-        {/* ── Hero ── */}
-        <div className="mb-12">
-          <div className="flex items-center gap-2 mb-3">
-            <Award size={18} style={{ color: G }} />
-            <span className="text-xs uppercase tracking-widest font-semibold" style={{ color: G }}>
-              Virtual Portfolio
-            </span>
-          </div>
-          <h1 className="text-4xl font-display font-bold mb-3 tracking-tight">
-            The Oracle's Picks
+      <SharedNavbar activePath="/portfolio" />
+
+      <main className="container max-w-5xl pt-24 pb-20 px-4 sm:px-6">
+        {/* Hero */}
+        <header className="mb-10 pb-10 border-b" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-3">Oracle scoreboard</SectionLabel>
+          <h1 className="font-display font-bold text-3xl md:text-4xl tracking-tight mb-3">
+            The Oracle&apos;s Picks
           </h1>
-          <p className="text-base max-w-2xl leading-relaxed" style={{ color: DIM }}>
-            Every startup that crosses a GOD score of 70 is added to the Pythh virtual fund.
-            We track them like YC — funding rounds, acquisitions, IPOs — and score each pick on
-            peer-relative momentum and thesis balance so slow or overstretched names surface in Review.
+          <p className="text-base max-w-2xl leading-relaxed" style={{ color: MUTED }}>
+            Every startup crossing GOD 70 enters the virtual fund. We track funding, exits, and
+            press-verified outcomes in public — proof the signal engine works.
           </p>
-        </div>
+        </header>
 
-        {/* ── Metrics Bar ── */}
+        {/* Metrics strip */}
         {metricsLoading && !metrics ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-12">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="rounded-xl border p-4 animate-pulse" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)", height: 88 }} />
-            ))}
-          </div>
+          <div className="h-20 mb-10 animate-pulse rounded-lg" style={{ backgroundColor: CARD }} />
         ) : metrics ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-12">
-            {[
-              { icon: <Target size={14} />,     label: "Total Picks",     value: String(metrics.total_picks ?? 0),                      sub: `${metrics.active_picks ?? 0} active` },
-              { icon: <Shield size={14} />,     label: "Verified",        value: String(metrics.verified_funded_picks ?? 0),            sub: metrics.verified_funded_rate_pct ? `${metrics.verified_funded_rate_pct}% · press-confirmed` : "press-confirmed raises" },
-              { icon: <TrendingUp size={14} />, label: "Signals",         value: String(metrics.signal_funded_picks ?? Math.max(0, (metrics.funded_picks ?? 0) - (metrics.verified_funded_picks ?? 0))), sub: metrics.funded_rate_pct ? `${metrics.funded_picks ?? 0} total · ${metrics.funded_rate_pct}%` : "early detection" },
-              { icon: <Award size={14} />,      label: "Exited",          value: String(metrics.successful_exits ?? 0),                 sub: `${metrics.acquisitions ?? 0} acq · ${metrics.ipos ?? 0} IPO` },
-              { icon: <Star size={14} />,       label: "Avg MOIC",        value: metrics.avg_moic ? `${metrics.avg_moic}×` : "—",       sub: "markup on verified raises only" },
-              { icon: <DollarSign size={14} />, label: "Virtual Capital", value: fmtUSD(metrics.total_virtual_deployed_usd),             sub: "$100K / pick" },
-            ].map((m) => (
-              <div key={m.label} className="rounded-xl border p-4" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)" }}>
-                <div className="flex items-center gap-2 mb-2" style={{ color: G }}>
-                  {m.icon}
-                  <span className="text-xs uppercase tracking-wider" style={{ color: DIM }}>{m.label}</span>
+          <div
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-0 mb-10 py-6 border-y divide-x divide-white/5"
+            style={{ borderColor: BORDER }}
+          >
+            {statStrip.map((s) => (
+              <div key={s.label} className="px-4 py-2 text-center first:pl-0">
+                <div
+                  className="font-display font-bold text-2xl md:text-3xl tabular-nums mb-1"
+                  style={{ color: s.accent ? G : "oklch(0.94 0.005 264)" }}
+                >
+                  {s.value}
                 </div>
-                <div className="text-xl font-bold tracking-tight">{m.value}</div>
-                <div className="text-xs mt-1" style={{ color: DIM }}>{m.sub}</div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>
+                  {s.label}
+                </div>
+                {s.sub && (
+                  <div className="text-[10px] font-mono" style={{ color: DIM }}>
+                    {s.sub}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         ) : null}
 
-        {/* ── Filters ── */}
-        <div className="space-y-3 mb-6">
-          {/* Status */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs uppercase tracking-wider w-20" style={{ color: "oklch(0.4 0.01 264)" }}>Status</span>
-            {(["all", "active", "exited"] as const).map((f) => {
-              const count = f === "all" ? entries.length : f === "active" ? entries.filter((e) => e.status === "active").length : exits.length;
-              const active = filter === f;
-              return (
-                <button
-                  key={f}
-                  onClick={() => { setFilter(f); setShowAll(false); }}
-                  className="px-3 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors"
-                  style={{
-                    borderColor: active ? G : BORDER,
-                    color: active ? G : DIM,
-                  }}
-                >
-                  {f} ({count})
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Health tier */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs uppercase tracking-wider w-20" style={{ color: "oklch(0.4 0.01 264)" }}>Tier</span>
-            {(["all", "review", "watch", "core", "exited"] as const).map((t) => {
-              const count = t === "all" ? entries.length : entries.filter((e) => (e.health_tier as string) === t).length;
-              const active = tierFilter === t;
-              return (
-                <button
-                  key={t}
-                  onClick={() => { setTierFilter(t === "all" ? "all" : t); setShowAll(false); }}
-                  className="px-3 py-1.5 rounded-full border text-sm font-semibold capitalize transition-colors"
-                  style={{
-                    borderColor: active ? "oklch(0.65 0.15 220)" : BORDER,
-                    color: active ? "oklch(0.65 0.15 220)" : DIM,
-                  }}
-                >
-                  {t === "all" ? "All tiers" : healthLabel(t)} ({count})
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Sort */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs uppercase tracking-wider" style={{ color: "oklch(0.4 0.01 264)" }}>Sort</span>
-            <select
-              value={sortBy}
-              onChange={(e) => { setSortBy(e.target.value as "health" | "god"); setShowAll(false); }}
-              className="rounded-lg px-3 py-2 text-sm border focus:outline-none"
-              style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: BORDER, color: "oklch(0.94 0.005 264)" }}
+        {/* Filters — inline text tabs */}
+        <div className="space-y-4 mb-8 pb-6 border-b" style={{ borderColor: BORDER }}>
+          <FilterTabs
+            label="Status"
+            value={filter}
+            onChange={(f) => {
+              setFilter(f);
+              setShowAll(false);
+            }}
+            options={[
+              { id: "all", label: "All", count: entries.length },
+              { id: "active", label: "Active", count: entries.filter((e) => e.status === "active").length },
+              { id: "exited", label: "Exited", count: exits.length },
+            ]}
+          />
+          <FilterTabs
+            label="Tier"
+            value={tierFilter}
+            onChange={(t) => {
+              setTierFilter(t);
+              setShowAll(false);
+            }}
+            options={[
+              { id: "all", label: "All tiers", count: entries.length },
+              { id: "review", label: "Review", count: entries.filter((e) => e.health_tier === "review").length },
+              { id: "watch", label: "Watch", count: entries.filter((e) => e.health_tier === "watch").length },
+              { id: "core", label: "Core", count: entries.filter((e) => e.health_tier === "core").length },
+              { id: "exited", label: "Exited tier", count: entries.filter((e) => e.health_tier === "exited").length },
+            ]}
+          />
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <span className="text-[10px] font-mono uppercase tracking-widest w-14 shrink-0" style={{ color: DIM }}>
+              Sort
+            </span>
+            <button
+              type="button"
+              onClick={() => setSortBy("health")}
+              className="text-sm bg-transparent border-0 p-0 cursor-pointer"
+              style={{
+                color: sortBy === "health" ? "oklch(0.94 0.005 264)" : MUTED,
+                textDecoration: sortBy === "health" ? "underline" : "none",
+                textUnderlineOffset: "4px",
+                textDecorationColor: G,
+              }}
             >
-              <option value="health">Health (Review first)</option>
-              <option value="god">GOD score (entry)</option>
-            </select>
+              Health
+            </button>
+            <span style={{ color: "oklch(0.28 0.01 264)" }}>|</span>
+            <button
+              type="button"
+              onClick={() => setSortBy("god")}
+              className="text-sm bg-transparent border-0 p-0 cursor-pointer"
+              style={{
+                color: sortBy === "god" ? "oklch(0.94 0.005 264)" : MUTED,
+                textDecoration: sortBy === "god" ? "underline" : "none",
+                textUnderlineOffset: "4px",
+                textDecorationColor: G,
+              }}
+            >
+              GOD at entry
+            </button>
           </div>
         </div>
 
-        {/* ── Content ── */}
+        {/* List */}
         {listLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-0">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="rounded-xl border animate-pulse" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)", height: 120 }} />
+              <div key={i} className="py-5 border-b animate-pulse" style={{ borderColor: BORDER, height: 100 }} />
             ))}
           </div>
         ) : error ? (
-          <div className="text-center py-24 text-red-400">{error}</div>
+          <p className="text-center py-24 text-sm font-mono" style={{ color: AMBER }}>
+            {error}
+          </p>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-24 text-sm" style={{ color: DIM }}>
+          <p className="text-center py-24 text-sm" style={{ color: MUTED }}>
             No entries yet — portfolio builds automatically as startups cross GOD 70.
-          </div>
+          </p>
         ) : (
           <>
-            <div className="space-y-3">
-              {displayed.map((e) => <PortfolioCard key={e.id} entry={e} />)}
+            <div className="rounded-xl border px-5 md:px-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+              {displayed.map((e) => (
+                <PortfolioRow key={e.id} entry={e} />
+              ))}
             </div>
             {hasMore && (
               <div className="mt-8 text-center">
                 <button
+                  type="button"
                   onClick={() => setShowAll(!showAll)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border text-sm font-semibold transition-colors"
-                  style={{ borderColor: "oklch(0.65 0.15 220 / 0.5)", color: "oklch(0.65 0.15 220)" }}
+                  className="inline-flex items-center gap-2 text-sm font-mono bg-transparent border-0 cursor-pointer transition-colors"
+                  style={{ color: G }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = G;
+                  }}
                 >
-                  <ChevronDown size={14} />
-                  {showAll ? "Show Less" : `Show All (${filtered.length})`}
+                  <ChevronDown size={14} className={showAll ? "rotate-180" : ""} />
+                  {showAll ? "Show less" : `Show all ${filtered.length}`}
                 </button>
               </div>
             )}
           </>
         )}
 
-        {/* ── How we pick ── */}
-        <div className="mt-20 rounded-xl border p-8" style={{ borderColor: BORDER, backgroundColor: "oklch(0.16 0.01 264)" }}>
-          <div className="flex items-center gap-2 mb-6">
-            <Zap size={16} style={{ color: G }} />
-            <h2 className="text-lg font-bold">How the Pythh Fund works</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {/* How it works */}
+        <section className="mt-16 pt-10 border-t" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-4">Methodology</SectionLabel>
+          <h2 className="text-lg font-semibold mb-6">How the Oracle fund works</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[
-              { step: "01", title: "GOD Score ≥ 70",     desc: "Every approved startup scoring 70+ on the GOD algorithm is added automatically." },
-              { step: "02", title: "$100K virtual check", desc: "We log a $100K virtual investment at the estimated entry valuation." },
-              { step: "03", title: "We track everything", desc: "Funding rounds, lead investors, post-money valuations, acquisitions, and IPOs." },
-              { step: "04", title: "MOIC + IRR",          desc: "As valuations update we compute unrealised MOIC and annualised IRR like a real fund." },
-              { step: "05", title: "Health + Goldilocks", desc: "Core / Watch / Review blends momentum with maturity-vs-GOD alignment to flag thin-signal risk." },
+              { step: "01", title: "GOD ≥ 70", desc: "Auto-added when a startup clears the investment-grade bar." },
+              { step: "02", title: "$100K virtual", desc: "Logged at estimated entry valuation." },
+              { step: "03", title: "Track everything", desc: "Rounds, leads, post-money, exits." },
+              { step: "04", title: "Verify", desc: "Press-confirmed raises upgrade signal detections." },
+              { step: "05", title: "Health tiers", desc: "Core · Watch · Review — momentum vs. maturity." },
             ].map((s) => (
               <div key={s.step}>
-                <div className="text-xs font-bold tracking-wider mb-2" style={{ color: "oklch(0.65 0.15 220)" }}>STEP {s.step}</div>
-                <div className="text-sm font-semibold mb-2">{s.title}</div>
-                <div className="text-xs leading-relaxed" style={{ color: DIM }}>{s.desc}</div>
+                <div className="text-[10px] font-mono mb-2" style={{ color: CYAN }}>
+                  {s.step}
+                </div>
+                <div className="text-sm font-medium mb-1">{s.title}</div>
+                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
+                  {s.desc}
+                </p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

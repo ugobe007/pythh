@@ -8,7 +8,6 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import {
   Search,
   ChevronUp,
@@ -21,6 +20,7 @@ import {
   Minus,
   RefreshCw,
 } from "lucide-react";
+import StartupCTA from "@/components/design/StartupCTA";
 import { toast } from "sonner";
 import InvestorDetailModal from "@/components/InvestorDetailModal";
 import SharedNavbar from "@/components/SharedNavbar";
@@ -232,15 +232,9 @@ export default function Rankings() {
               at your stage, right now.
             </p>
             {!isAuthenticated && (
-              <a
-                href={getLoginUrl()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
-                style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
-              >
-                Match me to investors <ArrowRight size={14} />
-              </a>
+              <StartupCTA href="/activate" showArrow>
+                Match me to investors
+              </StartupCTA>
             )}
           </div>
 

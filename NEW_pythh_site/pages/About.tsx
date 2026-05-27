@@ -5,9 +5,8 @@
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
-
 import SharedNavbar from "@/components/SharedNavbar";
+import StartupCTA from "@/components/design/StartupCTA";
 
 
 const WHAT_WE_DO = [
@@ -210,16 +209,9 @@ export default function About() {
           <p className="mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
             Submit your startup URL and see what the oracle sees.
           </p>
-          <a
-            href={getLoginUrl()}
-            className="inline-block px-8 py-3 rounded-lg font-semibold text-sm transition-colors"
-            style={{
-              backgroundColor: "oklch(0.696 0.17 162.48)",
-              color: "oklch(0.1 0.01 162)",
-            }}
-          >
+          <StartupCTA href="/activate" size="lg">
             Get Started Free
-          </a>
+          </StartupCTA>
         </section>
       </main>
 

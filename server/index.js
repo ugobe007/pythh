@@ -9092,6 +9092,73 @@ function _calcIrr(entry, current, days) {
   return Math.round((Math.pow(current / entry, 1 / years) - 1) * 10000) / 10000;
 }
 
+async function enrichPortfolioEntries(supabase, rows, { includeExitPropensity = true } = {}) {
+  const ids = rows.map((e) => e.startup_id).filter(Boolean);
+  const signalMap = new Map();
+  const descMap = new Map();
+  const propMap = new Map();
+
+  if (ids.length > 0) {
+    const chunkSize = 120;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const fetches = [
+        supabase.from('startup_signal_scores').select('startup_id, signals_total').in('startup_id', chunk),
+        supabase.from('startup_uploads').select('id, description, pitch').in('id', chunk),
+      ];
+      if (includeExitPropensity) {
+        fetches.push(
+          supabase
+            .from('startup_uploads')
+            .select(
+              'id, exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
+            )
+            .in('id', chunk)
+        );
+      }
+      const [sigRes, descRes, propRes] = await Promise.all(fetches);
+      for (const r of sigRes.data || []) {
+        if (r.signals_total != null) signalMap.set(r.startup_id, Number(r.signals_total));
+      }
+      for (const r of descRes.data || []) {
+        const brief = (r.description || r.pitch || '').trim();
+        if (brief) {
+          descMap.set(r.id, brief.length > 220 ? `${brief.slice(0, 217)}…` : brief);
+        }
+      }
+      if (includeExitPropensity && propRes?.data) {
+        for (const r of propRes.data) propMap.set(r.id, r);
+      }
+    }
+  }
+
+  return rows.map((e) => {
+    const tag = (e.tagline || '').trim();
+    const desc = descMap.get(e.startup_id);
+    let briefDescription = null;
+    if (tag && tag.length <= 180) briefDescription = tag;
+    else if (desc) briefDescription = desc;
+    else if (tag) briefDescription = tag.length > 220 ? `${tag.slice(0, 217)}…` : tag;
+    else if (e.entry_rationale) briefDescription = e.entry_rationale;
+
+    const p = propMap.get(e.startup_id);
+    return {
+      ...e,
+      signal_score: signalMap.has(e.startup_id) ? signalMap.get(e.startup_id) : null,
+      brief_description: briefDescription,
+      ...(p
+        ? {
+            exit_propensity_score: p.exit_propensity_score,
+            exit_propensity_confidence: p.exit_propensity_confidence,
+            exit_propensity_tier: p.exit_propensity_tier,
+            exit_propensity_breakdown: p.exit_propensity_breakdown,
+            exit_propensity_at: p.exit_propensity_at,
+          }
+        : {}),
+    };
+  });
+}
+
 // GET /api/portfolio — public listing from portfolio_health view (tiers + momentum)
 // sort=god (default) | health (review/watch first, then worst GOD delta)
 app.get('/api/portfolio', async (req, res) => {
@@ -9119,40 +9186,7 @@ app.get('/api/portfolio', async (req, res) => {
     if (error) return res.status(500).json({ error: error.message });
 
     const rows = data || [];
-    let entries = rows;
-
-    if (!lite) {
-      const ids = rows.map((e) => e.startup_id).filter(Boolean);
-      let propMap = new Map();
-      if (ids.length > 0) {
-        const chunkSize = 120;
-        for (let i = 0; i < ids.length; i += chunkSize) {
-          const chunk = ids.slice(i, i + chunkSize);
-          const { data: propRows, error: propErr } = await supabase
-            .from('startup_uploads')
-            .select(
-              'id, exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at'
-            )
-            .in('id', chunk);
-          if (!propErr && propRows?.length) {
-            for (const r of propRows) propMap.set(r.id, r);
-          }
-        }
-      }
-
-      entries = rows.map((e) => {
-        const p = propMap.get(e.startup_id);
-        if (!p) return e;
-        return {
-          ...e,
-          exit_propensity_score: p.exit_propensity_score,
-          exit_propensity_confidence: p.exit_propensity_confidence,
-          exit_propensity_tier: p.exit_propensity_tier,
-          exit_propensity_breakdown: p.exit_propensity_breakdown,
-          exit_propensity_at: p.exit_propensity_at,
-        };
-      });
-    }
+    const entries = await enrichPortfolioEntries(supabase, rows, { includeExitPropensity: !lite });
 
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     res.json({ entries, count: entries.length });

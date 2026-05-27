@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import StartupCTA from "@/components/design/StartupCTA";
 import {
   ArrowRight,
   Mail,
@@ -333,13 +334,9 @@ function LiveDigest() {
 
       {/* CTA to analyze */}
       <div className="text-center pt-2">
-        <a
-          href={getLoginUrl()}
-          className="inline-flex items-center gap-2 text-sm font-semibold"
-          style={{ color: "oklch(0.769 0.188 70.08)" }}
-        >
-          Run PYTHIA on your startup <ExternalLink size={13} />
-        </a>
+        <StartupCTA href="/activate" size="sm" showArrow>
+          Run PYTHIA on your startup
+        </StartupCTA>
       </div>
     </div>
   );

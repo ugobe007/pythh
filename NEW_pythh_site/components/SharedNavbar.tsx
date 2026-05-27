@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
+import StartupCTA from "@/components/design/StartupCTA";
 
 const NAV_LINKS = [
   { label: "How it works", href: "/oracle" },
@@ -105,15 +106,9 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
                 >
                   Sign in
                 </button>
-                <a
-                  href="/activate"
-                  className="text-sm font-semibold px-4 py-1.5 rounded-md transition-all"
-                  style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
-                  onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
-                  onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
-                >
+                <StartupCTA href="/activate" size="sm" className="px-4 py-1.5">
                   Activate
-                </a>
+                </StartupCTA>
               </>
             )}
           </div>
@@ -157,7 +152,9 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
                 ) : (
                   <>
                     <button onClick={() => { setMenuOpen(false); window.location.href = getLoginUrl(); }} className="text-sm font-medium" style={{ color: "oklch(0.55 0.01 264)" }}>Sign in</button>
-                    <a href="/activate" onClick={() => setMenuOpen(false)} className="text-sm font-semibold" style={{ color: "oklch(0.696 0.17 162.48)" }}>Activate PYTHIA</a>
+                    <StartupCTA href="/activate" size="sm" className="text-left">
+                      Activate PYTHIA
+                    </StartupCTA>
                   </>
                 )}
               </div>

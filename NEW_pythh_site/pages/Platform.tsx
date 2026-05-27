@@ -15,6 +15,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import StartupCTA from "@/components/design/StartupCTA";
 
 const G = "oklch(0.696 0.17 162.48)";
 const MUTED = "oklch(0.55 0.01 264)";
@@ -619,15 +620,9 @@ export default function Platform() {
               through Pythh Connect MCP. Same signals. Same scores. No stale spreadsheets.
             </p>
             <div className="flex flex-wrap gap-3">
-              <a
-                href="/activate"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all"
-                style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
-              >
-                Find my investors <ArrowRight size={14} />
-              </a>
+              <StartupCTA href="/activate" showArrow>
+                Find my investors
+              </StartupCTA>
               <a
                 href="/developers"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all"
@@ -798,15 +793,9 @@ export default function Platform() {
             Submit your URL. PYTHIA finds your investors, times the outreach, and writes the intro.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <a
-              href="/activate"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition-all"
-              style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
-              onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.78 0.17 162.48)"; el.style.color = "oklch(0.78 0.17 162.48)"; }}
-              onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
-            >
-              Find my investors <ArrowRight size={14} />
-            </a>
+            <StartupCTA href="/activate" showArrow>
+              Find my investors
+            </StartupCTA>
             <Link href="/methodology">
               <span
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium cursor-pointer"

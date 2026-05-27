@@ -18,11 +18,8 @@ import {
   Zap,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-
-const G = "oklch(0.696 0.17 162.48)";
-const MUTED = "oklch(0.55 0.01 264)";
-const BORDER = "oklch(0.18 0.01 264)";
-const CARD = "oklch(0.12 0.01 264)";
+import StatStrip from "@/components/design/StatStrip";
+import { G, MUTED, DIM, BORDER, CARD, PAGE } from "@/lib/designTokens";
 
 interface TrackRecord {
   oracle?: {
@@ -73,22 +70,18 @@ function OracleTrackRecordSection({
     <>
       {oracle ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-            {[
-              { label: "Verified funded", value: oracle.verified_funded_picks ?? 0, sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks`, accent: true },
-              { label: "Oracle picks", value: oracle.total_picks ?? "—", sub: `GOD ≥ ${oracle.entry_god_threshold ?? 70} at entry`, accent: false },
-              { label: "Signal funded", value: Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0)), sub: `${oracle.funded_rate_pct ?? 0}% total detection`, accent: false },
-              { label: "Exited", value: oracle.successful_exits ?? 0, sub: "acq · IPO", accent: false },
-              { label: "Median days to raise", value: oracle.median_days_to_funding ?? "—", sub: "after Oracle entry", accent: false },
-              { label: "Verified avg MOIC", value: oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—", sub: "press-confirmed markups only", accent: false },
-            ].map(({ label, value, sub, accent }) => (
-              <div key={label} className="p-4 rounded-xl" style={{ backgroundColor: CARD, border: `1px solid ${accent ? `${G}44` : BORDER}` }}>
-                <div className="text-2xl font-bold font-mono text-white mb-1">{value}</div>
-                <div className="text-xs font-medium mb-1" style={{ color: accent ? G : "white" }}>{label}</div>
-                <div className="text-[10px]" style={{ color: "oklch(0.42 0.01 264)" }}>{sub}</div>
-              </div>
-            ))}
-          </div>
+          <StatStrip
+            cols={3}
+            className="mb-6"
+            items={[
+              { label: "Verified funded", value: String(oracle.verified_funded_picks ?? 0), sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks`, accent: true },
+              { label: "Oracle picks", value: String(oracle.total_picks ?? "—"), sub: `GOD ≥ ${oracle.entry_god_threshold ?? 70} at entry` },
+              { label: "Signal funded", value: String(Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0))), sub: `${oracle.funded_rate_pct ?? 0}% total detection` },
+              { label: "Exited", value: String(oracle.successful_exits ?? 0), sub: "acq · IPO" },
+              { label: "Median days to raise", value: String(oracle.median_days_to_funding ?? "—"), sub: "after Oracle entry" },
+              { label: "Verified avg MOIC", value: oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—", sub: "press-confirmed markups only" },
+            ]}
+          />
 
           {trackRecord?.by_god_tier?.length ? (
             <div className="overflow-x-auto rounded-xl mb-4" style={{ border: `1px solid ${BORDER}` }}>
@@ -269,7 +262,7 @@ export default function PythiamPage() {
   });
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
         <title>Pythiam Ventures — Signal-native venture fund powered by Pythh</title>
         <meta
@@ -434,20 +427,17 @@ export default function PythiamPage() {
             title="Production scale"
             subtitle="Live platform metrics — the data moat behind Pythiam's sourcing advantage."
           />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {livePlatformTiles.map(({ label, value, sub }) => (
-              <div
-                key={label}
-                className="p-4 rounded-xl"
-                style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-              >
-                <div className="text-2xl font-bold font-mono text-white mb-1">{value}</div>
-                <div className="text-xs font-medium text-white mb-1">{label}</div>
-                <div className="text-[10px]" style={{ color: "oklch(0.42 0.01 264)" }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs mt-4" style={{ color: "oklch(0.42 0.01 264)" }}>
+          <StatStrip
+            cols={4}
+            className="mb-4"
+            items={livePlatformTiles.map(({ label, value, sub }) => ({
+              label,
+              value,
+              sub,
+              accent: label === "Verified funded",
+            }))}
+          />
+          <p className="text-xs" style={{ color: DIM }}>
             Live from Pythh production. GOD ≥ 70 = investment-grade tier after calibration.
           </p>
         </section>
@@ -468,7 +458,7 @@ export default function PythiamPage() {
               "Transparent methodology — scoring logic, entity gate, and signal weights documented on pythh.ai.",
             ].map((item) => (
               <li key={item} className="flex gap-3 text-sm leading-relaxed" style={{ color: MUTED }}>
-                <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ backgroundColor: G }} />
+                <span className="shrink-0 font-mono" style={{ color: G }}>·</span>
                 {item}
               </li>
             ))}

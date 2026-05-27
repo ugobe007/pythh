@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import PythiaIcon from "@/components/PythiaIcon";
+import StartupCTA from "@/components/design/StartupCTA";
+import { G, G_BORDER, CYAN, PAGE, TEXT } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +45,7 @@ const STEPS = [
     n: "03",
     label: "Investor matching",
     icon: Target,
-    color: "#22c55e",
+    color: G,
     desc: "The Oracle maps your startup across 6,250+ investors — filtered by sector alignment, stage preference, check size, and timing fit. Not a list. A ranked, reasoned shortlist scored on five independent dimensions.",
     detail: [
       "Sector fit: primary and adjacent thesis alignment",
@@ -83,7 +85,7 @@ const CAPABILITIES = [
   {
     icon: Target,
     label: "Thesis Alignment",
-    color: "#22c55e",
+    color: G,
     desc: "Every investor has a pattern they're running. PYTHIA has modeled 6,250+ investor portfolios to identify thesis fit beyond sector tags and stage labels.",
   },
   {
@@ -115,7 +117,7 @@ const VS = [
 ];
 
 const SCORE_BANDS = [
-  { range: "80–100", label: "Elite · Investment-grade",   color: "#22c55e" },
+    { range: "80–100", label: "Elite · Investment-grade", color: G },
   { range: "60–79",  label: "Strong · High conviction",   color: "#22d3ee" },
   { range: "40–59",  label: "Solid · Signal-building",    color: "#eab308" },
   { range: "20–39",  label: "Emerging · Early signals",   color: "#f97316" },
@@ -128,17 +130,17 @@ function OracleTerminal() {
   const dims = [
     { label: "TEAM",     score: 78, color: "#a855f7" },
     { label: "TRACTION", score: 62, color: "#22d3ee" },
-    { label: "MARKET",   score: 91, color: "#22c55e" },
+    { label: "MARKET",   score: 91, color: G },
     { label: "PRODUCT",  score: 67, color: "#22d3ee" },
     { label: "VISION",   score: 82, color: "#a855f7" },
   ];
   return (
-    <div className="rounded-xl overflow-hidden w-full" style={{ border: "1px solid #22c55e28", backgroundColor: "oklch(0.08 0.01 264)", maxWidth: 500 }}>
+    <div className="rounded-xl overflow-hidden w-full" style={{ border: `1px solid ${G_BORDER}`, backgroundColor: "oklch(0.08 0.01 264)", maxWidth: 500 }}>
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between border-b" style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.09 0.01 264)" }}>
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-          <span className="text-xs font-mono font-semibold" style={{ color: "#22c55e" }}>PYTHIA · analyzing startup.com</span>
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: G }} />
+          <span className="text-xs font-mono font-semibold" style={{ color: G }}>PYTHIA · analyzing startup.com</span>
         </div>
         <span className="text-[10px] font-mono" style={{ color: "oklch(0.38 0.01 264)" }}>~20 sec</span>
       </div>
@@ -164,7 +166,7 @@ function OracleTerminal() {
         <div className="px-5 py-4 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
           <p className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-bold" style={{ color: "#22c55e" }}>76</span>
+            <span className="text-3xl font-bold" style={{ color: G }}>76</span>
             <span className="text-xs font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>
           </div>
           <p className="text-[10px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>Strong · Investment-grade</p>
@@ -188,7 +190,7 @@ export default function Oracle() {
   return (
     <div
       className="min-h-screen"
-      style={{ backgroundColor: "oklch(0.09 0.01 264)", color: "oklch(0.9 0.01 264)", fontFamily: "'Inter', sans-serif" }}
+      style={{ backgroundColor: PAGE, color: TEXT, fontFamily: "'Inter', sans-serif" }}
     >
       <Helmet>
         <title>How It Works — Pythh.ai</title>
@@ -213,11 +215,10 @@ export default function Oracle() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>PYTHIA</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ color: "#22c55e", border: "1px solid #22c55e30" }}>For founders</span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ color: G, border: `1px solid ${G_BORDER}` }}>For founders</span>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-                    <span className="text-[11px] font-mono" style={{ color: "#22c55e" }}>How it works · live engine</span>
+                    <span className="text-[11px] font-mono" style={{ color: G }}>How it works · live engine</span>
                   </div>
                 </div>
               </div>
@@ -228,7 +229,7 @@ export default function Oracle() {
               >
                 Submit your URL.<br />
                 Get ranked investors.<br />
-                <span style={{ color: "#22c55e" }}>In about twenty seconds.</span>
+                <span style={{ color: G }}>In about twenty seconds.</span>
               </h1>
 
               <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.6 0.01 264)", maxWidth: 520 }}>
@@ -243,15 +244,9 @@ export default function Oracle() {
               </p>
 
               <div className="flex flex-wrap gap-3 mb-10">
-                <a
-                  href="/activate"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition-all"
-                  style={{ border: "1px solid #22c55e", color: "#22c55e" }}
-                  onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#4ade80"; el.style.color = "#4ade80"; el.style.backgroundColor = "#22c55e0a"; }}
-                  onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#22c55e"; el.style.color = "#22c55e"; el.style.backgroundColor = "transparent"; }}
-                >
-                  Submit your startup URL <ArrowRight size={14} />
-                </a>
+                <StartupCTA href="/activate" showArrow>
+                  Submit your startup URL
+                </StartupCTA>
                 <Link href="/methodology">
                   <span
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium cursor-pointer transition-colors"
@@ -298,7 +293,7 @@ export default function Oracle() {
           <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid oklch(0.18 0.01 264)" }}>
             <div className="grid grid-cols-2 px-6 py-3 border-b text-[10px] font-mono tracking-widest uppercase" style={{ backgroundColor: "oklch(0.105 0.01 264)", borderColor: "oklch(0.16 0.01 264)" }}>
               <span style={{ color: "oklch(0.38 0.01 264)" }}>Traditional fundraising</span>
-              <span style={{ color: "#22c55e" }}>With Oracle</span>
+              <span style={{ color: G }}>With Oracle</span>
             </div>
             {VS.map((row, i) => (
               <div
@@ -311,7 +306,7 @@ export default function Oracle() {
                   <span className="text-sm" style={{ color: "oklch(0.46 0.01 264)" }}>{row.traditional}</span>
                 </div>
                 <div className="flex items-center gap-3 px-6 py-3.5">
-                  <CheckCircle size={13} className="flex-shrink-0" style={{ color: "#22c55e" }} />
+                  <CheckCircle size={13} className="flex-shrink-0" style={{ color: G }} />
                   <span className="text-sm font-medium" style={{ color: "oklch(0.88 0.005 264)" }}>{row.oracle}</span>
                 </div>
               </div>
@@ -328,12 +323,9 @@ export default function Oracle() {
                 Four steps. URL to investor pipeline.
               </h2>
             </div>
-            <a href="/activate" className="hidden sm:flex items-center gap-1.5 text-sm transition-colors" style={{ color: "#22c55e" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#4ade80"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#22c55e"; }}
-            >
-              Try it now <ArrowRight size={13} />
-            </a>
+            <StartupCTA href="/activate" size="sm" className="hidden sm:inline-flex" showArrow>
+              Try it now
+            </StartupCTA>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
@@ -485,15 +477,9 @@ export default function Oracle() {
             No deck, no intro, no waiting.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <a
-              href="/activate"
-              className="inline-flex items-center gap-2 px-7 py-3 rounded-lg text-sm font-semibold transition-all"
-              style={{ border: "1px solid #22c55e", color: "#22c55e" }}
-              onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#4ade80"; el.style.color = "#4ade80"; el.style.backgroundColor = "#22c55e0a"; }}
-              onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#22c55e"; el.style.color = "#22c55e"; el.style.backgroundColor = "transparent"; }}
-            >
-              Find my investors <ArrowRight size={16} />
-            </a>
+            <StartupCTA href="/activate" size="lg" showArrow arrowSize={16}>
+              Find my investors
+            </StartupCTA>
             <Link href="/matches">
               <span
                 className="inline-flex items-center gap-2 px-7 py-3 rounded-lg text-sm font-medium cursor-pointer transition-colors"

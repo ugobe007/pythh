@@ -23,6 +23,7 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import StartupCTA from "@/components/design/StartupCTA";
 import {
   TrendingUp,
   TrendingDown,
@@ -854,17 +855,9 @@ export default function SignalTrends() {
               <span style={{ color: "oklch(0.4 0.01 264)" }}>Free — no credit card.</span>
             </p>
           </div>
-          <a
-            href={getLoginUrl()}
-            className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-            style={{
-              backgroundColor: "oklch(0.696 0.17 162.48 / 0.15)",
-              color: "oklch(0.696 0.17 162.48)",
-              border: "1px solid oklch(0.696 0.17 162.48 / 0.3)",
-            }}
-          >
-            Analyze my startup <ArrowUpRight size={14} />
-          </a>
+          <StartupCTA href="/activate" showArrow>
+            Analyze my startup
+          </StartupCTA>
         </div>
 
         {/* Legend */}
