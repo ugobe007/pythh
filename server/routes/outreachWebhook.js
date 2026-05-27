@@ -16,42 +16,14 @@
 
 const express = require('express');
 const router  = express.Router();
-const crypto  = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { verifyResendWebhook } = require('../../lib/resendWebhookVerify.js');
 
 function sb() {
   return createClient(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
   );
-}
-
-// ─── Signature verification ───────────────────────────────────────────────────
-// Resend signs webhook payloads with HMAC-SHA256 using your webhook secret.
-// Set RESEND_WEBHOOK_SECRET in your .env
-
-function verifySignature(req) {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return true; // skip if not configured (dev mode)
-
-  const signature = req.headers['svix-signature'] || req.headers['resend-signature'];
-  const msgId     = req.headers['svix-id']        || req.headers['resend-message-id'];
-  const timestamp = req.headers['svix-timestamp'];
-
-  if (!signature || !timestamp) return false;
-
-  const toSign = `${msgId}.${timestamp}.${JSON.stringify(req.body)}`;
-  const expected = crypto
-    .createHmac('sha256', secret)
-    .update(toSign)
-    .digest('hex');
-
-  // svix format: "v1,<hex>"
-  const sigs = signature.split(' ');
-  return sigs.some(s => {
-    const hex = s.includes(',') ? s.split(',')[1] : s;
-    return crypto.timingSafeEqual(Buffer.from(hex), Buffer.from(expected));
-  });
 }
 
 // ─── Event handlers ───────────────────────────────────────────────────────────
@@ -114,19 +86,14 @@ async function handleComplained(event, client) {
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
-router.post('/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
-  // Parse body for JSON routes (raw middleware gives Buffer)
-  if (Buffer.isBuffer(req.body)) {
-    try { req.body = JSON.parse(req.body.toString()); } catch { return res.status(400).json({ error: 'invalid json' }); }
-  }
-  next();
-}, async (req, res) => {
-  if (!verifySignature(req)) {
-    console.warn('[webhook] signature mismatch — rejected');
-    return res.status(401).json({ error: 'invalid signature' });
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const verified = verifyResendWebhook(req, process.env.RESEND_WEBHOOK_SECRET);
+  if (!verified.ok) {
+    console.warn('[webhook] signature mismatch — rejected:', verified.error);
+    return res.status(verified.status || 401).json({ error: verified.error });
   }
 
-  const event  = req.body;
+  const event  = verified.event;
   const type   = event?.type || '';
   const client = sb();
 

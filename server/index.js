@@ -258,9 +258,17 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-plan', 'X-Request-ID', 'X-Pythh-Key', 'X-Session-Id', 'X-Investor-Session', 'x-admin-key']
 }));
-// Skip JSON parsing for Stripe webhook (needs raw body for signature verification)
+// Skip JSON parsing for webhooks that verify HMAC on the raw body (Stripe, Resend/Svix)
+function skipGlobalJsonBodyParser(req) {
+  if (req.method !== 'POST') return false;
+  const path = (req.originalUrl || '').split('?')[0];
+  if (path === '/api/billing/webhook') return true;
+  if (path === '/api/outreach/webhook') return true;
+  if (path.startsWith('/api/webhooks/')) return true;
+  return false;
+}
 app.use((req, res, next) => {
-  if (req.originalUrl === '/api/billing/webhook') {
+  if (skipGlobalJsonBodyParser(req)) {
     next();
   } else {
     express.json()(req, res, next);

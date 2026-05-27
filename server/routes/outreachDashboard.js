@@ -13,6 +13,7 @@ const express = require("express");
 const router  = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const crypto  = require("crypto");
+const { verifyResendWebhook } = require("../../lib/resendWebhookVerify.js");
 const { spawn } = require("child_process");
 const path    = require("path");
 
@@ -650,44 +651,14 @@ router.post("/webhook/inbound", express.json(), async (req, res) => {
 // Secret format: whsec_<base64> — strip prefix and base64-decode to get raw key bytes
 // Resend webhook — POST /api/webhooks/webhook/resend or /api/webhooks/resend
 async function handleResendWebhook(req, res) {
-  if (RESEND_WEBHOOK_SECRET) {
-    const sig = req.headers["svix-signature"] || "";
-    const ts  = req.headers["svix-timestamp"] || "";
-    const id  = req.headers["svix-id"] || "";
-
-    if (!sig || !ts || !id) {
-      return res.status(401).json({ error: "Missing Svix headers" });
+  const verified = verifyResendWebhook(req, RESEND_WEBHOOK_SECRET);
+  if (!verified.ok) {
+    if (verified.detail) {
+      console.warn("[webhook/resend] signature failed:", verified.detail);
     }
-
-    const tsNum = parseInt(ts, 10);
-    if (Math.abs(Date.now() / 1000 - tsNum) > 300) {
-      return res.status(401).json({ error: "Timestamp too old" });
-    }
-
-    const rawSecret = Buffer.from(
-      RESEND_WEBHOOK_SECRET.replace(/^whsec_/, ""),
-      "base64"
-    );
-
-    const toSign  = `${id}.${ts}.${req.body.toString()}`;
-    const computed = crypto.createHmac("sha256", rawSecret).update(toSign).digest("base64");
-
-    const valid = sig.split(" ").some((s) => {
-      const part = s.replace(/^v1,/, "");
-      return crypto.timingSafeEqual(Buffer.from(part), Buffer.from(computed));
-    });
-
-    if (!valid) {
-      return res.status(401).json({ error: "Invalid signature" });
-    }
+    return res.status(verified.status || 401).json({ error: verified.error });
   }
-
-  let event;
-  try {
-    event = JSON.parse(req.body.toString());
-  } catch {
-    return res.status(400).json({ error: "Invalid JSON" });
-  }
+  const event = verified.event;
 
   const messageId = event?.data?.email_id || event?.data?.id || "";
   const type      = event?.type || "";
