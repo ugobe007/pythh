@@ -71,6 +71,26 @@ function usePlatformStats() {
   return stats;
 }
 
+interface PortfolioHeadlineMetrics {
+  verified_funded_picks?: number;
+  verified_funded_rate_pct?: number;
+  funded_picks?: number;
+  total_picks?: number;
+  active_picks?: number;
+  successful_exits?: number;
+}
+
+function usePortfolioHeadlineMetrics() {
+  const [metrics, setMetrics] = useState<PortfolioHeadlineMetrics | null>(null);
+  useEffect(() => {
+    fetch("/api/portfolio/metrics")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMetrics(d?.metrics ?? null))
+      .catch(() => {});
+  }, []);
+  return metrics;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface InvestorSignal {
@@ -533,7 +553,13 @@ function HeroResultsPreview() {
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
-function HeroSection({ platformStats }: { platformStats: PlatformStats | null }) {
+function HeroSection({
+  platformStats,
+  portfolioMetrics,
+}: {
+  platformStats: PlatformStats | null;
+  portfolioMetrics: PortfolioHeadlineMetrics | null;
+}) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
   const [, navigate] = useLocation();
@@ -671,9 +697,19 @@ function HeroSection({ platformStats }: { platformStats: PlatformStats | null })
             </p>
 
             {/* Primary CTA — left column on all breakpoints */}
-            <div className="mb-6">
+            <div className="mb-4">
               {urlForm()}
             </div>
+
+            <a
+              href="/portfolio"
+              className="inline-flex items-center gap-2 text-sm font-semibold mb-6 transition-colors"
+              style={{ color: "oklch(0.696 0.17 162.48)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
+            >
+              See the Oracle&apos;s track record <ArrowRight size={14} />
+            </a>
 
             <div
               className="text-[15px] leading-[1.65] mb-5 max-w-[500px]"
@@ -698,6 +734,17 @@ function HeroSection({ platformStats }: { platformStats: PlatformStats | null })
 
             <p className="text-xs leading-relaxed max-w-[480px]" style={{ color: "oklch(0.42 0.01 264)" }}>
               {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
+              {portfolioMetrics?.verified_funded_picks != null && (
+                <>
+                  {" · "}
+                  <span style={{ color: "oklch(0.696 0.17 162.48)" }}>
+                    {portfolioMetrics.verified_funded_picks} verified funded
+                    {portfolioMetrics.verified_funded_rate_pct != null
+                      ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
+                      : ""}
+                  </span>
+                </>
+              )}
             </p>
           </div>
 
@@ -832,14 +879,19 @@ function PortfolioTeaser() {
           {metrics && (
             <div className="flex flex-wrap gap-6 lg:gap-8">
               {[
-                { n: metrics.total_picks, l: "total picks" },
-                { n: metrics.active_picks, l: "active" },
-                { n: metrics.verified_funded_picks ?? 0, l: "verified" },
+                { n: metrics.verified_funded_picks ?? 0, l: "verified", highlight: true },
                 { n: metrics.funded_picks ?? 0, l: "signals" },
                 { n: metrics.successful_exits ?? 0, l: "exited" },
-              ].map(({ n, l }) => (
+                { n: metrics.active_picks, l: "active" },
+                { n: metrics.total_picks, l: "total picks" },
+              ].map(({ n, l, highlight }) => (
                 <div key={l} className="text-center lg:text-right">
-                  <div className="text-xl font-bold tabular-nums" style={{ color: "oklch(0.696 0.17 162.48)" }}>{n}</div>
+                  <div
+                    className="text-xl font-bold tabular-nums"
+                    style={{ color: highlight ? "oklch(0.696 0.17 162.48)" : "oklch(0.55 0.01 264)" }}
+                  >
+                    {n}
+                  </div>
                   <div className="text-[10px] uppercase tracking-wider" style={{ color: "oklch(0.42 0.01 264)" }}>{l}</div>
                 </div>
               ))}
@@ -897,20 +949,38 @@ function PortfolioTeaser() {
 }
 
 // ─── Track Record Strip ─────────────────────────────────────────────────────
-function TrackRecordStrip({ platformStats }: { platformStats: PlatformStats | null }) {
+function TrackRecordStrip({
+  platformStats,
+  portfolioMetrics,
+}: {
+  platformStats: PlatformStats | null;
+  portfolioMetrics: PortfolioHeadlineMetrics | null;
+}) {
   const { ref, isVisible } = useIntersectionObserver();
   const matchCount = platformStats?.matches ?? 1_812_680;
   const startupsTarget = platformStats?.startups ?? 33_241;
   const investorsTarget = platformStats?.investors ?? 6_250;
+  const verifiedTarget = portfolioMetrics?.verified_funded_picks ?? 0;
+  const verifiedPct = portfolioMetrics?.verified_funded_rate_pct;
   const startups = useCountUp(startupsTarget, 1600, isVisible);
   const investors = useCountUp(investorsTarget, 1800, isVisible);
-  const godAvg = useCountUp(52, 1200, isVisible);
+  const verified = useCountUp(verifiedTarget, 1400, isVisible);
 
   const stats = [
-    { value: formatMatchCompact(matchCount), suffix: "+", label: "Pre-computed Matches", sublabel: "startup ↔ investor pairs · updated daily", color: "#22c55e" },
-    { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee" },
-    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped, GOD-ranked", color: "#a855f7" },
-    { value: String(godAvg), suffix: "/100", label: "Avg GOD Score", sublabel: "platform-wide · AI/ML leads all sectors", color: "#eab308" },
+    {
+      value: verified > 0 ? String(verified) : "—",
+      suffix: "",
+      label: "Verified Funded",
+      sublabel:
+        verifiedPct != null
+          ? `${verifiedPct}% of Oracle picks · press-confirmed`
+          : "Oracle scoreboard · press-verified raises",
+      color: "oklch(0.696 0.17 162.48)",
+      href: "/portfolio",
+    },
+    { value: formatMatchCompact(matchCount), suffix: "+", label: "Pre-computed Matches", sublabel: "startup ↔ investor pairs · updated daily", color: "#22c55e", href: null },
+    { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sublabel: "in the Pythh network, updated daily", color: "#22d3ee", href: null },
+    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sublabel: "entity-resolved, thesis-mapped, GOD-ranked", color: "#a855f7", href: null },
   ];
 
   return (
@@ -923,22 +993,31 @@ function TrackRecordStrip({ platformStats }: { platformStats: PlatformStats | nu
       }} />
       <div className="max-w-5xl mx-auto px-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-y-0 md:divide-x divide-white/10">
-          {stats.map((stat, i) => (
+          {stats.map((stat, i) => {
+            const inner = (
+              <>
+                <div className="font-display font-bold mb-1 tabular-nums"
+                  style={{ fontSize: "clamp(2.5rem, 5vw, 3.5rem)", color: stat.color, lineHeight: 1, letterSpacing: "-0.02em" }}>
+                  {stat.value}{stat.suffix}
+                </div>
+                <div className="font-semibold text-sm mb-1" style={{ color: "oklch(0.85 0.005 264)" }}>
+                  {stat.label}
+                </div>
+                <div className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
+                  {stat.sublabel}
+                </div>
+              </>
+            );
+            return (
             <div key={i} className={`flex flex-col items-center text-center px-8 py-6 transition-all duration-700 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`} style={{ transitionDelay: `${i * 150}ms` }}>
-              <div className="font-display font-bold mb-1 tabular-nums"
-                style={{ fontSize: "clamp(2.5rem, 5vw, 3.5rem)", color: stat.color, lineHeight: 1, letterSpacing: "-0.02em" }}>
-                {stat.value}{stat.suffix}
-              </div>
-              <div className="font-semibold text-sm mb-1" style={{ color: "oklch(0.85 0.005 264)" }}>
-                {stat.label}
-              </div>
-              <div className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
-                {stat.sublabel}
-              </div>
+              {stat.href ? (
+                <a href={stat.href} className="block transition-opacity hover:opacity-90">{inner}</a>
+              ) : inner}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1537,13 +1616,14 @@ function Footer() {
 
 export default function Home() {
   const platformStats = usePlatformStats();
+  const portfolioMetrics = usePortfolioHeadlineMetrics();
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
       <Navbar />
-      <HeroSection platformStats={platformStats} />
+      <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       <InvestorStrip />
-      <TrackRecordStrip platformStats={platformStats} />
+      <TrackRecordStrip platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       <PortfolioTeaser />
       <GODScoreSection />
       <AgentIntroSection />

@@ -47,13 +47,88 @@ interface TrackRecord {
 }
 
 const PLATFORM_STATS = [
-  { label: "Scored startups", value: "11,300+", sub: "approved & GOD-rated" },
-  { label: "Investment-grade (70+)", value: "2,300+", sub: "top ~20% of pipeline" },
-  { label: "Discovery universe", value: "27,000+", sub: "RSS + ingest sources" },
-  { label: "Mapped investors", value: "6,370", sub: "thesis + stage profiles" },
-  { label: "Signal events", value: "22,000+", sub: "parsed & classified" },
-  { label: "Pre-computed matches", value: "1.8M+", sub: "startup ↔ investor pairs" },
+  { label: "Scored startups", key: "startups" as const, sub: "approved & GOD-rated" },
+  { label: "Mapped investors", key: "investors" as const, sub: "thesis + stage profiles" },
+  { label: "Pre-computed matches", key: "matches" as const, sub: "startup ↔ investor pairs" },
+  { label: "Verified funded", key: "verified" as const, sub: "press-confirmed Oracle picks" },
 ];
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return m >= 10 ? `${Math.round(m)}M` : `${m.toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1000)}K`;
+  return n.toLocaleString();
+}
+
+function OracleTrackRecordSection({
+  trackRecord,
+}: {
+  trackRecord: TrackRecord | null;
+}) {
+  const oracle = trackRecord?.oracle;
+
+  return (
+    <>
+      {oracle ? (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+            {[
+              { label: "Verified funded", value: oracle.verified_funded_picks ?? 0, sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks`, accent: true },
+              { label: "Oracle picks", value: oracle.total_picks ?? "—", sub: `GOD ≥ ${oracle.entry_god_threshold ?? 70} at entry`, accent: false },
+              { label: "Signal funded", value: Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0)), sub: `${oracle.funded_rate_pct ?? 0}% total detection`, accent: false },
+              { label: "Exited", value: oracle.successful_exits ?? 0, sub: "acq · IPO", accent: false },
+              { label: "Median days to raise", value: oracle.median_days_to_funding ?? "—", sub: "after Oracle entry", accent: false },
+              { label: "Verified avg MOIC", value: oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—", sub: "press-confirmed markups only", accent: false },
+            ].map(({ label, value, sub, accent }) => (
+              <div key={label} className="p-4 rounded-xl" style={{ backgroundColor: CARD, border: `1px solid ${accent ? `${G}44` : BORDER}` }}>
+                <div className="text-2xl font-bold font-mono text-white mb-1">{value}</div>
+                <div className="text-xs font-medium mb-1" style={{ color: accent ? G : "white" }}>{label}</div>
+                <div className="text-[10px]" style={{ color: "oklch(0.42 0.01 264)" }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {trackRecord?.by_god_tier?.length ? (
+            <div className="overflow-x-auto rounded-xl mb-4" style={{ border: `1px solid ${BORDER}` }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ backgroundColor: CARD }}>
+                    <th className="text-left p-3 font-medium" style={{ color: MUTED }}>GOD at entry</th>
+                    <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Picks</th>
+                    <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded</th>
+                    <th className="text-right p-3 font-medium" style={{ color: G }}>Verified</th>
+                    <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trackRecord.by_god_tier.map((row) => (
+                    <tr key={row.tier} style={{ borderTop: `1px solid ${BORDER}` }}>
+                      <td className="p-3 text-white">{row.tier}</td>
+                      <td className="p-3 text-right" style={{ color: MUTED }}>{row.picks}</td>
+                      <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded}</td>
+                      <td className="p-3 text-right font-medium" style={{ color: G }}>{row.verified_funded}</td>
+                      <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded_rate_pct}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          <Link href="/portfolio">
+            <span className="text-sm cursor-pointer transition-colors" style={{ color: G }}>
+              Full Oracle scoreboard →
+            </span>
+          </Link>
+        </>
+      ) : (
+        <div className="p-6 rounded-xl animate-pulse" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, height: 120 }} />
+      )}
+    </>
+  );
+}
 
 const ENGINE_LAYERS = [
   {
@@ -158,15 +233,40 @@ function SectionHeader({ n, title, subtitle }: { n: string; title: string; subti
 
 export default function PythiamPage() {
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
+  const [platformStats, setPlatformStats] = useState<{ startups: number; investors: number; matches: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/portfolio/track-record")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setTrackRecord(data))
       .catch(() => {});
+    fetch("/api/platform-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setPlatformStats({
+          startups: Number(d.startups) || 0,
+          investors: Number(d.investors) || 0,
+          matches: Number(d.matches) || 0,
+        });
+      })
+      .catch(() => {});
   }, []);
 
-  const oracle = trackRecord?.oracle;
+  const verifiedCount = trackRecord?.oracle?.verified_funded_picks;
+  const verifiedPct = trackRecord?.oracle?.verified_funded_rate_pct;
+
+  const livePlatformTiles = PLATFORM_STATS.map(({ label, key, sub }) => {
+    let value = "—";
+    if (key === "verified") {
+      value = verifiedCount != null ? String(verifiedCount) : "—";
+    } else if (platformStats && key in platformStats) {
+      value = formatCompact(platformStats[key as keyof typeof platformStats]);
+    }
+    const liveSub =
+      key === "verified" && verifiedPct != null ? `${verifiedPct}% of Oracle picks` : sub;
+    return { label, value, sub: liveSub };
+  });
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
@@ -208,6 +308,14 @@ export default function PythiamPage() {
             >
               LP inquiry <ArrowRight size={16} />
             </a>
+            <Link href="/portfolio">
+              <span
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+                style={{ backgroundColor: `${G}15`, border: `1px solid ${G}55`, color: G }}
+              >
+                View Oracle scoreboard <ArrowRight size={16} />
+              </span>
+            </Link>
             <Link href="/methodology">
               <span
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium cursor-pointer transition-colors"
@@ -219,10 +327,20 @@ export default function PythiamPage() {
           </div>
         </section>
 
-        {/* Thesis */}
+        {/* Oracle track record — proof first */}
         <section className="border-t py-12" style={{ borderColor: BORDER }}>
           <SectionHeader
             n="01"
+            title="Oracle track record"
+            subtitle="Public proof sheet for the virtual fund — press-verified raises vs early signals, broken down by GOD tier at entry."
+          />
+          <OracleTrackRecordSection trackRecord={trackRecord} />
+        </section>
+
+        {/* Thesis */}
+        <section className="border-t py-12" style={{ borderColor: BORDER }}>
+          <SectionHeader
+            n="02"
             title="What Pythh is"
             subtitle="Pythh is an intent detection platform — not a database. It tracks language → intent → action: what companies say in the wild, what that signals about their next move, and who should care now."
           />
@@ -247,7 +365,7 @@ export default function PythiamPage() {
         {/* Fund edge */}
         <section className="border-t py-12" style={{ borderColor: BORDER }}>
           <SectionHeader
-            n="02"
+            n="03"
             title="How Pythh makes Pythiam successful"
             subtitle="The platform is not a slide in our deck — it is the operating system for sourcing, selecting, and monitoring investments."
           />
@@ -290,7 +408,7 @@ export default function PythiamPage() {
         {/* Platform stack */}
         <section className="border-t py-12" style={{ borderColor: BORDER }}>
           <SectionHeader
-            n="03"
+            n="04"
             title="The platform stack"
             subtitle="Six layers from raw ingest to portfolio monitoring — all production today on pythh.ai."
           />
@@ -312,12 +430,12 @@ export default function PythiamPage() {
         {/* Live stats */}
         <section className="border-t py-12" style={{ borderColor: BORDER }}>
           <SectionHeader
-            n="04"
+            n="05"
             title="Production scale"
             subtitle="Live platform metrics — the data moat behind Pythiam's sourcing advantage."
           />
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {PLATFORM_STATS.map(({ label, value, sub }) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {livePlatformTiles.map(({ label, value, sub }) => (
               <div
                 key={label}
                 className="p-4 rounded-xl"
@@ -330,72 +448,8 @@ export default function PythiamPage() {
             ))}
           </div>
           <p className="text-xs mt-4" style={{ color: "oklch(0.42 0.01 264)" }}>
-            Figures from Pythh production database. GOD ≥ 70 = investment-grade tier after calibration.
+            Live from Pythh production. GOD ≥ 70 = investment-grade tier after calibration.
           </p>
-        </section>
-
-        {/* Oracle track record */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="05"
-            title="Oracle track record"
-            subtitle="Public proof sheet for the virtual fund — press-verified raises vs early signals, broken down by GOD tier at entry."
-          />
-          {oracle ? (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-                {[
-                  { label: "Oracle picks", value: oracle.total_picks ?? "—", sub: `GOD ≥ ${oracle.entry_god_threshold ?? 70} at entry` },
-                  { label: "Verified funded", value: oracle.verified_funded_picks ?? 0, sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks` },
-                  { label: "Signal funded", value: Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0)), sub: `${oracle.funded_rate_pct ?? 0}% total detection` },
-                  { label: "Exited", value: oracle.successful_exits ?? 0, sub: "acq · IPO" },
-                  { label: "Median days to raise", value: oracle.median_days_to_funding ?? "—", sub: "after Oracle entry" },
-                  { label: "Verified avg MOIC", value: oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—", sub: "press-confirmed markups only" },
-                ].map(({ label, value, sub }) => (
-                  <div key={label} className="p-4 rounded-xl" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
-                    <div className="text-2xl font-bold font-mono text-white mb-1">{value}</div>
-                    <div className="text-xs font-medium text-white mb-1">{label}</div>
-                    <div className="text-[10px]" style={{ color: "oklch(0.42 0.01 264)" }}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              {trackRecord?.by_god_tier?.length ? (
-                <div className="overflow-x-auto rounded-xl mb-4" style={{ border: `1px solid ${BORDER}` }}>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr style={{ backgroundColor: CARD }}>
-                        <th className="text-left p-3 font-medium" style={{ color: MUTED }}>GOD at entry</th>
-                        <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Picks</th>
-                        <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded</th>
-                        <th className="text-right p-3 font-medium" style={{ color: G }}>Verified</th>
-                        <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {trackRecord.by_god_tier.map((row) => (
-                        <tr key={row.tier} style={{ borderTop: `1px solid ${BORDER}` }}>
-                          <td className="p-3 text-white">{row.tier}</td>
-                          <td className="p-3 text-right" style={{ color: MUTED }}>{row.picks}</td>
-                          <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded}</td>
-                          <td className="p-3 text-right font-medium" style={{ color: G }}>{row.verified_funded}</td>
-                          <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded_rate_pct}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-
-              <Link href="/portfolio">
-                <span className="text-sm cursor-pointer transition-colors" style={{ color: G }}>
-                  Full Oracle portfolio →
-                </span>
-              </Link>
-            </>
-          ) : (
-            <div className="p-6 rounded-xl animate-pulse" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, height: 120 }} />
-          )}
         </section>
 
         {/* Fund positioning */}

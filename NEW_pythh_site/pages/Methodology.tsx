@@ -336,6 +336,27 @@ export default function Methodology() {
           </div>
         </section>
 
+        {/* ── Scores that resolve ── */}
+        <section className="mb-16 p-8 rounded-2xl" style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)" }}>
+          <SectionHeader
+            n="05"
+            title="Scores that resolve"
+            subtitle="Every GOD 70+ company enters the Oracle's virtual fund. We track funding, exits, and press-verified outcomes in public — so the methodology isn't theory, it's a scoreboard."
+          />
+          <p className="text-sm leading-relaxed mb-6 max-w-2xl" style={{ color: "oklch(0.58 0.01 264)" }}>
+            Scores derived from public behavior. Outcomes verified against press-confirmed raises.
+            No self-reported decks. No black-box verdicts.
+          </p>
+          <Link href="/portfolio">
+            <span
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+              style={{ border: "1px solid oklch(0.696 0.17 162.48)", color: "oklch(0.696 0.17 162.48)" }}
+            >
+              View Oracle track record →
+            </span>
+          </Link>
+        </section>
+
         {/* ── CTA ── */}
         <div className="flex flex-wrap gap-3 pt-2">
           <a
@@ -355,6 +376,16 @@ export default function Methodology() {
               onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
             >
               How the platform works
+            </span>
+          </Link>
+          <Link href="/portfolio">
+            <span
+              className="inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+              style={{ border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.55 0.01 264)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.85 0.01 264)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
+            >
+              Oracle scoreboard
             </span>
           </Link>
           <Link href="/rankings">

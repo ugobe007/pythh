@@ -9167,10 +9167,19 @@ const { enrichPortfolioMetrics, computeTrackRecord } = require('./lib/portfolioT
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('portfolio_metrics').select('*').maybeSingle();
-    if (error) return res.status(500).json({ error: error.message });
+    const [metricsRes, totalEv, fundingEv, productEv] = await Promise.all([
+      supabase.from('portfolio_metrics').select('*').maybeSingle(),
+      supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
+      supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
+      supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
+    ]);
+    if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
+    const metrics = enrichPortfolioMetrics(metricsRes.data || {});
+    metrics.total_events = totalEv.count ?? 0;
+    metrics.funding_event_count = fundingEv.count ?? 0;
+    metrics.product_event_count = productEv.count ?? 0;
     res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-    res.json({ metrics: enrichPortfolioMetrics(data || {}) });
+    res.json({ metrics });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

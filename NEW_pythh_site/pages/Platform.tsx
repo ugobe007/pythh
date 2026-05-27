@@ -1,87 +1,535 @@
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
-import { useState, useEffect } from "react";
-import { ArrowRight, Zap, Target, Brain, BarChart3, Mail } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
+import {
+  ArrowRight,
+  Zap,
+  Target,
+  Brain,
+  BarChart3,
+  Mail,
+  Filter,
+  Radar,
+  GitBranch,
+  Activity,
+  CheckCircle2,
+} from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 
-// ─── Animated signal bars ─────────────────────────────────────────────────────
+const G = "oklch(0.696 0.17 162.48)";
+const MUTED = "oklch(0.55 0.01 264)";
+const BORDER = "oklch(0.22 0.01 264)";
+const CARD = "oklch(0.12 0.01 264)";
 
-interface SignalRow {
-  id: string;
-  label: string;
-  value: number;
-  delta: number;
-  description: string;
+// ─── Live stats ───────────────────────────────────────────────────────────────
+
+interface PlatformStats {
+  startups: number;
+  investors: number;
+  matches: number;
 }
 
-const INITIAL_SIGNALS: SignalRow[] = [
-  { id: "funding",     label: "Funding Activity",  value: 0.73, delta:  0.04, description: "Recent funding rounds, term sheets, and investor meetings in your sector" },
-  { id: "hiring",      label: "Hiring Velocity",    value: 0.81, delta:  0.12, description: "Engineering and go-to-market hiring patterns across comparable startups" },
-  { id: "market",      label: "Market Momentum",    value: 0.58, delta: -0.05, description: "Overall sector interest from LPs, analysts, and trade publications" },
-  { id: "social",      label: "Social Proof",       value: 0.71, delta:  0.08, description: "Mentions, shares, and engagement from influential investors and founders" },
-  { id: "competition", label: "Competition Heat",   value: 0.54, delta:  0,    description: "Competitive landscape intensity and market consolidation signals" },
-  { id: "revenue",     label: "Revenue Signals",    value: 0.66, delta:  0.03, description: "B2B contract announcements, customer logos, and revenue milestones" },
-  { id: "product",     label: "Product Velocity",   value: 0.85, delta:  0.15, description: "Shipping cadence, feature launches, and product-market fit indicators" },
+interface PortfolioMetrics {
+  verified_funded_picks?: number;
+  verified_funded_rate_pct?: number;
+  total_picks?: number;
+  funded_picks?: number;
+  active_picks?: number;
+  successful_exits?: number;
+  total_events?: number;
+  funding_event_count?: number;
+  product_event_count?: number;
+}
+
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return m >= 10 ? `${Math.round(m)}M` : `${m.toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (n >= 1_000) return `${Math.round(n / 1000)}K`;
+  return n.toLocaleString();
+}
+
+function useLiveEngineStats() {
+  const [platform, setPlatform] = useState<PlatformStats | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioMetrics | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/platform-stats").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/portfolio/metrics").then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([plat, port]) => {
+        if (plat) {
+          setPlatform({
+            startups: Number(plat.startups) || 0,
+            investors: Number(plat.investors) || 0,
+            matches: Number(plat.matches) || 0,
+          });
+        }
+        if (port?.metrics) setPortfolio(port.metrics);
+      })
+      .catch(() => {});
+  }, []);
+
+  return { platform, portfolio };
+}
+
+// ─── Animated pipeline ────────────────────────────────────────────────────────
+
+interface PipelineStage {
+  id: string;
+  label: string;
+  desc: string;
+  icon: ReactNode;
+  metric?: (ctx: { platform: PlatformStats | null; portfolio: PortfolioMetrics | null }) => string | null;
+}
+
+const PIPELINE_STAGES: PipelineStage[] = [
+  {
+    id: "discovery",
+    label: "Discovery",
+    desc: "RSS · submissions · ingest",
+    icon: <Radar size={14} />,
+    metric: ({ platform }) => (platform?.startups ? `${formatCompact(platform.startups)} scored` : null),
+  },
+  {
+    id: "entity",
+    label: "Entity gate",
+    desc: "Name · URL · junk filter",
+    icon: <Filter size={14} />,
+    metric: () => "28.6% pass rate",
+  },
+  {
+    id: "god",
+    label: "GOD",
+    desc: "7-pillar composite 0–100",
+    icon: <BarChart3 size={14} />,
+    metric: () => "70+ investment-grade",
+  },
+  {
+    id: "signals",
+    label: "Signals",
+    desc: "News · hiring · funding cues",
+    icon: <Activity size={14} />,
+    metric: () => "22K+ events classified",
+  },
+  {
+    id: "trajectory",
+    label: "Trajectory",
+    desc: "hire → GTM → raise",
+    icon: <GitBranch size={14} />,
+    metric: () => "sequence prediction",
+  },
+  {
+    id: "match",
+    label: "Match",
+    desc: "Thesis · stage · check size",
+    icon: <Target size={14} />,
+    metric: ({ platform }) => (platform?.matches ? `${formatCompact(platform.matches)} pairs` : null),
+  },
+  {
+    id: "monitor",
+    label: "Monitor",
+    desc: "Portfolio signal refresh",
+    icon: <Zap size={14} />,
+    metric: ({ portfolio }) =>
+      portfolio?.total_picks != null ? `${portfolio.total_picks} Oracle picks` : null,
+  },
+  {
+    id: "verify",
+    label: "Verify",
+    desc: "Press-confirmed outcomes",
+    icon: <CheckCircle2 size={14} />,
+    metric: ({ portfolio }) => {
+      const v = portfolio?.verified_funded_picks;
+      const pct = portfolio?.verified_funded_rate_pct;
+      if (v == null) return null;
+      return pct != null ? `${v} verified · ${pct}%` : `${v} verified`;
+    },
+  },
 ];
 
-function SignalBar({ signal }: { signal: SignalRow }) {
-  const { label, value, delta, description } = signal;
-  const deltaPositive = delta > 0;
-  const deltaZero = delta === 0;
-  const deltaColor = deltaPositive
-    ? "oklch(0.696 0.17 162.48)"
-    : deltaZero
-    ? "oklch(0.45 0.01 264)"
-    : "oklch(0.65 0.15 22)";
-  const arrow = deltaPositive ? "▲" : deltaZero ? "→" : "▼";
-  const sign  = deltaPositive ? "+" : "";
-  const barColor =
-    value >= 0.7
-      ? "linear-gradient(to right, oklch(0.55 0.13 195), oklch(0.696 0.17 162.48))"
-      : value >= 0.5
-      ? "linear-gradient(to right, oklch(0.4 0.1 195), oklch(0.55 0.13 195))"
-      : "linear-gradient(to right, oklch(0.3 0.01 264), oklch(0.4 0.01 264))";
-  const glowStyle = deltaPositive ? { boxShadow: "0 0 8px rgba(34,211,238,0.35)" } : {};
-
+function PipelineConnector({ active }: { active: boolean }) {
   return (
-    <div className="group" title={description}>
-      <div className="flex items-center gap-3 mb-1">
-        <div className="w-32 text-xs truncate" style={{ color: "oklch(0.55 0.01 264)" }}>{label}</div>
-        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.18 0.01 264 / 0.6)" }}>
-          <div
-            className="h-full rounded-full"
-            style={{ width: `${value * 100}%`, background: barColor, transition: "width 700ms ease-out", ...glowStyle }}
-          />
-        </div>
-        <div className="w-10 text-right font-mono text-xs" style={{ color: "oklch(0.85 0.005 264)" }}>
-          {value.toFixed(2)}
-        </div>
-        <div className="w-14 text-right font-mono text-xs" style={{ color: deltaColor }}>
-          {arrow} {sign}{Math.abs(delta).toFixed(2)}
-        </div>
-      </div>
+    <div className="relative flex-1 min-w-[12px] h-px mx-0.5 self-center" style={{ backgroundColor: "oklch(0.2 0.01 264)" }}>
+      <div
+        className="absolute inset-y-0 left-0 h-px rounded-full transition-all duration-500"
+        style={{
+          width: active ? "100%" : "0%",
+          background: `linear-gradient(90deg, ${G}88, ${G})`,
+          boxShadow: active ? `0 0 8px ${G}66` : "none",
+        }}
+      />
+      {active && (
+        <span
+          className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
+          style={{
+            backgroundColor: G,
+            boxShadow: `0 0 6px ${G}`,
+            animation: "pipeline-dot 0.9s ease-in-out infinite",
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function SignalFlowBars() {
-  const [signals, setSignals] = useState(INITIAL_SIGNALS);
+function PipelineFlow({
+  platform,
+  portfolio,
+}: {
+  platform: PlatformStats | null;
+  portfolio: PortfolioMetrics | null;
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [pulseKey, setPulseKey] = useState(0);
+
   useEffect(() => {
     const id = setInterval(() => {
-      setSignals((prev) =>
-        prev.map((s) => {
-          const movement = (Math.random() - 0.5) * 0.06;
-          const newValue = Math.max(0.1, Math.min(0.95, s.value + movement));
-          return { ...s, value: +newValue.toFixed(2), delta: +(newValue - s.value).toFixed(2) };
-        })
-      );
-    }, 3000);
+      setActiveIdx((i) => (i + 1) % PIPELINE_STAGES.length);
+      setPulseKey((k) => k + 1);
+    }, 1100);
     return () => clearInterval(id);
   }, []);
+
+  const activeStage = PIPELINE_STAGES[activeIdx];
+
   return (
-    <div className="space-y-3">
-      {signals.map((s) => <SignalBar key={s.id} signal={s} />)}
+    <>
+      <style>{`
+        @keyframes pipeline-dot {
+          0% { left: 0%; opacity: 0; }
+          15% { opacity: 1; }
+          85% { opacity: 1; }
+          100% { left: calc(100% - 6px); opacity: 0; }
+        }
+        @keyframes stage-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 oklch(0.696 0.17 162.48 / 0); }
+          50% { box-shadow: 0 0 16px oklch(0.696 0.17 162.48 / 0.35); }
+        }
+      `}</style>
+
+      {/* Desktop: horizontal flow */}
+      <div className="hidden lg:block">
+        <div className="flex items-start mb-4">
+          {PIPELINE_STAGES.map((stage, i) => (
+            <div key={stage.id} className="flex items-start flex-1 min-w-0">
+              <div className="flex flex-col items-center flex-1 min-w-0 px-0.5">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center mb-1.5 transition-all duration-300"
+                  style={{
+                    color: i === activeIdx ? G : MUTED,
+                    backgroundColor: i === activeIdx ? `${G}18` : "oklch(0.14 0.01 264)",
+                    border: `1px solid ${i === activeIdx ? `${G}55` : BORDER}`,
+                    animation: i === activeIdx ? "stage-pulse 1.1s ease-in-out" : "none",
+                  }}
+                >
+                  {stage.icon}
+                </div>
+                <span
+                  className="text-[9px] font-mono font-bold uppercase tracking-wide text-center leading-tight truncate w-full"
+                  style={{ color: i === activeIdx ? "oklch(0.92 0.005 264)" : "oklch(0.42 0.01 264)" }}
+                >
+                  {stage.label}
+                </span>
+              </div>
+              {i < PIPELINE_STAGES.length - 1 && (
+                <PipelineConnector active={i === activeIdx} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Mobile / tablet: vertical stepped flow */}
+      <div className="lg:hidden space-y-1 mb-4">
+        {PIPELINE_STAGES.map((stage, i) => {
+          const isActive = i === activeIdx;
+          return (
+            <div key={stage.id} className="flex items-stretch gap-2">
+              <div className="flex flex-col items-center w-8 flex-shrink-0">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300"
+                  style={{
+                    color: isActive ? G : MUTED,
+                    backgroundColor: isActive ? `${G}18` : "oklch(0.14 0.01 264)",
+                    border: `1px solid ${isActive ? `${G}55` : BORDER}`,
+                  }}
+                >
+                  {stage.icon}
+                </div>
+                {i < PIPELINE_STAGES.length - 1 && (
+                  <div
+                    className="w-px flex-1 min-h-[8px] my-0.5 transition-all duration-300"
+                    style={{
+                      background: isActive
+                        ? `linear-gradient(180deg, ${G}, oklch(0.2 0.01 264))`
+                        : "oklch(0.2 0.01 264)",
+                    }}
+                  />
+                )}
+              </div>
+              <div
+                className="flex-1 py-1.5 px-3 rounded-lg mb-1 transition-all duration-300"
+                style={{
+                  backgroundColor: isActive ? `${G}0d` : "transparent",
+                  border: isActive ? `1px solid ${G}33` : "1px solid transparent",
+                }}
+              >
+                <span className="text-xs font-semibold text-white">{stage.label}</span>
+                <p className="text-[10px]" style={{ color: MUTED }}>{stage.desc}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Active stage detail */}
+      <div
+        key={`${activeStage.id}-${pulseKey}`}
+        className="p-4 rounded-xl transition-all duration-300"
+        style={{
+          backgroundColor: "oklch(0.1 0.01 264)",
+          border: `1px solid ${G}44`,
+          boxShadow: `0 0 24px ${G}12`,
+        }}
+      >
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse"
+              style={{ backgroundColor: G, boxShadow: `0 0 6px ${G}` }}
+            />
+            <span className="text-xs font-mono font-bold uppercase tracking-widest truncate" style={{ color: G }}>
+              {activeStage.label}
+            </span>
+          </div>
+          <span className="text-[10px] font-mono flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>
+            {activeIdx + 1}/{PIPELINE_STAGES.length}
+          </span>
+        </div>
+        <p className="text-sm text-white mb-1">{activeStage.desc}</p>
+        {activeStage.metric?.({ platform, portfolio }) && (
+          <p className="text-xs font-mono" style={{ color: "#22d3ee" }}>
+            {activeStage.metric({ platform, portfolio })}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+function LiveEnginePanel() {
+  const { platform, portfolio } = useLiveEngineStats();
+
+  const statTiles = [
+    {
+      label: "Scored startups",
+      value: platform ? formatCompact(platform.startups) : "—",
+      sub: "approved & GOD-rated",
+      color: G,
+    },
+    {
+      label: "Investors mapped",
+      value: platform ? formatCompact(platform.investors) : "—",
+      sub: "thesis + stage profiles",
+      color: "#22d3ee",
+    },
+    {
+      label: "Pre-computed matches",
+      value: platform ? formatCompact(platform.matches) : "—",
+      sub: "startup ↔ investor pairs",
+      color: "#a855f7",
+    },
+    {
+      label: "Verified funded",
+      value:
+        portfolio?.verified_funded_picks != null
+          ? String(portfolio.verified_funded_picks)
+          : "—",
+      sub:
+        portfolio?.verified_funded_rate_pct != null
+          ? `${portfolio.verified_funded_rate_pct}% of Oracle picks`
+          : "press-confirmed raises",
+      color: "#22c55e",
+    },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
+            style={{ backgroundColor: G, boxShadow: `0 0 5px ${G}99` }}
+          />
+          <span className="text-xs font-mono font-bold tracking-widest uppercase" style={{ color: G }}>
+            Live engine
+          </span>
+        </div>
+        <span className="text-[10px] font-mono" style={{ color: "oklch(0.38 0.01 264)" }}>
+          production · updates daily
+        </span>
+      </div>
+
+      <div className="p-5 rounded-2xl" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+        <div className="grid grid-cols-2 gap-2 mb-5">
+          {statTiles.map(({ label, value, sub, color }) => (
+            <div
+              key={label}
+              className="p-3 rounded-lg"
+              style={{ backgroundColor: "oklch(0.1 0.01 264)", border: `1px solid ${color}22` }}
+            >
+              <div className="text-lg font-bold font-mono tabular-nums mb-0.5" style={{ color }}>
+                {value}
+              </div>
+              <div className="text-[10px] font-medium text-white leading-tight">{label}</div>
+              <div className="text-[9px] mt-0.5 leading-tight" style={{ color: "oklch(0.4 0.01 264)" }}>
+                {sub}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mb-3 pb-2" style={{ borderBottom: `1px solid oklch(0.18 0.01 264)` }}>
+          <span className="text-[10px] font-mono font-bold uppercase tracking-widest" style={{ color: "oklch(0.4 0.01 264)" }}>
+            Pipeline · continuous flow
+          </span>
+        </div>
+
+        <PipelineFlow platform={platform} portfolio={portfolio} />
+
+        <p className="text-[10px] font-mono mt-4 text-center" style={{ color: "oklch(0.35 0.01 264)" }}>
+          discovery → entity gate → GOD → signals → trajectory → match → monitor → verify
+        </p>
+      </div>
+
+      <p className="text-xs mt-3 leading-relaxed" style={{ color: "oklch(0.45 0.01 264)" }}>
+        Same pipeline powers founder matching, investor MCP queries, and the Oracle scoreboard.
+        Numbers from live production — not demo data.
+      </p>
     </div>
+  );
+}
+
+function FundingAgentSection() {
+  const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
+
+  useEffect(() => {
+    fetch("/api/portfolio/metrics")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMetrics(d?.metrics ?? null))
+      .catch(() => {});
+  }, []);
+
+  const statTiles = [
+    {
+      label: "Events logged",
+      value: metrics?.total_events != null ? String(metrics.total_events) : "—",
+      sub: "funding, product, revenue, team",
+      color: "#22c55e",
+    },
+    {
+      label: "Funding rounds detected",
+      value: metrics?.funding_event_count != null ? String(metrics.funding_event_count) : "—",
+      sub: `${metrics?.funded_picks ?? "—"} picks with rounds`,
+      color: "#22d3ee",
+    },
+    {
+      label: "Verified funded",
+      value: metrics?.verified_funded_picks != null ? String(metrics.verified_funded_picks) : "—",
+      sub:
+        metrics?.verified_funded_rate_pct != null
+          ? `${metrics.verified_funded_rate_pct}% press-confirmed`
+          : "press-verified raises",
+      color: G,
+    },
+    {
+      label: "Product launches tracked",
+      value: metrics?.product_event_count != null ? String(metrics.product_event_count) : "—",
+      sub: "classified from news feed",
+      color: "#a855f7",
+    },
+  ];
+
+  return (
+    <section className="mb-20">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
+        <h2 className="font-display font-bold text-xl" style={{ color: "oklch(0.97 0.005 264)" }}>
+          Live Funding Agent
+        </h2>
+        <span
+          className="text-[10px] px-2 py-0.5 rounded font-mono uppercase tracking-wider"
+          style={{ backgroundColor: "#22c55e18", color: "#22c55e", border: "1px solid #22c55e40" }}
+        >
+          running daily
+        </span>
+      </div>
+      <p className="text-sm mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
+        PYTHIA monitors every Oracle pick around the clock — scanning TechCrunch, VentureBeat, and
+        Hacker News for funding rounds, product launches, acquisitions, and revenue milestones.
+        Events are classified, logged to the portfolio, verified against press, and delivered via daily digest.
+      </p>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {statTiles.map((s) => (
+          <div
+            key={s.label}
+            className="p-4 rounded-xl"
+            style={{ backgroundColor: "oklch(0.115 0.01 264)", border: `1px solid ${s.color}25` }}
+          >
+            <div className="text-2xl font-bold mb-1 tabular-nums" style={{ color: s.color }}>{s.value}</div>
+            <div className="text-xs font-medium text-white mb-0.5">{s.label}</div>
+            <div className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        {[
+          {
+            title: "Multi-source intelligence",
+            desc: "RSS feeds from TechCrunch Startups/Venture, VentureBeat, and Hacker News — fetched in a single batch pass, matched against every portfolio company by name.",
+            color: "#22c55e",
+          },
+          {
+            title: "GPT-4o-mini classification",
+            desc: "Each article is classified into: funding_round, acquisition, IPO, product_launch, revenue_milestone, team_milestone, or noise — with confidence scoring. Only signals ≥ 50% confidence are logged.",
+            color: "#22d3ee",
+          },
+          {
+            title: "MOIC auto-update",
+            desc: "When a confirmed funding round is detected, the agent recalculates the portfolio company's current valuation and updates MOIC and IRR in real time.",
+            color: "#a855f7",
+          },
+          {
+            title: "Daily digest + weekly verify",
+            desc: "Morning digest at 6:30 AM UTC. Weekly funding verification pass upgrades signal detections to press-confirmed outcomes on the Oracle scoreboard.",
+            color: "#f97316",
+          },
+        ].map((c) => (
+          <div
+            key={c.title}
+            className="p-5 rounded-xl"
+            style={{ backgroundColor: "oklch(0.115 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
+              <span className="text-sm font-semibold text-white">{c.title}</span>
+            </div>
+            <p className="text-xs leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{c.desc}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-4">
+        <a href="/portfolio" className="text-xs inline-flex items-center gap-1" style={{ color: "#22c55e" }}>
+          View Oracle scoreboard →
+        </a>
+        <span className="text-[10px] font-mono" style={{ color: "oklch(0.38 0.01 264)" }}>
+          Monitor cadence · daily 6 AM UTC + Monday verify refresh
+        </span>
+      </div>
+    </section>
   );
 }
 
@@ -134,7 +582,7 @@ export default function Platform() {
     <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)", fontFamily: "'Inter', sans-serif" }}>
       <Helmet>
         <title>Platform — Pythh.ai</title>
-        <meta name="description" content="Pythh's signal intelligence engine: GOD scoring, investor matching for founders, and Pythh Connect MCP for investors. One engine, two paths." />
+        <meta name="description" content="Pythh's live signal engine: discovery through verification — GOD scoring, 1.8M+ pre-computed matches, and a public Oracle scoreboard. One pipeline, two paths in." />
         <meta property="og:title" content="Platform — Pythh.ai" />
         <meta property="og:url" content="https://pythh.ai/platform" />
       </Helmet>
@@ -192,37 +640,8 @@ export default function Platform() {
             </div>
           </div>
 
-          {/* Right: live signal bars — above the fold */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", boxShadow: "0 0 5px oklch(0.696 0.17 162.48 / 0.6)" }}
-                />
-                <span className="text-xs font-mono font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                  Live Signal Feed
-                </span>
-              </div>
-              <span className="text-[10px] font-mono" style={{ color: "oklch(0.38 0.01 264)" }}>7 dimensions · updates every 3s</span>
-            </div>
-            <div className="p-5 rounded-2xl" style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}>
-              <div className="flex items-center gap-3 mb-4 pb-3" style={{ borderBottom: "1px solid oklch(0.2 0.01 264)" }}>
-                <div className="w-32 text-[10px] font-mono font-bold uppercase" style={{ color: "oklch(0.4 0.01 264)" }}>Signal</div>
-                <div className="flex-1 text-[10px] font-mono font-bold uppercase" style={{ color: "oklch(0.4 0.01 264)" }}>Strength</div>
-                <div className="w-10 text-right text-[10px] font-mono font-bold" style={{ color: "oklch(0.4 0.01 264)" }}>Val</div>
-                <div className="w-14 text-right text-[10px] font-mono font-bold" style={{ color: "oklch(0.4 0.01 264)" }}>Δ</div>
-              </div>
-              <SignalFlowBars />
-              <p className="text-[10px] font-mono mt-4 text-right" style={{ color: "oklch(0.35 0.01 264)" }}>
-                Derived from publicly observable behavior · hover any bar for detail
-              </p>
-            </div>
-            <p className="text-xs mt-3 leading-relaxed" style={{ color: "oklch(0.45 0.01 264)" }}>
-              Every bar represents a real-time market signal computed across 33,000+ tracked startups.
-              No self-reported data. No editorial judgment. Pure observable evidence.
-            </p>
-          </div>
+          {/* Right: live engine + animated pipeline */}
+          <LiveEnginePanel />
         </div>
 
         {/* ── Two paths ── */}
@@ -365,85 +784,7 @@ export default function Platform() {
         </section>
 
         {/* ── Funding Agent ── */}
-        <section className="mb-20">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#22c55e" }} />
-            <h2 className="font-display font-bold text-xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-              Live Funding Agent
-            </h2>
-            <span
-              className="text-[10px] px-2 py-0.5 rounded font-mono uppercase tracking-wider"
-              style={{ backgroundColor: "#22c55e18", color: "#22c55e", border: "1px solid #22c55e40" }}
-            >
-              running daily
-            </span>
-          </div>
-          <p className="text-sm mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
-            PYTHIA's funding agent monitors every portfolio company around the clock — scanning
-            TechCrunch, VentureBeat, and Hacker News for funding rounds, product launches,
-            acquisitions, and revenue milestones. Events are classified by GPT-4o-mini, logged to
-            the portfolio, and delivered via daily digest.
-          </p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {[
-              { label: "Events logged",           value: "39",   sub: "funding, product, revenue, team", color: "#22c55e" },
-              { label: "Funding rounds detected", value: "9",    sub: "across active portfolio",         color: "#22d3ee" },
-              { label: "Product launches tracked",value: "27",   sub: "real-time classification",        color: "#a855f7" },
-              { label: "Monitor cadence",         value: "Daily",sub: "6 AM UTC + weekly refresh",       color: "#f97316" },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="p-4 rounded-xl"
-                style={{ backgroundColor: "oklch(0.115 0.01 264)", border: `1px solid ${s.color}25` }}
-              >
-                <div className="text-2xl font-bold mb-1" style={{ color: s.color }}>{s.value}</div>
-                <div className="text-xs font-medium text-white mb-0.5">{s.label}</div>
-                <div className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>{s.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {[
-              {
-                title: "Multi-source intelligence",
-                desc: "RSS feeds from TechCrunch Startups/Venture, VentureBeat, and Hacker News — fetched in a single batch pass, matched against every portfolio company by name.",
-                color: "#22c55e",
-              },
-              {
-                title: "GPT-4o-mini classification",
-                desc: "Each article is classified into: funding_round, acquisition, IPO, product_launch, revenue_milestone, team_milestone, or noise — with confidence scoring. Only signals ≥ 50% confidence are logged.",
-                color: "#22d3ee",
-              },
-              {
-                title: "MOIC auto-update",
-                desc: "When a confirmed funding round is detected, the agent recalculates the portfolio company's current valuation and updates MOIC and IRR in real time.",
-                color: "#a855f7",
-              },
-              {
-                title: "Daily digest email",
-                desc: "Each morning at 6:30 AM UTC, a digest delivers new events, Review-tier alerts, GOD score movements, and auto-seeded new picks to the fund manager.",
-                color: "#f97316",
-              },
-            ].map((c) => (
-              <div
-                key={c.title}
-                className="p-5 rounded-xl"
-                style={{ backgroundColor: "oklch(0.115 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span className="text-sm font-semibold text-white">{c.title}</span>
-                </div>
-                <p className="text-xs leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>{c.desc}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4">
-            <a href="/portfolio" className="text-xs inline-flex items-center gap-1" style={{ color: "#22c55e" }}>
-              View live portfolio →
-            </a>
-          </div>
-        </section>
+        <FundingAgentSection />
 
         {/* ── CTA ── */}
         <div
