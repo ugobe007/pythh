@@ -37,6 +37,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import HorizontalSignalChart from "@/components/HorizontalSignalChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -445,7 +446,7 @@ export default function SignalTrends() {
       <main className="container pt-24 pb-16">
 
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-5">
           <div
             className="text-[11px] uppercase tracking-[1.5px] mb-2 flex items-center gap-2"
             style={{ color: "oklch(0.55 0.01 264)" }}
@@ -466,6 +467,9 @@ export default function SignalTrends() {
             How different investors score the same market
           </p>
         </div>
+
+        {/* Horizontal signal chart */}
+        <HorizontalSignalChart accent={activeLens.accent} />
 
         {/* Description */}
         <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
