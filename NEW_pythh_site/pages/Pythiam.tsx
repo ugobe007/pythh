@@ -1,12 +1,11 @@
 /**
  * /pythiam — Pythiam Ventures LP page
- * How the Pythh platform powers the fund's deal flow and selection edge.
+ * Above-the-fold thesis + proof; horizontal density over vertical scroll.
  */
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
 import {
-  ArrowRight,
   BarChart3,
   Brain,
   Filter,
@@ -19,7 +18,9 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import StatStrip from "@/components/design/StatStrip";
-import { G, MUTED, DIM, BORDER, CARD, PAGE } from "@/lib/designTokens";
+import SectionLabel from "@/components/design/SectionLabel";
+import StrokeButton from "@/components/design/StrokeButton";
+import { G, MUTED, DIM, BORDER, CARD, PAGE, TEXT, G_BORDER } from "@/lib/designTokens";
 
 interface TrackRecord {
   oracle?: {
@@ -31,7 +32,6 @@ interface TrackRecord {
     successful_exits?: number;
     median_days_to_funding?: number | null;
     verified_avg_moic?: number | null;
-    avg_moic?: number | null;
     entry_god_threshold?: number;
   };
   by_god_tier?: Array<{
@@ -43,11 +43,29 @@ interface TrackRecord {
   }>;
 }
 
-const PLATFORM_STATS = [
-  { label: "Scored startups", key: "startups" as const, sub: "approved & GOD-rated" },
-  { label: "Mapped investors", key: "investors" as const, sub: "thesis + stage profiles" },
-  { label: "Pre-computed matches", key: "matches" as const, sub: "startup ↔ investor pairs" },
-  { label: "Verified funded", key: "verified" as const, sub: "press-confirmed Oracle picks" },
+const ENGINE_LAYERS = [
+  { icon: Filter, title: "Entity resolution gate", desc: "Name validation, URL checks, junk filtering before scoring." },
+  { icon: Brain, title: "GOD scoring (0–100)", desc: "Seven-pillar composite — team, traction, market, product, vision, grit, momentum." },
+  { icon: Radar, title: "Signal intelligence", desc: "News, hiring, funding cues — often 6–18 months before databases update." },
+  { icon: TrendingUp, title: "Trajectory engine", desc: "Signal sequences predict what happens next and who should care now." },
+  { icon: Target, title: "Thesis matching", desc: "Stage, sector, check size, timing — ranked to mandate, not spray-and-pray." },
+  { icon: Shield, title: "Portfolio monitoring", desc: "Post-investment signal refresh and health tiers without waiting for quarterly updates." },
+];
+
+const FUND_EDGE = [
+  { traditional: "Sort inbound decks and warm intros", pythiam: "Surface companies from a 27k+ pipeline before they raise" },
+  { traditional: "Subjective gut on 'interesting' companies", pythiam: "GOD score + signal dimensions — auditable selection bar" },
+  { traditional: "Crunchbase lag — learn after rounds close", pythiam: "Trajectory signals on hiring, product, capital convergence ahead of press" },
+  { traditional: "Analyst bandwidth caps at dozens of names", pythiam: "Platform scores 11k+ continuously; humans focus on top tier" },
+  { traditional: "Portfolio updates when founders email", pythiam: "Automated signal monitoring on holdings" },
+  { traditional: "Network as the only moat", pythiam: "Network plus proprietary data engine that compounds each scrape cycle" },
+];
+
+const LP_PILLARS = [
+  { icon: Zap, title: "Deal flow", body: "100+ RSS feeds, submissions, enrichment — ranked to thesis before competitors see the round." },
+  { icon: BarChart3, title: "Selection", body: "GOD scores spread honestly after calibration — we know which names cleared a real bar." },
+  { icon: Layers, title: "Timing", body: "Signal scores tell us when a company enters a fundraise window, not just whether it's good." },
+  { icon: Target, title: "Co-investors", body: "6,370 investor profiles scored — who is deploying, adjacent, and where syndicates exist." },
 ];
 
 function formatCompact(n: number): string {
@@ -59,174 +77,35 @@ function formatCompact(n: number): string {
   return n.toLocaleString();
 }
 
-function OracleTrackRecordSection({
-  trackRecord,
+function SectionBlock({
+  label,
+  title,
+  subtitle,
+  children,
+  className = "",
 }: {
-  trackRecord: TrackRecord | null;
+  label: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
 }) {
-  const oracle = trackRecord?.oracle;
-
   return (
-    <>
-      {oracle ? (
-        <>
-          <StatStrip
-            cols={3}
-            className="mb-6"
-            items={[
-              { label: "Verified funded", value: String(oracle.verified_funded_picks ?? 0), sub: `${oracle.verified_funded_rate_pct ?? 0}% of picks`, accent: true },
-              { label: "Oracle picks", value: String(oracle.total_picks ?? "—"), sub: `GOD ≥ ${oracle.entry_god_threshold ?? 70} at entry` },
-              { label: "Signal funded", value: String(Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0))), sub: `${oracle.funded_rate_pct ?? 0}% total detection` },
-              { label: "Exited", value: String(oracle.successful_exits ?? 0), sub: "acq · IPO" },
-              { label: "Median days to raise", value: String(oracle.median_days_to_funding ?? "—"), sub: "after Oracle entry" },
-              { label: "Verified avg MOIC", value: oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—", sub: "press-confirmed markups only" },
-            ]}
-          />
-
-          {trackRecord?.by_god_tier?.length ? (
-            <div className="overflow-x-auto rounded-xl mb-4" style={{ border: `1px solid ${BORDER}` }}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ backgroundColor: CARD }}>
-                    <th className="text-left p-3 font-medium" style={{ color: MUTED }}>GOD at entry</th>
-                    <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Picks</th>
-                    <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded</th>
-                    <th className="text-right p-3 font-medium" style={{ color: G }}>Verified</th>
-                    <th className="text-right p-3 font-medium" style={{ color: MUTED }}>Funded %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trackRecord.by_god_tier.map((row) => (
-                    <tr key={row.tier} style={{ borderTop: `1px solid ${BORDER}` }}>
-                      <td className="p-3 text-white">{row.tier}</td>
-                      <td className="p-3 text-right" style={{ color: MUTED }}>{row.picks}</td>
-                      <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded}</td>
-                      <td className="p-3 text-right font-medium" style={{ color: G }}>{row.verified_funded}</td>
-                      <td className="p-3 text-right" style={{ color: MUTED }}>{row.funded_rate_pct}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-
-          <Link href="/portfolio">
-            <span className="text-sm cursor-pointer transition-colors" style={{ color: G }}>
-              Full Oracle scoreboard →
-            </span>
-          </Link>
-        </>
-      ) : (
-        <div className="p-6 rounded-xl animate-pulse" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}`, height: 120 }} />
+    <section className={`py-8 border-t ${className}`} style={{ borderColor: BORDER }}>
+      <SectionLabel className="mb-2">{label}</SectionLabel>
+      <h2 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">{title}</h2>
+      {subtitle && (
+        <p className="text-sm leading-relaxed mb-5 max-w-3xl" style={{ color: MUTED }}>{subtitle}</p>
       )}
-    </>
-  );
-}
-
-const ENGINE_LAYERS = [
-  {
-    icon: Filter,
-    title: "Entity resolution gate",
-    desc: "Every inbound record passes name validation, URL checks, and junk filtering before it enters scoring. Noise never becomes deal flow.",
-  },
-  {
-    icon: Brain,
-    title: "GOD scoring (0–100)",
-    desc: "Seven-pillar composite — team, traction, market, product, vision, grit, momentum — so companies are comparable on one disciplined scale.",
-  },
-  {
-    icon: Radar,
-    title: "Signal intelligence",
-    desc: "Language in the wild (news, hiring, funding cues, product velocity) parsed into classified events — often 6–18 months before static databases update.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Trajectory engine",
-    desc: "Ordered signal sequences (hire → GTM → diligence → raise) predict what happens next and who should care now.",
-  },
-  {
-    icon: Target,
-    title: "Thesis matching",
-    desc: "Stage, sector, check size, and timing filters rank startups against mandate — not spray-and-pray lists.",
-  },
-  {
-    icon: Shield,
-    title: "Portfolio monitoring",
-    desc: "Post-investment signal refresh, event logging, and health tiers — ongoing diligence without waiting for quarterly updates.",
-  },
-];
-
-const FUND_EDGE = [
-  {
-    traditional: "Sort inbound decks and warm intros",
-    pythiam: "Proactively surface companies from a 27k+ discovery pipeline before they raise",
-  },
-  {
-    traditional: "Subjective gut on 'interesting' companies",
-    pythiam: "GOD score + signal dimensions — comparable, auditable selection bar",
-  },
-  {
-    traditional: "Crunchbase lag — learn about rounds after they're done",
-    pythiam: "Trajectory signals on hiring, product, and capital convergence ahead of press",
-  },
-  {
-    traditional: "Analyst bandwidth caps coverage at dozens of names",
-    pythiam: "Platform scores 11k+ companies continuously; humans focus on top tier",
-  },
-  {
-    traditional: "Portfolio updates when founders email",
-    pythiam: "Automated signal monitoring on holdings — funding, product, team events",
-  },
-  {
-    traditional: "Network as the only moat",
-    pythiam: "Network plus proprietary data engine that compounds with every scrape cycle",
-  },
-];
-
-const LP_PILLARS = [
-  {
-    icon: Zap,
-    title: "Deal flow advantage",
-    body: "Pythiam does not wait for the best companies to find us. Pythh ingests from 100+ RSS feeds, direct submissions, and enrichment pipelines — then ranks what fits our thesis before competitors see the round.",
-  },
-  {
-    icon: BarChart3,
-    title: "Selection discipline",
-    body: "After calibration, GOD scores spread honestly: sparse data sits low, traction-rich companies rise to 70+. That bimodal distribution is a feature — we know which names cleared a real bar.",
-  },
-  {
-    icon: Layers,
-    title: "Timing edge",
-    body: "Signal scores (founder language, capital convergence, execution velocity) tell us when a company is entering a fundraise window — not just whether it is good in the abstract.",
-  },
-  {
-    icon: Target,
-    title: "Co-investor intelligence",
-    body: "6,370 investor profiles scored and matched. We know who is deploying in our sectors, who is adjacent, and where syndicate opportunities exist.",
-  },
-];
-
-function SectionHeader({ n, title, subtitle }: { n: string; title: string; subtitle: string }) {
-  return (
-    <div className="mb-8">
-      <div className="flex items-center gap-3 mb-3">
-        <span
-          className="text-xs font-mono font-bold px-2 py-0.5 rounded"
-          style={{ color: G, backgroundColor: `${G}15`, border: `1px solid ${G}35` }}
-        >
-          {n}
-        </span>
-        <div className="h-px flex-1" style={{ backgroundColor: BORDER }} />
-      </div>
-      <h2 className="text-2xl md:text-3xl font-bold text-white mb-3 tracking-tight">{title}</h2>
-      <p className="text-base leading-relaxed max-w-3xl" style={{ color: MUTED }}>{subtitle}</p>
-    </div>
+      {children}
+    </section>
   );
 }
 
 export default function PythiamPage() {
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
   const [platformStats, setPlatformStats] = useState<{ startups: number; investors: number; matches: number } | null>(null);
+  const [showTierTable, setShowTierTable] = useState(false);
 
   useEffect(() => {
     fetch("/api/portfolio/track-record")
@@ -246,20 +125,30 @@ export default function PythiamPage() {
       .catch(() => {});
   }, []);
 
-  const verifiedCount = trackRecord?.oracle?.verified_funded_picks;
-  const verifiedPct = trackRecord?.oracle?.verified_funded_rate_pct;
-
-  const livePlatformTiles = PLATFORM_STATS.map(({ label, key, sub }) => {
-    let value = "—";
-    if (key === "verified") {
-      value = verifiedCount != null ? String(verifiedCount) : "—";
-    } else if (platformStats && key in platformStats) {
-      value = formatCompact(platformStats[key as keyof typeof platformStats]);
-    }
-    const liveSub =
-      key === "verified" && verifiedPct != null ? `${verifiedPct}% of Oracle picks` : sub;
-    return { label, value, sub: liveSub };
-  });
+  const oracle = trackRecord?.oracle;
+  const heroStats = [
+    {
+      label: "Verified funded",
+      value: oracle?.verified_funded_picks != null ? String(oracle.verified_funded_picks) : "—",
+      sub: oracle?.verified_funded_rate_pct != null ? `${oracle.verified_funded_rate_pct}% of picks` : "press-confirmed raises",
+      accent: true,
+    },
+    {
+      label: "Oracle picks",
+      value: oracle?.total_picks != null ? String(oracle.total_picks) : "—",
+      sub: `GOD ≥ ${oracle?.entry_god_threshold ?? 70} at entry`,
+    },
+    {
+      label: "Scored startups",
+      value: platformStats ? formatCompact(platformStats.startups) : "—",
+      sub: "approved & GOD-rated",
+    },
+    {
+      label: "Mapped investors",
+      value: platformStats ? formatCompact(platformStats.investors) : "—",
+      sub: "thesis + stage profiles",
+    },
+  ];
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
@@ -275,122 +164,90 @@ export default function PythiamPage() {
 
       <SharedNavbar activePath="/pythiam" />
 
-      <main className="container pt-20 pb-16 max-w-4xl">
+      <main className="container max-w-6xl pt-20 pb-12">
+        {/* Hero — message + proof side by side */}
+        <section className="pb-8">
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+            <div className="lg:col-span-7">
+              <SectionLabel className="mb-3">Pythiam Ventures</SectionLabel>
+              <h1 className="text-3xl md:text-4xl lg:text-[2.75rem] font-bold tracking-tight text-white leading-[1.1] mb-4">
+                A venture fund built on{" "}
+                <span style={{ color: G }}>signal science.</span>
+              </h1>
+              <p className="text-base leading-relaxed mb-6 max-w-xl" style={{ color: MUTED }}>
+                Raising a fund powered by{" "}
+                <span className="text-white">Pythh</span> — our proprietary intelligence platform.
+                We compete on who sees the right companies first, scores them honestly, and moves when the signals say move.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <StrokeButton
+                  href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
+                  showArrow
+                >
+                  LP inquiry
+                </StrokeButton>
+                <StrokeButton href="/portfolio" showArrow muted>
+                  Oracle scoreboard
+                </StrokeButton>
+                <StrokeButton href="/methodology" muted size="sm">
+                  Methodology
+                </StrokeButton>
+              </div>
+            </div>
 
-        {/* Hero */}
-        <section className="pt-8 pb-14">
-          <p className="text-xs font-semibold tracking-[0.2em] uppercase mb-4" style={{ color: G }}>
-            Pythiam Ventures
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.08] mb-6">
-            A venture fund built on
-            <br />
-            <span style={{ color: G }}>signal science.</span>
-          </h1>
-          <p className="text-lg leading-relaxed mb-8 max-w-2xl" style={{ color: MUTED }}>
-            Pythiam Ventures is raising a fund powered by{" "}
-            <span className="text-white font-medium">Pythh</span> — our proprietary venture intelligence
-            platform. We do not compete on who takes the most meetings. We compete on who sees the
-            right companies first, scores them honestly, and moves when the signals say move.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition-all"
-              style={{ border: `1px solid ${G}`, color: G }}
-            >
-              LP inquiry <ArrowRight size={16} />
-            </a>
-            <Link href="/portfolio">
-              <span
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold cursor-pointer transition-colors"
-                style={{ backgroundColor: `${G}15`, border: `1px solid ${G}55`, color: G }}
-              >
-                View Oracle scoreboard <ArrowRight size={16} />
-              </span>
-            </Link>
-            <Link href="/methodology">
-              <span
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium cursor-pointer transition-colors"
-                style={{ border: `1px solid ${BORDER}`, color: MUTED }}
-              >
-                Scoring methodology
-              </span>
-            </Link>
-          </div>
-        </section>
-
-        {/* Oracle track record — proof first */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="01"
-            title="Oracle track record"
-            subtitle="Public proof sheet for the virtual fund — press-verified raises vs early signals, broken down by GOD tier at entry."
-          />
-          <OracleTrackRecordSection trackRecord={trackRecord} />
-        </section>
-
-        {/* Thesis */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="02"
-            title="What Pythh is"
-            subtitle="Pythh is an intent detection platform — not a database. It tracks language → intent → action: what companies say in the wild, what that signals about their next move, and who should care now."
-          />
-          <div
-            className="p-6 rounded-xl text-base leading-relaxed"
-            style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-          >
-            <p className="mb-4" style={{ color: MUTED }}>
-              Crunchbase and PitchBook record what already happened. Pythh reads hiring patterns,
-              product velocity, funding language, and news momentum — often months before rounds close.
-              For Pythiam, that means{" "}
-              <span className="text-white">pre-scored deal flow matched to our thesis</span>, ranked
-              by signal quality and timing — not a raw list of inbound decks.
-            </p>
-            <p style={{ color: MUTED }}>
-              The same engine that helps founders find investors powers our fund: discovery → entity
-              gate → GOD score → signal dimensions → trajectory → match → monitor.
-            </p>
-          </div>
-        </section>
-
-        {/* Fund edge */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="03"
-            title="How Pythh makes Pythiam successful"
-            subtitle="The platform is not a slide in our deck — it is the operating system for sourcing, selecting, and monitoring investments."
-          />
-          <div className="grid gap-4 mb-10">
-            {LP_PILLARS.map(({ icon: Icon, title, body }) => (
-              <div
-                key={title}
-                className="p-5 rounded-xl flex gap-4"
-                style={{ backgroundColor: CARD, borderLeft: `2px solid ${G}66` }}
-              >
-                <Icon size={20} className="shrink-0 mt-0.5" style={{ color: G }} />
-                <div>
-                  <h3 className="text-white font-semibold mb-2">{title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{body}</p>
+            <div className="lg:col-span-5">
+              {oracle || platformStats ? (
+                <StatStrip items={heroStats} cols={2} compact className="border rounded-lg" />
+              ) : (
+                <div className="h-32 rounded-lg animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
+              )}
+              {oracle && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] font-mono" style={{ color: DIM }}>
+                  <span>Exited {oracle.successful_exits ?? 0}</span>
+                  <span>Median raise {oracle.median_days_to_funding ?? "—"}d</span>
+                  <span>Verified MOIC {oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—"}</span>
                 </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Four pillars — visible without scrolling on desktop */}
+        <section className="pb-8 border-t pt-8" style={{ borderColor: BORDER }}>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {LP_PILLARS.map(({ icon: Icon, title, body }) => (
+              <div key={title} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                <Icon size={16} className="mb-2" style={{ color: G }} />
+                <h3 className="text-sm font-semibold text-white mb-1.5">{title}</h3>
+                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{body}</p>
               </div>
             ))}
           </div>
+        </section>
 
-          <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${BORDER}` }}>
-            <table className="w-full text-sm">
+        {/* Traditional vs Pythiam — key differentiator early */}
+        <section className="pb-8 border-t pt-8" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2">Operating model</SectionLabel>
+          <h2 className="text-xl md:text-2xl font-bold text-white mb-4 tracking-tight">
+            How Pythh makes Pythiam successful
+          </h2>
+          <div className="overflow-x-auto border" style={{ borderColor: BORDER }}>
+            <table className="w-full text-sm min-w-[520px]">
               <thead>
                 <tr style={{ backgroundColor: CARD }}>
-                  <th className="text-left p-4 font-medium" style={{ color: MUTED }}>Traditional VC</th>
-                  <th className="text-left p-4 font-medium" style={{ color: G }}>Pythiam + Pythh</th>
+                  <th className="text-left p-3 font-mono text-[10px] uppercase tracking-widest w-1/2" style={{ color: DIM }}>
+                    Traditional VC
+                  </th>
+                  <th className="text-left p-3 font-mono text-[10px] uppercase tracking-widest w-1/2" style={{ color: G }}>
+                    Pythiam + Pythh
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {FUND_EDGE.map((row, i) => (
                   <tr key={i} style={{ borderTop: `1px solid ${BORDER}` }}>
-                    <td className="p-4 align-top" style={{ color: "oklch(0.45 0.01 264)" }}>{row.traditional}</td>
-                    <td className="p-4 align-top text-white">{row.pythiam}</td>
+                    <td className="p-3 align-top text-xs" style={{ color: DIM }}>{row.traditional}</td>
+                    <td className="p-3 align-top text-xs text-white">{row.pythiam}</td>
                   </tr>
                 ))}
               </tbody>
@@ -398,102 +255,157 @@ export default function PythiamPage() {
           </div>
         </section>
 
-        {/* Platform stack */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="04"
-            title="The platform stack"
-            subtitle="Six layers from raw ingest to portfolio monitoring — all production today on pythh.ai."
-          />
-          <div className="grid sm:grid-cols-2 gap-3">
+        {/* Two-column: thesis + track record detail */}
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 border-t pt-8" style={{ borderColor: BORDER }}>
+          <SectionBlock
+            label="Platform"
+            title="What Pythh is"
+            subtitle="Intent detection — language → intent → action. Not a database of what already happened."
+            className="border-t-0 pt-0"
+          >
+            <div className="text-sm leading-relaxed space-y-3" style={{ color: MUTED }}>
+              <p>
+                Crunchbase records the past. Pythh reads hiring, product velocity, funding language, and news momentum —
+                often months before rounds close. For Pythiam:{" "}
+                <span className="text-white">pre-scored deal flow matched to our thesis</span>, ranked by signal quality and timing.
+              </p>
+              <p>
+                Discovery → entity gate → GOD score → signal dimensions → trajectory → match → monitor.
+              </p>
+            </div>
+          </SectionBlock>
+
+          <SectionBlock
+            label="Proof"
+            title="Oracle track record"
+            subtitle="Public scoreboard — press-verified raises vs early signals."
+            className="border-t-0 pt-0 lg:border-l lg:pl-10"
+          >
+            {oracle ? (
+              <>
+                <StatStrip
+                  cols={3}
+                  compact
+                  className="mb-3"
+                  items={[
+                    { label: "Verified funded", value: String(oracle.verified_funded_picks ?? 0), sub: `${oracle.verified_funded_rate_pct ?? 0}%`, accent: true },
+                    { label: "Total picks", value: String(oracle.total_picks ?? "—"), sub: "Oracle entries" },
+                    { label: "Signal funded", value: String(Math.max(0, (oracle.funded_picks ?? 0) - (oracle.verified_funded_picks ?? 0))), sub: `${oracle.funded_rate_pct ?? 0}% detection` },
+                  ]}
+                />
+                {trackRecord?.by_god_tier?.length ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowTierTable((v) => !v)}
+                      className="text-xs font-mono mb-2 bg-transparent border-0 cursor-pointer p-0"
+                      style={{ color: G }}
+                    >
+                      {showTierTable ? "Hide" : "Show"} GOD tier breakdown →
+                    </button>
+                    {showTierTable && (
+                      <div className="overflow-x-auto border mb-3" style={{ borderColor: BORDER }}>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr style={{ backgroundColor: CARD }}>
+                              <th className="text-left p-2 font-mono" style={{ color: DIM }}>GOD</th>
+                              <th className="text-right p-2 font-mono" style={{ color: DIM }}>Picks</th>
+                              <th className="text-right p-2 font-mono" style={{ color: DIM }}>Funded</th>
+                              <th className="text-right p-2 font-mono" style={{ color: G }}>Verified</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {trackRecord.by_god_tier.map((row) => (
+                              <tr key={row.tier} style={{ borderTop: `1px solid ${BORDER}` }}>
+                                <td className="p-2 text-white">{row.tier}</td>
+                                <td className="p-2 text-right" style={{ color: MUTED }}>{row.picks}</td>
+                                <td className="p-2 text-right" style={{ color: MUTED }}>{row.funded}</td>
+                                <td className="p-2 text-right font-medium" style={{ color: G }}>{row.verified_funded}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+                <Link href="/portfolio">
+                  <span className="text-xs font-mono cursor-pointer" style={{ color: G }}>
+                    Full scoreboard →
+                  </span>
+                </Link>
+              </>
+            ) : (
+              <div className="h-24 rounded animate-pulse border" style={{ backgroundColor: CARD, borderColor: BORDER }} />
+            )}
+          </SectionBlock>
+        </div>
+
+        {/* Platform stack — compact grid */}
+        <SectionBlock
+          label="Stack"
+          title="Six production layers"
+          subtitle="All live on pythh.ai today."
+        >
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {ENGINE_LAYERS.map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="p-4 rounded-xl"
-                style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
-              >
-                <Icon size={18} className="mb-3" style={{ color: G }} />
-                <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
-                <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{desc}</p>
+              <div key={title} className="p-3 border" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+                <Icon size={14} className="mb-2" style={{ color: G }} />
+                <h3 className="text-xs font-semibold text-white mb-1">{title}</h3>
+                <p className="text-[11px] leading-relaxed" style={{ color: MUTED }}>{desc}</p>
               </div>
             ))}
           </div>
-        </section>
+        </SectionBlock>
 
-        {/* Live stats */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="05"
-            title="Production scale"
-            subtitle="Live platform metrics — the data moat behind Pythiam's sourcing advantage."
-          />
-          <StatStrip
-            cols={4}
-            className="mb-4"
-            items={livePlatformTiles.map(({ label, value, sub }) => ({
-              label,
-              value,
-              sub,
-              accent: label === "Verified funded",
-            }))}
-          />
-          <p className="text-xs" style={{ color: DIM }}>
-            Live from Pythh production. GOD ≥ 70 = investment-grade tier after calibration.
-          </p>
+        {/* LP bullets + CTA */}
+        <section className="border-t py-10" style={{ borderColor: BORDER }}>
+          <div className="grid lg:grid-cols-2 gap-8 items-start">
+            <div>
+              <SectionLabel className="mb-2">For LPs</SectionLabel>
+              <h2 className="text-xl font-bold text-white mb-4 tracking-tight">
+                Invest in the fund. Invest in the engine.
+              </h2>
+              <ul className="space-y-2.5">
+                {[
+                  "Proprietary deal flow — not banker decks.",
+                  "One comparable GOD score across team, traction, market, product, vision.",
+                  "Earliest-signal advantage before rounds are public.",
+                  "Compounding moat: every scrape cycle improves the next decision.",
+                  "Transparent methodology documented on pythh.ai.",
+                ].map((item) => (
+                  <li key={item} className="flex gap-2 text-sm leading-relaxed" style={{ color: MUTED }}>
+                    <span className="shrink-0 font-mono" style={{ color: G }}>·</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="lg:text-right lg:pt-8">
+              <p className="text-sm mb-5 leading-relaxed lg:ml-auto lg:max-w-sm" style={{ color: MUTED }}>
+                Raising from partners who understand that venture returns come from information advantage — and that advantage can be engineered.
+              </p>
+              <StrokeButton
+                href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
+                showArrow
+                size="lg"
+              >
+                Request LP materials
+              </StrokeButton>
+              <p className="text-[11px] font-mono mt-4" style={{ color: DIM }}>
+                hello@pythh.ai
+              </p>
+            </div>
+          </div>
         </section>
-
-        {/* Fund positioning */}
-        <section className="border-t py-12" style={{ borderColor: BORDER }}>
-          <SectionHeader
-            n="06"
-            title="Why LPs should care"
-            subtitle="Pythiam is not buying software — we built the software. The fund and the platform share one data flywheel."
-          />
-          <ul className="space-y-4">
-            {[
-              "Proprietary deal flow engine assessing tens of thousands of companies — not relying on banker decks.",
-              "Quantitative selection discipline: one comparable GOD score across team, traction, market, product, and vision.",
-              "Earliest-signal advantage: trajectory and news momentum before rounds are public.",
-              "Compounding moat: every RSS cycle, enrichment run, and calibration pass improves the next fund decision.",
-              "Transparent methodology — scoring logic, entity gate, and signal weights documented on pythh.ai.",
-            ].map((item) => (
-              <li key={item} className="flex gap-3 text-sm leading-relaxed" style={{ color: MUTED }}>
-                <span className="shrink-0 font-mono" style={{ color: G }}>·</span>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* CTA */}
-        <section className="border-t py-14 text-center" style={{ borderColor: BORDER }}>
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-            Invest in the fund. Invest in the engine.
-          </h2>
-          <p className="text-sm mb-8 max-w-lg mx-auto leading-relaxed" style={{ color: MUTED }}>
-            Pythiam Ventures is raising from partners who understand that venture returns come from
-            information advantage — and that information advantage can be engineered.
-          </p>
-          <a
-            href="mailto:hello@pythh.ai?subject=Pythiam%20Ventures%20—%20LP%20inquiry"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg text-sm font-semibold transition-all"
-            style={{ backgroundColor: `${G}18`, border: `1px solid ${G}`, color: G }}
-          >
-            Request LP materials <ArrowRight size={16} />
-          </a>
-          <p className="text-xs mt-6" style={{ color: "oklch(0.4 0.01 264)" }}>
-            hello@pythh.ai · Signal science for capital
-          </p>
-        </section>
-
       </main>
 
-      <footer className="border-t py-8" style={{ borderColor: BORDER }}>
-        <div className="container flex flex-col sm:flex-row items-center justify-between gap-4 max-w-4xl">
-          <span className="text-xs" style={{ color: "oklch(0.38 0.01 264)" }}>
+      <footer className="border-t py-6" style={{ borderColor: BORDER }}>
+        <div className="container flex flex-col sm:flex-row items-center justify-between gap-3 max-w-6xl">
+          <span className="text-[11px] font-mono" style={{ color: DIM }}>
             © 2026 Pythiam Ventures · Powered by Pythh
           </span>
-          <div className="flex gap-6">
+          <div className="flex gap-5">
             {[
               { href: "/methodology", label: "Methodology" },
               { href: "/rankings", label: "Rankings" },
@@ -501,7 +413,7 @@ export default function PythiamPage() {
               { href: "/about", label: "About" },
             ].map(({ href, label }) => (
               <Link key={href} href={href}>
-                <span className="text-xs cursor-pointer transition-colors" style={{ color: "oklch(0.42 0.01 264)" }}>
+                <span className="text-[11px] font-mono cursor-pointer transition-colors" style={{ color: DIM }}>
                   {label}
                 </span>
               </Link>
