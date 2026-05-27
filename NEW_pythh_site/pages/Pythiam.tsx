@@ -22,7 +22,6 @@ import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
 import PythhEngineVisual from "@/components/PythhEngineVisual";
 import PortfolioGodStrip from "@/components/PortfolioGodStrip";
-import HorizontalSignalTicker from "@/components/HorizontalSignalTicker";
 import { G, MUTED, DIM, BORDER, CARD, PAGE, CYAN, GOLD } from "@/lib/designTokens";
 
 interface TrackRecord {
@@ -174,12 +173,7 @@ export default function PythiamPage() {
 
       <SharedNavbar activePath="/pythiam" />
 
-      {/* Full-width signal ticker under nav */}
-      <div className="pt-14 border-b" style={{ borderColor: BORDER }}>
-        <HorizontalSignalTicker />
-      </div>
-
-      <main className="container max-w-6xl pb-12">
+      <main className="container max-w-6xl pt-20 pb-12">
         {/* Hero — copy + live engine visual */}
         <section className="py-10 lg:py-12">
           <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">

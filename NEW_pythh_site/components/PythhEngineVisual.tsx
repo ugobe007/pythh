@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import HorizontalSignalTicker from "@/components/HorizontalSignalTicker";
 import HeroScoringDots from "@/components/HeroScoringDots";
 import {
   G, CYAN, PURPLE, GOLD, MUTED, DIM, BORDER, G_BORDER, godScoreColor,
@@ -92,8 +91,6 @@ export default function PythhEngineVisual({ className = "" }: { className?: stri
         boxShadow: "0 0 48px oklch(0.696 0.17 162.48 / 0.06)",
       }}
     >
-      <HorizontalSignalTicker />
-
       <div
         className="px-4 py-3 flex items-center justify-between border-b gap-3"
         style={{ borderColor: BORDER, backgroundColor: "oklch(0.085 0.01 264)" }}
