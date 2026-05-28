@@ -116,7 +116,7 @@ async function computeTrackRecord(supabase) {
     .from('virtual_portfolio')
     .select(`
       moic, irr_annualized, entry_god_score, entry_date, status, exit_acquirer,
-      startup_uploads ( name, tagline, primary_sector )
+      startup_uploads ( name, tagline, sectors, extracted_data )
     `)
     .not('moic', 'is', null)
     .gt('moic', 1)
@@ -128,10 +128,14 @@ async function computeTrackRecord(supabase) {
   const topPerformers = (topRows || []).map((row) => {
     const su = row.startup_uploads;
     const startup = Array.isArray(su) ? su[0] : su;
+    const sector =
+      (Array.isArray(startup?.sectors) && startup.sectors[0]) ||
+      startup?.extracted_data?.primary_sector ||
+      null;
     return {
       name: startup?.name || 'Unknown',
       tagline: startup?.tagline || null,
-      sector: startup?.primary_sector || null,
+      sector,
       entry_god_score: row.entry_god_score,
       entry_date: row.entry_date,
       moic: row.moic != null ? Number(row.moic) : null,
