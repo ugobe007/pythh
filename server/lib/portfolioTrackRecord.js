@@ -9,6 +9,14 @@ const GOD_TIERS = [
   { label: '90+', min: 90, max: 100 },
 ];
 
+/** LP narrative pick — press-verified Addi (Dec 2025 Oracle entry, Citi $89M). */
+const FEATURED_PICK_ID = '23dad51a-54e7-4f72-b91e-f43bf13eed08';
+
+const PERFORMER_SELECT = `
+  id, moic, irr_annualized, entry_god_score, entry_date, status, exit_acquirer,
+  startup_uploads ( name, tagline, sectors, extracted_data )
+`;
+
 function roundPct(num, den) {
   if (!den) return 0;
   return Math.round((1000 * num) / den) / 10;
@@ -36,6 +44,41 @@ function enrichPortfolioMetrics(metrics) {
   return metrics;
 }
 
+function mapPerformerRow(row, verifiedFundedIds, fundingEvents) {
+  const su = row.startup_uploads;
+  const startup = Array.isArray(su) ? su[0] : su;
+  const sector =
+    (Array.isArray(startup?.sectors) && startup.sectors[0]) ||
+    startup?.extracted_data?.primary_sector ||
+    null;
+
+  const verifiedEvents = (fundingEvents || [])
+    .filter((e) => e.portfolio_id === row.id && e.verified)
+    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+  const latestFunding = verifiedEvents[0] || null;
+
+  return {
+    name: startup?.name || 'Unknown',
+    tagline: startup?.tagline || null,
+    sector,
+    entry_god_score: row.entry_god_score,
+    entry_date: row.entry_date,
+    moic: row.moic != null ? Number(row.moic) : null,
+    irr_annualized: row.irr_annualized != null ? Number(row.irr_annualized) : null,
+    status: row.status,
+    exit_acquirer: row.exit_acquirer || null,
+    verified: verifiedFundedIds.has(row.id),
+    latest_funding: latestFunding
+      ? {
+          amount_usd: latestFunding.amount_usd,
+          headline: latestFunding.headline || null,
+          lead_investor: latestFunding.lead_investor || null,
+          event_date: latestFunding.event_date,
+        }
+      : null,
+  };
+}
+
 async function computeTrackRecord(supabase) {
   const { data: metricsRow, error: metricsErr } = await supabase
     .from('portfolio_metrics')
@@ -52,7 +95,9 @@ async function computeTrackRecord(supabase) {
 
   const { data: fundingEvents, error: evErr } = await supabase
     .from('portfolio_events')
-    .select('portfolio_id, event_type, event_date, verified, amount_usd, source_url')
+    .select(
+      'portfolio_id, event_type, event_date, verified, amount_usd, source_url, headline, lead_investor'
+    )
     .eq('event_type', 'funding_round');
   if (evErr) throw new Error(evErr.message);
 
@@ -114,10 +159,7 @@ async function computeTrackRecord(supabase) {
 
   const { data: topRows, error: topErr } = await supabase
     .from('virtual_portfolio')
-    .select(`
-      moic, irr_annualized, entry_god_score, entry_date, status, exit_acquirer,
-      startup_uploads ( name, tagline, sectors, extracted_data )
-    `)
+    .select(PERFORMER_SELECT)
     .not('moic', 'is', null)
     .gt('moic', 1)
     .lte('moic', 25)
@@ -125,25 +167,20 @@ async function computeTrackRecord(supabase) {
     .limit(5);
   if (topErr) throw new Error(topErr.message);
 
-  const topPerformers = (topRows || []).map((row) => {
-    const su = row.startup_uploads;
-    const startup = Array.isArray(su) ? su[0] : su;
-    const sector =
-      (Array.isArray(startup?.sectors) && startup.sectors[0]) ||
-      startup?.extracted_data?.primary_sector ||
-      null;
-    return {
-      name: startup?.name || 'Unknown',
-      tagline: startup?.tagline || null,
-      sector,
-      entry_god_score: row.entry_god_score,
-      entry_date: row.entry_date,
-      moic: row.moic != null ? Number(row.moic) : null,
-      irr_annualized: row.irr_annualized != null ? Number(row.irr_annualized) : null,
-      status: row.status,
-      exit_acquirer: row.exit_acquirer || null,
-    };
-  });
+  const topPerformers = (topRows || []).map((row) =>
+    mapPerformerRow(row, verifiedFundedIds, fundingEvents)
+  );
+
+  const { data: featuredRow, error: featuredErr } = await supabase
+    .from('virtual_portfolio')
+    .select(PERFORMER_SELECT)
+    .eq('id', FEATURED_PICK_ID)
+    .maybeSingle();
+  if (featuredErr) throw new Error(featuredErr.message);
+
+  const featuredPick = featuredRow
+    ? mapPerformerRow(featuredRow, verifiedFundedIds, fundingEvents)
+    : null;
 
   return {
     oracle: {
@@ -158,6 +195,7 @@ async function computeTrackRecord(supabase) {
         'Avg MOIC includes signal-inferred valuations. Verified avg MOIC uses picks with press-confirmed raises only.',
     },
     by_god_tier: byGodTier,
+    featured_pick: featuredPick,
     top_performers: topPerformers,
     methodology: {
       funded: 'Pick logged at least one funding_round portfolio event after Oracle entry.',

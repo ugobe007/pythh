@@ -44,15 +44,32 @@ interface TrackRecord {
     verified_funded: number;
     funded_rate_pct: number;
   }>;
-  top_performers?: Array<{
-    name: string;
-    tagline?: string | null;
-    sector?: string | null;
-    entry_god_score?: number;
-    moic?: number | null;
-    irr_annualized?: number | null;
-    status?: string;
-  }>;
+  featured_pick?: PerformerPick | null;
+  top_performers?: PerformerPick[];
+}
+
+interface PerformerPick {
+  name: string;
+  tagline?: string | null;
+  sector?: string | null;
+  entry_god_score?: number;
+  entry_date?: string;
+  moic?: number | null;
+  irr_annualized?: number | null;
+  status?: string;
+  verified?: boolean;
+  latest_funding?: {
+    amount_usd?: number | null;
+    headline?: string | null;
+    lead_investor?: string | null;
+    event_date?: string;
+  } | null;
+}
+
+function formatFundingUsd(amount: number): string {
+  if (amount >= 1_000_000) return `$${Math.round(amount / 1_000_000)}M`;
+  if (amount >= 1_000) return `$${Math.round(amount / 1_000)}K`;
+  return `$${amount.toLocaleString()}`;
 }
 
 const FUND_TERMS = [
@@ -154,7 +171,7 @@ export default function PythiamPage() {
   }, []);
 
   const oracle = trackRecord?.oracle;
-  const topPick = trackRecord?.top_performers?.[0];
+  const featuredPick = trackRecord?.featured_pick ?? trackRecord?.top_performers?.[0];
   const fundEdge = FUND_EDGE(platformStats);
   const lpPillars = LP_PILLARS(platformStats);
   const heroStats = [
@@ -258,26 +275,45 @@ export default function PythiamPage() {
             is public, press-verified, and updated as signals change.
           </p>
           <PortfolioGodStrip />
-          {topPick && topPick.moic != null && topPick.moic > 1 && (
+          {featuredPick && featuredPick.moic != null && featuredPick.moic > 1 && (
             <div className="mt-5 p-4 border grid sm:grid-cols-[1fr_auto] gap-4 items-center" style={{ borderColor: BORDER, backgroundColor: CARD }}>
               <div>
-                <SectionLabel className="mb-1">Highlighted pick</SectionLabel>
-                <h3 className="text-lg font-bold text-white mb-1">{topPick.name}</h3>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <SectionLabel>Highlighted pick</SectionLabel>
+                  {featuredPick.verified && (
+                    <span
+                      className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border"
+                      style={{ color: G, borderColor: G }}
+                    >
+                      Press verified
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">{featuredPick.name}</h3>
                 <p className="text-xs mb-2" style={{ color: MUTED }}>
-                  {topPick.tagline || topPick.sector || "Oracle entry"} · GOD {topPick.entry_god_score ?? "—"} at entry
+                  {featuredPick.tagline || featuredPick.sector || "Oracle entry"} · GOD {featuredPick.entry_god_score ?? "—"} at entry
                 </p>
+                {featuredPick.latest_funding?.amount_usd ? (
+                  <p className="text-xs leading-relaxed mb-1" style={{ color: MUTED }}>
+                    {formatFundingUsd(featuredPick.latest_funding.amount_usd)}
+                    {featuredPick.latest_funding.lead_investor
+                      ? ` from ${featuredPick.latest_funding.lead_investor}`
+                      : ""}
+                    {featuredPick.latest_funding.headline ? ` — ${featuredPick.latest_funding.headline}` : ""}
+                  </p>
+                ) : null}
                 <p className="text-xs leading-relaxed" style={{ color: DIM }}>
-                  Press-verified Oracle track record — the math in production, not a backtest narrative.
+                  Oracle entry logged before the round — the math in production, not a backtest narrative.
                 </p>
               </div>
               <div className="text-right sm:pl-6 sm:border-l" style={{ borderColor: BORDER }}>
                 <div className="text-3xl font-display font-bold tabular-nums" style={{ color: GOLD }}>
-                  {topPick.moic.toFixed(2)}×
+                  {featuredPick.moic.toFixed(2)}×
                 </div>
                 <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>MOIC</div>
-                {topPick.irr_annualized != null && topPick.irr_annualized > 0 && (
+                {featuredPick.irr_annualized != null && featuredPick.irr_annualized > 0 && (
                   <div className="text-xs font-mono mt-1" style={{ color: CYAN }}>
-                    {Math.round(topPick.irr_annualized)}% IRR
+                    {Math.round(featuredPick.irr_annualized)}% IRR
                   </div>
                 )}
               </div>
