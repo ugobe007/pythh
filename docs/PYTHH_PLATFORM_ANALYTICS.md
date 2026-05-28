@@ -1,7 +1,7 @@
 # Pythh Platform Analytics
 ## Data Intelligence Brief — May 2026
 
-> **Purpose:** Fund-raise supporting data. All figures pulled live from the Pythh production database as of May 19, 2026.
+> **Purpose:** Fund-raise supporting data. Platform marketing totals pulled live May 27, 2026; cohort stats from May 19, 2026 database snapshot.
 
 ---
 
@@ -12,6 +12,7 @@ Pythh operates the largest proprietary early-stage startup scoring database in p
 | Metric | Count |
 |---|---|
 | Total startups ingested (all-time) | **33,409** |
+| Approved startups (GOD-rated, live) | **11,308** |
 | Startups passing entity resolution ("qualified") | **9,534** |
 | Entity gate pass rate | **28.6%** |
 | Startups scoring GOD ≥ 70 (investment-grade) | **1,774** |
@@ -131,7 +132,7 @@ Pythh maintains the largest qualified investor database built exclusively on sig
 
 | Metric | Count |
 |---|---|
-| Total investors in database | **6,250** |
+| Total investors in database | **6,435** |
 | Investors passing entity gate | **4,007** |
 | Investors with GOD score ≥ 50 | **2,616** |
 | Entity gate pass rate | **64.1%** |
@@ -221,7 +222,7 @@ The Pythh platform is a full-stack AI venture intelligence system:
 - **Scoring engine:** 7-pillar GOD system with real-time signal bonuses (funding acceleration, customer adoption, competitive dynamics, market momentum)
 - **Matching engine:** Sector-aware, stage-filtered, investor-scored matching with speculative pre-generation and force-refresh
 - **Portfolio system:** Virtual fund with valuation tracking, MOIC/IRR, event logging, health view, exit propensity overlay
-- **Investor database:** 6,250 VCs/angels with entity-resolved profiles, GOD scoring, and sector alignment mapping
+- **Investor database:** 6,435 VCs/angels with entity-resolved profiles, GOD scoring, and sector alignment mapping
 - **Monitoring agents:** Three PM2 jobs — daily monitor, daily digest + auto-seed, weekly signal refresh
 - **Frontend:** pythh.ai — live rankings, activate (instant analysis), portfolio dashboard, investor intelligence
 
@@ -234,7 +235,7 @@ The Pythh platform is a full-stack AI venture intelligence system:
 | Proprietary deal flow engine | 33,409 companies assessed; only 5.3% reach GOD ≥ 70 |
 | Quantitative selection discipline | 7-pillar GOD score, independently weighted, no single-metric bias |
 | Exit propensity pre-built into workflow | 932 high-propensity companies identified before thesis |
-| Investor network + matching | 2,616 active investors mapped by sector/stage/GOD score |
+| Investor network + matching | 6,435 investors mapped · 1.82M pre-computed match rows |
 | Automated ongoing due diligence | Daily AI monitoring with event classification (funding, product, revenue, team) |
 | Earliest signal advantage | Traction pillar avg 91.8 for GOD 70+ = velocity before press release |
 | Proven pick quality | 5.07× MOIC on Addi (Fintech); portfolio in core health 50% of time |
@@ -248,7 +249,7 @@ The Pythh platform is a full-stack AI venture intelligence system:
 - **Exit Propensity:** Four-factor heuristic model: funding velocity, GOD trajectory, sector M&A rate, investor density. Tiers: low / elevated / high / realized.
 - **Virtual Portfolio:** $100K virtual check per pick. MOIC = current_valuation / entry_valuation. IRR annualized from holding days.
 - **Health Tiers:** Core = stable GOD, recent signals. Watch = moderate drift or signal lag. Review = significant GOD drop, staleness, or goldilocks misalignment.
-- **Data as of:** May 19, 2026
+- **Data as of:** May 27, 2026 (live platform totals); cohort distributions May 19, 2026
 
 ---
 

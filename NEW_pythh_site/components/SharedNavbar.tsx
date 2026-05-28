@@ -17,27 +17,47 @@ const NAV_LINKS = [
   { label: "Pricing",      href: "/pricing" },
 ];
 
-export default function SharedNavbar({ activePath }: { activePath?: string }) {
+export default function SharedNavbar({
+  activePath,
+  variant = "default",
+  heroCta,
+}: {
+  activePath?: string;
+  variant?: "default" | "hero";
+  heroCta?: { label: string; targetId: string };
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const isHero = variant === "hero";
   const { user, isAuthenticated } = useAuth();
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => { window.location.reload(); },
   });
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > (isHero ? 20 : 12));
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [isHero]);
+
+  const navBg = isHero && !scrolled
+    ? "transparent"
+    : scrolled
+      ? "oklch(0.12 0.01 264 / 0.96)"
+      : "oklch(0.09 0.01 264 / 0.92)";
+  const navBorder = isHero && !scrolled
+    ? "transparent"
+    : scrolled
+      ? "oklch(0.22 0.01 264)"
+      : "oklch(0.16 0.01 264)";
 
   return (
     <nav
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
       style={{
-        backgroundColor: scrolled ? "oklch(0.12 0.01 264 / 0.96)" : "oklch(0.09 0.01 264 / 0.92)",
-        backdropFilter: "blur(14px)",
-        borderBottom: `1px solid ${scrolled ? "oklch(0.22 0.01 264)" : "oklch(0.16 0.01 264)"}`,
+        backgroundColor: navBg,
+        backdropFilter: isHero && !scrolled ? "none" : "blur(14px)",
+        borderBottom: `1px solid ${navBorder}`,
       }}
     >
       <div className="container">
@@ -106,9 +126,22 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
                 >
                   Sign in
                 </button>
-                <StartupCTA href="/activate" size="sm" className="px-4 py-1.5">
-                  Activate
-                </StartupCTA>
+                {heroCta ? (
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById(heroCta.targetId);
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className="text-sm font-semibold px-4 py-1.5 rounded-md transition-all"
+                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+                  >
+                    {heroCta.label}
+                  </button>
+                ) : (
+                  <StartupCTA href="/activate" size="sm" className="px-4 py-1.5">
+                    Activate
+                  </StartupCTA>
+                )}
               </>
             )}
           </div>
@@ -152,9 +185,23 @@ export default function SharedNavbar({ activePath }: { activePath?: string }) {
                 ) : (
                   <>
                     <button onClick={() => { setMenuOpen(false); window.location.href = getLoginUrl(); }} className="text-sm font-medium" style={{ color: "oklch(0.55 0.01 264)" }}>Sign in</button>
-                    <StartupCTA href="/activate" size="sm" className="text-left">
-                      Activate PYTHIA
-                    </StartupCTA>
+                    {heroCta ? (
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          const el = document.getElementById(heroCta.targetId);
+                          if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+                        }}
+                        className="text-sm font-semibold px-4 py-2 rounded-md"
+                        style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+                      >
+                        {heroCta.label}
+                      </button>
+                    ) : (
+                      <StartupCTA href="/activate" size="sm" className="text-left">
+                        Activate PYTHIA
+                      </StartupCTA>
+                    )}
                   </>
                 )}
               </div>

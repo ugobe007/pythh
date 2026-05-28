@@ -3,6 +3,9 @@ import { Helmet } from "react-helmet-async";
 import { ArrowRight, CheckCircle } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import StartupCTA from "@/components/design/StartupCTA";
+import SectionLabel from "@/components/design/SectionLabel";
+import StrokeButton from "@/components/design/StrokeButton";
+import { G, PAGE, BORDER, CARD, MUTED, DIM } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -105,7 +108,7 @@ function SectionHeader({ n, title, subtitle }: { n: string; title: string; subti
 
 export default function Methodology() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)", fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE, fontFamily: "'Inter', sans-serif" }}>
       <Helmet>
         <title>Methodology — Pythh.ai</title>
         <meta name="description" content="How Pythh scores startups and investors: GOD score dimensions, entity resolution gate, investor tiers, and the full matching pipeline." />
@@ -119,12 +122,7 @@ export default function Methodology() {
 
         {/* ── Hero ── */}
         <div className="mb-20 pt-4">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-              Pythh Capital · Methodology
-            </span>
-          </div>
+          <SectionLabel className="mb-5">Pythh Capital · Methodology</SectionLabel>
           <h1
             className="font-display font-bold mb-6 leading-tight"
             style={{ fontSize: "clamp(2.4rem, 5vw, 3.6rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.02em" }}
@@ -162,7 +160,7 @@ export default function Methodology() {
               <div
                 key={d.label}
                 className="grid sm:grid-cols-[160px_1fr] gap-5 p-5 rounded-xl"
-                style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.21 0.01 264)" }}
+                style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
               >
                 <div className="flex items-start gap-3">
                   <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: d.color }} />
@@ -363,36 +361,15 @@ export default function Methodology() {
           <StartupCTA href="/activate" showArrow>
             Get your signal score
           </StartupCTA>
-          <Link href="/platform">
-            <span
-              className="inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors"
-              style={{ border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.55 0.01 264)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.85 0.01 264)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
-            >
-              How the platform works
-            </span>
-          </Link>
-          <Link href="/portfolio">
-            <span
-              className="inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors"
-              style={{ border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.55 0.01 264)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.85 0.01 264)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
-            >
-              Oracle scoreboard
-            </span>
-          </Link>
-          <Link href="/rankings">
-            <span
-              className="inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-colors"
-              style={{ border: "1px solid oklch(0.22 0.01 264)", color: "oklch(0.55 0.01 264)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.85 0.01 264)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "oklch(0.55 0.01 264)")}
-            >
-              Live rankings
-            </span>
-          </Link>
+          <StrokeButton href="/platform" muted showArrow>
+            How the platform works
+          </StrokeButton>
+          <StrokeButton href="/portfolio" muted showArrow>
+            Oracle scoreboard
+          </StrokeButton>
+          <StrokeButton href="/rankings" muted>
+            Live rankings
+          </StrokeButton>
         </div>
 
       </div>

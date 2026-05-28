@@ -34,6 +34,7 @@ interface TrackRecord {
     successful_exits?: number;
     median_days_to_funding?: number | null;
     verified_avg_moic?: number | null;
+    best_moic?: number | null;
     entry_god_threshold?: number;
   };
   by_god_tier?: Array<{
@@ -43,7 +44,25 @@ interface TrackRecord {
     verified_funded: number;
     funded_rate_pct: number;
   }>;
+  top_performers?: Array<{
+    name: string;
+    tagline?: string | null;
+    sector?: string | null;
+    entry_god_score?: number;
+    moic?: number | null;
+    irr_annualized?: number | null;
+    status?: string;
+  }>;
 }
+
+const FUND_TERMS = [
+  { label: "Fund", value: "Pythiam Ventures Fund I" },
+  { label: "Target size", value: "Raising — terms on request" },
+  { label: "Stage focus", value: "Pre-seed & Seed" },
+  { label: "Sector focus", value: "AI/ML · Fintech · Developer Tools · SaaS" },
+  { label: "Geography", value: "US-centric · global signal coverage" },
+  { label: "Structure", value: "2% / 20% standard · LP deck on request" },
+];
 
 const ENGINE_LAYERS = [
   { icon: Filter, title: "Entity resolution gate", desc: "Name validation, URL checks, junk filtering before scoring." },
@@ -54,20 +73,20 @@ const ENGINE_LAYERS = [
   { icon: Shield, title: "Portfolio monitoring", desc: "Post-investment signal refresh and health tiers without waiting for quarterly updates." },
 ];
 
-const FUND_EDGE = [
-  { traditional: "Sort inbound decks and warm intros", pythiam: "Surface companies from a 27k+ pipeline before they raise" },
+const FUND_EDGE = (stats: { startups?: number; investors?: number } | null) => [
+  { traditional: "Sort inbound decks and warm intros", pythiam: `Surface companies from a ${stats?.startups ? formatCompact(stats.startups) + "+" : "11k+"} pipeline before they raise` },
   { traditional: "Subjective gut on 'interesting' companies", pythiam: "GOD score + signal dimensions — auditable selection bar" },
   { traditional: "Crunchbase lag — learn after rounds close", pythiam: "Trajectory signals on hiring, product, capital convergence ahead of press" },
-  { traditional: "Analyst bandwidth caps at dozens of names", pythiam: "Platform scores 11k+ continuously; humans focus on top tier" },
+  { traditional: "Analyst bandwidth caps at dozens of names", pythiam: `Platform scores ${stats?.startups ? formatCompact(stats.startups) + "+" : "11k+"} continuously; humans focus on top tier` },
   { traditional: "Portfolio updates when founders email", pythiam: "Automated signal monitoring on holdings" },
   { traditional: "Network as the only moat", pythiam: "Network plus proprietary data engine that compounds each scrape cycle" },
 ];
 
-const LP_PILLARS = [
+const LP_PILLARS = (stats: { investors?: number; matches?: number } | null) => [
   { icon: Zap, title: "Deal flow", body: "100+ RSS feeds, submissions, enrichment — ranked to thesis before competitors see the round." },
   { icon: BarChart3, title: "Selection", body: "GOD scores spread honestly after calibration — we know which names cleared a real bar." },
   { icon: Layers, title: "Timing", body: "Signal scores tell us when a company enters a fundraise window, not just whether it's good." },
-  { icon: Target, title: "Co-investors", body: "6,370 investor profiles scored — who is deploying, adjacent, and where syndicates exist." },
+  { icon: Target, title: "Co-investors", body: `${stats?.investors ? formatCompact(stats.investors) : "6.4k"}+ investor profiles scored — who is deploying, adjacent, and where syndicates exist.` },
 ];
 
 const ENGINE_STATS = [
@@ -135,6 +154,9 @@ export default function PythiamPage() {
   }, []);
 
   const oracle = trackRecord?.oracle;
+  const topPick = trackRecord?.top_performers?.[0];
+  const fundEdge = FUND_EDGE(platformStats);
+  const lpPillars = LP_PILLARS(platformStats);
   const heroStats = [
     {
       label: "Verified funded",
@@ -236,6 +258,31 @@ export default function PythiamPage() {
             is public, press-verified, and updated as signals change.
           </p>
           <PortfolioGodStrip />
+          {topPick && topPick.moic != null && topPick.moic > 1 && (
+            <div className="mt-5 p-4 border grid sm:grid-cols-[1fr_auto] gap-4 items-center" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+              <div>
+                <SectionLabel className="mb-1">Highlighted pick</SectionLabel>
+                <h3 className="text-lg font-bold text-white mb-1">{topPick.name}</h3>
+                <p className="text-xs mb-2" style={{ color: MUTED }}>
+                  {topPick.tagline || topPick.sector || "Oracle entry"} · GOD {topPick.entry_god_score ?? "—"} at entry
+                </p>
+                <p className="text-xs leading-relaxed" style={{ color: DIM }}>
+                  Press-verified Oracle track record — the math in production, not a backtest narrative.
+                </p>
+              </div>
+              <div className="text-right sm:pl-6 sm:border-l" style={{ borderColor: BORDER }}>
+                <div className="text-3xl font-display font-bold tabular-nums" style={{ color: GOLD }}>
+                  {topPick.moic.toFixed(2)}×
+                </div>
+                <div className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>MOIC</div>
+                {topPick.irr_annualized != null && topPick.irr_annualized > 0 && (
+                  <div className="text-xs font-mono mt-1" style={{ color: CYAN }}>
+                    {Math.round(topPick.irr_annualized)}% IRR
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Engine stats strip */}
@@ -256,7 +303,7 @@ export default function PythiamPage() {
         {/* Four pillars */}
         <section className="py-8 border-t" style={{ borderColor: BORDER }}>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {LP_PILLARS.map(({ icon: Icon, title, body }) => (
+            {lpPillars.map(({ icon: Icon, title, body }) => (
               <div key={title} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
                 <Icon size={16} className="mb-2" style={{ color: G }} />
                 <h3 className="text-sm font-semibold text-white mb-1.5">{title}</h3>
@@ -285,7 +332,7 @@ export default function PythiamPage() {
                 </tr>
               </thead>
               <tbody>
-                {FUND_EDGE.map((row, i) => (
+                {fundEdge.map((row, i) => (
                   <tr key={i} style={{ borderTop: `1px solid ${BORDER}` }}>
                     <td className="p-3 align-top text-xs" style={{ color: DIM }}>{row.traditional}</td>
                     <td className="p-3 align-top text-xs text-white">{row.pythiam}</td>
@@ -390,6 +437,18 @@ export default function PythiamPage() {
                 <Icon size={14} className="mb-2" style={{ color: G }} />
                 <h3 className="text-xs font-semibold text-white mb-1">{title}</h3>
                 <p className="text-[11px] leading-relaxed" style={{ color: MUTED }}>{desc}</p>
+              </div>
+            ))}
+          </div>
+        </SectionBlock>
+
+        {/* Fund terms */}
+        <SectionBlock label="Fund I" title="Terms at a glance" subtitle="Full LP deck available on request.">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {FUND_TERMS.map(({ label, value }) => (
+              <div key={label} className="p-3 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>{label}</div>
+                <div className="text-sm text-white">{value}</div>
               </div>
             ))}
           </div>

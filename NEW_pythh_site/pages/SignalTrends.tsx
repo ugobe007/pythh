@@ -21,8 +21,6 @@ import { Helmet } from "react-helmet-async";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import StartupCTA from "@/components/design/StartupCTA";
 import {
   TrendingUp,
@@ -290,8 +288,6 @@ const SECTOR_FILTERS = [
 ];
 
 export default function SignalTrends() {
-  const { isAuthenticated } = useAuth();
-
   const [activeLens, setActiveLens] = useState(VC_LENSES[0]);
   const [prevRanks, setPrevRanks] = useState<Map<string, number>>(new Map());
   const [hasUserChangedLens, setHasUserChangedLens] = useState(false);
@@ -372,75 +368,7 @@ export default function SignalTrends() {
         <meta property="og:url" content="https://pythh.ai/rankings" />
       </Helmet>
 
-      {/* ── Navbar ── */}
-      <nav
-        className="fixed top-0 left-0 right-0 z-50"
-        style={{
-          backgroundColor: "oklch(0.11 0.01 264 / 0.95)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid oklch(0.2 0.01 264)",
-        }}
-      >
-        <div className="container">
-          <div className="flex items-center justify-between h-14">
-            <Link href="/">
-              <span
-                className="font-display font-bold text-base text-white tracking-tight cursor-pointer"
-              >
-                pythh.ai
-              </span>
-            </Link>
-
-            <div className="hidden md:flex items-center gap-6">
-              {[
-                { href: "/rankings", label: "Rankings" },
-                { href: "/investors", label: "Investors" },
-                { href: "/platform", label: "Platform" },
-                { href: "/methodology", label: "Methodology" },
-              ].map(({ href, label }) => (
-                <Link key={href} href={href}>
-                  <span
-                    className="text-sm font-medium cursor-pointer transition-colors"
-                    style={{
-                      color:
-                        href === "/rankings"
-                          ? activeLens.accent
-                          : "oklch(0.65 0.01 264)",
-                    }}
-                  >
-                    {label}
-                  </span>
-                </Link>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-3">
-              {isAuthenticated ? (
-                <Link href="/account">
-                  <span
-                    className="text-sm font-medium cursor-pointer"
-                    style={{ color: "oklch(0.696 0.17 162.48)" }}
-                  >
-                    Account
-                  </span>
-                </Link>
-              ) : (
-                <a
-                  href={getLoginUrl()}
-                  className="px-4 py-1.5 rounded-md text-sm font-semibold transition-colors"
-                  style={{
-                    backgroundColor: "oklch(0.696 0.17 162.48 / 0.15)",
-                    color: "oklch(0.696 0.17 162.48)",
-                    border: "1px solid oklch(0.696 0.17 162.48 / 0.3)",
-                  }}
-                >
-                  Sign in
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
+      <SharedNavbar activePath="/rankings" />
 
       {/* ── Main Content ── */}
       <main className="container pt-24 pb-16">

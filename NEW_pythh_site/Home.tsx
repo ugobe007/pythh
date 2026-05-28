@@ -8,9 +8,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
+import SharedNavbar from "@/components/SharedNavbar";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
@@ -20,14 +18,12 @@ import FilterTabs from "@/components/design/FilterTabs";
 import InlineMeta from "@/components/design/InlineMeta";
 import StartupCTA from "@/components/design/StartupCTA";
 import {
-  G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT,
+  G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT, PAGE,
   deltaColor, godScoreColor,
 } from "@/lib/designTokens";
 import {
   ArrowRight,
   ExternalLink,
-  Menu,
-  X,
   Mail,
   Activity,
   Eye,
@@ -179,142 +175,6 @@ function SignalBar({ value, max = 10, color = "emerald" }: { value: number; max?
     <div className="h-1 w-16 rounded-full" style={{ backgroundColor: "oklch(0.25 0.01 264)" }}>
       <div className="h-1 rounded-full" style={{ width: `${pct}%`, backgroundColor: barColor }} />
     </div>
-  );
-}
-
-// ─── Navbar ──────────────────────────────────────────────────────────────────
-
-function Navbar() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const { user, isAuthenticated } = useAuth();
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => { window.location.reload(); },
-  });
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-      style={{
-        backgroundColor: scrolled ? "oklch(0.13 0.01 264 / 0.95)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        borderBottom: scrolled ? "1px solid oklch(0.25 0.01 264)" : "1px solid transparent",
-      }}
-    >
-      <div className="container">
-        <div className="flex items-center justify-between h-16">
-          <a href="/" className="flex flex-col leading-none">
-            <span className="font-display font-bold text-lg text-white tracking-tight">pythh.ai</span>
-            <span className="section-label" style={{ color: "oklch(0.696 0.17 162.48)" }}>SIGNAL SCIENCE</span>
-          </a>
-          <div className="hidden md:flex items-center gap-8">
-            {[
-              { label: "How it works", href: "/oracle", accent: "oklch(0.696 0.17 162.48)" },
-              { label: "Rankings", href: "/rankings", accent: "#22d3ee" },
-              { label: "Matches", href: "/matches", accent: G },
-              { label: "Investors", href: "/investors", accent: "oklch(0.696 0.17 162.48)" },
-              { label: "Portfolio", href: "/portfolio", accent: "oklch(0.696 0.17 162.48)" },
-              { label: "Platform", href: "/platform", accent: "oklch(0.94 0.005 264)" },
-            ].map(({ label, href, accent }) => (
-              <a key={href} href={href}
-                className="text-sm font-medium transition-colors duration-200"
-                style={{ color: "oklch(0.65 0.01 264)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = accent)}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-              >{label}</a>
-            ))}
-            <a href="/pricing" className="text-sm font-medium transition-colors duration-200"
-              style={{ color: "oklch(0.65 0.01 264)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.769 0.188 70.08)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-            >Pricing</a>
-          </div>
-          <div className="hidden md:flex items-center gap-3">
-            {isAuthenticated ? (
-              <>
-                <Link href="/account">
-                  <button
-                    className="text-sm font-medium px-4 py-2 rounded-md transition-colors duration-200"
-                    style={{ color: "oklch(0.65 0.01 264)" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.94 0.005 264)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-                  >
-                    {user?.name?.split(" ")[0] ?? "Account"}
-                  </button>
-                </Link>
-                <button
-                  onClick={() => logoutMutation.mutate()}
-                  className="text-sm font-medium px-4 py-2 rounded-md transition-colors duration-200"
-                  style={{ color: "oklch(0.65 0.01 264)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.94 0.005 264)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-                >Sign out</button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => { window.location.href = getLoginUrl(); }}
-                  className="text-sm font-medium px-4 py-2 rounded-md transition-colors duration-200"
-                  style={{ color: "oklch(0.65 0.01 264)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "oklch(0.94 0.005 264)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "oklch(0.65 0.01 264)")}
-                >Sign in</button>
-                <button
-                  onClick={() => { const el = document.getElementById("hero-cta"); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }}
-                  className="text-sm font-semibold px-4 py-2 rounded-md transition-all duration-200"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.75 0.17 162.48)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 0 20px oklch(0.696 0.17 162.48 / 0.4)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48)"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-                >Find investors</button>
-              </>
-            )}
-          </div>
-          <button className="md:hidden p-2 rounded-md" style={{ color: "oklch(0.65 0.01 264)" }} onClick={() => setMenuOpen(!menuOpen)}>
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-        {menuOpen && (
-          <div className="md:hidden py-4 border-t" style={{ borderColor: "oklch(0.25 0.01 264)" }}>
-            <div className="flex flex-col gap-4">
-              {[
-                { label: "How it works", href: "/oracle", color: "oklch(0.696 0.17 162.48)" },
-                { label: "Rankings", href: "/rankings", color: "#22d3ee" },
-                { label: "Matches", href: "/matches", color: G },
-                { label: "Investors", href: "/investors", color: "oklch(0.696 0.17 162.48)" },
-                { label: "Portfolio", href: "/portfolio", color: "oklch(0.696 0.17 162.48)" },
-                { label: "Platform", href: "/platform", color: "oklch(0.65 0.01 264)" },
-                { label: "Methodology", href: "/methodology", color: "oklch(0.65 0.01 264)" },
-                { label: "Pricing", href: "/pricing", color: "oklch(0.769 0.188 70.08)" },
-              ].map(({ label, href, color }) => (
-                <a key={href} href={href} onClick={() => setMenuOpen(false)} className="text-sm font-medium" style={{ color }}>{label}</a>
-              ))}
-              <div className="flex gap-3 pt-2">
-                {isAuthenticated ? (
-                  <>
-                    <Link href="/account" onClick={() => setMenuOpen(false)}>
-                      <button className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                        {user?.name?.split(" ")[0] ?? "Account"}
-                      </button>
-                    </Link>
-                    <button onClick={() => { setMenuOpen(false); logoutMutation.mutate(); }} className="text-sm font-medium" style={{ color: "oklch(0.65 0.01 264)" }}>Sign out</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => { setMenuOpen(false); window.location.href = getLoginUrl(); }} className="text-sm font-medium" style={{ color: "oklch(0.65 0.01 264)" }}>Sign in</button>
-                    <button onClick={() => { const el = document.getElementById("hero-cta"); if (el) { setMenuOpen(false); setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 100); } }} className="text-sm font-semibold px-4 py-2 rounded-md" style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}>Find investors</button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </nav>
   );
 }
 
@@ -1555,8 +1415,12 @@ export default function Home() {
   const portfolioMetrics = usePortfolioHeadlineMetrics();
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
-      <Navbar />
+    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
+      <SharedNavbar
+        activePath="/"
+        variant="hero"
+        heroCta={{ label: "Find investors", targetId: "hero-cta" }}
+      />
       <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       <InvestorStrip />
       <TrackRecordStrip platformStats={platformStats} portfolioMetrics={portfolioMetrics} />

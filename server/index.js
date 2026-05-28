@@ -59,6 +59,11 @@ app.get('/api/public-config', (req, res) => {
   res.json({ supabaseUrl, supabaseAnonKey });
 });
 
+// Bind before static/SPA setup so Fly smoke checks see 0.0.0.0:8080 immediately
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('[pythh] Listening on', PORT);
+});
+
 // Serve frontend immediately so the site loads even if a later require() crashes
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
@@ -114,13 +119,8 @@ if (fs.existsSync(distPath)) {
     });
     res.type('html').send(getSpaIndexHtml());
   });
+  console.log('[pythh] Serving site from', distPath);
 }
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('[pythh] Listening on', PORT);
-  if (distPath && fs.existsSync(distPath)) {
-    console.log('[pythh] Serving site from', distPath);
-  }
-});
 
 // Rest of app (logger, db, routes) — loaded after listen so binding is not blocked
 const multer = require('multer');

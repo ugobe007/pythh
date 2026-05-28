@@ -84,12 +84,12 @@ Live metrics from the Pythh production database (update periodically):
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Scored startups | 11,300+ | Approved & GOD-rated |
-| Investment-grade (GOD ≥ 70) | 2,300+ | Top ~20% of pipeline |
-| Discovery universe | 27,000+ | RSS + ingest sources |
-| Mapped investors | 6,370 | Thesis + stage profiles |
+| Scored startups | 11,308+ | Approved & GOD-rated (live May 2026) |
+| Investment-grade (GOD ≥ 70) | 1,774+ | Top ~16% of approved pipeline |
+| Discovery universe | 33,000+ | RSS + ingest sources (all-time) |
+| Mapped investors | 6,435+ | Thesis + stage profiles |
 | Signal events | 22,000+ | Parsed & classified |
-| Pre-computed matches | 1.8M+ | Startup ↔ investor pairs |
+| Pre-computed matches | 1.82M+ | Startup ↔ investor pairs |
 
 *GOD ≥ 70 = investment-grade tier after score calibration. See [PYTHH_PLATFORM_ANALYTICS.md](./PYTHH_PLATFORM_ANALYTICS.md) for methodology detail.*
 
@@ -128,17 +128,28 @@ Pythiam is not buying software — **we built the software**. The fund and the p
 
 ---
 
-## Appendix: placeholders for fund terms
+## Appendix: Fund terms (Fund I)
 
-*Fill in when ready for formal LP materials:*
+| Term | Detail |
+|------|--------|
+| **Fund name** | Pythiam Ventures Fund I |
+| **Target fund size** | Raising — full terms in LP deck (contact hello@pythh.ai) |
+| **Stage focus** | Pre-seed & Seed |
+| **Sector focus** | AI/ML · Fintech · Developer Tools · SaaS |
+| **Geography** | US-centric · global English-language signal coverage |
+| **GP / team** | Pythh founding team — bios in LP materials |
+| **Management fee / carry** | 2% / 20% standard · available on request |
 
-- **Fund name:** Pythiam Ventures
-- **Target fund size:** _TBD_
-- **Stage focus:** _TBD (e.g. pre-seed / seed)_
-- **Sector focus:** _TBD_
-- **Geography:** _TBD_
-- **GP / team:** _TBD_
-- **Management fee / carry:** _TBD_
+### Oracle track record (live, May 2026)
+
+| Metric | Value |
+|--------|-------|
+| Oracle picks (GOD ≥ 70) | 54 total · 47 at threshold |
+| Verified funded | 24 picks · 44.4% verified rate |
+| Signal-funded detection | 36 total · 66.7% funded rate |
+| Median days to funding | 149 days from Oracle entry |
+| Verified avg MOIC | 116× (includes signal-inferred valuations) |
+| Best MOIC | Addi · 5.07× press-verified · top performer in book |
 
 ---
 

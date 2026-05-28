@@ -700,6 +700,41 @@ async function main() {
         } else {
           exitsInserted++;
         }
+        // Sync Oracle virtual_portfolio picks + portfolio_events
+        if (!dryRun) {
+          const { data: vpRows } = await supabase
+            .from('virtual_portfolio')
+            .select('id, status')
+            .eq('startup_id', startup.id)
+            .eq('status', 'active');
+          for (const vp of vpRows || []) {
+            const exitIso = exitDate ? `${exitDate}T12:00:00Z` : new Date().toISOString();
+            const { error: vpErr } = await supabase
+              .from('virtual_portfolio')
+              .update({
+                status: 'acquired',
+                exit_date: exitIso,
+                exit_type: 'acquisition',
+                exit_acquirer: ev.object || null,
+                exit_source_url: ev.source_url || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', vp.id);
+            if (vpErr) {
+              console.error(`  ⚠️ virtual_portfolio ${startup.name}: ${vpErr.message}`);
+            } else {
+              await supabase.from('portfolio_events').insert({
+                startup_id: startup.id,
+                portfolio_id: vp.id,
+                event_type: 'acquisition',
+                event_date: exitIso,
+                source_url: ev.source_url,
+                headline: ev.source_title,
+                verified: Boolean(ev.source_url),
+              });
+            }
+          }
+        }
         // Also record in funding_outcomes for ML (outcome_type=acquired)
         if (!acquiredByStartup.has(startup.id)) {
           acquiredByStartup.add(startup.id);

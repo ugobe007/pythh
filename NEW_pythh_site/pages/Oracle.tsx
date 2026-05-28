@@ -3,6 +3,7 @@
  */
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
+import { useEffect, useState } from "react";
 import {
   Zap, Target, Brain, TrendingUp, Users, ArrowRight,
   CheckCircle, Clock, Activity, Shield, Star, ChevronRight,
@@ -10,7 +11,9 @@ import {
 import SharedNavbar from "@/components/SharedNavbar";
 import PythiaIcon from "@/components/PythiaIcon";
 import StartupCTA from "@/components/design/StartupCTA";
-import { G, G_BORDER, CYAN, PAGE, TEXT } from "@/lib/designTokens";
+import SectionLabel from "@/components/design/SectionLabel";
+import StrokeButton from "@/components/design/StrokeButton";
+import { G, G_BORDER, CYAN, PAGE, TEXT, MUTED } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -187,6 +190,20 @@ function OracleTerminal() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Oracle() {
+  const [platformStats, setPlatformStats] = useState<{ startups: number; investors: number } | null>(null);
+  useEffect(() => {
+    fetch("/api/platform-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setPlatformStats({ startups: Number(d.startups) || 0, investors: Number(d.investors) || 0 });
+      })
+      .catch(() => {});
+  }, []);
+
+  const investorCount = platformStats?.investors ? `${Math.round(platformStats.investors / 1000 * 10) / 10}k+` : "6,250+";
+  const startupCount = platformStats?.startups ? `${Math.round(platformStats.startups / 1000)}k+` : "33k+";
+
   return (
     <div
       className="min-h-screen"
@@ -209,20 +226,7 @@ export default function Oracle() {
 
             {/* Left: Identity + copy */}
             <div>
-              {/* Brand mark */}
-              <div className="flex items-center gap-3 mb-6">
-                <PythiaIcon size={44} ring />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold tracking-wider uppercase" style={{ color: "#c4b5fd", letterSpacing: "0.08em" }}>PYTHIA</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ color: G, border: `1px solid ${G_BORDER}` }}>For founders</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[11px] font-mono" style={{ color: G }}>How it works · live engine</span>
-                  </div>
-                </div>
-              </div>
-
+              <SectionLabel className="mb-6">PYTHIA · For founders</SectionLabel>
               <h1
                 className="font-display font-bold leading-tight mb-5"
                 style={{ fontSize: "clamp(2.4rem, 5vw, 3.8rem)", letterSpacing: "-0.03em", color: "oklch(0.97 0.005 264)" }}
@@ -235,7 +239,7 @@ export default function Oracle() {
               <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.6 0.01 264)", maxWidth: 520 }}>
                 PYTHIA doesn't run keyword searches or match sector tags. She cross-references
                 <strong style={{ color: "oklch(0.78 0.005 264)" }}> 40+ behavioral signals</strong> against a scoring model
-                built on <strong style={{ color: "oklch(0.78 0.005 264)" }}>33,000+ startup outcomes</strong> — then ranks
+                built on <strong style={{ color: "oklch(0.78 0.005 264)" }}>{startupCount} startup outcomes</strong> — then ranks
                 the investors most likely to fund you now.
               </p>
               <p className="text-sm leading-relaxed mb-7" style={{ color: "oklch(0.5 0.01 264)", maxWidth: 480 }}>

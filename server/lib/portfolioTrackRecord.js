@@ -112,6 +112,35 @@ async function computeTrackRecord(supabase) {
   const entryThreshold = 70;
   const oraclePicks = (picks || []).filter((p) => p.entry_god_score >= entryThreshold);
 
+  const { data: topRows, error: topErr } = await supabase
+    .from('virtual_portfolio')
+    .select(`
+      moic, irr_annualized, entry_god_score, entry_date, status, exit_acquirer,
+      startup_uploads ( name, tagline, primary_sector )
+    `)
+    .not('moic', 'is', null)
+    .gt('moic', 1)
+    .lte('moic', 25)
+    .order('moic', { ascending: false })
+    .limit(5);
+  if (topErr) throw new Error(topErr.message);
+
+  const topPerformers = (topRows || []).map((row) => {
+    const su = row.startup_uploads;
+    const startup = Array.isArray(su) ? su[0] : su;
+    return {
+      name: startup?.name || 'Unknown',
+      tagline: startup?.tagline || null,
+      sector: startup?.primary_sector || null,
+      entry_god_score: row.entry_god_score,
+      entry_date: row.entry_date,
+      moic: row.moic != null ? Number(row.moic) : null,
+      irr_annualized: row.irr_annualized != null ? Number(row.irr_annualized) : null,
+      status: row.status,
+      exit_acquirer: row.exit_acquirer || null,
+    };
+  });
+
   return {
     oracle: {
       ...metrics,
@@ -125,6 +154,7 @@ async function computeTrackRecord(supabase) {
         'Avg MOIC includes signal-inferred valuations. Verified avg MOIC uses picks with press-confirmed raises only.',
     },
     by_god_tier: byGodTier,
+    top_performers: topPerformers,
     methodology: {
       funded: 'Pick logged at least one funding_round portfolio event after Oracle entry.',
       verified_funded:
