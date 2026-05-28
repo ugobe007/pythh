@@ -77,4 +77,4 @@ ENV VITE_SUPABASE_ANON_KEY=${RUNTIME_VITE_SUPABASE_ANON_KEY}
 EXPOSE 8080
 
 # Run API server with tsx so .ts services (startupScoringService, urlScrapingService) load correctly
-CMD ["node", "-r", "tsx/cjs/register", "server/index.js"]
+CMD ["npx", "tsx", "server/index.js"]
