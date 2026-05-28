@@ -5,12 +5,10 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import { MessageSquare, Mail, ArrowUpRight } from "lucide-react";
-
 import SharedNavbar from "@/components/SharedNavbar";
-
+import SectionLabel from "@/components/design/SectionLabel";
+import { G, PAGE, BORDER, CARD, MUTED, DIM, CYAN, SEPARATOR } from "@/lib/designTokens";
 
 const FAQ = [
   {
@@ -54,7 +52,7 @@ export default function Support() {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
         <title>Support — Pythh.ai</title>
         <meta
@@ -68,101 +66,69 @@ export default function Support() {
       <SharedNavbar activePath="/support" />
 
       <main className="container pt-24 pb-16 max-w-3xl">
-
-        {/* Hero */}
         <div className="mb-12">
+          <SectionLabel className="mb-3">Help</SectionLabel>
           <h1 className="text-4xl font-bold text-white tracking-tight mb-3">Support</h1>
-          <p className="text-lg" style={{ color: "oklch(0.6 0.01 264)" }}>
+          <p className="text-lg" style={{ color: MUTED }}>
             Questions, feedback, or something not working? We're here to help.
           </p>
         </div>
 
-        {/* Quick links */}
         <div className="grid sm:grid-cols-2 gap-4 mb-12">
           <a
             href="mailto:support@pythh.ai"
-            className="flex items-center gap-3 p-4 rounded-xl transition-colors group"
-            style={{
-              backgroundColor: "oklch(0.12 0.01 264)",
-              border: "1px solid oklch(0.22 0.01 264)",
-            }}
+            className="flex items-center gap-3 p-4 border transition-colors"
+            style={{ backgroundColor: CARD, borderColor: BORDER }}
           >
-            <Mail size={18} style={{ color: "oklch(0.696 0.17 162.48)" }} />
+            <Mail size={18} style={{ color: G }} />
             <div>
               <p className="text-sm font-medium text-white">Email us</p>
-              <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
-                support@pythh.ai
-              </p>
+              <p className="text-xs" style={{ color: DIM }}>support@pythh.ai</p>
             </div>
-            <ArrowUpRight size={14} className="ml-auto" style={{ color: "oklch(0.4 0.01 264)" }} />
+            <ArrowUpRight size={14} className="ml-auto" style={{ color: DIM }} />
           </a>
           <Link href="/methodology">
             <div
-              className="flex items-center gap-3 p-4 rounded-xl cursor-pointer"
-              style={{
-                backgroundColor: "oklch(0.12 0.01 264)",
-                border: "1px solid oklch(0.22 0.01 264)",
-              }}
+              className="flex items-center gap-3 p-4 border cursor-pointer h-full"
+              style={{ backgroundColor: CARD, borderColor: BORDER }}
             >
-              <MessageSquare size={18} style={{ color: "#22d3ee" }} />
+              <MessageSquare size={18} style={{ color: CYAN }} />
               <div>
                 <p className="text-sm font-medium text-white">Read the methodology</p>
-                <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
-                  How GOD scores and matching work
-                </p>
+                <p className="text-xs" style={{ color: DIM }}>How GOD scores and matching work</p>
               </div>
-              <ArrowUpRight size={14} className="ml-auto" style={{ color: "oklch(0.4 0.01 264)" }} />
+              <ArrowUpRight size={14} className="ml-auto" style={{ color: DIM }} />
             </div>
           </Link>
         </div>
 
-        {/* FAQ */}
         <section className="mb-12">
+          <SectionLabel className="mb-2">FAQ</SectionLabel>
           <h2 className="text-xl font-semibold text-white mb-6">Common questions</h2>
           <div className="space-y-4">
             {FAQ.map((item) => (
               <div
                 key={item.q}
-                className="p-5 rounded-xl"
-                style={{
-                  borderLeft: "2px solid oklch(0.3 0.01 264)",
-                  backgroundColor: "oklch(0.12 0.01 264)",
-                }}
+                className="p-5 border"
+                style={{ borderLeft: `2px solid ${SEPARATOR}`, backgroundColor: CARD, borderColor: BORDER }}
               >
                 <h3 className="text-white font-medium mb-2">{item.q}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
-                  {item.a}
-                </p>
+                <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{item.a}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Contact Form */}
-        <section
-          className="border-t pt-10"
-          style={{ borderColor: "oklch(0.18 0.01 264)" }}
-        >
+        <section className="border-t pt-10" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2">Contact</SectionLabel>
           <h2 className="text-xl font-semibold text-white mb-6">Get in touch</h2>
 
           {submitted ? (
-            <div
-              className="text-center py-12 rounded-xl"
-              style={{
-                backgroundColor: "oklch(0.12 0.01 264)",
-                border: "1px solid oklch(0.22 0.01 264)",
-              }}
-            >
+            <div className="text-center py-12 border" style={{ backgroundColor: CARD, borderColor: BORDER }}>
               <p className="text-lg text-white font-medium">Thanks for reaching out.</p>
-              <p className="mt-2 text-sm" style={{ color: "oklch(0.5 0.01 264)" }}>
+              <p className="mt-2 text-sm" style={{ color: DIM }}>
                 Your email client should have opened with the message. If not, email us directly at{" "}
-                <a
-                  href="mailto:support@pythh.ai"
-                  style={{ color: "#22d3ee" }}
-                >
-                  support@pythh.ai
-                </a>
-                .
+                <a href="mailto:support@pythh.ai" style={{ color: CYAN }}>support@pythh.ai</a>.
               </p>
             </div>
           ) : (
@@ -172,11 +138,7 @@ export default function Support() {
                 { id: "email", label: "Email", type: "email", value: email, onChange: setEmail, placeholder: "you@startup.com" },
               ].map((f) => (
                 <div key={f.id}>
-                  <label
-                    htmlFor={f.id}
-                    className="block text-sm mb-2"
-                    style={{ color: "oklch(0.55 0.01 264)" }}
-                  >
+                  <label htmlFor={f.id} className="block text-sm mb-2" style={{ color: MUTED }}>
                     {f.label}
                   </label>
                   <input
@@ -187,22 +149,15 @@ export default function Support() {
                     required
                     autoComplete="off"
                     placeholder={f.placeholder}
-                    className="w-full rounded-lg px-4 py-3 text-sm text-white outline-none transition-colors"
-                    style={{
-                      backgroundColor: "oklch(0.12 0.01 264)",
-                      border: "1px solid oklch(0.25 0.01 264)",
-                    }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = "oklch(0.45 0.01 264)")}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = "oklch(0.25 0.01 264)")}
+                    className="w-full px-4 py-3 text-sm text-white outline-none transition-colors border"
+                    style={{ backgroundColor: CARD, borderColor: SEPARATOR }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = MUTED; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = SEPARATOR; }}
                   />
                 </div>
               ))}
               <div>
-                <label
-                  htmlFor="message"
-                  className="block text-sm mb-2"
-                  style={{ color: "oklch(0.55 0.01 264)" }}
-                >
+                <label htmlFor="message" className="block text-sm mb-2" style={{ color: MUTED }}>
                   Message
                 </label>
                 <textarea
@@ -212,44 +167,37 @@ export default function Support() {
                   onChange={(e) => setMessage(e.target.value)}
                   required
                   placeholder="What can we help you with?"
-                  className="w-full rounded-lg px-4 py-3 text-sm text-white outline-none resize-none transition-colors"
-                  style={{
-                    backgroundColor: "oklch(0.12 0.01 264)",
-                    border: "1px solid oklch(0.25 0.01 264)",
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = "oklch(0.45 0.01 264)")}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = "oklch(0.25 0.01 264)")}
+                  className="w-full px-4 py-3 text-sm text-white outline-none resize-none transition-colors border"
+                  style={{ backgroundColor: CARD, borderColor: SEPARATOR }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = MUTED; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = SEPARATOR; }}
                 />
               </div>
               <button
                 type="submit"
-                className="px-6 py-3 rounded-lg font-semibold text-sm transition-opacity"
-                style={{
-                  backgroundColor: "oklch(0.696 0.17 162.48)",
-                  color: "oklch(0.1 0.01 162)",
-                }}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold font-mono border transition-all"
+                style={{ color: G, borderColor: G_BORDER, backgroundColor: "transparent" }}
               >
                 Send message
+                <ArrowUpRight size={14} />
               </button>
             </form>
           )}
         </section>
       </main>
 
-      <footer
-        className="border-t py-8"
-        style={{ borderColor: "oklch(0.18 0.01 264)", backgroundColor: "oklch(0.11 0.01 264)" }}
-      >
+      <footer className="border-t py-8" style={{ borderColor: BORDER, backgroundColor: CARD }}>
         <div className="container flex flex-wrap gap-6 justify-center">
           {[
             { label: "Home", href: "/" },
             { label: "Platform", href: "/platform" },
+            { label: "Newsletter", href: "/newsletter" },
             { label: "About", href: "/about" },
             { label: "Methodology", href: "/methodology" },
             { label: "Pricing", href: "/pricing" },
           ].map(({ label, href }) => (
             <Link key={href} href={href}>
-              <span className="text-xs cursor-pointer" style={{ color: "oklch(0.35 0.01 264)" }}>
+              <span className="text-xs cursor-pointer hover:text-white transition-colors" style={{ color: DIM }}>
                 {label}
               </span>
             </Link>

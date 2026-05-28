@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { ArrowRight, Terminal, RefreshCw, Zap, Globe, Copy, Check } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-import PythiaIcon from "@/components/PythiaIcon";
+import SectionLabel from "@/components/design/SectionLabel";
+import StartupCTA from "@/components/design/StartupCTA";
+import { G, G_BORDER, G_SUBTLE, PAGE, BORDER, CARD, MUTED, DIM, TEXT, GOLD, VIOLET, VIOLET_BORDER } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -134,27 +136,20 @@ export default function Developers() {
   const [tab, setTab] = useState<SetupTab>("cli");
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <SharedNavbar activePath="/developers" />
 
       <div className="container pt-28 pb-24" style={{ maxWidth: "1200px" }}>
 
-        {/* ── Page header ── */}
         <div className="mb-14">
-          <div className="flex items-center gap-3 mb-5">
-            <PythiaIcon size={32} ring />
-            <span className="text-sm font-semibold tracking-wider uppercase" style={{ color: "#c4b5fd" }}>Pythh Connect</span>
-            <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ backgroundColor: "#22c55e15", color: "#22c55e", border: "1px solid #22c55e35" }}>
-              MCP API
-            </span>
-          </div>
+          <SectionLabel className="mb-3" color={VIOLET}>Pythh Connect · MCP API</SectionLabel>
           <h1
             className="font-display font-bold leading-tight mb-4"
-            style={{ fontSize: "clamp(2rem, 4.5vw, 3rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.02em" }}
+            style={{ fontSize: "clamp(2rem, 4.5vw, 3rem)", color: TEXT, letterSpacing: "-0.02em" }}
           >
             Connect your AI agent<br />to live deal intelligence.
           </h1>
-          <p className="text-base leading-relaxed" style={{ color: "oklch(0.55 0.01 264)", maxWidth: 580 }}>
+          <p className="text-base leading-relaxed" style={{ color: MUTED, maxWidth: 580 }}>
             Point Claude, Cursor, or any MCP-compatible AI at Pythh's live scoring engine, investor database, and
             real-time market signals. Query 33,000+ startups and 6,250+ investors in plain English — no SQL, no API spec.
           </p>
@@ -167,28 +162,22 @@ export default function Developers() {
           <div>
             {/* What your AI can do */}
             <div className="mb-10">
-              <p className="text-xs font-bold tracking-widest uppercase mb-5" style={{ color: "oklch(0.45 0.01 264)" }}>
-                When you connect, your AI can
-              </p>
+              <SectionLabel className="mb-5">When you connect, your AI can</SectionLabel>
               <div className="space-y-3">
                 {OUTCOMES.map(({ q, a }) => (
                   <div
                     key={q}
-                    className="p-4 rounded-xl"
-                    style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+                    className="p-4 border"
+                    style={{ backgroundColor: CARD, borderColor: BORDER }}
                   >
-                    <p className="text-xs font-mono mb-2" style={{ color: "#a78bfa" }}>{q}</p>
-                    <p className="text-sm leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>{a}</p>
+                    <p className="text-xs font-mono mb-2" style={{ color: VIOLET }}>{q}</p>
+                    <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{a}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Get your key */}
-            <div
-              className="p-5 rounded-xl mb-10"
-              style={{ backgroundColor: "oklch(0.115 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
-            >
+            <div className="p-5 border mb-10" style={{ backgroundColor: CARD, borderColor: BORDER }}>
               <p className="text-sm font-semibold text-white mb-1">Get your API key</p>
               <p className="text-xs mb-4" style={{ color: "oklch(0.45 0.01 264)" }}>
                 Free tier · 5 tools · 50 calls/day · No credit card required. Keys delivered within 24 hours.

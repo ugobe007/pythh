@@ -14,6 +14,8 @@ import {
   BarChart2,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import SectionLabel from "@/components/design/SectionLabel";
+import { G, G_BORDER, G_SUBTLE, PAGE, BORDER, CARD, MUTED, DIM, TEXT, GOLD, CYAN } from "@/lib/designTokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -368,7 +370,7 @@ export default function Newsletter() {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
         <title>The Daily Signal — Pythh.ai Newsletter</title>
         <meta
@@ -385,58 +387,28 @@ export default function Newsletter() {
 
         {/* ── Hero ── */}
         <div className="max-w-2xl mb-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-px w-8" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
-            <span
-              className="text-xs font-bold tracking-widest"
-              style={{ color: "oklch(0.769 0.188 70.08)" }}
-            >
-              THE DAILY SIGNAL
-            </span>
-          </div>
+          <SectionLabel className="mb-4" color={GOLD}>The Daily Signal</SectionLabel>
           <h1
             className="font-display font-bold mb-4 leading-tight"
-            style={{
-              fontSize: "clamp(2.2rem, 5vw, 3.5rem)",
-              color: "oklch(0.97 0.005 264)",
-            }}
+            style={{ fontSize: "clamp(2.2rem, 5vw, 3.5rem)", color: TEXT }}
           >
             Get the signal
             <br />
-            <span style={{ color: "oklch(0.769 0.188 70.08)" }}>before the noise.</span>
+            <span style={{ color: GOLD }}>before the noise.</span>
           </h1>
-          <p
-            className="text-lg leading-relaxed mb-8"
-            style={{ color: "oklch(0.6 0.01 264)" }}
-          >
+          <p className="text-lg leading-relaxed mb-8" style={{ color: MUTED }}>
             Weekly breakdown of VC thesis shifts, hidden capital flows, and the investors PYTHIA is
             watching right now. Delivered every week to 12,000+ founders.
           </p>
 
           {/* Subscribe form */}
-          <div
-            className="p-6 rounded-2xl mb-6"
-            style={{
-              backgroundColor: "oklch(0.14 0.01 264)",
-              border: "1px solid oklch(0.22 0.01 264)",
-            }}
-          >
+          <div className="p-6 border mb-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
             {submitted ? (
-              <div
-                className="flex items-center gap-3 py-4 px-5 rounded-xl"
-                style={{
-                  backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)",
-                  border: "1px solid oklch(0.696 0.17 162.48 / 0.3)",
-                }}
-              >
-                <Zap size={16} style={{ color: "oklch(0.696 0.17 162.48)" }} />
+              <div className="flex items-center gap-3 py-4 px-5 border" style={{ backgroundColor: G_SUBTLE, borderColor: G_BORDER }}>
+                <Zap size={16} style={{ color: G }} />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                    You're in.
-                  </p>
-                  <p className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>
-                    First signal drops this week. Check your inbox.
-                  </p>
+                  <p className="text-sm font-semibold" style={{ color: G }}>You're in.</p>
+                  <p className="text-xs" style={{ color: MUTED }}>First signal drops this week. Check your inbox.</p>
                 </div>
               </div>
             ) : (
@@ -480,31 +452,20 @@ export default function Newsletter() {
                 </button>
               </form>
             )}
-            <p className="text-xs mt-3" style={{ color: "oklch(0.35 0.01 264)" }}>
-              No spam. Unsubscribe anytime.
-            </p>
+            <p className="text-xs mt-3" style={{ color: DIM }}>No spam. Unsubscribe anytime.</p>
           </div>
         </div>
 
-        {/* ── Live Digest ── */}
         <section className="max-w-4xl mb-16">
-          <h2
-            className="font-display font-semibold text-xl mb-6"
-            style={{ color: "oklch(0.85 0.01 264)" }}
-          >
-            Today's digest
-          </h2>
+          <SectionLabel className="mb-2">Live</SectionLabel>
+          <h2 className="font-display font-semibold text-xl mb-6 text-white">Today's digest</h2>
           <LiveDigest />
         </section>
 
         {/* ── What you get ── */}
         <section className="mb-16 max-w-3xl">
-          <h2
-            className="font-display font-semibold text-xl mb-6"
-            style={{ color: "oklch(0.85 0.01 264)" }}
-          >
-            What's in every issue
-          </h2>
+          <SectionLabel className="mb-2">Contents</SectionLabel>
+          <h2 className="font-display font-semibold text-xl mb-6 text-white">What's in every issue</h2>
           <div className="space-y-3">
             {WHAT_YOU_GET.map((item) => (
               <div
@@ -539,30 +500,18 @@ export default function Newsletter() {
         </section>
 
         {/* ── Social proof ── */}
-        <div
-          className="max-w-3xl p-6 rounded-2xl"
-          style={{
-            backgroundColor: "oklch(0.12 0.01 264)",
-            border: "1px solid oklch(0.2 0.01 264)",
-          }}
-        >
-          <p className="text-sm italic mb-3" style={{ color: "oklch(0.6 0.01 264)" }}>
+        <div className="max-w-3xl p-6 border" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+          <p className="text-sm italic mb-3" style={{ color: MUTED }}>
             "The Daily Signal gave me the context I needed to time my Sequoia outreach
             perfectly. Closed the meeting within a week of getting the alert."
           </p>
-          <p className="text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+          <p className="text-xs font-medium" style={{ color: G }}>
             — Founder, Series A · AI Infrastructure
           </p>
         </div>
       </div>
 
-      <footer
-        className="border-t py-8 mt-4"
-        style={{
-          borderColor: "oklch(0.2 0.01 264)",
-          backgroundColor: "oklch(0.11 0.01 264)",
-        }}
-      >
+      <footer className="border-t py-8 mt-4" style={{ borderColor: BORDER, backgroundColor: CARD }}>
         <div className="container flex flex-wrap gap-6 justify-center">
           {[
             { label: "Signal Trends", href: "/signal-trends" },
@@ -572,10 +521,7 @@ export default function Newsletter() {
             { label: "Pricing", href: "/pricing" },
           ].map(({ label, href }) => (
             <Link key={href} href={href}>
-              <span
-                className="text-xs cursor-pointer"
-                style={{ color: "oklch(0.35 0.01 264)" }}
-              >
+              <span className="text-xs cursor-pointer hover:text-white transition-colors" style={{ color: DIM }}>
                 {label}
               </span>
             </Link>
