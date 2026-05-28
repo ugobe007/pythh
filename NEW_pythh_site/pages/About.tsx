@@ -4,9 +4,11 @@
  */
 import { Helmet } from "react-helmet-async";
 import { Link } from "wouter";
-import { useAuth } from "@/_core/hooks/useAuth";
 import SharedNavbar from "@/components/SharedNavbar";
 import StartupCTA from "@/components/design/StartupCTA";
+import SectionLabel from "@/components/design/SectionLabel";
+import StrokeButton from "@/components/design/StrokeButton";
+import { PAGE, BORDER, CARD, MUTED, DIM, G_BORDER, SEPARATOR } from "@/lib/designTokens";
 
 
 const WHAT_WE_DO = [
@@ -48,7 +50,7 @@ const HOW_IT_WORKS = [
 
 export default function About() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
         <title>About — Pythh.ai</title>
         <meta
@@ -76,12 +78,13 @@ export default function About() {
               />
             </div>
             <div className="flex-1">
+              <SectionLabel className="mb-3">About Pythh</SectionLabel>
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight text-white mb-6">
                 Named for the Oracle.
                 <br />
-                <span style={{ color: "oklch(0.65 0.01 264)" }}>Built for founders.</span>
+                <span style={{ color: MUTED }}>Built for founders.</span>
               </h1>
-              <p className="text-lg leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
+              <p className="text-lg leading-relaxed" style={{ color: MUTED }}>
                 In ancient Delphi, Pythia was the high priestess of the Temple of Apollo — the most
                 powerful oracle in the ancient world. Kings and generals traveled for weeks to seek
                 her counsel before making their most consequential decisions.
@@ -91,12 +94,10 @@ export default function About() {
         </section>
 
         {/* ── Why Pythia ── */}
-        <section
-          className="border-t py-10"
-          style={{ borderColor: "oklch(0.18 0.01 264)" }}
-        >
+        <section className="border-t py-10" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2">Origin</SectionLabel>
           <h2 className="text-2xl font-semibold text-white mb-5">Why Pythia?</h2>
-          <div className="space-y-4 text-base leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
+          <div className="space-y-4 text-base leading-relaxed" style={{ color: MUTED }}>
             <p>
               Fundraising is the most consequential decision a founder makes. Who you take money from
               shapes your company forever — the board you build, the advice you get, the introductions
@@ -119,23 +120,22 @@ export default function About() {
         </section>
 
         {/* ── What we do ── */}
-        <section
-          className="border-t py-10"
-          style={{ borderColor: "oklch(0.18 0.01 264)" }}
-        >
+        <section className="border-t py-10" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2">Product</SectionLabel>
           <h2 className="text-2xl font-semibold text-white mb-6">What pythh does</h2>
           <div className="grid gap-5">
             {WHAT_WE_DO.map((item) => (
               <div
                 key={item.title}
-                className="p-5 rounded-xl"
+                className="p-5 border"
                 style={{
-                  borderLeft: "2px solid oklch(0.696 0.17 162.48 / 0.4)",
-                  backgroundColor: "oklch(0.12 0.01 264)",
+                  borderLeft: `2px solid ${G_BORDER}`,
+                  backgroundColor: CARD,
+                  borderColor: BORDER,
                 }}
               >
                 <h3 className="text-white font-medium mb-2">{item.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
+                <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
                   {item.desc}
                 </p>
               </div>
@@ -144,31 +144,28 @@ export default function About() {
         </section>
 
         {/* ── How it works ── */}
-        <section
-          id="how-pythh-works"
-          className="border-t py-10 scroll-mt-24"
-          style={{ borderColor: "oklch(0.18 0.01 264)" }}
-        >
+        <section id="how-pythh-works" className="border-t py-10 scroll-mt-24" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2">Workflow</SectionLabel>
           <h2 className="text-2xl font-semibold text-white mb-2">How pythh works</h2>
-          <p className="text-sm mb-8" style={{ color: "oklch(0.5 0.01 264)" }}>
+          <p className="text-sm mb-8" style={{ color: DIM }}>
             Three steps from URL to investor-ready signals.
           </p>
           <ol className="space-y-8">
             {HOW_IT_WORKS.map((s) => (
               <li key={s.step} className="flex gap-4">
                 <span
-                  className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-mono"
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-sm font-mono border"
                   style={{
-                    border: "1px solid oklch(0.28 0.01 264)",
-                    color: "oklch(0.55 0.01 264)",
-                    backgroundColor: "oklch(0.12 0.01 264)",
+                    borderColor: SEPARATOR,
+                    color: MUTED,
+                    backgroundColor: CARD,
                   }}
                 >
                   {s.step}
                 </span>
                 <div>
                   <h3 className="text-white font-medium">{s.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
+                  <p className="mt-2 text-sm leading-relaxed" style={{ color: MUTED }}>
                     {s.desc}
                   </p>
                 </div>
@@ -178,12 +175,10 @@ export default function About() {
         </section>
 
         {/* ── The Name ── */}
-        <section
-          className="border-t py-10"
-          style={{ borderColor: "oklch(0.18 0.01 264)" }}
-        >
+        <section className="border-t py-10" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2">Brand</SectionLabel>
           <h2 className="text-2xl font-semibold text-white mb-5">The name</h2>
-          <div className="space-y-4 text-base leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
+          <div className="space-y-4 text-base leading-relaxed" style={{ color: MUTED }}>
             <p>
               <span className="text-white font-medium">pythh</span> — deliberately spelled with the
               double-h — is our nod to Pythia while being something entirely new. She's in our DNA
@@ -199,26 +194,26 @@ export default function About() {
         </section>
 
         {/* ── CTA ── */}
-        <section
-          className="border-t py-10 text-center"
-          style={{ borderColor: "oklch(0.18 0.01 264)" }}
-        >
+        <section className="border-t py-10 text-center" style={{ borderColor: BORDER }}>
+          <SectionLabel className="mb-2 justify-center">Get started</SectionLabel>
           <h2 className="text-2xl font-semibold text-white mb-4">
             Ready to read the signals?
           </h2>
-          <p className="mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
+          <p className="mb-8" style={{ color: MUTED }}>
             Submit your startup URL and see what the oracle sees.
           </p>
-          <StartupCTA href="/activate" size="lg">
-            Get Started Free
-          </StartupCTA>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <StartupCTA href="/activate" size="lg">
+              Get Started Free
+            </StartupCTA>
+            <StrokeButton href="/platform" muted showArrow>
+              How the platform works
+            </StrokeButton>
+          </div>
         </section>
       </main>
 
-      <footer
-        className="border-t py-8"
-        style={{ borderColor: "oklch(0.18 0.01 264)", backgroundColor: "oklch(0.11 0.01 264)" }}
-      >
+      <footer className="border-t py-8" style={{ borderColor: BORDER, backgroundColor: CARD }}>
         <div className="container flex flex-wrap gap-6 justify-center">
           {[
             { label: "Platform", href: "/platform" },
@@ -229,13 +224,13 @@ export default function About() {
             { label: "Support", href: "/support" },
           ].map(({ label, href }) => (
             <Link key={href} href={href}>
-              <span className="text-xs cursor-pointer" style={{ color: "oklch(0.35 0.01 264)" }}>
+              <span className="text-xs cursor-pointer hover:text-white transition-colors" style={{ color: DIM }}>
                 {label}
               </span>
             </Link>
           ))}
         </div>
-        <p className="text-center mt-4 text-xs" style={{ color: "oklch(0.3 0.01 264)" }}>
+        <p className="text-center mt-4 text-xs" style={{ color: DIM }}>
           © {new Date().getFullYear()} pythh.ai — Signal science for founders.
         </p>
       </footer>

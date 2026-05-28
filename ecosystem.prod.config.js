@@ -207,6 +207,26 @@ module.exports = {
     },
 
     // ========================================
+    // RSS ENRICH + M&A EXIT SYNC (daily at 5am UTC)
+    // Runs enrich-from-rss-news for funding/acquisition events;
+    // syncs virtual_portfolio status + portfolio_events on exits.
+    // ========================================
+    {
+      name: 'rss-enrich-daily',
+      interpreter: 'node',
+      exec_mode: 'fork',
+      script: 'scripts/enrich-from-rss-news.js',
+      args: '--limit 1500 --gate-exclude-junk',
+      cwd: '/app',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '512M',
+      cron_restart: '0 5 * * *',
+      env: { NODE_ENV: 'production' }
+    },
+
+    // ========================================
     // ALL OTHER PROCESSES DISABLED FOR PERFORMANCE
     // Uncomment to re-enable when resources allow
     // ========================================

@@ -16,11 +16,9 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import StartupCTA from "@/components/design/StartupCTA";
-
-const G = "oklch(0.696 0.17 162.48)";
-const MUTED = "oklch(0.55 0.01 264)";
-const BORDER = "oklch(0.22 0.01 264)";
-const CARD = "oklch(0.12 0.01 264)";
+import SectionLabel from "@/components/design/SectionLabel";
+import StrokeButton from "@/components/design/StrokeButton";
+import { G, G_BORDER, PAGE, BORDER, CARD, MUTED, DIM, TEXT, VIOLET, VIOLET_BORDER } from "@/lib/designTokens";
 
 // ─── Live stats ───────────────────────────────────────────────────────────────
 
@@ -580,7 +578,7 @@ const PLAYBOOK = [
 
 export default function Platform() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "oklch(0.09 0.01 264)", fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen" style={{ backgroundColor: PAGE, fontFamily: "'Inter', sans-serif" }}>
       <Helmet>
         <title>Platform — Pythh.ai</title>
         <meta name="description" content="Pythh's live signal engine: discovery through verification — GOD scoring, 1.8M+ pre-computed matches, and a public Oracle scoreboard. One pipeline, two paths in." />
@@ -597,25 +595,20 @@ export default function Platform() {
 
           {/* Left */}
           <div>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="h-px w-8" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                The signal engine
-              </span>
-            </div>
+            <SectionLabel className="mb-5">The signal engine</SectionLabel>
             <h1
               className="font-display font-bold mb-5 leading-tight"
-              style={{ fontSize: "clamp(2.2rem, 5vw, 3.4rem)", color: "oklch(0.97 0.005 264)" }}
+              style={{ fontSize: "clamp(2.2rem, 5vw, 3.4rem)", color: TEXT }}
             >
               One engine.<br />
-              <span style={{ color: "oklch(0.696 0.17 162.48)" }}>Two ways in.</span>
+              <span style={{ color: G }}>Two ways in.</span>
             </h1>
-            <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.62 0.01 264)" }}>
+            <p className="text-base leading-relaxed mb-4" style={{ color: MUTED }}>
               Pythh ingests what companies and investors do in the wild — hiring velocity,
               product shipping, funding language, thesis shifts — and scores every startup 0–100
               across five dimensions. The matches are pre-computed. The pipeline updates daily.
             </p>
-            <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.52 0.01 264)" }}>
+            <p className="text-base leading-relaxed mb-8" style={{ color: DIM }}>
               Founders submit a URL and get ranked investors. Investors query the same data
               through Pythh Connect MCP. Same signals. Same scores. No stale spreadsheets.
             </p>
@@ -623,15 +616,9 @@ export default function Platform() {
               <StartupCTA href="/activate" showArrow>
                 Find my investors
               </StartupCTA>
-              <a
-                href="/developers"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all"
-                style={{ border: "1px solid #7c3aed", color: "#a78bfa" }}
-                onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa"; el.style.color = "#c4b5fd"; }}
-                onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
-              >
-                Pythh Connect MCP <ArrowRight size={14} />
-              </a>
+              <StrokeButton href="/developers" showArrow muted>
+                Pythh Connect MCP
+              </StrokeButton>
             </div>
           </div>
 
@@ -643,40 +630,34 @@ export default function Platform() {
         <section className="mb-20">
           <div className="grid md:grid-cols-2 gap-5">
             <div
-              className="p-6 rounded-xl"
-              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.696 0.17 162.48 / 0.25)" }}
+              className="p-6 border"
+              style={{ backgroundColor: CARD, borderColor: G_BORDER }}
             >
-              <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "oklch(0.696 0.17 162.48)" }}>For founders</p>
+              <SectionLabel className="mb-2">For founders</SectionLabel>
               <h2 className="text-lg font-bold text-white mb-3">Submit your URL → ranked investors</h2>
-              <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.58 0.01 264)" }}>
+              <p className="text-sm leading-relaxed mb-5" style={{ color: MUTED }}>
                 PYTHIA extracts your public signal profile, computes a GOD score across Team,
                 Traction, Market, Product, and Vision, then ranks investors by thesis fit, stage,
                 check size, and deployment timing. Outreach angles included.
               </p>
-              <a href="/oracle" className="inline-flex items-center gap-1 text-xs font-semibold transition-colors" style={{ color: "oklch(0.696 0.17 162.48)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
-              >
-                How it works <ArrowRight size={12} />
-              </a>
+              <StrokeButton href="/oracle" size="sm" showArrow>
+                How it works
+              </StrokeButton>
             </div>
             <div
-              className="p-6 rounded-xl"
-              style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid #7c3aed40" }}
+              className="p-6 border"
+              style={{ backgroundColor: CARD, borderColor: `${VIOLET_BORDER}66` }}
             >
-              <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "#a78bfa" }}>For investors</p>
+              <SectionLabel className="mb-2" color={VIOLET}>For investors</SectionLabel>
               <h2 className="text-lg font-bold text-white mb-3">Query deal flow via MCP</h2>
-              <p className="text-sm leading-relaxed mb-5" style={{ color: "oklch(0.58 0.01 264)" }}>
+              <p className="text-sm leading-relaxed mb-5" style={{ color: MUTED }}>
                 Pythh Connect exposes ranked startups, GOD scores, sector momentum, and thesis
                 alignment to any MCP client — Claude, Cursor, ChatGPT, Copilot. Filter by stage,
                 sector, score band, or deployment signal. Live data, not exports.
               </p>
-              <a href="/developers" className="inline-flex items-center gap-1 text-xs font-semibold transition-colors" style={{ color: "#a78bfa" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#a78bfa"; }}
-              >
-                Pythh Connect docs <ArrowRight size={12} />
-              </a>
+              <StrokeButton href="/developers" size="sm" showArrow muted>
+                Pythh Connect docs
+              </StrokeButton>
             </div>
           </div>
         </section>
