@@ -1,0 +1,61 @@
+# Reusable runner for scheduled batch jobs (Option 3: all workers on GitHub Actions).
+# Call with secrets: inherit from parent workflows.
+name: Reusable Node Batch Job
+
+on:
+  workflow_call:
+    inputs:
+      run:
+        description: 'Shell command to execute (e.g. npx tsx scripts/foo.js --limit=100)'
+        required: true
+        type: string
+      timeout_minutes:
+        description: 'Job timeout in minutes'
+        required: false
+        type: number
+        default: 45
+      node_version:
+        required: false
+        type: string
+        default: '20'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Verify Supabase secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+            echo "::error::Missing SUPABASE_URL and/or SUPABASE_SERVICE_KEY (or VITE_* / SERVICE_ROLE aliases)."
+            exit 1
+          fi
+          echo "Supabase configured."
+
+      - name: Run batch command
+        env:
+          NODE_ENV: production
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PORTFOLIO_DIGEST_EMAIL: ${{ secrets.PORTFOLIO_DIGEST_EMAIL }}
+        run: |
+          echo "Running: ${{ inputs.run }}"
+          ${{ inputs.run }}

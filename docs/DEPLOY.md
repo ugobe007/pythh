@@ -20,6 +20,9 @@
 4. **Frontend first**  
    The server registers `/ping`, static assets, and the SPA **before** `listen()`, so the site can load even if a later route or require fails. API routes are registered after.
 
+5. **Batch jobs on GitHub Actions**  
+   Scrapers, scoring, matching, and portfolio workers run as scheduled GitHub Actions — not on Fly. See [BATCH_JOBS.md](./BATCH_JOBS.md). Fly runs the API process only (`npx tsx server/index.js`).
+
 ## Database (Supabase) is separate from the app image
 
 **The Docker image does not run or include Supabase migrations.** The app connects to your Supabase project via env vars; schema changes are applied to Supabase separately.

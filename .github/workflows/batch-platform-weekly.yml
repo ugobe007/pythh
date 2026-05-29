@@ -1,0 +1,56 @@
+# Weekly platform batch jobs (portfolio verification, signal refresh, match full regen).
+name: Platform Weekly Batch
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'   # Sunday — full match regen
+    - cron: '0 2 * * 3'   # Wednesday — social signals fetcher
+    - cron: '0 7 * * 1'   # Monday — portfolio signal refresh
+    - cron: '0 8 * * 1'   # Monday — portfolio funding verification
+  workflow_dispatch:
+    inputs:
+      job:
+        required: true
+        type: choice
+        options:
+          - match-regen-full
+          - social-signals
+          - portfolio-signal-refresh
+          - portfolio-verify-funding
+
+concurrency:
+  group: platform-weekly-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  match-regen-full:
+    if: github.event.schedule == '0 2 * * 0' || github.event.inputs.job == 'match-regen-full'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node match-regenerator.js --full
+      timeout_minutes: 150
+
+  social-signals:
+    if: github.event.schedule == '0 2 * * 3' || github.event.inputs.job == 'social-signals'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/social-signals-fetcher.mjs
+      timeout_minutes: 45
+
+  portfolio-signal-refresh:
+    if: github.event.schedule == '0 7 * * 1' || github.event.inputs.job == 'portfolio-signal-refresh'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/cron/portfolio-signal-refresh.js
+      timeout_minutes: 60
+
+  portfolio-verify-funding:
+    if: github.event.schedule == '0 8 * * 1' || github.event.inputs.job == 'portfolio-verify-funding'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/verify-portfolio-funding.mjs
+      timeout_minutes: 30

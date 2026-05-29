@@ -1,0 +1,36 @@
+# Match queue worker + delta regen (formerly PM2 every 5 min / every 2 days).
+name: Match Engine Batch
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # match-run worker (queued runs)
+    - cron: '0 3 */2 * *'   # delta match regen (every 2 days)
+  workflow_dispatch:
+    inputs:
+      job:
+        required: true
+        type: choice
+        options:
+          - match-worker
+          - match-regen-delta
+
+concurrency:
+  group: match-engine-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: true
+
+jobs:
+  match-worker:
+    if: github.event.schedule == '*/15 * * * *' || github.event.inputs.job == 'match-worker'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node server/matchRunWorker.js
+      timeout_minutes: 10
+
+  match-regen-delta:
+    if: github.event.schedule == '0 3 */2 * *' || github.event.inputs.job == 'match-regen-delta'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node match-regenerator.js --delta
+      timeout_minutes: 45

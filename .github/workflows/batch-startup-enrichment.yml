@@ -1,0 +1,19 @@
+# Sparse startup enrichment (formerly PM2 startup-enrichment-worker every 2h).
+name: Startup Enrichment Batch
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: startup-enrichment-batch
+  cancel-in-progress: true
+
+jobs:
+  enrich-sparse:
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/enrich-sparse-startups.js --limit=200 --no-url-only
+      timeout_minutes: 45

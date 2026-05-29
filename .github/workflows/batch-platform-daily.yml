@@ -1,0 +1,67 @@
+# Daily platform batch jobs (formerly PM2 cron on Fly — see docs/BATCH_JOBS.md).
+name: Platform Daily Batch
+
+on:
+  schedule:
+    - cron: '0 3 * * *'    # holding-review-worker
+    - cron: '0 4 * * *'    # oracle-signal-backfill
+    - cron: '0 5 * * *'    # rss-enrich (M&A + funding sync)
+    - cron: '0 6 * * *'    # portfolio-monitor
+    - cron: '30 6 * * *'   # portfolio-digest
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Run a single daily job manually'
+        required: true
+        type: choice
+        options:
+          - holding-review
+          - oracle-backfill
+          - rss-enrich
+          - portfolio-monitor
+          - portfolio-digest
+
+concurrency:
+  group: platform-daily-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  holding-review:
+    if: github.event.schedule == '0 3 * * *' || github.event.inputs.job == 'holding-review'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: npx tsx scripts/holding-review-worker.js --limit=100
+      timeout_minutes: 30
+
+  oracle-backfill:
+    if: github.event.schedule == '0 4 * * *' || github.event.inputs.job == 'oracle-backfill'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: npx tsx scripts/oracle-signal-backfill.js --limit=200
+      timeout_minutes: 45
+
+  rss-enrich:
+    if: github.event.schedule == '0 5 * * *' || github.event.inputs.job == 'rss-enrich'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/enrich-from-rss-news.js --limit 1500 --gate-exclude-junk
+      timeout_minutes: 60
+
+  portfolio-monitor:
+    if: github.event.schedule == '0 6 * * *' || github.event.inputs.job == 'portfolio-monitor'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: npx tsx scripts/portfolio-monitor.mjs
+      timeout_minutes: 45
+
+  portfolio-digest:
+    if: github.event.schedule == '30 6 * * *' || github.event.inputs.job == 'portfolio-digest'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/portfolio-digest.mjs
+      timeout_minutes: 30

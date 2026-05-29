@@ -83,6 +83,22 @@ jobs:
         env:
           DEBUG: true
 
+      - name: RSS news enrich (funding + M&A sync)
+        id: rss-enrich
+        continue-on-error: true
+        if: ${{ github.event.inputs.run_type != 'discovery_only' }}
+        run: |
+          echo "📰 enrich-from-rss-news..." | tee -a logs/rss-enrich.log
+          node scripts/enrich-from-rss-news.js --limit 1500 --gate-exclude-junk 2>&1 | tee -a logs/rss-enrich.log || {
+            echo "⚠️ RSS enrich exited with errors"
+            exit 0
+          }
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
       - name: Ensure log files exist
         if: always()
         run: |
