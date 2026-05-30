@@ -56,6 +56,12 @@ jobs:
           echo "🔢 Starting GOD Score recalculation..."
           npx tsx scripts/recalculate-scores.ts
           echo "✅ Recalculation complete"
+
+      - name: Validate portfolio GOD scores
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/validate-portfolio-scores.mjs
       
       - name: Report Status
         if: always()

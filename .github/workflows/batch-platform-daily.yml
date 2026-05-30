@@ -20,6 +20,7 @@ on:
           - rss-enrich
           - portfolio-monitor
           - portfolio-digest
+          - portfolio-score-validate
 
 concurrency:
   group: platform-daily-${{ github.event.schedule || github.event.inputs.job }}
@@ -65,3 +66,11 @@ jobs:
     with:
       run: node scripts/portfolio-digest.mjs
       timeout_minutes: 30
+
+  portfolio-score-validate:
+    if: github.event.schedule == '30 6 * * *' || github.event.inputs.job == 'portfolio-score-validate'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/validate-portfolio-scores.mjs
+      timeout_minutes: 10

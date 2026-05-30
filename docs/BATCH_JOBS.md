@@ -17,14 +17,14 @@ Most jobs call [`.github/workflows/reusable-node-batch.yml`](../.github/workflow
 
 Required repo secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (aliases: `VITE_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`).
 
-Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, social platform tokens (see `batch-social-poster.yml`).
+Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, `LINKEDIN_ACCESS_TOKEN`, `LINKEDIN_ORGANIZATION_ID`, Twitter tokens (see `batch-social-poster.yml`).
 
 ## Schedule map
 
 | Workflow | Schedule (UTC) | Script / job |
 |----------|----------------|--------------|
 | [automated-scraper.yml](../.github/workflows/automated-scraper.yml) | Every 12h | SSOT RSS scraper + ML ontology + RSS enrich |
-| [god-score-recalculation.yml](../.github/workflows/god-score-recalculation.yml) | Every 2h | `scripts/recalculate-scores.ts` |
+| [god-score-recalculation.yml](../.github/workflows/god-score-recalculation.yml) | Every 2h | Fleet recalc + `validate-portfolio-scores.mjs` |
 | [god-score-monitor.yml](../.github/workflows/god-score-monitor.yml) | Every 2h :05 | Score monitor |
 | [god-score-health-check.yml](../.github/workflows/god-score-health-check.yml) | Every 6h | Health check |
 | [enrich-vcs.yml](../.github/workflows/enrich-vcs.yml) | Daily 03:00 | VC/investor enrichment |
@@ -32,8 +32,9 @@ Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, social p
 | [batch-platform-daily.yml](../.github/workflows/batch-platform-daily.yml) | 03:00 | Holding review worker |
 | | 04:00 | Oracle signal backfill |
 | | 05:00 | RSS enrich (M&A + funding) |
-| | 06:00 | Portfolio monitor |
-| | 06:30 | Portfolio digest email |
+| | 06:00 | Portfolio monitor (+ post-funding rescore) |
+| | 06:30 | Portfolio digest email (+ score guardrails) |
+| | 06:30 | Portfolio score validate (`validate-portfolio-scores.mjs`, fails CI if corrupt) |
 | [batch-platform-weekly.yml](../.github/workflows/batch-platform-weekly.yml) | Sun 02:00 | Full match regen |
 | | Wed 02:00 | Social signals fetcher |
 | | Mon 07:00 | Portfolio signal refresh |
