@@ -1,0 +1,46 @@
+name: Fly Uptime Watchdog
+
+on:
+  schedule:
+    # Every 10 minutes — external probe; restarts Fly if API is down
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: fly-uptime-watchdog
+  cancel-in-progress: false
+
+jobs:
+  probe-and-heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Probe production API
+        id: probe
+        run: |
+          set -euo pipefail
+          for url in \
+            "https://pythh.ai/api/health" \
+            "https://hot-honey.fly.dev/ping"; do
+            echo "Checking $url …"
+            if curl -fsS --max-time 20 "$url" >/dev/null; then
+              echo "healthy=true" >> "$GITHUB_OUTPUT"
+              echo "✅ $url OK"
+              exit 0
+            fi
+          done
+          echo "healthy=false" >> "$GITHUB_OUTPUT"
+          echo "❌ All probes failed"
+          exit 1
+
+      - name: Restart Fly app
+        if: failure() && steps.probe.outputs.healthy != 'true'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "Restarting hot-honey …"
+          flyctl apps restart hot-honey
+          sleep 30
+          curl -fsS --max-time 30 "https://hot-honey.fly.dev/ping" && echo "✅ Fly /ping recovered" || echo "⚠️ Still unhealthy after restart"

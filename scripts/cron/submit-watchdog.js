@@ -33,12 +33,14 @@ require('dotenv').config({ quiet: true });
 
 const { createClient } = require('@supabase/supabase-js');
 
-const API_BASE      = process.env.API_BASE_URL || 'http://127.0.0.1:3002';
+const RUNTIME_PORT  = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
+const API_BASE      = process.env.API_BASE_URL || `http://127.0.0.1:${RUNTIME_PORT}`;
 const INTERVAL_MIN  = parseInt(process.env.WATCHDOG_INTERVAL_MIN || '15', 10);
+// Never default alerts TO alerts@pythh.ai — that address is send-only and is suppressed in Resend.
 const ALERT_TO      = process.env.WATCHDOG_ALERT_EMAIL
                    || process.env.RESEND_TO_EMAIL
                    || process.env.ADMIN_EMAIL
-                   || 'alerts@pythh.ai';
+                   || 'ugobe07@gmail.com';
 const ALERT_FROM    = process.env.EMAIL_FROM || 'Pythh Watchdog <alerts@pythh.ai>';
 const RESEND_KEY    = process.env.RESEND_API_KEY;
 const RESTART_URL   = process.env.PYTHH_WATCHDOG_RESTART_URL;
