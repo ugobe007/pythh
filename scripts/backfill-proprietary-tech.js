@@ -15,6 +15,8 @@
  *   --html-rescrape   Re-fetch website HTML for extractInferenceData (slower, more accurate)
  *   --patents         Query USPTO/EPO/WIPO per startup (slow; ~3s each, sequential)
  *   --status=approved Filter status (default: approved)
+ *   --offset=N        Skip first N startups (ordered by id)
+ *   --resume          Continue from logs/checkpoint-proprietary-tech.json
  *
  * After backfill:
  *   npx tsx scripts/recalculate-scores.ts
@@ -22,6 +24,8 @@
  */
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData } = require('../lib/inference-extractor');
@@ -44,9 +48,42 @@ const limitArg = process.argv.find((a) => a.startsWith('--limit='));
 const LIMIT = limitArg ? parseInt(limitArg.split('=')[1], 10) : null;
 const statusArg = process.argv.find((a) => a.startsWith('--status='));
 const STATUS = statusArg ? statusArg.split('=')[1] : 'approved';
+const offsetArg = process.argv.find((a) => a.startsWith('--offset='));
+const CHECKPOINT_FILE = path.join(__dirname, '../logs/checkpoint-proprietary-tech.json');
+const RESUME = process.argv.includes('--resume');
+let OFFSET = offsetArg ? parseInt(offsetArg.split('=')[1], 10) : 0;
+if (RESUME && fs.existsSync(CHECKPOINT_FILE)) {
+  try {
+    const cp = JSON.parse(fs.readFileSync(CHECKPOINT_FILE, 'utf8'));
+    if (Number.isFinite(cp.processed) && cp.processed > OFFSET) {
+      OFFSET = cp.processed;
+      console.log(`Resuming from checkpoint: offset ${OFFSET}`);
+    }
+  } catch { /* ignore corrupt checkpoint */ }
+}
 const CONCURRENCY = HTML_RESCRAPE ? 2 : 12;
 const PATENT_DELAY_MS = parseInt(process.env.PROPRIETARY_TECH_PATENT_DELAY_MS || '400', 10);
 const PER_STARTUP_TIMEOUT_MS = parseInt(process.env.PROPRIETARY_TECH_TIMEOUT_MS || '15000', 10);
+const HEARTBEAT_EVERY = parseInt(process.env.PROPRIETARY_TECH_HEARTBEAT_EVERY || '100', 10);
+
+function writeCheckpoint(stats) {
+  if (DRY_RUN) return;
+  const globalProcessed = OFFSET + stats.assessed;
+  try {
+    fs.mkdirSync(path.dirname(CHECKPOINT_FILE), { recursive: true });
+    fs.writeFileSync(
+      CHECKPOINT_FILE,
+      JSON.stringify({
+        processed: globalProcessed,
+        updated: stats.updated,
+        withTech: stats.withTech,
+        withoutTech: stats.withoutTech,
+        htmlRescrape: HTML_RESCRAPE,
+        updated_at: new Date().toISOString(),
+      })
+    );
+  } catch { /* non-fatal */ }
+}
 
 function withTimeout(promise, ms, label) {
   return Promise.race([
@@ -211,6 +248,12 @@ async function processPage(startups, stats) {
     process.stdout.write(
       `\r  Processed ${stats.assessed}/${stats.total} | updated ${stats.updated} | with tech ${stats.withTech} | without ${stats.withoutTech}`
     );
+    if (stats.assessed % HEARTBEAT_EVERY === 0 || stats.assessed === stats.total) {
+      console.log(
+        `\n[${new Date().toISOString()}] heartbeat ${stats.assessed}/${stats.total} updated=${stats.updated} withTech=${stats.withTech}`
+      );
+      writeCheckpoint(stats);
+    }
   }
 }
 
@@ -229,8 +272,12 @@ async function main() {
     process.exit(1);
   }
 
-  const total = LIMIT ? Math.min(LIMIT, count || 0) : count || 0;
-  console.log(`Found ${total} startups to process\n`);
+  const total = LIMIT ? Math.min(LIMIT, (count || 0) - OFFSET) : (count || 0) - OFFSET;
+  if (total <= 0) {
+    console.log('Nothing to process (offset >= total).');
+    return;
+  }
+  console.log(`Found ${total} startups to process (offset ${OFFSET}, total approved ${count})\n`);
 
   const stats = {
     total,
@@ -243,7 +290,7 @@ async function main() {
     pending: 0,
   };
 
-  let from = 0;
+  let from = OFFSET;
   const PAGE = HTML_RESCRAPE ? 100 : 250;
   let processed = 0;
 
@@ -281,6 +328,7 @@ async function main() {
   console.log(`  With proprietary tech: ${stats.withTech}`);
   console.log(`  Without proprietary tech: ${stats.withoutTech}`);
   console.log(`  Errors: ${stats.errors}`);
+  writeCheckpoint(stats);
   console.log('\nNext steps:');
   console.log('  npx tsx scripts/recalculate-scores.ts');
   console.log('  node match-regenerator.js --full');
