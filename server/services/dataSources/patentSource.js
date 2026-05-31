@@ -148,14 +148,13 @@ async function searchWIPO(companyName) {
 function detectDomains(patents) {
   const domains = new Set();
   for (const patent of patents) {
-    const text = `${patent.patent_title || ''} ${patent.patent_abstract || ''}`.toLowerCase();
+    const text = `${patent.patent_title || patent.title || ''} ${patent.patent_abstract || patent.abstract || ''}`.toLowerCase();
     for (const kw of DEEP_TECH_KEYWORDS) {
       if (text.includes(kw)) {
-        domains.add(kw.split(' ')[0]); // e.g. "artificial" → "artificial"
+        domains.add(kw.split(' ')[0]);
       }
     }
-    // CPC code prefixes for tech domains
-    const cpc = (patent.cpc_subgroup_id || '');
+    const cpc = String(patent.cpc_subgroup_id || patent.cpc || '');
     if (cpc.startsWith('G06N'))  domains.add('AI/ML');
     if (cpc.startsWith('B25J'))  domains.add('robotics');
     if (cpc.startsWith('H01M'))  domains.add('battery');
@@ -172,7 +171,10 @@ function detectDomains(patents) {
 function countRecent(patents, months = 24) {
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
-  return patents.filter(p => p.patent_date && new Date(p.patent_date) >= cutoff).length;
+  return patents.filter((p) => {
+    const d = p.patent_date || p.date;
+    return d && new Date(d) >= cutoff;
+  }).length;
 }
 
 /**

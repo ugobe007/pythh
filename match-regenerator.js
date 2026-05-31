@@ -14,6 +14,7 @@
 
 // Use shared Supabase client (same as server)
 const { supabase } = require('./server/lib/supabaseClient');
+const { applyTechVcMatchAdjustment } = require('./lib/proprietaryTechAssessment');
 
 // Matching configuration
 // ═══════════════════════════════════════════════════════════════════════════
@@ -689,7 +690,7 @@ async function regenerateMatches() {
       let query = supabase
         .from('startup_uploads')
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
-        .select('id, name, sectors, stage, total_god_score')
+        .select('id, name, sectors, stage, total_god_score, pitch, description, tagline, extracted_data')
         .eq('status', 'approved')
         .gte('total_god_score', 35); // Exclude sub-35 startups from match pool — insufficient signal
       
@@ -733,7 +734,7 @@ async function regenerateMatches() {
       const { data, error } = await supabase
         .from('investors')
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
-        .select('id, name, sectors, stage, investor_score, investor_tier')
+        .select('id, name, firm, sectors, stage, investor_score, investor_tier, investment_thesis, signals')
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
       if (error) throw new Error(`Investor fetch error: ${error.message}`);
@@ -861,16 +862,36 @@ async function regenerateMatches() {
         }
         
         // Cap at 95 — a perfect 100 looks broken in social posts / tweets
-        const finalScore = Math.min(Math.round(rawTotal), 95);
+        let finalScore = Math.min(Math.round(rawTotal), 95);
         
         // Store raw similarity for the similarity_score column
         const rawSimilarity = similarity > 0 ? parseFloat(similarity.toFixed(4)) : null;
         
         // Generate human-readable fields
-        const fitAnalysis = { ...terms, is_super_match: faithResult.isSuperMatch };
+        let fitAnalysis = { ...terms, is_super_match: faithResult.isSuperMatch };
         if (faithResult.matchingThemes.length > 0) {
           fitAnalysis.faith_themes = faithResult.matchingThemes;
         }
+
+        // Tech VC fit: penalize deep-tech investors when startup lacks proprietary IP
+        const investorSignals = investor.signals || null;
+        const techAdjusted = applyTechVcMatchAdjustment(
+          { score: finalScore, fitAnalysis, confidence: finalScore >= 70 ? 'high' : finalScore >= 45 ? 'medium' : 'low' },
+          startup,
+          { firm: investor.firm, name: investor.name, investment_thesis: investor.investment_thesis },
+          investorSignals
+        );
+        finalScore = techAdjusted.score;
+        fitAnalysis = { ...fitAnalysis, ...techAdjusted.fitAnalysis };
+        if (fitAnalysis.tech_vc_penalty) {
+          reasons.push({
+            key: 'tech_vc',
+            points: -fitAnalysis.tech_vc_penalty,
+            note: '⚠️ Tech VC mismatch: no proprietary IP / patents',
+          });
+        }
+
+        const confidenceLevel = techAdjusted.confidence;
         const reasoning = generateReasoning(startup, investor, terms);
         const whyYouMatch = generateWhyYouMatch(startup, investor, terms);
         
@@ -879,9 +900,9 @@ async function regenerateMatches() {
           investor_id: investor.id,
           match_score: finalScore,
           similarity_score: rawSimilarity,
-          algorithm_version: 'v3.0-pythh',
+          algorithm_version: 'v3.1-pythh-techvc',
           status: 'suggested',
-          confidence_level: finalScore >= 70 ? 'high' : finalScore >= 45 ? 'medium' : 'low',
+          confidence_level: confidenceLevel,
           fit_analysis: fitAnalysis,
           reasoning: reasoning,
           why_you_match: whyYouMatch
@@ -934,10 +955,10 @@ async function regenerateMatches() {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     
     console.log('\n\n' + '═'.repeat(60));
-    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}] — v3.0-pythh`);
+    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}] — v3.1-pythh-techvc`);
     console.log('═'.repeat(60));
     console.log(`   Mode: ${mode}`);
-    console.log(`   Algorithm: v3.0-pythh (weights sum to 100, quality gates)`);
+    console.log(`   Algorithm: v3.1-pythh-techvc (weights sum to 100, quality gates, tech VC fit)`);
     console.log(`   Startups: ${startups.length}`);
     console.log(`   Investors: ${investors.length}`);
     console.log(`   Matches saved: ${saved} (cap: ${CONFIG.TOP_MATCHES_PER_STARTUP}/startup)`);

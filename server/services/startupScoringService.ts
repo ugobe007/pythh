@@ -1533,6 +1533,21 @@ function scoreProduct(startup: StartupProfile): number {
     score += 0.3; // App exists on store = product is shipped
   }
 
+  // Proprietary tech profile (SSOT: lib/proprietaryTechAssessment.js → extracted_data)
+  const proprietaryProfile = (startup as any).extracted_data?.proprietary_tech_profile;
+  if (proprietaryProfile && typeof proprietaryProfile === 'object') {
+    if (proprietaryProfile.has_proprietary_tech) {
+      if (proprietaryProfile.patent_verified) score += 0.6;
+      else if (proprietaryProfile.confidence === 'high') score += 0.5;
+      else if (proprietaryProfile.confidence === 'medium') score += 0.35;
+      else score += 0.2;
+    } else if (proprietaryProfile.confidence === 'high') {
+      score -= 0.5;
+    } else if (proprietaryProfile.confidence === 'medium') {
+      score -= 0.35;
+    }
+  }
+
   // Web signals — Company blog = active product communication
   // A maintained blog signals product iteration + team that ships & shares
   const hasBlog = (startup as any).has_blog ?? false;

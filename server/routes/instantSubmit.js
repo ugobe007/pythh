@@ -52,6 +52,11 @@ const { extractInferenceData } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
+const {
+  assessProprietaryTech,
+  applyTechVcMatchAdjustment,
+  fetchPatentEvidence,
+} = require('../../lib/proprietaryTechAssessment');
 const intel = require('../services/submitUrlIntelligence');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { enrichSocialScore } = require('../services/newsSignalService');
@@ -555,16 +560,18 @@ function calculateMatchScore(startup, investor, signalScore, investorSignals) {
   const signal = Math.round(signalScore || 0);
   const faith = scoreFaithAlignment(sNorm.sectors, investorSignals);
 
-  const total = sector + stage + invQ + startQ + signal + faith.score;
-  return {
-    score: Math.min(total, 100),
+  const baseTotal = sector + stage + invQ + startQ + signal + faith.score;
+  const base = {
+    score: Math.min(baseTotal, 100),
     fitAnalysis: {
       sector, stage, investor_quality: invQ, startup_quality: startQ,
       signal, faith: faith.score, is_super_match: faith.isSuperMatch,
       faith_themes: faith.matchingThemes,
     },
-    confidence: total >= 75 ? 'high' : total >= 55 ? 'medium' : 'low',
+    confidence: baseTotal >= 75 ? 'high' : baseTotal >= 55 ? 'medium' : 'low',
   };
+
+  return applyTechVcMatchAdjustment(base, startup, investor, investorSignals);
 }
 
 function formatSectors(sectors) {
@@ -596,6 +603,9 @@ function generateReasoning(startup, investor, fitAnalysis) {
   } else if (fitAnalysis.faith >= 3) {
     reasons.push(`Conviction signal detected`);
   }
+  if (fitAnalysis.tech_vc_fit === 'weak') {
+    reasons.push(`Tech VC mismatch: no proprietary technology or verified patents detected`);
+  }
   return reasons.length > 0 ? reasons.slice(0, 5).join('. ') + '.' : `Match score: ${fitAnalysis.sector + fitAnalysis.stage + fitAnalysis.investor_quality + fitAnalysis.startup_quality}/100`;
 }
 
@@ -612,6 +622,11 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
   else if (fitAnalysis.signal >= 5) matches.push(`Signal: Emerging (${fitAnalysis.signal}/10)`);
   if (fitAnalysis.faith >= 7 && !fitAnalysis.is_super_match) matches.push(`Conviction: thesis match`);
   if (fitAnalysis.startup_quality >= 18) matches.push(`GOD Score: ${startup.total_god_score || 'N/A'}`);
+  if (fitAnalysis.tech_vc_fit === 'weak') {
+    matches.unshift('⚠️ Tech VC mismatch: no proprietary IP / patents');
+  } else if (fitAnalysis.tech_vc_fit === 'strong') {
+    matches.push('Proprietary tech / patents verified');
+  }
   return matches.length > 0 ? matches : ['Algorithmic match'];
 }
 
@@ -692,6 +707,29 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       }
     }
 
+    let proprietaryTechProfile =
+      inferenceData?.proprietary_tech_profile ||
+      assessProprietaryTech({ text: websiteContent || '', companyName: displayName });
+
+    if (!checkTimeout()) {
+      try {
+        const patentTimeout = Math.min(3500, deadline - Date.now());
+        if (patentTimeout > 500) {
+          const patentSignals = await fetchPatentEvidence(displayName, patentTimeout);
+          if (patentSignals.length > 0) {
+            proprietaryTechProfile = assessProprietaryTech({
+              text: websiteContent || '',
+              companyName: displayName,
+              patentSignals,
+              existingProfile: proprietaryTechProfile,
+            });
+          }
+        }
+      } catch (patentErr) {
+        console.warn(`  [SYNC] Patent lookup: ${patentErr.message}`);
+      }
+    }
+
     let aiData = null;
     if (!checkTimeout() && dataTier === 'C') {
       try {
@@ -743,9 +781,15 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       ...merged,
       name: merged.name || displayName,
       website: `https://${domain}`,
+      proprietary_tech_profile: proprietaryTechProfile,
       extracted_data: {
         ...(inferenceData || {}),
         ...(aiData || {}),
+        proprietary_tech_profile: proprietaryTechProfile,
+        has_proprietary_tech: proprietaryTechProfile.has_proprietary_tech,
+        proprietary_tech_confidence: proprietaryTechProfile.confidence,
+        patent_count: proprietaryTechProfile.patent_count,
+        patent_verified: proprietaryTechProfile.patent_verified,
         data_tier: dataTier,
         enrichment_method: aiData ? 'inference+ai' : 'inference_only',
         sync_scored_at: new Date().toISOString(),
