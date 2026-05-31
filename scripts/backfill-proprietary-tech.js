@@ -44,8 +44,18 @@ const limitArg = process.argv.find((a) => a.startsWith('--limit='));
 const LIMIT = limitArg ? parseInt(limitArg.split('=')[1], 10) : null;
 const statusArg = process.argv.find((a) => a.startsWith('--status='));
 const STATUS = statusArg ? statusArg.split('=')[1] : 'approved';
-const CONCURRENCY = HTML_RESCRAPE ? 2 : 8;
+const CONCURRENCY = HTML_RESCRAPE ? 2 : 12;
 const PATENT_DELAY_MS = parseInt(process.env.PROPRIETARY_TECH_PATENT_DELAY_MS || '400', 10);
+const PER_STARTUP_TIMEOUT_MS = parseInt(process.env.PROPRIETARY_TECH_TIMEOUT_MS || '15000', 10);
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout after ${ms}ms${label ? ` (${label})` : ''}`)), ms)
+    ),
+  ]);
+}
 
 async function fetchWebsiteHtml(url) {
   try {
@@ -144,21 +154,12 @@ async function assessStartup(startup) {
   extracted.patent_count = profile.patent_count;
   extracted.patent_verified = profile.patent_verified;
   extracted.proprietary_tech_evidence = profile.evidence;
+  extracted.unique_ip = profile.has_proprietary_tech && profile.confidence !== 'low';
 
   const updates = {
     extracted_data: extracted,
     updated_at: new Date().toISOString(),
   };
-
-  if (profile.has_proprietary_tech && profile.confidence !== 'low' && !startup.unique_ip) {
-    updates.unique_ip = true;
-  } else if (
-    !profile.has_proprietary_tech &&
-    (profile.confidence === 'high' || profile.confidence === 'medium') &&
-    startup.unique_ip
-  ) {
-    updates.unique_ip = false;
-  }
 
   return { updates, profile, htmlUsed };
 }
@@ -175,7 +176,7 @@ async function main() {
   while (true) {
     const { data, error } = await sb
       .from('startup_uploads')
-      .select('id, name, website, company_website, pitch, description, tagline, unique_ip, extracted_data')
+      .select('id, name, website, company_website, pitch, description, tagline, extracted_data')
       .eq('status', STATUS)
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
@@ -206,7 +207,7 @@ async function main() {
     const results = await Promise.all(
       chunk.map(async (startup) => {
         try {
-          const result = await assessStartup(startup);
+          const result = await withTimeout(assessStartup(startup), PER_STARTUP_TIMEOUT_MS, startup.name);
           assessed++;
           if (!result) return { skipped: true };
           if (result.profile.has_proprietary_tech) withTech++;
