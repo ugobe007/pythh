@@ -164,110 +164,123 @@ async function assessStartup(startup) {
   return { updates, profile, htmlUsed };
 }
 
-async function main() {
-  console.log('\n=== Proprietary Tech Backfill ===');
-  console.log(`  status=${STATUS} dryRun=${DRY_RUN} force=${FORCE}`);
-  console.log(`  htmlRescrape=${HTML_RESCRAPE} patents=${PATENTS} concurrency=${CONCURRENCY}\n`);
-
-  let allStartups = [];
-  let from = 0;
-  const PAGE = 500;
-
-  while (true) {
-    const { data, error } = await sb
-      .from('startup_uploads')
-      .select('id, name, website, company_website, pitch, description, tagline, extracted_data')
-      .eq('status', STATUS)
-      .order('id', { ascending: true })
-      .range(from, from + PAGE - 1);
-
-    if (error) {
-      console.error('Fetch error:', error.message);
-      process.exit(1);
-    }
-    if (!data || data.length === 0) break;
-    allStartups = allStartups.concat(data);
-    if (data.length < PAGE) break;
-    from += PAGE;
-  }
-
-  if (LIMIT) allStartups = allStartups.slice(0, LIMIT);
-  console.log(`Found ${allStartups.length} startups to process\n`);
-
-  let assessed = 0;
-  let updated = 0;
-  let skipped = 0;
-  let withTech = 0;
-  let withoutTech = 0;
-  let errors = 0;
-  const pendingUpdates = [];
-
-  for (let i = 0; i < allStartups.length; i += CONCURRENCY) {
-    const chunk = allStartups.slice(i, i + CONCURRENCY);
+async function processPage(startups, stats) {
+  for (let i = 0; i < startups.length; i += CONCURRENCY) {
+    const chunk = startups.slice(i, i + CONCURRENCY);
     const results = await Promise.all(
       chunk.map(async (startup) => {
         try {
           const result = await withTimeout(assessStartup(startup), PER_STARTUP_TIMEOUT_MS, startup.name);
-          assessed++;
+          stats.assessed++;
           if (!result) return { skipped: true };
-          if (result.profile.has_proprietary_tech) withTech++;
-          else withoutTech++;
+          if (result.profile.has_proprietary_tech) stats.withTech++;
+          else stats.withoutTech++;
           return { id: startup.id, name: startup.name, ...result };
         } catch (e) {
-          errors++;
+          stats.errors++;
           return { error: e.message, name: startup.name };
         }
       })
     );
 
+    const pageUpdates = [];
     for (const r of results) {
       if (r.error) {
         console.warn(`  ⚠ ${r.name}: ${r.error}`);
         continue;
       }
       if (r.skipped) {
-        skipped++;
+        stats.skipped++;
         continue;
       }
-      pendingUpdates.push(r);
+      pageUpdates.push(r);
+    }
+
+    if (!DRY_RUN && pageUpdates.length > 0) {
+      const writeResults = await Promise.all(
+        pageUpdates.map(({ id, updates }) => sb.from('startup_uploads').update(updates).eq('id', id))
+      );
+      for (const wr of writeResults) {
+        if (wr.error) stats.errors++;
+        else stats.updated++;
+      }
+    } else if (DRY_RUN) {
+      stats.pending += pageUpdates.length;
     }
 
     process.stdout.write(
-      `\r  Assessed ${assessed}/${allStartups.length} | pending writes ${pendingUpdates.length} | with tech ${withTech} | without ${withoutTech}`
+      `\r  Processed ${stats.assessed}/${stats.total} | updated ${stats.updated} | with tech ${stats.withTech} | without ${stats.withoutTech}`
     );
+  }
+}
+
+async function main() {
+  console.log('\n=== Proprietary Tech Backfill ===');
+  console.log(`  status=${STATUS} dryRun=${DRY_RUN} force=${FORCE}`);
+  console.log(`  htmlRescrape=${HTML_RESCRAPE} patents=${PATENTS} concurrency=${CONCURRENCY}\n`);
+
+  const { count, error: countError } = await sb
+    .from('startup_uploads')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', STATUS);
+
+  if (countError) {
+    console.error('Count error:', countError.message);
+    process.exit(1);
+  }
+
+  const total = LIMIT ? Math.min(LIMIT, count || 0) : count || 0;
+  console.log(`Found ${total} startups to process\n`);
+
+  const stats = {
+    total,
+    assessed: 0,
+    updated: 0,
+    skipped: 0,
+    withTech: 0,
+    withoutTech: 0,
+    errors: 0,
+    pending: 0,
+  };
+
+  let from = 0;
+  const PAGE = HTML_RESCRAPE ? 100 : 250;
+  let processed = 0;
+
+  while (processed < total) {
+    const pageSize = Math.min(PAGE, total - processed);
+    const { data, error } = await sb
+      .from('startup_uploads')
+      .select('id, name, website, company_website, pitch, description, tagline, extracted_data')
+      .eq('status', STATUS)
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      console.error('Fetch error:', error.message);
+      process.exit(1);
+    }
+    if (!data || data.length === 0) break;
+
+    await processPage(data, stats);
+    processed += data.length;
+    from += pageSize;
+    if (data.length < pageSize) break;
   }
 
   console.log('\n');
 
   if (DRY_RUN) {
-    console.log(`Dry run complete. Would update ${pendingUpdates.length} startups.`);
-    const sample = pendingUpdates.slice(0, 5);
-    for (const s of sample) {
-      console.log(
-        `  ${s.name}: has_proprietary_tech=${s.profile.has_proprietary_tech} confidence=${s.profile.confidence} patents=${s.profile.patent_count}`
-      );
-    }
+    console.log(`Dry run complete. Would update ${stats.pending} startups.`);
     return;
   }
 
-  for (let i = 0; i < pendingUpdates.length; i += CONCURRENCY) {
-    const chunk = pendingUpdates.slice(i, i + CONCURRENCY);
-    const results = await Promise.all(
-      chunk.map(({ id, updates }) => sb.from('startup_uploads').update(updates).eq('id', id))
-    );
-    for (const r of results) {
-      if (r.error) errors++;
-      else updated++;
-    }
-    process.stdout.write(`\r  Written ${updated}/${pendingUpdates.length} (${errors} errors)...`);
-  }
-
   console.log('\n\n✓ Backfill complete');
-  console.log(`  Updated: ${updated}`);
-  console.log(`  Skipped (unchanged): ${skipped}`);
-  console.log(`  With proprietary tech: ${withTech}`);
-  console.log(`  Without proprietary tech: ${withoutTech}`);
-  console.log(`  Errors: ${errors}`);
+  console.log(`  Updated: ${stats.updated}`);
+  console.log(`  Skipped (unchanged): ${stats.skipped}`);
+  console.log(`  With proprietary tech: ${stats.withTech}`);
+  console.log(`  Without proprietary tech: ${stats.withoutTech}`);
+  console.log(`  Errors: ${stats.errors}`);
   console.log('\nNext steps:');
   console.log('  npx tsx scripts/recalculate-scores.ts');
   console.log('  node match-regenerator.js --full');
