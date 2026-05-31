@@ -200,7 +200,7 @@ async function main() {
   console.log('  3. Infer boolean flags (strict launch) + bridge parsed metrics:');
   console.log('       node scripts/infer-traction-flags.js');
   console.log('  4. Recalculate GOD scores (calibrated formula):');
-  console.log('       node scripts/core/god-score-formula.js');
+  console.log('       npx tsx scripts/recalculate-scores.ts');
   console.log('  4. Re-sync signal scores with real GOD blend:');
   console.log('       node scripts/sync-signal-scores.js --apply');
   console.log('  5. Priority manual/AI enrichment for top queue:');

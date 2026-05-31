@@ -7,15 +7,15 @@
  *   2) Ontology + inference (pendingNameOntology / parseSignal)
  *   3) Entity ontology (nameEntityOntology — geo/person/brand)
  *   4) Legacy safety net (cleanup-garbage patterns + isValidStartupName)
- *   → then URL gate: needs_url | qualified
+ *   → URL gate: needs_url | qualified
+ *   → junk only after enrichment_attempts >= ENTITY_GATE_URL_ATTEMPTS_BEFORE_JUNK (default 1)
  *
  * Outcomes:
- *   - junk: failed (1)–(4) or investor-track in startup table
- *   - needs_url: passed (1)–(4) as startup-like but no website
- *   - qualified: passed + URL present
+ *   - needs_url: no website yet, OR name-fail pending URL resolution (pending_url_before_junk)
+ *   - qualified: name passes + URL present
+ *   - junk: name fails AFTER at least one URL resolution attempt
  *
- * Optional pre-pass: reclassify-zero-signal-junk --pre-gate marks obvious junk;
- * gate skips rows already entity_gate=junk.
+ * Rows already entity_gate=junk from post-URL reclassify are not upgraded back to needs_url.
  *
  * Usage:
  *   node scripts/entity-resolution-gate.js                 # dry-run counts
@@ -23,11 +23,11 @@
  *   node scripts/entity-resolution-gate.js --execute --startups-only
  *   node scripts/entity-resolution-gate.js --execute --investors-only
  *
- * RECOMMENDED PIPELINE ORDER:
- *   1. node scripts/reclassify-zero-signal-junk.js --pre-gate --execute
- *   2. node scripts/entity-resolution-gate.js --execute            ← this script
- *   3. node scripts/enrich-sparse-startups.js --gate-needs-url-only --limit=400
- *   4. node scripts/reclassify-zero-signal-junk.js --execute
+ * RECOMMENDED PIPELINE ORDER (URL before junk):
+ *   1. node scripts/entity-resolution-gate.js --execute
+ *   2. node scripts/enrich-sparse-startups.js --gate-needs-url-only --html-only --limit=400
+ *   3. node scripts/reclassify-zero-signal-junk.js --execute
+ *   4. node scripts/entity-resolution-gate.js --execute
  *   5. npx tsx scripts/recalculate-scores.ts
  */
 
@@ -130,7 +130,7 @@ async function gateStartups() {
     const { data } = await supabaseResult(`startup_uploads page @${from}`, () =>
       supabase
         .from('startup_uploads')
-        .select('id, name, website, company_website, entity_gate')
+        .select('id, name, website, company_website, entity_gate, enrichment_attempts')
         .eq('status', 'approved')
         .order('id', { ascending: true })
         .range(from, from + PAGE - 1),
@@ -143,9 +143,8 @@ async function gateStartups() {
     }
 
     if (EXECUTE) {
-      // Skip rows already manually reclassified as junk by reclassify-zero-signal-junk.js.
-      // Those rows were junk because they had no pitch/metrics — the name-only gate would
-      // reassign them to needs_url (they have valid-looking names), which would undo the cleanup.
+      // Skip rows marked junk by post-URL reclassify — classifyStartup would wrongly upgrade
+      // them to needs_url while URL resolution is still pending on other rows.
       const nonJunkRows = data.filter(r => r.entity_gate !== 'junk' || classifyStartup(r).gate === 'junk');
       skipped += data.length - nonJunkRows.length;
 

@@ -3,7 +3,7 @@
  * Enrich sparse startup_uploads fields that GOD scoring reads:
  * tagline, pitch, website, founders — sourced from description / extracted_data.
  *
- * Run before infer-traction-flags + god-score-formula:
+ * Run before infer-traction-flags + recalculate-scores:
  *   node scripts/enrich-god-hard-fields.js [--dry-run] [--limit=N]
  */
 require('dotenv').config();
@@ -201,7 +201,7 @@ async function main() {
   } else {
     console.log('\n  Next: node scripts/backfill-startup-metrics.js');
     console.log('        node scripts/infer-traction-flags.js');
-    console.log('        node scripts/core/god-score-formula.js');
+    console.log('        npx tsx scripts/recalculate-scores.ts');
   }
 }
 

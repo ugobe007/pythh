@@ -45,7 +45,7 @@
 
 **Step order (default):**
 
-0. *(optional)* `--run-entity-gate` → `entity-resolution-gate.js --execute`  
+0. *(optional)* `--run-entity-gate` → entity gate → `enrich-sparse-startups --gate-needs-url-only --html-only` → `reclassify-zero-signal-junk --execute` → entity gate finalize (URL before junk)  
 1. `cleanup-garbage.js --reject` *(unless `--skip-garbage`)*  
 2. `promote-extracted-fields.js --apply` *(unless `--skip-promote`)*  
 2b. `ingest-metrics-signals.js --apply` *(unless `--skip-promote` or `--skip-metrics-signals`)*  
@@ -59,7 +59,8 @@
 
 | Flag | Effect |
 |------|--------|
-| `--run-entity-gate` | Run `entity-resolution-gate.js --execute` first. |
+| `--run-entity-gate` | URL-before-junk chain: gate → sparse HTML on `needs_url` → junk reclassify → gate finalize. Limit: `--url-resolve-limit=N` (default 200). |
+| `--url-resolve-limit=200` | Max rows for the pre-junk `needs_url` HTML pass when `--run-entity-gate`. |
 | `--rss-gate-exclude-junk` | Pass `--gate-exclude-junk` to RSS enrich (skip `entity_gate=junk` only). **Recommended** with gate populated. |
 | `--rss-gate-qualified` | Pass `--gate-qualified-only` (strict: only `entity_gate=qualified`). Do not combine with exclude-junk intent. |
 | `--skip-garbage` | Skip cleanup-garbage. |

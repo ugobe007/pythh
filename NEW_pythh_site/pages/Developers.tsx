@@ -2,8 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Terminal, RefreshCw, Zap, Globe, Copy, Check } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import SectionLabel from "@/components/design/SectionLabel";
-import StartupCTA from "@/components/design/StartupCTA";
-import { G, G_BORDER, G_SUBTLE, PAGE, BORDER, CARD, MUTED, DIM, TEXT, GOLD, VIOLET, VIOLET_BORDER } from "@/lib/designTokens";
+import { PAGE, BORDER, CARD, MUTED, TEXT, VIOLET } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 

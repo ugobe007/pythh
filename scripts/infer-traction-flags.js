@@ -4,7 +4,7 @@
  *
  * Sets has_revenue, has_customers, is_launched from startup_metrics and parsed
  * columns. Also copies arr_usd → arr, parsed_customers → customer_count, etc.
- * when legacy columns are empty (god-score-formula reads arr/mrr/customer_count).
+ * when legacy columns are empty (hotGod / recalculate-scores reads arr/mrr/customer_count).
  *
  * Usage:
  *   node scripts/infer-traction-flags.js --dry-run
@@ -262,7 +262,7 @@ async function main() {
   if (dryRun) {
     console.log('\n  DRY RUN — re-run without --dry-run to apply.');
   } else {
-    console.log('\n  Next: node scripts/core/god-score-formula.js');
+    console.log('\n  Next: npx tsx scripts/recalculate-scores.ts');
     console.log('        node scripts/sync-signal-scores.js --apply');
   }
 }

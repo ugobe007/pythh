@@ -6,12 +6,13 @@
  * Runs after portfolio-monitor (scheduled 6:30 AM UTC via PM2).
  *
  * What it does:
- *   1. AUTO-SEED  — finds qualified GOD≥70 startups not yet tracked,
+ *   0. GUARDRAILS — heal corrupted GOD scores on active portfolio holdings (SSOT hotGod)
+ *   1. AUTO-SEED  — finds qualified GOD≥72 startups not yet tracked,
  *                   adds up to MAX_NEW_SEEDS per run to virtual_portfolio
  *   2. DIGEST     — queries last 24h events, Review-tier companies,
  *                   GOD score movements, and portfolio metrics
- *   3. EMAIL      — sends a Resend digest to PORTFOLIO_DIGEST_EMAIL
- *                   (or ADMIN_EMAIL) with action links to /portfolio/:id
+ *   3. EMAIL      — sends digest to PORTFOLIO_DIGEST_EMAIL via GoDaddy SMTP
+ *                   (or Resend if RESEND_API_KEY is set) with /portfolio/:id links
  *
  * Schedule: 6:30 AM UTC daily via PM2 (ecosystem.prod.config.js)
  * Run manually: node scripts/portfolio-digest.mjs
@@ -20,8 +21,13 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
+import { createRequire } from 'module';
 import * as dotenv from 'dotenv';
 dotenv.config();
+
+const require = createRequire(import.meta.url);
+const { healPortfolioHoldings, isCorrupted } = require('../lib/portfolioScoreGuardrails.js');
 
 const DRY_RUN  = process.argv.includes('--dry-run');
 const NO_EMAIL = process.argv.includes('--no-email') || DRY_RUN;
@@ -31,7 +37,11 @@ const VIRTUAL_CHECK    = 100_000; // $100K virtual check per pick
 const SITE_BASE        = process.env.SITE_URL || 'https://pythh.ai';
 const DIGEST_EMAIL     = process.env.PORTFOLIO_DIGEST_EMAIL || process.env.ADMIN_EMAIL || '';
 const RESEND_KEY       = process.env.RESEND_API_KEY || '';
-const FROM_ADDRESS     = 'pythia@pythh.ai';
+const SMTP_HOST        = process.env.SMTP_HOST || 'smtp.office365.com';
+const SMTP_PORT        = Number(process.env.SMTP_PORT || 587);
+const SMTP_USER        = process.env.SMTP_USER || '';
+const SMTP_PASS        = process.env.SMTP_PASS || '';
+const FROM_ADDRESS     = process.env.SMTP_FROM || SMTP_USER || 'bob@pythh.ai';
 
 const sb = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -101,6 +111,7 @@ async function autoSeed() {
 
   const toSeed = (candidates || [])
     .filter(c => !trackedIds.has(c.id) && c.name?.trim())
+    .filter(c => !isCorrupted(c))
     .slice(0, MAX_NEW_SEEDS);
 
   if (toSeed.length === 0) {
@@ -115,20 +126,14 @@ async function autoSeed() {
     const entryVal = estimateValuation(c.total_god_score);
     const payload = {
       startup_id:          c.id,
-      startup_name:        c.name,
-      tagline:             null,
-      website:             c.website || null,
-      sectors:             Array.isArray(c.sectors) ? c.sectors : [],
       entry_god_score:     c.total_god_score,
-      current_god_score:   c.total_god_score,
       entry_stage:         c.stage ? String(c.stage) : null,
-      current_stage:       c.stage ? String(c.stage) : null,
       entry_valuation_usd: entryVal,
       current_valuation_usd: entryVal,
       virtual_check_usd:   VIRTUAL_CHECK,
-      moic:                1.00,
-      status:              'active',
+      moic:                1.0,
       entry_rationale:     `Auto-seeded by portfolio-digest agent. Entry GOD score: ${c.total_god_score}.`,
+      added_by:            'portfolio-digest',
     };
 
     if (DRY_RUN) {
@@ -385,18 +390,9 @@ function buildEmailHtml({ recentEvents, reviewCompanies, metrics, godChanges, to
 </html>`;
 }
 
-// ─── Step 4: Send email via Resend ───────────────────────────────────────────
+// ─── Step 4: Send email (GoDaddy SMTP preferred, Resend fallback) ────────────
 
-async function sendDigestEmail(html, { recentEvents, reviewCompanies, newSeeds }) {
-  if (!RESEND_KEY) {
-    console.log('\n⚠️  No RESEND_API_KEY — email not sent');
-    return;
-  }
-  if (!DIGEST_EMAIL) {
-    console.log('\n⚠️  No PORTFOLIO_DIGEST_EMAIL — email not sent (set it in .env)');
-    return;
-  }
-
+function buildDigestSubject({ recentEvents, reviewCompanies, newSeeds }) {
   const evCount  = recentEvents?.length ?? 0;
   const revCount = reviewCompanies?.length ?? 0;
   const newCount = newSeeds?.length ?? 0;
@@ -405,10 +401,30 @@ async function sendDigestEmail(html, { recentEvents, reviewCompanies, newSeeds }
   if (evCount)  subjectParts.push(`${evCount} signal${evCount > 1 ? 's' : ''}`);
   if (revCount) subjectParts.push(`${revCount} in Review`);
   if (newCount) subjectParts.push(`${newCount} new pick${newCount > 1 ? 's' : ''}`);
-  const subject = subjectParts.length
+  return subjectParts.length
     ? `Portfolio Digest: ${subjectParts.join(' · ')}`
     : 'Portfolio Digest: Daily update';
+}
 
+async function sendViaSmtp(subject, html) {
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+  });
+
+  const info = await transporter.sendMail({
+    from: FROM_ADDRESS,
+    to: DIGEST_EMAIL,
+    subject,
+    html,
+  });
+
+  console.log(`\n📧 Digest sent to ${DIGEST_EMAIL} via SMTP (${info.messageId})`);
+}
+
+async function sendViaResend(subject, html) {
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
@@ -422,10 +438,44 @@ async function sendDigestEmail(html, { recentEvents, reviewCompanies, newSeeds }
 
   if (!resp.ok) {
     const body = await resp.text();
-    console.error('\n❌ Resend error:', resp.status, body);
-  } else {
-    const data = await resp.json();
-    console.log(`\n📧 Digest sent to ${DIGEST_EMAIL} (id: ${data.id})`);
+    throw new Error(`Resend error ${resp.status}: ${body}`);
+  }
+
+  const data = await resp.json();
+  console.log(`\n📧 Digest sent to ${DIGEST_EMAIL} via Resend (id: ${data.id})`);
+}
+
+async function sendDigestEmail(html, meta) {
+  if (!DIGEST_EMAIL) {
+    console.log('\n⚠️  No PORTFOLIO_DIGEST_EMAIL — email not sent (set it in .env)');
+    return;
+  }
+
+  const subject = buildDigestSubject(meta);
+
+  // Resend first when configured (M365 Security Defaults often block SMTP)
+  if (RESEND_KEY) {
+    try {
+      await sendViaResend(subject, html);
+      return;
+    } catch (err) {
+      console.error('\n❌ Resend error:', err.message);
+      if (!SMTP_USER || !SMTP_PASS) return;
+      console.log('   Falling back to SMTP…');
+    }
+  }
+
+  if (SMTP_USER && SMTP_PASS) {
+    try {
+      await sendViaSmtp(subject, html);
+      return;
+    } catch (err) {
+      console.error('\n❌ SMTP error:', err.message);
+    }
+  }
+
+  if (!RESEND_KEY && !SMTP_USER) {
+    console.log('\n⚠️  No email sender configured — set RESEND_API_KEY or SMTP_USER/SMTP_PASS');
   }
 }
 
@@ -435,6 +485,16 @@ async function main() {
   const startedAt = new Date();
   console.log(`\n🔭 Pythh Portfolio Digest Agent — ${DRY_RUN ? 'DRY RUN' : 'LIVE'} — ${startedAt.toISOString()}`);
   console.log('═'.repeat(60));
+
+  // 0. Heal corrupted scores before seed/digest (legacy scorer damage, missing floor)
+  if (!DRY_RUN) {
+    console.log('\n🛡️  Portfolio score guardrails…');
+    const heal = await healPortfolioHoldings(sb, { dryRun: false, log: (m) => console.log(m) });
+    console.log(`   Checked ${heal.checked} | Healed ${heal.healed} | OK ${heal.ok}`);
+    if (heal.errors.length) {
+      heal.errors.forEach((e) => console.warn(`   ⚠️  ${e.startup_id}: ${e.message}`));
+    }
+  }
 
   // 1. Auto-seed new picks
   const newSeeds = await autoSeed();
@@ -469,19 +529,20 @@ async function main() {
 
   // 5. Log to ai_logs
   if (!DRY_RUN) {
-    await sb.from('ai_logs').insert({
-      log_type: 'portfolio_digest',
-      source:   'portfolio-digest',
-      message:  `Digest: ${recentEvents?.length ?? 0} events, ${reviewCompanies?.length ?? 0} review, ${newSeeds.length} seeded`,
-      metadata: {
-        events_24h:    recentEvents?.length ?? 0,
-        review_count:  reviewCompanies?.length ?? 0,
-        god_changes:   godChanges?.length ?? 0,
-        new_seeds:     newSeeds.length,
-        email_sent:    !NO_EMAIL && !!DIGEST_EMAIL,
-        duration_ms:   Date.now() - startedAt.getTime(),
+    const { error: logErr } = await sb.from('ai_logs').insert({
+      type:   'portfolio_digest',
+      action: 'daily_run',
+      status: 'success',
+      output: {
+        events_24h:   recentEvents?.length ?? 0,
+        review_count: reviewCompanies?.length ?? 0,
+        god_changes:  godChanges?.length ?? 0,
+        new_seeds:    newSeeds.length,
+        email_sent:   !NO_EMAIL && !!DIGEST_EMAIL,
+        duration_ms:  Date.now() - startedAt.getTime(),
       },
-    }).catch(() => {}); // non-fatal
+    });
+    if (logErr) console.warn('[portfolio-digest] ai_logs insert failed:', logErr.message);
   }
 
   const duration = ((Date.now() - startedAt.getTime()) / 1000).toFixed(1);

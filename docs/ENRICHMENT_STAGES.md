@@ -14,38 +14,36 @@
 
 | `entity_gate` | Meaning |
 |----------------|--------|
-| `junk` | Name fails junk filter or logic engine — not a processable entity |
-| `needs_url` | Name passes, but no `website`/`company_website` found |
+| `junk` | Name fails after URL resolution attempt — not a processable entity |
+| `needs_url` | No website yet, **or** name suspicious pending URL infer/fetch (`pending_url_before_junk`) |
 | `qualified` | Name + URL signals OK — eligible for full RSS matching |
 
-### Correct pipeline order
+### Correct pipeline order (URL before junk)
 
-**Step 1 — Pre-gate name junk filter** (marks obvious name junk across ALL approved rows before the logic engine runs):
-
-```bash
-node scripts/reclassify-zero-signal-junk.js --pre-gate --execute
-```
-
-Applies `isGarbage()` + `ontologyJunkReason()` + `isNonStartupEntity()` to every approved row, including rows with no `entity_gate` yet. Junk names are labeled immediately — the logic engine never processes them.
-
-**Step 2 — Logic engine gate** (structural template classification on surviving rows):
+**Step 1 — Initial entity gate** (defer junk until URL tried):
 
 ```bash
 node scripts/entity-resolution-gate.js --execute
 ```
 
-Skips rows already marked `junk`. Runs the logic engine on remaining rows — classifies investor VC-type names, headline fragments, and descriptor phrases as `junk`; labels others `needs_url` or `qualified` based on URL presence.
+Name-fail rows without a URL resolution attempt go to `needs_url` (`pending_url_before_junk`), not `junk`.
 
-**Step 3 — Enrich** (only `needs_url` survivors):
+**Step 2 — URL resolution** (infer domain + fetch HTML for `needs_url` only):
 
 ```bash
-node scripts/enrich-sparse-startups.js --gate-needs-url-only --limit=400
+node scripts/enrich-sparse-startups.js --gate-needs-url-only --html-only --limit=400
 ```
 
-**Step 4 — Post-enrichment junk pass** (catches entries enrichment revealed as non-starters):
+**Step 3 — Junk reclassify** (after URL evidence):
 
 ```bash
 node scripts/reclassify-zero-signal-junk.js --execute
+```
+
+**Step 4 — Finalize entity gate:**
+
+```bash
+node scripts/entity-resolution-gate.js --execute
 ```
 
 **Step 5 — Score:**
@@ -57,8 +55,12 @@ npx tsx scripts/recalculate-scores.ts
 **Single-line pipeline (copy-paste):**
 
 ```bash
-node scripts/reclassify-zero-signal-junk.js --pre-gate --execute && node scripts/entity-resolution-gate.js --execute && node scripts/enrich-sparse-startups.js --gate-needs-url-only --limit=400 && node scripts/reclassify-zero-signal-junk.js --execute && npx tsx scripts/recalculate-scores.ts
+node scripts/entity-resolution-gate.js --execute && node scripts/enrich-sparse-startups.js --gate-needs-url-only --html-only --limit=400 && node scripts/reclassify-zero-signal-junk.js --execute && node scripts/entity-resolution-gate.js --execute && npx tsx scripts/recalculate-scores.ts
 ```
+
+**Legacy (do not use):** `--pre-gate` before URL enrich — it labeled junk before domain lookup. Pre-gate now defers to `needs_url` when URL not yet tried.
+
+**Daily cron:** `run-enrichment-schedule.sh daily` runs `startup-data-tightening.js --run-entity-gate`, which executes steps 1–4 automatically before RSS/sparse.
 
 ### Downstream flags
 

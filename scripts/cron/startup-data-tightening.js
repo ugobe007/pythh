@@ -103,6 +103,13 @@ function parseArgs(argv) {
   const rssGateQualified = argv.includes('--rss-gate-qualified');
   const rssGateExcludeJunk = argv.includes('--rss-gate-exclude-junk');
 
+  const urlResolveLimitArg = argv.find((a) => a.startsWith('--url-resolve-limit='));
+  let urlResolveLimit = getInferencePipelineConfig().STARTUP_TIGHTEN_URL_RESOLVE_DEFAULT;
+  if (urlResolveLimitArg) {
+    const v = parseInt(urlResolveLimitArg.split('=')[1], 10);
+    urlResolveLimit = Number.isFinite(v) ? v : urlResolveLimit;
+  }
+
   return {
     runEntityGate,
     rssGateQualified,
@@ -120,6 +127,7 @@ function parseArgs(argv) {
     skipDqReport,
     skipExitPropensity,
     sparseGodScoreBelow,
+    urlResolveLimit,
   };
 }
 
@@ -128,7 +136,7 @@ async function main() {
 
   console.log('\n🎯  STARTUP DATA TIGHTENING');
   console.log('═'.repeat(60));
-  console.log(`  Entity gate: ${opts.runEntityGate ? 'entity-resolution-gate --execute' : 'skipped (use --run-entity-gate after migration)'}`);
+  console.log(`  Entity gate: ${opts.runEntityGate ? 'gate → URL resolve → junk reclassify → gate finalize' : 'skipped (use --run-entity-gate)'}`);
   console.log(`  Metrics signals: ${opts.skipPromote || opts.skipMetricsSignals ? 'skipped' : 'ingest-metrics-signals --apply'}`);
   const rssGate =
     opts.rssGateQualified ? ' --gate-qualified-only' : opts.rssGateExcludeJunk ? ' --gate-exclude-junk' : '';
@@ -150,8 +158,31 @@ async function main() {
 
   try {
     if (opts.runEntityGate) {
-      section('0️⃣ ', 'Entity resolution gate (junk / needs_url / qualified)');
-      await run('node', ['scripts/entity-resolution-gate.js', '--execute'], 'entity-resolution-gate', {
+      section('0️⃣a', 'Entity gate (initial — defer junk until URL tried)');
+      await run('node', ['scripts/entity-resolution-gate.js', '--execute'], 'entity-resolution-gate-initial', {
+        fatal: false,
+      });
+
+      section('0️⃣b', 'URL resolution for needs_url (before junk labeling)');
+      await run(
+        'node',
+        [
+          'scripts/enrich-sparse-startups.js',
+          '--gate-needs-url-only',
+          '--html-only',
+          `--limit=${opts.urlResolveLimit}`,
+        ],
+        'enrich-sparse-url-before-junk',
+        { fatal: false },
+      );
+
+      section('0️⃣c', 'Junk reclassify (after URL resolution)');
+      await run('node', ['scripts/reclassify-zero-signal-junk.js', '--execute'], 'reclassify-zero-signal-junk', {
+        fatal: false,
+      });
+
+      section('0️⃣d', 'Entity gate (finalize junk / qualified)');
+      await run('node', ['scripts/entity-resolution-gate.js', '--execute'], 'entity-resolution-gate-final', {
         fatal: false,
       });
     }

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import SectionLabel from "@/components/design/SectionLabel";
-import { G, G_BORDER, G_SUBTLE, PAGE, BORDER, CARD, MUTED, DIM, TEXT, GOLD, CYAN } from "@/lib/designTokens";
+import { G, G_BORDER, G_SUBTLE, PAGE, BORDER, CARD, MUTED, DIM, TEXT, GOLD } from "@/lib/designTokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

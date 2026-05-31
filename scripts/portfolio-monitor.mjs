@@ -20,8 +20,12 @@
 import { createClient } from '@supabase/supabase-js';
 import Parser from 'rss-parser';
 import OpenAI from 'openai';
+import { createRequire } from 'module';
 import * as dotenv from 'dotenv';
 dotenv.config();
+
+const require = createRequire(import.meta.url);
+const { healStartupById } = require('../lib/portfolioScoreGuardrails.js');
 
 const DRY_RUN  = process.argv.includes('--dry-run');
 const VERBOSE  = process.argv.includes('--verbose') || DRY_RUN;
@@ -273,15 +277,25 @@ async function main() {
         // Update valuation + MOIC on funding round confirmation
         for (const fe of companyEvents.filter(e => e.event_type === 'funding_round')) {
           const newVal = fe.post_money_usd || fe.amount_usd;
-          if (!newVal || newVal <= (company.current_valuation_usd || 0)) continue;
-          const days = Math.max(1, Math.round((Date.now() - new Date(company.entry_date).getTime()) / 86400000));
-          await supabase.from('virtual_portfolio').update({
-            current_valuation_usd: newVal,
-            moic:           calcMoic(company.entry_valuation_usd, newVal),
-            irr_annualized: calcIrr(company.entry_valuation_usd, newVal, days),
-            holding_days:   days,
-          }).eq('id', company.id);
-          console.log(`  📈 ${name} valuation → $${(newVal/1e6).toFixed(0)}M`);
+          if (newVal && newVal > (company.current_valuation_usd || 0)) {
+            const days = Math.max(1, Math.round((Date.now() - new Date(company.entry_date).getTime()) / 86400000));
+            await supabase.from('virtual_portfolio').update({
+              current_valuation_usd: newVal,
+              moic:           calcMoic(company.entry_valuation_usd, newVal),
+              irr_annualized: calcIrr(company.entry_valuation_usd, newVal, days),
+              holding_days:   days,
+            }).eq('id', company.id);
+            console.log(`  📈 ${name} valuation → $${(newVal/1e6).toFixed(0)}M`);
+          }
+
+          try {
+            const healed = await healStartupById(supabase, company.startup_id, { dryRun: false });
+            if (healed.healed) {
+              console.log(`  🛡️  ${name} GOD ${healed.from} → ${healed.to} (post-funding rescore)`);
+            }
+          } catch (healErr) {
+            console.warn(`  ⚠️  ${name} post-funding rescore failed: ${healErr.message}`);
+          }
         }
       }
     }

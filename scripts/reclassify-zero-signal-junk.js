@@ -9,8 +9,7 @@
  *
  * This script:
  *   1. Hard-deletes rows with null/empty names (--delete-nulls flag)
- *   2. [--pre-gate] Scans ALL approved rows (incl. entity_gate=NULL) for name junk ONLY
- *      — run this BEFORE entity-resolution-gate so the logic engine never sees junk names
+ *   2. [--pre-gate] Legacy: prefer entity gate + URL enrich instead (see RECOMMENDED PIPELINE ORDER)
  *   3. Pages through all approved + needs_url startups
  *   4. Identifies rows with ZERO non-URL data signals
  *   5. Sets entity_gate='junk' (and optionally status='rejected') for them
@@ -39,11 +38,11 @@
  *                          AND have no real founder-submitted signals (no pitch, no customers/mrr/arr).
  *                          The raise_amount alone does NOT count — it was extracted from the article text.
  *
- * RECOMMENDED PIPELINE ORDER:
- *   node scripts/reclassify-zero-signal-junk.js --pre-gate --execute
+ * RECOMMENDED PIPELINE ORDER (URL before junk):
  *   node scripts/entity-resolution-gate.js --execute
- *   node scripts/enrich-sparse-startups.js --gate-needs-url-only --limit=400
- *   node scripts/reclassify-zero-signal-junk.js --execute
+ *   node scripts/enrich-sparse-startups.js --gate-needs-url-only --html-only --limit=400
+ *   node scripts/reclassify-zero-signal-junk.js --execute   ← this script
+ *   node scripts/entity-resolution-gate.js --execute
  *   npx tsx scripts/recalculate-scores.ts
  */
 
@@ -51,7 +50,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const { evaluateStartupNameForPipeline } = require('../lib/entityResolutionGate');
+const { evaluateStartupNameForPipeline, startupUrlResolutionPending } = require('../lib/entityResolutionGate');
 const {
   mlLogEnabled,
   insertEntityGateMlEventsBatch,
@@ -249,32 +248,29 @@ async function deleteNullNameRows(execute) {
 }
 
 /**
- * PRE-GATE NAME JUNK FILTER
+ * PRE-GATE NAME JUNK FILTER (legacy — prefer entity gate + URL enrich pipeline)
  *
  * Scans ALL approved rows regardless of entity_gate value (including NULL).
- * Applies ONLY evaluateStartupNameForPipeline (logic engine first, then ontology
- * layers, then legacy safety net) — no zero-signal or exhaustion logic.
- *
- * Purpose: remove junk names from the pool BEFORE entity-resolution-gate runs
- * so downstream steps only see names that pass the same SSOT as classifyStartup().
+ * Defers name-junk labeling until after URL resolution (sets needs_url instead of junk).
+ * Empty/null names are still marked junk immediately.
  *
  * Run with: node scripts/reclassify-zero-signal-junk.js --pre-gate --execute
  */
 async function runPreGate() {
-  console.log('=== PRE-GATE NAME JUNK FILTER ===');
+  console.log('=== PRE-GATE NAME JUNK FILTER (legacy — URL-before-junk pipeline preferred) ===');
   console.log('  Scope: ALL approved rows (entity_gate IS NULL OR any value)\n');
   if (!EXECUTE) console.log('  DRY RUN — pass --execute to apply changes\n');
 
   let page = 0;
   let totalScanned = 0;
   const junkIds = [];
+  const deferNeedsUrlIds = [];
 
   while (true) {
     const from = page * PAGE;
-    // Scan everything except rows already marked junk — no point re-checking those
     const { data, error } = await supabase
       .from('startup_uploads')
-      .select('id, name, entity_gate')
+      .select('id, name, entity_gate, website, company_website, enrichment_attempts')
       .eq('status', 'approved')
       .neq('entity_gate', 'junk')
       .order('id', { ascending: true })
@@ -286,11 +282,16 @@ async function runPreGate() {
     const mlBatch = [];
     for (const s of data) {
       totalScanned++;
-      const nameJunk =
-        !s.name || s.name.trim().length === 0 ||
-        !evaluateStartupNameForPipeline(s.name).ok;
+      const emptyName = !s.name || s.name.trim().length === 0;
+      const nameJunk = emptyName || !evaluateStartupNameForPipeline(s.name).ok;
 
-      if (nameJunk) junkIds.push(s.id);
+      if (nameJunk) {
+        if (emptyName || !startupUrlResolutionPending(s)) {
+          junkIds.push(s.id);
+        } else {
+          deferNeedsUrlIds.push(s.id);
+        }
+      }
 
       if (mlLogEnabled()) {
         mlBatch.push(
@@ -299,8 +300,8 @@ async function runPreGate() {
             name: s.name,
             event_source: 'pre_gate',
             entity_gate: s.entity_gate,
-            bucket: nameJunk ? 'pre_gate_mark' : null,
-            training_label: nameJunk ? 'junk' : 'clean',
+            bucket: nameJunk ? (emptyName ? 'pre_gate_mark' : 'pre_gate_defer_url') : null,
+            training_label: nameJunk && (emptyName || !startupUrlResolutionPending(s)) ? 'junk' : 'clean',
             meta: { execute: EXECUTE },
           }),
         );
@@ -314,31 +315,40 @@ async function runPreGate() {
       }
     }
 
-    console.log(`  Scanned page ${page + 1} (${data.length} rows) — name-junk found: ${junkIds.length} so far`);
+    console.log(`  Scanned page ${page + 1} (${data.length} rows) — junk: ${junkIds.length}, defer needs_url: ${deferNeedsUrlIds.length}`);
     if (data.length < PAGE) break;
     page++;
   }
 
   console.log('\n─────────────────────────────────────────');
-  console.log(`Total scanned:    ${totalScanned}`);
-  console.log(`Name-junk found:  ${junkIds.length}`);
-  console.log(`Will remain:      ${totalScanned - junkIds.length}`);
+  console.log(`Total scanned:         ${totalScanned}`);
+  console.log(`Name-junk (final):     ${junkIds.length}`);
+  console.log(`Deferred (needs_url):  ${deferNeedsUrlIds.length}`);
+  console.log(`Will remain unchanged: ${totalScanned - junkIds.length - deferNeedsUrlIds.length}`);
   console.log('─────────────────────────────────────────\n');
 
   if (!EXECUTE) {
-    console.log('Pass --execute to write entity_gate=junk for these rows.\n');
+    console.log('Pass --execute to write entity_gate updates.\n');
     return;
   }
 
-  if (junkIds.length === 0) {
+  if (junkIds.length === 0 && deferNeedsUrlIds.length === 0) {
     console.log('Nothing to update.\n');
     return;
   }
 
-  console.log(`Writing entity_gate=junk for ${junkIds.length} rows...`);
-  await patchIds(junkIds, { entity_gate: 'junk' });
-  console.log(`Done. ${junkIds.length} rows pre-filtered as junk.\n`);
-  console.log('Next: node scripts/entity-resolution-gate.js --execute\n');
+  if (junkIds.length > 0) {
+    console.log(`Writing entity_gate=junk for ${junkIds.length} rows...`);
+    await patchIds(junkIds, { entity_gate: 'junk' });
+  }
+  if (deferNeedsUrlIds.length > 0) {
+    console.log(`Writing entity_gate=needs_url (pending_url_before_junk) for ${deferNeedsUrlIds.length} rows...`);
+    await patchIds(deferNeedsUrlIds, {
+      entity_gate: 'needs_url',
+      entity_gate_reason: 'pending_url_before_junk',
+    });
+  }
+  console.log('Done.\nNext: node scripts/enrich-sparse-startups.js --gate-needs-url-only --html-only --limit=400\n');
 }
 
 async function run() {
@@ -454,7 +464,7 @@ async function run() {
             }),
           );
         }
-      } else if (!isApprovedPass && nameJunk) {
+      } else if (!isApprovedPass && nameJunk && !startupUrlResolutionPending(s)) {
         nameJunkIds.push(s.id);
         if (mlLogEnabled()) {
           mlJunkBatch.push(
@@ -469,7 +479,7 @@ async function run() {
             }),
           );
         }
-      } else if (!isApprovedPass && noSignal) {
+      } else if (!isApprovedPass && noSignal && !startupUrlResolutionPending(s)) {
         zeroSignalIds.push(s.id);
         if (mlLogEnabled()) {
           mlJunkBatch.push(

@@ -435,8 +435,8 @@ async function runSocialSignalsCollection() {
 async function runFullScoreRecalculation() {
   section('🎯 WEEKLY: FULL GOD SCORE RECALCULATION');
   
-  log('🎯', 'Running full GOD score recalculation (including industry scores)...', c.cyan);
-  const result = runScript('scripts/core/god-score-formula.js', [], 30 * 60 * 1000); // 30 min timeout
+  log('🎯', 'Running full GOD score recalculation (recalculate-scores.ts SSOT)...', c.cyan);
+  const result = runScript('npx', ['tsx', 'scripts/recalculate-scores.ts'], 45 * 60 * 1000);
   
   if (result.success) {
     log('✅', 'Full score recalculation complete', c.green);
