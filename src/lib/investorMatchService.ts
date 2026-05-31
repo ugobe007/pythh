@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './supabase';
+import { isNonInvestorAggregator } from './investorAggregatorBlocklist';
 
 export type InvestorMatch = {
   investor_id: string;
@@ -118,7 +119,8 @@ export async function getInvestorMatchesForStartup(
 
     const investorMap = new Map((investors as any[] || []).map(inv => [inv.id, inv]));
 
-    return matchData.map((m: any) => {
+    return matchData
+      .map((m: any) => {
       const investor = investorMap.get(m.investor_id) as any;
       return {
         investor_id: m.investor_id,
@@ -134,8 +136,11 @@ export async function getInvestorMatchesForStartup(
         photo_url: investor?.photo_url,
         linkedin_url: investor?.linkedin_url,
         notable_investments: investor?.notable_investments,
+        _investor: investor,
       };
-    });
+    })
+      .filter((m) => !isNonInvestorAggregator(m._investor))
+      .map(({ _investor, ...rest }) => rest);
   }
 
   // Fallback: Real-time scoring for new startups without pre-computed matches
@@ -152,7 +157,9 @@ export async function getInvestorMatchesForStartup(
   const startupStage = startup?.stage || 1;
 
   // Score each investor
-  const scoredMatches = investors.map((inv: any) => {
+  const scoredMatches = investors
+    .filter((inv: any) => !isNonInvestorAggregator(inv))
+    .map((inv: any) => {
     let score = 50; // Base score
 
     // Sector fit (0-30 points)

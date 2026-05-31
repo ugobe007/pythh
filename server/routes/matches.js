@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { EnhancedMatchingService } = require('../services/EnhancedMatchingService');
+const { isNonInvestorAggregator } = require('../../lib/investorAggregatorBlocklist');
 
 // Import services from TypeScript modules (using dynamic import for CommonJS compatibility)
 // Note: These functions are loaded asynchronously on first use
@@ -825,7 +826,9 @@ router.get('/top', async (req, res) => {
       .eq('startup_id', startup_id);
     
     // Transform to API contract shape
-    const transformedMatches = matches.map(m => ({
+    const transformedMatches = matches
+      .filter((m) => !isNonInvestorAggregator(m.investors))
+      .map(m => ({
       investor_id: m.investor_id,
       name: m.investors?.name || 'Unknown',
       match_score: m.match_score,

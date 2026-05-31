@@ -15,6 +15,7 @@
 // Use shared Supabase client (same as server)
 const { supabase } = require('./server/lib/supabaseClient');
 const { applyTechVcMatchAdjustment } = require('./lib/proprietaryTechAssessment');
+const { isNonInvestorAggregator } = require('./lib/investorAggregatorBlocklist');
 
 // Matching configuration
 // ═══════════════════════════════════════════════════════════════════════════
@@ -750,7 +751,11 @@ async function regenerateMatches() {
     }
     
     const startups = allStartups;
-    const investors = allInvestors;
+    const investors = allInvestors.filter((inv) => !isNonInvestorAggregator(inv));
+    const skippedAggregators = allInvestors.length - investors.length;
+    if (skippedAggregators > 0) {
+      console.log(`   ⏭️  Skipped ${skippedAggregators} non-investor aggregator(s)`);
+    }
     
     console.log(`\n📊 Found ${startups.length} startups × ${investors.length} investors`);
     console.log(`🧠 Semantic match disabled (embeddings not fetched — coverage was 0%)`)

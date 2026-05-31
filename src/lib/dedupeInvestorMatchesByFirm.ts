@@ -3,6 +3,8 @@
  * (Mirror of lib/dedupeInvestorMatchesByFirm.js for Node preview — keep logic in sync.)
  */
 
+import { isNonInvestorAggregator } from './investorAggregatorBlocklist';
+
 export type MatchWithInvestor = {
   match_score?: number | null;
   investor?: {
@@ -41,6 +43,7 @@ export function dedupeInvestorMatchesByFirm<T extends MatchWithInvestor>(matches
   const out: T[] = [];
   for (const m of sorted) {
     const inv = getInvestorFromMatch(m);
+    if (isNonInvestorAggregator(inv)) continue;
     const key = normalizeInvestorFirmKey(inv);
     if (!key) continue;
     if (seen.has(key)) continue;
