@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
+import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
 import {
   ArrowRight,
   ArrowLeft,
@@ -37,6 +38,7 @@ import {
   X,
   Check,
   Copy,
+  Download,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -381,6 +383,7 @@ function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
       investmentThesis: inv.investment_thesis || "",
       isSuperMatch,
       status: "matched" as const,
+      emailProfile: inferInvestorEmails(inv.name || "Unknown", inv.firm || "Unknown Firm"),
     };
   });
 }
@@ -857,6 +860,34 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
+
+  const handleDownloadProfiles = () => {
+    const apiMatches = (apiResult?.matches ?? []).slice(0, 5);
+    downloadInvestorProfilesMarkdown({
+      startupName,
+      startupUrl: url,
+      godScore: liveGodScore ?? initialGodScore,
+      investors: investors.map((inv, i) => ({
+        rank: i + 1,
+        name: inv.name,
+        firm: inv.firm,
+        role: inv.role,
+        sectors: inv.sector,
+        stage: inv.stage,
+        checkSize: inv.checkSize,
+        matchScore: inv.matchScore,
+        signalScore: inv.signalScore,
+        isSuperMatch: inv.isSuperMatch,
+        whyYouMatchTags: inv.whyYouMatchTags,
+        reason: inv.reason,
+        investmentThesis: inv.investmentThesis,
+        recentActivity: inv.recentActivity,
+        emailProfile: inv.emailProfile ?? inferInvestorEmails(inv.name, inv.firm),
+        knownEmail: apiMatches[i]?.investors?.email || apiMatches[i]?.investors?.email_best_guess,
+      })),
+    });
+  };
+
   const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
   const investors = mapApiToMatchedInvestors(apiResult?.matches ?? []);
   const startupName = apiResult?.startup?.name || domain;
@@ -973,6 +1004,16 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={handleDownloadProfiles}
+              disabled={investors.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ color: "oklch(0.5 0.01 264)", backgroundColor: "transparent", borderColor: "oklch(0.22 0.01 264)" }}
+              title="Download all investor profiles as Markdown"
+            >
+              <Download size={11} />
+              Download profiles
+            </button>
             <button
               onClick={handleShare}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border"
@@ -1104,6 +1145,21 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
               <span className="text-sm font-mono" style={{ color: "oklch(0.696 0.17 162.48)" }}>Computing investor matches…</span>
             </div>
             <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>PYTHIA is scoring 4,000+ investors against your profile. Results will refresh automatically.</p>
+          </div>
+        )}
+        {investors.length > 0 && (
+          <div className="flex items-center justify-between gap-3 mb-4 px-1">
+            <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
+              Save your top {investors.length} matches for offline review — includes thesis, match signals, and email targets.
+            </p>
+            <button
+              onClick={handleDownloadProfiles}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border flex-shrink-0"
+              style={{ color: "#22d3ee", backgroundColor: "transparent", borderColor: "#22d3ee40" }}
+            >
+              <Download size={11} />
+              Download .md
+            </button>
           </div>
         )}
         <div className="space-y-3 mb-8">
