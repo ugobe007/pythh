@@ -32,7 +32,7 @@ type SortDir = "asc" | "desc";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SECTORS = ["All", "AI/ML", "SaaS", "FinTech", "DeepTech", "BioTech", "SpaceTech", "Climate", "Consumer", "Enterprise"];
+const SECTORS = ["All", "AI/ML", "SaaS", "FinTech", "DeepTech", "BioTech", "Robotics", "SpaceTech", "Climate", "Consumer", "Enterprise"];
 
 const SECTOR_COLORS: Record<string, string> = {
   "AI/ML":       "oklch(0.696 0.17 162.48)",
@@ -40,6 +40,7 @@ const SECTOR_COLORS: Record<string, string> = {
   "FinTech":     "oklch(0.72 0.15 250)",
   "DeepTech":    "oklch(0.65 0.18 300)",
   "BioTech":     "oklch(0.72 0.18 145)",
+  "Robotics":    "oklch(0.75 0.16 195)",
   "SpaceTech":   "oklch(0.65 0.15 220)",
   "Climate":     "oklch(0.70 0.17 160)",
   "Consumer":    "oklch(0.75 0.15 50)",
