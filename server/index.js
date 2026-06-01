@@ -9989,7 +9989,17 @@ setTimeout(() => {
   const watchdogScript = path.join(__dirname, '..', 'scripts', 'cron', 'submit-watchdog.js');
 
   function runWatchdog() {
-    execFile(process.execPath, [watchdogScript], { timeout: 60000 }, (err, stdout, stderr) => {
+    const probeBase = process.env.WATCHDOG_API_BASE_URL
+      || process.env.API_BASE_URL
+      || process.env.PROD_BASE_URL
+      || 'https://pythh.ai';
+    execFile(process.execPath, [watchdogScript], {
+      timeout: 60000,
+      env: {
+        ...process.env,
+        API_BASE_URL: probeBase,
+      },
+    }, (err, stdout, stderr) => {
       if (stdout) process.stdout.write(stdout);
       if (err && !err.killed) console.warn('[watchdog] probe error:', err.message);
     });

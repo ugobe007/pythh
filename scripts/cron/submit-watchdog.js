@@ -19,7 +19,7 @@
  *   node scripts/cron/submit-watchdog.js --daemon    # loop every INTERVAL_MINUTES
  *
  * Env:
- *   API_BASE_URL            — default http://127.0.0.1:3002
+ *   API_BASE_URL            — default https://pythh.ai (user-facing path; avoids localhost false positives)
  *   WATCHDOG_INTERVAL_MIN   — probe interval in minutes (default: 15)
  *   WATCHDOG_ALERT_EMAIL    — email to alert (default: uses RESEND_TO_EMAIL or ADMIN_EMAIL)
  *   RESEND_API_KEY          — Resend key for alert emails
@@ -33,9 +33,14 @@ require('dotenv').config({ quiet: true });
 
 const { createClient } = require('@supabase/supabase-js');
 
-const RUNTIME_PORT  = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
-const API_BASE      = process.env.API_BASE_URL || `http://127.0.0.1:${RUNTIME_PORT}`;
+/** Probe production by default — localhost breaks on multi-machine Fly and local cron without a server. */
+function resolveApiBase() {
+  if (process.env.API_BASE_URL) return process.env.API_BASE_URL.replace(/\/$/, '');
+  return (process.env.PROD_BASE_URL || 'https://pythh.ai').replace(/\/$/, '');
+}
+const API_BASE      = resolveApiBase();
 const INTERVAL_MIN  = parseInt(process.env.WATCHDOG_INTERVAL_MIN || '15', 10);
+const ALERT_COOLDOWN_MIN = parseInt(process.env.WATCHDOG_ALERT_COOLDOWN_MIN || '60', 10);
 // Never default alerts TO alerts@pythh.ai — that address is send-only and is suppressed in Resend.
 const ALERT_TO      = process.env.WATCHDOG_ALERT_EMAIL
                    || process.env.RESEND_TO_EMAIL
@@ -126,7 +131,11 @@ async function probeTrpcAuth() {
 async function sendAlert(subject, htmlBody) {
   if (!RESEND_KEY) {
     console.warn('[watchdog] No RESEND_API_KEY — skipping alert email');
-    return;
+    return false;
+  }
+  if (!(await shouldSendAlert())) {
+    console.log(`[watchdog] Alert suppressed — already sent within ${ALERT_COOLDOWN_MIN} minutes`);
+    return false;
   }
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -145,11 +154,40 @@ async function sendAlert(subject, htmlBody) {
     const data = await res.json();
     if (data.id) {
       console.log(`[watchdog] Alert sent → ${ALERT_TO} (id: ${data.id})`);
+      return true;
     } else {
       console.warn('[watchdog] Resend error:', data);
+      return false;
     }
   } catch (e) {
     console.warn('[watchdog] sendAlert threw:', e.message);
+    return false;
+  }
+}
+
+async function shouldSendAlert() {
+  if (ALERT_COOLDOWN_MIN <= 0) return true;
+  try {
+    const since = new Date(Date.now() - ALERT_COOLDOWN_MIN * 60 * 1000).toISOString();
+    const { count, error } = await sb
+      .from('submit_watchdog_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('action_taken', 'alert_sent')
+      .gte('created_at', since);
+    if (error) return true;
+    return (count || 0) === 0;
+  } catch {
+    return true;
+  }
+}
+
+async function probeProductionHealth() {
+  const base = (process.env.PROD_BASE_URL || 'https://pythh.ai').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(12000) });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -294,9 +332,16 @@ async function runProbe() {
     console.warn('[watchdog] Health failures:', health.failures.map(f => f.check).join(', '));
   }
 
-  // Step 3: Send alert email
+  // Step 3: Send alert email (skip if production is healthy — likely bad probe target)
+  const prodHealthy = await probeProductionHealth();
+  if (prodHealthy) {
+    console.warn(`[watchdog] Submit probes failed against ${API_BASE} but ${process.env.PROD_BASE_URL || 'https://pythh.ai'} is healthy — skipping alert`);
+    return;
+  }
+
   const alertSubject = `🚨 Pythh Submit Watchdog: ${failures.length} probe(s) failed`;
-  await sendAlert(alertSubject, buildAlertHtml(failures, health, probeResults));
+  const sent = await sendAlert(alertSubject, buildAlertHtml(failures, health, probeResults));
+  if (!sent) return;
 
   // Step 4: If server is unreachable (retry also failed), trigger restart
   let actionTaken = 'alert_sent';

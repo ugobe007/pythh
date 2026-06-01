@@ -28,7 +28,11 @@ router.get("/god-score-summary", async (_req, res) => {
   try {
     const supabase = getSupabaseClient();
 
-    const startups = await paginateStartupUploads(supabase, "total_god_score", (q) => q);
+    const startups = await paginateStartupUploads(
+      supabase,
+      "total_god_score, status",
+      (q) => q
+    );
 
     const buckets = {
       unscored: 0,
@@ -42,6 +46,10 @@ router.get("/god-score-summary", async (_req, res) => {
     let count = 0;
     let max = 0;
     let min = 100;
+    let approvedSum = 0;
+    let approvedCount = 0;
+
+    const roundAvg = (total, n) => (n ? Math.round((total / n) * 100) / 100 : null);
 
     for (const row of startups ?? []) {
       const s = row.total_god_score;
@@ -53,6 +61,10 @@ router.get("/god-score-summary", async (_req, res) => {
       sum += s;
       if (s > max) max = s;
       if (s < min) min = s;
+      if (row.status === "approved") {
+        approvedCount++;
+        approvedSum += s;
+      }
       if (s < 20) buckets["0–20"]++;
       else if (s < 40) buckets["20–40"]++;
       else if (s < 60) buckets["40–60"]++;
@@ -79,10 +91,12 @@ router.get("/god-score-summary", async (_req, res) => {
       runtime: runtimeRes?.data ?? null,
       weightHistory: weightHistoryRes?.data ?? [],
       stats: {
-        avg: count ? String(Math.round((sum / count) * 100) / 100) : null,
+        avg: count ? String(roundAvg(sum, count)) : null,
+        approved_avg: approvedCount ? String(roundAvg(approvedSum, approvedCount)) : null,
         max: count ? String(max) : null,
         min: count ? String(min) : null,
         total: String(count),
+        approved_total: String(approvedCount),
       },
     });
   } catch (e) {

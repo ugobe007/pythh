@@ -122,10 +122,11 @@ export default function AdminGodManagerPage() {
           <div style={{ display: "grid", gap: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
               {[
-                ["Avg GOD", data.stats?.avg ?? "—", "oklch(0.85 0.17 162)"],
+                ["Approved avg", data.stats?.approved_avg ?? "—", "oklch(0.85 0.17 162)"],
+                ["Overall avg", data.stats?.avg ?? "—", "oklch(0.75 0.15 270)"],
                 ["Max", data.stats?.max ?? "—", "oklch(0.78 0.15 200)"],
                 ["Min", data.stats?.min ?? "—", "oklch(0.65 0.2 25)"],
-                ["Scored", Number(data.stats?.total ?? 0).toLocaleString(), "oklch(0.75 0.15 270)"],
+                ["Scored", Number(data.stats?.total ?? 0).toLocaleString(), "oklch(0.6 0.01 264)"],
               ].map(([lbl, val, color]) => (
                 <div key={lbl as string} style={S.card}>
                   <div style={S.label}>{lbl}</div>

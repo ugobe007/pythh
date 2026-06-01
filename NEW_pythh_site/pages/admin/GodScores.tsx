@@ -111,16 +111,18 @@ export default function GodScoresPage() {
         <div style={{ display: "grid", gap: 16 }}>
 
           {/* KPI row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
             {[
-              ["Avg GOD Score",    data?.stats?.avg ?? "—",   "oklch(0.85 0.17 162)"],
-              ["Max Score",        data?.stats?.max ?? "—",   "oklch(0.78 0.15 200)"],
-              ["Min Score",        data?.stats?.min ?? "—",   "oklch(0.65 0.2 25)"],
-              ["Scored Startups",  Number(data?.stats?.total ?? 0).toLocaleString(), "oklch(0.75 0.15 270)"],
-            ].map(([lbl, val, color]) => (
+              ["Approved avg", data?.stats?.approved_avg ?? "—", "oklch(0.85 0.17 162)", data?.stats?.approved_total ? `${Number(data.stats.approved_total).toLocaleString()} approved` : "Pipeline quality"],
+              ["Overall avg",  data?.stats?.avg ?? "—",          "oklch(0.75 0.15 270)", data?.stats?.total ? `${Number(data.stats.total).toLocaleString()} all scored rows` : "Includes rejected junk"],
+              ["Max Score",    data?.stats?.max ?? "—",          "oklch(0.78 0.15 200)", null],
+              ["Min Score",    data?.stats?.min ?? "—",          "oklch(0.65 0.2 25)", null],
+              ["Scored Rows",  Number(data?.stats?.total ?? 0).toLocaleString(), "oklch(0.6 0.01 264)", "All statuses"],
+            ].map(([lbl, val, color, sub]) => (
               <div key={lbl as string} style={S.card}>
                 <div style={S.label}>{lbl}</div>
                 <div style={{ ...S.big, color: color as string }}>{val}</div>
+                {sub ? <div style={S.sub}>{sub}</div> : null}
               </div>
             ))}
           </div>
