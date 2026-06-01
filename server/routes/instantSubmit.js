@@ -215,7 +215,7 @@ async function getInvestors(supabase) {
     const { data: investors, error } = await supabase
       .from('investors')
       .select(
-        'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, investor_score, investor_tier, signals, email, email_best_guess, email_candidates, email_status, email_has_mx',
+        'id, name, firm, url, sectors, stage, check_size_min, check_size_max, geography_focus, total_investments, active_fund_size, investment_thesis, type, title, is_individual, capital_type, investor_score, investor_tier, signals, email, email_best_guess, email_candidates, email_status, email_has_mx',
       )
       .eq('status', 'active')
       .eq('entity_gate', 'qualified');

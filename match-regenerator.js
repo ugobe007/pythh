@@ -750,7 +750,7 @@ async function regenerateMatches() {
       const { data, error } = await supabase
         .from('investors')
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
-        .select('id, name, firm, type, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, investment_thesis, signals, status')
+        .select('id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, investment_thesis, signals, status')
         .eq('status', 'active')
         .range(page * pageSize, (page + 1) * pageSize - 1);
       

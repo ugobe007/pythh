@@ -2,7 +2,7 @@
  * GET /api/investors — browse investors with optional stage filter.
  *
  * Query params:
- *   stage   early | mid | late | angel | all  (default: all)
+ *   stage   early | mid | late | angel | partner | all  (default: all)
  *   sector  optional sector substring / canonical match
  *   limit   1–100 (default 25)
  *   offset  pagination offset (default 0)
@@ -17,14 +17,15 @@ const {
   buildInvestorStageDbOrFilter,
   getInvestorStageProfile,
 } = require('../../lib/stageInvestorFit');
+const { scorePartnerAngelInvestor } = require('../../lib/partnerAngelInvestors');
 const { getCanonicalSector } = require('../lib/sectorTaxonomy');
 
 const router = express.Router();
 
 const SELECT_COLS =
-  'id, name, firm, type, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, geography_focus, investment_thesis, linkedin_url, website, total_investments, updated_at';
+  'id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, geography_focus, investment_thesis, linkedin_url, website, total_investments, updated_at';
 
-const VALID_STAGES = new Set(['all', 'early', 'mid', 'late', 'angel', 'angels', 'growth']);
+const VALID_STAGES = new Set(['all', 'early', 'mid', 'late', 'angel', 'angels', 'partner', 'partners', 'growth']);
 
 function normalizeSectorFilter(raw) {
   const s = String(raw || '').trim();
@@ -52,11 +53,13 @@ function sortInvestors(rows, sort) {
 
 function shapeInvestor(row) {
   const profile = getInvestorStageProfile(row);
+  const partner = scorePartnerAngelInvestor(row);
   return {
     id: row.id,
     name: row.name,
     firm: row.firm,
     type: row.type,
+    title: row.title,
     sectors: row.sectors || [],
     stage: row.stage || [],
     check_size_min: row.check_size_min,
@@ -70,6 +73,8 @@ function shapeInvestor(row) {
     total_investments: row.total_investments,
     stage_band: profile.band,
     is_angel: profile.isAngel,
+    is_partner_angel: partner.isPartnerAngel,
+    partner_angel_score: partner.score,
   };
 }
 
@@ -83,7 +88,7 @@ router.get('/', async (req, res) => {
   if (!VALID_STAGES.has(stageParam)) {
     return res.status(400).json({
       error: 'Invalid stage',
-      allowed: ['all', 'early', 'mid', 'late', 'angel', 'growth'],
+      allowed: ['all', 'early', 'mid', 'late', 'angel', 'partner', 'growth'],
     });
   }
 
