@@ -667,6 +667,19 @@ async function loadSignalScores() {
   return scoreMap;
 }
 
+/** Keep highest-scoring row when duplicate startup×investor pairs exist in a batch. */
+function dedupeMatchRows(matches) {
+  const byKey = new Map();
+  for (const row of matches) {
+    const key = `${row.startup_id}:${row.investor_id}`;
+    const existing = byKey.get(key);
+    if (!existing || row.match_score > existing.match_score) {
+      byKey.set(key, row);
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 async function regenerateMatches() {
   const startTime = Date.now();
   
@@ -708,7 +721,8 @@ async function regenerateMatches() {
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
         .select('id, name, sectors, stage, total_god_score, pitch, description, tagline, extracted_data')
         .eq('status', 'approved')
-        .gte('total_god_score', 35); // Exclude sub-35 startups from match pool — insufficient signal
+        .gte('total_god_score', 35) // Exclude sub-35 startups from match pool — insufficient signal
+        .order('id', { ascending: true });
       
       // In delta mode, only fetch startups updated since the lookback window
       if (deltaThreshold) {
@@ -752,6 +766,7 @@ async function regenerateMatches() {
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
         .select('id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, investment_thesis, signals, status')
         .eq('status', 'active')
+        .order('id', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
       if (error) throw new Error(`Investor fetch error: ${error.message}`);
@@ -767,10 +782,26 @@ async function regenerateMatches() {
     }
     
     const startups = allStartups;
-    const investors = allInvestors.filter((inv) => !isNonInvestorAggregator(inv));
-    const skippedAggregators = allInvestors.length - investors.length;
+    const seenInvestorIds = new Set();
+    let skippedAggregators = 0;
+    let duplicateInvestors = 0;
+    const investors = allInvestors.filter((inv) => {
+      if (isNonInvestorAggregator(inv)) {
+        skippedAggregators++;
+        return false;
+      }
+      if (seenInvestorIds.has(inv.id)) {
+        duplicateInvestors++;
+        return false;
+      }
+      seenInvestorIds.add(inv.id);
+      return true;
+    });
     if (skippedAggregators > 0) {
       console.log(`   ⏭️  Skipped ${skippedAggregators} non-investor aggregator(s)`);
+    }
+    if (duplicateInvestors > 0) {
+      console.log(`   ⚠️  Dropped ${duplicateInvestors} duplicate investor row(s) from paginated fetch`);
     }
     
     console.log(`\n📊 Found ${startups.length} startups × ${investors.length} investors`);
@@ -966,36 +997,52 @@ async function regenerateMatches() {
     }
     
     console.log(`\n\n📦 Saving ${allMatches.length} matches...`);
+
+    // Dedupe before upsert — Postgres rejects batches with duplicate conflict keys
+    const dedupedMatches = dedupeMatchRows(allMatches);
+    if (dedupedMatches.length < allMatches.length) {
+      console.log(`   ⚠️  Deduped ${allMatches.length - dedupedMatches.length} duplicate startup×investor pair(s) before save`);
+    }
     
-    // Batch insert
+    // Batch insert with retry on transient network errors
     let saved = 0;
-    for (let i = 0; i < allMatches.length; i += CONFIG.BATCH_SIZE) {
-      const batch = allMatches.slice(i, i + CONFIG.BATCH_SIZE);
+    for (let i = 0; i < dedupedMatches.length; i += CONFIG.BATCH_SIZE) {
+      const batch = dedupedMatches.slice(i, i + CONFIG.BATCH_SIZE);
+      const batchNum = Math.floor(i / CONFIG.BATCH_SIZE) + 1;
       
-      // Use upsert to handle any duplicate key conflicts
-      const { error: insErr } = await supabase
-        .from('startup_investor_matches')
-        .upsert(batch, { 
-          onConflict: 'startup_id,investor_id',
-          ignoreDuplicates: false 
-        });
+      let insErr = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { error } = await supabase
+          .from('startup_investor_matches')
+          .upsert(batch, { 
+            onConflict: 'startup_id,investor_id',
+            ignoreDuplicates: false 
+          });
+        insErr = error;
+        if (!insErr) break;
+        if (attempt < 3 && /fetch failed/i.test(insErr.message || '')) {
+          await new Promise((r) => setTimeout(r, attempt * 2000));
+          continue;
+        }
+        break;
+      }
       
       if (insErr) {
-        console.error(`   Batch ${Math.floor(i/CONFIG.BATCH_SIZE)+1} error:`, insErr.message);
+        console.error(`   Batch ${batchNum} error:`, insErr.message);
       } else {
         saved += batch.length;
       }
       
-      process.stdout.write(`\r   Saved ${saved}/${allMatches.length}`);
+      process.stdout.write(`\r   Saved ${saved}/${dedupedMatches.length}`);
     }
     
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     
     console.log('\n\n' + '═'.repeat(60));
-    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}] — v3.1-pythh-techvc`);
+    console.log(`✅ MATCH REGENERATION COMPLETE [${mode}] — v3.2-pythh-stagefit`);
     console.log('═'.repeat(60));
     console.log(`   Mode: ${mode}`);
-    console.log(`   Algorithm: v3.1-pythh-techvc (weights sum to 100, quality gates, tech VC fit)`);
+    console.log(`   Algorithm: v3.2-pythh-stagefit (stage-investor fit, partner-angels, tech VC fit)`);
     console.log(`   Startups: ${startups.length}`);
     console.log(`   Investors: ${investors.length}`);
     console.log(`   Matches saved: ${saved} (cap: ${CONFIG.TOP_MATCHES_PER_STARTUP}/startup)`);
