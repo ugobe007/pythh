@@ -15,6 +15,7 @@
 // Use shared Supabase client (same as server)
 const { supabase } = require('./server/lib/supabaseClient');
 const { applyTechVcMatchAdjustment } = require('./lib/proprietaryTechAssessment');
+const { applyStageInvestorFitAdjustment } = require('./lib/stageInvestorFit');
 const { isNonInvestorAggregator } = require('./lib/investorAggregatorBlocklist');
 
 // Matching configuration
@@ -316,6 +317,13 @@ function generateReasoning(startup, investor, fitAnalysis) {
   } else if (fitAnalysis.stage >= 12) {
     reasons.push(`Adjacent stage — investor may stretch for the right deal`);
   }
+
+  // Stage-investor fit (angel/seed vs growth prioritization)
+  if (fitAnalysis.stage_investor_delta >= 8 && fitAnalysis.stage_investor_fit?.note) {
+    reasons.push(fitAnalysis.stage_investor_fit.note);
+  } else if (fitAnalysis.stage_investor_delta <= -10) {
+    reasons.push(`Stage priority mismatch — ${investor.name} is better suited to a different company stage`);
+  }
   
   // Investor quality reasoning (rescaled: 0-10)
   if (fitAnalysis.investor_quality >= 9) {
@@ -375,6 +383,13 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
   
   if (fitAnalysis.stage >= 10) {
     matches.push(`Stage: ${startup.stage || 'Early'}`);
+  }
+
+  if (fitAnalysis.stage_investor_delta >= 8) {
+    const angel = fitAnalysis.stage_investor_fit?.profile?.isAngel;
+    matches.unshift(`Stage fit: ${angel ? 'Angel/seed' : 'Early-stage'} investor`);
+  } else if (fitAnalysis.stage_investor_delta >= 5 && fitAnalysis.stage_investor_fit?.investorBand === 'late') {
+    matches.unshift('Stage fit: Growth-stage investor');
   }
   
   if (fitAnalysis.investor_quality >= 7) {
@@ -735,7 +750,8 @@ async function regenerateMatches() {
       const { data, error } = await supabase
         .from('investors')
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
-        .select('id, name, firm, sectors, stage, investor_score, investor_tier, investment_thesis, signals')
+        .select('id, name, firm, type, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, investment_thesis, signals, status')
+        .eq('status', 'active')
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
       if (error) throw new Error(`Investor fetch error: ${error.message}`);
@@ -896,16 +912,32 @@ async function regenerateMatches() {
           });
         }
 
-        const confidenceLevel = techAdjusted.confidence;
-        const reasoning = generateReasoning(startup, investor, terms);
-        const whyYouMatch = generateWhyYouMatch(startup, investor, terms);
+        // Stage-investor fit: prioritize angels/seed for early startups, growth for late
+        const stageAdjusted = applyStageInvestorFitAdjustment(
+          { score: finalScore, fitAnalysis, confidence: techAdjusted.confidence },
+          startup,
+          investor
+        );
+        finalScore = stageAdjusted.score;
+        fitAnalysis = stageAdjusted.fitAnalysis;
+        if (fitAnalysis.stage_investor_delta) {
+          reasons.push({
+            key: 'stage_investor_fit',
+            points: fitAnalysis.stage_investor_delta,
+            note: fitAnalysis.stage_investor_fit?.note || 'Stage-investor fit adjustment',
+          });
+        }
+
+        const confidenceLevel = stageAdjusted.confidence;
+        const reasoning = generateReasoning(startup, investor, fitAnalysis);
+        const whyYouMatch = generateWhyYouMatch(startup, investor, fitAnalysis);
         
         scoredMatches.push({
           startup_id: startup.id,
           investor_id: investor.id,
           match_score: finalScore,
           similarity_score: rawSimilarity,
-          algorithm_version: 'v3.1-pythh-techvc',
+          algorithm_version: 'v3.2-pythh-stagefit',
           status: 'suggested',
           confidence_level: confidenceLevel,
           fit_analysis: fitAnalysis,

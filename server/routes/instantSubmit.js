@@ -57,6 +57,7 @@ const {
   applyTechVcMatchAdjustment,
   fetchPatentEvidence,
 } = require('../../lib/proprietaryTechAssessment');
+const { applyStageInvestorFitAdjustment } = require('../../lib/stageInvestorFit');
 const intel = require('../services/submitUrlIntelligence');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { enrichSocialScore } = require('../services/newsSignalService');
@@ -571,7 +572,11 @@ function calculateMatchScore(startup, investor, signalScore, investorSignals) {
     confidence: baseTotal >= 75 ? 'high' : baseTotal >= 55 ? 'medium' : 'low',
   };
 
-  return applyTechVcMatchAdjustment(base, startup, investor, investorSignals);
+  return applyStageInvestorFitAdjustment(
+    applyTechVcMatchAdjustment(base, startup, investor, investorSignals),
+    startup,
+    investor
+  );
 }
 
 function formatSectors(sectors) {
@@ -606,6 +611,11 @@ function generateReasoning(startup, investor, fitAnalysis) {
   if (fitAnalysis.tech_vc_fit === 'weak') {
     reasons.push(`Tech VC mismatch: no proprietary technology or verified patents detected`);
   }
+  if (fitAnalysis.stage_investor_delta >= 8 && fitAnalysis.stage_investor_fit?.note) {
+    reasons.push(fitAnalysis.stage_investor_fit.note);
+  } else if (fitAnalysis.stage_investor_delta <= -10) {
+    reasons.push(`Stage priority mismatch — investor better suited to a different company stage`);
+  }
   return reasons.length > 0 ? reasons.slice(0, 5).join('. ') + '.' : `Match score: ${fitAnalysis.sector + fitAnalysis.stage + fitAnalysis.investor_quality + fitAnalysis.startup_quality}/100`;
 }
 
@@ -626,6 +636,10 @@ function generateWhyYouMatch(startup, investor, fitAnalysis) {
     matches.unshift('⚠️ Tech VC mismatch: no proprietary IP / patents');
   } else if (fitAnalysis.tech_vc_fit === 'strong') {
     matches.push('Proprietary tech / patents verified');
+  }
+  if (fitAnalysis.stage_investor_delta >= 8) {
+    const angel = fitAnalysis.stage_investor_fit?.profile?.isAngel;
+    matches.unshift(`Stage fit: ${angel ? 'Angel/seed' : 'Early-stage'} investor`);
   }
   return matches.length > 0 ? matches : ['Algorithmic match'];
 }

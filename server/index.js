@@ -6279,6 +6279,10 @@ try {
 const startupsRouter = require('./routes/startups');
 app.use('/api/startups', startupsRouter);
 
+// Investor directory (browse by stage, sector)
+const investorsRouter = require('./routes/investors');
+app.use('/api/investors', investorsRouter);
+
 // Startup scrape & enrich API routes
 const startupScrapeRouter = require('./routes/startupScrape');
 app.use('/api/startup', startupScrapeRouter);
