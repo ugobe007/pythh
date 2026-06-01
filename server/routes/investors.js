@@ -23,7 +23,7 @@ const { getCanonicalSector } = require('../lib/sectorTaxonomy');
 const router = express.Router();
 
 const SELECT_COLS =
-  'id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, geography_focus, investment_thesis, linkedin_url, website, total_investments, updated_at';
+  'id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, geography_focus, investment_thesis, linkedin_url, url, total_investments, updated_at';
 
 const VALID_STAGES = new Set(['all', 'early', 'mid', 'late', 'angel', 'angels', 'partner', 'partners', 'growth']);
 
@@ -69,7 +69,7 @@ function shapeInvestor(row) {
     geography_focus: row.geography_focus,
     investment_thesis: row.investment_thesis,
     linkedin_url: row.linkedin_url,
-    website: row.website,
+    url: row.url,
     total_investments: row.total_investments,
     stage_band: profile.band,
     is_angel: profile.isAngel,
