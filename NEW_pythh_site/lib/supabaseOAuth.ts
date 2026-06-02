@@ -21,11 +21,14 @@ export async function completeSupabaseOAuthIfNeeded(
 
   const code = params.get("code");
   if (code) {
-    const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeErr) {
-      return { ok: false, error: exchangeErr.message };
+    const { data: existing } = await supabase.auth.getSession();
+    if (!existing.session) {
+      const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeErr) {
+        return { ok: false, error: exchangeErr.message };
+      }
     }
-    // Clean URL so refresh does not re-exchange an consumed code
+    // Clean URL so refresh does not re-exchange a consumed code
     const next = params.get("next") || params.get("redirect");
     const path = window.location.pathname;
     const clean = next && next.startsWith("/") ? next : path;

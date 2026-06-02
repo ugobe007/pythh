@@ -425,8 +425,14 @@ export default function Account() {
 
   const syncOAuth = trpc.auth.syncSupabaseSession.useMutation({
     onSuccess: async () => {
+      // Wait for session cookie + auth.me before clearing oauthBusy — otherwise we redirect to /login.
       await utils.auth.me.invalidate();
+      const me = await utils.auth.me.fetch();
       setOauthBusy(false);
+      if (!me) {
+        setOauthError("Signed in with Google/GitHub but session did not persist. Try again or use email sign-in.");
+        return;
+      }
       const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
       if (next && next.startsWith("/")) {
@@ -454,11 +460,11 @@ export default function Account() {
 
   // Redirect unauthenticated users to login (after OAuth handoff finishes)
   useEffect(() => {
-    if (oauthBusy) return;
+    if (oauthBusy || syncOAuth.isPending) return;
     if (!authLoading && !isAuthenticated) {
       window.location.href = getLoginUrl("/account");
     }
-  }, [authLoading, isAuthenticated, oauthBusy]);
+  }, [authLoading, isAuthenticated, oauthBusy, syncOAuth.isPending]);
 
   const { data: subscription, isLoading: subLoading, refetch: refetchSubscription } =
     trpc.stripe.getSubscriptionDetails.useQuery(undefined, {

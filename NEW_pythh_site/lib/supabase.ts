@@ -33,7 +33,8 @@ if (!isServer && !hasValidSupabaseCredentials) {
 const authConfig = {
   persistSession: true,
   autoRefreshToken: true,
-  detectSessionInUrl: true,
+  // PKCE exchange runs in completeSupabaseOAuthIfNeeded — avoid double exchange on /account?code=
+  detectSessionInUrl: false,
   storage: typeof window !== "undefined" ? window.localStorage : undefined,
 };
 
