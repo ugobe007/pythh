@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
@@ -17,6 +17,15 @@ function getPostLoginPath(): string {
  */
 export default function Login() {
   const [, navigate] = useLocation();
+
+  // Supabase may return ?code= to /login if that URL is still in the allow list — hand off to /account.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("code") || params.has("error") || params.has("error_description")) {
+      const q = window.location.search || "";
+      window.location.replace(`/account${q}`);
+    }
+  }, []);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);

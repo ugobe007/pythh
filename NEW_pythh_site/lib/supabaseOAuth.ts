@@ -1,14 +1,27 @@
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 
-export type OAuthSyncFn = (input: { access_token: string }) => Promise<unknown>;
+/** Sync Supabase access token → pythh_session cookie (REST, not tRPC). */
+export async function syncSupabaseAccessTokenToServer(
+  accessToken: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/auth/sync-supabase", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ access_token: accessToken }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { error?: string; success?: boolean };
+  if (!res.ok) {
+    return { ok: false, error: body.error || `Sign-in failed (${res.status})` };
+  }
+  return { ok: !!body.success };
+}
 
 /**
  * Finish Supabase OAuth when URL has ?code=… (PKCE) or an existing session.
  * Returns true if a session was synced to the server (pythh_session cookie).
  */
-export async function completeSupabaseOAuthIfNeeded(
-  syncSession: OAuthSyncFn,
-): Promise<{ ok: boolean; error?: string }> {
+export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; error?: string }> {
   if (!supabase || !hasValidSupabaseCredentials) {
     return { ok: false, error: "OAuth is not configured in this build." };
   }
@@ -40,8 +53,7 @@ export async function completeSupabaseOAuthIfNeeded(
     return { ok: false };
   }
 
-  await syncSession({ access_token: session.access_token });
-  return { ok: true };
+  return syncSupabaseAccessTokenToServer(session.access_token);
 }
 
 /** Same redirect target the legacy pythh.ai app used (already in Supabase allow list). */

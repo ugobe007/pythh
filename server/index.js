@@ -39,6 +39,7 @@ if (envResult && !envResult.error && !isProd) {
 // Minimal bootstrap — defer listen() until /api/trpc is mounted so early traffic is not dropped.
 const express = require('express');
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
 let httpServerStarted = false;
 let pythhTrpcMounted = false;
@@ -326,6 +327,10 @@ app.use((req, res, next) => {
     express.json()(req, res, next);
   }
 });
+
+const { mountSupabaseAuthSync } = require('./routes/supabaseAuthSync');
+mountSupabaseAuthSync(app);
+console.log('[pythh] POST /api/auth/sync-supabase mounted');
 
 // Pythh NEW site — tRPC (same origin as SPA: /api/trpc)
 // tsx registers a .ts require extension; plain node does not.
