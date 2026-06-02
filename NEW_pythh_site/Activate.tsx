@@ -131,11 +131,38 @@ interface ApiResult {
   matches: ApiMatch[];
   /** UUID of the startup record that was created/resolved by instantSubmit */
   startup_id?: string | null;
+  /** Total suggested matches in DB (may exceed matches[] length) */
+  match_count?: number;
   /** True only for brand-new URLs that have never been submitted before.
    *  Existing startups already have pre-computed GOD scores in the DB. */
   is_new?: boolean;
   /** True when the background match-generation pipeline is still running */
   gen_in_progress?: boolean;
+}
+
+function getShareStartupIdFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("sid") || params.get("startup_id");
+}
+
+function buildResultsShareUrl(startupId: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://pythh.ai";
+  return `${origin}/activate?sid=${encodeURIComponent(startupId)}`;
+}
+
+async function copyTextToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+  }
 }
 
 // ─── Pitch email + pipeline milestone builders ────────────────────────────────
@@ -684,6 +711,7 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
           startup: (data.startup as ApiStartup) ?? null,
           matches: Array.isArray(data.matches) ? (data.matches as ApiMatch[]) : [],
           startup_id: (data.startup_id as string) ?? null,
+          match_count: typeof data.match_count === "number" ? data.match_count : undefined,
           is_new: Boolean(data.is_new),
           gen_in_progress: Boolean(data.gen_in_progress),
         };
@@ -837,26 +865,71 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
 
 // ─── Step 3: Match Results ────────────────────────────────────────────────────
 
-function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: { url: string; onActivate: () => void; apiResult?: ApiResult | null; onRefresh?: () => void; onForceRefresh?: () => void }) {
+function SharedResultsLoader() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
+      <Loader2 size={28} className="animate-spin mb-4" style={{ color: "#22d3ee" }} />
+      <p className="text-sm font-medium" style={{ color: "oklch(0.75 0.005 264)" }}>Loading shared investor matches…</p>
+      <p className="text-xs mt-2" style={{ color: "oklch(0.45 0.01 264)" }}>Ranked by timing × thesis fit × GOD score</p>
+    </div>
+  );
+}
+
+function ResultsStep({
+  url,
+  onActivate,
+  apiResult,
+  onRefresh,
+  onForceRefresh,
+  isSharedView = false,
+  onRunOwnScan,
+}: {
+  url: string;
+  onActivate: () => void;
+  apiResult?: ApiResult | null;
+  onRefresh?: () => void;
+  onForceRefresh?: () => void;
+  isSharedView?: boolean;
+  onRunOwnScan?: () => void;
+}) {
   const [expanded, setExpanded] = useState<number | null>(1);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
+  const investors = mapApiToMatchedInvestors(apiResult?.matches ?? []);
+  const startupName = apiResult?.startup?.name || domain;
+  const startupId = apiResult?.startup_id ?? apiResult?.startup?.id ?? null;
+  const totalMatchCount = apiResult?.match_count ?? apiResult?.matches?.length ?? investors.length;
+  const matchCount = investors.length;
+  const initialGodScore = apiResult?.startup?.total_god_score ?? null;
+  const [liveGodScore, setLiveGodScore] = useState<number | null>(initialGodScore);
+  const isNewStartup = Boolean(apiResult?.is_new);
+  const [scorePending, setScorePending] = useState<boolean>(
+    !isSharedView && Boolean(startupId && (apiResult?.gen_in_progress || apiResult?.matches?.length === 0 || isNewStartup))
+  );
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollAttemptsRef = useRef(0);
+  const MAX_POLL_ATTEMPTS = 12;
+
   const handleShare = async () => {
-    const shareUrl = `https://pythh.ai/activate?startup=${encodeURIComponent(url)}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-    } catch {
-      // fallback for browsers that block clipboard without HTTPS focus
-      const el = document.createElement("textarea");
-      el.value = shareUrl;
-      el.style.position = "fixed";
-      el.style.opacity = "0";
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
+    const shareUrl = startupId
+      ? buildResultsShareUrl(startupId)
+      : `${window.location.origin}/activate?startup=${encodeURIComponent(url)}`;
+    const shareText = `${startupName} — top investor matches on pythh.ai`;
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: shareText, text: shareText, url: shareUrl });
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2200);
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+      }
     }
+
+    await copyTextToClipboard(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
   };
@@ -888,28 +961,9 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
     });
   };
 
-  const domain = url.replace(/https?:\/\//, "").replace(/\/.*/, "");
-  const investors = mapApiToMatchedInvestors(apiResult?.matches ?? []);
-  const startupName = apiResult?.startup?.name || domain;
-  const totalMatchCount = apiResult?.matches?.length ?? investors.length;
-  const matchCount = investors.length;
-
-  // ── Live GOD score polling ────────────────────────────────────────────────
-  // Existing startups already have pre-computed GOD scores — only poll when
-  // this is a brand-new URL that has never been submitted before (is_new: true).
-  const startupId = apiResult?.startup_id ?? apiResult?.startup?.id ?? null;
-  const initialGodScore = apiResult?.startup?.total_god_score ?? null;
-  const [liveGodScore, setLiveGodScore] = useState<number | null>(initialGodScore);
-  const isNewStartup = Boolean(apiResult?.is_new);
-  // Always poll when we have a startupId — background pipeline improves matches
-  // even for existing startups (speculative → real sector-specific matches).
-  const [scorePending, setScorePending] = useState<boolean>(Boolean(startupId && (apiResult?.gen_in_progress || apiResult?.matches?.length === 0 || isNewStartup)));
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollAttemptsRef = useRef(0);
-  const MAX_POLL_ATTEMPTS = 12; // ~60 seconds at 5s intervals
-
+  // ── Live GOD score polling (skip for read-only shared views) ─────────────
   useEffect(() => {
-    if (!startupId) return;
+    if (isSharedView || !startupId) return;
 
     const poll = async () => {
       pollAttemptsRef.current++;
@@ -947,7 +1001,7 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
       if (pollRef.current) clearInterval(pollRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startupId]);
+  }, [startupId, isSharedView]);
 
   // ── Derived display values ─────────────────────────────────────────────────
   const godScore = Math.round(liveGodScore ?? initialGodScore ?? 0);
@@ -1018,6 +1072,7 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
               onClick={handleShare}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border"
               style={{ color: copied ? "#22c55e" : "oklch(0.5 0.01 264)", backgroundColor: "transparent", borderColor: copied ? "#22c55e40" : "oklch(0.22 0.01 264)" }}
+              title={startupId ? "Share this results page" : "Share link to re-run this scan"}
             >
               {copied ? <Check size={11} /> : <Copy size={11} />}
               {copied ? "Copied!" : "Share"}
@@ -1035,6 +1090,25 @@ function ResultsStep({ url, onActivate, apiResult, onRefresh, onForceRefresh }: 
           </div>
         </div>
       </div>
+
+      {isSharedView && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 text-xs"
+            style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid oklch(0.24 0.01 264)", color: "oklch(0.62 0.01 264)" }}>
+            <span>Shared investor match results — read-only snapshot</span>
+            {onRunOwnScan && (
+              <button
+                type="button"
+                onClick={onRunOwnScan}
+                className="font-semibold transition-colors"
+                style={{ color: "#22d3ee" }}
+              >
+                Scan your startup →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
 
@@ -2135,6 +2209,7 @@ Worth a conversation?
 export default function Activate() {
   const { isAuthenticated, user } = useAuth();
   const [, navigate] = useLocation();
+  const [shareStartupId] = useState(() => getShareStartupIdFromUrl());
 
   // tRPC subscription check — only used when user tries to activate pipeline
   const { data: subscription } = trpc.stripe.getSubscription.useQuery(
@@ -2151,13 +2226,15 @@ export default function Activate() {
     return null;
   });
   const [url, setUrl] = useState(() => {
-    // Shared link: ?startup=https://company.com
+    if (shareStartupId) return "";
+    // Shared link (legacy): ?startup=https://company.com — re-runs scan
     const params = new URLSearchParams(window.location.search);
     const sharedUrl = params.get("startup");
     if (sharedUrl) return sharedUrl;
     return sessionStorage.getItem("pythia_url") || "";
   });
   const [step, setStep] = useState<Step>(() => {
+    if (shareStartupId) return "entry";
     if (prefilledInvestor) return "pipeline";
     // Shared link auto-starts scanning
     const params = new URLSearchParams(window.location.search);
@@ -2170,6 +2247,57 @@ export default function Activate() {
     return "entry";
   });
   const [apiResult, setApiResult] = useState<ApiResult | null>(null);
+  const [loadingShared, setLoadingShared] = useState(Boolean(shareStartupId));
+  const [isSharedView, setIsSharedView] = useState(false);
+  const [sharedLoadError, setSharedLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!shareStartupId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/instant/results?startup_id=${encodeURIComponent(shareStartupId)}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setSharedLoadError(typeof data.error === "string" ? data.error : "Shared results not found");
+          setLoadingShared(false);
+          setStep("entry");
+          return;
+        }
+        setUrl(data.startup?.website || "");
+        setApiResult({
+          startup: data.startup ?? null,
+          matches: Array.isArray(data.matches) ? data.matches : [],
+          startup_id: data.startup_id ?? shareStartupId,
+          match_count: typeof data.match_count === "number" ? data.match_count : undefined,
+          is_new: false,
+          gen_in_progress: false,
+        });
+        setIsSharedView(true);
+        setStep("results");
+      } catch {
+        if (!cancelled) {
+          setSharedLoadError("Could not load shared results");
+          setStep("entry");
+        }
+      } finally {
+        if (!cancelled) setLoadingShared(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [shareStartupId]);
+
+  const handleRunOwnScan = () => {
+    setIsSharedView(false);
+    setApiResult(null);
+    setSharedLoadError(null);
+    setUrl("");
+    window.history.replaceState({}, "", "/activate");
+    setStep("entry");
+  };
 
   const handleUrlSubmit = (submittedUrl: string, submittedEmail: string) => {
     setUrl(submittedUrl);
@@ -2201,6 +2329,7 @@ export default function Activate() {
         startup: (rawData.startup as ApiResult["startup"]) ?? null,
         matches: Array.isArray(rawData.matches) ? (rawData.matches as ApiResult["matches"]) : [],
         startup_id: (rawData.startup_id as string) ?? null,
+        match_count: typeof rawData.match_count === "number" ? rawData.match_count : undefined,
         is_new: Boolean(rawData.is_new),
         gen_in_progress: Boolean(rawData.gen_in_progress),
       };
@@ -2227,6 +2356,7 @@ export default function Activate() {
         startup: (rawData.startup as ApiResult["startup"]) ?? null,
         matches: Array.isArray(rawData.matches) ? (rawData.matches as ApiResult["matches"]) : [],
         startup_id: (rawData.startup_id as string) ?? null,
+        match_count: typeof rawData.match_count === "number" ? rawData.match_count : undefined,
         is_new: Boolean(rawData.is_new),
         gen_in_progress: Boolean(rawData.gen_in_progress),
       };
@@ -2255,7 +2385,7 @@ export default function Activate() {
   return (
     <div style={{ backgroundColor: "oklch(0.13 0.01 264)", minHeight: "100vh" }}>
       {/* Back to home */}
-      {(step === "entry" || step === "pipeline") && (
+      {(step === "entry" || step === "pipeline") && !loadingShared && (
         <div className="fixed top-4 left-4 z-50">
           <button
             onClick={() => navigate("/")}
@@ -2281,9 +2411,32 @@ export default function Activate() {
         </div>
       )}
 
-      {step === "entry" && <EntryStep onSubmit={handleUrlSubmit} />}
-      {step === "scanning" && <ScanningStep url={url} onComplete={handleScanComplete} />}
-      {step === "results" && <ResultsStep url={url} onActivate={handleActivatePipeline} apiResult={apiResult} onRefresh={handleRefreshMatches} onForceRefresh={handleForceRefreshMatches} />}
+      {step === "entry" && !loadingShared && (
+        <>
+          {sharedLoadError && (
+            <div className="max-w-lg mx-auto px-4 pt-24">
+              <div className="rounded-lg px-4 py-3 text-sm text-center mb-4"
+                style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid oklch(0.24 0.01 264)", color: "oklch(0.65 0.01 264)" }}>
+                {sharedLoadError}
+              </div>
+            </div>
+          )}
+          <EntryStep onSubmit={handleUrlSubmit} />
+        </>
+      )}
+      {loadingShared && <SharedResultsLoader />}
+      {step === "scanning" && !loadingShared && <ScanningStep url={url} onComplete={handleScanComplete} />}
+      {step === "results" && !loadingShared && (
+        <ResultsStep
+          url={url}
+          onActivate={handleActivatePipeline}
+          apiResult={apiResult}
+          onRefresh={handleRefreshMatches}
+          onForceRefresh={handleForceRefreshMatches}
+          isSharedView={isSharedView}
+          onRunOwnScan={handleRunOwnScan}
+        />
+      )}
       {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} apiResult={apiResult} />}
     </div>
   );
