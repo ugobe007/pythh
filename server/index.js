@@ -113,6 +113,9 @@ app.get('/api/public-config', (req, res) => {
   res.json({ supabaseUrl, supabaseAnonKey });
 });
 
+// Bind port early so Fly /ping health passes while the rest of the app loads.
+startHttpServer();
+
 // Serve frontend immediately so the site loads even if a later require() crashes
 const distPath = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
@@ -391,9 +394,6 @@ const instantSubmit = require('./routes/instantSubmit');
 app.use('/api/instant', instantSubmit);
 pythhInstantMounted = true;
 console.log('[pythh] /api/instant mounted (submit URL fast path)');
-
-// Accept traffic only after submit + tRPC routers are registered.
-startHttpServer();
 
 // File storage for uploaded documents
 const upload = multer({ dest: 'uploads/' });
