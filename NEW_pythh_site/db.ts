@@ -59,6 +59,7 @@ export async function getDb() {
         connectionString: url,
         max: isSupabase ? 8 : 12,
         idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 8_000,
         ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
       });
       pool.on("error", (err: Error) => console.error("[Database] pg pool error:", err));

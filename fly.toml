@@ -33,10 +33,10 @@ primary_region = 'lax'
     port = 8080
     type = "http"
     interval = "15s"
-    timeout = "5s"
+    timeout = "10s"
     grace_period = "120s"
     method = "GET"
-    path = "/ping"
+    path = "/api/instant/_ready"
 
 [[vm]]
   memory = '4096mb'

@@ -36,11 +36,65 @@ if (envResult && !envResult.error && !isProd) {
   console.log('[Server Startup] .env loaded,', Object.keys(envResult.parsed || {}).length, 'vars');
 }
 
-// Minimal bootstrap: bind 0.0.0.0:PORT immediately so Fly.io health checks pass (no logger/db/other requires yet)
+// Minimal bootstrap — defer listen() until /api/trpc is mounted so early traffic is not dropped.
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || (process.env.FLY_APP_NAME ? 8080 : 3002);
+let httpServerStarted = false;
+let pythhTrpcMounted = false;
+let pythhInstantMounted = false;
+
 app.get('/ping', (req, res) => res.status(200).json({ ok: true, ts: new Date().toISOString() }));
+
+/** Fly health + deploy readiness: true only after tRPC router is registered (not just /ping). */
+app.get('/api/trpc/_ready', (_req, res) => {
+  if (!pythhTrpcMounted) {
+    return res.status(503).json({ ok: false, reason: 'trpc_starting' });
+  }
+  return res.status(200).json({ ok: true, trpc: true });
+});
+
+/** Submit URL path readiness — must be mounted before Fly routes traffic (see instantSubmit mount). */
+app.get('/api/instant/_ready', (_req, res) => {
+  if (!pythhInstantMounted) {
+    return res.status(503).json({ ok: false, reason: 'instant_starting' });
+  }
+  return res.status(200).json({ ok: true, instant: true });
+});
+
+function warmupLocalPaths() {
+  const http = require('http');
+  const warm = (label, path) => {
+    const req = http.get({ host: '127.0.0.1', port: PORT, path, timeout: 20_000 }, (res) => {
+      res.resume();
+      console.log(`[pythh] warmup ${label} →`, res.statusCode);
+    });
+    req.on('error', (e) => console.warn(`[pythh] warmup ${label} failed:`, e.message));
+    req.on('timeout', () => {
+      req.destroy();
+      console.warn(`[pythh] warmup ${label} timed out`);
+    });
+  };
+  if (pythhInstantMounted) warm('instant/health', '/api/instant/health');
+  if (pythhTrpcMounted) {
+    const input = encodeURIComponent(JSON.stringify({ '0': { json: null } }));
+    warm('auth.me', `/api/trpc/auth.me?batch=1&input=${input}`);
+  }
+}
+
+function startHttpServer() {
+  if (httpServerStarted) return;
+  httpServerStarted = true;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(
+      '[pythh] Listening on',
+      PORT,
+      pythhInstantMounted ? '(instant submit ready)' : '(instant pending)',
+      pythhTrpcMounted ? '(tRPC ready)' : '(tRPC unavailable)'
+    );
+    setImmediate(warmupLocalPaths);
+  });
+}
 
 // Public anon config for browser (same keys as HTML injection). Prefer SUPABASE_* so Fly secrets
 // override stale VITE_* from fly.toml. Registered before static/SPA so it always resolves.
@@ -57,11 +111,6 @@ app.get('/api/public-config', (req, res) => {
   }
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.json({ supabaseUrl, supabaseAnonKey });
-});
-
-// Bind before static/SPA setup so Fly smoke checks see 0.0.0.0:8080 immediately
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('[pythh] Listening on', PORT);
 });
 
 // Serve frontend immediately so the site loads even if a later require() crashes
@@ -295,6 +344,7 @@ app.use((req, res, next) => {
   try {
     const { mountPythhTrpc } = require(entry);
     mountPythhTrpc(app);
+    pythhTrpcMounted = true;
     console.log('[pythh] /api/trpc mounted (NEW_pythh_site)');
   } catch (err) {
     console.error('[pythh] Failed to mount /api/trpc:', err.message);
@@ -303,6 +353,8 @@ app.use((req, res, next) => {
     });
   }
 })();
+
+// listen() runs after /api/instant is mounted — submit URL must not 404 during boot (see below).
 
 // Request ID middleware (for tracing)
 const { requestIdMiddleware } = require('./middleware/requestId');
@@ -6129,6 +6181,11 @@ app.use('/api', resolveRouter);
 // INSTANT Submit API - The Pythh Fast Path (URL → Matches in <3 seconds)
 const instantSubmit = require('./routes/instantSubmit');
 app.use('/api/instant', instantSubmit);
+pythhInstantMounted = true;
+console.log('[pythh] /api/instant mounted (submit URL fast path)');
+
+// Accept traffic only after submit + tRPC routers are registered.
+startHttpServer();
 
 // Deck upload - Pitch deck scoring and profile save
 const deckUploadRouter = require('./routes/deckUpload');

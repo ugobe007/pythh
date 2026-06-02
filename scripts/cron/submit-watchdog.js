@@ -108,22 +108,58 @@ async function fetchDeepHealth() {
  * URL flow (Activate.tsx). If it returns anything other than 200 + JSON array,
  * the UI submit function is broken regardless of whether /api/instant/submit passes.
  */
-async function probeTrpcAuth() {
-  const PROD_URL = process.env.PROD_BASE_URL || 'https://pythh.ai';
+const TRPC_PROBE_TIMEOUT_MS = Number(process.env.TRPC_PROBE_TIMEOUT_MS || 15_000);
+const TRPC_PROBE_RETRIES = Number(process.env.TRPC_PROBE_RETRIES || 2);
+
+async function probeTrpcAuthOnce(baseUrl) {
   const t0 = Date.now();
-  try {
-    const res = await fetch(
-      `${PROD_URL}/api/trpc/auth.me?batch=1&input=${encodeURIComponent(JSON.stringify({ '0': { json: null } }))}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    const ms = Date.now() - t0;
-    if (!res.ok) return { ok: false, ms, error: `HTTP ${res.status} — tRPC not mounted or swallowed by 404 catch-all` };
-    const body = await res.json();
-    if (!Array.isArray(body)) return { ok: false, ms, error: `Unexpected response shape: ${JSON.stringify(body).slice(0, 80)}` };
-    return { ok: true, ms, user: body[0]?.result?.data?.json ?? null };
-  } catch (e) {
-    return { ok: false, ms: Date.now() - t0, error: e.message };
+  const res = await fetch(
+    `${baseUrl.replace(/\/$/, '')}/api/trpc/auth.me?batch=1&input=${encodeURIComponent(JSON.stringify({ '0': { json: null } }))}`,
+    { signal: AbortSignal.timeout(TRPC_PROBE_TIMEOUT_MS) }
+  );
+  const ms = Date.now() - t0;
+  if (!res.ok) {
+    return { ok: false, ms, error: `HTTP ${res.status} — tRPC not mounted or swallowed by 404 catch-all` };
   }
+  const body = await res.json();
+  if (!Array.isArray(body)) {
+    return { ok: false, ms, error: `Unexpected response shape: ${JSON.stringify(body).slice(0, 80)}` };
+  }
+  return { ok: true, ms, user: body[0]?.result?.data?.json ?? null };
+}
+
+async function probeTrpcAuthAt(baseUrl) {
+  let last = { ok: false, ms: 0, error: 'no_attempt' };
+  for (let attempt = 0; attempt <= TRPC_PROBE_RETRIES; attempt++) {
+    try {
+      last = await probeTrpcAuthOnce(baseUrl);
+      if (last.ok) return { ...last, baseUrl };
+    } catch (e) {
+      last = { ok: false, ms: Date.now(), error: e.message };
+    }
+    if (attempt < TRPC_PROBE_RETRIES) await new Promise((r) => setTimeout(r, 500));
+  }
+  return { ...last, baseUrl };
+}
+
+/** Probe pythh.ai (Vercel→Fly) and Fly direct; alert only if both fail. */
+async function probeTrpcAuth() {
+  const prodUrl = process.env.PROD_BASE_URL || 'https://pythh.ai';
+  const flyUrl = process.env.FLY_API_BASE_URL || 'https://hot-honey.fly.dev';
+  const prod = await probeTrpcAuthAt(prodUrl);
+  if (prod.ok) return prod;
+  const fly = await probeTrpcAuthAt(flyUrl);
+  if (fly.ok) {
+    return {
+      ...fly,
+      warn: `pythh.ai failed (${prod.error}); fly.dev OK — check Vercel /api rewrite`,
+    };
+  }
+  return {
+    ok: false,
+    ms: Math.max(prod.ms || 0, fly.ms || 0),
+    error: `pythh.ai: ${prod.error}; fly.dev: ${fly.error}`,
+  };
 }
 
 // ── Resend alert ─────────────────────────────────────────────────────────────
@@ -277,6 +313,7 @@ async function runProbe() {
     );
   } else {
     console.log(`  ✓ tRPC auth.me OK (${trpcResult.ms}ms) user=${trpcResult.user ? trpcResult.user.email : 'anonymous'}`);
+    if (trpcResult.warn) console.warn(`  ⚠ ${trpcResult.warn}`);
   }
 
   const probeResults = [];
