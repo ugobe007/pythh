@@ -39,6 +39,7 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
+import { completeSupabaseOAuthIfNeeded } from "@/lib/supabaseOAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -415,14 +416,49 @@ function NoSubscription({ userName }: { userName: string | null }) {
 export default function Account() {
   const [, navigate] = useLocation();
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [oauthBusy, setOauthBusy] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("code"),
+  );
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const utils = trpc.useUtils();
 
-  // Redirect unauthenticated users to login
+  const syncOAuth = trpc.auth.syncSupabaseSession.useMutation({
+    onSuccess: async () => {
+      await utils.auth.me.invalidate();
+      setOauthBusy(false);
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      if (next && next.startsWith("/")) {
+        navigate(next);
+      }
+    },
+    onError: (err) => {
+      setOauthError(err.message || "Sign-in failed.");
+      setOauthBusy(false);
+    },
+  });
+
+  // Complete Google/GitHub OAuth on /account (legacy redirect URL — already in Supabase)
   useEffect(() => {
+    if (!oauthBusy) return;
+    void completeSupabaseOAuthIfNeeded((input) => syncOAuth.mutateAsync(input)).then((result) => {
+      if (!result.ok && result.error) {
+        setOauthError(result.error);
+        setOauthBusy(false);
+      } else if (!result.ok) {
+        setOauthBusy(false);
+      }
+    });
+  }, [oauthBusy]);
+
+  // Redirect unauthenticated users to login (after OAuth handoff finishes)
+  useEffect(() => {
+    if (oauthBusy) return;
     if (!authLoading && !isAuthenticated) {
-      window.location.href = getLoginUrl();
+      window.location.href = getLoginUrl("/account");
     }
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, isAuthenticated, oauthBusy]);
 
   const { data: subscription, isLoading: subLoading, refetch: refetchSubscription } =
     trpc.stripe.getSubscriptionDetails.useQuery(undefined, {
@@ -477,7 +513,7 @@ export default function Account() {
     }
   };
 
-  const isLoading = authLoading || subLoading;
+  const isLoading = authLoading || subLoading || oauthBusy;
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (isLoading) {
@@ -485,7 +521,15 @@ export default function Account() {
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={28} className="animate-spin" style={{ color: "oklch(0.696 0.17 162.48)" }} />
-          <p className="text-sm" style={{ color: "oklch(0.45 0.01 264)" }}>Loading your account…</p>
+          <p className="text-sm" style={{ color: "oklch(0.45 0.01 264)" }}>
+            {oauthBusy ? "Completing Google/GitHub sign-in…" : "Loading your account…"}
+          </p>
+          {oauthError && (
+            <p className="text-xs text-center max-w-xs px-3" style={{ color: "oklch(0.75 0.15 27)" }}>
+              {oauthError}{" "}
+              <a href="/login" style={{ color: "#22d3ee" }}>Try again</a>
+            </p>
+          )}
         </div>
       </div>
     );

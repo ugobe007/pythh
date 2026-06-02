@@ -3,17 +3,13 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
+import { buildSupabaseOAuthRedirectUrl } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
   const redirect = params.get("redirect") || params.get("next");
   if (redirect && redirect.startsWith("/")) return redirect;
   return "/account";
-}
-
-function buildOAuthRedirectUrl(): string {
-  const next = getPostLoginPath();
-  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 }
 
 /**
@@ -48,7 +44,7 @@ export default function Login() {
       const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: buildOAuthRedirectUrl(),
+          redirectTo: buildSupabaseOAuthRedirectUrl(getPostLoginPath()),
         },
       });
       if (oauthErr) throw oauthErr;
