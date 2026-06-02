@@ -36,7 +36,7 @@ primary_region = 'lax'
     timeout = "10s"
     grace_period = "120s"
     method = "GET"
-    path = "/api/instant/_ready"
+    path = "/ping"
 
 [[vm]]
   memory = '4096mb'

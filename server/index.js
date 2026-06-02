@@ -386,6 +386,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// INSTANT Submit API — mount early so listen() can follow immediately (submit URL fast path).
+const instantSubmit = require('./routes/instantSubmit');
+app.use('/api/instant', instantSubmit);
+pythhInstantMounted = true;
+console.log('[pythh] /api/instant mounted (submit URL fast path)');
+
+// Accept traffic only after submit + tRPC routers are registered.
+startHttpServer();
+
 // File storage for uploaded documents
 const upload = multer({ dest: 'uploads/' });
 
@@ -6177,15 +6186,6 @@ app.use('/api/match', matchRunRoutes);
 // Resolve API route (Bulletproof URL resolution)
 const resolveRouter = require('./routes/resolve');
 app.use('/api', resolveRouter);
-
-// INSTANT Submit API - The Pythh Fast Path (URL → Matches in <3 seconds)
-const instantSubmit = require('./routes/instantSubmit');
-app.use('/api/instant', instantSubmit);
-pythhInstantMounted = true;
-console.log('[pythh] /api/instant mounted (submit URL fast path)');
-
-// Accept traffic only after submit + tRPC routers are registered.
-startHttpServer();
 
 // Deck upload - Pitch deck scoring and profile save
 const deckUploadRouter = require('./routes/deckUpload');
