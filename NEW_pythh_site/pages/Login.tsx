@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
-import { buildSupabaseOAuthRedirectUrl } from "@/lib/supabaseOAuth";
+import { buildSupabaseOAuthRedirectUrl, persistPkceVerifierCookie } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
@@ -32,6 +32,12 @@ export default function Login() {
   const [done, setDone] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"google" | "github" | null>(null);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("oauth_error");
+    if (err) setError(decodeURIComponent(err));
+  }, []);
+
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
       setDone(true);
@@ -50,13 +56,18 @@ export default function Login() {
     setSocialLoading(provider);
     setError(null);
     try {
-      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: buildSupabaseOAuthRedirectUrl(getPostLoginPath()),
+          skipBrowserRedirect: true,
         },
       });
       if (oauthErr) throw oauthErr;
+      if (!data?.url) throw new Error("OAuth redirect URL missing");
+      persistPkceVerifierCookie();
+      window.location.href = data.url;
+      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);
       setSocialLoading(null);

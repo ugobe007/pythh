@@ -1,12 +1,31 @@
 /**
- * POST /api/auth/sync-supabase
- * Sets pythh_session after Supabase OAuth (browser sends access_token).
- * REST (not tRPC) so Set-Cookie survives Vercel → Fly rewrites reliably.
+ * Supabase Google/GitHub OAuth — server callback + token sync.
+ * GET  /api/auth/supabase/callback?code=…  — PKCE exchange + Set-Cookie + redirect (primary)
+ * POST /api/auth/sync-supabase             — legacy browser token sync (fallback)
  */
 const { createClient } = require('@supabase/supabase-js');
 
 const COOKIE_NAME = 'pythh_session';
+const PKCE_COOKIE = 'sb_pkce';
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+function parseCookies(header) {
+  const out = {};
+  if (!header) return out;
+  for (const part of String(header).split(';')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    let val = part.slice(idx + 1).trim();
+    try {
+      val = decodeURIComponent(val);
+    } catch {
+      /* keep raw */
+    }
+    out[key] = val;
+  }
+  return out;
+}
 
 function sessionCookieOptions(req) {
   const secure = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
@@ -18,73 +37,164 @@ function sessionCookieOptions(req) {
   };
 }
 
+function clearPkceCookie(res) {
+  res.clearCookie(PKCE_COOKIE, { path: '/', sameSite: 'lax' });
+}
+
+function supabaseConfig() {
+  const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    '';
+  const anonKey =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    '';
+  return { sbUrl, serviceKey, anonKey };
+}
+
 async function upsertUser(row) {
   const { upsertUser: fn } = require('../../NEW_pythh_site/db.ts');
   return fn(row);
 }
 
+async function establishPythhSession(req, res, accessToken) {
+  const { sbUrl, serviceKey } = supabaseConfig();
+  if (!sbUrl || !serviceKey) {
+    throw new Error('OAuth sign-in is not configured on the server.');
+  }
+
+  const sbAdmin = createClient(sbUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: { user }, error } = await sbAdmin.auth.getUser(accessToken);
+  if (error || !user) {
+    throw new Error(error?.message || 'Invalid or expired sign-in session.');
+  }
+
+  const email = user.email?.trim().toLowerCase() ?? null;
+  const openId = `supabase:${user.id}`;
+  const provider =
+    user.app_metadata?.provider ||
+    user.identities?.[0]?.provider ||
+    'oauth';
+  const displayName =
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    null;
+
+  const ownerEmails = String(process.env.OWNER_EMAILS || 'ugobe07@gmail.com')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const isOwner = email ? ownerEmails.includes(email) : false;
+
+  await upsertUser({
+    openId,
+    email,
+    name: displayName,
+    loginMethod: provider,
+    role: isOwner ? 'admin' : 'user',
+  });
+
+  res.cookie(COOKIE_NAME, JSON.stringify({ openId }), {
+    ...sessionCookieOptions(req),
+    maxAge: ONE_YEAR_MS,
+  });
+
+  return { openId, email };
+}
+
 function mountSupabaseAuthSync(app) {
+  /** Primary OAuth return URL — exchange PKCE code on server, set cookie, redirect. */
+  app.get('/api/auth/supabase/callback', async (req, res) => {
+    const oauthErr =
+      (typeof req.query.error_description === 'string' && req.query.error_description) ||
+      (typeof req.query.error === 'string' && req.query.error) ||
+      null;
+    const nextPath =
+      typeof req.query.next === 'string' && req.query.next.startsWith('/')
+        ? req.query.next
+        : '/account';
+
+    if (oauthErr) {
+      return res.redirect(
+        `/login?oauth_error=${encodeURIComponent(oauthErr)}`,
+      );
+    }
+
+    const code = typeof req.query.code === 'string' ? req.query.code : null;
+    if (!code) {
+      return res.redirect('/login?oauth_error=missing_code');
+    }
+
+    const { sbUrl, anonKey } = supabaseConfig();
+    if (!sbUrl || !anonKey) {
+      return res.redirect('/login?oauth_error=oauth_not_configured');
+    }
+
+    const cookies = parseCookies(req.headers.cookie);
+    const verifier = cookies[PKCE_COOKIE] || '';
+
+    try {
+      const storage = {
+        getItem: (key) => {
+          if (key.includes('code-verifier') || key.includes('verifier')) {
+            return verifier;
+          }
+          return null;
+        },
+        setItem: () => {},
+        removeItem: () => {},
+      };
+
+      const sbClient = createClient(sbUrl, anonKey, {
+        auth: {
+          flowType: 'pkce',
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          storage,
+        },
+      });
+
+      const { data, error } = await sbClient.auth.exchangeCodeForSession(code);
+      if (error || !data?.session?.access_token) {
+        console.error('[auth/supabase/callback] exchange:', error?.message);
+        return res.redirect(
+          `/login?oauth_error=${encodeURIComponent(error?.message || 'code_exchange_failed')}`,
+        );
+      }
+
+      await establishPythhSession(req, res, data.session.access_token);
+      clearPkceCookie(res);
+      return res.redirect(302, nextPath);
+    } catch (err) {
+      console.error('[auth/supabase/callback]', err?.message || err);
+      clearPkceCookie(res);
+      return res.redirect(
+        `/login?oauth_error=${encodeURIComponent(err?.message || 'sign_in_failed')}`,
+      );
+    }
+  });
+
   app.post('/api/auth/sync-supabase', async (req, res) => {
     const accessToken = String(req.body?.access_token || '').trim();
     if (!accessToken) {
       return res.status(400).json({ error: 'access_token required' });
     }
 
-    const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const sbKey =
-      process.env.SUPABASE_SERVICE_KEY ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      '';
-    if (!sbUrl || !sbKey) {
-      return res.status(503).json({ error: 'OAuth sign-in is not configured on the server.' });
-    }
-
     try {
-      const sbAdmin = createClient(sbUrl, sbKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      const { data: { user }, error } = await sbAdmin.auth.getUser(accessToken);
-      if (error || !user) {
-        return res.status(401).json({
-          error: error?.message || 'Invalid or expired sign-in session.',
-        });
-      }
-
-      const email = user.email?.trim().toLowerCase() ?? null;
-      const openId = `supabase:${user.id}`;
-      const provider =
-        user.app_metadata?.provider ||
-        user.identities?.[0]?.provider ||
-        'oauth';
-      const displayName =
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        null;
-
-      const ownerEmails = String(process.env.OWNER_EMAILS || '')
-        .split(',')
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-      const isOwner = email ? ownerEmails.includes(email) : false;
-
-      await upsertUser({
-        openId,
-        email,
-        name: displayName,
-        loginMethod: provider,
-        role: isOwner ? 'admin' : 'user',
-      });
-
-      res.cookie(COOKIE_NAME, JSON.stringify({ openId }), {
-        ...sessionCookieOptions(req),
-        maxAge: ONE_YEAR_MS,
-      });
+      const { openId } = await establishPythhSession(req, res, accessToken);
       return res.json({ success: true, openId });
     } catch (err) {
       console.error('[auth/sync-supabase]', err?.message || err);
-      return res.status(500).json({ error: 'Sign-in failed on server.' });
+      const msg = err?.message || 'Sign-in failed on server.';
+      const status = msg.includes('not configured') ? 503 : msg.includes('Invalid') ? 401 : 500;
+      return res.status(status).json({ error: msg });
     }
   });
 }
 
-module.exports = { mountSupabaseAuthSync, COOKIE_NAME };
+module.exports = { mountSupabaseAuthSync, COOKIE_NAME, PKCE_COOKIE };

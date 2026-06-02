@@ -330,7 +330,7 @@ app.use((req, res, next) => {
 
 const { mountSupabaseAuthSync } = require('./routes/supabaseAuthSync');
 mountSupabaseAuthSync(app);
-console.log('[pythh] POST /api/auth/sync-supabase mounted');
+console.log('[pythh] /api/auth/supabase/callback + POST /api/auth/sync-supabase mounted');
 
 // Pythh NEW site — tRPC (same origin as SPA: /api/trpc)
 // tsx registers a .ts require extension; plain node does not.
