@@ -84,6 +84,64 @@ export const appRouter = router({
         return { success: true } as const;
       }),
 
+    /**
+     * After Supabase OAuth (Google / GitHub), the browser holds a Supabase session.
+     * This mutation validates the access token and sets the pythh_session cookie.
+     */
+    syncSupabaseSession: publicProcedure
+      .input(z.object({ access_token: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
+        const sbKey =
+          process.env.SUPABASE_SERVICE_KEY ||
+          process.env.SUPABASE_SERVICE_ROLE_KEY ||
+          "";
+        if (!sbUrl || !sbKey) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "OAuth sign-in is not configured on the server.",
+          });
+        }
+
+        const sbAdmin = createClient(sbUrl, sbKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const { data: { user }, error } = await sbAdmin.auth.getUser(input.access_token);
+        if (error || !user) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: error?.message || "Invalid or expired sign-in session.",
+          });
+        }
+
+        const email = user.email?.trim().toLowerCase() ?? null;
+        const openId = `supabase:${user.id}`;
+        const provider =
+          (user.app_metadata?.provider as string | undefined) ||
+          user.identities?.[0]?.provider ||
+          "oauth";
+        const displayName =
+          (user.user_metadata?.full_name as string | undefined) ||
+          (user.user_metadata?.name as string | undefined) ||
+          null;
+        const isOwner = email ? ENV.ownerEmails.includes(email) : false;
+
+        await upsertUser({
+          openId,
+          email,
+          name: displayName,
+          loginMethod: provider,
+          role: isOwner ? "admin" : "user",
+        });
+
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, JSON.stringify({ openId }), {
+          ...cookieOptions,
+          maxAge: ONE_YEAR_MS,
+        });
+        return { success: true as const };
+      }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

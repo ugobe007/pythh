@@ -15,6 +15,7 @@ import InvestorRankings from "./Rankings";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import Login from "./pages/Login";
+import AuthCallback from "./pages/AuthCallback";
 import Platform from "./pages/Platform";
 import Methodology from "./pages/Methodology";
 import Newsletter from "./pages/Newsletter";
@@ -96,6 +97,7 @@ function Router() {
       <Route path={"/admin/ml"}        component={MlAgent} />
       <Route path={"/admin/rss"}       component={RssManager} />
       <Route path={"/login"} component={Login} />
+      <Route path={"/auth/callback"} component={AuthCallback} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
