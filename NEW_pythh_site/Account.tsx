@@ -39,7 +39,7 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import { completeSupabaseOAuthIfNeeded } from "@/lib/supabaseOAuth";
+import { completeSupabaseOAuthIfNeeded, readOAuthNextPath } from "@/lib/supabaseOAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -441,9 +441,8 @@ export default function Account() {
         );
         return;
       }
-      const params = new URLSearchParams(window.location.search);
-      const next = params.get("next");
-      if (next && next.startsWith("/")) {
+      const next = readOAuthNextPath();
+      if (next && next !== "/account") {
         navigate(next);
       }
     });

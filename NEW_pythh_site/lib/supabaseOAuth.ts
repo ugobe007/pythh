@@ -1,5 +1,7 @@
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 
+const OAUTH_NEXT_COOKIE = "pythh_oauth_next";
+
 /** Production site URL — must match Supabase redirect allow list exactly. */
 export function getCanonicalSiteOrigin(): string {
   if (typeof window === "undefined") return "https://pythh.ai";
@@ -7,6 +9,13 @@ export function getCanonicalSiteOrigin(): string {
   if (host === "pythh.ai" || host === "www.pythh.ai") return "https://pythh.ai";
   if (host.endsWith(".fly.dev")) return window.location.origin;
   return window.location.origin;
+}
+
+function cookieDomainAttr(): string {
+  if (typeof window === "undefined") return "";
+  const host = window.location.hostname.toLowerCase();
+  if (host === "pythh.ai" || host.endsWith(".pythh.ai")) return "; Domain=.pythh.ai";
+  return "";
 }
 
 function supabaseProjectRef(): string | null {
@@ -18,23 +27,50 @@ function supabaseProjectRef(): string | null {
   return m?.[1] ?? null;
 }
 
-/** Store PKCE verifier in a cookie so the server callback can exchange the code. */
-export function persistPkceVerifierCookie(): void {
+/** Store PKCE verifier + post-login path before leaving for Google/GitHub. */
+export function persistOAuthStartCookies(returnPath: string): void {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const domain = cookieDomainAttr();
+  const next = returnPath.startsWith("/") ? returnPath : "/account";
+  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax${secure}${domain}`;
+
   const ref = supabaseProjectRef();
-  if (!ref || typeof document === "undefined") return;
+  if (!ref) return;
   const verifier = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
   if (!verifier) return;
-  const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}`;
+  document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${domain}`;
 }
 
-/** OAuth return URL — server exchanges code and sets pythh_session. */
+export function readOAuthNextPath(): string {
+  if (typeof document === "undefined") return "/account";
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get("next") || params.get("redirect");
+  if (fromQuery?.startsWith("/")) return fromQuery;
+
+  const match = document.cookie.match(/(?:^|;\s*)pythh_oauth_next=([^;]*)/);
+  if (match?.[1]) {
+    try {
+      const decoded = decodeURIComponent(match[1]);
+      if (decoded.startsWith("/")) return decoded;
+    } catch {
+      /* ignore */
+    }
+  }
+  return "/account";
+}
+
+/**
+ * Must match Supabase redirect URL allow list exactly (no query string).
+ * Use https://pythh.ai/account in Supabase → URL configuration.
+ */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
-  return `${getCanonicalSiteOrigin()}/api/auth/supabase/callback?next=${encodeURIComponent(next)}`;
+  persistOAuthStartCookies(next);
+  return `${getCanonicalSiteOrigin()}/account`;
 }
 
-/** Sync Supabase access token → pythh_session cookie (REST fallback). */
+/** Sync Supabase access token → pythh_session cookie (REST). */
 export async function syncSupabaseAccessTokenToServer(
   accessToken: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -51,9 +87,7 @@ export async function syncSupabaseAccessTokenToServer(
   return { ok: !!body.success };
 }
 
-/**
- * Legacy: finish OAuth on /account?code=… when redirect URL still points here.
- */
+/** Finish OAuth on /account?code=… after Google/GitHub redirect. */
 export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; error?: string }> {
   if (!supabase || !hasValidSupabaseCredentials) {
     return { ok: false, error: "OAuth is not configured in this build." };
@@ -70,8 +104,6 @@ export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; er
     return { ok: false };
   }
 
-  persistPkceVerifierCookie();
-
   const { data: existing } = await supabase.auth.getSession();
   if (!existing.session) {
     const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
@@ -80,9 +112,9 @@ export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; er
     }
   }
 
-  const next = params.get("next") || params.get("redirect");
-  const clean = next && next.startsWith("/") ? next : window.location.pathname;
+  const clean = readOAuthNextPath();
   window.history.replaceState({}, "", clean);
+  document.cookie = `${OAUTH_NEXT_COOKIE}=; Path=/; Max-Age=0${cookieDomainAttr()}`;
 
   const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
   if (sessionErr || !session?.access_token) {
@@ -90,4 +122,12 @@ export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; er
   }
 
   return syncSupabaseAccessTokenToServer(session.access_token);
+}
+
+/** User-facing text for oauth_error query param on /login. */
+export function formatOAuthLoginError(code: string): string {
+  if (code === "missing_code") {
+    return "Google sign-in did not return an authorization code. In Supabase → Authentication → URL configuration, set Redirect URLs to include exactly https://pythh.ai/account (and use https://pythh.ai, not www).";
+  }
+  return decodeURIComponent(code);
 }

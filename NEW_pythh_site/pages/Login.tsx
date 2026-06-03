@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
-import { buildSupabaseOAuthRedirectUrl, persistPkceVerifierCookie } from "@/lib/supabaseOAuth";
+import { buildSupabaseOAuthRedirectUrl, formatOAuthLoginError } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
@@ -35,7 +35,7 @@ export default function Login() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = params.get("oauth_error");
-    if (err) setError(decodeURIComponent(err));
+    if (err) setError(formatOAuthLoginError(err));
   }, []);
 
   const loginMutation = trpc.auth.login.useMutation({
@@ -65,7 +65,6 @@ export default function Login() {
       });
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
-      persistPkceVerifierCookie();
       window.location.href = data.url;
       return;
     } catch (err) {

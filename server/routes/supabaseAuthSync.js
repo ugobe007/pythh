@@ -113,10 +113,14 @@ function mountSupabaseAuthSync(app) {
       (typeof req.query.error_description === 'string' && req.query.error_description) ||
       (typeof req.query.error === 'string' && req.query.error) ||
       null;
+    const cookies = parseCookies(req.headers.cookie);
+    const nextFromCookie = cookies.pythh_oauth_next || '';
     const nextPath =
-      typeof req.query.next === 'string' && req.query.next.startsWith('/')
+      (typeof req.query.next === 'string' && req.query.next.startsWith('/')
         ? req.query.next
-        : '/account';
+        : null) ||
+      (nextFromCookie.startsWith('/') ? nextFromCookie : null) ||
+      '/account';
 
     if (oauthErr) {
       return res.redirect(
@@ -126,7 +130,12 @@ function mountSupabaseAuthSync(app) {
 
     const code = typeof req.query.code === 'string' ? req.query.code : null;
     if (!code) {
-      return res.redirect('/login?oauth_error=missing_code');
+      // Legacy server callback URL — send to /account so client can finish OAuth if code is there
+      const qs = new URLSearchParams(req.query).toString();
+      if (qs) return res.redirect(302, `/account?${qs}`);
+      return res.redirect(
+        '/login?oauth_error=missing_code',
+      );
     }
 
     const { sbUrl, anonKey } = supabaseConfig();
@@ -134,7 +143,6 @@ function mountSupabaseAuthSync(app) {
       return res.redirect('/login?oauth_error=oauth_not_configured');
     }
 
-    const cookies = parseCookies(req.headers.cookie);
     const verifier = cookies[PKCE_COOKIE] || '';
 
     try {
