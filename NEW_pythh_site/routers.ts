@@ -1290,20 +1290,20 @@ export const appRouter = router({
         rawQuery<{ total: string; high_score: string; strong_fit: string; recent7d: string; avg_score: string }>(`
           SELECT
             COUNT(*)::text AS total,
-            COUNT(*) FILTER (WHERE score >= 0.75)::text AS high_score,
-            COUNT(*) FILTER (WHERE score >= 0.85)::text AS strong_fit,
+            COUNT(*) FILTER (WHERE match_score >= 75)::text AS high_score,
+            COUNT(*) FILTER (WHERE match_score >= 85)::text AS strong_fit,
             COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::text AS recent7d,
-            ROUND(AVG(score)::numeric, 3)::text AS avg_score
+            ROUND(AVG(match_score)::numeric, 1)::text AS avg_score
           FROM startup_investor_matches
         `),
         rawQuery<{ bucket: string; cnt: string }>(`
           SELECT
             CASE
-              WHEN score IS NULL THEN 'unscored'
-              WHEN score < 0.5  THEN '0.0–0.5'
-              WHEN score < 0.7  THEN '0.5–0.7'
-              WHEN score < 0.85 THEN '0.7–0.85'
-              ELSE '0.85+'
+              WHEN match_score IS NULL THEN 'unscored'
+              WHEN match_score < 50  THEN '0–49'
+              WHEN match_score < 70  THEN '50–69'
+              WHEN match_score < 85  THEN '70–84'
+              ELSE '85–100'
             END AS bucket,
             COUNT(*)::text AS cnt
           FROM startup_investor_matches
