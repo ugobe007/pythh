@@ -1,14 +1,15 @@
 import { trpc } from "@/lib/trpc";
 
 export function useAuth() {
-  const { data: user, isLoading: loading } = trpc.auth.me.useQuery(undefined, {
-    retry: 1,
+  const { data: user, isPending } = trpc.auth.me.useQuery(undefined, {
+    retry: 2,
     retryDelay: 400,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    // Anonymous activate/submit must not hang forever if auth.me is slow.
-    placeholderData: null,
   });
+
+  // Keep the user visible during background refetch (OAuth sync invalidates auth.me).
+  const loading = isPending && user === undefined;
 
   const logout = trpc.auth.logout.useMutation({
     onSuccess: () => {

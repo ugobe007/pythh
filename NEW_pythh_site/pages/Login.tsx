@@ -43,7 +43,10 @@ export default function Login() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (isAuthenticated) navigate(getPostLoginPath());
+    if (!isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("code") || params.has("oauth_error")) return;
+    navigate(getPostLoginPath());
   }, [authLoading, isAuthenticated, navigate]);
 
   const loginMutation = trpc.auth.login.useMutation({

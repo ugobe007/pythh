@@ -13,7 +13,7 @@
  */
 
 import { Helmet } from "react-helmet-async";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -432,9 +432,11 @@ export default function Account() {
   });
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
+  const wasAuthenticated = useRef(false);
 
   useEffect(() => {
     if (isAuthenticated) {
+      wasAuthenticated.current = true;
       setOauthBusy(false);
       sessionStorage.removeItem("pythh_oauth_code_seen");
     }
@@ -452,25 +454,17 @@ export default function Account() {
     if (oauthBusy || oauthError) return;
     if (authLoading || isAuthenticated) return;
 
-    const hadOAuth =
-      sessionStorage.getItem("pythh_oauth_code_seen") === "1" ||
-      new URLSearchParams(window.location.search).has("code");
-
-    const delayMs = hadOAuth ? 8000 : 800;
     const timer = window.setTimeout(() => {
-      void utils.auth.me.invalidate().then(() => utils.auth.me.fetch()).then((me) => {
+      void utils.auth.me.fetch().then((me) => {
         if (me) return;
         sessionStorage.removeItem("pythh_oauth_code_seen");
-        if (hadOAuth) {
-          setOauthError(
-            "Google sign-in did not finish. Please try again, or sign in with the same email you use for Google.",
-          );
-          setOauthBusy(false);
+        if (wasAuthenticated.current) {
+          setOauthError("Your session expired. Please sign in again.");
           return;
         }
         window.location.href = getLoginUrl("/account");
       });
-    }, delayMs);
+    }, wasAuthenticated.current ? 0 : 1500);
 
     return () => window.clearTimeout(timer);
   }, [authLoading, isAuthenticated, oauthBusy, oauthError, utils.auth.me]);
@@ -529,6 +523,17 @@ export default function Account() {
   };
 
   const isLoading = authLoading || subLoading || oauthBusy;
+
+  if (oauthError && !isAuthenticated && !authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "oklch(0.09 0.01 264)" }}>
+        <div className="text-center max-w-sm">
+          <p className="text-sm mb-4" style={{ color: "oklch(0.75 0.15 27)" }}>{oauthError}</p>
+          <a href="/login" className="text-sm font-medium" style={{ color: "#22d3ee" }}>Back to sign in</a>
+        </div>
+      </div>
+    );
+  }
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (isLoading) {

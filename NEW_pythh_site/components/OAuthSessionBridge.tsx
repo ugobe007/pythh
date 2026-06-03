@@ -11,8 +11,11 @@ export function OAuthSessionBridge() {
   const syncing = useRef(false);
 
   const syncSession = trpc.auth.syncSupabaseSession.useMutation({
-    onSuccess: () => {
-      void utils.auth.me.invalidate();
+    onSuccess: async () => {
+      const me = await utils.auth.me.fetch();
+      if (!me) {
+        await utils.auth.me.invalidate();
+      }
     },
   });
 
@@ -43,10 +46,11 @@ export function OAuthSessionBridge() {
 
     const pushTokenToServer = async (accessToken: string) => {
       if (syncing.current) return;
+      const existing = await utils.auth.me.fetch();
+      if (existing) return;
       syncing.current = true;
       try {
         await syncSession.mutateAsync({ access_token: accessToken });
-        sessionStorage.removeItem("pythh_oauth_code_seen");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Sync failed";
         console.error("[oauth] syncSupabaseSession:", msg);
