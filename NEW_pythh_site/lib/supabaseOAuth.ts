@@ -2,8 +2,49 @@ import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 
 export type OAuthSyncFn = (input: { access_token: string }) => Promise<unknown>;
 
+const OAUTH_NEXT_COOKIE = "pythh_oauth_next";
+
+function cookieDomainAttr(): string {
+  if (typeof document === "undefined") return "";
+  const host = window.location.hostname.toLowerCase();
+  if (host === "pythh.ai" || host.endsWith(".pythh.ai")) return "; Domain=.pythh.ai";
+  return "";
+}
+
+function supabaseProjectRef(): string | null {
+  const url =
+    (typeof window !== "undefined" && window.__PYTHH_RUNTIME__?.supabaseUrl) ||
+    (import.meta.env.VITE_SUPABASE_URL as string) ||
+    "";
+  const m = url.match(/https?:\/\/([^.]+)\.supabase\.co/);
+  return m?.[1] ?? null;
+}
+
+/** Post-login path for server callback redirect (read by server from cookie). */
+export function persistOAuthStartCookies(returnPath: string): void {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const next = returnPath.startsWith("/") ? returnPath : "/account";
+  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+}
+
+/** Must run immediately after signInWithOAuth — PKCE verifier lives in localStorage then. */
+export function persistPkceVerifierCookie(): void {
+  if (typeof document === "undefined") return;
+  const write = () => {
+    const ref = supabaseProjectRef();
+    if (!ref) return false;
+    const verifier = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
+    if (!verifier) return false;
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+    return true;
+  };
+  if (!write()) window.setTimeout(write, 50);
+}
+
 /**
- * Finish OAuth when URL has ?code= — syncs Supabase session to pythh_session via tRPC.
+ * Finish OAuth when URL has ?code= (fallback when Supabase returns to /account).
  */
 export async function completeSupabaseOAuthIfNeeded(
   syncSession: OAuthSyncFn,
@@ -45,15 +86,27 @@ export async function completeSupabaseOAuthIfNeeded(
   return { ok: true };
 }
 
-/** Must match Supabase redirect allow list (used when OAuth was working on pythh.ai). */
+/**
+ * Primary redirect — matches Supabase Site URL / redirect allow list.
+ * Server exchanges ?code= and sets pythh_session; client /account?code= is fallback.
+ */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
-  return `${window.location.origin}/account?next=${encodeURIComponent(next)}`;
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem("pythh_post_login", next);
+  }
+  persistOAuthStartCookies(next);
+  return `${window.location.origin}/api/auth/supabase/callback`;
 }
 
 export function readPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
   const fromQuery = params.get("next") || params.get("redirect");
   if (fromQuery?.startsWith("/")) return fromQuery;
+  if (typeof sessionStorage !== "undefined") {
+    const stored = sessionStorage.getItem("pythh_post_login");
+    sessionStorage.removeItem("pythh_post_login");
+    if (stored?.startsWith("/")) return stored;
+  }
   return "/account";
 }

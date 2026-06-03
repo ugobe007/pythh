@@ -130,12 +130,10 @@ function mountSupabaseAuthSync(app) {
 
     const code = typeof req.query.code === 'string' ? req.query.code : null;
     if (!code) {
-      // Legacy server callback URL — send to /account so client can finish OAuth if code is there
       const qs = new URLSearchParams(req.query).toString();
       if (qs) return res.redirect(302, `/account?${qs}`);
-      return res.redirect(
-        '/login?oauth_error=missing_code',
-      );
+      // No ?code= — often a refresh or Site URL hit; /account will use existing cookie or send to login
+      return res.redirect(302, nextPath);
     }
 
     const { sbUrl, anonKey } = supabaseConfig();
