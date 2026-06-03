@@ -3,9 +3,12 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   buildSupabaseOAuthRedirectUrl,
+  clearOAuthPending,
   formatOAuthLoginError,
+  markOAuthPending,
   persistPkceVerifierCookie,
 } from "@/lib/supabaseOAuth";
 
@@ -21,6 +24,16 @@ function getPostLoginPath(): string {
  */
 export default function Login() {
   const [, navigate] = useLocation();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Already signed in (e.g. cookie set on server OAuth callback) — leave login loop.
+  useEffect(() => {
+    if (authLoading) return;
+    if (isAuthenticated) {
+      clearOAuthPending();
+      navigate(getPostLoginPath());
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   // Supabase may return ?code= to /login if that URL is still in the allow list — hand off to /account.
   useEffect(() => {
@@ -74,6 +87,7 @@ export default function Login() {
       });
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
+      markOAuthPending();
       persistPkceVerifierCookie();
       window.location.href = data.url;
       return;

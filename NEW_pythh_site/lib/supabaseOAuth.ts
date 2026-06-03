@@ -72,8 +72,32 @@ export function readOAuthNextPath(): string {
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
   persistOAuthStartCookies(next);
-  // Client completes PKCE on /account; server callback is fallback (needs sb_pkce cookie).
-  return `${getCanonicalSiteOrigin()}/account`;
+  // Server exchanges code + sets pythh_session before redirecting to /account (most reliable).
+  return `${getCanonicalSiteOrigin()}/api/auth/supabase/callback`;
+}
+
+export const OAUTH_PENDING_KEY = "pythh_oauth_pending";
+
+export function markOAuthPending(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem(OAUTH_PENDING_KEY, String(Date.now()));
+}
+
+export function clearOAuthPending(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(OAUTH_PENDING_KEY);
+}
+
+export function isOAuthPending(): boolean {
+  if (typeof sessionStorage === "undefined") return false;
+  const raw = sessionStorage.getItem(OAUTH_PENDING_KEY);
+  if (!raw) return false;
+  const ts = Number(raw);
+  if (!Number.isFinite(ts) || Date.now() - ts > 10 * 60 * 1000) {
+    sessionStorage.removeItem(OAUTH_PENDING_KEY);
+    return false;
+  }
+  return true;
 }
 
 /** Allowed Supabase redirect targets (add all in dashboard). */

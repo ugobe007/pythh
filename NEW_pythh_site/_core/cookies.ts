@@ -1,7 +1,8 @@
 /** Session cookie options (Express). */
 
 export function getSessionCookieOptions(_req: unknown) {
-  const secure = process.env.NODE_ENV === "production";
+  const secure =
+    process.env.NODE_ENV === "production" || !!process.env.FLY_APP_NAME;
   return {
     httpOnly: true,
     secure,

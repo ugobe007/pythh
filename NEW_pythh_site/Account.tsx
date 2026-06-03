@@ -39,7 +39,12 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import { completeSupabaseOAuthIfNeeded, readOAuthNextPath } from "@/lib/supabaseOAuth";
+import {
+  clearOAuthPending,
+  completeSupabaseOAuthIfNeeded,
+  isOAuthPending,
+  readOAuthNextPath,
+} from "@/lib/supabaseOAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -447,6 +452,7 @@ export default function Account() {
         );
         return;
       }
+      clearOAuthPending();
       const next = readOAuthNextPath();
       if (next && next !== "/account") {
         navigate(next);
@@ -457,10 +463,32 @@ export default function Account() {
   // Redirect unauthenticated users to login (after OAuth handoff finishes)
   useEffect(() => {
     if (oauthBusy || oauthError) return;
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = getLoginUrl("/account");
-    }
-  }, [authLoading, isAuthenticated, oauthBusy, oauthError]);
+    if (authLoading || isAuthenticated) return;
+
+    let cancelled = false;
+    const settle = async () => {
+      const pending = isOAuthPending();
+      const attempts = pending ? 12 : 3;
+      for (let i = 0; i < attempts; i++) {
+        if (cancelled) return;
+        await utils.auth.me.invalidate();
+        const me = await utils.auth.me.fetch();
+        if (me) {
+          clearOAuthPending();
+          return;
+        }
+        await new Promise((r) => setTimeout(r, pending ? 400 : 250));
+      }
+      if (!cancelled) {
+        window.location.href = getLoginUrl("/account");
+      }
+    };
+
+    void settle();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, isAuthenticated, oauthBusy, oauthError, utils.auth.me]);
 
   const { data: subscription, isLoading: subLoading, refetch: refetchSubscription } =
     trpc.stripe.getSubscriptionDetails.useQuery(undefined, {

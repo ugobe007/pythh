@@ -19,6 +19,10 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
+  const path = window.location.pathname;
+  // Avoid login ↔ account loops during OAuth handoff.
+  if (path === "/login" || path === "/account") return;
+
   window.location.href = getLoginUrl();
 };
 
