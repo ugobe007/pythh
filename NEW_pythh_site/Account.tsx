@@ -416,9 +416,15 @@ function NoSubscription({ userName }: { userName: string | null }) {
 export default function Account() {
   const [, navigate] = useLocation();
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [oauthBusy, setOauthBusy] = useState(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("code"),
-  );
+  const [oauthBusy, setOauthBusy] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.has("code") || qs.has("error") || qs.has("error_description")) return true;
+    const hash = window.location.hash.startsWith("#")
+      ? new URLSearchParams(window.location.hash.slice(1))
+      : null;
+    return !!(hash?.has("code") || hash?.has("error"));
+  });
   const [oauthError, setOauthError] = useState<string | null>(null);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();

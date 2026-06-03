@@ -27,19 +27,24 @@ function supabaseProjectRef(): string | null {
   return m?.[1] ?? null;
 }
 
-/** Store PKCE verifier + post-login path before leaving for Google/GitHub. */
+/** Store PKCE verifier in a cookie (call after signInWithOAuth creates the verifier). */
+export function persistPkceVerifierCookie(): void {
+  if (typeof document === "undefined") return;
+  const ref = supabaseProjectRef();
+  if (!ref) return;
+  const verifier = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
+  if (!verifier) return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+}
+
+/** Store post-login path before leaving for Google/GitHub. */
 export function persistOAuthStartCookies(returnPath: string): void {
   if (typeof document === "undefined") return;
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   const domain = cookieDomainAttr();
   const next = returnPath.startsWith("/") ? returnPath : "/account";
   document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax${secure}${domain}`;
-
-  const ref = supabaseProjectRef();
-  if (!ref) return;
-  const verifier = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
-  if (!verifier) return;
-  document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${domain}`;
 }
 
 export function readOAuthNextPath(): string {
@@ -67,8 +72,15 @@ export function readOAuthNextPath(): string {
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
   persistOAuthStartCookies(next);
+  // Client completes PKCE on /account; server callback is fallback (needs sb_pkce cookie).
   return `${getCanonicalSiteOrigin()}/account`;
 }
+
+/** Allowed Supabase redirect targets (add all in dashboard). */
+export const SUPABASE_REDIRECT_URLS = [
+  "https://pythh.ai/account",
+  "https://pythh.ai/api/auth/supabase/callback",
+] as const;
 
 /** Sync Supabase access token → pythh_session cookie (REST). */
 export async function syncSupabaseAccessTokenToServer(
@@ -99,7 +111,10 @@ export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; er
     return { ok: false, error: oauthError };
   }
 
-  const code = params.get("code");
+  const hashParams = new URLSearchParams(
+    window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "",
+  );
+  const code = params.get("code") || hashParams.get("code");
   if (!code) {
     return { ok: false };
   }
@@ -127,7 +142,13 @@ export async function completeSupabaseOAuthIfNeeded(): Promise<{ ok: boolean; er
 /** User-facing text for oauth_error query param on /login. */
 export function formatOAuthLoginError(code: string): string {
   if (code === "missing_code") {
-    return "Google sign-in did not return an authorization code. In Supabase → Authentication → URL configuration, set Redirect URLs to include exactly https://pythh.ai/account (and use https://pythh.ai, not www).";
+    return [
+      "Google sign-in did not return an authorization code.",
+      "In Supabase → Authentication → URL configuration:",
+      "• Site URL: https://pythh.ai (not www, and not the /api/.../callback path)",
+      "• Redirect URLs (one per line): https://pythh.ai/account and https://pythh.ai/api/auth/supabase/callback",
+      "Save, wait a minute, then try again in a private window at https://pythh.ai/login",
+    ].join(" ");
   }
   return decodeURIComponent(code);
 }
