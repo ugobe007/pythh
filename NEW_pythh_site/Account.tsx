@@ -416,11 +416,9 @@ function NoSubscription({ userName }: { userName: string | null }) {
 export default function Account() {
   const [, navigate] = useLocation();
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [oauthBusy, setOauthBusy] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const qs = new URLSearchParams(window.location.search);
-    return qs.has("code") || sessionStorage.getItem("pythh_oauth_code_seen") === "1";
-  });
+  const [oauthBusy, setOauthBusy] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("code"),
+  );
   const [oauthError, setOauthError] = useState<string | null>(() => {
     if (typeof sessionStorage === "undefined") return null;
     const msg = sessionStorage.getItem("pythh_oauth_error");
@@ -438,17 +436,21 @@ export default function Account() {
     if (isAuthenticated) {
       wasAuthenticated.current = true;
       setOauthBusy(false);
-      sessionStorage.removeItem("pythh_oauth_code_seen");
+      const next = readPostLoginPath();
+      if (next && next !== "/account") navigate(next);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
-    if (!oauthBusy || !isAuthenticated) return;
-    const next = readPostLoginPath();
-    if (next && next !== "/account") {
-      navigate(next);
-    }
-  }, [oauthBusy, isAuthenticated, navigate]);
+    if (!oauthBusy) return;
+    const watchdog = window.setTimeout(() => {
+      setOauthBusy(false);
+      if (!wasAuthenticated.current) {
+        setOauthError("Sign-in is taking too long. Please try again or use email sign-in.");
+      }
+    }, 20_000);
+    return () => window.clearTimeout(watchdog);
+  }, [oauthBusy]);
 
   useEffect(() => {
     if (oauthBusy || oauthError) return;
@@ -457,7 +459,6 @@ export default function Account() {
     const timer = window.setTimeout(() => {
       void utils.auth.me.fetch().then((me) => {
         if (me) return;
-        sessionStorage.removeItem("pythh_oauth_code_seen");
         if (wasAuthenticated.current) {
           setOauthError("Your session expired. Please sign in again.");
           return;

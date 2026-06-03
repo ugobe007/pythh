@@ -4,11 +4,7 @@ import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 import { useAuth } from "@/_core/hooks/useAuth";
-import {
-  buildSupabaseOAuthRedirectUrl,
-  markOAuthInProgress,
-  persistPkceVerifierCookie,
-} from "@/lib/supabaseOAuth";
+import { buildSupabaseOAuthRedirectUrl } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
@@ -67,18 +63,13 @@ export default function Login() {
     setSocialLoading(provider);
     setError(null);
     try {
-      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: buildSupabaseOAuthRedirectUrl(getPostLoginPath()),
-          skipBrowserRedirect: true,
         },
       });
       if (oauthErr) throw oauthErr;
-      if (!data?.url) throw new Error("OAuth redirect URL missing");
-      markOAuthInProgress();
-      persistPkceVerifierCookie();
-      window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);
       setSocialLoading(null);
