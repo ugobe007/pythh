@@ -41,6 +41,7 @@ import MlAgent from "./pages/admin/MlAgent";
 import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
 import Pythiam from "./pages/Pythiam";
+import { OAuthSessionBridge } from "./components/OAuthSessionBridge";
 
 // Scroll to top on every client-side navigation
 function ScrollToTop() {
@@ -110,6 +111,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
+          <OAuthSessionBridge />
           <Toaster />
           <Router />
         </TooltipProvider>

@@ -22,7 +22,7 @@ export async function completeSupabaseOAuthIfNeeded(
   const code = params.get("code");
   if (code) {
     const { data: existing } = await supabase.auth.getSession();
-    if (!existing.session) {
+    if (!existing.session?.access_token) {
       const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeErr) {
         return { ok: false, error: exchangeErr.message };
@@ -34,17 +34,38 @@ export async function completeSupabaseOAuthIfNeeded(
     window.history.replaceState({}, "", clean);
   }
 
-  const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-  if (sessionErr || !session?.access_token) {
-    return { ok: false };
+  let session: { access_token: string } | null = null;
+  for (let i = 0; i < 15; i++) {
+    const { data, error: sessionErr } = await supabase.auth.getSession();
+    if (sessionErr) {
+      return { ok: false, error: sessionErr.message };
+    }
+    if (data.session?.access_token) {
+      session = data.session;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  if (!session?.access_token) {
+    return { ok: false, error: "No session after Google sign-in. Please try again." };
   }
 
   await syncSession({ access_token: session.access_token });
   return { ok: true };
 }
 
-/** Redirect target used when OAuth was working on pythh.ai (matches Supabase allow list). */
+/** Redirect target — bare /account matches most Supabase allow lists. */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
-  return `${window.location.origin}/account?next=${encodeURIComponent(next)}`;
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem("pythh_post_login", next);
+  }
+  return `${window.location.origin}/account`;
+}
+
+export function readPostLoginPath(): string {
+  if (typeof sessionStorage === "undefined") return "/account";
+  const stored = sessionStorage.getItem("pythh_post_login");
+  sessionStorage.removeItem("pythh_post_login");
+  return stored?.startsWith("/") ? stored : "/account";
 }

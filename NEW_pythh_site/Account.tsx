@@ -39,7 +39,7 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import { completeSupabaseOAuthIfNeeded } from "@/lib/supabaseOAuth";
+import { readPostLoginPath } from "@/lib/supabaseOAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -416,54 +416,50 @@ function NoSubscription({ userName }: { userName: string | null }) {
 export default function Account() {
   const [, navigate] = useLocation();
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [oauthBusy, setOauthBusy] = useState(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("code"),
-  );
+  const [oauthBusy, setOauthBusy] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const qs = new URLSearchParams(window.location.search);
+    return qs.has("code") || sessionStorage.getItem("pythh_oauth_code_seen") === "1";
+  });
   const [oauthError, setOauthError] = useState<string | null>(null);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
 
-  const syncOAuth = trpc.auth.syncSupabaseSession.useMutation({
-    onSuccess: async () => {
-      await utils.auth.me.invalidate();
-      const me = await utils.auth.me.fetch();
-      setOauthBusy(false);
-      if (!me) {
-        setOauthError(
-          "Signed in with Google/GitHub but session did not persist. Try again or use email sign-in.",
-        );
-        return;
-      }
-      const params = new URLSearchParams(window.location.search);
-      const next = params.get("next");
-      if (next && next.startsWith("/")) {
-        navigate(next);
-      }
-    },
-    onError: (err) => {
-      setOauthError(err.message || "Sign-in failed.");
-      setOauthBusy(false);
-    },
-  });
-
   useEffect(() => {
-    if (!oauthBusy) return;
-    void completeSupabaseOAuthIfNeeded((input) => syncOAuth.mutateAsync(input)).then((result) => {
-      if (!result.ok && result.error) {
-        setOauthError(result.error);
-        setOauthBusy(false);
-      } else if (!result.ok) {
-        setOauthBusy(false);
-      }
-    });
-  }, [oauthBusy]);
-
-  useEffect(() => {
-    if (oauthBusy || syncOAuth.isPending || oauthError) return;
-    if (!authLoading && !isAuthenticated) {
-      window.location.href = getLoginUrl("/account");
+    if (isAuthenticated) {
+      setOauthBusy(false);
+      sessionStorage.removeItem("pythh_oauth_code_seen");
     }
-  }, [authLoading, isAuthenticated, oauthBusy, oauthError, syncOAuth.isPending]);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!oauthBusy || !isAuthenticated) return;
+    const next = readPostLoginPath();
+    if (next && next !== "/account") {
+      navigate(next);
+    }
+  }, [oauthBusy, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (oauthBusy || oauthError) return;
+    if (authLoading || isAuthenticated) return;
+
+    const hadOAuth =
+      sessionStorage.getItem("pythh_oauth_code_seen") === "1" ||
+      new URLSearchParams(window.location.search).has("code");
+
+    const delayMs = hadOAuth ? 5000 : 500;
+    const timer = window.setTimeout(() => {
+      void utils.auth.me.fetch().then((me) => {
+        if (!me) {
+          sessionStorage.removeItem("pythh_oauth_code_seen");
+          window.location.href = getLoginUrl("/account");
+        }
+      });
+    }, delayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [authLoading, isAuthenticated, oauthBusy, oauthError, syncOAuth.isPending, utils.auth.me]);
 
   const { data: subscription, isLoading: subLoading, refetch: refetchSubscription } =
     trpc.stripe.getSubscriptionDetails.useQuery(undefined, {

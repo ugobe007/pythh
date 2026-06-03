@@ -21,6 +21,14 @@ export default function Login() {
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("code") || params.has("error") || params.has("error_description")) {
+      window.location.replace(`/account${window.location.search}`);
+      return;
+    }
+  }, []);
+
+  useEffect(() => {
     if (authLoading) return;
     if (isAuthenticated) navigate(getPostLoginPath());
   }, [authLoading, isAuthenticated, navigate]);
