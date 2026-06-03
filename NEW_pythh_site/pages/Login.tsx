@@ -6,6 +6,8 @@ import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
   buildSupabaseOAuthRedirectUrl,
+  isOAuthHandoffActive,
+  markOAuthHandoff,
   persistPkceVerifierCookie,
 } from "@/lib/supabaseOAuth";
 
@@ -29,6 +31,10 @@ export default function Login() {
   const [socialLoading, setSocialLoading] = useState<"google" | "github" | null>(null);
 
   useEffect(() => {
+    if (isOAuthHandoffActive()) {
+      window.location.replace("/account");
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     const err = params.get("oauth_error");
     if (err) {
@@ -51,7 +57,8 @@ export default function Login() {
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
   );
-  const finishingOAuth = params.has("code") || authLoading;
+  const finishingOAuth =
+    params.has("code") || authLoading || isOAuthHandoffActive();
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
@@ -80,6 +87,7 @@ export default function Login() {
       });
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
+      markOAuthHandoff();
       persistPkceVerifierCookie();
       window.location.href = data.url;
     } catch (err) {

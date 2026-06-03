@@ -24,6 +24,7 @@ import {
   upsertFounderProfile,
   upsertPipelineFeedback,
   upsertSubscription,
+  getUserByOpenId,
   upsertUser,
   type InvestorSortField,
   type SortDir,
@@ -139,7 +140,25 @@ export const appRouter = router({
           ...cookieOptions,
           maxAge: ONE_YEAR_MS,
         });
-        return { success: true as const };
+
+        const row = await getUserByOpenId(openId);
+        if (!row) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Account was created but could not be loaded.",
+          });
+        }
+        const role = row.role === "admin" ? ("admin" as const) : ("user" as const);
+        return {
+          success: true as const,
+          user: {
+            id: row.id,
+            openId: row.openId,
+            name: row.name,
+            email: row.email,
+            role,
+          },
+        };
       }),
 
     logout: publicProcedure.mutation(({ ctx }) => {

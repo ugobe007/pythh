@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 import {
+  clearOAuthHandoff,
   completeSupabaseOAuthIfNeeded,
   markOAuthHandoff,
 } from "@/lib/supabaseOAuth";
@@ -28,21 +29,30 @@ export function OAuthSessionBridge() {
           if (result.error) {
             sessionStorage.setItem("pythh_oauth_error", result.error);
           }
-          sessionStorage.removeItem("pythh_oauth_handoff");
+          clearOAuthHandoff();
           return;
         }
 
-        // Cookie is set on sync response — refetch auth.me (do not invalidate first).
-        for (let attempt = 0; attempt < 8; attempt++) {
-          const me = await utils.auth.me.fetch();
-          if (me) return;
-          await new Promise((r) => setTimeout(r, 250 + attempt * 150));
+        if (result.user) {
+          utils.auth.me.setData(result.user);
+          clearOAuthHandoff();
+          return;
         }
+
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const me = await utils.auth.me.fetch();
+          if (me) {
+            clearOAuthHandoff();
+            return;
+          }
+          await new Promise((r) => setTimeout(r, 300 + attempt * 200));
+        }
+
         sessionStorage.setItem(
           "pythh_oauth_error",
           "Signed in with Google but session did not persist. Try email sign-in.",
         );
-        sessionStorage.removeItem("pythh_oauth_handoff");
+        clearOAuthHandoff();
       },
     );
   }, [syncSession, utils.auth.me]);

@@ -40,6 +40,7 @@ import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import {
+  clearOAuthHandoff,
   isOAuthHandoffActive,
   markOAuthHandoffFromRedirect,
   readPostLoginPath,
@@ -447,6 +448,7 @@ export default function Account() {
     if (isAuthenticated) {
       wasAuthenticated.current = true;
       setOauthBusy(false);
+      clearOAuthHandoff();
       const next = readPostLoginPath();
       if (next && next !== "/account") navigate(next);
     }
@@ -468,7 +470,7 @@ export default function Account() {
     if (authLoading || isAuthenticated) return;
     if (isOAuthHandoffActive()) return;
 
-    const delay = wasAuthenticated.current ? 0 : 5000;
+    const delay = wasAuthenticated.current ? 0 : 12_000;
     const timer = window.setTimeout(() => {
       if (isOAuthHandoffActive()) return;
       void utils.auth.me.fetch().then((me) => {

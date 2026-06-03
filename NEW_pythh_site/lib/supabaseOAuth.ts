@@ -1,6 +1,10 @@
+import type { AuthedUser } from "@/_core/trpc";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 
-export type OAuthSyncFn = (input: { access_token: string }) => Promise<unknown>;
+export type OAuthSyncResult = { user: AuthedUser };
+export type OAuthSyncFn = (input: {
+  access_token: string;
+}) => Promise<OAuthSyncResult>;
 
 const OAUTH_NEXT_COOKIE = "pythh_oauth_next";
 
@@ -61,7 +65,7 @@ export function persistPkceVerifierCookie(): void {
  */
 export async function completeSupabaseOAuthIfNeeded(
   syncSession: OAuthSyncFn,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; user?: AuthedUser }> {
   if (!supabase || !hasValidSupabaseCredentials) {
     return { ok: false, error: "OAuth is not configured in this build." };
   }
@@ -92,15 +96,19 @@ export async function completeSupabaseOAuthIfNeeded(
     return { ok: false, error: "No session after Google sign-in." };
   }
 
-  await syncSession({ access_token: session.access_token });
+  const { user } = await syncSession({ access_token: session.access_token });
 
   const next = params.get("next") || params.get("redirect");
   const path = window.location.pathname;
   const clean = next && next.startsWith("/") ? next : path;
   window.history.replaceState({}, "", clean);
-  sessionStorage.removeItem("pythh_oauth_handoff");
 
-  return { ok: true };
+  return { ok: true, user };
+}
+
+export function clearOAuthHandoff(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
 }
 
 const OAUTH_HANDOFF_KEY = "pythh_oauth_handoff";
@@ -134,7 +142,7 @@ export function isOAuthHandoffActive(): boolean {
     sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
     return false;
   }
-  if (Date.now() - started > 60_000) {
+  if (Date.now() - started > 120_000) {
     sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
     return false;
   }
