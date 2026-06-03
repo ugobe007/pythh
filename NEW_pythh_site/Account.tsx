@@ -459,7 +459,7 @@ export default function Account() {
     }, delayMs);
 
     return () => window.clearTimeout(timer);
-  }, [authLoading, isAuthenticated, oauthBusy, oauthError, syncOAuth.isPending, utils.auth.me]);
+  }, [authLoading, isAuthenticated, oauthBusy, oauthError, utils.auth.me]);
 
   const { data: subscription, isLoading: subLoading, refetch: refetchSubscription } =
     trpc.stripe.getSubscriptionDetails.useQuery(undefined, {
