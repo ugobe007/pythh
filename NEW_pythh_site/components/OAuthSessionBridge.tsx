@@ -33,6 +33,7 @@ export function OAuthSessionBridge() {
       const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeErr) {
         console.error("[oauth] code exchange:", exchangeErr.message);
+        sessionStorage.setItem("pythh_oauth_error", exchangeErr.message);
         return;
       }
 
@@ -47,7 +48,9 @@ export function OAuthSessionBridge() {
         await syncSession.mutateAsync({ access_token: accessToken });
         sessionStorage.removeItem("pythh_oauth_code_seen");
       } catch (err) {
-        console.error("[oauth] syncSupabaseSession:", err);
+        const msg = err instanceof Error ? err.message : "Sync failed";
+        console.error("[oauth] syncSupabaseSession:", msg);
+        sessionStorage.setItem("pythh_oauth_error", msg);
       } finally {
         syncing.current = false;
       }

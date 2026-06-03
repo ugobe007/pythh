@@ -1,66 +1,53 @@
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 
-export type OAuthSyncFn = (input: { access_token: string }) => Promise<unknown>;
+const OAUTH_NEXT_COOKIE = "pythh_oauth_next";
 
-/**
- * Finish Supabase OAuth when URL has ?code=… (PKCE) or an existing session.
- * Syncs to pythh_session via tRPC (same path as email login — Set-Cookie on /api/trpc).
- */
-export async function completeSupabaseOAuthIfNeeded(
-  syncSession: OAuthSyncFn,
-): Promise<{ ok: boolean; error?: string }> {
-  if (!supabase || !hasValidSupabaseCredentials) {
-    return { ok: false, error: "OAuth is not configured in this build." };
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const oauthError = params.get("error_description") || params.get("error");
-  if (oauthError) {
-    return { ok: false, error: oauthError };
-  }
-
-  const code = params.get("code");
-  if (code) {
-    const { data: existing } = await supabase.auth.getSession();
-    if (!existing.session?.access_token) {
-      const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeErr) {
-        return { ok: false, error: exchangeErr.message };
-      }
-    }
-    const next = params.get("next") || params.get("redirect");
-    const path = window.location.pathname;
-    const clean = next && next.startsWith("/") ? next : path;
-    window.history.replaceState({}, "", clean);
-  }
-
-  let session: { access_token: string } | null = null;
-  for (let i = 0; i < 15; i++) {
-    const { data, error: sessionErr } = await supabase.auth.getSession();
-    if (sessionErr) {
-      return { ok: false, error: sessionErr.message };
-    }
-    if (data.session?.access_token) {
-      session = data.session;
-      break;
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  if (!session?.access_token) {
-    return { ok: false, error: "No session after Google sign-in. Please try again." };
-  }
-
-  await syncSession({ access_token: session.access_token });
-  return { ok: true };
+function cookieDomainAttr(): string {
+  if (typeof document === "undefined") return "";
+  const host = window.location.hostname.toLowerCase();
+  if (host === "pythh.ai" || host.endsWith(".pythh.ai")) return "; Domain=.pythh.ai";
+  return "";
 }
 
-/** Redirect target — bare /account matches most Supabase allow lists. */
+function supabaseProjectRef(): string | null {
+  const url =
+    (typeof window !== "undefined" && window.__PYTHH_RUNTIME__?.supabaseUrl) ||
+    (import.meta.env.VITE_SUPABASE_URL as string) ||
+    "";
+  const m = url.match(/https?:\/\/([^.]+)\.supabase\.co/);
+  return m?.[1] ?? null;
+}
+
+/** Post-login path for server callback redirect (read by server from cookie). */
+export function persistOAuthStartCookies(returnPath: string): void {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const next = returnPath.startsWith("/") ? returnPath : "/account";
+  document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+}
+
+/** Must run after signInWithOAuth — PKCE verifier is created at that moment. */
+export function persistPkceVerifierCookie(): void {
+  if (typeof document === "undefined") return;
+  const ref = supabaseProjectRef();
+  if (!ref) return;
+  const verifier = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
+  if (!verifier) return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+}
+
+/**
+ * Server callback exchanges code + sets pythh_session (same reliable path as email login).
+ * Client /account?code= is still handled by OAuthSessionBridge as fallback.
+ */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
   if (typeof sessionStorage !== "undefined") {
     sessionStorage.setItem("pythh_post_login", next);
   }
-  return `${window.location.origin}/account`;
+  persistOAuthStartCookies(next);
+  return `${window.location.origin}/api/auth/supabase/callback`;
 }
 
 export function readPostLoginPath(): string {
@@ -68,4 +55,9 @@ export function readPostLoginPath(): string {
   const stored = sessionStorage.getItem("pythh_post_login");
   sessionStorage.removeItem("pythh_post_login");
   return stored?.startsWith("/") ? stored : "/account";
+}
+
+export function markOAuthInProgress(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem("pythh_oauth_code_seen", "1");
 }

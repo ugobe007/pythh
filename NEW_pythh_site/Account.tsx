@@ -421,7 +421,15 @@ export default function Account() {
     const qs = new URLSearchParams(window.location.search);
     return qs.has("code") || sessionStorage.getItem("pythh_oauth_code_seen") === "1";
   });
-  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState<string | null>(() => {
+    if (typeof sessionStorage === "undefined") return null;
+    const msg = sessionStorage.getItem("pythh_oauth_error");
+    if (msg) {
+      sessionStorage.removeItem("pythh_oauth_error");
+      return msg;
+    }
+    return null;
+  });
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
 
@@ -448,13 +456,19 @@ export default function Account() {
       sessionStorage.getItem("pythh_oauth_code_seen") === "1" ||
       new URLSearchParams(window.location.search).has("code");
 
-    const delayMs = hadOAuth ? 5000 : 500;
+    const delayMs = hadOAuth ? 8000 : 800;
     const timer = window.setTimeout(() => {
-      void utils.auth.me.fetch().then((me) => {
-        if (!me) {
-          sessionStorage.removeItem("pythh_oauth_code_seen");
-          window.location.href = getLoginUrl("/account");
+      void utils.auth.me.invalidate().then(() => utils.auth.me.fetch()).then((me) => {
+        if (me) return;
+        sessionStorage.removeItem("pythh_oauth_code_seen");
+        if (hadOAuth) {
+          setOauthError(
+            "Google sign-in did not finish. Please try again, or sign in with the same email you use for Google.",
+          );
+          setOauthBusy(false);
+          return;
         }
+        window.location.href = getLoginUrl("/account");
       });
     }, delayMs);
 
