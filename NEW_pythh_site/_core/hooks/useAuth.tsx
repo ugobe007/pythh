@@ -1,3 +1,4 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 
 export function useAuth() {
@@ -6,9 +7,9 @@ export function useAuth() {
     retryDelay: 400,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 
-  // Keep the user visible during background refetch (OAuth sync invalidates auth.me).
   const loading = isPending && user === undefined;
 
   const logout = trpc.auth.logout.useMutation({

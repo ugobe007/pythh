@@ -137,7 +137,7 @@ function mountSupabaseAuthSync(app) {
 
     // PKCE verifier lives in browser localStorage — forward ?code= to SPA; client exchanges + syncs.
     clearPkceCookie(res);
-    const forward = new URLSearchParams({ code });
+    const forward = new URLSearchParams({ code, oauth_handoff: '1' });
     if (nextPath !== '/account') forward.set('next', nextPath);
     return res.redirect(302, `/account?${forward.toString()}`);
   });

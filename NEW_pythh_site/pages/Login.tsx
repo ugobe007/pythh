@@ -48,6 +48,11 @@ export default function Login() {
     navigate(getPostLoginPath());
   }, [authLoading, isAuthenticated, navigate]);
 
+  const params = new URLSearchParams(
+    typeof window !== "undefined" ? window.location.search : "",
+  );
+  const finishingOAuth = params.has("code") || authLoading;
+
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
       setDone(true);
@@ -120,7 +125,14 @@ export default function Login() {
           </p>
         </div>
 
-        {done ? (
+        {finishingOAuth && !done ? (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <Loader2 size={24} className="animate-spin" style={{ color: "#22d3ee" }} />
+            <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>
+              Completing sign-in…
+            </p>
+          </div>
+        ) : done ? (
           <div
             className="rounded-xl p-4 text-center text-sm font-medium"
             style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.12)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.3)" }}

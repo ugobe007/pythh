@@ -39,7 +39,11 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import { readPostLoginPath } from "@/lib/supabaseOAuth";
+import {
+  isOAuthHandoffActive,
+  markOAuthHandoffFromRedirect,
+  readPostLoginPath,
+} from "@/lib/supabaseOAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -416,8 +420,11 @@ function NoSubscription({ userName }: { userName: string | null }) {
 export default function Account() {
   const [, navigate] = useLocation();
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [oauthBusy, setOauthBusy] = useState(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("code"),
+  const [oauthBusy, setOauthBusy] = useState(
+    () =>
+      (typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("code")) ||
+      isOAuthHandoffActive(),
   );
   const [oauthError, setOauthError] = useState<string | null>(() => {
     if (typeof sessionStorage === "undefined") return null;
@@ -431,6 +438,10 @@ export default function Account() {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
   const wasAuthenticated = useRef(false);
+
+  useEffect(() => {
+    markOAuthHandoffFromRedirect();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -455,8 +466,11 @@ export default function Account() {
   useEffect(() => {
     if (oauthBusy || oauthError) return;
     if (authLoading || isAuthenticated) return;
+    if (isOAuthHandoffActive()) return;
 
+    const delay = wasAuthenticated.current ? 0 : 5000;
     const timer = window.setTimeout(() => {
+      if (isOAuthHandoffActive()) return;
       void utils.auth.me.fetch().then((me) => {
         if (me) return;
         if (wasAuthenticated.current) {
@@ -465,7 +479,7 @@ export default function Account() {
         }
         window.location.href = getLoginUrl("/account");
       });
-    }, wasAuthenticated.current ? 0 : 1500);
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [authLoading, isAuthenticated, oauthBusy, oauthError, utils.auth.me]);

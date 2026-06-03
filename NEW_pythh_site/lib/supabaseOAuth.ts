@@ -77,6 +77,8 @@ export async function completeSupabaseOAuthIfNeeded(
     return { ok: false };
   }
 
+  markOAuthHandoff();
+
   const { data: existing } = await supabase.auth.getSession();
   if (!existing.session?.access_token) {
     const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
@@ -85,18 +87,58 @@ export async function completeSupabaseOAuthIfNeeded(
     }
   }
 
-  const next = params.get("next") || params.get("redirect");
-  const path = window.location.pathname;
-  const clean = next && next.startsWith("/") ? next : path;
-  window.history.replaceState({}, "", clean);
-
   const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
   if (sessionErr || !session?.access_token) {
     return { ok: false, error: "No session after Google sign-in." };
   }
 
   await syncSession({ access_token: session.access_token });
+
+  const next = params.get("next") || params.get("redirect");
+  const path = window.location.pathname;
+  const clean = next && next.startsWith("/") ? next : path;
+  window.history.replaceState({}, "", clean);
+  sessionStorage.removeItem("pythh_oauth_handoff");
+
   return { ok: true };
+}
+
+const OAUTH_HANDOFF_KEY = "pythh_oauth_handoff";
+
+/** Set when returning from Google so /account does not bounce to /login mid-sync. */
+export function markOAuthHandoff(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem(OAUTH_HANDOFF_KEY, String(Date.now()));
+}
+
+/** Call on /account when server redirect includes oauth_handoff=1. */
+export function markOAuthHandoffFromRedirect(): void {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("oauth_handoff") && !params.has("code")) return;
+  markOAuthHandoff();
+  if (params.has("oauth_handoff")) {
+    params.delete("oauth_handoff");
+    const qs = params.toString();
+    const path = window.location.pathname;
+    window.history.replaceState({}, "", qs ? `${path}?${qs}` : path);
+  }
+}
+
+export function isOAuthHandoffActive(): boolean {
+  if (typeof sessionStorage === "undefined") return false;
+  const raw = sessionStorage.getItem(OAUTH_HANDOFF_KEY);
+  if (!raw) return false;
+  const started = Number(raw);
+  if (!Number.isFinite(started)) {
+    sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
+    return false;
+  }
+  if (Date.now() - started > 60_000) {
+    sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
+    return false;
+  }
+  return true;
 }
 
 /**
