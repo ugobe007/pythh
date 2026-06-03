@@ -132,57 +132,14 @@ function mountSupabaseAuthSync(app) {
     if (!code) {
       const qs = new URLSearchParams(req.query).toString();
       if (qs) return res.redirect(302, `/account?${qs}`);
-      // No ?code= — often a refresh or Site URL hit; /account will use existing cookie or send to login
       return res.redirect(302, nextPath);
     }
 
-    const { sbUrl, anonKey } = supabaseConfig();
-    if (!sbUrl || !anonKey) {
-      return res.redirect('/login?oauth_error=oauth_not_configured');
-    }
-
-    const verifier = cookies[PKCE_COOKIE] || '';
-
-    try {
-      const storage = {
-        getItem: (key) => {
-          if (key.includes('code-verifier') || key.includes('verifier')) {
-            return verifier;
-          }
-          return null;
-        },
-        setItem: () => {},
-        removeItem: () => {},
-      };
-
-      const sbClient = createClient(sbUrl, anonKey, {
-        auth: {
-          flowType: 'pkce',
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-          storage,
-        },
-      });
-
-      const { data, error } = await sbClient.auth.exchangeCodeForSession(code);
-      if (error || !data?.session?.access_token) {
-        console.error('[auth/supabase/callback] exchange:', error?.message);
-        return res.redirect(
-          `/login?oauth_error=${encodeURIComponent(error?.message || 'code_exchange_failed')}`,
-        );
-      }
-
-      await establishPythhSession(req, res, data.session.access_token);
-      clearPkceCookie(res);
-      return res.redirect(302, nextPath);
-    } catch (err) {
-      console.error('[auth/supabase/callback]', err?.message || err);
-      clearPkceCookie(res);
-      return res.redirect(
-        `/login?oauth_error=${encodeURIComponent(err?.message || 'sign_in_failed')}`,
-      );
-    }
+    // PKCE verifier lives in browser localStorage — forward ?code= to SPA; client exchanges + syncs.
+    clearPkceCookie(res);
+    const forward = new URLSearchParams({ code });
+    if (nextPath !== '/account') forward.set('next', nextPath);
+    return res.redirect(302, `/account?${forward.toString()}`);
   });
 
   app.post('/api/auth/sync-supabase', async (req, res) => {

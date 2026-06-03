@@ -28,19 +28,32 @@ export function persistOAuthStartCookies(returnPath: string): void {
   document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
 }
 
-/** Must run immediately after signInWithOAuth — PKCE verifier lives in localStorage then. */
+/** Optional fallback if server exchange is re-enabled; client path uses localStorage only. */
 export function persistPkceVerifierCookie(): void {
   if (typeof document === "undefined") return;
   const write = () => {
     const ref = supabaseProjectRef();
-    if (!ref) return false;
-    const verifier = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
+    let verifier = ref
+      ? localStorage.getItem(`sb-${ref}-auth-token-code-verifier`)
+      : null;
+    if (!verifier) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.includes("code-verifier")) {
+          verifier = localStorage.getItem(key);
+          break;
+        }
+      }
+    }
     if (!verifier) return false;
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
     return true;
   };
-  if (!write()) window.setTimeout(write, 50);
+  if (!write()) {
+    window.setTimeout(write, 50);
+    window.setTimeout(write, 200);
+  }
 }
 
 /**
@@ -88,7 +101,7 @@ export async function completeSupabaseOAuthIfNeeded(
 
 /**
  * Primary redirect — matches Supabase Site URL / redirect allow list.
- * Server exchanges ?code= and sets pythh_session; client /account?code= is fallback.
+ * Server forwards ?code= to /account; client exchanges PKCE and syncs pythh_session.
  */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";

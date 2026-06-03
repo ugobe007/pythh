@@ -23,8 +23,12 @@ export function OAuthSessionBridge() {
     if (!code || ran.current) return;
     ran.current = true;
 
-    void completeSupabaseOAuthIfNeeded((input) => syncSession.mutateAsync(input)).then((result) => {
-      if (!result.ok && result.error) {
+    void completeSupabaseOAuthIfNeeded((input) => syncSession.mutateAsync(input)).then(async (result) => {
+      if (result.ok) {
+        await utils.auth.me.fetch();
+        return;
+      }
+      if (result.error) {
         sessionStorage.setItem("pythh_oauth_error", result.error);
       }
     });
