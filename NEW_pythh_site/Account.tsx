@@ -39,12 +39,7 @@ import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import {
-  clearOAuthPending,
-  completeSupabaseOAuthIfNeeded,
-  isOAuthPending,
-  readOAuthNextPath,
-} from "@/lib/supabaseOAuth";
+import { completeSupabaseOAuthIfNeeded } from "@/lib/supabaseOAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -421,74 +416,54 @@ function NoSubscription({ userName }: { userName: string | null }) {
 export default function Account() {
   const [, navigate] = useLocation();
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [oauthBusy, setOauthBusy] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const qs = new URLSearchParams(window.location.search);
-    if (qs.has("code") || qs.has("error") || qs.has("error_description")) return true;
-    const hash = window.location.hash.startsWith("#")
-      ? new URLSearchParams(window.location.hash.slice(1))
-      : null;
-    return !!(hash?.has("code") || hash?.has("error"));
-  });
+  const [oauthBusy, setOauthBusy] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("code"),
+  );
   const [oauthError, setOauthError] = useState<string | null>(null);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const utils = trpc.useUtils();
 
-  // Complete Google/GitHub OAuth on /account (legacy redirect URL — already in Supabase)
-  useEffect(() => {
-    if (!oauthBusy) return;
-    void completeSupabaseOAuthIfNeeded().then(async (result) => {
-      if (!result.ok) {
-        if (result.error) setOauthError(result.error);
-        setOauthBusy(false);
-        return;
-      }
+  const syncOAuth = trpc.auth.syncSupabaseSession.useMutation({
+    onSuccess: async () => {
       await utils.auth.me.invalidate();
       const me = await utils.auth.me.fetch();
       setOauthBusy(false);
       if (!me) {
         setOauthError(
-          "Signed in with Google/GitHub but session did not persist. Try email sign-in or clear site cookies.",
+          "Signed in with Google/GitHub but session did not persist. Try again or use email sign-in.",
         );
         return;
       }
-      clearOAuthPending();
-      const next = readOAuthNextPath();
-      if (next && next !== "/account") {
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      if (next && next.startsWith("/")) {
         navigate(next);
       }
-    });
-  }, [oauthBusy, navigate, utils.auth.me]);
+    },
+    onError: (err) => {
+      setOauthError(err.message || "Sign-in failed.");
+      setOauthBusy(false);
+    },
+  });
 
-  // Redirect unauthenticated users to login (after OAuth handoff finishes)
   useEffect(() => {
-    if (oauthBusy || oauthError) return;
-    if (authLoading || isAuthenticated) return;
-
-    let cancelled = false;
-    const settle = async () => {
-      const pending = isOAuthPending();
-      const attempts = pending ? 12 : 3;
-      for (let i = 0; i < attempts; i++) {
-        if (cancelled) return;
-        await utils.auth.me.invalidate();
-        const me = await utils.auth.me.fetch();
-        if (me) {
-          clearOAuthPending();
-          return;
-        }
-        await new Promise((r) => setTimeout(r, pending ? 400 : 250));
+    if (!oauthBusy) return;
+    void completeSupabaseOAuthIfNeeded((input) => syncOAuth.mutateAsync(input)).then((result) => {
+      if (!result.ok && result.error) {
+        setOauthError(result.error);
+        setOauthBusy(false);
+      } else if (!result.ok) {
+        setOauthBusy(false);
       }
-      if (!cancelled) {
-        window.location.href = getLoginUrl("/account");
-      }
-    };
+    });
+  }, [oauthBusy]);
 
-    void settle();
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, isAuthenticated, oauthBusy, oauthError, utils.auth.me]);
+  useEffect(() => {
+    if (oauthBusy || syncOAuth.isPending || oauthError) return;
+    if (!authLoading && !isAuthenticated) {
+      window.location.href = getLoginUrl("/account");
+    }
+  }, [authLoading, isAuthenticated, oauthBusy, oauthError, syncOAuth.isPending]);
 
   const { data: subscription, isLoading: subLoading, refetch: refetchSubscription } =
     trpc.stripe.getSubscriptionDetails.useQuery(undefined, {

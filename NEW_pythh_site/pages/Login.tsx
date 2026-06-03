@@ -4,13 +4,7 @@ import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 import { useAuth } from "@/_core/hooks/useAuth";
-import {
-  buildSupabaseOAuthRedirectUrl,
-  clearOAuthPending,
-  formatOAuthLoginError,
-  markOAuthPending,
-  persistPkceVerifierCookie,
-} from "@/lib/supabaseOAuth";
+import { buildSupabaseOAuthRedirectUrl } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
   const params = new URLSearchParams(window.location.search);
@@ -26,39 +20,15 @@ export default function Login() {
   const [, navigate] = useLocation();
   const { isAuthenticated, loading: authLoading } = useAuth();
 
-  // Already signed in (e.g. cookie set on server OAuth callback) — leave login loop.
   useEffect(() => {
     if (authLoading) return;
-    if (isAuthenticated) {
-      clearOAuthPending();
-      navigate(getPostLoginPath());
-    }
+    if (isAuthenticated) navigate(getPostLoginPath());
   }, [authLoading, isAuthenticated, navigate]);
-
-  // Supabase may return ?code= to /login if that URL is still in the allow list — hand off to /account.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("code") || params.has("error") || params.has("error_description")) {
-      const q = window.location.search || "";
-      window.location.replace(`/account${q}`);
-    }
-  }, []);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"google" | "github" | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const err = params.get("oauth_error");
-    if (err) {
-      setError(formatOAuthLoginError(err));
-      params.delete("oauth_error");
-      const qs = params.toString();
-      window.history.replaceState({}, "", qs ? `/login?${qs}` : "/login");
-    }
-  }, []);
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
@@ -78,19 +48,13 @@ export default function Login() {
     setSocialLoading(provider);
     setError(null);
     try {
-      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: buildSupabaseOAuthRedirectUrl(getPostLoginPath()),
-          skipBrowserRedirect: true,
         },
       });
       if (oauthErr) throw oauthErr;
-      if (!data?.url) throw new Error("OAuth redirect URL missing");
-      markOAuthPending();
-      persistPkceVerifierCookie();
-      window.location.href = data.url;
-      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);
       setSocialLoading(null);
