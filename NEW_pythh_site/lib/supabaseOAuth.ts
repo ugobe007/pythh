@@ -91,8 +91,36 @@ export function publishOAuthError(message: string): void {
   window.dispatchEvent(new CustomEvent("pythh-oauth-error", { detail: message }));
 }
 
+/** Implicit OAuth return — Supabase puts tokens in the hash, not ?code=. */
+export function parseOAuthHashTokens(): {
+  access_token: string;
+  refresh_token: string | null;
+} | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.location.hash?.replace(/^#/, "").trim();
+  if (!raw) return null;
+  const hash = new URLSearchParams(raw);
+  const access_token = hash.get("access_token");
+  if (!access_token) return null;
+  return { access_token, refresh_token: hash.get("refresh_token") };
+}
+
+export function hasOAuthReturnInUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  if (new URLSearchParams(window.location.search).get("code")) return true;
+  return !!parseOAuthHashTokens()?.access_token;
+}
+
+function cleanUrlAfterOAuth(): void {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next") || params.get("redirect");
+  const path = window.location.pathname;
+  const clean = next && next.startsWith("/") ? next : path;
+  window.history.replaceState({}, "", clean);
+}
+
 /**
- * Finish OAuth when URL has ?code= — exchange PKCE, sync to pythh_session.
+ * Finish OAuth from hash (#access_token=) or ?code= (PKCE).
  */
 export async function completeSupabaseOAuthIfNeeded(
   syncSession: OAuthSyncFn,
@@ -102,9 +130,33 @@ export async function completeSupabaseOAuthIfNeeded(
   }
 
   const params = new URLSearchParams(window.location.search);
-  const oauthError = params.get("error_description") || params.get("error");
+  const oauthError =
+    params.get("error_description") ||
+    params.get("error") ||
+    new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error_description") ||
+    new URLSearchParams(window.location.hash.replace(/^#/, "")).get("error");
   if (oauthError) {
     return { ok: false, error: oauthError };
+  }
+
+  const hashTokens = parseOAuthHashTokens();
+  if (hashTokens) {
+    markOAuthHandoff();
+    try {
+      if (hashTokens.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: hashTokens.access_token,
+          refresh_token: hashTokens.refresh_token,
+        });
+      }
+      const { user } = await syncSession({ access_token: hashTokens.access_token });
+      cleanUrlAfterOAuth();
+      sessionStorage.removeItem(PKCE_SESSION_KEY);
+      return { ok: true, user };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not complete Google sign-in.";
+      return { ok: false, error: msg };
+    }
   }
 
   const code = params.get("code");
@@ -136,11 +188,7 @@ export async function completeSupabaseOAuthIfNeeded(
     }
 
     const { user } = await syncSession({ access_token: session.access_token });
-
-    const next = params.get("next") || params.get("redirect");
-    const path = window.location.pathname;
-    const clean = next && next.startsWith("/") ? next : path;
-    window.history.replaceState({}, "", clean);
+    cleanUrlAfterOAuth();
     sessionStorage.removeItem(PKCE_SESSION_KEY);
 
     return { ok: true, user };
@@ -166,7 +214,7 @@ export function markOAuthHandoff(): void {
 export function markOAuthHandoffFromRedirect(): void {
   if (typeof window === "undefined") return;
   const params = new URLSearchParams(window.location.search);
-  if (!params.has("oauth_handoff") && !params.has("code")) return;
+  if (!params.has("oauth_handoff") && !params.has("code") && !parseOAuthHashTokens()) return;
   markOAuthHandoff();
   if (params.has("oauth_handoff")) {
     params.delete("oauth_handoff");

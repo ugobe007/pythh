@@ -33,8 +33,8 @@ if (!isServer && !hasValidSupabaseCredentials) {
 const authConfig = {
   persistSession: true,
   autoRefreshToken: true,
-  // OAuthSessionBridge exchanges ?code= manually — avoid double PKCE consume.
-  detectSessionInUrl: false,
+  // Bridge handles #access_token= and ?code=; also parse hash if Supabase sets session first.
+  detectSessionInUrl: true,
   storage: typeof window !== "undefined" ? window.localStorage : undefined,
 };
 

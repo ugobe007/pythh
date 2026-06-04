@@ -103,13 +103,28 @@
     return { startedAgoMs: Date.now() - n, active: Date.now() - n < 120_000 };
   }
 
+  function parseHashTokens() {
+    const raw = location.hash?.replace(/^#/, "").trim();
+    if (!raw) return null;
+    const h = new URLSearchParams(raw);
+    const access_token = h.get("access_token");
+    if (!access_token) return null;
+    return {
+      access_token: `${access_token.slice(0, 12)}…`,
+      refresh_token: h.get("refresh_token") ? "present" : null,
+      token_type: h.get("token_type"),
+    };
+  }
+
   function urlState() {
     const p = new URLSearchParams(location.search);
+    const hash = parseHashTokens();
     return {
       path: location.pathname,
       href: location.href,
       code: p.get("code") ? `${p.get("code").slice(0, 8)}…` : null,
       codeLen: p.get("code")?.length ?? 0,
+      hashTokens: hash,
       error: p.get("error"),
       error_description: p.get("error_description"),
       oauth_handoff: p.get("oauth_handoff"),
@@ -244,8 +259,24 @@
 
     const params = new URLSearchParams(location.search);
     const code = params.get("code");
-    if (!code) {
-      log("7.code", "warn", "no ?code= in URL — complete Google sign-in first or open /account?code=…");
+    const hashTokens = parseHashTokens();
+    if (hashTokens) {
+      log(
+        "7.hash",
+        "ok",
+        "BREAKPOINT FOUND: tokens in URL #hash (implicit flow) — app must sync access_token from hash",
+        hashTokens,
+      );
+      const full = new URLSearchParams(location.hash.replace(/^#/, ""));
+      const access = full.get("access_token");
+      if (access) {
+        log("9.sync", "info", "attempting auth.syncSupabaseSession from hash token…");
+        const sync = await fetchSync(access);
+        if (sync.ok && sync.user) log("9.sync", "ok", "pythh_session sync OK", sync.user);
+        else log("9.sync", "fail", "BREAKPOINT: sync failed", sync);
+      }
+    } else if (!code) {
+      log("7.code", "warn", "no ?code= or #access_token= — complete Google sign-in first");
     } else {
       log("7.code", "ok", `code present (${code.length} chars)`);
     }

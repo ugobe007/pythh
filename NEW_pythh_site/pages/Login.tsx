@@ -41,8 +41,14 @@ export default function Login() {
       setError(decodeURIComponent(err));
       window.history.replaceState({}, "", "/login");
     }
-    if (params.has("code") || params.has("error") || params.has("error_description")) {
-      window.location.replace(`/account${window.location.search}`);
+    const hash = window.location.hash || "";
+    if (
+      params.has("code") ||
+      params.has("error") ||
+      params.has("error_description") ||
+      hash.includes("access_token=")
+    ) {
+      window.location.replace(`/account${window.location.search}${hash}`);
     }
   }, []);
 
@@ -57,7 +63,10 @@ export default function Login() {
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
   );
-  const finishingOAuth = params.has("code") || isOAuthHandoffActive();
+  const finishingOAuth =
+    params.has("code") ||
+    (typeof window !== "undefined" && window.location.hash.includes("access_token=")) ||
+    isOAuthHandoffActive();
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {

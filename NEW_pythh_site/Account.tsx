@@ -41,6 +41,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import {
   clearOAuthHandoff,
+  hasOAuthReturnInUrl,
   isOAuthHandoffActive,
   markOAuthHandoffFromRedirect,
   readPostLoginPath,
@@ -423,8 +424,7 @@ export default function Account() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [oauthBusy, setOauthBusy] = useState(
     () =>
-      (typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).has("code")) ||
+      (typeof window !== "undefined" && hasOAuthReturnInUrl()) ||
       isOAuthHandoffActive(),
   );
   const [oauthError, setOauthError] = useState<string | null>(() => {
