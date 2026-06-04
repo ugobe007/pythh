@@ -15,6 +15,7 @@
     "test:inference-golden": "node tests/inference-golden.test.js",
     "test:correlate-policy": "node tests/startup-correlate-policy.test.js",
     "test:hot-god-contract": "node --test tests/hotGodFromStartupRow.contract.test.mjs",
+    "test:oauth-smoke": "node scripts/smoke-oauth-prod.mjs",
     "check:ontology-alignment": "node scripts/check-ontology-alignment.js",
     "pipeline": "node scripts/core/hot-match-autopilot.js",
     "pipeline:daemon": "node scripts/core/hot-match-autopilot.js --daemon",
