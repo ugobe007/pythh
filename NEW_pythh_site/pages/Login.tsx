@@ -8,7 +8,7 @@ import {
   buildSupabaseOAuthRedirectUrl,
   isOAuthHandoffActive,
   markOAuthHandoff,
-  persistPkceVerifierCookie,
+  persistPkceVerifierForOAuth,
 } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
@@ -88,7 +88,9 @@ export default function Login() {
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
       markOAuthHandoff();
-      persistPkceVerifierCookie();
+      persistPkceVerifierForOAuth();
+      await new Promise((r) => setTimeout(r, 100));
+      persistPkceVerifierForOAuth();
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);

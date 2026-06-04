@@ -7,6 +7,7 @@ export type OAuthSyncFn = (input: {
 }) => Promise<OAuthSyncResult>;
 
 const OAUTH_NEXT_COOKIE = "pythh_oauth_next";
+const PKCE_SESSION_KEY = "pythh_pkce_verifier";
 
 function cookieDomainAttr(): string {
   if (typeof document === "undefined") return "";
@@ -24,6 +25,58 @@ function supabaseProjectRef(): string | null {
   return m?.[1] ?? null;
 }
 
+function findPkceVerifier(): string | null {
+  if (typeof window === "undefined") return null;
+  const ref = supabaseProjectRef();
+  if (ref) {
+    const fromLs = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
+    if (fromLs) return fromLs;
+  }
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.includes("code-verifier")) {
+      const v = localStorage.getItem(key);
+      if (v) return v;
+    }
+  }
+  return sessionStorage.getItem(PKCE_SESSION_KEY);
+}
+
+/** Restore PKCE verifier into localStorage before exchangeCodeForSession. */
+export function ensurePkceVerifierBeforeExchange(): void {
+  if (typeof window === "undefined") return;
+  const verifier = findPkceVerifier();
+  if (!verifier) return;
+  const ref = supabaseProjectRef();
+  if (ref) {
+    localStorage.setItem(`sb-${ref}-auth-token-code-verifier`, verifier);
+  }
+  sessionStorage.setItem(PKCE_SESSION_KEY, verifier);
+}
+
+/** Call after signInWithOAuth — backup verifier for the return trip from Google. */
+export function persistPkceVerifierForOAuth(): void {
+  if (typeof document === "undefined") return;
+  const write = () => {
+    const verifier = findPkceVerifier();
+    if (!verifier) return false;
+    sessionStorage.setItem(PKCE_SESSION_KEY, verifier);
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+    return true;
+  };
+  if (!write()) {
+    window.setTimeout(write, 50);
+    window.setTimeout(write, 150);
+    window.setTimeout(write, 400);
+  }
+}
+
+/** @deprecated alias */
+export function persistPkceVerifierCookie(): void {
+  persistPkceVerifierForOAuth();
+}
+
 /** Post-login path for server callback redirect (read by server from cookie). */
 export function persistOAuthStartCookies(returnPath: string): void {
   if (typeof document === "undefined") return;
@@ -32,36 +85,14 @@ export function persistOAuthStartCookies(returnPath: string): void {
   document.cookie = `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
 }
 
-/** Optional fallback if server exchange is re-enabled; client path uses localStorage only. */
-export function persistPkceVerifierCookie(): void {
-  if (typeof document === "undefined") return;
-  const write = () => {
-    const ref = supabaseProjectRef();
-    let verifier = ref
-      ? localStorage.getItem(`sb-${ref}-auth-token-code-verifier`)
-      : null;
-    if (!verifier) {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.includes("code-verifier")) {
-          verifier = localStorage.getItem(key);
-          break;
-        }
-      }
-    }
-    if (!verifier) return false;
-    const secure = window.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
-    return true;
-  };
-  if (!write()) {
-    window.setTimeout(write, 50);
-    window.setTimeout(write, 200);
-  }
+export function publishOAuthError(message: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem("pythh_oauth_error", message);
+  window.dispatchEvent(new CustomEvent("pythh-oauth-error", { detail: message }));
 }
 
 /**
- * Finish OAuth when URL has ?code= (fallback when Supabase returns to /account).
+ * Finish OAuth when URL has ?code= — exchange PKCE, sync to pythh_session.
  */
 export async function completeSupabaseOAuthIfNeeded(
   syncSession: OAuthSyncFn,
@@ -82,28 +113,42 @@ export async function completeSupabaseOAuthIfNeeded(
   }
 
   markOAuthHandoff();
+  ensurePkceVerifierBeforeExchange();
 
-  const { data: existing } = await supabase.auth.getSession();
-  if (!existing.session?.access_token) {
-    const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeErr) {
-      return { ok: false, error: exchangeErr.message };
+  try {
+    const { data: existing } = await supabase.auth.getSession();
+    if (!existing.session?.access_token) {
+      const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeErr) {
+        return {
+          ok: false,
+          error:
+            exchangeErr.message.includes("verifier") || exchangeErr.message.includes("code")
+              ? `${exchangeErr.message} Try signing in again from /login (do not refresh this page).`
+              : exchangeErr.message,
+        };
+      }
     }
+
+    const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+    if (sessionErr || !session?.access_token) {
+      return { ok: false, error: "No session after Google sign-in." };
+    }
+
+    const { user } = await syncSession({ access_token: session.access_token });
+
+    const next = params.get("next") || params.get("redirect");
+    const path = window.location.pathname;
+    const clean = next && next.startsWith("/") ? next : path;
+    window.history.replaceState({}, "", clean);
+    sessionStorage.removeItem(PKCE_SESSION_KEY);
+
+    return { ok: true, user };
+  } catch (err) {
+    const msg =
+      err instanceof Error ? err.message : "Could not complete Google sign-in.";
+    return { ok: false, error: msg };
   }
-
-  const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-  if (sessionErr || !session?.access_token) {
-    return { ok: false, error: "No session after Google sign-in." };
-  }
-
-  const { user } = await syncSession({ access_token: session.access_token });
-
-  const next = params.get("next") || params.get("redirect");
-  const path = window.location.pathname;
-  const clean = next && next.startsWith("/") ? next : path;
-  window.history.replaceState({}, "", clean);
-
-  return { ok: true, user };
 }
 
 export function clearOAuthHandoff(): void {
@@ -113,13 +158,11 @@ export function clearOAuthHandoff(): void {
 
 const OAUTH_HANDOFF_KEY = "pythh_oauth_handoff";
 
-/** Set when returning from Google so /account does not bounce to /login mid-sync. */
 export function markOAuthHandoff(): void {
   if (typeof sessionStorage === "undefined") return;
   sessionStorage.setItem(OAUTH_HANDOFF_KEY, String(Date.now()));
 }
 
-/** Call on /account when server redirect includes oauth_handoff=1. */
 export function markOAuthHandoffFromRedirect(): void {
   if (typeof window === "undefined") return;
   const params = new URLSearchParams(window.location.search);
@@ -150,8 +193,8 @@ export function isOAuthHandoffActive(): boolean {
 }
 
 /**
- * Primary redirect — matches Supabase Site URL / redirect allow list.
- * Server forwards ?code= to /account; client exchanges PKCE and syncs pythh_session.
+ * Redirect target for Supabase OAuth (must be in Supabase redirect allow list).
+ * Prefer /account so PKCE verifier stays in the same SPA origin; server callback remains allowed.
  */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
@@ -159,7 +202,7 @@ export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
     sessionStorage.setItem("pythh_post_login", next);
   }
   persistOAuthStartCookies(next);
-  return `${window.location.origin}/api/auth/supabase/callback`;
+  return `${window.location.origin}/account?next=${encodeURIComponent(next)}`;
 }
 
 export function readPostLoginPath(): string {

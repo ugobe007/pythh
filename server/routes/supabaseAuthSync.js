@@ -29,16 +29,25 @@ function parseCookies(header) {
 
 function sessionCookieOptions(req) {
   const secure = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
+  const host = String(req.headers?.host || '').split(':')[0].toLowerCase();
+  const domain =
+    host === 'pythh.ai' || host.endsWith('.pythh.ai') ? '.pythh.ai' : undefined;
   return {
     httpOnly: true,
     secure,
     sameSite: 'lax',
     path: '/',
+    ...(domain ? { domain } : {}),
   };
 }
 
-function clearPkceCookie(res) {
-  res.clearCookie(PKCE_COOKIE, { path: '/', sameSite: 'lax' });
+function clearPkceCookie(res, req) {
+  const opts = { path: '/', sameSite: 'lax' };
+  const host = String(req?.headers?.host || '').split(':')[0].toLowerCase();
+  if (host === 'pythh.ai' || host.endsWith('.pythh.ai')) {
+    res.clearCookie(PKCE_COOKIE, { ...opts, domain: '.pythh.ai' });
+  }
+  res.clearCookie(PKCE_COOKIE, opts);
 }
 
 function supabaseConfig() {
@@ -135,8 +144,46 @@ function mountSupabaseAuthSync(app) {
       return res.redirect(302, nextPath);
     }
 
-    // PKCE verifier lives in browser localStorage — forward ?code= to SPA; client exchanges + syncs.
-    clearPkceCookie(res);
+    const verifier = cookies[PKCE_COOKIE] || '';
+    const { sbUrl, anonKey, serviceKey } = supabaseConfig();
+
+    if (sbUrl && anonKey && serviceKey && verifier) {
+      try {
+        const storage = {
+          getItem: (key) => {
+            if (key.includes('code-verifier') || key.includes('verifier')) {
+              return verifier;
+            }
+            return null;
+          },
+          setItem: () => {},
+          removeItem: () => {},
+        };
+
+        const sbClient = createClient(sbUrl, anonKey, {
+          auth: {
+            flowType: 'pkce',
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+            storage,
+          },
+        });
+
+        const { data, error } = await sbClient.auth.exchangeCodeForSession(code);
+        if (!error && data?.session?.access_token) {
+          await establishPythhSession(req, res, data.session.access_token);
+          clearPkceCookie(res, req);
+          return res.redirect(302, nextPath);
+        }
+        console.error('[auth/supabase/callback] server exchange:', error?.message);
+      } catch (err) {
+        console.error('[auth/supabase/callback] server exchange:', err?.message || err);
+      }
+    }
+
+    // Fallback: SPA exchanges PKCE from sessionStorage/localStorage.
+    clearPkceCookie(res, req);
     const forward = new URLSearchParams({ code, oauth_handoff: '1' });
     if (nextPath !== '/account') forward.set('next', nextPath);
     return res.redirect(302, `/account?${forward.toString()}`);

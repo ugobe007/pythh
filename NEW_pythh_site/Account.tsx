@@ -445,6 +445,31 @@ export default function Account() {
   }, []);
 
   useEffect(() => {
+    const onOAuthError = (e: Event) => {
+      const msg = (e as CustomEvent<string>).detail;
+      if (typeof msg === "string" && msg) {
+        setOauthError(msg);
+        setOauthBusy(false);
+      }
+    };
+    window.addEventListener("pythh-oauth-error", onOAuthError);
+    return () => window.removeEventListener("pythh-oauth-error", onOAuthError);
+  }, []);
+
+  useEffect(() => {
+    if (!oauthBusy) return;
+    const poll = window.setInterval(() => {
+      const msg = sessionStorage.getItem("pythh_oauth_error");
+      if (msg) {
+        sessionStorage.removeItem("pythh_oauth_error");
+        setOauthError(msg);
+        setOauthBusy(false);
+      }
+    }, 400);
+    return () => window.clearInterval(poll);
+  }, [oauthBusy]);
+
+  useEffect(() => {
     if (isAuthenticated) {
       wasAuthenticated.current = true;
       setOauthBusy(false);
@@ -457,11 +482,15 @@ export default function Account() {
   useEffect(() => {
     if (!oauthBusy) return;
     const watchdog = window.setTimeout(() => {
+      if (wasAuthenticated.current) return;
+      const stored = sessionStorage.getItem("pythh_oauth_error");
       setOauthBusy(false);
-      if (!wasAuthenticated.current) {
-        setOauthError("Sign-in is taking too long. Please try again or use email sign-in.");
-      }
-    }, 20_000);
+      setOauthError(
+        stored ||
+          "Sign-in is taking too long. Please try again or use email sign-in.",
+      );
+      sessionStorage.removeItem("pythh_oauth_error");
+    }, 45_000);
     return () => window.clearTimeout(watchdog);
   }, [oauthBusy]);
 
