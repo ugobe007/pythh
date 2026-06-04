@@ -57,8 +57,7 @@ export default function Login() {
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
   );
-  const finishingOAuth =
-    params.has("code") || authLoading || isOAuthHandoffActive();
+  const finishingOAuth = params.has("code") || isOAuthHandoffActive();
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
