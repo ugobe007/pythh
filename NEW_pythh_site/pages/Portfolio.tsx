@@ -74,6 +74,7 @@ interface PortfolioValue {
   gain_usd: number;
   gain_pct: number;
   tvpi: number | null;
+  avg_moic_capped: number | null;
   realized_value_usd: number;
   unrealized_value_usd: number;
   inception_date: string | null;
@@ -440,9 +441,14 @@ export default function Portfolio() {
           sub: `${metrics.active_picks ?? 0} active`,
         },
         {
-          value: metrics.avg_moic ? `${metrics.avg_moic}×` : "—",
+          value:
+            analytics?.value.avg_moic_capped != null
+              ? `${analytics.value.avg_moic_capped}×`
+              : metrics.avg_moic
+              ? `${metrics.avg_moic}×`
+              : "—",
           label: "Avg MOIC",
-          sub: "verified markups",
+          sub: "verified · capped 25×",
         },
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),

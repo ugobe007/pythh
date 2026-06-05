@@ -214,6 +214,13 @@ async function computePortfolioValue(supabase) {
   const gain = currentValue - costBasis;
   const positions = contributions.length;
 
+  // Equal-weighted average of the capped, verified per-position multiples — the honest
+  // "Avg MOIC" headline. Mirrors the same cap/verification used for fund value, so a couple
+  // of signal-inferred outliers can no longer balloon it (the legacy avg_moic was uncapped).
+  const avgMoicCapped = positions
+    ? round(contributions.reduce((a, c) => a + (c.moic_capped || 0), 0) / positions, 2)
+    : null;
+
   // Vintage / fund age.
   const fundAgeDays = inceptionMs != null ? Math.round((now - inceptionMs) / 86400000) : null;
   holdingDays.sort((a, b) => a - b);
@@ -239,6 +246,7 @@ async function computePortfolioValue(supabase) {
     gain_usd: round(gain),
     gain_pct: costBasis ? round((gain / costBasis) * 100, 1) : 0,
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
+    avg_moic_capped: avgMoicCapped,
     realized_value_usd: round(realizedValue),
     unrealized_value_usd: round(unrealizedValue),
     // Vintage (A)
