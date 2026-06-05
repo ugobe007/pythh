@@ -286,16 +286,20 @@ export async function completeSupabaseOAuthIfNeeded(
   const hashTokens = parseOAuthHashTokens();
   if (hashTokens) {
     markOAuthHandoff();
-    try {
-      if (hashTokens.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: hashTokens.access_token,
-          refresh_token: hashTokens.refresh_token,
-        });
-      }
-      const { user } = await syncSession({ access_token: hashTokens.access_token });
+    // The pre-React inline script (pythh-oauth-hash-sync.js) usually already set
+    // the pythh_session cookie. Don't sync a second time — just let auth.me load.
+    if (sessionStorage.getItem(hashSyncDedupeKey(hashTokens.access_token)) === "ok") {
       cleanUrlAfterOAuth();
       sessionStorage.removeItem(PKCE_SESSION_KEY);
+      sessionStorage.removeItem(HASH_CAPTURE_KEY);
+      return { ok: true };
+    }
+    try {
+      const { user } = await syncSession({ access_token: hashTokens.access_token });
+      sessionStorage.setItem(hashSyncDedupeKey(hashTokens.access_token), "ok");
+      cleanUrlAfterOAuth();
+      sessionStorage.removeItem(PKCE_SESSION_KEY);
+      sessionStorage.removeItem(HASH_CAPTURE_KEY);
       return { ok: true, user };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not complete Google sign-in.";

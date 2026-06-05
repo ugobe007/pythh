@@ -36,13 +36,14 @@ async function finishOAuth(
     return;
   }
 
-  for (let attempt = 0; attempt < 15; attempt++) {
+  // Cookie is already set by the sync above — first fetch normally wins.
+  for (let attempt = 0; attempt < 8; attempt++) {
     const me = await utils.auth.me.fetch();
     if (me) {
       clearOAuthHandoff();
       return;
     }
-    await new Promise((r) => setTimeout(r, 300 + attempt * 200));
+    await new Promise((r) => setTimeout(r, 250 + attempt * 150));
   }
 
   publishOAuthError(
