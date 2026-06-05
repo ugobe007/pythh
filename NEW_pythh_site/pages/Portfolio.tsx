@@ -309,6 +309,46 @@ function PortfolioRow({ entry }: { entry: PortfolioEntry }) {
   );
 }
 
+function Collapsible({
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  summary?: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 px-5 md:px-6 py-4 bg-transparent border-0 cursor-pointer text-left"
+      >
+        <span className="flex items-baseline gap-3 min-w-0">
+          <SectionLabel>{title}</SectionLabel>
+          {!open && summary && (
+            <span className="text-xs font-mono truncate" style={{ color: MUTED }}>
+              {summary}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          size={15}
+          className={open ? "rotate-180" : ""}
+          style={{ color: G, transition: "transform 0.2s", flexShrink: 0 }}
+        />
+      </button>
+      {open && <div className="px-5 md:px-6 pb-6">{children}</div>}
+    </section>
+  );
+}
+
 export default function Portfolio() {
   const [entries, setEntries] = useState<PortfolioEntry[]>([]);
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
@@ -321,6 +361,9 @@ export default function Portfolio() {
   const [tierFilter, setTierFilter] = useState<"all" | HealthTier>("all");
   const [sortBy, setSortBy] = useState<"health" | "god">("health");
   const [showAll, setShowAll] = useState(false);
+  const [panels, setPanels] = useState({ value: false, bench: false, strategy: false });
+  const togglePanel = (k: "value" | "bench" | "strategy") =>
+    setPanels((p) => ({ ...p, [k]: !p[k] }));
 
   useEffect(() => {
     loadData();
@@ -463,10 +506,21 @@ export default function Portfolio() {
           </div>
         ) : null}
 
-        {/* Fund value — invested vs current value */}
+        {/* Fund analytics — collapsible to keep the portfolio list above the fold */}
         {analytics?.value && (
-          <section className="mb-10 rounded-xl border px-5 md:px-6 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
-            <SectionLabel className="mb-4">Fund value</SectionLabel>
+          <div className="space-y-3 mb-10">
+          <Collapsible
+            title="Fund value"
+            open={panels.value}
+            onToggle={() => togglePanel("value")}
+            summary={
+              <>
+                {fmtUSD(analytics.value.cost_basis_usd)} → {fmtUSD(analytics.value.current_value_usd)} ·{" "}
+                <span style={{ color: analytics.value.gain_usd >= 0 ? G : AMBER }}>{fmtSignedUSD(analytics.value.gain_usd)}</span> ·{" "}
+                {analytics.value.tvpi != null ? `${analytics.value.tvpi}×` : "—"} TVPI
+              </>
+            }
+          >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div>
                 <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Invested</div>
@@ -556,15 +610,21 @@ export default function Portfolio() {
               </div>
             )}
             <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.value.note}</p>
-          </section>
-        )}
+          </Collapsible>
 
-        {/* Benchmark + strategy + trend */}
-        {analytics && (
-          <div className="grid lg:grid-cols-2 gap-6 mb-12">
-            {/* vs top VC */}
-            <section className="rounded-xl border px-5 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
-              <SectionLabel className="mb-4">vs. top VC benchmarks</SectionLabel>
+          {/* vs top VC */}
+          <Collapsible
+            title="vs. top VC benchmarks"
+            open={panels.bench}
+            onToggle={() => togglePanel("bench")}
+            summary={
+              <>
+                {analytics.value.tvpi != null ? `${analytics.value.tvpi}×` : "—"} TVPI ·{" "}
+                {analytics.benchmarks.rows.filter((r) => r.verdict === "ahead").length} of{" "}
+                {analytics.benchmarks.rows.length} ahead
+              </>
+            }
+          >
               <div className="space-y-3">
                 {analytics.benchmarks.rows.map((r) => (
                   <div key={r.metric} className="flex items-baseline justify-between gap-3 pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: BORDER }}>
@@ -580,12 +640,24 @@ export default function Portfolio() {
                 ))}
               </div>
               <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.benchmarks.source}</p>
-            </section>
+          </Collapsible>
 
-            {/* Strategy + trend */}
-            <section className="rounded-xl border px-5 py-6 space-y-5" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+          {/* Strategy + trend */}
+          <Collapsible
+            title="Strategy"
+            open={panels.strategy}
+            onToggle={() => togglePanel("strategy")}
+            summary={
+              <>
+                {analytics.strategy.entry_rule}
+                {analytics.strategy.top_sectors?.[0]
+                  ? ` · ${analytics.strategy.top_sectors[0].sector} ${analytics.strategy.top_sectors[0].pct}%`
+                  : ""}
+              </>
+            }
+          >
+            <div className="space-y-5">
               <div>
-                <SectionLabel className="mb-3">Strategy</SectionLabel>
                 <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{analytics.strategy.thesis}</p>
                 {analytics.strategy.conviction_note && (
                   <p className="text-xs font-mono mt-3 border-l-2 pl-3" style={{ color: "oklch(0.85 0.005 264)", borderColor: `${G}66` }}>
@@ -612,7 +684,8 @@ export default function Portfolio() {
                   ))}
                 </div>
               </div>
-            </section>
+            </div>
+          </Collapsible>
           </div>
         )}
 
