@@ -21,6 +21,7 @@ import {
   G, CYAN, AMBER, MUTED, DIM, BORDER, CARD, PAGE, TEXT,
   tierColor, tierLabel, moicColor, deltaColor, godScoreColor, signalScoreColor,
 } from "@/lib/designTokens";
+import { parseDate, fetchJson } from "@/lib/dataFetch";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PortfolioEntry {
@@ -136,8 +137,9 @@ function fmtSignedUSD(n?: number | null) {
 }
 
 function fmtDate(d?: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const date = parseDate(d);
+  if (!date) return "—";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function PillarBar({ label, score, icon: Icon, barColor }: { label: string; score?: number; icon: React.ElementType; barColor: string }) {
@@ -197,9 +199,15 @@ export default function PortfolioDetail() {
   useEffect(() => {
     if (!startupId) return;
     setLoading(true);
+    setError(null);
     Promise.all([
-      fetch(`/api/portfolio/${startupId}`).then((r) => r.json()),
-      fetch(`/api/intelligence/positioning/${startupId}`).then((r) => r.json()).catch(() => ({ positioning: [] })),
+      fetchJson<{ entry: PortfolioEntry | null; events?: PortfolioEvent[]; recent_news?: RecentNews[] }>(
+        `/api/portfolio/${startupId}`
+      ),
+      fetchJson<{ positioning?: DealPositioning[] }>(
+        `/api/intelligence/positioning/${startupId}`,
+        { retries: 1 }
+      ).catch(() => ({ positioning: [] })),
     ])
       .then(([detail, pos]) => {
         setEntry(detail.entry || null);
@@ -207,7 +215,7 @@ export default function PortfolioDetail() {
         setNews(detail.recent_news || []);
         setPos(pos.positioning || []);
       })
-      .catch((e: Error) => setError(e.message))
+      .catch(() => setError("Couldn't load this company right now. Please try again."))
       .finally(() => setLoading(false));
   }, [startupId]);
 

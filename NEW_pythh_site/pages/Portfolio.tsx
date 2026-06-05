@@ -16,6 +16,7 @@ import {
   G, CYAN, AMBER, MUTED, DIM, BORDER, CARD, PAGE,
   tierColor, tierLabel, moicColor, signalScoreColor,
 } from "@/lib/designTokens";
+import { parseDate, fetchJson } from "@/lib/dataFetch";
 
 type HealthTier = "core" | "watch" | "review" | "exited";
 
@@ -145,8 +146,9 @@ function fmtIRR(v?: { irr_pct: number | null; irr_meaningful: boolean }) {
 }
 
 function fmtDate(s?: string | null) {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const d = parseDate(s);
+  if (!d) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 function statusWord(status: string): string {
@@ -313,6 +315,7 @@ export default function Portfolio() {
   const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(true);
+  const [slowHint, setSlowHint] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "exited">("all");
   const [tierFilter, setTierFilter] = useState<"all" | HealthTier>("all");
@@ -326,28 +329,32 @@ export default function Portfolio() {
   async function loadData() {
     setListLoading(true);
     setMetricsLoading(true);
+    setSlowHint(false);
     setError(null);
 
-    fetch("/api/portfolio/metrics")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load metrics"))))
+    // Surface a "still loading" hint if a cold backend is slow to wake.
+    const slowTimer = setTimeout(() => setSlowHint(true), 6000);
+
+    fetchJson<{ metrics: PortfolioMetrics | null }>("/api/portfolio/metrics")
       .then((metricsData) => setMetrics(metricsData.metrics ?? null))
       .catch(() => {})
       .finally(() => setMetricsLoading(false));
 
-    fetch("/api/portfolio/analytics")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load analytics"))))
+    fetchJson<PortfolioAnalytics>("/api/portfolio/analytics")
       .then((data) => setAnalytics(data ?? null))
       .catch(() => {});
 
     try {
       const sortQ = sortBy === "health" ? "health" : "god";
-      const listRes = await fetch(`/api/portfolio?sort=${sortQ}&limit=80&lite=1`);
-      if (!listRes.ok) throw new Error("Failed to load portfolio");
-      const listData = await listRes.json();
+      const listData = await fetchJson<{ entries?: PortfolioEntry[] }>(
+        `/api/portfolio?sort=${sortQ}&limit=80&lite=1`
+      );
       setEntries(listData.entries ?? []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+    } catch {
+      setError("Portfolio is taking longer than usual to load. Please refresh in a moment.");
     } finally {
+      clearTimeout(slowTimer);
+      setSlowHint(false);
       setListLoading(false);
     }
   }
@@ -676,6 +683,11 @@ export default function Portfolio() {
         {/* List */}
         {listLoading ? (
           <div className="space-y-0">
+            {slowHint && (
+              <p className="text-center pb-6 text-xs font-mono" style={{ color: DIM }}>
+                Waking the signal engine… this can take a few seconds on first load.
+              </p>
+            )}
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="py-5 border-b animate-pulse" style={{ borderColor: BORDER, height: 100 }} />
             ))}
