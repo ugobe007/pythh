@@ -56,6 +56,34 @@ function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRo
   return { moic: 1, basis: 'cost' };
 }
 
+/** Net present value of dated cash flows at a given annual rate. */
+function xnpv(rate, flows, t0) {
+  const YEAR_MS = 365 * 86400000;
+  return flows.reduce(
+    (sum, f) => sum + f.amount / Math.pow(1 + rate, (f.t - t0) / YEAR_MS),
+    0
+  );
+}
+
+/** Money-weighted (XIRR-style) annualized return from dated cash flows, via bisection. */
+function xirr(flows) {
+  if (!flows || flows.length < 2) return null;
+  if (!flows.some((f) => f.amount > 0) || !flows.some((f) => f.amount < 0)) return null;
+  const t0 = Math.min(...flows.map((f) => f.t));
+  let lo = -0.9999;
+  let hi = 1000; // up to 100,000% — young funds can annualize very high
+  let fLo = xnpv(lo, flows, t0);
+  let fHi = xnpv(hi, flows, t0);
+  if (fLo * fHi > 0) return null; // no sign change → not solvable in range
+  for (let i = 0; i < 256; i += 1) {
+    const mid = (lo + hi) / 2;
+    const fMid = xnpv(mid, flows, t0);
+    if (Math.abs(fMid) < 1e-4) return mid;
+    if (fLo * fMid < 0) { hi = mid; fHi = fMid; } else { lo = mid; fLo = fMid; }
+  }
+  return (lo + hi) / 2;
+}
+
 /**
  * Fund-level value + gain. Current value is built ONLY from press-verified funding
  * rounds and recorded exits — never from signal-inferred valuations. The looser
@@ -65,7 +93,7 @@ async function computePortfolioValue(supabase) {
   const [picksRes, eventsRes] = await Promise.all([
     supabase
       .from('virtual_portfolio')
-      .select('id, startup_id, status, virtual_check_usd, moic, entry_valuation_usd, current_valuation_usd, exit_valuation_usd'),
+      .select('id, startup_id, status, virtual_check_usd, moic, entry_valuation_usd, current_valuation_usd, exit_valuation_usd, entry_date, exit_date'),
     supabase
       .from('portfolio_events')
       .select('portfolio_id, startup_id, event_type, verified, post_money_usd, event_date')
@@ -103,6 +131,10 @@ async function computePortfolioValue(supabase) {
   let markedPositions = 0;
 
   const contributions = [];
+  const cashflows = [];
+  const holdingDays = [];
+  const now = Date.now();
+  let inceptionMs = null;
 
   for (const p of rows) {
     const check = Number(p.virtual_check_usd) || 0;
@@ -125,8 +157,19 @@ async function computePortfolioValue(supabase) {
     const rawMoic = Number(p.moic);
     signalImpliedValue += check * clampMoic(p.moic);
 
-    if (EXIT_STATUSES.has(p.status)) realizedValue += value;
+    const isExit = EXIT_STATUSES.has(p.status);
+    if (isExit) realizedValue += value;
     else unrealizedValue += value;
+
+    // Timing → vintage + IRR cash flows.
+    const entryMs = p.entry_date ? new Date(p.entry_date).getTime() : null;
+    if (entryMs) {
+      if (inceptionMs == null || entryMs < inceptionMs) inceptionMs = entryMs;
+      const exitMs = isExit && p.exit_date ? new Date(p.exit_date).getTime() : now;
+      holdingDays.push(Math.max(0, Math.round((exitMs - entryMs) / 86400000)));
+      cashflows.push({ amount: -check, t: entryMs });
+      if (value > 0) cashflows.push({ amount: value, t: exitMs });
+    }
 
     if (verifiedMoic > 1.05) winners += 1;
     else if (verifiedMoic < 0.95) losers += 1;
@@ -171,6 +214,22 @@ async function computePortfolioValue(supabase) {
   const gain = currentValue - costBasis;
   const positions = contributions.length;
 
+  // Vintage / fund age.
+  const fundAgeDays = inceptionMs != null ? Math.round((now - inceptionMs) / 86400000) : null;
+  holdingDays.sort((a, b) => a - b);
+  const avgHoldingDays = holdingDays.length
+    ? Math.round(holdingDays.reduce((a, b) => a + b, 0) / holdingDays.length)
+    : null;
+  const medianHoldingDays = holdingDays.length
+    ? holdingDays[Math.floor(holdingDays.length / 2)]
+    : null;
+
+  // Money-weighted IRR. Annualizing a young fund (or one with fast paper markups)
+  // overstates wildly, so only treat it as meaningful past a full year with a sane rate.
+  const irr = xirr(cashflows);
+  const irrMeaningful =
+    irr != null && fundAgeDays != null && fundAgeDays >= 365 && Math.abs(irr) < 3;
+
   return {
     positions,
     marked_positions: markedPositions,
@@ -182,6 +241,15 @@ async function computePortfolioValue(supabase) {
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
     realized_value_usd: round(realizedValue),
     unrealized_value_usd: round(unrealizedValue),
+    // Vintage (A)
+    inception_date: inceptionMs != null ? new Date(inceptionMs).toISOString() : null,
+    fund_age_days: fundAgeDays,
+    avg_holding_days: avgHoldingDays,
+    median_holding_days: medianHoldingDays,
+    // IRR (C)
+    irr: irr != null ? round(irr, 4) : null,
+    irr_pct: irr != null ? round(irr * 100, 1) : null,
+    irr_meaningful: irrMeaningful,
     winners,
     losers,
     flat,
@@ -286,6 +354,7 @@ function compareToBenchmarks(metrics, value) {
     : 0;
   const tvpi = value?.tvpi ?? null;
   const lossRate = value?.positions ? round((value.losers / value.positions) * 100, 1) : 0;
+  const youngFund = value?.fund_age_days != null && value.fund_age_days < 365;
 
   return {
     rows: [
@@ -304,8 +373,10 @@ function compareToBenchmarks(metrics, value) {
       {
         metric: 'Exit rate',
         oracle: `${exitRate}%`,
-        benchmark: `${VC_BENCHMARKS.exit_rate_pct}% cohort (long horizon)`,
-        verdict: verdict(exitRate, VC_BENCHMARKS.exit_rate_pct, true),
+        benchmark: youngFund
+          ? `${VC_BENCHMARKS.exit_rate_pct}% cohort — fund too young (${value.fund_age_days}d) to assess`
+          : `${VC_BENCHMARKS.exit_rate_pct}% cohort (long horizon)`,
+        verdict: youngFund ? 'n/a' : verdict(exitRate, VC_BENCHMARKS.exit_rate_pct, true),
       },
       {
         metric: 'Loss rate (< 1×)',

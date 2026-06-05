@@ -75,6 +75,13 @@ interface PortfolioValue {
   tvpi: number | null;
   realized_value_usd: number;
   unrealized_value_usd: number;
+  inception_date: string | null;
+  fund_age_days: number | null;
+  avg_holding_days: number | null;
+  median_holding_days: number | null;
+  irr: number | null;
+  irr_pct: number | null;
+  irr_meaningful: boolean;
   winners: number;
   losers: number;
   top_contributors: { startup_id: string; name: string; gain_usd: number; moic: number; basis?: string; status: string }[];
@@ -122,6 +129,19 @@ function verdictColor(v: string) {
   if (v === "ahead") return G;
   if (v === "behind") return AMBER;
   return MUTED;
+}
+
+function fmtAge(days?: number | null) {
+  if (days == null) return "—";
+  if (days < 60) return `${days}d`;
+  if (days < 730) return `${(days / 30.44).toFixed(1)} mo`;
+  return `${(days / 365).toFixed(1)} yr`;
+}
+
+function fmtIRR(v?: { irr_pct: number | null; irr_meaningful: boolean }) {
+  if (!v || v.irr_pct == null) return "—";
+  if (v.irr_pct >= 1000) return ">1000%";
+  return `${v.irr_pct >= 0 ? "+" : ""}${v.irr_pct}%`;
 }
 
 function fmtDate(s?: string | null) {
@@ -476,6 +496,42 @@ export default function Portfolio() {
                 </div>
               </div>
             </div>
+            {/* Fund timing: vintage, IRR, realized/unrealized split */}
+            <div className="mt-5 pt-4 border-t grid grid-cols-2 md:grid-cols-4 gap-6" style={{ borderColor: BORDER }}>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Fund age</div>
+                <div className="text-base font-bold font-mono tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
+                  {fmtAge(analytics.value.fund_age_days)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+                  avg hold {fmtAge(analytics.value.avg_holding_days)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>IRR (annualized)</div>
+                <div className="text-base font-bold font-mono tabular-nums" style={{ color: analytics.value.irr_meaningful ? G : MUTED }}>
+                  {fmtIRR(analytics.value)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: analytics.value.irr_meaningful ? DIM : AMBER }}>
+                  {analytics.value.irr_meaningful ? "money-weighted" : "early — not meaningful"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Realized</div>
+                <div className="text-base font-bold font-mono tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
+                  {fmtUSD(analytics.value.realized_value_usd)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>DPI {analytics.value.cost_basis_usd ? (analytics.value.realized_value_usd / analytics.value.cost_basis_usd).toFixed(2) : "—"}×</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Unrealized</div>
+                <div className="text-base font-bold font-mono tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
+                  {fmtUSD(analytics.value.unrealized_value_usd)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>paper marks</div>
+              </div>
+            </div>
+
             {analytics.value.top_contributors?.length > 0 && (
               <div className="mt-5 pt-4 border-t" style={{ borderColor: BORDER }}>
                 <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color: DIM }}>Top contributors</div>
