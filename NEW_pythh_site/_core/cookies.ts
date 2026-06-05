@@ -1,12 +1,11 @@
 import type { Request } from "express";
+import { sessionCookieDomain } from "./requestHost";
 
 /** Session cookie options (Express). */
 export function getSessionCookieOptions(req: Request) {
   const secure =
     process.env.NODE_ENV === "production" || !!process.env.FLY_APP_NAME;
-  const host = (req.headers.host || "").split(":")[0]?.toLowerCase() || "";
-  const domain =
-    host === "pythh.ai" || host.endsWith(".pythh.ai") ? ".pythh.ai" : undefined;
+  const domain = sessionCookieDomain(req);
   return {
     httpOnly: true,
     secure,

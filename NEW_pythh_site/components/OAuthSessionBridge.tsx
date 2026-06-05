@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
@@ -6,6 +6,7 @@ import {
   clearOAuthHandoff,
   completeSupabaseOAuthIfNeeded,
   hasOAuthReturnInUrl,
+  isOAuthHandoffActive,
   markOAuthHandoff,
   publishOAuthError,
 } from "@/lib/supabaseOAuth";
@@ -22,8 +23,10 @@ async function finishOAuth(
 ): Promise<void> {
   const result = await completeSupabaseOAuthIfNeeded((input) => syncSession(input));
   if (!result.ok) {
-    publishOAuthError(result.error || "Google sign-in failed.");
-    clearOAuthHandoff();
+    if (result.error) {
+      publishOAuthError(result.error);
+      clearOAuthHandoff();
+    }
     return;
   }
 
@@ -33,7 +36,7 @@ async function finishOAuth(
     return;
   }
 
-  for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 15; attempt++) {
     const me = await utils.auth.me.fetch();
     if (me) {
       clearOAuthHandoff();
@@ -51,36 +54,36 @@ async function finishOAuth(
 /**
  * Completes OAuth when URL has #access_token=… (implicit) or ?code=… (PKCE).
  */
-const BRIDGE_RUN_KEY = "pythh_oauth_bridge_run";
-
 export function OAuthSessionBridge() {
   const utils = trpc.useUtils();
-
+  const inflight = useRef(false);
   const syncSession = trpc.auth.syncSupabaseSession.useMutation();
 
   useEffect(() => {
     if (!supabase || !hasValidSupabaseCredentials) return;
-    if (!hasOAuthReturnInUrl()) {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("oauth_handoff") === "1" || params.has("oauth_handoff")) {
-        void utils.auth.me.fetch().then((me) => {
-          if (me) clearOAuthHandoff();
-        });
-      }
-      return;
-    }
 
-    if (sessionStorage.getItem(BRIDGE_RUN_KEY) === "1") return;
-    sessionStorage.setItem(BRIDGE_RUN_KEY, "1");
+    const shouldRun =
+      hasOAuthReturnInUrl() ||
+      isOAuthHandoffActive() ||
+      new URLSearchParams(window.location.search).has("oauth_handoff");
+
+    if (!shouldRun) return;
+    if (inflight.current) return;
+    inflight.current = true;
     markOAuthHandoff();
 
-    void finishOAuth((input) => syncSession.mutateAsync(input), utils)
+    const sync = async (input: { access_token: string }) => {
+      const result = await syncSession.mutateAsync(input);
+      return { user: result.user };
+    };
+
+    void finishOAuth(sync, utils)
       .catch((err) => {
         publishOAuthError(trpcMessage(err));
         clearOAuthHandoff();
       })
       .finally(() => {
-        sessionStorage.removeItem(BRIDGE_RUN_KEY);
+        inflight.current = false;
       });
   }, [syncSession, utils]);
 

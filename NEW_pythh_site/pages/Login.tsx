@@ -6,9 +6,10 @@ import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
   buildSupabaseOAuthRedirectUrl,
+  clearStaleOAuthKeys,
   isOAuthHandoffActive,
   markOAuthHandoff,
-  persistPkceVerifierForOAuth,
+  waitForPkceVerifier,
 } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
@@ -29,6 +30,10 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"google" | "github" | null>(null);
+
+  useEffect(() => {
+    clearStaleOAuthKeys();
+  }, []);
 
   useEffect(() => {
     if (isOAuthHandoffActive()) {
@@ -85,6 +90,7 @@ export default function Login() {
     }
     setSocialLoading(provider);
     setError(null);
+    clearStaleOAuthKeys();
     try {
       const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider,
@@ -96,9 +102,10 @@ export default function Login() {
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
       markOAuthHandoff();
-      persistPkceVerifierForOAuth();
-      await new Promise((r) => setTimeout(r, 100));
-      persistPkceVerifierForOAuth();
+      const pkceReady = await waitForPkceVerifier(5000);
+      if (!pkceReady) {
+        throw new Error("Could not prepare secure sign-in. Please try again.");
+      }
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);

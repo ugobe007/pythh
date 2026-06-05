@@ -8,6 +8,8 @@ export type OAuthSyncFn = (input: {
 
 const OAUTH_NEXT_COOKIE = "pythh_oauth_next";
 const PKCE_SESSION_KEY = "pythh_pkce_verifier";
+const OAUTH_HANDOFF_KEY = "pythh_oauth_handoff";
+const OAUTH_BRIDGE_KEY = "pythh_oauth_bridge_run";
 
 function cookieDomainAttr(): string {
   if (typeof document === "undefined") return "";
@@ -54,21 +56,51 @@ export function ensurePkceVerifierBeforeExchange(): void {
   sessionStorage.setItem(PKCE_SESSION_KEY, verifier);
 }
 
+function parseDocumentCookies(): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (typeof document === "undefined") return out;
+  for (const part of document.cookie.split(";")) {
+    const i = part.indexOf("=");
+    if (i === -1) continue;
+    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
 /** Call after signInWithOAuth — backup verifier for the return trip from Google. */
-export function persistPkceVerifierForOAuth(): void {
-  if (typeof document === "undefined") return;
-  const write = () => {
-    const verifier = findPkceVerifier();
-    if (!verifier) return false;
-    sessionStorage.setItem(PKCE_SESSION_KEY, verifier);
-    const secure = window.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
-    return true;
-  };
-  if (!write()) {
-    window.setTimeout(write, 50);
-    window.setTimeout(write, 150);
-    window.setTimeout(write, 400);
+export function persistPkceVerifierForOAuth(): boolean {
+  if (typeof document === "undefined") return false;
+  const verifier = findPkceVerifier();
+  if (!verifier) return false;
+  sessionStorage.setItem(PKCE_SESSION_KEY, verifier);
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `sb_pkce=${encodeURIComponent(verifier)}; Path=/; Max-Age=600; SameSite=Lax${secure}${cookieDomainAttr()}`;
+  return true;
+}
+
+/** Wait until Supabase writes the PKCE verifier before leaving for Google. */
+export async function waitForPkceVerifier(maxMs = 5000): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (persistPkceVerifierForOAuth()) {
+      const cookie = parseDocumentCookies().sb_pkce;
+      if (cookie && cookie.length >= 43) return true;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return persistPkceVerifierForOAuth();
+}
+
+/** Clear stale OAuth handoff state before a new sign-in attempt. */
+export function clearStaleOAuthKeys(): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
+  sessionStorage.removeItem("pythh_oauth_error");
+  sessionStorage.removeItem(OAUTH_BRIDGE_KEY);
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const k = sessionStorage.key(i);
+    if (k?.startsWith("pythh_oauth_hash_sync:")) sessionStorage.removeItem(k);
   }
 }
 
@@ -316,8 +348,6 @@ export function clearOAuthHandoff(): void {
   sessionStorage.removeItem(OAUTH_HANDOFF_KEY);
 }
 
-const OAUTH_HANDOFF_KEY = "pythh_oauth_handoff";
-
 export function markOAuthHandoff(): void {
   if (typeof sessionStorage === "undefined") return;
   sessionStorage.setItem(OAUTH_HANDOFF_KEY, String(Date.now()));
@@ -362,10 +392,8 @@ export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
     sessionStorage.setItem("pythh_post_login", next);
   }
   persistOAuthStartCookies(next);
-  // Server callback exchanges PKCE and sets pythh_session when sb_pkce cookie is present.
-  const callback = new URL(`${window.location.origin}/api/auth/supabase/callback`);
-  callback.searchParams.set("next", next);
-  return callback.toString();
+  // Same-origin /account: hash-sync handles #access_token=; bridge handles ?code= (PKCE).
+  return `${window.location.origin}/account?next=${encodeURIComponent(next)}`;
 }
 
 export function readPostLoginPath(): string {

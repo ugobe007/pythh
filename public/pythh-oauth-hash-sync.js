@@ -52,6 +52,12 @@
     history.replaceState({}, "", clean);
   }
 
+  try {
+    sessionStorage.removeItem("pythh_oauth_bridge_run");
+  } catch (e) {
+    /* ignore */
+  }
+
   var tokens = parseHashTokens();
   if (!tokens || !tokens.access_token) {
     window.__PYTHH_OAUTH_HASH_SYNC__ = Promise.resolve({ ok: false });

@@ -481,6 +481,15 @@ export default function Account() {
 
   useEffect(() => {
     if (!oauthBusy) return;
+    const pollMe = window.setInterval(() => {
+      void utils.auth.me.fetch().then((me) => {
+        if (me) {
+          wasAuthenticated.current = true;
+          setOauthBusy(false);
+          clearOAuthHandoff();
+        }
+      });
+    }, 1500);
     const watchdog = window.setTimeout(() => {
       if (wasAuthenticated.current) return;
       const stored = sessionStorage.getItem("pythh_oauth_error");
@@ -490,9 +499,12 @@ export default function Account() {
           "Sign-in is taking too long. Please try again or use email sign-in.",
       );
       sessionStorage.removeItem("pythh_oauth_error");
-    }, 45_000);
-    return () => window.clearTimeout(watchdog);
-  }, [oauthBusy]);
+    }, 60_000);
+    return () => {
+      window.clearInterval(pollMe);
+      window.clearTimeout(watchdog);
+    };
+  }, [oauthBusy, utils.auth.me]);
 
   useEffect(() => {
     if (oauthBusy || oauthError) return;

@@ -42,8 +42,8 @@ async function main() {
   if (!m) fail("could not find index bundle in HTML");
   else {
     const js = await fetch(`${ORIGIN}/assets/index-${m[1]}.js`).then((r) => r.text());
-    if (!js.includes("/api/auth/supabase/callback")) {
-      fail("bundle missing server OAuth callback redirect");
+    if (!js.includes("/account?next=") && !js.includes("/api/auth/supabase/callback")) {
+      fail("bundle missing OAuth redirect (/account or callback)");
     } else if (!js.includes("pythh_pkce_verifier")) {
       fail("bundle missing PKCE session backup");
     } else pass("bundle has server callback redirect + PKCE backup");

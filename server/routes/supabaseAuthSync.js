@@ -27,11 +27,25 @@ function parseCookies(header) {
   return out;
 }
 
+function requestHost(req) {
+  const forwarded = req.headers['x-forwarded-host'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim().split(':')[0].toLowerCase();
+  }
+  return String(req.headers?.host || '').split(':')[0].toLowerCase();
+}
+
+function sessionCookieDomain(req) {
+  const host = requestHost(req);
+  if (host === 'pythh.ai' || host.endsWith('.pythh.ai')) return '.pythh.ai';
+  const appUrl = String(process.env.APP_URL || process.env.APP_BASE_URL || '');
+  if (appUrl.includes('pythh.ai')) return '.pythh.ai';
+  return undefined;
+}
+
 function sessionCookieOptions(req) {
   const secure = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
-  const host = String(req.headers?.host || '').split(':')[0].toLowerCase();
-  const domain =
-    host === 'pythh.ai' || host.endsWith('.pythh.ai') ? '.pythh.ai' : undefined;
+  const domain = sessionCookieDomain(req);
   return {
     httpOnly: true,
     secure,
@@ -43,9 +57,9 @@ function sessionCookieOptions(req) {
 
 function clearPkceCookie(res, req) {
   const opts = { path: '/', sameSite: 'lax' };
-  const host = String(req?.headers?.host || '').split(':')[0].toLowerCase();
-  if (host === 'pythh.ai' || host.endsWith('.pythh.ai')) {
-    res.clearCookie(PKCE_COOKIE, { ...opts, domain: '.pythh.ai' });
+  const domain = sessionCookieDomain(req);
+  if (domain) {
+    res.clearCookie(PKCE_COOKIE, { ...opts, domain });
   }
   res.clearCookie(PKCE_COOKIE, opts);
 }
@@ -144,10 +158,10 @@ function mountSupabaseAuthSync(app) {
       return res.redirect(302, nextPath);
     }
 
-    const verifier = cookies[PKCE_COOKIE] || '';
+    const verifier = String(cookies[PKCE_COOKIE] || '').trim();
     const { sbUrl, anonKey, serviceKey } = supabaseConfig();
 
-    if (sbUrl && anonKey && serviceKey && verifier) {
+    if (sbUrl && anonKey && serviceKey && verifier.length >= 43) {
       try {
         const storage = {
           getItem: (key) => {
@@ -176,10 +190,16 @@ function mountSupabaseAuthSync(app) {
           clearPkceCookie(res, req);
           return res.redirect(302, nextPath);
         }
-        console.error('[auth/supabase/callback] server exchange:', error?.message);
+        console.error(
+          '[auth/supabase/callback] server exchange:',
+          error?.message,
+          `(verifier ${verifier.length} chars)`,
+        );
       } catch (err) {
         console.error('[auth/supabase/callback] server exchange:', err?.message || err);
       }
+    } else if (code && verifier.length > 0 && verifier.length < 43) {
+      console.warn('[auth/supabase/callback] sb_pkce cookie too short — SPA fallback');
     }
 
     // Fallback: SPA exchanges PKCE from sessionStorage/localStorage.
