@@ -64,12 +64,64 @@ interface PortfolioMetrics {
   total_virtual_deployed_usd: number;
 }
 
+interface PortfolioValue {
+  positions: number;
+  marked_positions: number;
+  cost_basis_usd: number;
+  current_value_usd: number;
+  signal_implied_value_usd: number;
+  gain_usd: number;
+  gain_pct: number;
+  tvpi: number | null;
+  realized_value_usd: number;
+  unrealized_value_usd: number;
+  winners: number;
+  losers: number;
+  top_contributors: { startup_id: string; name: string; gain_usd: number; moic: number; basis?: string; status: string }[];
+  note: string;
+}
+
+interface BenchmarkRow {
+  metric: string;
+  oracle: string;
+  benchmark: string;
+  verdict: "ahead" | "inline" | "behind" | "n/a";
+}
+
+interface PortfolioAnalytics {
+  value: PortfolioValue;
+  benchmarks: { rows: BenchmarkRow[]; source: string };
+  strategy: {
+    thesis: string;
+    entry_rule: string;
+    top_sectors: { sector: string; count: number; pct: number }[];
+    conviction_sweet_spot: string | null;
+    conviction_note: string;
+  };
+  trend: {
+    events_last_30d: number;
+    events_last_90d: number;
+    verdicts: { label: string; ok: boolean; detail: string }[];
+  };
+}
+
 function fmtUSD(n?: number | null) {
   if (!n) return "—";
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
   return `$${n}`;
+}
+
+function fmtSignedUSD(n?: number | null) {
+  if (n == null || n === 0) return "$0";
+  return `${n > 0 ? "+" : "−"}${fmtUSD(Math.abs(n))}`;
+}
+
+function verdictColor(v: string) {
+  if (v === "ahead") return G;
+  if (v === "behind") return AMBER;
+  return MUTED;
 }
 
 function fmtDate(s?: string | null) {
@@ -238,6 +290,7 @@ function PortfolioRow({ entry }: { entry: PortfolioEntry }) {
 export default function Portfolio() {
   const [entries, setEntries] = useState<PortfolioEntry[]>([]);
   const [metrics, setMetrics] = useState<PortfolioMetrics | null>(null);
+  const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
   const [listLoading, setListLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -260,6 +313,11 @@ export default function Portfolio() {
       .then((metricsData) => setMetrics(metricsData.metrics ?? null))
       .catch(() => {})
       .finally(() => setMetricsLoading(false));
+
+    fetch("/api/portfolio/analytics")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Failed to load analytics"))))
+      .then((data) => setAnalytics(data ?? null))
+      .catch(() => {});
 
     try {
       const sortQ = sortBy === "health" ? "health" : "god";
@@ -377,6 +435,123 @@ export default function Portfolio() {
             ))}
           </div>
         ) : null}
+
+        {/* Fund value — invested vs current value */}
+        {analytics?.value && (
+          <section className="mb-10 rounded-xl border px-5 md:px-6 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+            <SectionLabel className="mb-4">Fund value</SectionLabel>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Invested</div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: "oklch(0.94 0.005 264)" }}>
+                  {fmtUSD(analytics.value.cost_basis_usd)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>{analytics.value.positions} positions</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Current value</div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: "oklch(0.94 0.005 264)" }}>
+                  {fmtUSD(analytics.value.current_value_usd)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+                  {analytics.value.marked_positions} verified marks
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Net gain</div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: analytics.value.gain_usd >= 0 ? G : AMBER }}>
+                  {fmtSignedUSD(analytics.value.gain_usd)}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: analytics.value.gain_pct >= 0 ? G : AMBER }}>
+                  {analytics.value.gain_pct >= 0 ? "+" : ""}{analytics.value.gain_pct}%
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>TVPI</div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: G }}>
+                  {analytics.value.tvpi != null ? `${analytics.value.tvpi}×` : "—"}
+                </div>
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+                  {analytics.value.winners}W · {analytics.value.losers}L
+                </div>
+              </div>
+            </div>
+            {analytics.value.top_contributors?.length > 0 && (
+              <div className="mt-5 pt-4 border-t" style={{ borderColor: BORDER }}>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color: DIM }}>Top contributors</div>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                  {analytics.value.top_contributors.filter((c) => c.gain_usd > 0).slice(0, 5).map((c) => (
+                    <Link key={c.startup_id} href={`/portfolio/${c.startup_id}`} className="text-xs font-mono transition-colors"
+                      style={{ color: MUTED }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = G; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = MUTED; }}
+                    >
+                      {c.name} <span style={{ color: G }}>{fmtSignedUSD(c.gain_usd)}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.value.note}</p>
+          </section>
+        )}
+
+        {/* Benchmark + strategy + trend */}
+        {analytics && (
+          <div className="grid lg:grid-cols-2 gap-6 mb-12">
+            {/* vs top VC */}
+            <section className="rounded-xl border px-5 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+              <SectionLabel className="mb-4">vs. top VC benchmarks</SectionLabel>
+              <div className="space-y-3">
+                {analytics.benchmarks.rows.map((r) => (
+                  <div key={r.metric} className="flex items-baseline justify-between gap-3 pb-3 border-b last:border-b-0 last:pb-0" style={{ borderColor: BORDER }}>
+                    <div className="min-w-0">
+                      <div className="text-sm" style={{ color: "oklch(0.90 0.005 264)" }}>{r.metric}</div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>{r.benchmark}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold font-mono tabular-nums" style={{ color: "oklch(0.94 0.005 264)" }}>{r.oracle}</div>
+                      <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: verdictColor(r.verdict) }}>{r.verdict}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.benchmarks.source}</p>
+            </section>
+
+            {/* Strategy + trend */}
+            <section className="rounded-xl border px-5 py-6 space-y-5" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+              <div>
+                <SectionLabel className="mb-3">Strategy</SectionLabel>
+                <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{analytics.strategy.thesis}</p>
+                {analytics.strategy.conviction_note && (
+                  <p className="text-xs font-mono mt-3 border-l-2 pl-3" style={{ color: "oklch(0.85 0.005 264)", borderColor: `${G}66` }}>
+                    {analytics.strategy.conviction_note}
+                  </p>
+                )}
+                {analytics.strategy.top_sectors?.length > 0 && (
+                  <InlineMeta
+                    items={analytics.strategy.top_sectors.map((s) => ({ text: `${s.sector} ${s.pct}%`, color: CYAN }))}
+                  />
+                )}
+              </div>
+              <div className="pt-4 border-t" style={{ borderColor: BORDER }}>
+                <SectionLabel className="mb-3">Trending right?</SectionLabel>
+                <div className="space-y-2.5">
+                  {analytics.trend.verdicts.map((v) => (
+                    <div key={v.label} className="flex items-start gap-2">
+                      <span className="text-sm font-mono mt-px shrink-0" style={{ color: v.ok ? G : AMBER }}>{v.ok ? "✓" : "!"}</span>
+                      <div>
+                        <div className="text-sm" style={{ color: "oklch(0.90 0.005 264)" }}>{v.label}</div>
+                        <div className="text-xs" style={{ color: MUTED }}>{v.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
 
         {/* Filters — inline text tabs */}
         <div className="space-y-4 mb-8 pb-6 border-b" style={{ borderColor: BORDER }}>

@@ -9293,6 +9293,34 @@ app.get('/api/portfolio/metrics', async (req, res) => {
   }
 });
 
+// GET /api/portfolio/analytics — fund value/gain, VC benchmarks, strategy & trend
+const {
+  computeVerifiedMoic,
+  computePortfolioValue,
+  compareToBenchmarks,
+  describeStrategyAndTrend,
+} = require('./lib/portfolioAnalytics');
+
+app.get('/api/portfolio/analytics', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const [metricsRes, value, trackRecord] = await Promise.all([
+      supabase.from('portfolio_metrics').select('*').maybeSingle(),
+      computePortfolioValue(supabase),
+      computeTrackRecord(supabase),
+    ]);
+    if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
+    const metrics = enrichPortfolioMetrics(metricsRes.data || {});
+    const benchmarks = compareToBenchmarks(metrics, value);
+    const { strategy, trend } = await describeStrategyAndTrend(supabase, metrics, trackRecord);
+
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
+    res.json({ value, benchmarks, strategy, trend, computed_at: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/portfolio/track-record — Oracle proof sheet (verified vs signal + GOD tiers)
 app.get('/api/portfolio/track-record', async (req, res) => {
   try {
@@ -9346,17 +9374,93 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
 
     if (!entry) return res.status(404).json({ error: 'Not in portfolio' });
 
-    const { data: su } = await supabase
-      .from('startup_uploads')
-      .select(
-        'exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at, team_score, traction_score, market_score, product_score, description, pitch, total_funding_usd'
-      )
-      .eq('id', startupId)
-      .maybeSingle();
+    const [{ data: su }, { data: sig }] = await Promise.all([
+      supabase
+        .from('startup_uploads')
+        .select(
+          'exit_propensity_score, exit_propensity_confidence, exit_propensity_tier, exit_propensity_breakdown, exit_propensity_at, team_score, traction_score, market_score, product_score, description, pitch, total_funding_usd'
+        )
+        .eq('id', startupId)
+        .maybeSingle(),
+      supabase
+        .from('startup_signal_scores')
+        .select(
+          'signals_total, founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity, as_of'
+        )
+        .eq('startup_id', startupId)
+        .maybeSingle(),
+    ]);
 
-    const merged = su ? { ...entry, ...su } : entry;
+    const merged = su ? { ...entry, ...su } : { ...entry };
 
-    res.json({ entry: merged, events: events || [] });
+    // CRM fields ---------------------------------------------------------------
+    const summary = (merged.description || '').trim() || null;
+    const pitch = (merged.pitch || merged.tagline || '').trim() || null;
+    merged.company_summary = summary;
+    merged.value_proposition = pitch && pitch !== summary ? pitch : (merged.tagline || null);
+
+    if (sig) {
+      merged.signal_breakdown = {
+        signals_total: sig.signals_total != null ? Number(sig.signals_total) : null,
+        founder_language_shift: sig.founder_language_shift ?? null,
+        investor_receptivity: sig.investor_receptivity ?? null,
+        news_momentum: sig.news_momentum ?? null,
+        capital_convergence: sig.capital_convergence ?? null,
+        execution_velocity: sig.execution_velocity ?? null,
+        as_of: sig.as_of ?? null,
+      };
+      merged.signal_score = sig.signals_total != null ? Number(sig.signals_total) : null;
+    }
+
+    // Position economics (virtual fund) — verified marks only -------------------
+    const check = Number(merged.virtual_check_usd) || 0;
+    const verifiedRounds = (events || []).filter(
+      (e) => e.event_type === 'funding_round' && e.verified && Number(e.post_money_usd) > 0
+    );
+    const { moic: verifiedMoic, basis: valueBasis } = computeVerifiedMoic({
+      status: merged.status,
+      entryValuation: merged.entry_valuation_usd,
+      exitValuation: merged.exit_valuation_usd,
+      verifiedRounds,
+    });
+    merged.position_cost_usd = check || null;
+    merged.position_value_usd = check ? Math.round(check * verifiedMoic) : null;
+    merged.position_gain_usd = check ? Math.round(check * verifiedMoic - check) : null;
+    merged.position_moic = Math.round(verifiedMoic * 100) / 100;
+    merged.position_value_basis = valueBasis; // 'exit' | 'verified_round' | 'cost'
+
+    // Recent news = events that carry a headline/source -----------------------
+    const allEvents = events || [];
+    const recentNews = allEvents
+      .filter((e) => e.headline && (e.source_url || e.source_name))
+      .slice(0, 6)
+      .map((e) => ({
+        headline: e.headline,
+        source_url: e.source_url || null,
+        source_name: e.source_name || null,
+        event_date: e.event_date,
+        event_type: e.event_type,
+      }));
+
+    // Synthesize an entry milestone so the timeline is never empty -------------
+    let timeline = allEvents;
+    const hasEntryEvent = allEvents.some((e) => e.event_type === 'oracle_entry');
+    if (!hasEntryEvent && merged.entry_date) {
+      timeline = [
+        ...allEvents,
+        {
+          id: `entry-${startupId}`,
+          event_type: 'oracle_entry',
+          event_date: merged.entry_date,
+          headline: `Oracle entry at GOD ${merged.entry_god_score} · ${merged.entry_stage ? `stage ${merged.entry_stage}` : 'stage n/a'}`,
+          god_score_after: merged.entry_god_score,
+          synthetic: true,
+          verified: true,
+        },
+      ].sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+    }
+
+    res.json({ entry: merged, events: timeline, recent_news: recentNews });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

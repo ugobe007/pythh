@@ -12,14 +12,14 @@ import { Link, useParams } from "wouter";
 import { Helmet } from "react-helmet-async";
 import {
   ArrowLeft, ExternalLink, TrendingUp, Users, Target,
-  Package, Activity, ChevronRight,
+  Package, Activity, ChevronRight, Newspaper, Radio, FileText,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import InlineMeta from "@/components/design/InlineMeta";
 import StatStrip from "@/components/design/StatStrip";
 import {
   G, CYAN, AMBER, MUTED, DIM, BORDER, CARD, PAGE, TEXT,
-  tierColor, tierLabel, moicColor, deltaColor, godScoreColor,
+  tierColor, tierLabel, moicColor, deltaColor, godScoreColor, signalScoreColor,
 } from "@/lib/designTokens";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -67,6 +67,34 @@ interface PortfolioEntry {
   latest_round_post_money?: number;
   latest_lead_investor?: string;
   total_rounds_tracked?: number;
+  // CRM / enrichment
+  company_summary?: string | null;
+  value_proposition?: string | null;
+  signal_score?: number | null;
+  signal_breakdown?: SignalBreakdown | null;
+  position_cost_usd?: number | null;
+  position_value_usd?: number | null;
+  position_gain_usd?: number | null;
+  position_moic?: number | null;
+  position_value_basis?: "exit" | "verified_round" | "cost" | null;
+}
+
+interface SignalBreakdown {
+  signals_total?: number | null;
+  founder_language_shift?: number | null;
+  investor_receptivity?: number | null;
+  news_momentum?: number | null;
+  capital_convergence?: number | null;
+  execution_velocity?: number | null;
+  as_of?: string | null;
+}
+
+interface RecentNews {
+  headline: string;
+  source_url?: string | null;
+  source_name?: string | null;
+  event_date: string;
+  event_type: string;
 }
 
 interface PortfolioEvent {
@@ -99,6 +127,12 @@ function fmtUSD(n?: number | null) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
   return `$${(n / 1e3).toFixed(0)}K`;
+}
+
+function fmtSignedUSD(n?: number | null) {
+  if (n == null || n === 0) return "$0";
+  const sign = n > 0 ? "+" : "−";
+  return `${sign}${fmtUSD(Math.abs(n))}`;
 }
 
 function fmtDate(d?: string | null) {
@@ -134,9 +168,18 @@ function eventLabel(type: string): { label: string; color: string } {
     product_launch: { label: "Launch", color: CYAN },
     team_milestone: { label: "Team", color: MUTED },
     prediction_hit: { label: "Prediction", color: AMBER },
+    oracle_entry: { label: "Oracle entry", color: CYAN },
   };
   return map[type] || { label: type.replace(/_/g, " "), color: MUTED };
 }
+
+const SIGNAL_LABELS: Record<string, string> = {
+  founder_language_shift: "Founder language shift",
+  investor_receptivity: "Investor receptivity",
+  news_momentum: "News momentum",
+  capital_convergence: "Capital convergence",
+  execution_velocity: "Execution velocity",
+};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PortfolioDetail() {
@@ -145,6 +188,7 @@ export default function PortfolioDetail() {
 
   const [entry, setEntry]       = useState<PortfolioEntry | null>(null);
   const [events, setEvents]     = useState<PortfolioEvent[]>([]);
+  const [news, setNews]         = useState<RecentNews[]>([]);
   const [positioning, setPos]   = useState<DealPositioning[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
@@ -160,6 +204,7 @@ export default function PortfolioDetail() {
       .then(([detail, pos]) => {
         setEntry(detail.entry || null);
         setEvents(detail.events || []);
+        setNews(detail.recent_news || []);
         setPos(pos.positioning || []);
       })
       .catch((e: Error) => setError(e.message))
@@ -306,6 +351,127 @@ export default function PortfolioDetail() {
             },
           ]}
         />
+
+        {/* Position economics — virtual fund */}
+        {entry.position_cost_usd != null && (
+          <section className="rounded-xl border px-5 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+            <h2 className="text-[10px] font-mono uppercase tracking-widest mb-4" style={{ color: G }}>Position value</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Invested</div>
+                <div className="text-xl font-bold font-mono tabular-nums" style={{ color: TEXT }}>{fmtUSD(entry.position_cost_usd)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Current value</div>
+                <div className="text-xl font-bold font-mono tabular-nums" style={{ color: TEXT }}>{fmtUSD(entry.position_value_usd)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Net gain</div>
+                <div className="text-xl font-bold font-mono tabular-nums" style={{ color: (entry.position_gain_usd ?? 0) >= 0 ? G : AMBER }}>
+                  {fmtSignedUSD(entry.position_gain_usd)}
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] font-mono mt-3" style={{ color: DIM }}>
+              Virtual {fmtUSD(entry.position_cost_usd)} check · marked at {(entry.position_moic ?? 1).toFixed(2)}× MOIC ·{" "}
+              {entry.position_value_basis === "exit"
+                ? "verified exit"
+                : entry.position_value_basis === "verified_round"
+                  ? "press-verified round"
+                  : "held at cost — no verified markup yet"}
+            </p>
+          </section>
+        )}
+
+        {/* CRM: company summary + value proposition */}
+        {(entry.company_summary || entry.value_proposition) && (
+          <section className="rounded-xl border px-5 py-6 space-y-5" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+            <h2 className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-1.5" style={{ color: G }}>
+              <FileText size={11} /> Company notes
+            </h2>
+            {entry.company_summary && (
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: DIM }}>Summary</div>
+                <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{entry.company_summary}</p>
+              </div>
+            )}
+            {entry.value_proposition && entry.value_proposition !== entry.company_summary && (
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: DIM }}>Value proposition</div>
+                <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{entry.value_proposition}</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Signal values */}
+        {entry.signal_breakdown && (
+          <section className="rounded-xl border px-5 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="text-[10px] font-mono uppercase tracking-widest flex items-center gap-1.5" style={{ color: G }}>
+                <Radio size={11} /> Signal values
+              </h2>
+              {entry.signal_breakdown.signals_total != null && (
+                <span className="text-sm font-bold font-mono tabular-nums" style={{ color: signalScoreColor(entry.signal_breakdown.signals_total) }}>
+                  {entry.signal_breakdown.signals_total.toFixed(1)}/10
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+              {Object.entries(SIGNAL_LABELS).map(([key, label]) => {
+                const raw = (entry.signal_breakdown as Record<string, number | null | undefined>)?.[key];
+                const val = typeof raw === "number" ? raw : null;
+                const pct = val != null ? Math.min(100, Math.max(0, val * 10)) : 0;
+                return (
+                  <div key={key} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span style={{ color: DIM }}>{label}</span>
+                      <span className="font-semibold font-mono tabular-nums" style={{ color: val != null ? TEXT : DIM }}>
+                        {val != null ? val.toFixed(1) : "—"}
+                      </span>
+                    </div>
+                    <div className="h-px overflow-hidden" style={{ backgroundColor: "oklch(0.22 0.01 264)" }}>
+                      <div className="h-full" style={{ width: `${pct}%`, backgroundColor: CYAN }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {entry.signal_breakdown.as_of && (
+              <p className="text-[10px] font-mono mt-3" style={{ color: DIM }}>
+                as of {fmtDate(entry.signal_breakdown.as_of)}
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Recent news */}
+        {news.length > 0 && (
+          <section className="rounded-xl border px-5 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+            <h2 className="text-[10px] font-mono uppercase tracking-widest mb-4 flex items-center gap-1.5" style={{ color: G }}>
+              <Newspaper size={11} /> Recent news
+            </h2>
+            <div className="space-y-3">
+              {news.map((n, i) => (
+                <div key={i} className="border-b last:border-b-0 pb-3 last:pb-0" style={{ borderColor: BORDER }}>
+                  {n.source_url ? (
+                    <a href={n.source_url} target="_blank" rel="noopener noreferrer"
+                      className="text-sm leading-snug transition-colors inline-flex items-start gap-1"
+                      style={{ color: MUTED }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = CYAN; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = MUTED; }}
+                    >
+                      {n.headline} <ExternalLink size={10} className="mt-1 shrink-0" />
+                    </a>
+                  ) : (
+                    <p className="text-sm leading-snug" style={{ color: MUTED }}>{n.headline}</p>
+                  )}
+                  <InlineMeta items={[{ text: fmtDate(n.event_date) }, n.source_name ? { text: n.source_name } : { text: "" }]} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {(entry.team_score != null || entry.traction_score != null) && (
           <section className="rounded-xl border px-5 py-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
