@@ -17,6 +17,14 @@ interface PreviewDimension {
   color: string;
 }
 
+export interface ChartStartup {
+  name: string;
+  subtitle?: string | null;
+  godScore: number;
+  signals: PreviewSignal[];
+  dimensions: PreviewDimension[];
+}
+
 interface PreviewEntry {
   startup: {
     name: string;
@@ -80,14 +88,21 @@ function SignalColumn({
 export default function HorizontalSignalChart({
   accent = CYAN,
   className = "",
+  startup: controlled,
 }: {
   accent?: string;
   className?: string;
+  /** When provided, the chart is controlled and reflects this startup. */
+  startup?: ChartStartup | null;
 }) {
   const [entry, setEntry] = useState<PreviewEntry | null>(null);
   const [animated, setAnimated] = useState(false);
 
+  const isControlled = controlled !== undefined;
+
+  // Uncontrolled fallback: fetch the featured startup (homepage hero preview).
   useEffect(() => {
+    if (isControlled) return;
     fetch("/api/hero-preview")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -96,18 +111,33 @@ export default function HorizontalSignalChart({
         if (e?.startup) setEntry(e);
       })
       .catch(() => {});
-  }, []);
+  }, [isControlled]);
 
+  // Resolve the active startup from either the controlled prop or the fetched entry.
+  const active: ChartStartup | null = isControlled
+    ? controlled
+    : entry?.startup
+    ? {
+        name: entry.startup.name,
+        subtitle: entry.startup.domain,
+        godScore: entry.startup.godScore,
+        signals: entry.signals ?? [],
+        dimensions: entry.startup.dimensions ?? [],
+      }
+    : null;
+
+  // Re-trigger the width animation whenever the displayed startup changes.
   useEffect(() => {
-    const t = setTimeout(() => setAnimated(true), 300);
+    setAnimated(false);
+    const t = setTimeout(() => setAnimated(true), 80);
     return () => clearTimeout(t);
-  }, [entry?.startup?.name]);
+  }, [active?.name]);
 
-  const startup = entry?.startup;
-  const signals = entry?.signals?.length ? entry.signals.slice(0, 5) : FALLBACK_SIGNALS;
-  const dims = startup?.dimensions?.length ? startup.dimensions : FALLBACK_DIMS;
-  const godScore = startup?.godScore ?? 84;
-  const displayName = startup?.domain ?? startup?.name ?? "market leader";
+  const signals = active?.signals?.length ? active.signals.slice(0, 5) : (isControlled ? [] : FALLBACK_SIGNALS);
+  const dims = active?.dimensions?.length ? active.dimensions : FALLBACK_DIMS;
+  const godScore = active?.godScore ?? 84;
+  const displayName = active?.subtitle ?? active?.name ?? "market leader";
+  const hasSignals = signals.length > 0;
 
   return (
     <div
@@ -124,11 +154,13 @@ export default function HorizontalSignalChart({
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ backgroundColor: accent }} />
           <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
-            Observable signals · 0–10
+            {hasSignals ? "Observable signals · 0–10" : "GOD dimensions"}
           </span>
         </div>
         <div className="flex items-baseline gap-2 text-right">
-          <span className="text-xs font-medium text-white truncate max-w-[180px]">{displayName}</span>
+          <span className="text-xs font-medium text-white truncate max-w-[180px]" title={active?.name}>
+            {displayName}
+          </span>
           <span className="text-[10px] font-mono" style={{ color: DIM }}>·</span>
           <span className="text-sm font-display font-bold tabular-nums" style={{ color: godScoreColor(godScore) }}>
             GOD {animated ? godScore : "—"}
@@ -136,13 +168,21 @@ export default function HorizontalSignalChart({
         </div>
       </div>
 
-      <div className="px-4 py-5 border-b" style={{ borderColor: BORDER }}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6">
-          {signals.map((s) => (
-            <SignalColumn key={s.label} {...s} animated={animated} />
-          ))}
+      {hasSignals ? (
+        <div className="px-4 py-5 border-b" style={{ borderColor: BORDER }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6">
+            {signals.map((s) => (
+              <SignalColumn key={s.label} {...s} animated={animated} />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : isControlled ? (
+        <div className="px-4 py-3 border-b" style={{ borderColor: BORDER }}>
+          <span className="text-[10px] font-mono" style={{ color: DIM }}>
+            No observable signal events yet — GOD dimensions shown below.
+          </span>
+        </div>
+      ) : null}
 
       <div className="px-4 py-3 border-b" style={{ borderColor: BORDER }}>
         <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>

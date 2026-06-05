@@ -196,7 +196,7 @@ export const appRouter = router({
           sbClient
             .from("startup_uploads")
             .select(
-              "id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit, psychological_multiplier"
+              "id, name, sectors, total_god_score, team_score, traction_score, market_score, product_score, vision_score, is_oversubscribed, has_followon, is_competitive, is_bridge_round, has_sector_pivot, has_social_proof_cascade, is_repeat_founder, has_cofounder_exit, psychological_multiplier, startup_signal_scores ( founder_language_shift, investor_receptivity, news_momentum, capital_convergence, execution_velocity, signals_total )"
             )
             .eq("status", "approved")
             .not("total_god_score", "is", null)
@@ -207,29 +207,56 @@ export const appRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
-      return {
-        startups: (data ?? []) as Array<{
-          id: string;
-          name: string;
-          sectors: string | string[] | null;
-          total_god_score: number | null;
-          team_score: number | null;
-          traction_score: number | null;
-          market_score: number | null;
-          product_score: number | null;
-          vision_score: number | null;
-          is_oversubscribed: boolean | null;
-          has_followon: boolean | null;
-          is_competitive: boolean | null;
-          is_bridge_round: boolean | null;
-          has_sector_pivot: boolean | null;
-          has_social_proof_cascade: boolean | null;
-          is_repeat_founder: boolean | null;
-          has_cofounder_exit: boolean | null;
-          psychological_multiplier: number | null;
-        }>,
-        total: total ?? 0,
-      };
+        // Observable signal components (mirrors /api/hero-preview caps) so each
+        // startup carries the "main signals picked up" for the live chart.
+        const SIGNAL_META = [
+          { key: "execution_velocity", label: "Execution", color: "#a855f7", cap: 2.0 },
+          { key: "investor_receptivity", label: "Investor recv", color: "#22c55e", cap: 2.5 },
+          { key: "news_momentum", label: "News momentum", color: "#22d3ee", cap: 1.5 },
+          { key: "capital_convergence", label: "Capital conv", color: "#eab308", cap: 2.0 },
+          { key: "founder_language_shift", label: "Founder lang", color: "#22d3ee", cap: 2.0 },
+        ] as const;
+
+        const startups = (data ?? []).map((row: Record<string, unknown>) => {
+          const sigRaw = row.startup_signal_scores;
+          const sig = (Array.isArray(sigRaw) ? sigRaw[0] : sigRaw) as Record<string, number | null> | null;
+          const hasSignals = !!(sig && sig.signals_total != null);
+          const signals = hasSignals
+            ? SIGNAL_META.map(({ key, label, color, cap }) => {
+                const raw = Number(sig?.[key]) || 0;
+                const value = Math.min(0.98, Math.max(0.04, raw / cap));
+                return { key, label, color, raw: +raw.toFixed(2), value: +value.toFixed(2) };
+              })
+            : [];
+          const { startup_signal_scores: _omit, ...rest } = row;
+          void _omit;
+          return { ...rest, signals };
+        });
+
+        return {
+          startups: startups as Array<{
+            id: string;
+            name: string;
+            sectors: string | string[] | null;
+            total_god_score: number | null;
+            team_score: number | null;
+            traction_score: number | null;
+            market_score: number | null;
+            product_score: number | null;
+            vision_score: number | null;
+            is_oversubscribed: boolean | null;
+            has_followon: boolean | null;
+            is_competitive: boolean | null;
+            is_bridge_round: boolean | null;
+            has_sector_pivot: boolean | null;
+            has_social_proof_cascade: boolean | null;
+            is_repeat_founder: boolean | null;
+            has_cofounder_exit: boolean | null;
+            psychological_multiplier: number | null;
+            signals: Array<{ key: string; label: string; color: string; raw: number; value: number }>;
+          }>,
+          total: total ?? 0,
+        };
     }),
 
     /**

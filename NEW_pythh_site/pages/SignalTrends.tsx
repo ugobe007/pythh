@@ -33,11 +33,21 @@ import {
   Star,
   GitBranch,
   ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-import HorizontalSignalChart from "@/components/HorizontalSignalChart";
+import HorizontalSignalChart, { type ChartStartup } from "@/components/HorizontalSignalChart";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ObservableSignal {
+  key: string;
+  label: string;
+  color: string;
+  raw: number;
+  value: number;
+}
 
 interface StartupRaw {
   id: string;
@@ -49,6 +59,7 @@ interface StartupRaw {
   market_score: number | null;
   product_score: number | null;
   vision_score: number | null;
+  signals?: ObservableSignal[] | null;
   is_oversubscribed?: boolean | null;
   has_followon?: boolean | null;
   is_competitive?: boolean | null;
@@ -231,6 +242,39 @@ function rankStartupsForLens(
   });
 }
 
+// ─── Chart payload ────────────────────────────────────────────────────────────
+
+const DIM_META: { key: keyof StartupRaw; label: string; color: string; scale: number }[] = [
+  { key: "team_score",     label: "TEAM",     color: "#a855f7", scale: 5 },
+  { key: "traction_score", label: "TRACTION", color: "#22d3ee", scale: 5 },
+  { key: "market_score",   label: "MARKET",   color: "#f97316", scale: 2.5 },
+  { key: "product_score",  label: "PRODUCT",  color: "#eab308", scale: 2.5 },
+  { key: "vision_score",   label: "VISION",   color: "#22c55e", scale: 2.5 },
+];
+
+/** Build the live-chart payload for a single startup from its raw scores + signals. */
+function buildChartStartup(raw: StartupRaw, sector: string): ChartStartup {
+  const dimensions = DIM_META.map(({ key, label, color, scale }) => ({
+    label,
+    color,
+    max: 20,
+    score: Math.max(0, Math.min(20, Math.round((Number(raw[key]) || 0) / scale))),
+  }));
+  const signals = (raw.signals ?? []).map((s) => ({
+    label: s.label,
+    color: s.color,
+    raw: s.raw,
+    value: s.value,
+  }));
+  return {
+    name: raw.name || "Unnamed",
+    subtitle: sector !== "Unknown" ? sector : raw.name,
+    godScore: Math.round(Number(raw.total_god_score) || 0),
+    signals,
+    dimensions,
+  };
+}
+
 // ─── Small Components ─────────────────────────────────────────────────────────
 
 function VelocityIndicator({ velocity, accent }: { velocity: number; accent: string }) {
@@ -294,6 +338,8 @@ export default function SignalTrends() {
   const [lensFlash, setLensFlash] = useState(false);
   const [activeSector, setActiveSector] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showScience, setShowScience] = useState(false);
   const prevLensId = useRef(VC_LENSES[0].id);
 
   // Pre-warm the Fly.io backend to reduce cold-start latency.
@@ -332,6 +378,27 @@ export default function SignalTrends() {
     }
     return rankStartupsForLens(filtered, activeLens, prevRanks);
   }, [rawStartups, activeLens, activeSector, searchQuery]);
+
+  // Keep a valid selection: default to the top-ranked startup, and reset if the
+  // current selection drops out of the filtered/ranked set.
+  useEffect(() => {
+    if (!ranked.length) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    if (!selectedId || !ranked.some((s) => s.id === selectedId)) {
+      setSelectedId(ranked[0].id);
+    }
+  }, [ranked, selectedId]);
+
+  // Build the live-chart payload for the currently reviewed startup.
+  const selectedChart = useMemo<ChartStartup | null>(() => {
+    if (!ranked.length) return null;
+    const sel = ranked.find((s) => s.id === selectedId) ?? ranked[0];
+    const raw = rawStartups.find((r) => r.id === sel.id);
+    if (!raw) return null;
+    return buildChartStartup(raw, sel.sector);
+  }, [ranked, selectedId, rawStartups]);
 
   function handleLensChange(lens: VCLens) {
     if (lens.id === activeLens.id) return;
@@ -396,8 +463,13 @@ export default function SignalTrends() {
           </p>
         </div>
 
-        {/* Horizontal signal chart */}
-        <HorizontalSignalChart accent={activeLens.accent} />
+        {/* Live signal chart — reflects the startup selected in the table below */}
+        <HorizontalSignalChart accent={activeLens.accent} startup={selectedChart} />
+        <p className="text-[11px] -mt-6 mb-8 ml-1" style={{ color: "oklch(0.42 0.01 264)" }}>
+          Showing signals for{" "}
+          <span style={{ color: activeLens.accent }}>{selectedChart?.name ?? "—"}</span>
+          {" "}· click any startup below to update the chart
+        </p>
 
         {/* Description */}
         <p className="text-sm leading-relaxed mb-6" style={{ color: "oklch(0.55 0.01 264)" }}>
@@ -411,10 +483,36 @@ export default function SignalTrends() {
           </span>
         </p>
 
-        {/* ── GOD Score Science ── */}
+        {/* ── GOD Score Science (collapsible — keeps rankings above the fold) ── */}
+        <div className="mb-8">
+          <button
+            onClick={() => setShowScience((v) => !v)}
+            className="w-full flex items-center justify-between gap-3 px-5 py-3 rounded-2xl text-left transition-colors"
+            style={{
+              backgroundColor: "oklch(0.12 0.01 264)",
+              border: "1px solid oklch(0.2 0.01 264)",
+              borderBottomLeftRadius: showScience ? 0 : undefined,
+              borderBottomRightRadius: showScience ? 0 : undefined,
+            }}
+            aria-expanded={showScience}
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.6 0.01 264)" }}>
+                GOD scoring & behavioral multipliers
+              </span>
+              <span className="text-xs" style={{ color: "oklch(0.4 0.01 264)" }}>
+                — how the score is built
+              </span>
+            </span>
+            {showScience
+              ? <ChevronDown size={16} style={{ color: "oklch(0.55 0.01 264)" }} />
+              : <ChevronRight size={16} style={{ color: "oklch(0.55 0.01 264)" }} />}
+          </button>
+
+          {showScience && (
         <div
-          className="grid lg:grid-cols-2 gap-6 mb-8 p-5 rounded-2xl"
-          style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+          className="grid lg:grid-cols-2 gap-6 p-5 rounded-b-2xl"
+          style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)", borderTop: "none" }}
         >
           {/* Left: Formula */}
           <div>
@@ -489,6 +587,8 @@ export default function SignalTrends() {
               </p>
             </div>
           </div>
+        </div>
+          )}
         </div>
 
         {/* Live Stats Strip */}
@@ -683,16 +783,26 @@ export default function SignalTrends() {
                 </span>
               </div>
             ) : (
-              ranked.map((s) => (
+              ranked.map((s) => {
+                const isSelected = s.id === selectedId;
+                return (
                 <div
                   key={s.id}
-                  className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.02] cursor-default"
+                  onClick={() => setSelectedId(s.id)}
+                  className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.03] cursor-pointer"
                   style={{
                     gridTemplateColumns: "52px 1fr 140px 90px 60px 52px",
                     borderColor: "oklch(0.16 0.01 264)",
-                    borderLeft: s.rank <= 3 ? `2px solid ${activeLens.accent}` : "2px solid transparent",
-                    backgroundColor:
-                      s.rank <= 3 ? `${activeLens.accent}06` : undefined,
+                    borderLeft: isSelected
+                      ? `2px solid ${activeLens.accent}`
+                      : s.rank <= 3
+                      ? `2px solid ${activeLens.accent}`
+                      : "2px solid transparent",
+                    backgroundColor: isSelected
+                      ? `${activeLens.accent}14`
+                      : s.rank <= 3
+                      ? `${activeLens.accent}06`
+                      : undefined,
                   }}
                 >
                   {/* Rank */}
@@ -750,7 +860,8 @@ export default function SignalTrends() {
                     <VelocityIndicator velocity={s.velocity} accent={activeLens.accent} />
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 
