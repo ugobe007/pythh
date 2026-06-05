@@ -194,6 +194,8 @@
     "check:server": "node scripts/check-server-load.js",
     "lookup:funnel:weekly": "node scripts/lookup-funnel-report.js",
     "deploy:postcheck": "node scripts/post-deploy-health-check.js",
+    "check:oauth": "bash scripts/check-oauth-credentials.sh",
+    "deploy:oauth": "bash scripts/deploy-oauth.sh",
     "freshness:audit": "node scripts/data-freshness-audit.js"
   },
   "dependencies": {

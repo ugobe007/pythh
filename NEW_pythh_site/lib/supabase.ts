@@ -31,9 +31,10 @@ if (!isServer && !hasValidSupabaseCredentials) {
 }
 
 const authConfig = {
+  flowType: "pkce" as const,
   persistSession: true,
   autoRefreshToken: true,
-  // Bridge handles #access_token= and ?code=; also parse hash if Supabase sets session first.
+  // Inline hash sync + bridge handle returns; detectSessionInUrl for ?code= on /account.
   detectSessionInUrl: true,
   storage: typeof window !== "undefined" ? window.localStorage : undefined,
 };

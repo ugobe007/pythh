@@ -3,7 +3,7 @@
  *
  * When to run:
  *   1. /login — before clicking Google → pythhOAuthDebug.snapshot()
- *   2. /account?code=… — right after Google returns → pythhOAuthDebug.runAll()
+ *   2. /account with ?code= or #access_token= — right after Google → runAll()
  *   3. Stuck spinner — pythhOAuthDebug.watch(60)
  *
  * Load without paste (if this file is hosted):
@@ -16,7 +16,7 @@
     return;
   }
 
-  const VERSION = "2026-06-04";
+  const VERSION = "2026-05-22";
   const logs = [];
 
   function ts() {
@@ -103,14 +103,28 @@
     return { startedAgoMs: Date.now() - n, active: Date.now() - n < 120_000 };
   }
 
-  function parseHashTokens() {
+  function readHashAccessToken() {
     const raw = location.hash?.replace(/^#/, "").trim();
-    if (!raw) return null;
-    const h = new URLSearchParams(raw);
-    const access_token = h.get("access_token");
+    if (raw && raw.includes("access_token=")) {
+      const t = new URLSearchParams(raw).get("access_token");
+      if (t) return t;
+    }
+    try {
+      const cap = JSON.parse(sessionStorage.getItem("pythh_oauth_hash_capture") || "null");
+      return cap?.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function parseHashTokens() {
+    const access_token = readHashAccessToken();
     if (!access_token) return null;
+    const raw = location.hash?.replace(/^#/, "").trim();
+    const h = new URLSearchParams(raw || "");
     return {
       access_token: `${access_token.slice(0, 12)}…`,
+      access_token_len: access_token.length,
       refresh_token: h.get("refresh_token") ? "present" : null,
       token_type: h.get("token_type"),
     };
@@ -147,7 +161,41 @@
     return { httpStatus: res.status, user, raw: json ?? text };
   }
 
+  async function fetchSyncRest(accessToken) {
+    if (!accessToken || typeof accessToken !== "string") {
+      return {
+        httpStatus: 0,
+        ok: false,
+        error: "access_token is empty — URL hash may already be cleared; sign in again from /login",
+        raw: null,
+      };
+    }
+    const res = await fetch("/api/auth/sync-supabase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ access_token: accessToken }),
+    });
+    const text = await res.text();
+    let json = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      /* keep raw */
+    }
+    return {
+      httpStatus: res.status,
+      ok: res.ok,
+      user: json?.openId ? { openId: json.openId } : null,
+      error: json?.error,
+      raw: json ?? text,
+    };
+  }
+
   async function fetchSync(accessToken) {
+    if (!accessToken || typeof accessToken !== "string") {
+      return { httpStatus: 0, ok: false, error: "access_token is empty", raw: null };
+    }
     const res = await fetch("/api/trpc/auth.syncSupabaseSession", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -267,13 +315,14 @@
         "BREAKPOINT FOUND: tokens in URL #hash (implicit flow) — app must sync access_token from hash",
         hashTokens,
       );
-      const full = new URLSearchParams(location.hash.replace(/^#/, ""));
-      const access = full.get("access_token");
+      const access = readHashAccessToken();
       if (access) {
-        log("9.sync", "info", "attempting auth.syncSupabaseSession from hash token…");
-        const sync = await fetchSync(access);
-        if (sync.ok && sync.user) log("9.sync", "ok", "pythh_session sync OK", sync.user);
+        log("9.sync", "info", `POST /api/auth/sync-supabase (${access.length} char token)…`);
+        const sync = await fetchSyncRest(access);
+        if (sync.ok) log("9.sync", "ok", "pythh_session sync OK", sync);
         else log("9.sync", "fail", "BREAKPOINT: sync failed", sync);
+      } else {
+        log("9.sync", "fail", "hash preview present but access_token missing — do not refresh; re-login from /login");
       }
     } else if (!code) {
       log("7.code", "warn", "no ?code= or #access_token= — complete Google sign-in first");
@@ -334,7 +383,9 @@
       n += 1;
       console.log(`[${NS}] —— tick ${n} ——`);
       snapshot();
-      if (new URLSearchParams(location.search).get("code")) {
+      const hasCode = new URLSearchParams(location.search).get("code");
+      const hasHash = parseHashTokens();
+      if (hasCode || hasHash) {
         await runAll();
       } else {
         const me = await fetchAuthMe();
@@ -347,6 +398,27 @@
       }
     }, 2000);
     return () => clearInterval(watchTimer);
+  }
+
+  async function syncFromHash() {
+    const access = readHashAccessToken();
+    if (!access) {
+      log("syncFromHash", "fail", "no #access_token in URL", {
+        hash: location.hash ? `${location.hash.slice(0, 40)}…` : "(empty)",
+        hint: "If hash was stripped, go to /login and sign in with Google again (after deploy: auto-sync on load).",
+      });
+      return null;
+    }
+    log("syncFromHash", "info", `syncing ${access.length} char token via /api/auth/sync-supabase`);
+    const sync = await fetchSyncRest(access);
+    if (sync.ok) {
+      log("syncFromHash", "ok", "session cookie set — run snapshot() or reload /account", sync);
+      const me = await fetchAuthMe();
+      log("syncFromHash", me.user ? "ok" : "warn", me.user ? "auth.me OK" : "auth.me still null", me);
+    } else {
+      log("syncFromHash", "fail", sync.error || "sync failed", sync);
+    }
+    return sync;
   }
 
   function clearOAuthState() {
@@ -362,8 +434,10 @@
     version: VERSION,
     snapshot,
     runAll,
+    syncFromHash,
     watch,
     clearOAuthState,
+    readHashAccessToken,
     logs: () => logs,
     export: () => JSON.stringify({ version: VERSION, logs, url: urlState() }, null, 2),
   };
@@ -371,6 +445,6 @@
   console.log(
     `%c[${NS}] loaded v${VERSION}`,
     "color:#22d3ee;font-weight:bold",
-    `\n  snapshot()  — current state\n  runAll()      — run checks + pinpoint BREAKPOINT\n  watch(60)     — poll during login\n  clearOAuthState() — reset stuck handoff\n  export()      — JSON for support`,
+    `\n  snapshot()       — current state\n  syncFromHash()   — sync #access_token → pythh_session (use when hash still in URL)\n  runAll()           — full checklist\n  watch(60)          — poll during login\n  clearOAuthState()  — reset stuck handoff\n  export()           — JSON for support`,
   );
 })();

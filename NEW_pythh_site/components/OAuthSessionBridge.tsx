@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
 import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
@@ -51,9 +51,10 @@ async function finishOAuth(
 /**
  * Completes OAuth when URL has #access_token=… (implicit) or ?code=… (PKCE).
  */
+const BRIDGE_RUN_KEY = "pythh_oauth_bridge_run";
+
 export function OAuthSessionBridge() {
   const utils = trpc.useUtils();
-  const ran = useRef(false);
 
   const syncSession = trpc.auth.syncSupabaseSession.useMutation();
 
@@ -69,14 +70,18 @@ export function OAuthSessionBridge() {
       return;
     }
 
-    if (ran.current) return;
-    ran.current = true;
+    if (sessionStorage.getItem(BRIDGE_RUN_KEY) === "1") return;
+    sessionStorage.setItem(BRIDGE_RUN_KEY, "1");
     markOAuthHandoff();
 
-    void finishOAuth((input) => syncSession.mutateAsync(input), utils).catch((err) => {
-      publishOAuthError(trpcMessage(err));
-      clearOAuthHandoff();
-    });
+    void finishOAuth((input) => syncSession.mutateAsync(input), utils)
+      .catch((err) => {
+        publishOAuthError(trpcMessage(err));
+        clearOAuthHandoff();
+      })
+      .finally(() => {
+        sessionStorage.removeItem(BRIDGE_RUN_KEY);
+      });
   }, [syncSession, utils]);
 
   return null;

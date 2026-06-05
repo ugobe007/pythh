@@ -36,15 +36,27 @@ async function main() {
   else if (!loc2.includes("/account")) fail(`callback no-code location: ${loc2}`);
   else pass(`callback without code → ${loc2}`);
 
-  // 3) Prod bundle uses /account?next= redirect (not only server callback)
+  // 3) Prod bundle + early hash sync script
   const html = await fetch(`${ORIGIN}/`).then((r) => r.text());
   const m = html.match(/index-([A-Za-z0-9_-]+)\.js/);
   if (!m) fail("could not find index bundle in HTML");
   else {
     const js = await fetch(`${ORIGIN}/assets/index-${m[1]}.js`).then((r) => r.text());
-    if (!js.includes("/account?next=")) fail("bundle missing /account?next= OAuth redirect");
-    else if (!js.includes("pythh_pkce_verifier")) fail("bundle missing PKCE session backup");
-    else pass("bundle has account redirect + PKCE backup");
+    if (!js.includes("/api/auth/supabase/callback")) {
+      fail("bundle missing server OAuth callback redirect");
+    } else if (!js.includes("pythh_pkce_verifier")) {
+      fail("bundle missing PKCE session backup");
+    } else pass("bundle has server callback redirect + PKCE backup");
+  }
+  if (!html.includes("pythh-oauth-hash-sync.js")) {
+    fail("index.html missing pythh-oauth-hash-sync.js script tag");
+  } else pass("index.html loads early OAuth hash sync");
+  const hashJsRes = await fetch(`${ORIGIN}/pythh-oauth-hash-sync.js`);
+  if (!hashJsRes.ok) fail(`pythh-oauth-hash-sync.js HTTP ${hashJsRes.status}`);
+  else {
+    const hashJs = await hashJsRes.text();
+    if (!hashJs.includes("sync-supabase")) fail("pythh-oauth-hash-sync.js missing sync call");
+    else pass("pythh-oauth-hash-sync.js served from prod");
   }
 
   // 4) auth.me without cookie is null
@@ -55,15 +67,14 @@ async function main() {
   if (user != null) fail("auth.me without cookie should be null");
   else pass("auth.me unauthenticated returns null");
 
-  // 5) syncSupabaseSession rejects empty token
-  const syncRes = await fetch(`${ORIGIN}/api/trpc/auth.syncSupabaseSession`, {
+  // 5) sync-supabase rejects empty token
+  const syncRes = await fetch(`${ORIGIN}/api/auth/sync-supabase`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ access_token: "" }),
   });
-  const syncText = await syncRes.text();
-  if (syncRes.ok) fail("syncSupabaseSession should reject empty token");
-  else pass(`syncSupabaseSession rejects empty token (${syncRes.status})`);
+  if (syncRes.ok) fail("sync-supabase should reject empty token");
+  else pass(`sync-supabase rejects empty token (${syncRes.status})`);
 
   if (failures.length) {
     console.error(`\n${failures.length} smoke test(s) failed.`);

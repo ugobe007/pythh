@@ -91,6 +91,30 @@ export function publishOAuthError(message: string): void {
   window.dispatchEvent(new CustomEvent("pythh-oauth-error", { detail: message }));
 }
 
+const HASH_CAPTURE_KEY = "pythh_oauth_hash_capture";
+
+function readCapturedHashTokens(): {
+  access_token: string;
+  refresh_token: string | null;
+} | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(HASH_CAPTURE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      access_token?: string;
+      refresh_token?: string | null;
+    };
+    if (!parsed?.access_token) return null;
+    return {
+      access_token: parsed.access_token,
+      refresh_token: parsed.refresh_token ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Implicit OAuth return — Supabase puts tokens in the hash, not ?code=. */
 export function parseOAuthHashTokens(): {
   access_token: string;
@@ -98,11 +122,24 @@ export function parseOAuthHashTokens(): {
 } | null {
   if (typeof window === "undefined") return null;
   const raw = window.location.hash?.replace(/^#/, "").trim();
-  if (!raw) return null;
-  const hash = new URLSearchParams(raw);
-  const access_token = hash.get("access_token");
-  if (!access_token) return null;
-  return { access_token, refresh_token: hash.get("refresh_token") };
+  if (raw && raw.includes("access_token=")) {
+    const hash = new URLSearchParams(raw);
+    let access_token = hash.get("access_token");
+    if (!access_token) {
+      const m = raw.match(/(?:^|&)access_token=([^&]*)/);
+      access_token = m?.[1] ? decodeURIComponent(m[1].replace(/\+/g, " ")) : null;
+    }
+    if (access_token) {
+      const tokens = { access_token, refresh_token: hash.get("refresh_token") };
+      try {
+        sessionStorage.setItem(HASH_CAPTURE_KEY, JSON.stringify(tokens));
+      } catch {
+        /* ignore quota */
+      }
+      return tokens;
+    }
+  }
+  return readCapturedHashTokens();
 }
 
 export function hasOAuthReturnInUrl(): boolean {
@@ -111,12 +148,87 @@ export function hasOAuthReturnInUrl(): boolean {
   return !!parseOAuthHashTokens()?.access_token;
 }
 
-function cleanUrlAfterOAuth(): void {
+export function cleanUrlAfterOAuth(): void {
   const params = new URLSearchParams(window.location.search);
   const next = params.get("next") || params.get("redirect");
   const path = window.location.pathname;
   const clean = next && next.startsWith("/") ? next : path;
   window.history.replaceState({}, "", clean);
+}
+
+const HASH_SYNC_KEY = "pythh_oauth_hash_sync";
+
+function hashSyncDedupeKey(accessToken: string): string {
+  return `${HASH_SYNC_KEY}:${accessToken.slice(0, 24)}`;
+}
+
+/**
+ * Run before React mounts when Google returns #access_token=… (implicit flow).
+ * Sets pythh_session via POST /api/auth/sync-supabase so auth.me works on first paint.
+ */
+declare global {
+  interface Window {
+    __PYTHH_OAUTH_HASH_SYNC__?: Promise<{ ok: boolean; error?: string }>;
+  }
+}
+
+export async function bootstrapOAuthFromHash(): Promise<{ ok: boolean; error?: string }> {
+  if (typeof window === "undefined") return { ok: false };
+
+  const early = window.__PYTHH_OAUTH_HASH_SYNC__;
+  if (early) {
+    const result = await early.catch(() => ({ ok: false as const }));
+    if (result.ok) return { ok: true };
+    if (result.error) return { ok: false, error: result.error };
+  }
+
+  const tokens = parseOAuthHashTokens();
+  if (!tokens) return { ok: false };
+
+  const dedupe = hashSyncDedupeKey(tokens.access_token);
+  if (sessionStorage.getItem(dedupe) === "ok") {
+    cleanUrlAfterOAuth();
+    return { ok: true };
+  }
+  if (sessionStorage.getItem(dedupe) === "pending") {
+    return { ok: false };
+  }
+
+  sessionStorage.setItem(dedupe, "pending");
+  markOAuthHandoff();
+
+  try {
+    if (supabase && tokens.refresh_token) {
+      await supabase.auth.setSession({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+      });
+    }
+
+    const res = await fetch("/api/auth/sync-supabase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ access_token: tokens.access_token }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) {
+      sessionStorage.removeItem(dedupe);
+      const msg = body.error || `Server sync failed (${res.status})`;
+      publishOAuthError(msg);
+      return { ok: false, error: msg };
+    }
+
+    sessionStorage.setItem(dedupe, "ok");
+    cleanUrlAfterOAuth();
+    sessionStorage.removeItem(PKCE_SESSION_KEY);
+    return { ok: true };
+  } catch (err) {
+    sessionStorage.removeItem(dedupe);
+    const msg = err instanceof Error ? err.message : "Could not complete Google sign-in.";
+    publishOAuthError(msg);
+    return { ok: false, error: msg };
+  }
 }
 
 /**
@@ -250,7 +362,10 @@ export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
     sessionStorage.setItem("pythh_post_login", next);
   }
   persistOAuthStartCookies(next);
-  return `${window.location.origin}/account?next=${encodeURIComponent(next)}`;
+  // Server callback exchanges PKCE and sets pythh_session when sb_pkce cookie is present.
+  const callback = new URL(`${window.location.origin}/api/auth/supabase/callback`);
+  callback.searchParams.set("next", next);
+  return callback.toString();
 }
 
 export function readPostLoginPath(): string {

@@ -190,9 +190,23 @@ function mountSupabaseAuthSync(app) {
   });
 
   app.post('/api/auth/sync-supabase', async (req, res) => {
-    const accessToken = String(req.body?.access_token || '').trim();
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const fromBearer =
+      typeof req.headers.authorization === 'string' &&
+      req.headers.authorization.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7).trim()
+        : '';
+    const accessToken = String(
+      body.access_token ||
+        body.json?.access_token ||
+        fromBearer ||
+        '',
+    ).trim();
     if (!accessToken) {
-      return res.status(400).json({ error: 'access_token required' });
+      return res.status(400).json({
+        error:
+          'access_token required (send JSON body { "access_token": "..." } or Authorization: Bearer)',
+      });
     }
 
     try {
