@@ -512,8 +512,8 @@ export default function Portfolio() {
                 <div className="text-base font-bold font-mono tabular-nums" style={{ color: analytics.value.irr_meaningful ? G : MUTED }}>
                   {fmtIRR(analytics.value)}
                 </div>
-                <div className="text-[10px] font-mono mt-0.5" style={{ color: analytics.value.irr_meaningful ? DIM : AMBER }}>
-                  {analytics.value.irr_meaningful ? "money-weighted" : "early — not meaningful"}
+                <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+                  {analytics.value.irr_meaningful ? "money-weighted" : "money-weighted · unverified"}
                 </div>
               </div>
               <div>
