@@ -9299,6 +9299,8 @@ const {
   computePortfolioValue,
   compareToBenchmarks,
   describeStrategyAndTrend,
+  buildEntryRationale,
+  isGenericRationale,
 } = require('./lib/portfolioAnalytics');
 
 app.get('/api/portfolio/analytics', async (req, res) => {
@@ -9428,6 +9430,13 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
     merged.position_gain_usd = check ? Math.round(check * verifiedMoic - check) : null;
     merged.position_moic = Math.round(verifiedMoic * 100) / 100;
     merged.position_value_basis = valueBasis; // 'exit' | 'verified_round' | 'cost'
+
+    // Entry rationale — upgrade generic auto-seed text to a data-driven narrative.
+    merged.entry_rationale_raw = merged.entry_rationale || null;
+    merged.entry_rationale_generated = isGenericRationale(merged.entry_rationale);
+    if (merged.entry_rationale_generated) {
+      merged.entry_rationale = buildEntryRationale(merged);
+    }
 
     // Recent news = events that carry a headline/source -----------------------
     const allEvents = events || [];

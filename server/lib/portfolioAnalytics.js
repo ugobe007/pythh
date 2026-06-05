@@ -195,6 +195,76 @@ async function computePortfolioValue(supabase) {
   };
 }
 
+const SIGNAL_COMPONENT_LABELS = {
+  founder_language_shift: 'founder language shift',
+  investor_receptivity: 'investor receptivity',
+  news_momentum: 'news momentum',
+  capital_convergence: 'capital convergence',
+  execution_velocity: 'execution velocity',
+};
+
+/**
+ * Build a readable, data-driven entry rationale from the scorecard instead of
+ * the generic "Auto-seeded by portfolio-digest agent" string.
+ */
+function buildEntryRationale(e) {
+  const parts = [];
+  const god = e.entry_god_score;
+  const sector = e.primary_sector || (Array.isArray(e.sectors) && e.sectors[0]) || null;
+  const pct = e.sector_god_percentile;
+  const date = e.entry_date
+    ? new Date(e.entry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+
+  // Opening — score, percentile, when.
+  let opening = `Entered at GOD ${god}`;
+  if (pct != null) opening += ` (${Math.round(pct)}th percentile${sector ? ` among ${sector} startups` : ''})`;
+  if (date) opening += `, picked ${date}`;
+  parts.push(`${opening}.`);
+
+  // Pillars — strongest two, flag a soft one.
+  const pillars = [
+    ['team', e.team_score],
+    ['traction', e.traction_score],
+    ['market', e.market_score],
+    ['product', e.product_score],
+  ].filter(([, v]) => typeof v === 'number');
+  if (pillars.length >= 2) {
+    const sorted = [...pillars].sort((a, b) => b[1] - a[1]);
+    const top = sorted.slice(0, 2).map(([k, v]) => `${k} (${v})`);
+    let s = `Conviction anchored by ${top.join(' and ')}`;
+    const weak = sorted[sorted.length - 1];
+    if (weak && weak[1] < 50) s += `, balanced against a softer ${weak[0]} read (${weak[1]})`;
+    parts.push(`${s}.`);
+  }
+
+  // Exit propensity.
+  if (e.exit_propensity_score != null) {
+    parts.push(
+      `Exit-propensity ${e.exit_propensity_score}${e.exit_propensity_tier ? ` (${e.exit_propensity_tier})` : ''} flags a credible path to liquidity.`
+    );
+  }
+
+  // Strongest live signal component.
+  if (e.signal_breakdown) {
+    const comps = Object.entries(SIGNAL_COMPONENT_LABELS)
+      .map(([k, label]) => [label, e.signal_breakdown[k]])
+      .filter(([, v]) => typeof v === 'number' && v > 0);
+    if (comps.length) {
+      const top = comps.sort((a, b) => b[1] - a[1])[0];
+      parts.push(`Live signal led by ${top[0]} (${top[1].toFixed(1)}/10).`);
+    }
+  }
+
+  parts.push('Auto-added under the Oracle rule: every startup crossing GOD \u2265 70 enters the virtual fund at a $100K virtual check.');
+  return parts.join(' ');
+}
+
+function isGenericRationale(text) {
+  if (!text || !text.trim()) return true;
+  return /auto-seeded|portfolio-digest|auto-added by/i.test(text);
+}
+
 function verdict(actual, benchmark, higherIsBetter = true) {
   if (actual == null) return 'n/a';
   const ratio = benchmark ? actual / benchmark : 0;
@@ -358,6 +428,8 @@ async function describeStrategyAndTrend(supabase, metrics, trackRecord) {
 module.exports = {
   PER_POSITION_MOIC_CAP,
   VC_BENCHMARKS,
+  buildEntryRationale,
+  isGenericRationale,
   computeVerifiedMoic,
   computePortfolioValue,
   compareToBenchmarks,
