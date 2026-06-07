@@ -55,6 +55,9 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_SECRET: ${{ secrets.EMAIL_SECRET }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           PORTFOLIO_DIGEST_EMAIL: ${{ secrets.PORTFOLIO_DIGEST_EMAIL }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}

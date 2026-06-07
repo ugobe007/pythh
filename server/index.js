@@ -1695,6 +1695,29 @@ app.get('/api/newsletter/today', async (req, res) => {
   }
 });
 
+// GET /api/newsletter/unsubscribe?token=… — one-click unsubscribe from the brief
+// NOTE: must be declared BEFORE the /:date route or it gets captured as a date.
+app.get('/api/newsletter/unsubscribe', async (req, res) => {
+  const { verifyUnsubscribeToken } = require('./lib/newsletterEmail');
+  const email = verifyUnsubscribeToken(req.query.token);
+  const page = (title, msg) => `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="margin:0;background:#0a0a0c;color:#e7e7ea;font-family:-apple-system,Segoe UI,sans-serif;"><div style="max-width:480px;margin:80px auto;padding:32px;text-align:center;"><div style="font-size:26px;font-weight:800;color:#fff;">pythh<span style="color:#34d399;">.</span></div><p style="color:#9a9aa6;font-size:15px;line-height:1.6;margin-top:20px;">${msg}</p><a href="https://pythh.ai/newsletter" style="display:inline-block;margin-top:20px;color:#22d3ee;text-decoration:none;font-weight:600;">Back to the Daily Brief →</a></div></body></html>`;
+  if (!email) {
+    return res.status(400).send(page('Invalid link', 'This unsubscribe link is invalid or expired.'));
+  }
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
+      .from('newsletter_subscribers')
+      .update({ unsubscribed_at: new Date().toISOString() })
+      .eq('email', email.toLowerCase().trim());
+    if (error) throw error;
+    return res.send(page('Unsubscribed', `You've been unsubscribed. You won't receive any more daily briefs at <strong>${email}</strong>.`));
+  } catch (err) {
+    console.error('[newsletter] unsubscribe error:', err.message);
+    return res.status(500).send(page('Something went wrong', 'We could not process your request. Please try again later.'));
+  }
+});
+
 // GET /api/newsletter/:date — load a specific edition (YYYY-MM-DD)
 app.get('/api/newsletter/:date', async (req, res) => {
   const { date } = req.params;
@@ -1765,56 +1788,21 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
       return res.json({ ok: true, sent: 0, message: 'No subscribers found' });
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const siteUrl = process.env.SITE_URL || 'https://pythh.ai';
+    const today = newsletter.date || new Date().toISOString().split('T')[0];
+    const siteUrl = process.env.APP_BASE_URL || process.env.SITE_URL || 'https://pythh.ai';
 
-    // Build HTML email
-    const topMatches = (newsletter.hotMatches || []).slice(0, 5)
-      .map(m => `<li><strong>${m.startup_name}</strong> → ${m.investor_name} (${Math.round(m.match_score)}% match)</li>`)
-      .join('');
+    // Shared, correct email builder — same template the daily automation uses.
+    const { buildBriefEmailHtml, buildBriefEmailText } = require('./lib/newsletterEmail');
 
-    const topStartups = (newsletter.leaderboard || []).slice(0, 5)
-      .map(s => `<li><strong>${s.name}</strong> — GOD Score: ${s.total_god_score}</li>`)
-      .join('');
-
-    const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0a0a0a;color:#e4e4e7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <h1 style="color:#f97316;font-size:28px;margin:0;">pythh</h1>
-      <p style="color:#71717a;font-size:14px;margin:4px 0 0;">Signal Digest — ${today}</p>
-    </div>
-
-    <h2 style="color:#fff;font-size:18px;border-bottom:1px solid #27272a;padding-bottom:8px;">🔥 Hot Matches</h2>
-    <ul style="color:#a1a1aa;font-size:14px;line-height:1.8;padding-left:20px;">${topMatches || '<li>Loading next batch…</li>'}</ul>
-
-    <h2 style="color:#fff;font-size:18px;border-bottom:1px solid #27272a;padding-bottom:8px;margin-top:28px;">⚡ GOD Score Leaderboard</h2>
-    <ul style="color:#a1a1aa;font-size:14px;line-height:1.8;padding-left:20px;">${topStartups || '<li>Loading next batch…</li>'}</ul>
-
-    <div style="text-align:center;margin-top:36px;padding:20px;background:#18181b;border-radius:12px;">
-      <a href="${siteUrl}/newsletter/${today}" style="display:inline-block;padding:12px 24px;background:#f97316;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Read Full Digest →</a>
-    </div>
-
-    <p style="color:#3f3f46;font-size:11px;text-align:center;margin-top:24px;">
-      Pythh · Signal Intelligence for Venture<br>
-      <a href="${siteUrl}/newsletter" style="color:#52525b;">Unsubscribe</a>
-    </p>
-  </div>
-</body>
-</html>`;
-
-    // Send to all subscribers
+    // Send to all subscribers (personalized unsubscribe link per recipient)
     let sent = 0;
     let failed = 0;
     for (const { email } of subscribers) {
       const result = await sendEmailViaResend({
         to: email,
-        subject: `Pythh Signal Digest — ${today}`,
-        html,
-        text: `Pythh Signal Digest ${today}\n\nRead online: ${siteUrl}/newsletter/${today}\n\nHot Matches:\n${(newsletter.hotMatches || []).slice(0, 5).map(m => `- ${m.startup_name} → ${m.investor_name}`).join('\n')}`,
+        subject: `The Pythh Daily Brief — ${today}`,
+        html: buildBriefEmailHtml(newsletter, { siteUrl, email }),
+        text: buildBriefEmailText(newsletter, { siteUrl, email }),
       });
       if (result.success) sent++;
       else failed++;

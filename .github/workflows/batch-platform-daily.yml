@@ -8,6 +8,7 @@ on:
     - cron: '0 5 * * *'    # rss-enrich (M&A + funding sync)
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
+    - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
   workflow_dispatch:
     inputs:
       job:
@@ -21,6 +22,7 @@ on:
           - portfolio-monitor
           - portfolio-digest
           - portfolio-score-validate
+          - daily-brief
 
 concurrency:
   group: platform-daily-${{ github.event.schedule || github.event.inputs.job }}
@@ -74,3 +76,11 @@ jobs:
     with:
       run: node scripts/validate-portfolio-scores.mjs
       timeout_minutes: 10
+
+  daily-brief:
+    if: github.event.schedule == '0 13 * * *' || github.event.inputs.job == 'daily-brief'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/send-daily-brief.js
+      timeout_minutes: 20

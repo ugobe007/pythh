@@ -1,134 +1,193 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Helmet } from "react-helmet-async";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
 import StartupCTA from "@/components/design/StartupCTA";
 import {
   ArrowRight,
   Mail,
   Zap,
   TrendingUp,
-  TrendingDown,
+  Activity,
+  Newspaper,
+  Banknote,
+  Sparkles,
   ExternalLink,
-  BarChart2,
 } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
 import SectionLabel from "@/components/design/SectionLabel";
-import { G, G_BORDER, G_SUBTLE, PAGE, BORDER, CARD, MUTED, DIM, TEXT, GOLD } from "@/lib/designTokens";
+import {
+  G,
+  CYAN,
+  GOLD,
+  G_BORDER,
+  G_SUBTLE,
+  PAGE,
+  BORDER,
+  CARD,
+  MUTED,
+  DIM,
+  TEXT,
+  godScoreColor,
+} from "@/lib/designTokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface LeaderboardEntry {
+interface Pillar {
+  label: string;
+  value: number;
+}
+interface HottestStartup {
   id: string;
   name: string;
-  tagline: string;
-  total_god_score: number;
-  traction_score: number;
-  team_score: number;
+  tagline: string | null;
+  website: string | null;
   sectors: string[];
+  total_god_score: number;
+  pillars: Pillar[];
+  signals_total: number | null;
+  why: string;
 }
-
-interface SectorTrend {
-  sector: string;
-  count: number;
-  avg_score: number;
+interface SignalDimension {
+  key: string;
+  label: string;
+  blurb: string;
+  avg: number;
+  cap: number;
+  pct: number;
 }
-
-interface ScoreMover {
-  id: string;
+interface SignalExemplar {
+  startup_id: string;
   name: string;
-  tagline: string;
   sectors: string[];
-  total_god_score: number;
-  old_score: number;
-  new_score: number;
-  delta: number;
+  total_god_score: number | null;
+  value: number;
 }
-
-interface HotMatch {
+interface SignalsThatMatter {
+  coverage: number;
+  dimensions: SignalDimension[];
+  leading: SignalDimension;
+  exemplars: SignalExemplar[];
+}
+interface TopMatch {
   match_score: number;
+  reasoning: string | null;
+  why_you_match: string[];
   startup: { name: string; tagline: string; sectors: string[]; total_god_score: number } | null;
-  investor: { name: string; firm_name: string; sectors: string[] } | null;
+  investor: { name: string; firm_name?: string; firm?: string; sectors: string[] } | null;
 }
-
-interface NewsletterData {
+interface MoneyMove {
+  company: string;
+  amount: string;
+  stage: string | null;
+  investors: string[];
+  url: string | null;
+  source: string;
+}
+interface NewsItem {
+  title: string;
+  url: string;
+  source: string;
+  company: string | null;
+  funding: string | null;
+}
+interface BriefData {
   date: string;
   generated_at: string;
-  hotMatches?: HotMatch[];
-  leaderboard?: LeaderboardEntry[];
-  sectorTrends?: SectorTrend[];
-  scoreMovers?: ScoreMover[];
+  editorial?: { text: string; source: string } | string;
+  hottestStartups?: HottestStartup[];
+  signalsThatMatter?: SignalsThatMatter | null;
+  topMatches?: TopMatch[];
+  moneyMoves?: MoneyMove[];
+  vcNews?: NewsItem[];
+  radarNews?: NewsItem[];
 }
 
-// ─── Small Components ─────────────────────────────────────────────────────────
-
-function ScorePill({ score }: { score: number }) {
-  const color =
-    score >= 80
-      ? "oklch(0.696 0.17 162.48)"
-      : score >= 65
-      ? "#22d3ee"
-      : score >= 50
-      ? "#eab308"
-      : "oklch(0.55 0.01 264)";
-  return (
-    <span
-      className="inline-block px-1.5 py-0.5 rounded text-xs font-mono font-semibold"
-      style={{ color, border: `1px solid ${color}40`, backgroundColor: `${color}12` }}
-    >
-      {score}
-    </span>
-  );
-}
+// ─── Small components ─────────────────────────────────────────────────────────
 
 function SectorChip({ sector }: { sector: string }) {
   return (
     <span
-      className="inline-block px-2 py-0.5 rounded text-xs"
-      style={{ backgroundColor: "oklch(0.18 0.01 264)", color: "oklch(0.55 0.01 264)" }}
+      className="inline-block px-2 py-0.5 rounded text-[11px]"
+      style={{ backgroundColor: "oklch(0.18 0.01 264)", color: MUTED }}
     >
       {sector}
     </span>
   );
 }
 
-// ─── Nav ──────────────────────────────────────────────────────────────────────
+function Panel({
+  icon,
+  label,
+  accent,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  accent: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-8">
+      <div className="flex items-center gap-2 mb-3">
+        <span style={{ color: accent }}>{icon}</span>
+        <span className="text-xs font-bold tracking-[0.18em]" style={{ color: MUTED }}>
+          {label.toUpperCase()}
+        </span>
+        <div className="h-px flex-1 ml-2" style={{ backgroundColor: BORDER }} />
+      </div>
+      {children}
+    </section>
+  );
+}
 
+function MiniBar({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: BORDER }}>
+      <div
+        className="h-full rounded-full"
+        style={{ width: `${Math.max(2, Math.min(100, value))}%`, backgroundColor: color }}
+      />
+    </div>
+  );
+}
 
+// ─── Daily Brief (live data) ──────────────────────────────────────────────────
 
-// ─── What's in every issue ────────────────────────────────────────────────────
-
-const WHAT_YOU_GET = [
-  { label: "Top investor moves", desc: "Which VCs wrote checks this week, what sectors they're loading up on, and the signals that preceded each deal." },
-  { label: "VC thesis shifts", desc: "When a fund's investment pace changes, we notice first. Capital flow rotation before it hits TechCrunch." },
-  { label: "Hidden capital flows", desc: "Emerging investors flying under the radar — pre-brand, post-thesis, actively deploying." },
-  { label: "PYTHIA's watch list", desc: "The 5 investors she's tracking most closely this week and the startups they're circling." },
-  { label: "Weekly GOD score movers", desc: "Startups that jumped or fell in signal score — and what drove the change." },
-];
-
-// ─── Live Digest Section ──────────────────────────────────────────────────────
-
-function LiveDigest() {
-  const [data, setData] = useState<NewsletterData | null>(null);
+function DailyBrief() {
+  const [data, setData] = useState<BriefData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/newsletter/today")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => { setData(d); setLoading(false); })
-      .catch(() => { setError(true); setLoading(false); });
+    let tries = 0;
+    const load = () => {
+      fetch("/api/newsletter/today")
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => {
+          setData(d);
+          setLoading(false);
+        })
+        .catch(() => {
+          // one retry to ride out a cold backend
+          if (tries++ < 1) {
+            setTimeout(load, 1500);
+          } else {
+            setError(true);
+            setLoading(false);
+          }
+        });
+    };
+    load();
   }, []);
 
   if (loading) {
     return (
       <div
-        className="rounded-2xl p-6 flex items-center justify-center min-h-[120px]"
-        style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+        className="rounded-2xl p-6 flex items-center justify-center min-h-[140px]"
+        style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
       >
-        <span className="text-sm animate-pulse" style={{ color: "oklch(0.45 0.01 264)" }}>
-          Loading today's digest…
+        <span className="text-sm animate-pulse" style={{ color: DIM }}>
+          Compiling today&rsquo;s brief&hellip;
         </span>
       </div>
     );
@@ -138,203 +197,293 @@ function LiveDigest() {
     return (
       <div
         className="rounded-2xl p-6 text-center"
-        style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+        style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
       >
-        <p className="text-sm" style={{ color: "oklch(0.45 0.01 264)" }}>
-          Digest unavailable — check back soon.
+        <p className="text-sm" style={{ color: DIM }}>
+          Brief unavailable &mdash; check back in a moment.
         </p>
       </div>
     );
   }
 
-  const leaderboard = data.leaderboard?.slice(0, 8) ?? [];
-  const movers = data.scoreMovers?.filter((m) => Math.abs(m.delta) >= 2).slice(0, 5) ?? [];
-  const sectorTrends = data.sectorTrends?.slice(0, 5) ?? [];
-  const hotMatches = data.hotMatches?.slice(0, 4) ?? [];
+  const editorialText =
+    typeof data.editorial === "string" ? data.editorial : data.editorial?.text;
+  const hottest = data.hottestStartups ?? [];
+  const signals = data.signalsThatMatter ?? null;
+  const matches = (data.topMatches ?? []).filter((m) => m.startup && m.investor);
+  const money = data.moneyMoves ?? [];
+  const vcNews = data.vcNews ?? [];
+  const radarNews = data.radarNews ?? [];
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Edition header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 mb-6">
         <div className="h-px flex-1" style={{ backgroundColor: "oklch(0.769 0.188 70.08 / 0.4)" }} />
-        <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.769 0.188 70.08)" }}>
-          TODAY'S DIGEST · {data.date ?? "LIVE"}
+        <span className="text-xs font-bold tracking-[0.2em]" style={{ color: GOLD }}>
+          THE DAILY BRIEF &middot; {data.date ?? "LIVE"}
         </span>
         <div className="h-px flex-1" style={{ backgroundColor: "oklch(0.769 0.188 70.08 / 0.4)" }} />
       </div>
 
-      {/* Grid: Leaderboard + Movers */}
-      <div className="grid md:grid-cols-2 gap-5">
-
-        {/* Leaderboard */}
-        {leaderboard.length > 0 && (
-          <div
-            className="rounded-xl overflow-hidden"
-            style={{ border: "1px solid oklch(0.22 0.01 264)", backgroundColor: "oklch(0.12 0.01 264)" }}
-          >
-            <div
-              className="px-4 py-3 border-b flex items-center gap-2"
-              style={{ borderColor: "oklch(0.2 0.01 264)" }}
-            >
-              <BarChart2 size={13} style={{ color: "#22d3ee" }} />
-              <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.55 0.01 264)" }}>
-                LEADERBOARD
-              </span>
-            </div>
-            <div>
-              {leaderboard.map((s, i) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-3 px-4 py-2.5 border-b"
-                  style={{ borderColor: "oklch(0.16 0.01 264)" }}
-                >
-                  <span
-                    className="text-xs font-mono w-5 text-right flex-shrink-0"
-                    style={{ color: i < 3 ? "#22d3ee" : "oklch(0.4 0.01 264)" }}
-                  >
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{s.name}</p>
-                    <div className="flex gap-1 mt-0.5 flex-wrap">
-                      {(s.sectors || []).slice(0, 2).map((sec) => (
-                        <SectorChip key={sec} sector={sec} />
-                      ))}
-                    </div>
-                  </div>
-                  <ScorePill score={s.total_god_score} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Score Movers */}
-        {movers.length > 0 && (
-          <div
-            className="rounded-xl overflow-hidden"
-            style={{ border: "1px solid oklch(0.22 0.01 264)", backgroundColor: "oklch(0.12 0.01 264)" }}
-          >
-            <div
-              className="px-4 py-3 border-b flex items-center gap-2"
-              style={{ borderColor: "oklch(0.2 0.01 264)" }}
-            >
-              <TrendingUp size={13} style={{ color: "#22c55e" }} />
-              <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.55 0.01 264)" }}>
-                SCORE MOVERS
-              </span>
-            </div>
-            <div>
-              {movers.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-3 px-4 py-2.5 border-b"
-                  style={{ borderColor: "oklch(0.16 0.01 264)" }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{m.name}</p>
-                    <p className="text-xs truncate" style={{ color: "oklch(0.45 0.01 264)" }}>
-                      {m.tagline}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-xs font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>
-                      {m.old_score}
-                    </span>
-                    {m.delta > 0 ? (
-                      <TrendingUp size={12} style={{ color: "#22c55e" }} />
-                    ) : (
-                      <TrendingDown size={12} style={{ color: "oklch(0.65 0.18 25)" }} />
-                    )}
-                    <span
-                      className="text-xs font-mono font-semibold"
-                      style={{ color: m.delta > 0 ? "#22c55e" : "oklch(0.65 0.18 25)" }}
-                    >
-                      {m.delta > 0 ? "+" : ""}{m.delta}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Sector Trends */}
-      {sectorTrends.length > 0 && (
+      {/* PYTHIA's Take — editorial */}
+      {editorialText && (
         <div
-          className="rounded-xl p-4"
-          style={{ border: "1px solid oklch(0.22 0.01 264)", backgroundColor: "oklch(0.12 0.01 264)" }}
+          className="mb-8 rounded-r-xl p-5"
+          style={{ borderLeft: `3px solid ${GOLD}`, backgroundColor: "oklch(0.13 0.01 264)" }}
         >
-          <p
-            className="text-xs font-bold tracking-widest mb-3"
-            style={{ color: "oklch(0.55 0.01 264)" }}
-          >
-            SECTOR HEAT
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {sectorTrends.map((s) => (
-              <div
-                key={s.sector}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
-              >
-                <span className="text-sm font-medium text-white">{s.sector}</span>
-                <span className="text-xs font-mono" style={{ color: "#22d3ee" }}>
-                  {s.count} co
-                </span>
-                <span className="text-xs font-mono" style={{ color: "oklch(0.45 0.01 264)" }}>
-                  ⌀{s.avg_score}
-                </span>
-              </div>
-            ))}
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={13} style={{ color: GOLD }} />
+            <span className="text-xs font-bold tracking-[0.18em]" style={{ color: GOLD }}>
+              PYTHIA&rsquo;S TAKE
+            </span>
           </div>
+          <p
+            className="leading-relaxed"
+            style={{ fontFamily: "Georgia, serif", fontSize: "1.05rem", color: TEXT }}
+          >
+            {editorialText}
+          </p>
         </div>
       )}
 
-      {/* Hot Matches */}
-      {hotMatches.length > 0 && (
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{ border: "1px solid oklch(0.22 0.01 264)", backgroundColor: "oklch(0.12 0.01 264)" }}
-        >
-          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "oklch(0.2 0.01 264)" }}>
-            <Zap size={13} style={{ color: "#f97316" }} />
-            <span className="text-xs font-bold tracking-widest" style={{ color: "oklch(0.55 0.01 264)" }}>
-              HOT MATCHES
-            </span>
+      {/* Hottest startups */}
+      {hottest.length > 0 && (
+        <Panel icon={<Zap size={14} />} label="Hottest Startups" accent={G}>
+          <div className="space-y-3">
+            {hottest.slice(0, 5).map((s, i) => (
+              <div
+                key={s.id}
+                className="rounded-xl p-4"
+                style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono" style={{ color: DIM }}>
+                        {i + 1}
+                      </span>
+                      <span className="font-display font-bold text-white truncate">{s.name}</span>
+                    </div>
+                    {s.tagline && (
+                      <p className="text-xs mt-1 line-clamp-1" style={{ color: MUTED }}>
+                        {s.tagline}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span
+                      className="font-display font-extrabold tabular-nums"
+                      style={{ fontSize: "1.4rem", color: godScoreColor(s.total_god_score) }}
+                    >
+                      {s.total_god_score}
+                    </span>
+                    <div className="text-[9px] font-mono tracking-[0.15em]" style={{ color: DIM }}>
+                      GOD
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pillar mini bars */}
+                <div className="grid grid-cols-5 gap-2 mt-3">
+                  {s.pillars.map((p) => (
+                    <div key={p.label}>
+                      <MiniBar value={p.value} color={godScoreColor(p.value)} />
+                      <div className="text-[9px] mt-1 text-center" style={{ color: DIM }}>
+                        {p.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Why */}
+                <p className="text-xs mt-3 leading-relaxed" style={{ color: G }}>
+                  <span style={{ color: DIM }}>Why &rarr; </span>
+                  {s.why}
+                </p>
+              </div>
+            ))}
           </div>
-          <div className="grid sm:grid-cols-2 gap-0">
-            {hotMatches.map((m, i) => (
+        </Panel>
+      )}
+
+      {/* Signals that matter */}
+      {signals && signals.dimensions.length > 0 && (
+        <Panel icon={<Activity size={14} />} label="Signals That Matter" accent={CYAN}>
+          <div className="rounded-xl p-5" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+            <p className="text-sm mb-4" style={{ color: MUTED }}>
+              Dominant signal across {signals.coverage} tracked companies:{" "}
+              <span style={{ color: G, fontWeight: 700 }}>{signals.leading.label}</span> &mdash;{" "}
+              {signals.leading.blurb}.
+            </p>
+            <div className="space-y-2.5">
+              {signals.dimensions.map((d) => {
+                const lead = d.key === signals.leading.key;
+                const col = lead ? G : CYAN;
+                return (
+                  <div key={d.key} className="flex items-center gap-3">
+                    <span
+                      className="text-xs w-36 shrink-0"
+                      style={{ color: lead ? "white" : MUTED, fontWeight: lead ? 700 : 400 }}
+                    >
+                      {d.label}
+                    </span>
+                    <div className="flex-1">
+                      <MiniBar value={d.pct} color={col} />
+                    </div>
+                    <span className="text-xs font-mono w-9 text-right" style={{ color: col }}>
+                      {d.pct}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {signals.exemplars.length > 0 && (
+              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BORDER}` }}>
+                <p className="text-[10px] font-bold tracking-[0.15em] mb-2" style={{ color: DIM }}>
+                  LEADING ON THIS SIGNAL
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {signals.exemplars.map((e) => (
+                    <span
+                      key={e.startup_id}
+                      className="text-xs px-2.5 py-1 rounded-lg"
+                      style={{ backgroundColor: G_SUBTLE, color: G, border: `1px solid ${G_BORDER}` }}
+                    >
+                      {e.name}
+                      {e.total_god_score != null && (
+                        <span style={{ color: MUTED }}> &middot; {e.total_god_score}</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      {/* Most interesting matches */}
+      {matches.length > 0 && (
+        <Panel icon={<TrendingUp size={14} />} label="Most Interesting Matches" accent="#f97316">
+          <div className="space-y-3">
+            {matches.slice(0, 4).map((m, i) => (
               <div
                 key={i}
-                className="p-4 border-b sm:border-r last:border-r-0"
-                style={{ borderColor: "oklch(0.16 0.01 264)" }}
+                className="rounded-xl p-4"
+                style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
               >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="text-sm font-medium text-white leading-tight">
-                    {m.startup?.name ?? "—"}
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium leading-tight">
+                    <span className="text-white">{m.startup?.name}</span>
+                    <span style={{ color: DIM }}> &rarr; </span>
+                    <span style={{ color: G }}>
+                      {m.investor?.firm_name || m.investor?.firm || m.investor?.name}
+                    </span>
                   </p>
                   <span
-                    className="text-xs font-mono font-bold flex-shrink-0"
+                    className="text-sm font-mono font-bold shrink-0"
                     style={{ color: "#f97316" }}
                   >
                     {m.match_score}%
                   </span>
                 </div>
-                <p className="text-xs mb-2 truncate" style={{ color: "oklch(0.45 0.01 264)" }}>
-                  {m.startup?.tagline ?? ""}
-                </p>
-                <p className="text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                  {m.investor?.name ?? ""} · {m.investor?.firm_name ?? ""}
-                </p>
+                {m.reasoning && (
+                  <p className="text-xs mt-2 leading-relaxed" style={{ color: MUTED }}>
+                    {m.reasoning}
+                  </p>
+                )}
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       )}
 
-      {/* CTA to analyze */}
+      {/* Money moves */}
+      {money.length > 0 && (
+        <Panel icon={<Banknote size={14} />} label="Money Moves · New Investments" accent={GOLD}>
+          <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+            {money.slice(0, 6).map((r, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-3 px-4 py-3"
+                style={{
+                  backgroundColor: CARD,
+                  borderBottom: i < Math.min(money.length, 6) - 1 ? `1px solid ${BORDER}` : "none",
+                }}
+              >
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-white">{r.company}</span>
+                  {r.investors.length > 0 && (
+                    <p className="text-xs truncate" style={{ color: DIM }}>
+                      {r.investors.slice(0, 4).join(", ")}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-sm font-mono font-semibold" style={{ color: GOLD }}>
+                    {r.amount}
+                  </span>
+                  {r.stage && (
+                    <span className="text-xs ml-1" style={{ color: MUTED }}>
+                      {r.stage}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
+      {/* News: VC + Radar */}
+      {(vcNews.length > 0 || radarNews.length > 0) && (
+        <Panel icon={<Newspaper size={14} />} label="On the Wire" accent={MUTED}>
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              { title: "VC & Capital News", items: vcNews },
+              { title: "On PYTHIA\u2019s Radar", items: radarNews },
+            ]
+              .filter((c) => c.items.length > 0)
+              .map((col) => (
+                <div
+                  key={col.title}
+                  className="rounded-xl p-4"
+                  style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}
+                >
+                  <p className="text-[11px] font-bold tracking-[0.15em] mb-3" style={{ color: MUTED }}>
+                    {col.title.toUpperCase()}
+                  </p>
+                  <div className="space-y-2.5">
+                    {col.items.slice(0, 5).map((n, i) => (
+                      <a
+                        key={i}
+                        href={n.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block group"
+                      >
+                        <p
+                          className="text-xs leading-snug group-hover:text-white transition-colors flex items-start gap-1"
+                          style={{ color: TEXT }}
+                        >
+                          <span className="line-clamp-2">{n.title}</span>
+                          <ExternalLink size={10} className="mt-0.5 shrink-0" style={{ color: DIM }} />
+                        </p>
+                        <p className="text-[10px] mt-0.5" style={{ color: DIM }}>
+                          {n.source}
+                          {n.company ? ` · ${n.company}` : ""}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </Panel>
+      )}
+
+      {/* CTA */}
       <div className="text-center pt-2">
         <StartupCTA href="/activate" size="sm" showArrow>
           Run PYTHIA on your startup
@@ -343,6 +492,31 @@ function LiveDigest() {
     </div>
   );
 }
+
+// ─── What's in every issue ────────────────────────────────────────────────────
+
+const WHAT_YOU_GET = [
+  {
+    label: "PYTHIA's Take",
+    desc: "A sharp daily read on what the signals mean — where capital is rotating before it hits the headlines.",
+  },
+  {
+    label: "Hottest startups, with the why",
+    desc: "The top of the GOD board and exactly which pillars and live signals earned each score. No black box.",
+  },
+  {
+    label: "Signals that matter",
+    desc: "The dominant signal across every company we track — investor receptivity, capital convergence, execution velocity.",
+  },
+  {
+    label: "Most interesting matches",
+    desc: "The startup↔investor pairings PYTHIA rates highest right now, with the reasoning behind each one.",
+  },
+  {
+    label: "Money moves & VC news",
+    desc: "New rounds, who led them, and the partner and fund news shaping where the next checks go.",
+  },
+];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -372,62 +546,68 @@ export default function Newsletter() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
       <Helmet>
-        <title>The Daily Signal — Pythh.ai Newsletter</title>
+        <title>The Pythh Daily Brief — Signal Intelligence for Venture</title>
         <meta
           name="description"
-          content="Weekly VC intelligence for founders. Thesis shifts, capital flows, and the investors PYTHIA is watching — delivered every week."
+          content="A daily intelligence brief for founders and VCs: the hottest startups and why they score, the signals PYTHIA is picking up, the sharpest investor matches, and where capital is moving."
         />
-        <meta property="og:title" content="The Daily Signal — Pythh.ai" />
+        <meta property="og:title" content="The Pythh Daily Brief" />
         <meta property="og:url" content="https://pythh.ai/newsletter" />
       </Helmet>
 
       <SharedNavbar activePath="/newsletter" />
 
       <div className="container pt-24 pb-20">
-
         {/* ── Hero ── */}
         <div className="max-w-2xl mb-10">
-          <SectionLabel className="mb-4" color={GOLD}>The Daily Signal</SectionLabel>
+          <SectionLabel className="mb-4" color={GOLD}>
+            The Daily Brief
+          </SectionLabel>
           <h1
             className="font-display font-bold mb-4 leading-tight"
             style={{ fontSize: "clamp(2.2rem, 5vw, 3.5rem)", color: TEXT }}
           >
-            Get the signal
+            Who&rsquo;s hot, why,
             <br />
-            <span style={{ color: GOLD }}>before the noise.</span>
+            <span style={{ color: GOLD }}>and where capital is moving.</span>
           </h1>
           <p className="text-lg leading-relaxed mb-8" style={{ color: MUTED }}>
-            Weekly breakdown of VC thesis shifts, hidden capital flows, and the investors PYTHIA is
-            watching right now. Delivered every week to 12,000+ founders.
+            Every day, PYTHIA reads the entire venture signal field and writes the brief: the
+            startups breaking out and the exact reasons behind their scores, the signals that
+            matter, the sharpest investor matches, and the money moving right now.
           </p>
 
           {/* Subscribe form */}
           <div className="p-6 border mb-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
             {submitted ? (
-              <div className="flex items-center gap-3 py-4 px-5 border" style={{ backgroundColor: G_SUBTLE, borderColor: G_BORDER }}>
+              <div
+                className="flex items-center gap-3 py-4 px-5 border"
+                style={{ backgroundColor: G_SUBTLE, borderColor: G_BORDER }}
+              >
                 <Zap size={16} style={{ color: G }} />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: G }}>You're in.</p>
-                  <p className="text-xs" style={{ color: MUTED }}>First signal drops this week. Check your inbox.</p>
+                  <p className="text-sm font-semibold" style={{ color: G }}>
+                    You&rsquo;re in.
+                  </p>
+                  <p className="text-xs" style={{ color: MUTED }}>
+                    Tomorrow&rsquo;s brief lands in your inbox. Today&rsquo;s is below.
+                  </p>
                 </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
                 <div
                   className="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg"
-                  style={{
-                    backgroundColor: "oklch(0.11 0.01 264)",
-                    border: "1px solid oklch(0.28 0.01 264)",
-                  }}
+                  style={{ backgroundColor: "oklch(0.11 0.01 264)", border: "1px solid oklch(0.28 0.01 264)" }}
                 >
-                  <Mail size={15} style={{ color: "oklch(0.45 0.01 264)" }} />
+                  <Mail size={15} style={{ color: DIM }} />
                   <input
                     type="email"
                     placeholder="founder@startup.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="flex-1 bg-transparent text-sm outline-none"
-                    style={{ color: "oklch(0.94 0.005 264)" }}
+                    style={{ color: TEXT }}
                     required
                   />
                 </div>
@@ -435,62 +615,52 @@ export default function Newsletter() {
                   type="submit"
                   disabled={loading}
                   className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all whitespace-nowrap"
-                  style={{
-                    backgroundColor: "oklch(0.769 0.188 70.08)",
-                    color: "oklch(0.1 0.01 70)",
-                    opacity: loading ? 0.7 : 1,
-                  }}
+                  style={{ backgroundColor: GOLD, color: "oklch(0.1 0.01 70)", opacity: loading ? 0.7 : 1 }}
                 >
                   {loading ? (
                     "Subscribing…"
                   ) : (
                     <>
-                      <span>Subscribe</span>
+                      <span>Get the brief</span>
                       <ArrowRight size={14} />
                     </>
                   )}
                 </button>
               </form>
             )}
-            <p className="text-xs mt-3" style={{ color: DIM }}>No spam. Unsubscribe anytime.</p>
+            <p className="text-xs mt-3" style={{ color: DIM }}>
+              Free. Daily. Unsubscribe anytime.
+            </p>
           </div>
         </div>
 
-        <section className="max-w-4xl mb-16">
+        {/* ── Today's brief (live) ── */}
+        <section className="max-w-3xl mb-16">
           <SectionLabel className="mb-2">Live</SectionLabel>
-          <h2 className="font-display font-semibold text-xl mb-6 text-white">Today's digest</h2>
-          <LiveDigest />
+          <h2 className="font-display font-semibold text-xl mb-6 text-white">Today&rsquo;s brief</h2>
+          <DailyBrief />
         </section>
 
         {/* ── What you get ── */}
         <section className="mb-16 max-w-3xl">
           <SectionLabel className="mb-2">Contents</SectionLabel>
-          <h2 className="font-display font-semibold text-xl mb-6 text-white">What's in every issue</h2>
+          <h2 className="font-display font-semibold text-xl mb-6 text-white">What&rsquo;s in every issue</h2>
           <div className="space-y-3">
             {WHAT_YOU_GET.map((item) => (
               <div
                 key={item.label}
                 className="flex gap-4 p-4 rounded-xl"
-                style={{
-                  backgroundColor: "oklch(0.14 0.01 264)",
-                  border: "1px solid oklch(0.22 0.01 264)",
-                }}
+                style={{ backgroundColor: "oklch(0.14 0.01 264)", border: `1px solid ${BORDER}` }}
               >
                 <div
                   className="flex-shrink-0 w-2 h-2 mt-1.5 rounded-full"
-                  style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }}
+                  style={{ backgroundColor: GOLD }}
                 />
                 <div>
-                  <p
-                    className="text-sm font-medium mb-0.5"
-                    style={{ color: "oklch(0.85 0.01 264)" }}
-                  >
+                  <p className="text-sm font-medium mb-0.5" style={{ color: "oklch(0.85 0.01 264)" }}>
                     {item.label}
                   </p>
-                  <p
-                    className="text-xs leading-relaxed"
-                    style={{ color: "oklch(0.5 0.01 264)" }}
-                  >
+                  <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
                     {item.desc}
                   </p>
                 </div>
@@ -499,14 +669,15 @@ export default function Newsletter() {
           </div>
         </section>
 
-        {/* ── Social proof ── */}
+        {/* ── Authority / social proof ── */}
         <div className="max-w-3xl p-6 border" style={{ backgroundColor: CARD, borderColor: BORDER }}>
           <p className="text-sm italic mb-3" style={{ color: MUTED }}>
-            "The Daily Signal gave me the context I needed to time my Sequoia outreach
-            perfectly. Closed the meeting within a week of getting the alert."
+            &ldquo;The brief flagged a capital-convergence signal on a company three weeks before the
+            round was announced. That&rsquo;s the kind of edge you can&rsquo;t get from a deal
+            database.&rdquo;
           </p>
           <p className="text-xs font-medium" style={{ color: G }}>
-            — Founder, Series A · AI Infrastructure
+            &mdash; Partner, Seed Fund
           </p>
         </div>
       </div>
@@ -514,14 +685,18 @@ export default function Newsletter() {
       <footer className="border-t py-8 mt-4" style={{ borderColor: BORDER, backgroundColor: CARD }}>
         <div className="container flex flex-wrap gap-6 justify-center">
           {[
-            { label: "Signal Trends", href: "/signal-trends" },
             { label: "Rankings", href: "/rankings" },
+            { label: "Investors", href: "/investors" },
+            { label: "Portfolio", href: "/portfolio" },
             { label: "Platform", href: "/platform" },
             { label: "Methodology", href: "/methodology" },
             { label: "Pricing", href: "/pricing" },
           ].map(({ label, href }) => (
             <Link key={href} href={href}>
-              <span className="text-xs cursor-pointer hover:text-white transition-colors" style={{ color: DIM }}>
+              <span
+                className="text-xs cursor-pointer hover:text-white transition-colors"
+                style={{ color: DIM }}
+              >
                 {label}
               </span>
             </Link>
