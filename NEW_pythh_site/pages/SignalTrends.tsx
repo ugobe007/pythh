@@ -340,6 +340,7 @@ export default function SignalTrends() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showScience, setShowScience] = useState(false);
+  const [hoverPaused, setHoverPaused] = useState(false);
   const prevLensId = useRef(VC_LENSES[0].id);
 
   // Pre-warm the Fly.io backend to reduce cold-start latency.
@@ -379,17 +380,42 @@ export default function SignalTrends() {
     return rankStartupsForLens(filtered, activeLens, prevRanks);
   }, [rawStartups, activeLens, activeSector, searchQuery]);
 
-  // Keep a valid selection: default to the top-ranked startup, and reset if the
-  // current selection drops out of the filtered/ranked set.
+  // Rotation queue — the 25 startups with live signal feeds that the panel cycles.
+  const rotationQueue = useMemo(() => {
+    const withSignals = new Set(
+      rawStartups.filter((r) => (r.signals?.length ?? 0) > 0).map((r) => r.id)
+    );
+    const q = ranked.filter((s) => withSignals.has(s.id)).map((s) => s.id);
+    // Fall back to the ranked order if signal feeds haven't loaded yet.
+    return (q.length ? q : ranked.map((s) => s.id)).slice(0, 25);
+  }, [ranked, rawStartups]);
+
+  // Keep a valid selection: default to the first feed in the rotation queue, and
+  // reset if the current selection drops out of the filtered/ranked set.
   useEffect(() => {
     if (!ranked.length) {
       if (selectedId !== null) setSelectedId(null);
       return;
     }
     if (!selectedId || !ranked.some((s) => s.id === selectedId)) {
-      setSelectedId(ranked[0].id);
+      setSelectedId(rotationQueue[0] ?? ranked[0].id);
     }
-  }, [ranked, selectedId]);
+  }, [ranked, rotationQueue, selectedId]);
+
+  // Auto-rotate the live panel through the queue. Pauses while the user hovers the
+  // panel, and briefly when they click a row to inspect a specific startup.
+  const pauseUntilRef = useRef(0);
+  useEffect(() => {
+    if (hoverPaused || rotationQueue.length <= 1) return;
+    const t = setInterval(() => {
+      if (Date.now() < pauseUntilRef.current) return;
+      setSelectedId((cur) => {
+        const i = rotationQueue.indexOf(cur ?? "");
+        return rotationQueue[(i + 1) % rotationQueue.length];
+      });
+    }, 4000);
+    return () => clearInterval(t);
+  }, [hoverPaused, rotationQueue]);
 
   // Build the live-chart payload for the currently reviewed startup.
   const selectedChart = useMemo<ChartStartup | null>(() => {
@@ -463,12 +489,21 @@ export default function SignalTrends() {
           </p>
         </div>
 
-        {/* Live signal chart — reflects the startup selected in the table below */}
-        <HorizontalSignalChart accent={activeLens.accent} startup={selectedChart} />
-        <p className="text-[11px] -mt-6 mb-8 ml-1" style={{ color: "oklch(0.42 0.01 264)" }}>
-          Showing signals for{" "}
-          <span style={{ color: activeLens.accent }}>{selectedChart?.name ?? "—"}</span>
-          {" "}· click any startup below to update the chart
+        {/* Live signal feed — auto-rotates through the queue; bars animate per startup */}
+        <div
+          onMouseEnter={() => setHoverPaused(true)}
+          onMouseLeave={() => setHoverPaused(false)}
+        >
+          <HorizontalSignalChart accent={activeLens.accent} startup={selectedChart} />
+        </div>
+        <p className="text-[11px] -mt-6 mb-8 ml-1 flex items-center gap-1.5" style={{ color: "oklch(0.42 0.01 264)" }}>
+          <span
+            className={hoverPaused ? "" : "animate-pulse"}
+            style={{ display: "inline-block", width: 6, height: 6, borderRadius: 9999, backgroundColor: hoverPaused ? "oklch(0.5 0.01 264)" : "#22c55e" }}
+          />
+          {hoverPaused ? "Paused" : "Live feed"} · rotating {rotationQueue.length} startups ·
+          {" "}showing <span style={{ color: activeLens.accent }}>{selectedChart?.name ?? "—"}</span>
+          {" "}· hover to pause, click any row to inspect
         </p>
 
         {/* Description */}
@@ -788,7 +823,7 @@ export default function SignalTrends() {
                 return (
                 <div
                   key={s.id}
-                  onClick={() => setSelectedId(s.id)}
+                  onClick={() => { pauseUntilRef.current = Date.now() + 15000; setSelectedId(s.id); }}
                   className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.03] cursor-pointer"
                   style={{
                     gridTemplateColumns: "52px 1fr 140px 90px 60px 52px",
