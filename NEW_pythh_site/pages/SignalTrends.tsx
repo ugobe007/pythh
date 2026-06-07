@@ -350,7 +350,7 @@ export default function SignalTrends() {
   }, []);
 
   const { data, isLoading, isError, refetch } = trpc.startups.getRankings.useQuery(
-    { limit: 100 },
+    { limit: 300 },
     { staleTime: 5 * 60 * 1000 }
   );
 
@@ -381,14 +381,23 @@ export default function SignalTrends() {
     return rankStartupsForLens(filtered, activeLens, prevRanks);
   }, [rawStartups, activeLens, activeSector, searchQuery]);
 
-  // Rotation queue — the 25 startups with live signal feeds that the panel cycles.
+  // Rotation queue — 25 startups with live signal feeds that the panel cycles.
+  // Sampled evenly across the GOD range (not just the top) so the feed spans
+  // top-tier down to lower-scored companies instead of only 90s/100s.
   const rotationQueue = useMemo(() => {
     const withSignals = new Set(
       rawStartups.filter((r) => (r.signals?.length ?? 0) > 0).map((r) => r.id)
     );
-    const q = ranked.filter((s) => withSignals.has(s.id)).map((s) => s.id);
-    // Fall back to the ranked order if signal feeds haven't loaded yet.
-    return (q.length ? q : ranked.map((s) => s.id)).slice(0, 25);
+    const eligible = ranked.filter((s) => withSignals.has(s.id));
+    const pool = eligible.length ? eligible : ranked;
+    const COUNT = 25;
+    if (pool.length <= COUNT) return pool.map((s) => s.id);
+    const step = pool.length / COUNT;
+    const ids: string[] = [];
+    for (let i = 0; i < COUNT; i += 1) {
+      ids.push(pool[Math.min(pool.length - 1, Math.round(i * step))].id);
+    }
+    return ids;
   }, [ranked, rawStartups]);
 
   // Keep a valid selection: default to the first feed in the rotation queue, and
