@@ -253,7 +253,7 @@ const DIM_META: { key: keyof StartupRaw; label: string; color: string; scale: nu
 ];
 
 /** Build the live-chart payload for a single startup from its raw scores + signals. */
-function buildChartStartup(raw: StartupRaw, sector: string): ChartStartup {
+function buildChartStartup(raw: StartupRaw): ChartStartup {
   const dimensions = DIM_META.map(({ key, label, color, scale }) => ({
     label,
     color,
@@ -267,8 +267,9 @@ function buildChartStartup(raw: StartupRaw, sector: string): ChartStartup {
     value: s.value,
   }));
   return {
+    // Always show the real startup name — never a generic sector label.
     name: raw.name || "Unnamed",
-    subtitle: sector !== "Unknown" ? sector : raw.name,
+    subtitle: null,
     godScore: Math.round(Number(raw.total_god_score) || 0),
     signals,
     dimensions,
@@ -423,7 +424,7 @@ export default function SignalTrends() {
     const sel = ranked.find((s) => s.id === selectedId) ?? ranked[0];
     const raw = rawStartups.find((r) => r.id === sel.id);
     if (!raw) return null;
-    return buildChartStartup(raw, sel.sector);
+    return buildChartStartup(raw);
   }, [ranked, selectedId, rawStartups]);
 
   function handleLensChange(lens: VCLens) {

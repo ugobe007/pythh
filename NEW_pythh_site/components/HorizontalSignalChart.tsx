@@ -136,7 +136,8 @@ export default function HorizontalSignalChart({
   const signals = active?.signals?.length ? active.signals.slice(0, 5) : (isControlled ? [] : FALLBACK_SIGNALS);
   const dims = active?.dimensions?.length ? active.dimensions : FALLBACK_DIMS;
   const godScore = active?.godScore ?? 84;
-  const displayName = active?.subtitle ?? active?.name ?? "market leader";
+  const displayName = active?.name ?? "market leader";
+  const godColor = godScoreColor(godScore);
   const hasSignals = signals.length > 0;
 
   return (
@@ -151,19 +152,33 @@ export default function HorizontalSignalChart({
         className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b"
         style={{ borderColor: BORDER, backgroundColor: "oklch(0.085 0.01 264)" }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
           <span className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style={{ backgroundColor: accent }} />
-          <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
-            {hasSignals ? "Observable signals · 0–10" : "GOD dimensions"}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-2 text-right">
-          <span className="text-xs font-medium text-white truncate max-w-[180px]" title={active?.name}>
+          <span
+            className="font-display font-bold text-white truncate"
+            style={{ fontSize: "clamp(1.05rem, 2.2vw, 1.5rem)", maxWidth: "min(60vw, 360px)", letterSpacing: "-0.01em" }}
+            title={displayName}
+          >
             {displayName}
           </span>
-          <span className="text-[10px] font-mono" style={{ color: DIM }}>·</span>
-          <span className="text-sm font-display font-bold tabular-nums" style={{ color: godScoreColor(godScore) }}>
-            GOD {animated ? godScore : "—"}
+        </div>
+        <div
+          className="flex items-baseline gap-1.5 px-3 py-1.5 rounded-xl shrink-0"
+          style={{
+            border: `1px solid ${godColor}55`,
+            backgroundColor: `${godColor}1f`,
+            boxShadow: animated ? `0 0 22px ${godColor}40` : "none",
+            transition: "box-shadow 0.5s ease-out",
+          }}
+        >
+          <span className="text-[9px] font-mono uppercase tracking-[0.2em]" style={{ color: godColor }}>
+            GOD
+          </span>
+          <span
+            className="font-display font-extrabold tabular-nums leading-none"
+            style={{ fontSize: "clamp(1.4rem, 3vw, 1.9rem)", color: godColor, textShadow: `0 0 16px ${godColor}88` }}
+          >
+            {animated ? godScore : "—"}
           </span>
         </div>
       </div>
