@@ -4,36 +4,14 @@
 
 'use strict';
 
-const crypto = require('crypto');
-
-const EMAIL_SECRET = process.env.EMAIL_SECRET || 'dev-email-secret-change-in-prod';
-
-// ── Unsubscribe token (HMAC over the email) ────────────────────────────────────
-function unsubscribeToken(email) {
-  const e = String(email || '').toLowerCase().trim();
-  const sig = crypto.createHmac('sha256', EMAIL_SECRET).update(`${e}:newsletter`).digest('hex');
-  return Buffer.from(`${e}:${sig}`).toString('base64url');
-}
-
-function verifyUnsubscribeToken(token) {
-  try {
-    const decoded = Buffer.from(String(token), 'base64url').toString('utf8');
-    const idx = decoded.lastIndexOf(':');
-    if (idx < 0) return null;
-    const email = decoded.slice(0, idx);
-    const sig = decoded.slice(idx + 1);
-    const expected = crypto.createHmac('sha256', EMAIL_SECRET).update(`${email}:newsletter`).digest('hex');
-    if (sig.length !== expected.length) return null;
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-    return email;
-  } catch {
-    return null;
-  }
-}
-
-function unsubscribeUrl(email, baseUrl) {
+// Unsubscribe uses a per-subscriber random token stored in the database
+// (newsletter_subscribers.unsubscribe_token). This deliberately avoids any
+// shared HMAC secret so the GitHub-Actions send job and the Fly server don't
+// need a matching EMAIL_SECRET — only DB access (which both already have).
+function unsubscribeUrl(token, baseUrl) {
   const base = (baseUrl || 'https://pythh.ai').replace(/\/+$/, '');
-  return `${base}/api/newsletter/unsubscribe?token=${unsubscribeToken(email)}`;
+  if (!token) return `${base}/newsletter`;
+  return `${base}/api/newsletter/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
 // ── HTML helpers ────────────────────────────────────────────────────────────────
@@ -190,9 +168,9 @@ function renderNews(nl, key, label) {
 }
 
 // ── Main builders ───────────────────────────────────────────────────────────────
-function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', email = '' } = {}) {
+function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', unsubscribeToken = '' } = {}) {
   const base = siteUrl.replace(/\/+$/, '');
-  const unsub = email ? unsubscribeUrl(email, base) : `${base}/newsletter`;
+  const unsub = unsubscribeToken ? unsubscribeUrl(unsubscribeToken, base) : `${base}/newsletter`;
   const date = nl.date || new Date().toISOString().split('T')[0];
 
   const body = [
@@ -234,7 +212,7 @@ function buildBriefEmailHtml(nl, { siteUrl = 'https://pythh.ai', email = '' } = 
 </body></html>`;
 }
 
-function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', email = '' } = {}) {
+function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', unsubscribeToken = '' } = {}) {
   const base = siteUrl.replace(/\/+$/, '');
   const date = nl.date || new Date().toISOString().split('T')[0];
   const lines = [`THE PYTHH DAILY BRIEF — ${date}`, ''];
@@ -269,14 +247,12 @@ function buildBriefEmailText(nl, { siteUrl = 'https://pythh.ai', email = '' } = 
     lines.push('');
   }
   lines.push(`Read online: ${base}/newsletter/${date}`);
-  if (email) lines.push(`Unsubscribe: ${unsubscribeUrl(email, base)}`);
+  if (unsubscribeToken) lines.push(`Unsubscribe: ${unsubscribeUrl(unsubscribeToken, base)}`);
   return lines.join('\n');
 }
 
 module.exports = {
   buildBriefEmailHtml,
   buildBriefEmailText,
-  unsubscribeToken,
-  verifyUnsubscribeToken,
   unsubscribeUrl,
 };

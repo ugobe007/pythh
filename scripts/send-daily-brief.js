@@ -61,19 +61,19 @@ async function main() {
 
   if (DRY) {
     console.log('\n--- PYTHIA\u2019S TAKE ---\n' + (nl.editorial?.text || '(none)'));
-    console.log(`\n[daily-brief] DRY run — HTML length ${buildBriefEmailHtml(nl, { siteUrl: SITE_URL, email: 'preview@pythh.ai' }).length} chars. No emails sent.`);
+    console.log(`\n[daily-brief] DRY run — HTML length ${buildBriefEmailHtml(nl, { siteUrl: SITE_URL, unsubscribeToken: 'preview' }).length} chars. No emails sent.`);
     return;
   }
 
   let recipients;
   if (SINGLE_TO) {
-    recipients = [{ email: SINGLE_TO }];
+    recipients = [{ email: SINGLE_TO, unsubscribe_token: '' }];
     console.log(`[daily-brief] Single test send to ${SINGLE_TO}`);
   } else {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('newsletter_subscribers')
-      .select('email')
+      .select('email, unsubscribe_token')
       .is('unsubscribed_at', null);
     if (error) throw error;
     recipients = data || [];
@@ -87,9 +87,9 @@ async function main() {
 
   console.log(`[daily-brief] Sending to ${recipients.length} recipient(s)…`);
   let sent = 0, failed = 0;
-  for (const { email } of recipients) {
-    const html = buildBriefEmailHtml(nl, { siteUrl: SITE_URL, email });
-    const text = buildBriefEmailText(nl, { siteUrl: SITE_URL, email });
+  for (const { email, unsubscribe_token } of recipients) {
+    const html = buildBriefEmailHtml(nl, { siteUrl: SITE_URL, unsubscribeToken: unsubscribe_token });
+    const text = buildBriefEmailText(nl, { siteUrl: SITE_URL, unsubscribeToken: unsubscribe_token });
     const r = await sendViaResend({ to: email, subject, html, text });
     if (r.success) sent++;
     else { failed++; console.warn(`[daily-brief] FAILED ${email}: ${r.error}`); }

@@ -1698,20 +1698,24 @@ app.get('/api/newsletter/today', async (req, res) => {
 // GET /api/newsletter/unsubscribe?token=… — one-click unsubscribe from the brief
 // NOTE: must be declared BEFORE the /:date route or it gets captured as a date.
 app.get('/api/newsletter/unsubscribe', async (req, res) => {
-  const { verifyUnsubscribeToken } = require('./lib/newsletterEmail');
-  const email = verifyUnsubscribeToken(req.query.token);
+  const token = String(req.query.token || '').trim();
   const page = (title, msg) => `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="margin:0;background:#0a0a0c;color:#e7e7ea;font-family:-apple-system,Segoe UI,sans-serif;"><div style="max-width:480px;margin:80px auto;padding:32px;text-align:center;"><div style="font-size:26px;font-weight:800;color:#fff;">pythh<span style="color:#34d399;">.</span></div><p style="color:#9a9aa6;font-size:15px;line-height:1.6;margin-top:20px;">${msg}</p><a href="https://pythh.ai/newsletter" style="display:inline-block;margin-top:20px;color:#22d3ee;text-decoration:none;font-weight:600;">Back to the Daily Brief →</a></div></body></html>`;
-  if (!email) {
+  if (!token) {
     return res.status(400).send(page('Invalid link', 'This unsubscribe link is invalid or expired.'));
   }
   try {
     const supabase = getSupabaseClient();
-    const { error } = await supabase
+    // Look up the subscriber by their stored random token (no shared secret needed).
+    const { data: rows, error } = await supabase
       .from('newsletter_subscribers')
       .update({ unsubscribed_at: new Date().toISOString() })
-      .eq('email', email.toLowerCase().trim());
+      .eq('unsubscribe_token', token)
+      .select('email');
     if (error) throw error;
-    return res.send(page('Unsubscribed', `You've been unsubscribed. You won't receive any more daily briefs at <strong>${email}</strong>.`));
+    if (!rows || rows.length === 0) {
+      return res.status(404).send(page('Link not recognized', 'This unsubscribe link is invalid or has already been used.'));
+    }
+    return res.send(page('Unsubscribed', `You've been unsubscribed. You won't receive any more daily briefs at <strong>${rows[0].email}</strong>.`));
   } catch (err) {
     console.error('[newsletter] unsubscribe error:', err.message);
     return res.status(500).send(page('Something went wrong', 'We could not process your request. Please try again later.'));
@@ -1780,7 +1784,7 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
     // Get confirmed subscribers
     const { data: subscribers, error: subError } = await supabase
       .from('newsletter_subscribers')
-      .select('email')
+      .select('email, unsubscribe_token')
       .is('unsubscribed_at', null);
 
     if (subError) throw subError;
@@ -1797,12 +1801,12 @@ app.post('/api/newsletter/send-digest', requireAdminToken, async (req, res) => {
     // Send to all subscribers (personalized unsubscribe link per recipient)
     let sent = 0;
     let failed = 0;
-    for (const { email } of subscribers) {
+    for (const { email, unsubscribe_token } of subscribers) {
       const result = await sendEmailViaResend({
         to: email,
         subject: `The Pythh Daily Brief — ${today}`,
-        html: buildBriefEmailHtml(newsletter, { siteUrl, email }),
-        text: buildBriefEmailText(newsletter, { siteUrl, email }),
+        html: buildBriefEmailHtml(newsletter, { siteUrl, unsubscribeToken: unsubscribe_token }),
+        text: buildBriefEmailText(newsletter, { siteUrl, unsubscribeToken: unsubscribe_token }),
       });
       if (result.success) sent++;
       else failed++;
