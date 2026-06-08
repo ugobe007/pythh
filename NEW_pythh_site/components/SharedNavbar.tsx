@@ -88,6 +88,24 @@ export default function SharedNavbar({
 
           {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-3">
+            {/* Daily Signal — prominent, accented (shows on every page) */}
+            <a
+              href="/newsletter"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+              style={{
+                color: "oklch(0.769 0.188 70.08)",
+                border: "1px solid oklch(0.769 0.188 70.08 / 0.4)",
+                backgroundColor: activePath === "/newsletter"
+                  ? "oklch(0.769 0.188 70.08 / 0.18)"
+                  : "oklch(0.769 0.188 70.08 / 0.08)",
+                textDecoration: "none",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "oklch(0.769 0.188 70.08 / 0.18)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = activePath === "/newsletter" ? "oklch(0.769 0.188 70.08 / 0.18)" : "oklch(0.769 0.188 70.08 / 0.08)"; }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
+              Daily Signal
+            </a>
             {isAuthenticated ? (
               <>
                 {user?.role === "admin" && (
@@ -156,6 +174,16 @@ export default function SharedNavbar({
         {menuOpen && (
           <div className="md:hidden py-5 border-t" style={{ borderColor: "oklch(0.2 0.01 264)" }}>
             <div className="flex flex-col gap-4">
+              {/* Daily Signal — accented, top of mobile menu */}
+              <a
+                href="/newsletter"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2 text-sm font-semibold"
+                style={{ color: "oklch(0.769 0.188 70.08)" }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
+                Daily Signal
+              </a>
               {NAV_LINKS.map(({ label, href }) => (
                 <a
                   key={href}
