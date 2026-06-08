@@ -6,6 +6,7 @@ on:
     - cron: '0 3 * * *'    # holding-review-worker
     - cron: '0 4 * * *'    # oracle-signal-backfill
     - cron: '0 5 * * *'    # rss-enrich (M&A + funding sync)
+    - cron: '0 7 * * *'    # sage-review (independent second-pass QA on scraped rows)
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
@@ -19,6 +20,7 @@ on:
           - holding-review
           - oracle-backfill
           - rss-enrich
+          - sage-review
           - portfolio-monitor
           - portfolio-digest
           - portfolio-score-validate
@@ -52,6 +54,17 @@ jobs:
     with:
       run: node scripts/enrich-from-rss-news.js --limit 1500 --gate-exclude-junk
       timeout_minutes: 60
+
+  # Independent second-pass QA: reviews scraped startup_uploads for missing data,
+  # reconstructs fields PYTHIA can support from evidence, and stamps extracted_data.
+  # Does NOT score — the 2-hourly god-score-recalculation picks up the enriched fields.
+  sage-review:
+    if: github.event.schedule == '0 7 * * *' || github.event.inputs.job == 'sage-review'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/pythia-sage-review.js --apply --limit=400
+      timeout_minutes: 45
 
   portfolio-monitor:
     if: github.event.schedule == '0 6 * * *' || github.event.inputs.job == 'portfolio-monitor'
