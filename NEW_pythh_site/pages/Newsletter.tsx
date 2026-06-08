@@ -557,34 +557,39 @@ export default function Newsletter() {
 
       <SharedNavbar activePath="/newsletter" />
 
-      <div className="container pt-24 pb-20">
-        {/* ── Hero ── */}
-        <div className="max-w-2xl mb-10">
-          <SectionLabel className="mb-4" color={GOLD}>
-            The Daily Brief
-          </SectionLabel>
-          <h1
-            className="font-display font-bold mb-4 leading-tight"
-            style={{ fontSize: "clamp(2.2rem, 5vw, 3.5rem)", color: TEXT }}
-          >
-            Who&rsquo;s hot, why,
-            <br />
-            <span style={{ color: GOLD }}>and where capital is moving.</span>
-          </h1>
-          <p className="text-lg leading-relaxed mb-8" style={{ color: MUTED }}>
-            Every day, PYTHIA reads the entire venture signal field and writes the brief: the
-            startups breaking out and the exact reasons behind their scores, the signals that
-            matter, the sharpest investor matches, and the money moving right now.
-          </p>
+      <div className="container pt-20 pb-20">
+        {/* ── Hero (compact, two-column) ── */}
+        <div className="mb-10 grid lg:grid-cols-[1.15fr_1fr] gap-x-10 gap-y-5 lg:items-center">
+          {/* Headline */}
+          <div>
+            <div className="flex items-center gap-2.5 mb-2.5">
+              <SectionLabel color={GOLD}>The Daily Brief</SectionLabel>
+              <span className="flex items-center gap-1.5 text-[10px] font-mono tracking-widest" style={{ color: G }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
+                LIVE
+              </span>
+            </div>
+            <h1
+              className="font-display font-bold leading-[1.08] mb-2.5"
+              style={{ fontSize: "clamp(1.7rem, 3.4vw, 2.5rem)", color: TEXT }}
+            >
+              Who&rsquo;s hot, why, and{" "}
+              <span style={{ color: GOLD }}>where capital is moving.</span>
+            </h1>
+            <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
+              PYTHIA reads the entire venture signal field every day &mdash; the breakouts and the
+              reasons behind their scores, the signals that matter, and the money moving now.
+            </p>
+          </div>
 
-          {/* Subscribe form */}
-          <div className="p-6 border mb-6" style={{ backgroundColor: CARD, borderColor: BORDER }}>
+          {/* Subscribe */}
+          <div className="p-4 border rounded-xl" style={{ backgroundColor: CARD, borderColor: BORDER }}>
             {submitted ? (
               <div
-                className="flex items-center gap-3 py-4 px-5 border"
+                className="flex items-center gap-3 py-3 px-4 border rounded-lg"
                 style={{ backgroundColor: G_SUBTLE, borderColor: G_BORDER }}
               >
-                <Zap size={16} style={{ color: G }} />
+                <Zap size={16} style={{ color: G }} className="shrink-0" />
                 <div>
                   <p className="text-sm font-semibold" style={{ color: G }}>
                     You&rsquo;re in.
@@ -595,18 +600,18 @@ export default function Newsletter() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
                 <div
-                  className="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg"
+                  className="flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg"
                   style={{ backgroundColor: "oklch(0.11 0.01 264)", border: "1px solid oklch(0.28 0.01 264)" }}
                 >
-                  <Mail size={15} style={{ color: DIM }} />
+                  <Mail size={15} style={{ color: DIM }} className="shrink-0" />
                   <input
                     type="email"
                     placeholder="founder@startup.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="flex-1 bg-transparent text-sm outline-none"
+                    className="flex-1 bg-transparent text-sm outline-none min-w-0"
                     style={{ color: TEXT }}
                     required
                   />
@@ -614,30 +619,21 @@ export default function Newsletter() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm transition-all whitespace-nowrap"
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all whitespace-nowrap"
                   style={{ backgroundColor: GOLD, color: "oklch(0.1 0.01 70)", opacity: loading ? 0.7 : 1 }}
                 >
-                  {loading ? (
-                    "Subscribing…"
-                  ) : (
-                    <>
-                      <span>Get the brief</span>
-                      <ArrowRight size={14} />
-                    </>
-                  )}
+                  {loading ? "Subscribing…" : <><span>Get it</span><ArrowRight size={14} /></>}
                 </button>
               </form>
             )}
-            <p className="text-xs mt-3" style={{ color: DIM }}>
-              Free. Daily. Unsubscribe anytime.
+            <p className="text-[11px] mt-2.5" style={{ color: DIM }}>
+              Free &middot; daily &middot; unsubscribe anytime.
             </p>
           </div>
         </div>
 
         {/* ── Today's brief (live) ── */}
         <section className="max-w-3xl mb-16">
-          <SectionLabel className="mb-2">Live</SectionLabel>
-          <h2 className="font-display font-semibold text-xl mb-6 text-white">Today&rsquo;s brief</h2>
           <DailyBrief />
         </section>
 
