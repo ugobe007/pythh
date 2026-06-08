@@ -113,12 +113,16 @@ function pickModel(startup) {
 // ── 2. Sage LLM call ────────────────────────────────────────────────────────
 const SAGE_SYSTEM = [
   'You are PYTHIA, a savvy venture analyst doing a second-pass review of a startup',
-  'profile that an automated scraper produced. Your job is to (a) reconstruct ONLY the',
-  'missing or weak fields, strictly from the evidence provided, and (b) flag missing',
-  'logic or value. Never invent funding numbers, revenue, customers, or a website you',
-  'cannot infer from the given text. If you are not reasonably sure, return null for',
-  'that field. For every field you DO fill, give a 0–1 confidence and a one-line',
-  'evidence note quoting/paraphrasing what in the input supports it.',
+  'profile that an automated scraper produced. Your job is to (a) decide whether this',
+  'entity is actually a fundable startup/company, (b) reconstruct ONLY the missing or',
+  'weak fields, strictly from the evidence provided, and (c) flag missing logic or value.',
+  'Set is_startup=false when the entity is clearly NOT a fundable startup — e.g. a person,',
+  'a government agency, a university, a media/news outlet, an event, a generic topic, or a',
+  'large established public company. When is_startup is false, do NOT fill any fields.',
+  'Never invent funding numbers, revenue, customers, or a website you cannot infer from',
+  'the given text. If you are not reasonably sure about a field, return null for it. For',
+  'every field you DO fill, give a 0–1 confidence and a one-line evidence note',
+  'quoting/paraphrasing what in the input supports it.',
 ].join(' ');
 
 function buildSagePayload(startup) {
@@ -150,6 +154,8 @@ function buildUserPrompt(startup, gaps) {
     `\nGaps the scraper left (focus here): ${gaps.length ? gaps.join(', ') : '(none flagged — verify the weak ones)'}`,
     `\nReturn STRICT JSON with this shape:`,
     `{`,
+    `  "is_startup": true | false,  /* false = person, agency, university, media outlet, event, topic, or large public company */`,
+    `  "not_startup_reason": "short reason (only when is_startup is false)",`,
     `  "fields": { /* only keys you can support; each: {"value": <typed>, "confidence": 0-1, "evidence": "short note"} */ },`,
     `  "review_notes": "1-2 sentences: what is missing, weak, or illogical about this profile",`,
     `  "missing_logic": ["short bullet", ...],`,
@@ -225,7 +231,10 @@ function mergeGuarded(startup, sageJson, opts = {}) {
   const filled = [];
   const skipped = [];
 
-  const fields = sageJson && typeof sageJson.fields === 'object' ? sageJson.fields : {};
+  // PYTHIA's junk verdict: when the entity is clearly not a fundable startup,
+  // we do NOT enrich it — the caller flags it instead.
+  const notStartup = sageJson && sageJson.is_startup === false;
+  const fields = !notStartup && sageJson && typeof sageJson.fields === 'object' ? sageJson.fields : {};
 
   for (const [key, entry] of Object.entries(fields)) {
     const spec = SAGE_FIELDS[key];
@@ -269,6 +278,12 @@ function mergeGuarded(startup, sageJson, opts = {}) {
     filled.push(key);
   }
 
+  const notStartupReason = notStartup
+    ? (typeof sageJson.not_startup_reason === 'string' && sageJson.not_startup_reason.trim()
+        ? sageJson.not_startup_reason.trim().slice(0, 240)
+        : 'not a fundable startup')
+    : null;
+
   const sageMeta = {
     version: SAGE_VERSION,
     reviewed_at: new Date().toISOString(),
@@ -276,12 +291,14 @@ function mergeGuarded(startup, sageJson, opts = {}) {
     gaps: opts.gaps || [],
     filled,
     skipped,
+    not_startup: notStartup || false,
+    not_startup_reason: notStartupReason,
     notes: typeof sageJson.review_notes === 'string' ? sageJson.review_notes.slice(0, 500) : null,
     missing_logic: Array.isArray(sageJson.missing_logic) ? sageJson.missing_logic.slice(0, 6) : [],
     quality: sageJson.overall_quality || null,
   };
 
-  return { extractedPatch, rootPatch, sageMeta, filled, skipped };
+  return { extractedPatch, rootPatch, sageMeta, filled, skipped, notStartup, notStartupReason };
 }
 
 // ── Orchestrator for one row ──────────────────────────────────────────────────
@@ -295,7 +312,7 @@ async function reviewStartup(startup, { openai, fillPlusLowConf = true } = {}) {
     return { ok: false, error: e.message, model, gaps };
   }
   const merged = mergeGuarded(startup, sageJson, { fillPlusLowConf, model, gaps });
-  return { ok: true, model, gaps, ...merged };
+  return { ok: true, model, gaps, quality: merged.sageMeta.quality, ...merged };
 }
 
 function alreadyReviewed(startup) {

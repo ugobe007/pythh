@@ -47,6 +47,7 @@ const APPLY = has('--apply');
 const FORCE = has('--force');
 const INCLUDE_HOLDING = has('--include-holding');
 const PROMOTE_HOLDING = has('--promote-holding');
+const JUNK_GATE = !has('--no-junk-gate'); // flag non-startups via entity_gate (default on)
 const LIMIT = parseInt(val('--limit', '50'), 10);
 const SINGLE_ID = val('--id', null);
 const STATUS_OVERRIDE = val('--status', null);
@@ -98,20 +99,37 @@ async function fetchCandidates(supabase) {
 }
 
 async function applyPatch(supabase, startup, result) {
-  const { extractedPatch, rootPatch, sageMeta, filled } = result;
+  const { extractedPatch, rootPatch, sageMeta, filled, notStartup, notStartupReason } = result;
   const newExtracted = { ...(startup.extracted_data || {}), ...extractedPatch, sage_review: sageMeta };
 
   const update = { extracted_data: newExtracted, ...rootPatch, updated_at: new Date().toISOString() };
 
-  // Opt-in: lift a holding row into the recalc-eligible queue once it was
-  // materially enriched, so the scoring pass actually picks it up.
-  if (PROMOTE_HOLDING && startup.status === 'holding' && filled.length > 0) {
+  let didGate = false;
+  if (notStartup && JUNK_GATE) {
+    // Flag via the established post-scrape gate (removes it from recalc + UI).
+    // The sage is more authoritative than the name/URL heuristic gate, so it MAY
+    // override a prior 'qualified' — but only when it gave a specific reason, to
+    // guard against a vague false-negative demoting a real startup.
+    const hasSpecificReason = notStartupReason && notStartupReason !== 'not a fundable startup';
+    if (startup.entity_gate !== 'qualified' || hasSpecificReason) {
+      update.entity_gate = 'junk';
+      const override = startup.entity_gate === 'qualified' ? ' (override qualified)' : '';
+      update.entity_gate_reason = `sage: ${notStartupReason || 'not a fundable startup'}${override}`.slice(0, 240);
+      update.entity_gate_at = new Date().toISOString();
+      didGate = true;
+    }
+  } else if (PROMOTE_HOLDING && startup.status === 'holding' && filled.length > 0) {
+    // Opt-in: lift a holding row into the recalc-eligible queue once it was
+    // materially enriched, so the scoring pass actually picks it up.
     update.status = 'pending';
   }
 
   const { error } = await supabase.from('startup_uploads').update(update).eq('id', startup.id);
   if (error) throw error;
-  return update.status === 'pending' && startup.status === 'holding';
+  return {
+    promoted: update.status === 'pending' && startup.status === 'holding',
+    gated: didGate,
+  };
 }
 
 async function main() {
@@ -132,7 +150,7 @@ async function main() {
   const candidates = await fetchCandidates(supabase);
   console.log(`   ${candidates.length} startup(s) queued for review.\n`);
 
-  let reviewed = 0, enriched = 0, promoted = 0, failed = 0;
+  let reviewed = 0, enriched = 0, promoted = 0, gated = 0, failed = 0;
   const fillCounts = {};
 
   for (const startup of candidates) {
@@ -146,18 +164,24 @@ async function main() {
       continue;
     }
 
-    const { filled, model, sageMeta } = result;
+    const { filled, model, sageMeta, notStartup } = result;
     if (filled.length) enriched += 1;
     for (const f of filled) fillCounts[f] = (fillCounts[f] || 0) + 1;
 
-    const tag = filled.length ? `+${filled.join(',')}` : 'no-fills';
-    const q = sageMeta.quality ? ` (${sageMeta.quality})` : '';
-    console.log(`   ${filled.length ? '✓' : '·'} ${String(startup.name || '?').slice(0, 40).padEnd(40)}  [${model}]  ${tag}${q}`);
+    const name = String(startup.name || '?').slice(0, 40).padEnd(40);
+    if (notStartup) {
+      console.log(`   ⚑ ${name}  [${model}]  not-a-startup: ${sageMeta.not_startup_reason || ''}`.trimEnd());
+    } else {
+      const tag = filled.length ? `+${filled.join(',')}` : 'no-fills';
+      const q = sageMeta.quality ? ` (${sageMeta.quality})` : '';
+      console.log(`   ${filled.length ? '✓' : '·'} ${name}  [${model}]  ${tag}${q}`);
+    }
 
     if (APPLY) {
       try {
-        const didPromote = await applyPatch(supabase, startup, result);
+        const { promoted: didPromote, gated: didGate } = await applyPatch(supabase, startup, result);
         if (didPromote) promoted += 1;
+        if (didGate) gated += 1;
       } catch (e) {
         failed += 1;
         console.log(`     ! write failed: ${e.message}`);
@@ -170,6 +194,7 @@ async function main() {
   console.log(`\n─── Summary ────────────────────────────────`);
   console.log(`   reviewed:  ${reviewed}`);
   console.log(`   enriched:  ${enriched}${APPLY ? '' : ' (would enrich)'}`);
+  if (JUNK_GATE) console.log(`   gated:     ${gated} flagged not-a-startup → entity_gate=junk`);
   if (PROMOTE_HOLDING) console.log(`   promoted:  ${promoted} holding → pending`);
   console.log(`   failed:    ${failed}`);
   const top = Object.entries(fillCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
