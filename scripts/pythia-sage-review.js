@@ -80,22 +80,34 @@ async function fetchCandidates(supabase) {
     return data || [];
   }
 
-  // Pull a generous window (lowest data-completeness first), then filter
-  // already-reviewed client-side so --force can re-review without a column.
-  const fetchSize = Math.min(Math.max(LIMIT * 4, 100), 1000);
-  const { data, error } = await supabase
-    .from('startup_uploads')
-    .select(SELECT_COLS)
-    .in('source_type', SCRAPED_SOURCES)
-    .is('submitted_email', null)
-    .in('status', statuses())
-    .or('entity_gate.is.null,entity_gate.neq.junk')
-    .order('data_completeness', { ascending: true, nullsFirst: true })
-    .limit(fetchSize);
-  if (error) throw error;
-
-  const rows = (data || []).filter((r) => FORCE || !alreadyReviewed(r));
-  return rows.slice(0, LIMIT);
+  // Page through eligible rows (lowest data-completeness first), filtering
+  // already-reviewed client-side, until we have LIMIT to process. Pagination
+  // (vs a single capped fetch) is required so large backfills can reach rows
+  // beyond the first page — including the high-completeness tail.
+  const PAGE = 1000;
+  const out = [];
+  let from = 0;
+  while (out.length < LIMIT) {
+    const { data, error } = await supabase
+      .from('startup_uploads')
+      .select(SELECT_COLS)
+      .in('source_type', SCRAPED_SOURCES)
+      .is('submitted_email', null)
+      .in('status', statuses())
+      .or('entity_gate.is.null,entity_gate.neq.junk')
+      .order('data_completeness', { ascending: true, nullsFirst: true })
+      .order('id', { ascending: true }) // stable tiebreak for range paging
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const r of data) {
+      if (FORCE || !alreadyReviewed(r)) out.push(r);
+      if (out.length >= LIMIT) break;
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return out.slice(0, LIMIT);
 }
 
 async function applyPatch(supabase, startup, result) {
