@@ -171,10 +171,12 @@ async function reconcileExistingUpload(event, result) {
   const ed = existing.extracted_data && typeof existing.extracted_data === 'object' ? existing.extracted_data : {};
   patch.extracted_data = { ...ed, resolver: rec.metadata.resolver };
   // Feed the scorer (extracted.investors -> backed_by social-proof signal) only
-  // when the row doesn't already carry investors. Prefer canonical matched names.
-  const reconInvestorNames = ((result.investors && result.investors.length)
-    ? result.investors.map((i) => i.matched_name || i.name)
-    : (rec.investors_mentioned || [])).filter(Boolean);
+  // when the row doesn't already carry investors. Credit only table-linked
+  // investors (investor_id) using canonical matched names; skip unverified mentions.
+  const reconInvestorNames = (result.investors || [])
+    .filter((i) => i.investor_id)
+    .map((i) => i.matched_name || i.name)
+    .filter(Boolean);
   if (reconInvestorNames.length && (!Array.isArray(ed.investors) || ed.investors.length === 0)) {
     patch.extracted_data.investors = reconInvestorNames;
   }
@@ -300,10 +302,13 @@ async function runKnownCompanyEnrichment(kind) {
     const newMeta = { ...meta, url_enriched_at: new Date().toISOString(), resolver_investors: res.investors };
     // Feed the scorer: hotGodFromStartupRow reads backed_by = startup.backed_by
     // || extracted.backed_by || extracted.investors. Without this the resolved
-    // investors earn +0 social-proof score. Use canonical matched names when linked.
-    const scorerInvestorNames = (res.investors.length
-      ? res.investors.map((i) => i.matched_name || i.name)
-      : res.investorNames).filter(Boolean);
+    // investors earn +0 social-proof score. Only credit investors actually linked
+    // to the canonical investors table (investor_id) — unlinked mentions are
+    // unverified extraction noise and shouldn't inflate the score.
+    const scorerInvestorNames = res.investors
+      .filter((i) => i.investor_id)
+      .map((i) => i.matched_name || i.name)
+      .filter(Boolean);
     if (scorerInvestorNames.length && (!Array.isArray(meta.investors) || meta.investors.length === 0)) {
       newMeta.investors = scorerInvestorNames;
     }
