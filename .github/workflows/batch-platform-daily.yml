@@ -6,6 +6,7 @@ on:
     - cron: '0 3 * * *'    # holding-review-worker
     - cron: '0 4 * * *'    # oracle-signal-backfill
     - cron: '0 5 * * *'    # rss-enrich (M&A + funding sync)
+    - cron: '30 5 * * *'   # event-resolver (recover startups the frame parser missed)
     - cron: '0 7 * * *'    # sage-review (independent second-pass QA on scraped rows)
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
@@ -20,6 +21,7 @@ on:
           - holding-review
           - oracle-backfill
           - rss-enrich
+          - event-resolver
           - sage-review
           - portfolio-monitor
           - portfolio-digest
@@ -54,6 +56,18 @@ jobs:
     with:
       run: node scripts/enrich-from-rss-news.js --limit 1500 --gate-exclude-junk
       timeout_minutes: 60
+
+  # Independent recovery pass over startup_events: re-extracts the correct company,
+  # investors, and funding from news snippets the frame parser missed/mis-extracted,
+  # resolves + verifies a website, and stages results into discovered_startups (which
+  # the auto-approve trigger imports into startup_uploads). Decoupled from the scraper.
+  event-resolver:
+    if: github.event.schedule == '30 5 * * *' || github.event.inputs.job == 'event-resolver'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/event-resolver.js --apply --hours 36 --limit 200
+      timeout_minutes: 45
 
   # Independent second-pass QA: reviews scraped startup_uploads for missing data,
   # reconstructs fields PYTHIA can support from evidence, and stamps extracted_data.
