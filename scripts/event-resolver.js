@@ -170,6 +170,14 @@ async function reconcileExistingUpload(event, result) {
   const patch = {};
   const ed = existing.extracted_data && typeof existing.extracted_data === 'object' ? existing.extracted_data : {};
   patch.extracted_data = { ...ed, resolver: rec.metadata.resolver };
+  // Feed the scorer (extracted.investors -> backed_by social-proof signal) only
+  // when the row doesn't already carry investors. Prefer canonical matched names.
+  const reconInvestorNames = ((result.investors && result.investors.length)
+    ? result.investors.map((i) => i.matched_name || i.name)
+    : (rec.investors_mentioned || [])).filter(Boolean);
+  if (reconInvestorNames.length && (!Array.isArray(ed.investors) || ed.investors.length === 0)) {
+    patch.extracted_data.investors = reconInvestorNames;
+  }
 
   const nameBad =
     !existing.name ||
@@ -290,6 +298,15 @@ async function runKnownCompanyEnrichment(kind) {
     if (!APPLY) return;
 
     const newMeta = { ...meta, url_enriched_at: new Date().toISOString(), resolver_investors: res.investors };
+    // Feed the scorer: hotGodFromStartupRow reads backed_by = startup.backed_by
+    // || extracted.backed_by || extracted.investors. Without this the resolved
+    // investors earn +0 social-proof score. Use canonical matched names when linked.
+    const scorerInvestorNames = (res.investors.length
+      ? res.investors.map((i) => i.matched_name || i.name)
+      : res.investorNames).filter(Boolean);
+    if (scorerInvestorNames.length && (!Array.isArray(meta.investors) || meta.investors.length === 0)) {
+      newMeta.investors = scorerInvestorNames;
+    }
     const patch = isUploads ? { extracted_data: newMeta } : { metadata: newMeta };
     if (res.website) patch.website = res.website;
     if (res.lead_investor) patch.lead_investor = res.lead_investor;
