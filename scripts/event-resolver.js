@@ -61,6 +61,7 @@ const MODEL = val('--model', 'gpt-4o-mini');
 const MIN_CONF = parseFloat(val('--min-conf', '0.55'));
 const SINGLE_ID = val('--id', null);
 const SOURCE = val('--source', 'events'); // events | discovered | uploads
+const CONCURRENCY = Math.max(1, parseInt(val('--concurrency', '1'), 10) || 1);
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -264,9 +265,9 @@ async function runKnownCompanyEnrichment(kind) {
     offset += PAGE;
   }
 
-  console.log(`\nRows needing website (${kind}): ${work.length}\n`);
+  console.log(`\nRows needing website (${kind}): ${work.length}  (concurrency=${CONCURRENCY})\n`);
 
-  for (const { row, meta } of work) {
+  const processOne = async ({ row, meta }) => {
     stats.processed += 1;
     const text = [row.name, row.description, row.article_title].filter(Boolean).join('. ');
     let res;
@@ -276,28 +277,36 @@ async function runKnownCompanyEnrichment(kind) {
         hasWebsite: Boolean(row.website),
         hasLeadInvestor: Boolean(row.lead_investor),
       });
-    } catch (e) { stats.errors += 1; console.log(`  ⚠️  ${row.name} — ${e.message}`); continue; }
+    } catch (e) { stats.errors += 1; console.log(`  ⚠️  ${row.name} — ${e.message}`); return; }
 
     const linked = res.investors.filter((i) => i.investor_id).length;
     if (res.website) stats.urls_found += 1;
     stats.investors_linked += linked;
-    console.log(`  ${res.website ? '✅ ' + res.website.replace('https://', '') : '·  no-url'}  ${row.name}` +
-      `${res.investorNames.length ? '  (' + res.investorNames.length + ' inv/' + linked + ' linked)' : ''}`);
+    if (res.website || res.investorNames.length) {
+      console.log(`  ${res.website ? '✅ ' + res.website.replace('https://', '') : '·  no-url'}  ${row.name}` +
+        `${res.investorNames.length ? '  (' + res.investorNames.length + ' inv/' + linked + ' linked)' : ''}`);
+    }
 
-    if (!APPLY) continue;
+    if (!APPLY) return;
 
     const newMeta = { ...meta, url_enriched_at: new Date().toISOString(), resolver_investors: res.investors };
-    const patch = isUploads
-      ? { extracted_data: newMeta }
-      : { metadata: newMeta };
+    const patch = isUploads ? { extracted_data: newMeta } : { metadata: newMeta };
     if (res.website) patch.website = res.website;
     if (res.lead_investor) patch.lead_investor = res.lead_investor;
     if (!isUploads && res.investorNames.length && (!row.investors_mentioned || row.investors_mentioned.length === 0)) {
       patch.investors_mentioned = res.investorNames;
     }
     const { error } = await supabase.from(table).update(patch).eq('id', row.id);
-    if (error) { stats.errors += 1; console.log(`      ↳ update failed: ${error.message}`); }
+    if (error) { stats.errors += 1; console.log(`      ↳ update failed (${row.name}): ${error.message}`); }
     else stats.stamped += 1;
+  };
+
+  // Process with a bounded concurrency pool (URL resolution is network-bound).
+  for (let i = 0; i < work.length; i += CONCURRENCY) {
+    await Promise.all(work.slice(i, i + CONCURRENCY).map(processOne));
+    if (i % (CONCURRENCY * 20) === 0 && i > 0) {
+      console.log(`  … progress ${i}/${work.length}  (urls ${stats.urls_found}, linked ${stats.investors_linked})`);
+    }
   }
 
   console.log('\n' + '─'.repeat(64));
