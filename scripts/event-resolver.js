@@ -34,6 +34,8 @@ const OpenAI = require('openai');
 
 const resolver = require('../server/lib/eventResolver');
 const gate = require('../lib/startupInsertGate');
+const { isValidStartupName } = require('../lib/startupNameValidator');
+const InferenceExtractor = require('../lib/inference-extractor');
 
 let inferDomainFromName = null;
 try {
@@ -58,6 +60,7 @@ const LIMIT = parseInt(val('--limit', '150'), 10);
 const MODEL = val('--model', 'gpt-4o-mini');
 const MIN_CONF = parseFloat(val('--min-conf', '0.55'));
 const SINGLE_ID = val('--id', null);
+const SOURCE = val('--source', 'events'); // events | discovered | uploads
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -130,6 +133,67 @@ async function fetchCandidates() {
   return candidates.filter((c) => !done.has(String(c.id || c.event_id)));
 }
 
+/**
+ * A — In-place reconciliation: if the hardcoded scraper already created a
+ * startup_uploads row for THIS event (via discovery_event_id), supersede it with
+ * the LLM result instead of staging a parallel discovered_startups row.
+ * Returns null if no existing row (caller proceeds with normal staging),
+ * else { outcome, id }.
+ */
+async function reconcileExistingUpload(event, result) {
+  const eventId = event.id || event.event_id;
+  if (!eventId) return null;
+  const { data: existing } = await supabase
+    .from('startup_uploads')
+    .select('id, name, website, sectors, entity_gate, extracted_data, lead_investor, latest_funding_amount')
+    .eq('discovery_event_id', eventId)
+    .maybeSingle();
+  if (!existing) return null;
+
+  // Resolver verdict: this event is not a startup -> gate the existing row.
+  if (result.action === 'skip_not_startup') {
+    if (!APPLY) return { outcome: 'reconcile_gate', id: existing.id };
+    await supabase
+      .from('startup_uploads')
+      .update({ entity_gate: 'junk', entity_gate_reason: `resolver: ${result.reason}`.slice(0, 300), entity_gate_at: new Date().toISOString() })
+      .eq('id', existing.id);
+    return { outcome: 'reconcile_gate', id: existing.id };
+  }
+
+  if (result.action !== 'create') return { outcome: 'reconcile_noop', id: existing.id };
+
+  // Build a guarded patch: fix the name only if the existing one is junk; fill
+  // website/sectors/investors/funding only when missing; never clobber good data.
+  const ex = result.extraction;
+  const rec = result.record;
+  const patch = {};
+  const ed = existing.extracted_data && typeof existing.extracted_data === 'object' ? existing.extracted_data : {};
+  patch.extracted_data = { ...ed, resolver: rec.metadata.resolver };
+
+  const nameBad =
+    !existing.name ||
+    !isValidStartupName(existing.name).isValid ||
+    resolver.JUNK_SUBJECTS.has(String(existing.name).toLowerCase());
+  if (nameBad && ex.startupName && ex.startupName.toLowerCase() !== String(existing.name || '').toLowerCase()) {
+    patch.name = ex.startupName;
+  }
+  if (!existing.website && rec.website) patch.website = rec.website;
+  if ((!existing.sectors || existing.sectors.length === 0) && rec.sectors) patch.sectors = rec.sectors;
+  if (!existing.lead_investor && rec.lead_investor) patch.lead_investor = rec.lead_investor;
+  if (!existing.latest_funding_amount && ex.fundingAmountUsd) patch.latest_funding_amount = ex.fundingAmountUsd;
+
+  if (!APPLY) return { outcome: patch.name ? 'reconcile_rename' : 'reconcile_fill', id: existing.id };
+
+  let { error } = await supabase.from('startup_uploads').update(patch).eq('id', existing.id);
+  if (error && (error.code === '23505' || /unique/i.test(error.message)) && patch.name) {
+    // Name collision with an existing row — keep old name, apply the rest.
+    delete patch.name;
+    ({ error } = await supabase.from('startup_uploads').update(patch).eq('id', existing.id));
+  }
+  if (error) return { outcome: 'reconcile_error', id: existing.id, error: error.message };
+  return { outcome: patch.name ? 'reconcile_rename' : 'reconcile_fill', id: existing.id };
+}
+
 async function markResolved(event, result) {
   if (!APPLY) return;
   const ev = String(event.id || event.event_id);
@@ -147,19 +211,123 @@ async function markResolved(event, result) {
   await supabase.from('resolved_events').upsert(rec, { onConflict: 'event_id' });
 }
 
+/* ---------------- B: known-company enrichment (uploads / discovered) ----------------
+ * For rows where the company is ALREADY known (created by the hardcoded pipeline)
+ * but missing a website / investor links. Cheap: verified URL lookup + investor
+ * resolution, NO LLM call (so it doesn't overlap the Sage logic pass or run up cost).
+ * Idempotent via a `*_enriched_at` stamp.
+ */
+async function enrichKnownCompany({ name, text, hasWebsite, hasLeadInvestor }) {
+  const patch = { website: null, lead_investor: null, investors: [], investorNames: [] };
+  if (!hasWebsite && !NO_URLS) {
+    patch.website = await resolver.resolveWebsite(name, { inferDomainFromName, verifyUrls: !NO_VERIFY });
+  }
+  try {
+    const f = InferenceExtractor.extractFunding(text || '') || {};
+    patch.investorNames = Array.isArray(f.investors_mentioned) ? f.investors_mentioned.slice(0, 12) : [];
+    if (!hasLeadInvestor && f.lead_investor) patch.lead_investor = f.lead_investor;
+  } catch { /* non-fatal */ }
+  if (patch.investorNames.length) patch.investors = await resolver.resolveInvestors(supabase, patch.investorNames);
+  return patch;
+}
+
+async function runKnownCompanyEnrichment(kind) {
+  const isUploads = kind === 'uploads';
+  const table = isUploads ? 'startup_uploads' : 'discovered_startups';
+  const cols = isUploads
+    ? 'id, name, description, website, entity_gate, extracted_data, lead_investor'
+    : 'id, name, description, article_title, website, lead_investor, investors_mentioned, metadata, imported_to_startups';
+
+  const stats = { processed: 0, urls_found: 0, investors_linked: 0, stamped: 0, skipped: 0, errors: 0 };
+  const PAGE = 500;
+  let offset = 0;
+  const work = [];
+
+  // Collect rows that still need a website, skipping ones already enriched.
+  while (work.length < LIMIT && offset < 40000) {
+    let q = supabase.from(table).select(cols).is('website', null).order('id', { ascending: true }).range(offset, offset + PAGE - 1);
+    if (!isUploads) q = q.eq('imported_to_startups', false);
+    const { data, error } = await q;
+    if (error) { console.error('fetch error:', error.message); break; }
+    if (!data || data.length === 0) break;
+    for (const r of data) {
+      const meta = isUploads
+        ? (r.extracted_data && typeof r.extracted_data === 'object' ? r.extracted_data : {})
+        : (r.metadata && typeof r.metadata === 'object' ? r.metadata : {});
+      if (!FORCE && meta.url_enriched_at) continue;
+      if (isUploads && r.entity_gate === 'junk') continue;
+      if (!r.name || !isValidStartupName(r.name).isValid) continue;
+      work.push({ row: r, meta });
+      if (work.length >= LIMIT) break;
+    }
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  console.log(`\nRows needing website (${kind}): ${work.length}\n`);
+
+  for (const { row, meta } of work) {
+    stats.processed += 1;
+    const text = [row.name, row.description, row.article_title].filter(Boolean).join('. ');
+    let res;
+    try {
+      res = await enrichKnownCompany({
+        name: row.name, text,
+        hasWebsite: Boolean(row.website),
+        hasLeadInvestor: Boolean(row.lead_investor),
+      });
+    } catch (e) { stats.errors += 1; console.log(`  ⚠️  ${row.name} — ${e.message}`); continue; }
+
+    const linked = res.investors.filter((i) => i.investor_id).length;
+    if (res.website) stats.urls_found += 1;
+    stats.investors_linked += linked;
+    console.log(`  ${res.website ? '✅ ' + res.website.replace('https://', '') : '·  no-url'}  ${row.name}` +
+      `${res.investorNames.length ? '  (' + res.investorNames.length + ' inv/' + linked + ' linked)' : ''}`);
+
+    if (!APPLY) continue;
+
+    const newMeta = { ...meta, url_enriched_at: new Date().toISOString(), resolver_investors: res.investors };
+    const patch = isUploads
+      ? { extracted_data: newMeta }
+      : { metadata: newMeta };
+    if (res.website) patch.website = res.website;
+    if (res.lead_investor) patch.lead_investor = res.lead_investor;
+    if (!isUploads && res.investorNames.length && (!row.investors_mentioned || row.investors_mentioned.length === 0)) {
+      patch.investors_mentioned = res.investorNames;
+    }
+    const { error } = await supabase.from(table).update(patch).eq('id', row.id);
+    if (error) { stats.errors += 1; console.log(`      ↳ update failed: ${error.message}`); }
+    else stats.stamped += 1;
+  }
+
+  console.log('\n' + '─'.repeat(64));
+  console.log(`  SUMMARY (${kind})`);
+  console.log('─'.repeat(64));
+  console.log(`  processed:         ${stats.processed}`);
+  console.log(`  websites resolved: ${stats.urls_found}`);
+  console.log(`  investors linked:  ${stats.investors_linked}`);
+  console.log(`  rows updated:      ${stats.stamped}${APPLY ? '' : ' (dry-run)'}`);
+  console.log(`  errors:            ${stats.errors}`);
+  console.log('─'.repeat(64));
+  if (!APPLY) console.log('\n  DRY RUN — no writes. Re-run with --apply.\n');
+}
+
 /* ---------------- main ---------------- */
 (async () => {
   console.log('═'.repeat(64));
   console.log('  EVENT RESOLVER  ' + resolver.RESOLVER_VERSION);
-  console.log(`  mode=${APPLY ? 'APPLY' : 'DRY-RUN'}  model=${MODEL}  window=${HOURS}h  limit=${LIMIT}`);
+  console.log(`  source=${SOURCE}  mode=${APPLY ? 'APPLY' : 'DRY-RUN'}  model=${MODEL}  window=${HOURS}h  limit=${LIMIT}`);
   console.log(`  url-lookup=${NO_URLS ? 'off' : 'on'}  verify=${NO_VERIFY ? 'off' : 'on'}  min-conf=${MIN_CONF}`);
   console.log('═'.repeat(64));
+
+  if (SOURCE === 'uploads') return runKnownCompanyEnrichment('uploads');
+  if (SOURCE === 'discovered') return runKnownCompanyEnrichment('discovered');
 
   const candidates = await fetchCandidates();
   console.log(`\nCandidates needing resolution: ${candidates.length}\n`);
 
   const stats = {
-    processed: 0, created: 0, skipped_existing: 0, not_startup: 0,
+    processed: 0, created: 0, reconciled: 0, skipped_existing: 0, not_startup: 0,
     no_name: 0, low_conf: 0, errors: 0, urls_found: 0, investors_linked: 0,
   };
 
@@ -177,6 +345,18 @@ async function markResolved(event, result) {
       stats.errors += 1;
       console.log(`  ⚠️  [err] ${title} — ${err.message}`);
       continue;
+    }
+
+    // A — in-place reconciliation: supersede the hardcoded upload for this event
+    if (result.action === 'create' || result.action === 'skip_not_startup') {
+      const rec = await reconcileExistingUpload(ev, result);
+      if (rec) {
+        stats.reconciled += 1;
+        console.log(`  🔁 [${rec.outcome}] ${title}${rec.error ? ' — ' + rec.error : ''}`);
+        result.discoveredId = rec.id;
+        await markResolved(ev, { ...result, action: rec.outcome });
+        continue;
+      }
     }
 
     if (result.action !== 'create') {
@@ -219,6 +399,7 @@ async function markResolved(event, result) {
   console.log('─'.repeat(64));
   console.log(`  processed:          ${stats.processed}`);
   console.log(`  staged (created):   ${stats.created}${APPLY ? '' : ' (dry-run — would create)'}`);
+  console.log(`  reconciled in-place:${stats.reconciled}  (superseded scraper rows for same event)`);
   console.log(`  websites resolved:  ${stats.urls_found}`);
   console.log(`  investors linked:   ${stats.investors_linked}`);
   console.log(`  not-a-startup:      ${stats.not_startup}`);

@@ -66,8 +66,11 @@ jobs:
     uses: ./.github/workflows/reusable-node-batch.yml
     secrets: inherit
     with:
-      run: node scripts/event-resolver.js --apply --hours 36 --limit 200
-      timeout_minutes: 45
+      # 1) events: recover missed/mis-extracted startups (LLM) + reconcile scraper rows in place
+      # 2) discovered: verify URL + link investors on the intake queue before promotion
+      # 3) uploads: verified-URL + investor backfill over the no-website corpus (idempotent)
+      run: node scripts/event-resolver.js --apply --hours 36 --limit 200 ; node scripts/event-resolver.js --apply --source discovered --limit 150 ; node scripts/event-resolver.js --apply --source uploads --limit 250
+      timeout_minutes: 60
 
   # Independent second-pass QA: reviews scraped startup_uploads for missing data,
   # reconstructs fields PYTHIA can support from evidence, and stamps extracted_data.
