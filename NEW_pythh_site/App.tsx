@@ -22,6 +22,8 @@ import Newsletter from "./pages/Newsletter";
 import SignalTrends from "./pages/SignalTrends";
 import About from "./pages/About";
 import Support from "./pages/Support";
+import Privacy from "./pages/Privacy";
+import Terms from "./pages/Terms";
 import Explore from "./pages/Explore";
 import Portfolio from "./pages/Portfolio";
 import PortfolioDetail from "./pages/PortfolioDetail";
@@ -81,6 +83,8 @@ function Router() {
       <Route path={"/about"} component={About} />
       <Route path={"/pythiam"} component={Pythiam} />
       <Route path={"/support"} component={Support} />
+      <Route path={"/privacy"} component={Privacy} />
+      <Route path={"/terms"} component={Terms} />
       <Route path={"/pricing"} component={Pricing} />
       <Route path={"/checkout/success"} component={CheckoutSuccess} />
       <Route path={"/checkout/cancel"} component={CheckoutCancel} />
