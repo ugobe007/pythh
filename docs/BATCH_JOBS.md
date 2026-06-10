@@ -2,6 +2,8 @@
 
 Production batch work is **not** run on Fly. Fly (`hot-honey`) serves the API + SPA shell only. All scheduled workers run as **GitHub Actions** workflows against Supabase.
 
+> **See also:** [`PIPELINE.md`](./PIPELINE.md) — end-to-end data flow (Mermaid diagram) showing how the secondary/second-pass logic scripts (event-resolver, sage-review, RSS enrich, retrofit) fit between ingestion and the GOD score recalc.
+
 ## Architecture
 
 | Tier | Host | Role |
