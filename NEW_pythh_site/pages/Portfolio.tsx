@@ -75,6 +75,7 @@ interface PortfolioValue {
   gain_pct: number;
   tvpi: number | null;
   avg_moic_capped: number | null;
+  avg_moic_industry_avg?: number | null;
   realized_value_usd: number;
   unrealized_value_usd: number;
   inception_date: string | null;
@@ -447,8 +448,11 @@ export default function Portfolio() {
               : metrics.avg_moic
               ? `${metrics.avg_moic}×`
               : "—",
+          benchmark: analytics?.value.avg_moic_industry_avg
+            ? `${analytics.value.avg_moic_industry_avg}×`
+            : undefined,
           label: "Avg MOIC",
-          sub: "verified · capped 25×",
+          sub: "verified · capped 25× · [ ] = industry avg",
         },
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),
@@ -498,6 +502,11 @@ export default function Portfolio() {
                   style={{ color: s.accent ? G : "oklch(0.94 0.005 264)" }}
                 >
                   {s.value}
+                  {s.benchmark && (
+                    <span className="ml-1 text-sm md:text-base font-mono font-normal" style={{ color: DIM }}>
+                      [{s.benchmark}]
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>
                   {s.label}

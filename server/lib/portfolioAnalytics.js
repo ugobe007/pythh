@@ -15,6 +15,7 @@ const EXIT_STATUSES = new Set(['acquired', 'ipo', 'exited']);
  * NOT live competitor data. Used to contextualize Oracle performance, not to claim parity.
  */
 const VC_BENCHMARKS = {
+  avg_moic_industry: 1.5, // typical/median early-stage fund MOIC at maturity (Cambridge/PitchBook seed ranges); top-quartile ~2.5×
   tvpi_top_quartile: 2.5, // top-quartile early-stage TVPI at maturity (Cambridge Associates ranges)
   graduation_rate_pct: 15, // typical seed→Series A graduation (industry ~10–15%)
   top_fund_graduation_rate_pct: 35, // strong seed funds
@@ -247,6 +248,7 @@ async function computePortfolioValue(supabase) {
     gain_pct: costBasis ? round((gain / costBasis) * 100, 1) : 0,
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
     avg_moic_capped: avgMoicCapped,
+    avg_moic_industry_avg: VC_BENCHMARKS.avg_moic_industry, // industry reference shown in brackets next to Avg MOIC
     realized_value_usd: round(realizedValue),
     unrealized_value_usd: round(unrealizedValue),
     // Vintage (A)
