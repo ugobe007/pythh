@@ -120,6 +120,9 @@ interface FollowOnValue {
   gain_pct: number;
   avg_moic: number | null;
   tvpi: number | null;
+  projected_value_usd?: number;
+  projected_moic?: number | null;
+  projected_stepup?: number;
   per_position_moic_cap?: number;
   win_rate_pct?: number;
   top_contributors?: { name: string; moic: number; basis: string; gain_usd: number; entry_round_type?: string | null }[];
@@ -687,7 +690,7 @@ export default function Portfolio() {
                 </div>
                 {analytics.follow_on.positions > 0 ? (
                   <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                       <div>
                         <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Bets</div>
                         <div className="text-base font-bold font-mono tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
@@ -716,7 +719,19 @@ export default function Portfolio() {
                         </div>
                         <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>net {fmtSignedUSD(analytics.follow_on.gain_usd)}</div>
                       </div>
+                      <div>
+                        <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Projected*</div>
+                        <div className="text-base font-bold font-mono tabular-nums" style={{ color: AMBER }}>
+                          {analytics.follow_on.projected_moic != null ? `${analytics.follow_on.projected_moic}×` : "—"}
+                        </div>
+                        <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+                          {analytics.follow_on.projected_value_usd != null ? fmtUSD(analytics.follow_on.projected_value_usd) : "—"} next round
+                        </div>
+                      </div>
                     </div>
+                    <p className="text-[10px] font-mono mt-3" style={{ color: AMBER }}>
+                      *Projected = forward estimate applying a conservative {analytics.follow_on.projected_stepup ?? 2}× median late-stage step-up to active positions only. Not realized. Realized exits & write-offs excluded.
+                    </p>
                     {analytics.follow_on.top_contributors && analytics.follow_on.top_contributors.length > 0 && (
                       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
                         {analytics.follow_on.top_contributors.filter((c) => c.gain_usd > 0).slice(0, 5).map((c) => (

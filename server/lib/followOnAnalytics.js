@@ -22,6 +22,13 @@ const WRITEOFF_STATUSES = new Set(['written_off', 'dead', 'shutdown', 'closed', 
 const FOLLOWON_INCEPTION = process.env.FOLLOWON_INCEPTION_DATE || '2026-06-12T00:00:00Z';
 const FOLLOWON_CHECK_USD = Number(process.env.FOLLOWON_CHECK_USD) || 500_000;
 
+// Documented late-stage step-up benchmark. Median Series C+ rounds historically re-price
+// the prior round ~1.5–2.5× (PitchBook/Carta late-stage step-up data); the broader observed
+// band runs 2–10×. We use a deliberately conservative MEDIAN (2.0×) for the projected
+// next-round value so the figure is defensible to LPs. This is a FORWARD PROJECTION applied
+// only to active positions — it never touches realized MOIC.
+const LATE_STAGE_STEPUP = Number(process.env.FOLLOWON_STEPUP) || 2.0;
+
 async function computeFollowOnValue(supabase) {
   const [posRes, evRes] = await Promise.all([
     supabase
@@ -53,6 +60,7 @@ async function computeFollowOnValue(supabase) {
 
   let costBasis = 0;
   let currentValue = 0;
+  let projectedValue = 0;
   let deployed = 0;
   let markedPositions = 0;
   let winners = 0;
@@ -98,6 +106,12 @@ async function computeFollowOnValue(supabase) {
 
     const value = check * moic;
     currentValue += value;
+
+    // Forward projection: active positions are expected to re-price at the next late-stage
+    // round (median step-up). Realized exits and write-offs are terminal — no further upside.
+    const terminal = EXIT_STATUSES.has(p.status) || WRITEOFF_STATUSES.has(p.status);
+    projectedValue += terminal ? value : value * LATE_STAGE_STEPUP;
+
     if (moic > 1) markedPositions += 1;
     if (moic > 1.05) winners += 1;
     else if (moic < 0.95) losers += 1;
@@ -150,6 +164,9 @@ async function computeFollowOnValue(supabase) {
     gain_pct: costBasis ? round((gain / costBasis) * 100, 1) : 0,
     avg_moic: avgMoic,
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
+    projected_value_usd: round(projectedValue),
+    projected_moic: costBasis ? round(projectedValue / costBasis, 2) : null,
+    projected_stepup: LATE_STAGE_STEPUP,
     per_position_moic_cap: PER_POSITION_MOIC_CAP,
     winners,
     losers,
@@ -159,7 +176,7 @@ async function computeFollowOnValue(supabase) {
     note:
       positions === 0
         ? `Follow-on fund is forward-only (inception ${FOLLOWON_INCEPTION.slice(0, 10)}): a $${(FOLLOWON_CHECK_USD / 1e3).toFixed(0)}K virtual check goes into later-stage rounds (post-money ≥ $100M) of Pythia's seed winners as they close, going forward. No backfill — positions appear as future rounds land.`
-        : `Late-stage doubling-down on Pythia's seed winners. Each $${(FOLLOWON_CHECK_USD / 1e3).toFixed(0)}K follow-on is booked at the round's REAL post-money (honest entry), so MOIC reflects only appreciation since the follow-on. ${markedPositions} of ${positions} above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×.`,
+        : `Late-stage doubling-down on Pythia's seed winners. Each $${(FOLLOWON_CHECK_USD / 1e3).toFixed(0)}K follow-on is booked at the round's REAL post-money (honest entry), so MOIC reflects only appreciation since the follow-on. ${markedPositions} of ${positions} above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. Projected MOIC applies a conservative ${LATE_STAGE_STEPUP}× median late-stage step-up to active positions (forward projection only — excludes realized exits and write-offs).`,
   };
 }
 
