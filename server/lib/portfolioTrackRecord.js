@@ -162,7 +162,7 @@ async function computeTrackRecord(supabase) {
     .select(PERFORMER_SELECT)
     .not('moic', 'is', null)
     .gt('moic', 1)
-    .lte('moic', 25)
+    .lte('moic', 100)
     .order('moic', { ascending: false })
     .limit(5);
   if (topErr) throw new Error(topErr.message);

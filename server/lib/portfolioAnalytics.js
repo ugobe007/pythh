@@ -7,8 +7,14 @@
  * caps per-position MOIC. We also report the uncapped figure for transparency.
  */
 
-const PER_POSITION_MOIC_CAP = 25; // mirrors track-record top-performer filter (moic <= 25)
+const PER_POSITION_MOIC_CAP = 100; // 1–100× scale (mirrors GOD 1–100); only a genuine >100× data artifact is clamped
+// Anti-fudge guard: a "verified" valuation above this is implausible for our cohort
+// (e.g. a seed/Series-B startup marked at $30B+) and almost always a data error. Such
+// positions are QUARANTINED — held at cost, not marked up — until the valuation is
+// re-sourced from real press/round data. Keeps the headline honest for LP diligence.
+const MAX_PLAUSIBLE_VALUATION_USD = 15_000_000_000;
 const EXIT_STATUSES = new Set(['acquired', 'ipo', 'exited']);
+const WRITEOFF_STATUSES = new Set(['written_off', 'dead', 'shutdown', 'closed', 'defunct']);
 const { FUND_LOCKED, FUND_LOCK_DATE } = require('./fundLock');
 
 /**
@@ -46,16 +52,33 @@ function clampMoic(moic) {
  */
 function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRounds }) {
   const entry = Number(entryValuation);
-  if (EXIT_STATUSES.has(status) && Number(exitValuation) > 0 && entry > 0) {
-    return { moic: clampMoic(Number(exitValuation) / entry), basis: 'exit' };
+  const exitVal = Number(exitValuation);
+  let sawImplausible = false;
+
+  // A written-off / dead position is a total loss (0×), not a held-at-cost (1×).
+  if (WRITEOFF_STATUSES.has(status)) {
+    return { moic: 0, basis: 'written_off', quarantined: false };
   }
+
+  if (EXIT_STATUSES.has(status) && exitVal > 0 && entry > 0) {
+    if (exitVal <= MAX_PLAUSIBLE_VALUATION_USD) {
+      return { moic: clampMoic(exitVal / entry), basis: 'exit', quarantined: false };
+    }
+    sawImplausible = true; // exit valuation is impossible → don't mark up
+  }
+
   if (entry > 0 && Array.isArray(verifiedRounds) && verifiedRounds.length) {
-    const latest = verifiedRounds
-      .filter((r) => Number(r.post_money_usd) > 0)
+    const priced = verifiedRounds.filter((r) => Number(r.post_money_usd) > 0);
+    const plausible = priced.filter((r) => Number(r.post_money_usd) <= MAX_PLAUSIBLE_VALUATION_USD);
+    if (priced.length && !plausible.length) sawImplausible = true; // had rounds, all impossible
+    const latest = plausible
       .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())[0];
-    if (latest) return { moic: clampMoic(Number(latest.post_money_usd) / entry), basis: 'verified_round' };
+    if (latest) return { moic: clampMoic(Number(latest.post_money_usd) / entry), basis: 'verified_round', quarantined: false };
   }
-  return { moic: 1, basis: 'cost' };
+
+  // Held at cost. quarantined=true means we WOULD have marked it up but the only
+  // evidence was an implausible valuation pending re-sourcing.
+  return { moic: 1, basis: 'cost', quarantined: sawImplausible };
 }
 
 /** Net present value of dated cash flows at a given annual rate. */
@@ -131,6 +154,7 @@ async function computePortfolioValue(supabase) {
   let losers = 0;
   let flat = 0;
   let markedPositions = 0;
+  let quarantinedPositions = 0;
 
   const contributions = [];
   const cashflows = [];
@@ -144,7 +168,7 @@ async function computePortfolioValue(supabase) {
     costBasis += check;
 
     const verifiedRounds = roundsByPortfolio.get(p.id) || roundsByStartup.get(p.startup_id) || [];
-    const { moic: verifiedMoic, basis } = computeVerifiedMoic({
+    const { moic: verifiedMoic, basis, quarantined } = computeVerifiedMoic({
       status: p.status,
       entryValuation: p.entry_valuation_usd,
       exitValuation: p.exit_valuation_usd,
@@ -153,7 +177,8 @@ async function computePortfolioValue(supabase) {
 
     const value = check * verifiedMoic;
     currentValue += value;
-    if (basis !== 'cost') markedPositions += 1;
+    if (verifiedMoic > 1) markedPositions += 1; // genuinely above cost (not just re-based to fair value)
+    if (quarantined) quarantinedPositions += 1;
 
     // Signal-implied (transparency only): capped raw moic from the picks table.
     const rawMoic = Number(p.moic);
@@ -242,6 +267,7 @@ async function computePortfolioValue(supabase) {
   return {
     positions,
     marked_positions: markedPositions,
+    quarantined_positions: quarantinedPositions, // had only implausible valuations; held at cost pending re-sourcing
     cost_basis_usd: round(costBasis),
     current_value_usd: round(currentValue),
     signal_implied_value_usd: round(signalImpliedValue),
@@ -271,8 +297,9 @@ async function computePortfolioValue(supabase) {
     top_contributors: topContributors,
     note:
       (FUND_LOCKED ? `Fund locked (vintage ${FUND_LOCK_DATE}) — fixed cohort of ${positions} positions, no new entries; performance is tracked over time. ` : '') +
-      `Current value is marked from press-verified funding rounds and recorded exits only ` +
-      `(${markedPositions} of ${positions} positions marked above cost); per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
+      `Cost basis is each holding's real valuation at entry (press-sourced); current value is marked-to-market from press-verified rounds and recorded exits only. ` +
+      `${markedPositions} of ${positions} positions are above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
+      (quarantinedPositions ? `${quarantinedPositions} position(s) held at cost pending valuation re-sourcing (implausible >$${round(MAX_PLAUSIBLE_VALUATION_USD / 1e9)}B figure quarantined). ` : '') +
       `Signal-implied value (looser, signal-inferred valuations) is ${costBasis ? round(signalImpliedValue / costBasis, 2) : '—'}× cost.`,
   };
 }

@@ -111,15 +111,12 @@ async function detectFundingEvent(company) {
   return assessFundingSignal(name, { homeText, newsItems, website });
 }
 
-function calcNewValuation(amountUsd, roundType) {
-  // Simple heuristic: post-money = amount / dilution rate by stage
-  const dilutionByStage = {
-    'pre-seed': 0.15, 'seed': 0.18, 'series-a': 0.20,
-    'series-b': 0.15, 'series-c': 0.12, 'series-d': 0.10,
-  };
-  const stage = (roundType || 'seed').toLowerCase();
-  const dilution = Object.entries(dilutionByStage).find(([k]) => stage.includes(k))?.[1] || 0.18;
-  return amountUsd ? Math.round(amountUsd / dilution) : null;
+// DISABLED — fabricating post-money from amount ÷ dilution produced impossible
+// valuations (e.g. a rumored "$11B" amount ÷ 0.18 → "$61B") that corrupted MOIC.
+// We never synthesize a valuation. post_money is only ever set from a real,
+// press-reported, plausibility-checked figure (see reverify-portfolio-valuations.mjs).
+function calcNewValuation() {
+  return null;
 }
 
 function calcMoic(currentVal, entryVal, virtualCheck) {
