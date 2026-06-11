@@ -7,7 +7,12 @@
  * caps per-position MOIC. We also report the uncapped figure for transparency.
  */
 
-const PER_POSITION_MOIC_CAP = 100; // 1–100× scale (mirrors GOD 1–100); only a genuine >100× data artifact is clamped
+const PER_POSITION_MOIC_CAP = 50; // per-position ceiling; a mark above 50× strains diligence for a young fund
+// A position whose markup rests on a round/exit valuation at or above this size was
+// already mid/late stage when the Oracle picked it (the fund is young, so that value
+// predates our hold). These "entered-late" positions are flagged and excluded from the
+// headline Avg MOIC so the headline rests on genuinely-early picks.
+const MATURE_AT_ENTRY_THRESHOLD_USD = 500_000_000;
 // Anti-fudge guard: a "verified" valuation above this is implausible for our cohort
 // (e.g. a seed/Series-B startup marked at $30B+) and almost always a data error. Such
 // positions are QUARANTINED — held at cost, not marked up — until the valuation is
@@ -16,6 +21,41 @@ const MAX_PLAUSIBLE_VALUATION_USD = 15_000_000_000;
 const EXIT_STATUSES = new Set(['acquired', 'ipo', 'exited']);
 const WRITEOFF_STATUSES = new Set(['written_off', 'dead', 'shutdown', 'closed', 'defunct']);
 const { FUND_LOCKED, FUND_LOCK_DATE } = require('./fundLock');
+
+/**
+ * Signal-accretion valuation model.
+ *
+ * The Oracle invests virtually at an assumed seed-stage entry (~$10–15M post-money).
+ * From there a position marks UP on two kinds of evidence:
+ *   1. A press-verified funding round → mark to the real post-money (hard market price).
+ *   2. Accumulated material signals (partnerships, customers, key hires, product/IP,
+ *      revenue) → each compounds the valuation by a modest weight. Signals are softer
+ *      evidence than a priced round, so their combined uplift is capped (below).
+ * Final per-position value = max(real round, entry × signal multiplier), then the
+ * global PER_POSITION_MOIC_CAP applies. Exits realize at their exit valuation;
+ * write-offs go to 0×.
+ */
+const SIGNAL_VALUATION_WEIGHTS = {
+  partnership: 0.08, // a named partnership/integration de-risks GTM
+  customer_win: 0.06, // a logo'd customer win is direct demand proof
+  key_hire: 0.1, // a senior exec/leadership hire is a strong team signal
+  product_launch: 0.07, // shipped product / new IP / innovation
+  revenue_milestone: 0.08, // disclosed revenue/ARR milestone
+  team_milestone: 0.05, // broader team growth
+};
+// Signal-only uplift is softer than a priced round; cap the compounded multiplier so a
+// company with many headlines can't paper-mark past a sane ceiling without a real round.
+const SIGNAL_MAX_MULTIPLIER = 5;
+
+/** Compounded valuation multiplier from accumulated material signals (capped). */
+function signalMultiplier(signalEvents) {
+  let mult = 1;
+  for (const ev of signalEvents || []) {
+    const w = SIGNAL_VALUATION_WEIGHTS[ev.event_type];
+    if (w) mult *= 1 + w;
+  }
+  return Math.min(mult, SIGNAL_MAX_MULTIPLIER);
+}
 
 /**
  * Top-VC reference benchmarks. These are transparent, sourced industry ranges —
@@ -44,41 +84,73 @@ function clampMoic(moic) {
 }
 
 /**
- * Verified-only MOIC for a single position. A position only marks above cost (1×)
- * when there is hard evidence: a press-verified funding round with a post-money
- * valuation, or a recorded exit valuation. Signal-inferred valuations are ignored.
+ * Signal-accretion MOIC for a single position. A position is entered at an assumed
+ * seed valuation and marks UP on hard round evidence and/or accumulated material
+ * signals (see SIGNAL_VALUATION_WEIGHTS). Final value = max(real round, entry ×
+ * signal multiplier). Exits realize at exit valuation; write-offs go to 0×.
  *
- * @returns { moic, basis } where basis ∈ 'exit' | 'verified_round' | 'cost'
+ * @returns { moic, basis } basis ∈ 'exit' | 'verified_round' | 'signal_accretion' | 'cost' | 'written_off'
  */
-function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRounds }) {
+function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRounds, signalEvents }) {
   const entry = Number(entryValuation);
   const exitVal = Number(exitValuation);
   let sawImplausible = false;
 
   // A written-off / dead position is a total loss (0×), not a held-at-cost (1×).
   if (WRITEOFF_STATUSES.has(status)) {
-    return { moic: 0, basis: 'written_off', quarantined: false };
+    return { moic: 0, basis: 'written_off', quarantined: false, value: 0, enteredLate: false };
   }
 
-  if (EXIT_STATUSES.has(status) && exitVal > 0 && entry > 0) {
+  if (!(entry > 0)) return { moic: 1, basis: 'cost', quarantined: false, value: 0, enteredLate: false };
+
+  // Realized exit takes precedence — realize at the (plausible) exit valuation.
+  if (EXIT_STATUSES.has(status) && exitVal > 0) {
     if (exitVal <= MAX_PLAUSIBLE_VALUATION_USD) {
-      return { moic: clampMoic(exitVal / entry), basis: 'exit', quarantined: false };
+      return {
+        moic: clampMoic(exitVal / entry),
+        basis: 'exit',
+        quarantined: false,
+        value: exitVal,
+        enteredLate: exitVal >= MATURE_AT_ENTRY_THRESHOLD_USD,
+      };
     }
     sawImplausible = true; // exit valuation is impossible → don't mark up
   }
 
-  if (entry > 0 && Array.isArray(verifiedRounds) && verifiedRounds.length) {
+  // Hard evidence: latest plausible press-verified round post-money.
+  let roundVal = 0;
+  if (Array.isArray(verifiedRounds) && verifiedRounds.length) {
     const priced = verifiedRounds.filter((r) => Number(r.post_money_usd) > 0);
     const plausible = priced.filter((r) => Number(r.post_money_usd) <= MAX_PLAUSIBLE_VALUATION_USD);
     if (priced.length && !plausible.length) sawImplausible = true; // had rounds, all impossible
     const latest = plausible
       .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())[0];
-    if (latest) return { moic: clampMoic(Number(latest.post_money_usd) / entry), basis: 'verified_round', quarantined: false };
+    if (latest) roundVal = Number(latest.post_money_usd);
   }
 
-  // Held at cost. quarantined=true means we WOULD have marked it up but the only
-  // evidence was an implausible valuation pending re-sourcing.
-  return { moic: 1, basis: 'cost', quarantined: sawImplausible };
+  // Soft evidence: accumulated material signals compound the entry valuation (capped).
+  const signalVal = entry * signalMultiplier(signalEvents);
+
+  // The position is worth the strongest evidence available.
+  const current = Math.max(roundVal, signalVal, entry);
+  let basis = 'cost';
+  if (roundVal >= signalVal && roundVal > entry) basis = 'verified_round';
+  else if (signalVal > entry) basis = 'signal_accretion';
+
+  // "Entered-late": the markup rests on a real round/exit valuation that was already
+  // mid/late stage at pick time. Signal-accreted picks earned their uplift during the
+  // hold, so they are NOT entered-late even if large.
+  const enteredLate = basis === 'verified_round' && current >= MATURE_AT_ENTRY_THRESHOLD_USD;
+
+  return {
+    moic: clampMoic(current / entry),
+    basis,
+    // quarantined: we WOULD have marked up off a round but the only evidence was
+    // implausible, and signals didn't independently lift the mark.
+    quarantined: sawImplausible && basis === 'cost',
+    value: current,
+    enteredLate,
+  };
 }
 
 /** Net present value of dated cash flows at a given annual rate. */
@@ -122,26 +194,31 @@ async function computePortfolioValue(supabase) {
     supabase
       .from('portfolio_events')
       .select('portfolio_id, startup_id, event_type, verified, post_money_usd, event_date')
-      .eq('event_type', 'funding_round')
-      .eq('verified', true),
+      .in('event_type', ['funding_round', ...Object.keys(SIGNAL_VALUATION_WEIGHTS)]),
   ]);
   if (picksRes.error) throw new Error(picksRes.error.message);
   if (eventsRes.error) throw new Error(eventsRes.error.message);
 
   const rows = picksRes.data || [];
 
-  // Index verified funding rounds by portfolio id and startup id.
+  // Index verified funding rounds (priced evidence) + signal events (accretion) by position.
   const roundsByPortfolio = new Map();
   const roundsByStartup = new Map();
+  const signalsByStartup = new Map();
   for (const ev of eventsRes.data || []) {
-    if (!Number(ev.post_money_usd)) continue;
-    if (ev.portfolio_id) {
-      if (!roundsByPortfolio.has(ev.portfolio_id)) roundsByPortfolio.set(ev.portfolio_id, []);
-      roundsByPortfolio.get(ev.portfolio_id).push(ev);
-    }
-    if (ev.startup_id) {
-      if (!roundsByStartup.has(ev.startup_id)) roundsByStartup.set(ev.startup_id, []);
-      roundsByStartup.get(ev.startup_id).push(ev);
+    if (ev.event_type === 'funding_round') {
+      if (!ev.verified || !Number(ev.post_money_usd)) continue;
+      if (ev.portfolio_id) {
+        if (!roundsByPortfolio.has(ev.portfolio_id)) roundsByPortfolio.set(ev.portfolio_id, []);
+        roundsByPortfolio.get(ev.portfolio_id).push(ev);
+      }
+      if (ev.startup_id) {
+        if (!roundsByStartup.has(ev.startup_id)) roundsByStartup.set(ev.startup_id, []);
+        roundsByStartup.get(ev.startup_id).push(ev);
+      }
+    } else if (SIGNAL_VALUATION_WEIGHTS[ev.event_type] && ev.startup_id) {
+      if (!signalsByStartup.has(ev.startup_id)) signalsByStartup.set(ev.startup_id, []);
+      signalsByStartup.get(ev.startup_id).push(ev);
     }
   }
 
@@ -155,6 +232,8 @@ async function computePortfolioValue(supabase) {
   let flat = 0;
   let markedPositions = 0;
   let quarantinedPositions = 0;
+  let enteredLatePositions = 0;
+  let enteredLateValue = 0; // current value attributable to entered-late picks
 
   const contributions = [];
   const cashflows = [];
@@ -168,17 +247,23 @@ async function computePortfolioValue(supabase) {
     costBasis += check;
 
     const verifiedRounds = roundsByPortfolio.get(p.id) || roundsByStartup.get(p.startup_id) || [];
-    const { moic: verifiedMoic, basis, quarantined } = computeVerifiedMoic({
+    const signalEvents = signalsByStartup.get(p.startup_id) || [];
+    const { moic: verifiedMoic, basis, quarantined, enteredLate } = computeVerifiedMoic({
       status: p.status,
       entryValuation: p.entry_valuation_usd,
       exitValuation: p.exit_valuation_usd,
       verifiedRounds,
+      signalEvents,
     });
 
     const value = check * verifiedMoic;
     currentValue += value;
     if (verifiedMoic > 1) markedPositions += 1; // genuinely above cost (not just re-based to fair value)
     if (quarantined) quarantinedPositions += 1;
+    if (enteredLate) {
+      enteredLatePositions += 1;
+      enteredLateValue += value;
+    }
 
     // Signal-implied (transparency only): capped raw moic from the picks table.
     const rawMoic = Number(p.moic);
@@ -209,6 +294,7 @@ async function computePortfolioValue(supabase) {
       moic_raw: Number.isFinite(rawMoic) ? round(rawMoic, 2) : null,
       basis,
       status: p.status,
+      entered_late: enteredLate,
     });
   }
 
@@ -241,11 +327,28 @@ async function computePortfolioValue(supabase) {
   const gain = currentValue - costBasis;
   const positions = contributions.length;
 
-  // Equal-weighted average of the capped, verified per-position multiples — the honest
-  // "Avg MOIC" headline. Mirrors the same cap/verification used for fund value, so a couple
-  // of signal-inferred outliers can no longer balloon it (the legacy avg_moic was uncapped).
+  // Equal-weighted average of the capped per-position multiples across ALL positions
+  // (kept for full transparency, incl. entered-late picks).
   const avgMoicCapped = positions
     ? round(contributions.reduce((a, c) => a + (c.moic_capped || 0), 0) / positions, 2)
+    : null;
+
+  // HEADLINE: equal-weighted Avg MOIC over genuinely-early picks only — entered-late
+  // positions (already mid/late stage when picked) are excluded so the headline reflects
+  // value the fund actually earned during the hold, not pre-existing scale.
+  const earlyContribs = contributions.filter((c) => !c.entered_late);
+  const earlyPositions = earlyContribs.length;
+  const avgMoicEarly = earlyPositions
+    ? round(earlyContribs.reduce((a, c) => a + (c.moic_capped || 0), 0) / earlyPositions, 2)
+    : null;
+  // Avg MOIC of the entered-late cohort, shown separately for context.
+  const avgMoicEnteredLate = enteredLatePositions
+    ? round(
+        contributions
+          .filter((c) => c.entered_late)
+          .reduce((a, c) => a + (c.moic_capped || 0), 0) / enteredLatePositions,
+        2
+      )
     : null;
 
   // Vintage / fund age.
@@ -266,6 +369,10 @@ async function computePortfolioValue(supabase) {
 
   return {
     positions,
+    early_positions: earlyPositions, // genuinely-early picks (headline basis)
+    entered_late_positions: enteredLatePositions, // already mid/late stage at pick; excluded from headline
+    entered_late_value_usd: round(enteredLateValue),
+    entered_late_avg_moic: avgMoicEnteredLate,
     marked_positions: markedPositions,
     quarantined_positions: quarantinedPositions, // had only implausible valuations; held at cost pending re-sourcing
     cost_basis_usd: round(costBasis),
@@ -274,7 +381,9 @@ async function computePortfolioValue(supabase) {
     gain_usd: round(gain),
     gain_pct: costBasis ? round((gain / costBasis) * 100, 1) : 0,
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
-    avg_moic_capped: avgMoicCapped,
+    avg_moic: avgMoicEarly, // HEADLINE: genuinely-early picks only
+    avg_moic_capped: avgMoicCapped, // all positions (transparency)
+    avg_moic_early: avgMoicEarly,
     avg_moic_industry_avg: VC_BENCHMARKS.avg_moic_industry, // industry reference shown in brackets next to Avg MOIC
     fund_locked: FUND_LOCKED, // fixed-vintage cohort; no new positions added once locked
     fund_lock_date: FUND_LOCK_DATE,
@@ -297,7 +406,8 @@ async function computePortfolioValue(supabase) {
     top_contributors: topContributors,
     note:
       (FUND_LOCKED ? `Fund locked (vintage ${FUND_LOCK_DATE}) — fixed cohort of ${positions} positions, no new entries; performance is tracked over time. ` : '') +
-      `Cost basis is each holding's real valuation at entry (press-sourced); current value is marked-to-market from press-verified rounds and recorded exits only. ` +
+      `Each position is entered at an assumed seed valuation (~$10–15M) and marked up via signal accretion: the strongest of a press-verified funding round or the entry compounded by accumulated material signals (partnerships, customer wins, key hires, product/IP, revenue), with signal uplift capped at ${SIGNAL_MAX_MULTIPLIER}×. Exits realize at exit value; write-offs go to 0×. ` +
+      `Headline Avg MOIC reflects ${earlyPositions} genuinely-early picks; ${enteredLatePositions} position(s) already mid/late stage at pick (round/exit ≥ $${round(MATURE_AT_ENTRY_THRESHOLD_USD / 1e6)}M) are reported separately${avgMoicEnteredLate != null ? ` (entered-late Avg MOIC ${avgMoicEnteredLate}×)` : ''}. ` +
       `${markedPositions} of ${positions} positions are above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
       (quarantinedPositions ? `${quarantinedPositions} position(s) held at cost pending valuation re-sourcing (implausible >$${round(MAX_PLAUSIBLE_VALUATION_USD / 1e9)}B figure quarantined). ` : '') +
       `Signal-implied value (looser, signal-inferred valuations) is ${costBasis ? round(signalImpliedValue / costBasis, 2) : '—'}× cost.`,

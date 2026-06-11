@@ -67,6 +67,10 @@ interface PortfolioMetrics {
 
 interface PortfolioValue {
   positions: number;
+  early_positions?: number;
+  entered_late_positions?: number;
+  entered_late_value_usd?: number;
+  entered_late_avg_moic?: number | null;
   marked_positions: number;
   quarantined_positions?: number;
   per_position_moic_cap?: number;
@@ -78,7 +82,9 @@ interface PortfolioValue {
   gain_usd: number;
   gain_pct: number;
   tvpi: number | null;
+  avg_moic?: number | null;
   avg_moic_capped: number | null;
+  avg_moic_early?: number | null;
   avg_moic_industry_avg?: number | null;
   realized_value_usd: number;
   unrealized_value_usd: number;
@@ -447,7 +453,9 @@ export default function Portfolio() {
         },
         {
           value:
-            analytics?.value.avg_moic_capped != null
+            analytics?.value.avg_moic_early != null
+              ? `${analytics.value.avg_moic_early}×`
+              : analytics?.value.avg_moic_capped != null
               ? `${analytics.value.avg_moic_capped}×`
               : metrics.avg_moic
               ? `${metrics.avg_moic}×`
@@ -456,7 +464,10 @@ export default function Portfolio() {
             ? `${analytics.value.avg_moic_industry_avg}×`
             : undefined,
           label: "Avg MOIC",
-          sub: `verified · capped ${analytics?.value.per_position_moic_cap ?? 100}× · [ ] = industry avg`,
+          sub:
+            analytics?.value.entered_late_positions
+              ? `${analytics.value.early_positions} early picks · ${analytics.value.entered_late_positions} entered-late at ${analytics.value.entered_late_avg_moic}× (separate) · [ ] = industry avg`
+              : `signal-accretion · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
         },
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),
@@ -555,6 +566,9 @@ export default function Portfolio() {
                 </div>
                 <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
                   {analytics.value.marked_positions} above cost
+                  {analytics.value.entered_late_positions
+                    ? ` · ${analytics.value.entered_late_positions} entered-late`
+                    : ""}
                   {analytics.value.quarantined_positions
                     ? ` · ${analytics.value.quarantined_positions} held (re-sourcing)`
                     : ""}
@@ -831,8 +845,8 @@ export default function Portfolio() {
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {[
               { step: "01", title: "GOD ≥ 70", desc: "Auto-added when a startup clears the investment-grade bar." },
-              { step: "02", title: "$100K virtual", desc: "Logged at estimated entry valuation." },
-              { step: "03", title: "Track everything", desc: "Rounds, leads, post-money, exits." },
+              { step: "02", title: "$100K virtual", desc: "Logged at an assumed seed entry (~$12M)." },
+              { step: "03", title: "Signal accretion", desc: "Rounds, partnerships, customers, hires, IP mark it up." },
               { step: "04", title: "Verify", desc: "Press-confirmed raises upgrade signal detections." },
               { step: "05", title: "Health tiers", desc: "Core · Watch · Review — momentum vs. maturity." },
             ].map((s) => (
