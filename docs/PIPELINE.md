@@ -26,6 +26,7 @@ flowchart TD
         DISC[("discovered_startups<br/>intake queue")]
         UP[("startup_uploads<br/>canonical corpus + scoring cols")]
         RES[("resolved_events<br/>resolver idempotency ledger")]
+        SIG[("startup_signal_scores<br/>5 signal dimensions → signals_bonus")]
         EV -->|"trigger: auto_approve_startup"| DISC --> UP
     end
 
@@ -37,6 +38,7 @@ flowchart TD
         OR["04:00 oracle-signal-backfill.js<br/>external signal backfill"]
         ENR["05:00 enrich-from-rss-news.js<br/>M&amp;A + funding re-sync"]
         RSV["05:30 event-resolver.js — RESCUE PASS (decoupled)<br/>events: LLM re-extract + verify URL + reconcile in place<br/>discovered: verify URL + link investors pre-promotion<br/>uploads: verified-URL + investor backfill (idempotent)"]
+        BRIDGE["05:50 signal-bridge<br/>emit-resolver-signal-events.js → pythh_signal_events (fundraising)<br/>then sync-signal-scores.js → startup_signal_scores"]
         SAGE["07:00 pythia-sage-review.js<br/>independent QA: reconstruct missing fields"]
         RETRO["(manual) retrofit-investors-to-scorer.js<br/>resolver_investors → extracted_data.investors (linked only)"]
     end
@@ -47,6 +49,7 @@ flowchart TD
     RSV --> RES
     RSV --> UP
     RSV --> DISC
+    UP --> BRIDGE --> SIG
     UP --> SAGE --> UP
     UP --> RETRO --> UP
 
@@ -60,6 +63,7 @@ flowchart TD
     end
 
     SECOND -->|"enriched fields"| SCORE
+    SIG -->|"signals_bonus"| SCORE
     SS -->|"writes total_god_score"| UP
 
     %% ---------- Delivery ----------
@@ -80,9 +84,30 @@ flowchart TD
 | `event-resolver.js` `--source events` | 05:30 daily | `startup_events` | reconciles `startup_uploads` / `discovered_startups`, `resolved_events` | yes (name / url / investors) |
 | `event-resolver.js` `--source discovered` | 05:30 daily | `discovered_startups` | website + investors pre-promotion | yes |
 | `event-resolver.js` `--source uploads` | 05:30 daily | `startup_uploads` (no website) | website + `extracted_data.investors` | yes (+0.5 url, +0.2/0.5 inv) |
+| `emit-resolver-signal-events.js` | 05:50 daily (`signal-bridge`) | `startup_uploads` (`extracted_data.investors`) | `pythh_signal_events` (`fundraising_signal`) | yes (via signals_bonus) |
+| `sync-signal-scores.js` | 05:50 daily (`signal-bridge`) | `pythh_signal_events` | `startup_signal_scores` | yes (signals_bonus) |
 | `pythia-sage-review.js` | 07:00 daily | `startup_uploads` | reconstructed `extracted_data` | indirect |
 | `retrofit-investors-to-scorer.js` | manual one-off | `extracted_data.resolver_investors` | `extracted_data.investors` (linked only) | yes |
-| `recalculate-scores.ts` | every 2h | enriched columns | `total_god_score` | **applies it** |
+| `recalculate-scores.ts` | every 2h | enriched columns + signals_bonus | `total_god_score` | **applies it** |
+
+### How resolver investors reach the Signal score
+
+The signal pipeline computes its 5 dimensions **only from `pythh_signal_events`** — it
+does not read `extracted_data` directly. So resolver-linked investors reach the
+signal score through the `signal-bridge` job, not a direct read:
+
+```
+event-resolver → extracted_data.investors (linked, canonical)
+  → emit-resolver-signal-events → pythh_signal_events (fundraising_signal)
+    → sync-signal-scores → startup_signal_scores (investor_receptivity, capital_convergence)
+      → signals_bonus → GOD recalc (every 2h)
+```
+
+A direct read inside `sync-signal-scores.js` is intentionally avoided: it would
+double-count investors that the emitter already represents as signal events
+(events are the single source of truth for the dimension math). The emitter is
+guarded (dedups vs existing fundraising signals, skips funds/junk names and
+entity-less rows, idempotent via `extracted_data.signal_emitted_at`).
 
 ## Scoring inputs the second pass unlocks
 

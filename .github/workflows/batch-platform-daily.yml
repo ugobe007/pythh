@@ -7,6 +7,7 @@ on:
     - cron: '0 4 * * *'    # oracle-signal-backfill
     - cron: '0 5 * * *'    # rss-enrich (M&A + funding sync)
     - cron: '30 5 * * *'   # event-resolver (recover startups the frame parser missed)
+    - cron: '50 5 * * *'   # signal-bridge (resolver investors → fundraising signals → signal scores)
     - cron: '0 7 * * *'    # sage-review (independent second-pass QA on scraped rows)
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
@@ -22,6 +23,7 @@ on:
           - oracle-backfill
           - rss-enrich
           - event-resolver
+          - signal-bridge
           - sage-review
           - portfolio-monitor
           - portfolio-digest
@@ -71,6 +73,23 @@ jobs:
       # 3) uploads: verified-URL + investor backfill over the no-website corpus (idempotent)
       run: node scripts/event-resolver.js --apply --hours 36 --limit 200 ; node scripts/event-resolver.js --apply --source discovered --limit 150 --concurrency 8 ; node scripts/event-resolver.js --apply --source uploads --limit 1500 --concurrency 8
       timeout_minutes: 60
+
+  # Bridges resolver-linked investors into the signal pipeline, then refreshes
+  # signal scores. Runs after event-resolver so the day's freshly-linked investors
+  # are included.
+  #   1) emit: one fundraising_signal event per resolver-found round (guarded:
+  #      dedups vs existing fundraising signals, skips funds/junk names + entity-less
+  #      rows, idempotent via extracted_data.signal_emitted_at, requires a website).
+  #   2) sync: aggregate pythh_signal_events → startup_signal_scores (feeds
+  #      signals_bonus → the 2-hourly GOD recalc). This is also the only scheduled
+  #      run of sync-signal-scores, so it keeps the whole signal layer fresh.
+  signal-bridge:
+    if: github.event.schedule == '50 5 * * *' || github.event.inputs.job == 'signal-bridge'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/emit-resolver-signal-events.js --apply --require-website ; node scripts/sync-signal-scores.js --apply
+      timeout_minutes: 45
 
   # Independent second-pass QA: reviews scraped startup_uploads for missing data,
   # reconstructs fields PYTHIA can support from evidence, and stamps extracted_data.
