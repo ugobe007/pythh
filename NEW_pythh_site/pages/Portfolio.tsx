@@ -129,9 +129,31 @@ interface FollowOnValue {
   note?: string;
 }
 
+interface SignalTrackRecord {
+  flagged: number;
+  unicorns_now: number;
+  tier_500m_now: number;
+  tier_100m_now: number;
+  unicorn_hit_rate_pct: number;
+  stepped_up_after_flag: number;
+  caught_early_unicorns: number;
+  median_lead_months: number | null;
+  marquee: {
+    name: string;
+    first_flag_date: string | null;
+    first_flag_valuation_usd: number;
+    current_valuation_usd: number;
+    multiple: number | null;
+    lead_months: number | null;
+    status: string;
+  }[];
+  note?: string;
+}
+
 interface PortfolioAnalytics {
   value: PortfolioValue;
   follow_on?: FollowOnValue | null;
+  signal?: SignalTrackRecord | null;
   benchmarks: { rows: BenchmarkRow[]; source: string };
   strategy: {
     thesis: string;
@@ -567,6 +589,69 @@ export default function Portfolio() {
             ))}
           </div>
         ) : null}
+
+        {/* Signal track record — the predictive hit-rate proof (timestamped foresight) */}
+        {analytics?.signal && analytics.signal.flagged > 0 && (
+          <div className="mb-10 rounded-lg border p-6" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+            <div className="flex items-baseline justify-between mb-4">
+              <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: CYAN }}>
+                Signal track record · predictive foresight
+              </div>
+              <div className="text-[10px] font-mono" style={{ color: DIM }}>timestamped first-flag → verified valuation</div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-5">
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: CYAN }}>
+                  {analytics.signal.unicorns_now}
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Unicorns flagged</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>now worth ≥ $1B</div>
+              </div>
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: CYAN }}>
+                  {analytics.signal.unicorn_hit_rate_pct}%
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Unicorn hit rate</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>{analytics.signal.flagged} flagged · {analytics.signal.tier_500m_now} ≥ $500M</div>
+              </div>
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: G }}>
+                  {analytics.signal.median_lead_months != null ? `${analytics.signal.median_lead_months}mo` : "—"}
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Median lead time</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>before today&apos;s valuation</div>
+              </div>
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: G }}>
+                  {analytics.signal.caught_early_unicorns}
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Caught pre-markup</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>unicorns up since flag</div>
+              </div>
+            </div>
+            {analytics.signal.marquee.length > 0 && (
+              <div className="pt-4 border-t" style={{ borderColor: BORDER }}>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color: DIM }}>Marquee picks · flagged → today</div>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                  {analytics.signal.marquee.map((c) => (
+                    <span key={c.name} className="text-xs font-mono" style={{ color: MUTED }}>
+                      {c.name}{" "}
+                      <span style={{ color: DIM }}>{c.first_flag_date?.slice(0, 7)}</span>{" "}
+                      <span style={{ color: (c.multiple ?? 1) > 1.05 ? G : "oklch(0.85 0.005 264)" }}>
+                        {fmtUSD(c.current_valuation_usd)}
+                        {(c.multiple ?? 1) > 1.05 ? ` ${c.multiple}×` : ""}
+                      </span>
+                      {c.status === "acquired" || c.status === "ipo" ? <span style={{ color: CYAN }}> · exit</span> : null}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {analytics.signal.note && (
+              <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.signal.note}</p>
+            )}
+          </div>
+        )}
 
         {/* Fund analytics — collapsible to keep the portfolio list above the fold */}
         {analytics?.value && (
