@@ -108,8 +108,27 @@ interface BenchmarkRow {
   verdict: "ahead" | "inline" | "behind" | "n/a";
 }
 
+interface FollowOnValue {
+  positions: number;
+  marked_positions: number;
+  check_size_usd: number;
+  inception_date: string;
+  deployed_usd: number;
+  cost_basis_usd: number;
+  current_value_usd: number;
+  gain_usd: number;
+  gain_pct: number;
+  avg_moic: number | null;
+  tvpi: number | null;
+  per_position_moic_cap?: number;
+  win_rate_pct?: number;
+  top_contributors?: { name: string; moic: number; basis: string; gain_usd: number; entry_round_type?: string | null }[];
+  note?: string;
+}
+
 interface PortfolioAnalytics {
   value: PortfolioValue;
+  follow_on?: FollowOnValue | null;
   benchmarks: { rows: BenchmarkRow[]; source: string };
   strategy: {
     thesis: string;
@@ -467,6 +486,17 @@ export default function Portfolio() {
           sub: `blended · honest entries · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
         },
         {
+          value:
+            analytics?.follow_on && analytics.follow_on.positions > 0 && analytics.follow_on.avg_moic != null
+              ? `${analytics.follow_on.avg_moic}×`
+              : "—",
+          label: "Follow-on MOIC",
+          sub:
+            analytics?.follow_on && analytics.follow_on.positions > 0
+              ? `late-stage · ${analytics.follow_on.positions} bets · $500K / round`
+              : "forward-only · fills as winners raise",
+        },
+        {
           value: fmtUSD(metrics.total_virtual_deployed_usd),
           label: "Virtual capital",
           sub: "$100K / pick",
@@ -504,7 +534,7 @@ export default function Portfolio() {
           <div className="h-20 mb-10 animate-pulse rounded-lg" style={{ backgroundColor: CARD }} />
         ) : metrics ? (
           <div
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-0 mb-10 py-6 border-y divide-x divide-white/5"
+            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-0 mb-10 py-6 border-y divide-x divide-white/5"
             style={{ borderColor: BORDER }}
           >
             {statStrip.map((s) => (
@@ -643,6 +673,62 @@ export default function Portfolio() {
               </div>
             )}
             <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.value.note}</p>
+
+            {/* Secondary fund: late-stage follow-on ("double down" on winners) */}
+            {analytics.follow_on && (
+              <div className="mt-6 pt-5 border-t" style={{ borderColor: BORDER }}>
+                <div className="flex items-baseline justify-between mb-3">
+                  <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: CYAN }}>
+                    Follow-on fund · late-stage
+                  </div>
+                  <div className="text-[10px] font-mono" style={{ color: DIM }}>$500K / round · forward-only</div>
+                </div>
+                {analytics.follow_on.positions > 0 ? (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div>
+                        <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Bets</div>
+                        <div className="text-base font-bold font-mono tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
+                          {analytics.follow_on.positions}
+                        </div>
+                        <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>{fmtUSD(analytics.follow_on.deployed_usd)} deployed</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Current value</div>
+                        <div className="text-base font-bold font-mono tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
+                          {fmtUSD(analytics.follow_on.current_value_usd)}
+                        </div>
+                        <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>{analytics.follow_on.marked_positions} above cost</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>Follow-on MOIC</div>
+                        <div className="text-base font-bold font-mono tabular-nums" style={{ color: G }}>
+                          {analytics.follow_on.avg_moic != null ? `${analytics.follow_on.avg_moic}×` : "—"}
+                        </div>
+                        <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>since follow-on entry</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-mono uppercase tracking-widest mb-1" style={{ color: DIM }}>TVPI</div>
+                        <div className="text-base font-bold font-mono tabular-nums" style={{ color: G }}>
+                          {analytics.follow_on.tvpi != null ? `${analytics.follow_on.tvpi}×` : "—"}
+                        </div>
+                        <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>net {fmtSignedUSD(analytics.follow_on.gain_usd)}</div>
+                      </div>
+                    </div>
+                    {analytics.follow_on.top_contributors && analytics.follow_on.top_contributors.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
+                        {analytics.follow_on.top_contributors.filter((c) => c.gain_usd > 0).slice(0, 5).map((c) => (
+                          <span key={c.name} className="text-xs font-mono" style={{ color: MUTED }}>
+                            {c.name} <span style={{ color: G }}>{c.moic}×</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : null}
+                <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.follow_on.note}</p>
+              </div>
+            )}
           </Collapsible>
 
           {/* vs top VC */}

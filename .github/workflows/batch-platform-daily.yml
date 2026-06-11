@@ -12,6 +12,7 @@ on:
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
     - cron: '0 8 * * *'    # portfolio-signals (daily M&A/funding/partnership/customer/hire/IP scan)
+    - cron: '30 8 * * *'   # followon-fund (double down on winners' later-stage rounds, forward-only)
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
   workflow_dispatch:
     inputs:
@@ -29,6 +30,7 @@ on:
           - portfolio-monitor
           - portfolio-digest
           - portfolio-signals
+          - followon-fund
           - portfolio-score-validate
           - daily-brief
 
@@ -131,6 +133,18 @@ jobs:
     with:
       run: node scripts/cron/portfolio-daily-signals.mjs --apply
       timeout_minutes: 45
+
+  # Virtual follow-on fund: doubles down on Pythia's seed winners when they close a
+  # later-stage round (post-money >= $100M) GOING FORWARD, recording a $500K check at the
+  # round's real post-money. Runs after portfolio-signals so the day's fresh funding
+  # rounds are on the books. Forward-only — no backfill of past rounds.
+  followon-fund:
+    if: github.event.schedule == '30 8 * * *' || github.event.inputs.job == 'followon-fund'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/cron/followon-fund.mjs --apply
+      timeout_minutes: 15
 
   portfolio-score-validate:
     if: github.event.schedule == '30 6 * * *' || github.event.inputs.job == 'portfolio-score-validate'

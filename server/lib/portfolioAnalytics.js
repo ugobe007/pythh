@@ -648,7 +648,13 @@ async function describeStrategyAndTrend(supabase, metrics, trackRecord) {
 
 module.exports = {
   PER_POSITION_MOIC_CAP,
+  MAX_PLAUSIBLE_VALUATION_USD,
+  SIGNAL_VALUATION_WEIGHTS,
+  SIGNAL_MAX_MULTIPLIER,
   VC_BENCHMARKS,
+  round,
+  clampMoic,
+  signalMultiplier,
   buildEntryRationale,
   isGenericRationale,
   computeVerifiedMoic,

@@ -9294,22 +9294,26 @@ const {
   buildEntryRationale,
   isGenericRationale,
 } = require('./lib/portfolioAnalytics');
+const { computeFollowOnValue } = require('./lib/followOnAnalytics');
 
 app.get('/api/portfolio/analytics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const [metricsRes, value, trackRecord] = await Promise.all([
+    const [metricsRes, value, trackRecord, followOnRes] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
       computePortfolioValue(supabase),
       computeTrackRecord(supabase),
+      // Secondary late-stage fund; never let it break the main analytics response.
+      computeFollowOnValue(supabase).catch((e) => ({ error: e.message })),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
     const metrics = enrichPortfolioMetrics(metricsRes.data || {});
     const benchmarks = compareToBenchmarks(metrics, value);
     const { strategy, trend } = await describeStrategyAndTrend(supabase, metrics, trackRecord);
+    const follow_on = followOnRes && !followOnRes.error ? followOnRes : null;
 
     res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
-    res.json({ value, benchmarks, strategy, trend, computed_at: new Date().toISOString() });
+    res.json({ value, follow_on, benchmarks, strategy, trend, computed_at: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
