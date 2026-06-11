@@ -453,8 +453,8 @@ export default function Portfolio() {
         },
         {
           value:
-            analytics?.value.avg_moic_early != null
-              ? `${analytics.value.avg_moic_early}×`
+            analytics?.value.avg_moic != null
+              ? `${analytics.value.avg_moic}×`
               : analytics?.value.avg_moic_capped != null
               ? `${analytics.value.avg_moic_capped}×`
               : metrics.avg_moic
@@ -464,10 +464,7 @@ export default function Portfolio() {
             ? `${analytics.value.avg_moic_industry_avg}×`
             : undefined,
           label: "Avg MOIC",
-          sub:
-            analytics?.value.entered_late_positions
-              ? `${analytics.value.early_positions} early picks · ${analytics.value.entered_late_positions} entered-late at ${analytics.value.entered_late_avg_moic}× (separate) · [ ] = industry avg`
-              : `signal-accretion · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
+          sub: `blended · honest entries · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
         },
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),

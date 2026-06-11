@@ -12,7 +12,7 @@ const PER_POSITION_MOIC_CAP = 50; // per-position ceiling; a mark above 50× str
 // already mid/late stage when the Oracle picked it (the fund is young, so that value
 // predates our hold). These "entered-late" positions are flagged and excluded from the
 // headline Avg MOIC so the headline rests on genuinely-early picks.
-const MATURE_AT_ENTRY_THRESHOLD_USD = 500_000_000;
+const MATURE_AT_ENTRY_THRESHOLD_USD = 200_000_000;
 // Anti-fudge guard: a "verified" valuation above this is implausible for our cohort
 // (e.g. a seed/Series-B startup marked at $30B+) and almost always a data error. Such
 // positions are QUARANTINED — held at cost, not marked up — until the valuation is
@@ -381,9 +381,9 @@ async function computePortfolioValue(supabase) {
     gain_usd: round(gain),
     gain_pct: costBasis ? round((gain / costBasis) * 100, 1) : 0,
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
-    avg_moic: avgMoicEarly, // HEADLINE: genuinely-early picks only
-    avg_moic_capped: avgMoicCapped, // all positions (transparency)
-    avg_moic_early: avgMoicEarly,
+    avg_moic: avgMoicCapped, // HEADLINE: blended across all positions (every entry now honest)
+    avg_moic_capped: avgMoicCapped, // all positions
+    avg_moic_early: avgMoicEarly, // early-only (reference)
     avg_moic_industry_avg: VC_BENCHMARKS.avg_moic_industry, // industry reference shown in brackets next to Avg MOIC
     fund_locked: FUND_LOCKED, // fixed-vintage cohort; no new positions added once locked
     fund_lock_date: FUND_LOCK_DATE,
@@ -406,9 +406,8 @@ async function computePortfolioValue(supabase) {
     top_contributors: topContributors,
     note:
       (FUND_LOCKED ? `Fund locked (vintage ${FUND_LOCK_DATE}) — fixed cohort of ${positions} positions, no new entries; performance is tracked over time. ` : '') +
-      `Each position is entered at an assumed seed valuation (~$10–15M) and marked up via signal accretion: the strongest of a press-verified funding round or the entry compounded by accumulated material signals (partnerships, customer wins, key hires, product/IP, revenue), with signal uplift capped at ${SIGNAL_MAX_MULTIPLIER}×. Exits realize at exit value; write-offs go to 0×. ` +
-      `Headline Avg MOIC reflects ${earlyPositions} genuinely-early picks; ${enteredLatePositions} position(s) already mid/late stage at pick (round/exit ≥ $${round(MATURE_AT_ENTRY_THRESHOLD_USD / 1e6)}M) are reported separately${avgMoicEnteredLate != null ? ` (entered-late Avg MOIC ${avgMoicEnteredLate}×)` : ''}. ` +
-      `${markedPositions} of ${positions} positions are above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
+      `Every position uses an honest entry: genuinely-early picks enter at an assumed seed valuation (~$10–15M); picks already mid/late stage when flagged enter at their real pick-date post-money (so MOIC reflects only appreciation since the pick, never a counterfactual seed basis). Positions mark up via the strongest of a press-verified funding round or the entry compounded by accumulated material signals (partnerships, customer wins, key hires, product/IP, revenue), with signal uplift capped at ${SIGNAL_MAX_MULTIPLIER}×. Exits realize at exit value; write-offs go to 0×. ` +
+      `Avg MOIC is the equal-weighted blended multiple across all ${positions} positions. ${markedPositions} are above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
       (quarantinedPositions ? `${quarantinedPositions} position(s) held at cost pending valuation re-sourcing (implausible >$${round(MAX_PLAUSIBLE_VALUATION_USD / 1e9)}B figure quarantined). ` : '') +
       `Signal-implied value (looser, signal-inferred valuations) is ${costBasis ? round(signalImpliedValue / costBasis, 2) : '—'}× cost.`,
   };
