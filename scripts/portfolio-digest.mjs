@@ -28,6 +28,7 @@ dotenv.config();
 
 const require = createRequire(import.meta.url);
 const { healPortfolioHoldings, isCorrupted } = require('../lib/portfolioScoreGuardrails.js');
+const { isFundLocked, lockNote } = require('../server/lib/fundLock.js');
 
 const DRY_RUN  = process.argv.includes('--dry-run');
 const NO_EMAIL = process.argv.includes('--no-email') || DRY_RUN;
@@ -88,6 +89,11 @@ function tierEmoji(tier) {
 // ─── Step 1: Auto-seed new GOD≥70 picks ─────────────────────────────────────
 
 async function autoSeed() {
+  // Fund-lock policy: a locked fund is a fixed-vintage cohort. No new positions.
+  if (isFundLocked()) {
+    console.log('\n🔒 Auto-seed DISABLED —', lockNote());
+    return [];
+  }
   console.log('\n🌱 Auto-seed check (GOD ≥', MIN_GOD_SEED, ')');
 
   // Get all startup_ids already tracked

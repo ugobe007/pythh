@@ -18,9 +18,16 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
+import { createRequire } from 'module';
 dotenv.config();
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const { isFundLocked, lockNote } = createRequire(import.meta.url)('../server/lib/fundLock.js');
+if (isFundLocked() && !DRY_RUN) {
+  console.error('🔒  ' + lockNote());
+  console.error('    Curation/seeding is disabled. Set PORTFOLIO_UNLOCK=true to open a new vintage.');
+  process.exit(1);
+}
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,

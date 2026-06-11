@@ -13,8 +13,15 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
+const { isFundLocked, lockNote } = createRequire(import.meta.url)('../server/lib/fundLock.js');
+if (isFundLocked()) {
+  console.error('🔒  ' + lockNote());
+  console.error('    Seeding is disabled. Set PORTFOLIO_UNLOCK=true to open a new vintage.');
+  process.exit(1);
+}
 
 // Load .env manually (no dotenv dependency needed)
 try {

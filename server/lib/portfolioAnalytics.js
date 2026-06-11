@@ -9,6 +9,7 @@
 
 const PER_POSITION_MOIC_CAP = 25; // mirrors track-record top-performer filter (moic <= 25)
 const EXIT_STATUSES = new Set(['acquired', 'ipo', 'exited']);
+const { FUND_LOCKED, FUND_LOCK_DATE } = require('./fundLock');
 
 /**
  * Top-VC reference benchmarks. These are transparent, sourced industry ranges —
@@ -249,6 +250,8 @@ async function computePortfolioValue(supabase) {
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
     avg_moic_capped: avgMoicCapped,
     avg_moic_industry_avg: VC_BENCHMARKS.avg_moic_industry, // industry reference shown in brackets next to Avg MOIC
+    fund_locked: FUND_LOCKED, // fixed-vintage cohort; no new positions added once locked
+    fund_lock_date: FUND_LOCK_DATE,
     realized_value_usd: round(realizedValue),
     unrealized_value_usd: round(unrealizedValue),
     // Vintage (A)
@@ -267,6 +270,7 @@ async function computePortfolioValue(supabase) {
     per_position_moic_cap: PER_POSITION_MOIC_CAP,
     top_contributors: topContributors,
     note:
+      (FUND_LOCKED ? `Fund locked (vintage ${FUND_LOCK_DATE}) — fixed cohort of ${positions} positions, no new entries; performance is tracked over time. ` : '') +
       `Current value is marked from press-verified funding rounds and recorded exits only ` +
       `(${markedPositions} of ${positions} positions marked above cost); per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
       `Signal-implied value (looser, signal-inferred valuations) is ${costBasis ? round(signalImpliedValue / costBasis, 2) : '—'}× cost.`,

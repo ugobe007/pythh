@@ -8,6 +8,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { assertFundOpen } = require('../lib/fundLock.js');
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
@@ -86,6 +88,7 @@ export interface AddToPortfolioOptions {
 }
 
 export async function addToPortfolio(startupId: string, options: AddToPortfolioOptions = {}) {
+  assertFundOpen('add a startup to the virtual fund'); // fixed-vintage cohort; locked by default
   // Fetch startup info
   const { data: su, error: suErr } = await supabase
     .from('startup_uploads')
@@ -281,6 +284,7 @@ export async function markExit(startupId: string, exit: ExitInput) {
 // ---------------------------------------------------------------------------
 
 export async function seedPortfolio(godThreshold = 70) {
+  assertFundOpen('bulk-seed the virtual fund'); // fixed-vintage cohort; locked by default
   // Fetch all approved startups above the threshold
   const { data: startups, error } = await supabase
     .from('startup_uploads')

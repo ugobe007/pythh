@@ -9470,6 +9470,10 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
 // POST /api/admin/portfolio/seed — auto-populate GOD ≥ threshold
 app.post('/api/admin/portfolio/seed', async (req, res) => {
   try {
+    const { isFundLocked, lockNote } = require('./lib/fundLock');
+    if (isFundLocked()) {
+      return res.status(423).json({ error: 'fund_locked', message: lockNote() });
+    }
     const supabase = getSupabaseClient();
     const threshold = parseInt(req.body?.threshold || '70', 10);
 
