@@ -13,6 +13,7 @@ on:
     - cron: '30 6 * * *'   # portfolio-digest
     - cron: '0 8 * * *'    # portfolio-signals (daily M&A/funding/partnership/customer/hire/IP scan)
     - cron: '30 8 * * *'   # followon-fund (double down on winners' later-stage rounds, forward-only)
+    - cron: '45 8 * * *'   # portfolio-exits (book verified M&A/IPO exits, target-only, honest entries)
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
   workflow_dispatch:
     inputs:
@@ -31,6 +32,7 @@ on:
           - portfolio-digest
           - portfolio-signals
           - followon-fund
+          - portfolio-exits
           - portfolio-score-validate
           - daily-brief
 
@@ -145,6 +147,17 @@ jobs:
     with:
       run: node scripts/cron/followon-fund.mjs --apply
       timeout_minutes: 15
+
+  # Books verified realized exits: LLM-confirms the company was the acquisition TARGET (not
+  # the acquirer) or IPO'd, sources the deal value, and marks the position exited against an
+  # honest entry (real pre-exit valuation, else realized at cost — never a fabricated multiple).
+  portfolio-exits:
+    if: github.event.schedule == '45 8 * * *' || github.event.inputs.job == 'portfolio-exits'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/reconcile-portfolio-exits.mjs --apply
+      timeout_minutes: 20
 
   portfolio-score-validate:
     if: github.event.schedule == '30 6 * * *' || github.event.inputs.job == 'portfolio-score-validate'
