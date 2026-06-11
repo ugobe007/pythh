@@ -68,6 +68,10 @@ interface PortfolioMetrics {
 interface PortfolioValue {
   positions: number;
   marked_positions: number;
+  quarantined_positions?: number;
+  per_position_moic_cap?: number;
+  fund_locked?: boolean;
+  fund_lock_date?: string;
   cost_basis_usd: number;
   current_value_usd: number;
   signal_implied_value_usd: number;
@@ -452,7 +456,7 @@ export default function Portfolio() {
             ? `${analytics.value.avg_moic_industry_avg}×`
             : undefined,
           label: "Avg MOIC",
-          sub: "verified · capped 25× · [ ] = industry avg",
+          sub: `verified · capped ${analytics?.value.per_position_moic_cap ?? 100}× · [ ] = industry avg`,
         },
         {
           value: fmtUSD(metrics.total_virtual_deployed_usd),
@@ -550,7 +554,10 @@ export default function Portfolio() {
                   {fmtUSD(analytics.value.current_value_usd)}
                 </div>
                 <div className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
-                  {analytics.value.marked_positions} verified marks
+                  {analytics.value.marked_positions} above cost
+                  {analytics.value.quarantined_positions
+                    ? ` · ${analytics.value.quarantined_positions} held (re-sourcing)`
+                    : ""}
                 </div>
               </div>
               <div>

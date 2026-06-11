@@ -11,6 +11,7 @@ on:
     - cron: '0 7 * * *'    # sage-review (independent second-pass QA on scraped rows)
     - cron: '0 6 * * *'    # portfolio-monitor
     - cron: '30 6 * * *'   # portfolio-digest
+    - cron: '0 8 * * *'    # portfolio-signals (daily M&A/funding/partnership/customer/hire/IP scan)
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
   workflow_dispatch:
     inputs:
@@ -27,6 +28,7 @@ on:
           - sage-review
           - portfolio-monitor
           - portfolio-digest
+          - portfolio-signals
           - portfolio-score-validate
           - daily-brief
 
@@ -117,6 +119,18 @@ jobs:
     with:
       run: node scripts/portfolio-digest.mjs
       timeout_minutes: 30
+
+  # Daily material-signal scan over the locked portfolio: detects funding rounds,
+  # M&A, partnerships, new customers, key hires, and product/IP news per company
+  # (LLM-classified, company-matched, deduped) and records them to portfolio_events.
+  # Funding valuations are plausibility-guarded and never synthesized.
+  portfolio-signals:
+    if: github.event.schedule == '0 8 * * *' || github.event.inputs.job == 'portfolio-signals'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/cron/portfolio-daily-signals.mjs --apply
+      timeout_minutes: 45
 
   portfolio-score-validate:
     if: github.event.schedule == '30 6 * * *' || github.event.inputs.job == 'portfolio-score-validate'
