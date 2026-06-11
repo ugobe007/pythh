@@ -483,7 +483,8 @@ export default function Portfolio() {
             ? `${analytics.value.avg_moic_industry_avg}×`
             : undefined,
           label: "Avg MOIC",
-          sub: `blended · honest entries · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
+          valueColor: G, // seed fund = green
+          sub: `seed · blended · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
         },
         {
           value:
@@ -491,6 +492,7 @@ export default function Portfolio() {
               ? `${analytics.follow_on.avg_moic}×`
               : "—",
           label: "Follow-on MOIC",
+          valueColor: CYAN, // follow-on (late-stage) fund = cyan, matches its fund block
           sub:
             analytics?.follow_on && analytics.follow_on.positions > 0
               ? `late-stage · ${analytics.follow_on.positions} bets · $500K / round`
@@ -541,7 +543,7 @@ export default function Portfolio() {
               <div key={s.label} className="px-4 py-2 text-center first:pl-0">
                 <div
                   className="font-display font-bold text-2xl md:text-3xl tabular-nums mb-1"
-                  style={{ color: s.accent ? G : "oklch(0.94 0.005 264)" }}
+                  style={{ color: s.valueColor || (s.accent ? G : "oklch(0.94 0.005 264)") }}
                 >
                   {s.value}
                   {s.benchmark && (
