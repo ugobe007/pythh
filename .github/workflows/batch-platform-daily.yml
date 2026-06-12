@@ -94,7 +94,7 @@ jobs:
     uses: ./.github/workflows/reusable-node-batch.yml
     secrets: inherit
     with:
-      run: node scripts/emit-resolver-signal-events.js --apply --require-website ; node scripts/sync-signal-scores.js --apply
+      run: node scripts/emit-resolver-signal-events.js --apply --require-website ; node scripts/sync-signal-scores.js --apply ; node scripts/cron/snapshot-signal-scores.mjs --apply
       timeout_minutes: 45
 
   # Independent second-pass QA: reviews scraped startup_uploads for missing data,

@@ -9296,11 +9296,12 @@ const {
 } = require('./lib/portfolioAnalytics');
 const { computeFollowOnValue } = require('./lib/followOnAnalytics');
 const { computeSignalTrackRecord } = require('./lib/signalTrackRecord');
+const { computeSignalVelocity } = require('./lib/signalVelocity');
 
 app.get('/api/portfolio/analytics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const [metricsRes, value, trackRecord, followOnRes, signalRes] = await Promise.all([
+    const [metricsRes, value, trackRecord, followOnRes, signalRes, velocityRes] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
       computePortfolioValue(supabase),
       computeTrackRecord(supabase),
@@ -9308,6 +9309,8 @@ app.get('/api/portfolio/analytics', async (req, res) => {
       computeFollowOnValue(supabase).catch((e) => ({ error: e.message })),
       // Predictive hit-rate proof sheet; never let it break the main analytics response.
       computeSignalTrackRecord(supabase).catch((e) => ({ error: e.message })),
+      // Signal-velocity momentum index; never let it break the main analytics response.
+      computeSignalVelocity(supabase).catch((e) => ({ error: e.message })),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
     const metrics = enrichPortfolioMetrics(metricsRes.data || {});
@@ -9315,9 +9318,10 @@ app.get('/api/portfolio/analytics', async (req, res) => {
     const { strategy, trend } = await describeStrategyAndTrend(supabase, metrics, trackRecord);
     const follow_on = followOnRes && !followOnRes.error ? followOnRes : null;
     const signal = signalRes && !signalRes.error ? signalRes : null;
+    const velocity = velocityRes && !velocityRes.error ? velocityRes : null;
 
     res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
-    res.json({ value, follow_on, signal, benchmarks, strategy, trend, computed_at: new Date().toISOString() });
+    res.json({ value, follow_on, signal, velocity, benchmarks, strategy, trend, computed_at: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

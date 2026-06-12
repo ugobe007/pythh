@@ -150,10 +150,37 @@ interface SignalTrackRecord {
   note?: string;
 }
 
+interface SignalVelocity {
+  window_days: number;
+  tiers: { min_index: number; multiple: number; label: string }[];
+  positions_scored: number;
+  avg_velocity_index: number;
+  accelerating_count: number;
+  hot_count: number;
+  tier_counts: Record<string, number>;
+  honest_value_usd: number;
+  momentum_implied_value_usd: number;
+  momentum_uplift_usd: number;
+  momentum_uplift_pct: number;
+  top_movers: {
+    name: string;
+    velocity_index: number;
+    momentum_multiple: number;
+    tier: string;
+    accelerating: boolean;
+    signal_level: number;
+    honest_value_usd: number;
+    momentum_value_usd: number;
+    uplift_usd: number;
+  }[];
+  note?: string;
+}
+
 interface PortfolioAnalytics {
   value: PortfolioValue;
   follow_on?: FollowOnValue | null;
   signal?: SignalTrackRecord | null;
+  velocity?: SignalVelocity | null;
   benchmarks: { rows: BenchmarkRow[]; source: string };
   strategy: {
     thesis: string;
@@ -649,6 +676,86 @@ export default function Portfolio() {
             )}
             {analytics.signal.note && (
               <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>{analytics.signal.note}</p>
+            )}
+          </div>
+        )}
+
+        {/* Signal velocity — momentum index → valuation multiple (forward-looking) */}
+        {analytics?.velocity && analytics.velocity.positions_scored > 0 && (
+          <div className="mb-10 rounded-lg border p-6" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+            <div className="flex items-baseline justify-between mb-4">
+              <div className="text-[11px] font-mono uppercase tracking-widest" style={{ color: AMBER }}>
+                Signal velocity · momentum premium
+              </div>
+              <div className="text-[10px] font-mono" style={{ color: DIM }}>indexed across {analytics.velocity.positions_scored} companies · {analytics.velocity.window_days}d window</div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-5">
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: AMBER }}>
+                  {analytics.velocity.accelerating_count}
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Accelerating</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>signals up vs prior {analytics.velocity.window_days}d</div>
+              </div>
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: AMBER }}>
+                  {analytics.velocity.hot_count}
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Hot (index ≥ 70)</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>top of the velocity index</div>
+              </div>
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: "oklch(0.90 0.005 264)" }}>
+                  {fmtUSD(analytics.velocity.momentum_implied_value_usd)}
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Momentum-implied*</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>from {fmtUSD(analytics.velocity.honest_value_usd)} honest</div>
+              </div>
+              <div>
+                <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: G }}>
+                  +{analytics.velocity.momentum_uplift_pct}%
+                </div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Momentum uplift</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>{fmtSignedUSD(analytics.velocity.momentum_uplift_usd)}</div>
+              </div>
+            </div>
+
+            {/* velocity → multiple tier mapping */}
+            <div className="pt-4 border-t" style={{ borderColor: BORDER }}>
+              <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color: DIM }}>Velocity index → multiple</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {analytics.velocity.tiers.map((t) => (
+                  <span key={t.label} className="text-xs font-mono" style={{ color: MUTED }}>
+                    <span style={{ color: DIM }}>≥{t.min_index}</span>{" "}
+                    <span style={{ color: t.multiple > 1 ? AMBER : DIM }}>{t.multiple}×</span>{" "}
+                    <span style={{ color: DIM }}>{t.label}</span>
+                    {analytics.velocity!.tier_counts[t.label] != null ? (
+                      <span style={{ color: DIM }}> ({analytics.velocity!.tier_counts[t.label]})</span>
+                    ) : null}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {analytics.velocity.top_movers.length > 0 && (
+              <div className="mt-4 pt-4 border-t" style={{ borderColor: BORDER }}>
+                <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color: DIM }}>Top movers · velocity index → momentum value</div>
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                  {analytics.velocity.top_movers.map((c) => (
+                    <span key={c.name} className="text-xs font-mono" style={{ color: MUTED }}>
+                      {c.accelerating ? <span style={{ color: G }}>▲ </span> : null}
+                      {c.name}{" "}
+                      <span style={{ color: DIM }}>idx {c.velocity_index}</span>{" "}
+                      <span style={{ color: AMBER }}>{c.momentum_multiple}×</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {analytics.velocity.note && (
+              <p className="text-[10px] font-mono mt-4" style={{ color: AMBER }}>
+                *Momentum-implied = forward premium applying the velocity multiple to each position&apos;s honest current value. Not realized; never mixed into booked MOIC.
+              </p>
             )}
           </div>
         )}
