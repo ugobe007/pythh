@@ -1621,8 +1621,50 @@ function heroCleanInvestorName(name) {
   const n = name.trim();
   if (n.length < 2 || n.length > 48) return false;
   if (/^[a-z]/.test(n)) return false; // lowercase start = junk extraction
+  if (/\d/.test(n)) return false; // names with digits = junk extraction
   if (/\b(funding|raises|raised|million|billion|startup|article)\b/i.test(n)) return false;
   return true;
+}
+
+// Role/title tokens that get scraped onto person names ("Clinton LazzariOperating",
+// "Doug Leone General Partner"). They are not part of the person's name.
+const HERO_ROLE_TOKENS = new Set([
+  'operating', 'general', 'managing', 'venture', 'founding', 'limited',
+  'partner', 'partners', 'principal', 'associate', 'director', 'investor',
+  'advisor', 'adviser', 'angel', 'scout', 'operator', 'analyst', 'member',
+  'gp', 'lp', 'vc', 'cofounder', 'founder', 'ceo', 'cto', 'chairman',
+]);
+
+function heroPersonName(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  // Strip parenthetical handles ("Doug Leone (Sequoiacap)") — firm shows separately.
+  let n = raw.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  // Split a single role token glued to the surname ("LazzariOperating" -> "Lazzari Operating").
+  n = n.replace(/([a-z])([A-Z][a-z]+)$/, (m, a, b) =>
+    HERO_ROLE_TOKENS.has(b.toLowerCase()) ? `${a} ${b}` : m,
+  );
+  // Drop trailing role/title tokens ("Clinton Lazzari Operating" -> "Clinton Lazzari").
+  const parts = n.split(/\s+/);
+  while (parts.length > 1 && HERO_ROLE_TOKENS.has(parts[parts.length - 1].toLowerCase().replace(/[.,]/g, ''))) {
+    parts.pop();
+  }
+  return parts.join(' ').trim() || null;
+}
+
+function heroCleanFirm(firm, investorName) {
+  if (!firm || typeof firm !== 'string') return null;
+  let f = firm.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+Personal$/i, '').trim();
+  if (!f) return null;
+  // Angel investing under their own name -> label it as such rather than echoing the name.
+  if (investorName && f.toLowerCase() === investorName.toLowerCase()) return 'Angel';
+  return f;
+}
+
+// Reasons like "Stage: 1" or bare numbers add no value in the hero — prefer thesis/sector text.
+function heroIsJunkReason(w) {
+  if (!w) return true;
+  const s = String(w).trim();
+  return /^stage\s*:?\s*\d*$/i.test(s) || /^\d+$/.test(s) || s.length < 3;
 }
 
 async function buildHeroPreviewEntry(supabase, pick) {
@@ -1645,14 +1687,17 @@ async function buildHeroPreviewEntry(supabase, pick) {
     .map((m) => {
       const inv = Array.isArray(m.investors) ? m.investors[0] : m.investors;
       const reasons = Array.isArray(m.why_you_match) ? m.why_you_match : [];
-      const why = reasons.find((w) => /^sector/i.test(w)) || reasons[0] || null;
-      // Strip parenthetical handles ("Doug Leone (Sequoiacap)") — firm is shown separately.
-      const cleanName = inv?.name ? String(inv.name).replace(/\s*\([^)]*\)\s*$/, '').trim() : null;
+      // Prefer an explicit sector reason, else the first reason that actually says something.
+      const whyRaw =
+        reasons.find((w) => /^sector/i.test(w)) ||
+        reasons.find((w) => !heroIsJunkReason(w)) ||
+        null;
+      const cleanName = heroPersonName(inv?.name);
       return {
         investor: cleanName,
-        firm: inv?.firm || null,
+        firm: heroCleanFirm(inv?.firm, cleanName),
         score: Math.round(Number(m.match_score) || 0),
-        why: why ? String(why).replace(/^Sector:\s*/i, '').slice(0, 48) : null,
+        why: whyRaw ? String(whyRaw).replace(/^Sector:\s*/i, '').slice(0, 48) : null,
       };
     })
     .filter((m) => heroCleanInvestorName(m.investor))

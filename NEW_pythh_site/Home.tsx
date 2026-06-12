@@ -327,19 +327,26 @@ function HeroResultsPreview() {
 
   const preview = pool[startupIndex] ?? null;
   const showTransition = phase === 0;
-  const showSignals = phase >= 1 || (showTransition && holdComplete);
-  const showDims = phase >= 2 || (showTransition && holdComplete);
-  const showComposite = phase >= 3 || (showTransition && holdComplete);
+  // Lead with the payoff: matches reveal first, then the score that justifies them,
+  // then the supporting evidence (signals + GOD dimensions).
+  const showMatches = phase >= 1 || (showTransition && holdComplete);
+  const showComposite = phase >= 2 || (showTransition && holdComplete);
+  const showEvidence = phase >= 3 || (showTransition && holdComplete);
 
   const startup = preview?.startup;
   const signals = preview?.signals ?? [];
   const dims = startup?.dimensions ?? [];
+  const matches = startup?.matches ?? [];
   const displayDomain = startup?.domain ?? startup?.name ?? "startup";
   const statusLabel = showTransition
     ? holdComplete
       ? "verified"
       : "scanning…"
-    : "scored";
+    : showEvidence
+    ? "scored"
+    : showComposite
+    ? "ranked"
+    : "matched";
 
   return (
     <div className="w-full" style={{ maxWidth: 520 }}>
@@ -377,10 +384,76 @@ function HeroResultsPreview() {
         </div>
 
         <div key={startup?.id ?? `slot-${startupIndex}`}>
-        {/* Observable signals */}
-        <div className="px-5 py-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
+        {/* THE PAYOFF, FIRST: the actual named investors you're matched with */}
+        <div
+          className="px-5 py-3 border-b flex items-center justify-between gap-3"
+          style={{ borderColor: "oklch(0.12 0.01 264)", backgroundColor: "oklch(0.696 0.17 162.48 / 0.04)" }}
+        >
+          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "#22d3ee" }}>
+            Your top investor matches
+          </span>
+          <span className="text-[10px] font-mono tabular-nums" style={{ color: showComposite && startup ? G : "oklch(0.35 0.01 264)" }}>
+            {showComposite && startup ? `+${startup.matchCount} more` : ""}
+          </span>
+        </div>
+        {(matches.length > 0 ? matches : [null, null, null]).map((m, i) => (
+          <div
+            key={m ? `${m.investor}-${i}` : `match-skel-${i}`}
+            className="flex items-center gap-3 px-5 py-3 border-b"
+            style={{
+              borderColor: "oklch(0.11 0.01 264)",
+              opacity: showMatches ? 1 : 0,
+              transform: showMatches ? "translateY(0)" : "translateY(8px)",
+              transition: `opacity 0.55s ease-out ${0.12 * i}s, transform 0.55s ease-out ${0.12 * i}s`,
+            }}
+          >
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold truncate" style={{ color: showMatches && m ? "oklch(0.95 0.005 264)" : "oklch(0.35 0.01 264)" }}>
+                {showMatches && m ? m.investor : "—"}
+              </span>
+              <span className="block text-[10px] font-mono truncate" style={{ color: "oklch(0.45 0.01 264)" }}>
+                {showMatches && m ? `${m.firm || ""}${m.why ? ` · ${m.why}` : ""}` : "matching thesis…"}
+              </span>
+            </span>
+            <span
+              className="text-xs font-mono font-bold tabular-nums flex-shrink-0 px-2 py-0.5 rounded"
+              style={{ color: showMatches && m ? G : "oklch(0.35 0.01 264)", backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)" }}
+            >
+              {showMatches && m ? m.score : "—"}
+            </span>
+          </div>
+        ))}
+
+        {/* WHY: the GOD score that makes these matches investment-grade */}
+        <div className="grid grid-cols-2 border-b" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
+          <div className="px-5 py-4 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
+            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite && startup ? G : "oklch(0.35 0.01 264)" }}>
+                {showComposite && startup ? startup.godScore : "—"}
+              </span>
+              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
+            </div>
+            {showComposite && startup && (
+              <p className="text-[11px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>{startup.godLabel}</p>
+            )}
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>Matches</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tabular-nums text-white">{showComposite && startup ? startup.matchCount : "—"}</span>
+              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>investors</span>}
+            </div>
+            {showComposite && startup && (
+              <p className="text-[11px] mt-1" style={{ color: "#22d3ee" }}>thesis + stage aligned</p>
+            )}
+          </div>
+        </div>
+
+        {/* SUPPORTING EVIDENCE: observable signals behind the score */}
+        <div className="px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
           <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
-            Observable signals · market behavior
+            Why · observable signals
           </span>
         </div>
         <div className="px-5 py-4 space-y-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
@@ -397,14 +470,14 @@ function HeroResultsPreview() {
                 <div
                   className="h-2 rounded-full"
                   style={{
-                    width: showSignals && preview ? `${value * 100}%` : "0%",
+                    width: showEvidence && preview ? `${value * 100}%` : "0%",
                     backgroundColor: color,
                     transition: "width 0.9s ease-out",
                   }}
                 />
               </div>
-              <span className="text-xs font-mono font-bold w-8 text-right tabular-nums flex-shrink-0" style={{ color: showSignals && preview ? color : "oklch(0.35 0.01 264)" }}>
-                {showSignals && preview ? raw.toFixed(2) : "—"}
+              <span className="text-xs font-mono font-bold w-8 text-right tabular-nums flex-shrink-0" style={{ color: showEvidence && preview ? color : "oklch(0.35 0.01 264)" }}>
+                {showEvidence && preview ? raw.toFixed(2) : "—"}
               </span>
             </div>
           ))}
@@ -428,87 +501,17 @@ function HeroResultsPreview() {
               <div
                 className="h-1.5 rounded-full"
                 style={{
-                  width: showDims && preview ? `${(score / max) * 100}%` : "0%",
+                  width: showEvidence && preview ? `${(score / max) * 100}%` : "0%",
                   backgroundColor: color,
                   transition: "width 0.9s ease-out",
                 }}
               />
             </div>
-            <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showDims && preview ? color : "oklch(0.35 0.01 264)" }}>
-              {showDims && preview ? score : "—"}
+            <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showEvidence && preview ? color : "oklch(0.35 0.01 264)" }}>
+              {showEvidence && preview ? score : "—"}
             </span>
           </div>
         ))}
-
-        {/* Composite summary */}
-        <div className="grid grid-cols-2">
-          <div className="px-5 py-5 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
-            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite && startup ? G : "oklch(0.35 0.01 264)" }}>
-                {showComposite && startup ? startup.godScore : "—"}
-              </span>
-              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
-            </div>
-            {showComposite && startup && (
-              <p className="text-[11px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>{startup.godLabel}</p>
-            )}
-          </div>
-          <div className="px-5 py-5">
-            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>Matches</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums text-white">{showComposite && startup ? startup.matchCount : "—"}</span>
-              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>investors</span>}
-            </div>
-            {showComposite && startup && (
-              <p className="text-[11px] mt-1" style={{ color: "#22d3ee" }}>thesis + stage aligned</p>
-            )}
-          </div>
-        </div>
-
-        {/* The payoff: the actual named investors — not just a count */}
-        {startup?.matches && startup.matches.length > 0 && (
-          <div
-            className="border-t"
-            style={{
-              borderColor: "oklch(0.14 0.01 264)",
-              backgroundColor: "oklch(0.085 0.01 264)",
-              opacity: showComposite ? 1 : 0,
-              transform: showComposite ? "translateY(0)" : "translateY(6px)",
-              transition: "opacity 0.6s ease-out, transform 0.6s ease-out",
-            }}
-          >
-            <div className="px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
-              <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "#22d3ee" }}>
-                Your top investor matches
-              </span>
-            </div>
-            {startup.matches.map((m, i) => (
-              <div
-                key={`${m.investor}-${i}`}
-                className="flex items-center gap-3 px-5 py-2.5 border-b"
-                style={{
-                  borderColor: "oklch(0.11 0.01 264)",
-                  opacity: showComposite ? 1 : 0,
-                  transition: `opacity 0.5s ease-out ${0.15 * (i + 1)}s`,
-                }}
-              >
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-semibold truncate" style={{ color: "oklch(0.92 0.005 264)" }}>{m.investor}</span>
-                  <span className="block text-[10px] font-mono truncate" style={{ color: "oklch(0.45 0.01 264)" }}>
-                    {m.firm || ""}{m.why ? ` · ${m.why}` : ""}
-                  </span>
-                </span>
-                <span
-                  className="text-xs font-mono font-bold tabular-nums flex-shrink-0 px-2 py-0.5 rounded"
-                  style={{ color: G, backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)" }}
-                >
-                  {m.score}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
         </div>
 
         {showTransition && (
