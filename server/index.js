@@ -1535,6 +1535,29 @@ app.get('/api/platform-stats', async (req, res) => {
   }
 });
 
+// GET /api/signal-proof — lightweight predictive track-record summary for the home hero
+// social-proof bar (unicorns flagged, hit rate, lead time). Heavy compute is cached.
+app.get('/api/signal-proof', async (req, res) => {
+  try {
+    const supabase = getSupabaseClient();
+    const { computeSignalTrackRecord } = require('./lib/signalTrackRecord');
+    const s = await computeSignalTrackRecord(supabase);
+    res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=1800');
+    return res.json({
+      flagged: s.flagged,
+      unicorns_now: s.unicorns_now,
+      tier_500m_now: s.tier_500m_now,
+      unicorn_hit_rate_pct: s.unicorn_hit_rate_pct,
+      median_lead_months: s.median_lead_months,
+      caught_early_unicorns: s.caught_early_unicorns,
+      marquee: (s.marquee || []).slice(0, 6).map((m) => ({ name: m.name, current_valuation_usd: m.current_valuation_usd })),
+    });
+  } catch (err) {
+    console.error('[signal-proof]', err.message);
+    return res.status(503).json({ error: 'signal_proof_unavailable', message: err.message });
+  }
+});
+
 // ============================================================
 // GET /api/hero-preview — live startup showcase for homepage hero
 // Rotates hourly through top scored startups with real signal + GOD data.
@@ -1593,12 +1616,47 @@ function heroHasSignals(row) {
   return !!(sig && sig.signals_total != null);
 }
 
+function heroCleanInvestorName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const n = name.trim();
+  if (n.length < 2 || n.length > 48) return false;
+  if (/^[a-z]/.test(n)) return false; // lowercase start = junk extraction
+  if (/\b(funding|raises|raised|million|billion|startup|article)\b/i.test(n)) return false;
+  return true;
+}
+
 async function buildHeroPreviewEntry(supabase, pick) {
   const sigRow = heroSignalRow(pick);
-  const { count: matchCount } = await supabase
-    .from('startup_investor_matches')
-    .select('*', { count: 'exact', head: true })
-    .eq('startup_id', pick.id);
+  const [{ count: matchCount }, { data: topMatchRows }] = await Promise.all([
+    supabase
+      .from('startup_investor_matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('startup_id', pick.id),
+    // The payoff: the actual named investors this startup matches, with the triggering signal.
+    supabase
+      .from('startup_investor_matches')
+      .select('match_score, confidence_level, why_you_match, investors!investor_id ( name, firm )')
+      .eq('startup_id', pick.id)
+      .order('match_score', { ascending: false })
+      .limit(6),
+  ]);
+
+  const matches = (topMatchRows || [])
+    .map((m) => {
+      const inv = Array.isArray(m.investors) ? m.investors[0] : m.investors;
+      const reasons = Array.isArray(m.why_you_match) ? m.why_you_match : [];
+      const why = reasons.find((w) => /^sector/i.test(w)) || reasons[0] || null;
+      // Strip parenthetical handles ("Doug Leone (Sequoiacap)") — firm is shown separately.
+      const cleanName = inv?.name ? String(inv.name).replace(/\s*\([^)]*\)\s*$/, '').trim() : null;
+      return {
+        investor: cleanName,
+        firm: inv?.firm || null,
+        score: Math.round(Number(m.match_score) || 0),
+        why: why ? String(why).replace(/^Sector:\s*/i, '').slice(0, 48) : null,
+      };
+    })
+    .filter((m) => heroCleanInvestorName(m.investor))
+    .slice(0, 3);
 
   const godScore = Math.round(Number(pick.total_god_score) || 0);
   const signals = HERO_SIGNAL_META.map(({ key, label, color, cap }) => {
@@ -1624,6 +1682,7 @@ async function buildHeroPreviewEntry(supabase, pick) {
       godScore,
       godLabel: heroGodBand(godScore),
       matchCount: matchCount ?? 0,
+      matches,
       dimensions,
     },
     signals,

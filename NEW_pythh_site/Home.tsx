@@ -95,6 +95,69 @@ function usePortfolioHeadlineMetrics() {
   return metrics;
 }
 
+interface SignalProof {
+  flagged: number;
+  unicorns_now: number;
+  tier_500m_now: number;
+  unicorn_hit_rate_pct: number;
+  median_lead_months: number | null;
+  marquee: { name: string; current_valuation_usd: number }[];
+}
+
+function useSignalProof() {
+  const [proof, setProof] = useState<SignalProof | null>(null);
+  useEffect(() => {
+    fetch("/api/signal-proof")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d && !d.error) setProof(d); })
+      .catch(() => {});
+  }, []);
+  return proof;
+}
+
+// Predictive track-record bar — the Oracle's foresight as data-backed social proof.
+function SignalProofBar() {
+  const proof = useSignalProof();
+  if (!proof || !proof.unicorns_now) return null;
+  const stats = [
+    { value: `${proof.unicorns_now}`, label: "unicorns flagged", sub: "now worth $1B+", color: CYAN },
+    { value: `${proof.unicorn_hit_rate_pct}%`, label: "unicorn hit rate", sub: `${proof.flagged} companies flagged`, color: CYAN },
+    { value: proof.median_lead_months != null ? `${proof.median_lead_months}mo` : "—", label: "median lead time", sub: "before today's valuation", color: G },
+    { value: `${proof.tier_500m_now}`, label: "flagged ≥ $500M", sub: "and climbing", color: G },
+  ];
+  return (
+    <section className="border-y" style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}>
+      <div className="container py-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-[11px] font-mono uppercase tracking-widest flex-shrink-0" style={{ color: CYAN }}>
+            The Oracle&apos;s predictive track record
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-4 flex-1 lg:max-w-3xl">
+            {stats.map((s) => (
+              <div key={s.label}>
+                <div className="font-display font-bold text-xl md:text-2xl tabular-nums" style={{ color: s.color }}>{s.value}</div>
+                <div className="text-xs font-medium" style={{ color: "oklch(0.85 0.005 264)" }}>{s.label}</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {proof.marquee && proof.marquee.length > 0 && (
+          <p className="text-[10px] font-mono mt-4" style={{ color: DIM }}>
+            Flagged early ·{" "}
+            {proof.marquee.map((m, i) => (
+              <span key={m.name}>
+                {i > 0 ? "  ·  " : ""}
+                <span style={{ color: "oklch(0.7 0.005 264)" }}>{m.name}</span>
+              </span>
+            ))}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface InvestorSignal {
@@ -194,6 +257,13 @@ interface HeroPreviewDimension {
   color: string;
 }
 
+interface HeroPreviewMatch {
+  investor: string;
+  firm: string | null;
+  score: number;
+  why: string | null;
+}
+
 interface HeroPreviewEntry {
   startup: {
     id: string;
@@ -202,6 +272,7 @@ interface HeroPreviewEntry {
     godScore: number;
     godLabel: string;
     matchCount: number;
+    matches?: HeroPreviewMatch[];
     dimensions: HeroPreviewDimension[];
   };
   signals: HeroPreviewSignal[];
@@ -394,6 +465,50 @@ function HeroResultsPreview() {
             )}
           </div>
         </div>
+
+        {/* The payoff: the actual named investors — not just a count */}
+        {startup?.matches && startup.matches.length > 0 && (
+          <div
+            className="border-t"
+            style={{
+              borderColor: "oklch(0.14 0.01 264)",
+              backgroundColor: "oklch(0.085 0.01 264)",
+              opacity: showComposite ? 1 : 0,
+              transform: showComposite ? "translateY(0)" : "translateY(6px)",
+              transition: "opacity 0.6s ease-out, transform 0.6s ease-out",
+            }}
+          >
+            <div className="px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
+              <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "#22d3ee" }}>
+                Your top investor matches
+              </span>
+            </div>
+            {startup.matches.map((m, i) => (
+              <div
+                key={`${m.investor}-${i}`}
+                className="flex items-center gap-3 px-5 py-2.5 border-b"
+                style={{
+                  borderColor: "oklch(0.11 0.01 264)",
+                  opacity: showComposite ? 1 : 0,
+                  transition: `opacity 0.5s ease-out ${0.15 * (i + 1)}s`,
+                }}
+              >
+                <span className="flex-1 min-w-0">
+                  <span className="block text-xs font-semibold truncate" style={{ color: "oklch(0.92 0.005 264)" }}>{m.investor}</span>
+                  <span className="block text-[10px] font-mono truncate" style={{ color: "oklch(0.45 0.01 264)" }}>
+                    {m.firm || ""}{m.why ? ` · ${m.why}` : ""}
+                  </span>
+                </span>
+                <span
+                  className="text-xs font-mono font-bold tabular-nums flex-shrink-0 px-2 py-0.5 rounded"
+                  style={{ color: G, backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)" }}
+                >
+                  {m.score}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         </div>
 
         {showTransition && (
@@ -529,16 +644,17 @@ function HeroSection({
               className="font-display font-bold leading-[1.05] mb-3"
               style={{ fontSize: "clamp(2.25rem, 5.5vw, 4.5rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.025em" }}
             >
-              Pythh's Signal
+              Accelerate your
               <br />
-              Intelligence.
+              time to term sheet.
             </h1>
 
             <p
               className="font-display font-medium mb-5"
               style={{ fontSize: "clamp(1.05rem, 2vw, 1.4rem)", color: "#a78bfa", letterSpacing: "-0.01em", lineHeight: 1.35 }}
             >
-              Pythh signal intelligence identifies investors that match your thesis in real time.
+              Drop your URL. Pythh&apos;s signal engine returns the investors who match your thesis —
+              ranked, with warm paths first — so you skip months of cold outreach.
             </p>
 
             {/* Primary CTA — left column on all breakpoints */}
@@ -1422,6 +1538,7 @@ export default function Home() {
         heroCta={{ label: "Find investors", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
+      <SignalProofBar />
       <InvestorStrip />
       <TrackRecordStrip platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
       <PortfolioTeaser />
