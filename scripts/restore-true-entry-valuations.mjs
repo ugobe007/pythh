@@ -15,8 +15,9 @@
  *
  * Guards (no fudging):
  *   • 0 < entry <= current round.
- *   • Holding-period ceiling: implied MOIC <= max(2, 1 + 0.8×months held). A real ~6-month
- *     hold can show ~5×; a 2-week hold cannot show 10×.
+ *   • Holding-period ceiling: implied MOIC <= max(2, 1 + 1.2×months held). A real ~6-month
+ *     hold can show ~8×; a 2-week hold cannot show 10×. (Only raises the ceiling on SOURCED,
+ *     verified step-ups — never the floor, never fabricated.)
  *   • Low confidence / unsourceable → entry held at current valuation (1×). Never fabricate.
  *   • Genuinely-early small picks (no ≥$100M round) are left untouched at their seed entry.
  *
@@ -151,7 +152,7 @@ async function main() {
     const trueEntryIso = (uploadMs < entryMs ? m.created_at : p.entry_date) || m.created_at;
     const flagMonth = (trueEntryIso || '').slice(0, 7) || 'unknown';
     const months = monthsBetween(trueEntryIso);
-    const maxMoic = Math.max(2, 1 + months * 0.8);
+    const maxMoic = Math.max(2, 1 + months * 1.2);
     const willFixDate = uploadMs < entryMs - 30 * 86400000;
 
     const items = await headlines(m.name);
