@@ -72,6 +72,60 @@ function formatFundingUsd(amount: number): string {
   return `$${amount.toLocaleString()}`;
 }
 
+function formatValuation(amount?: number | null): string {
+  if (!amount || amount <= 0) return "—";
+  if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(1)}B`;
+  if (amount >= 1_000_000) return `$${Math.round(amount / 1_000_000)}M`;
+  if (amount >= 1_000) return `$${Math.round(amount / 1_000)}K`;
+  return `$${amount}`;
+}
+
+interface FundValue {
+  positions?: number;
+  tvpi?: number;
+  avg_moic?: number;
+  current_value_usd?: number;
+  cost_basis_usd?: number;
+  deployed_usd?: number;
+  gain_pct?: number;
+  win_rate_pct?: number;
+  realized_value_usd?: number;
+  projected_moic?: number;
+  projected_value_usd?: number;
+}
+
+interface SignalMarquee {
+  name: string;
+  first_flag_valuation_usd?: number;
+  current_valuation_usd?: number;
+  lead_months?: number;
+}
+
+interface SignalProof {
+  flagged?: number;
+  unicorns_now?: number;
+  tier_500m_now?: number;
+  tier_100m_now?: number;
+  unicorn_hit_rate_pct?: number;
+  median_lead_months?: number;
+  caught_early_unicorns?: number;
+  marquee?: SignalMarquee[];
+}
+
+interface VelocitySummary {
+  positions_scored?: number;
+  accelerating_count?: number;
+  hot_count?: number;
+  momentum_uplift_pct?: number;
+}
+
+interface PortfolioAnalytics {
+  value?: FundValue;
+  follow_on?: FundValue;
+  signal?: SignalProof;
+  velocity?: VelocitySummary;
+}
+
 const FUND_TERMS = [
   { label: "Fund", value: "Pythiam Ventures Fund I" },
   { label: "Target size", value: "Raising — terms on request" },
@@ -150,6 +204,7 @@ function SectionBlock({
 export default function PythiamPage() {
   const [trackRecord, setTrackRecord] = useState<TrackRecord | null>(null);
   const [platformStats, setPlatformStats] = useState<{ startups: number; investors: number; matches: number } | null>(null);
+  const [analytics, setAnalytics] = useState<PortfolioAnalytics | null>(null);
   const [showTierTable, setShowTierTable] = useState(false);
 
   useEffect(() => {
@@ -168,7 +223,16 @@ export default function PythiamPage() {
         });
       })
       .catch(() => {});
+    fetch("/api/portfolio/analytics")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setAnalytics(d))
+      .catch(() => {});
   }, []);
+
+  const seed = analytics?.value;
+  const followOn = analytics?.follow_on;
+  const sig = analytics?.signal;
+  const vel = analytics?.velocity;
 
   const oracle = trackRecord?.oracle;
   const featuredPick = trackRecord?.featured_pick ?? trackRecord?.top_performers?.[0];
@@ -320,6 +384,151 @@ export default function PythiamPage() {
             </div>
           )}
         </section>
+
+        {/* LP SNAPSHOT — live fund performance from the portfolio engine */}
+        {analytics && (sig || seed) && (
+          <section className="py-8 border-t" style={{ borderColor: BORDER }}>
+            <SectionLabel className="mb-2">Fund I · LP snapshot</SectionLabel>
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-2 tracking-tight">
+              Performance at a glance
+            </h2>
+            <p className="text-sm leading-relaxed mb-5 max-w-3xl" style={{ color: MUTED }}>
+              Live from the portfolio engine. The defensible story isn&apos;t the MOIC — it&apos;s the predictive
+              hit rate: companies flagged early that went on to be worth billions, every figure traceable to a
+              timestamped pick and a press-verified round.
+            </p>
+
+            {/* Predictive track record headline */}
+            {sig && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                {[
+                  { value: String(sig.unicorns_now ?? "—"), label: "Unicorns flagged", sub: "$1B+ today", color: G },
+                  { value: sig.unicorn_hit_rate_pct != null ? `${sig.unicorn_hit_rate_pct}%` : "—", label: "Unicorn hit rate", sub: `of ${sig.flagged ?? 0} flagged`, color: G },
+                  { value: String(sig.tier_500m_now ?? "—"), label: "Now $500M+", sub: "verified", color: CYAN },
+                  { value: String(sig.tier_100m_now ?? "—"), label: "Now $100M+", sub: "verified", color: CYAN },
+                  { value: sig.median_lead_months != null ? `${sig.median_lead_months}mo` : "—", label: "Median lead", sub: "before step-up", color: GOLD },
+                ].map(({ value, label, sub, color }) => (
+                  <div key={label} className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                    <div className="text-2xl md:text-3xl font-display font-bold tabular-nums mb-1" style={{ color }}>{value}</div>
+                    <div className="text-xs font-medium text-white mb-0.5">{label}</div>
+                    <div className="text-[10px] font-mono" style={{ color: DIM }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Two funds */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              {seed && (
+                <div className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Seed Fund I</h3>
+                    <span className="text-2xl font-display font-bold tabular-nums" style={{ color: G }}>
+                      {(seed.tvpi ?? seed.avg_moic ?? 0).toFixed(2)}×<span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>TVPI</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <div className="text-base font-bold tabular-nums text-white">{formatValuation(seed.current_value_usd)}</div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>current value</div>
+                    </div>
+                    <div>
+                      <div className="text-base font-bold tabular-nums" style={{ color: seed.gain_pct && seed.gain_pct > 0 ? G : "white" }}>
+                        {seed.gain_pct != null ? `+${seed.gain_pct}%` : "—"}
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>net gain</div>
+                    </div>
+                    <div>
+                      <div className="text-base font-bold tabular-nums text-white">{seed.win_rate_pct != null ? `${seed.win_rate_pct}%` : "—"}</div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>win rate</div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-mono mt-3" style={{ color: DIM }}>
+                    {seed.positions ?? 0} positions · {formatValuation(seed.cost_basis_usd)} cost basis · cohort locked
+                  </p>
+                </div>
+              )}
+              {followOn && (
+                <div className="p-4 border" style={{ borderColor: BORDER, backgroundColor: CARD }}>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Follow-on Sidecar</h3>
+                    <span className="text-2xl font-display font-bold tabular-nums" style={{ color: CYAN }}>
+                      {(followOn.tvpi ?? followOn.avg_moic ?? 0).toFixed(2)}×<span className="text-[10px] font-mono ml-1" style={{ color: DIM }}>TVPI</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <div className="text-base font-bold tabular-nums text-white">{formatValuation(followOn.current_value_usd)}</div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>current value</div>
+                    </div>
+                    <div>
+                      <div className="text-base font-bold tabular-nums" style={{ color: followOn.gain_pct && followOn.gain_pct > 0 ? G : "white" }}>
+                        {followOn.gain_pct != null ? `+${followOn.gain_pct}%` : "—"}
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>net gain</div>
+                    </div>
+                    <div>
+                      <div className="text-base font-bold tabular-nums" style={{ color: GOLD }}>
+                        {followOn.projected_moic != null ? `${followOn.projected_moic}×` : "—"}
+                      </div>
+                      <div className="text-[10px] font-mono" style={{ color: DIM }}>projected</div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-mono mt-3" style={{ color: DIM }}>
+                    {followOn.positions ?? 0} later-stage doubles · {formatValuation(followOn.deployed_usd)} deployed
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Marquee — companies caught early */}
+            {sig?.marquee && sig.marquee.length > 0 && (
+              <>
+                <SectionLabel className="mb-2">Marquee companies caught early</SectionLabel>
+                <div className="overflow-x-auto border" style={{ borderColor: BORDER }}>
+                  <table className="w-full text-sm min-w-[440px]">
+                    <thead>
+                      <tr style={{ backgroundColor: CARD }}>
+                        <th className="text-left p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: DIM }}>Company</th>
+                        <th className="text-right p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: DIM }}>At first flag</th>
+                        <th className="text-right p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: G }}>Now</th>
+                        <th className="text-right p-2.5 font-mono text-[10px] uppercase tracking-widest" style={{ color: DIM }}>Lead</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sig.marquee.slice(0, 8).map((m) => {
+                        const grew = (m.current_valuation_usd ?? 0) > (m.first_flag_valuation_usd ?? 0);
+                        return (
+                          <tr key={m.name} style={{ borderTop: `1px solid ${BORDER}` }}>
+                            <td className="p-2.5 text-white">{m.name}</td>
+                            <td className="p-2.5 text-right tabular-nums" style={{ color: MUTED }}>{formatValuation(m.first_flag_valuation_usd)}</td>
+                            <td className="p-2.5 text-right tabular-nums font-medium" style={{ color: grew ? G : "white" }}>{formatValuation(m.current_valuation_usd)}</td>
+                            <td className="p-2.5 text-right font-mono text-xs" style={{ color: DIM }}>{m.lead_months ? `${m.lead_months}mo` : "at flag"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* Momentum footnote */}
+            {vel && (
+              <p className="text-[11px] font-mono mt-4" style={{ color: DIM }}>
+                Momentum · {vel.accelerating_count ?? 0}/{vel.positions_scored ?? 0} accelerating
+                {vel.hot_count != null ? ` · ${vel.hot_count} hot` : ""}
+                {vel.momentum_uplift_pct != null ? ` · +${vel.momentum_uplift_pct}% forward signal premium (never mixed into realized MOIC)` : ""}
+              </p>
+            )}
+
+            <div className="mt-5">
+              <StrokeButton href="/portfolio" showArrow muted size="sm">
+                Full Oracle scoreboard
+              </StrokeButton>
+            </div>
+          </section>
+        )}
 
         {/* Engine stats strip */}
         <section className="py-6 border-t" style={{ borderColor: BORDER }}>
