@@ -163,6 +163,26 @@ function resolveSubmitSectors({ inferenceData, aiData, fullUrl, displayName, web
   return resolved.length > 0 ? resolved : ['Technology'];
 }
 
+/** Re-rank stored sectors using URL/name identity (fixes stale DB rows on cache hits). */
+function reconcileStartupRow(row, { companyName, domain } = {}) {
+  if (!row) return row;
+  const url = row.website || (domain ? `https://${domain}` : '');
+  const name = row.name || companyName || '';
+  const reconciled = reconcileSectors(
+    Array.isArray(row.sectors) ? row.sectors : [],
+    url,
+    name,
+    '',
+  );
+  const sectors = reconciled.length > 0 ? reconciled : ['Technology'];
+  return { ...row, sectors };
+}
+
+function sectorsChanged(before, after) {
+  const norm = (arr) => JSON.stringify([...(Array.isArray(arr) ? arr : [])].sort());
+  return norm(before) !== norm(after);
+}
+
 // ============================================================================
 // INVESTOR CACHE - Avoid loading 3700+ investors on every request
 // ============================================================================
@@ -913,10 +933,17 @@ const MATCH_API_SELECT = `
 
 function uploadRowToPlaceholderStartup(startupId, row) {
   const r = row || {};
+  const url = r.website || '';
+  const reconciled = reconcileSectors(
+    Array.isArray(r.sectors) && r.sectors.length ? r.sectors : [],
+    url,
+    r.name || '',
+    '',
+  );
   return {
     id: startupId,
     name: r.name || 'Startup',
-    sectors: Array.isArray(r.sectors) && r.sectors.length ? r.sectors : ['Technology'],
+    sectors: reconciled.length > 0 ? reconciled : ['Technology'],
     stage: r.stage ?? 1,
     total_god_score: typeof r.total_god_score === 'number' ? r.total_god_score : 50,
     team_score: r.team_score ?? null,
@@ -1958,6 +1985,7 @@ router.post('/submit', async (req, res) => {
   let _intelMatches = 0;
   let _intelError   = null;
   let domain = null;
+  let sectorRegenRequired = false;
 
   try {
     const urlRaw = req.body?.url;
@@ -2039,6 +2067,21 @@ router.post('/submit', async (req, res) => {
         startup = scored[0];
         startupId = startup.id;
         _resolverTier = scored[0].matchScore === 100 ? 'exact' : 'fuzzy';
+        const sectorsBefore = startup.sectors;
+        startup = reconcileStartupRow(startup, { companyName, domain });
+        if (sectorsChanged(sectorsBefore, startup.sectors)) {
+          sectorRegenRequired = true;
+          console.log(
+            `  🔄 Sector reconcile: ${JSON.stringify(sectorsBefore)} → ${JSON.stringify(startup.sectors)}`,
+          );
+          void supabase
+            .from('startup_uploads')
+            .update({ sectors: startup.sectors })
+            .eq('id', startupId)
+            .then(() => {})
+            .catch((e) => console.warn('[INSTANT] sector persist failed:', e?.message));
+          matchCacheInvalidate(startupId);
+        }
         console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
       }
     }
@@ -2052,7 +2095,7 @@ router.post('/submit', async (req, res) => {
         .eq('startup_id', startupId)
         .eq('status', 'suggested');
       
-      if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate) {
+      if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate && !sectorRegenRequired) {
         // ── Check in-memory cache first (avoids a Supabase SELECT per request) ──
         const cached = matchCacheGet(startupId);
         if (cached && !forceGenerate) {
@@ -2135,7 +2178,7 @@ router.post('/submit', async (req, res) => {
       }
       
       // Has startup but needs match generation — fire background + return
-      if (forceGenerate || !existingMatchCount || existingMatchCount < 20) {
+      if (forceGenerate || sectorRegenRequired || !existingMatchCount || existingMatchCount < 20) {
         const genSource = forceGenerate ? 'force' : 'rpc';
         const { data: runId } = await supabase.rpc('try_start_match_gen', {
           p_startup_id: startupId,
@@ -2641,6 +2684,8 @@ router.get('/results', async (req, res) => {
       return res.status(404).json({ error: 'Results not found' });
     }
 
+    const startupForClient = reconcileStartupRow(startup);
+
     const { data: matches, error: matchErr } = await supabase
       .from('startup_investor_matches')
       .select(`
@@ -2664,7 +2709,7 @@ router.get('/results', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
     return res.status(200).json({
       startup_id: startupId,
-      startup,
+      startup: startupForClient,
       matches: matches || [],
       match_count: matchCount || 0,
       shared: true,

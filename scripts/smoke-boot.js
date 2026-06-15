@@ -52,6 +52,21 @@ const checks = [
       }
     },
   },
+  {
+    name: 'sector reconcile (ReadyForRobots cached DB row)',
+    run: () => {
+      const { reconcileSectors } = require('../lib/inference-extractor.js');
+      const rec = reconcileSectors(
+        ['HealthTech', 'Robotics'],
+        'https://readyforrobots.com',
+        'Readyforrobots',
+        '',
+      );
+      if (rec[0] !== 'Robotics' || rec.includes('HealthTech')) {
+        throw new Error(`expected Robotics-only, got ${JSON.stringify(rec)}`);
+      }
+    },
+  },
 ];
 
 let failed = 0;

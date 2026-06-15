@@ -10,6 +10,18 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
+
+function formatStageLabel(stage: unknown): string {
+  const n = typeof stage === "number" ? stage : Number.parseInt(String(stage ?? ""), 10);
+  if (n === 1) return "pre-seed";
+  if (n === 2) return "seed";
+  if (n === 3) return "Series A";
+  if (n === 4) return "Series B";
+  if (Number.isFinite(n) && n >= 5) return `Series ${String.fromCharCode(64 + (n - 1))}`;
+  if (typeof stage === "string" && stage.trim()) return stage.trim();
+  return "your";
+}
+
 import {
   ArrowRight,
   ArrowLeft,
@@ -1077,7 +1089,7 @@ function ResultsStep({
     if (godScore >= 65)
       return `Strong GOD score positions you well in ${primarySector}. ${superCount > 0 ? `${superCount} super match${superCount > 1 ? "es" : ""} identified — lead your outreach with these.` : ""}${firmNote}`;
     if (godScore >= 45)
-      return `Solid ${primarySector} positioning at ${(apiResult?.startup?.stage as string | undefined) ?? "your"} stage. ${matchCount} investors ranked by timing × thesis fit × optics.${firmNote}`;
+      return `Solid ${primarySector} positioning at ${formatStageLabel(apiResult?.startup?.stage)} stage. ${matchCount} investors ranked by timing × thesis fit × optics.${firmNote}`;
     return `${matchCount} investors evaluated across sector, stage, and market timing.${firmNote} Lead with your top-ranked matches where thesis alignment is clearest.`;
   })();
 
