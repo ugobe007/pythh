@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  G, CYAN, PURPLE, GOLD, MUTED, DIM, BORDER, G_BORDER, godScoreColor,
+  G, CYAN, PURPLE, GOLD, MUTED, DIM, BORDER, G_BORDER, BAR_GREY, BAR_EMERALD, godScoreColor,
 } from "@/lib/designTokens";
 
 interface PreviewSignal {
@@ -36,18 +36,18 @@ interface PreviewEntry {
 }
 
 const FALLBACK_SIGNALS: PreviewSignal[] = [
-  { label: "Execution", value: 0.82, raw: 8.2, color: G },
-  { label: "Investor recv", value: 0.71, raw: 7.1, color: CYAN },
-  { label: "News momentum", value: 0.88, raw: 8.8, color: GOLD },
-  { label: "Capital conv", value: 0.65, raw: 6.5, color: PURPLE },
-  { label: "Founder lang", value: 0.74, raw: 7.4, color: CYAN },
+  { label: "Execution", value: 0.82, raw: 8.2, color: BAR_EMERALD },
+  { label: "Investor recv", value: 0.71, raw: 7.1, color: BAR_GREY },
+  { label: "News momentum", value: 0.88, raw: 8.8, color: BAR_EMERALD },
+  { label: "Capital conv", value: 0.65, raw: 6.5, color: BAR_GREY },
+  { label: "Founder lang", value: 0.74, raw: 7.4, color: BAR_EMERALD },
 ];
 
 const FALLBACK_DIMS = ["TEAM", "TRACTION", "MARKET", "PRODUCT", "VISION"].map((label, i) => ({
   label,
   score: [17, 14, 18, 15, 16][i],
   max: 20,
-  color: [PURPLE, CYAN, G, CYAN, PURPLE][i],
+  color: i % 2 === 0 ? BAR_EMERALD : BAR_GREY,
 }));
 
 function SignalColumn({

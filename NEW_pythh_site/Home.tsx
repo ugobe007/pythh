@@ -12,13 +12,13 @@ import SharedNavbar from "@/components/SharedNavbar";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
-import HeroScoringDots from "@/components/HeroScoringDots";
 import StatStrip from "@/components/design/StatStrip";
 import FilterTabs from "@/components/design/FilterTabs";
 import InlineMeta from "@/components/design/InlineMeta";
 import StartupCTA from "@/components/design/StartupCTA";
 import {
-  G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT, PAGE,
+  G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT, PAGE, CARD,
+  G_BORDER, G_SUBTLE, G_HOVER,
   deltaColor, godScoreColor,
 } from "@/lib/designTokens";
 import {
@@ -33,6 +33,9 @@ import {
   Shield,
   ChevronRight,
   Database,
+  FileText,
+  Sparkles,
+  TrendingUp,
 } from "lucide-react";
 
 // ─── Platform stats (live from /api/platform-stats) ─────────────────────────
@@ -243,301 +246,10 @@ function SignalBar({ value, max = 10, color = "emerald" }: { value: number; max?
 
 // ─── Hero results preview (right panel — show, don't ask) ─────────────────────
 
-interface HeroPreviewSignal {
-  label: string;
-  value: number;
-  raw: number;
-  color: string;
-}
-
-interface HeroPreviewDimension {
-  label: string;
-  score: number;
-  max: number;
-  color: string;
-}
-
-interface HeroPreviewMatch {
-  investor: string;
-  firm: string | null;
-  score: number;
-  why: string | null;
-}
-
-interface HeroPreviewEntry {
-  startup: {
-    id: string;
-    name: string;
-    domain: string | null;
-    godScore: number;
-    godLabel: string;
-    matchCount: number;
-    matches?: HeroPreviewMatch[];
-    dimensions: HeroPreviewDimension[];
-  };
-  signals: HeroPreviewSignal[];
-}
-
-interface HeroPreviewResponse extends HeroPreviewEntry {
-  startups?: HeroPreviewEntry[];
-}
-
-const DIM_COLORS = [PURPLE, CYAN, G, CYAN, PURPLE];
-const HERO_STEP_MS = 2800;
-const HERO_TRANSITION_MS = 1400;
-
-function HeroResultsPreview() {
-  const [pool, setPool] = useState<HeroPreviewEntry[]>([]);
-  const [startupIndex, setStartupIndex] = useState(0);
-  const [phase, setPhase] = useState(0);
-  const [holdComplete, setHoldComplete] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/hero-preview")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("preview failed"))))
-      .then((data: HeroPreviewResponse) => {
-        const entries = data.startups?.length ? data.startups : [data];
-        setPool(entries);
-        setStartupIndex(0);
-        setHoldComplete(false);
-        setPhase(0);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (pool.length === 0) return;
-    const ms = phase === 0 ? HERO_TRANSITION_MS : HERO_STEP_MS;
-    const id = setTimeout(() => {
-      if (phase === 3) {
-        setHoldComplete(true);
-        setPhase(0);
-      } else if (phase === 0) {
-        if (holdComplete) {
-          setStartupIndex((i) => (i + 1) % pool.length);
-          setHoldComplete(false);
-        }
-        setPhase(1);
-      } else {
-        setPhase((p) => p + 1);
-      }
-    }, ms);
-    return () => clearTimeout(id);
-  }, [phase, pool.length, holdComplete]);
-
-  const preview = pool[startupIndex] ?? null;
-  const showTransition = phase === 0;
-  // Lead with the payoff: matches reveal first, then the score that justifies them,
-  // then the supporting evidence (signals + GOD dimensions).
-  const showMatches = phase >= 1 || (showTransition && holdComplete);
-  const showComposite = phase >= 2 || (showTransition && holdComplete);
-  const showEvidence = phase >= 3 || (showTransition && holdComplete);
-
-  const startup = preview?.startup;
-  const signals = preview?.signals ?? [];
-  const dims = startup?.dimensions ?? [];
-  const matches = startup?.matches ?? [];
-  const displayDomain = startup?.domain ?? startup?.name ?? "startup";
-  const statusLabel = showTransition
-    ? holdComplete
-      ? "verified"
-      : "scanning…"
-    : showEvidence
-    ? "scored"
-    : showComposite
-    ? "ranked"
-    : "matched";
-
-  return (
-    <div className="w-full" style={{ maxWidth: 520 }}>
-      <p className="text-xs font-semibold tracking-widest uppercase mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
-        {startup
-          ? `Live preview${pool.length > 1 ? ` · ${startupIndex + 1}/${pool.length}` : ""}`
-          : "What you get in ~20 seconds"}
-      </p>
-      <div
-        className="relative rounded-xl overflow-hidden"
-        style={{ border: "1px solid oklch(0.696 0.17 162.48 / 0.22)", backgroundColor: "oklch(0.1 0.01 264)", boxShadow: "0 0 48px oklch(0.696 0.17 162.48 / 0.06)" }}
-      >
-        {/* Header */}
-        <div
-          className="px-5 py-4 border-b"
-          style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}
-        >
-          {startup && (
-            <p
-              className="font-display font-bold truncate leading-tight mb-2.5"
-              style={{ fontSize: "1.4rem", color: "#a78bfa", letterSpacing: "-0.02em" }}
-            >
-              {displayDomain}
-            </p>
-          )}
-          <div className="flex items-center justify-between gap-3 min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ backgroundColor: G }} />
-              <span className="text-xs font-mono font-semibold truncate" style={{ color: G }}>
-                PYTHIA · {statusLabel}
-              </span>
-            </div>
-            <span className="text-[11px] font-mono flex-shrink-0" style={{ color: "oklch(0.38 0.01 264)" }}>live</span>
-          </div>
-        </div>
-
-        <div key={startup?.id ?? `slot-${startupIndex}`}>
-        {/* THE PAYOFF, FIRST: the actual named investors you're matched with */}
-        <div
-          className="px-5 py-3 border-b flex items-center justify-between gap-3"
-          style={{ borderColor: "oklch(0.12 0.01 264)", backgroundColor: "oklch(0.696 0.17 162.48 / 0.04)" }}
-        >
-          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "#22d3ee" }}>
-            Your top investor matches
-          </span>
-          <span className="text-[10px] font-mono tabular-nums" style={{ color: showComposite && startup ? G : "oklch(0.35 0.01 264)" }}>
-            {showComposite && startup ? `+${startup.matchCount} more` : ""}
-          </span>
-        </div>
-        {(matches.length > 0 ? matches : [null, null, null]).map((m, i) => (
-          <div
-            key={m ? `${m.investor}-${i}` : `match-skel-${i}`}
-            className="flex items-center gap-3 px-5 py-3 border-b"
-            style={{
-              borderColor: "oklch(0.11 0.01 264)",
-              opacity: showMatches ? 1 : 0,
-              transform: showMatches ? "translateY(0)" : "translateY(8px)",
-              transition: `opacity 0.55s ease-out ${0.12 * i}s, transform 0.55s ease-out ${0.12 * i}s`,
-            }}
-          >
-            <span className="flex-1 min-w-0">
-              <span className="block text-sm font-semibold truncate" style={{ color: showMatches && m ? "oklch(0.95 0.005 264)" : "oklch(0.35 0.01 264)" }}>
-                {showMatches && m ? m.investor : "—"}
-              </span>
-              <span className="block text-[10px] font-mono truncate" style={{ color: "oklch(0.45 0.01 264)" }}>
-                {showMatches && m ? `${m.firm || ""}${m.why ? ` · ${m.why}` : ""}` : "matching thesis…"}
-              </span>
-            </span>
-            <span
-              className="text-xs font-mono font-bold tabular-nums flex-shrink-0 px-2 py-0.5 rounded"
-              style={{ color: showMatches && m ? G : "oklch(0.35 0.01 264)", backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)" }}
-            >
-              {showMatches && m ? m.score : "—"}
-            </span>
-          </div>
-        ))}
-
-        {/* WHY: the GOD score that makes these matches investment-grade */}
-        <div className="grid grid-cols-2 border-b" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
-          <div className="px-5 py-4 border-r" style={{ borderColor: "oklch(0.14 0.01 264)" }}>
-            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>GOD Score</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums" style={{ color: showComposite && startup ? G : "oklch(0.35 0.01 264)" }}>
-                {showComposite && startup ? startup.godScore : "—"}
-              </span>
-              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.4 0.01 264)" }}>/100</span>}
-            </div>
-            {showComposite && startup && (
-              <p className="text-[11px] mt-1" style={{ color: "oklch(0.42 0.01 264)" }}>{startup.godLabel}</p>
-            )}
-          </div>
-          <div className="px-5 py-4">
-            <p className="text-[10px] font-mono uppercase tracking-widest mb-1.5" style={{ color: "oklch(0.38 0.01 264)" }}>Matches</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold tabular-nums text-white">{showComposite && startup ? startup.matchCount : "—"}</span>
-              {showComposite && startup && <span className="text-sm font-mono" style={{ color: "oklch(0.5 0.01 264)" }}>investors</span>}
-            </div>
-            {showComposite && startup && (
-              <p className="text-[11px] mt-1" style={{ color: "#22d3ee" }}>thesis + stage aligned</p>
-            )}
-          </div>
-        </div>
-
-        {/* SUPPORTING EVIDENCE: observable signals behind the score */}
-        <div className="px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
-          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
-            Why · observable signals
-          </span>
-        </div>
-        <div className="px-5 py-4 space-y-3 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
-          {(signals.length > 0 ? signals : [
-            { label: "Execution velocity", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
-            { label: "Investor receptivity", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
-            { label: "News momentum", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
-            { label: "Capital convergence", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
-            { label: "Founder language", value: 0, raw: 0, color: "oklch(0.3 0.01 264)" },
-          ]).map(({ label, value, raw, color }) => (
-            <div key={label} className="flex items-center gap-3">
-              <span className="text-[11px] font-mono w-[108px] flex-shrink-0 truncate" style={{ color: "oklch(0.45 0.01 264)" }}>{label}</span>
-              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
-                <div
-                  className="h-2 rounded-full"
-                  style={{
-                    width: showEvidence && preview ? `${value * 100}%` : "0%",
-                    backgroundColor: color,
-                    transition: "width 0.9s ease-out",
-                  }}
-                />
-              </div>
-              <span className="text-xs font-mono font-bold w-8 text-right tabular-nums flex-shrink-0" style={{ color: showEvidence && preview ? color : "oklch(0.35 0.01 264)" }}>
-                {showEvidence && preview ? raw.toFixed(2) : "—"}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* GOD dimensions */}
-        <div className="px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.12 0.01 264)" }}>
-          <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "oklch(0.35 0.01 264)" }}>
-            GOD score · 5-dimension composite
-          </span>
-        </div>
-        {(dims.length > 0 ? dims : ["TEAM", "TRACTION", "MARKET", "PRODUCT", "VISION"].map((label, i) => ({
-          label,
-          score: 0,
-          max: 20,
-          color: DIM_COLORS[i],
-        }))).map(({ label, score, max, color }) => (
-          <div key={label} className="flex items-center gap-3 px-5 py-2.5 border-b" style={{ borderColor: "oklch(0.11 0.01 264)" }}>
-            <span className="text-[11px] font-mono w-16 flex-shrink-0" style={{ color: "oklch(0.4 0.01 264)" }}>{label}</span>
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.15 0.01 264)" }}>
-              <div
-                className="h-1.5 rounded-full"
-                style={{
-                  width: showEvidence && preview ? `${(score / max) * 100}%` : "0%",
-                  backgroundColor: color,
-                  transition: "width 0.9s ease-out",
-                }}
-              />
-            </div>
-            <span className="text-xs font-mono font-bold w-7 text-right flex-shrink-0 tabular-nums" style={{ color: showEvidence && preview ? color : "oklch(0.35 0.01 264)" }}>
-              {showEvidence && preview ? score : "—"}
-            </span>
-          </div>
-        ))}
-        </div>
-
-        {showTransition && (
-          <div
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 pointer-events-none"
-            style={{ backgroundColor: "transparent" }}
-          >
-            <HeroScoringDots
-              active={showTransition}
-              durationMs={HERO_TRANSITION_MS}
-              tone={holdComplete ? "purple" : "emerald"}
-            />
-            <p
-              className="text-[11px] font-mono tracking-widest uppercase"
-              style={{ color: holdComplete ? "#a78bfa" : G }}
-            >
-              PYTHIA · {holdComplete ? "next startup" : "reading signals"}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// HeroResultsPreview moved to components/HeroResultsPreview.saved.tsx (re-enable when needed)
 
 // ─── Hero Section ─────────────────────────────────────────────────────────────
+
 
 function HeroSection({
   platformStats,
@@ -573,37 +285,34 @@ function HeroSection({
   const investorCount = platformStats?.investors ?? 6_376;
 
   const urlForm = () => (
-    <form id="hero-cta" onSubmit={handleSubmit} className="w-full max-w-[480px]">
-      <p className="text-[11px] font-semibold tracking-widest uppercase mb-2.5" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+    <form id="hero-cta" onSubmit={handleSubmit} className="w-full max-w-[520px] mx-auto">
+      <p className="text-[11px] font-semibold tracking-widest uppercase mb-2.5 text-center" style={{ color: G }}>
         Submit your startup URL
       </p>
       <div
         className="flex items-center gap-2 px-3 py-3.5 rounded-lg mb-3 transition-all w-full"
         style={{
           backgroundColor: "oklch(0.115 0.01 264)",
-          border: `1px solid ${error ? "#f87171" : "oklch(0.696 0.17 162.48 / 0.45)"}`,
-          boxShadow: error ? "none" : "0 0 24px oklch(0.696 0.17 162.48 / 0.12)",
+          border: `1px solid ${error ? "#f87171" : G_BORDER}`,
         }}
-        onFocusCapture={(e) => { if (!error) e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48)"; }}
-        onBlurCapture={(e) => { if (!error) e.currentTarget.style.borderColor = "oklch(0.696 0.17 162.48 / 0.45)"; }}
       >
-        <ExternalLink size={14} className="flex-shrink-0" style={{ color: error ? "#f87171" : "oklch(0.696 0.17 162.48)" }} />
+        <ExternalLink size={14} className="flex-shrink-0" style={{ color: error ? "#f87171" : G }} />
         <input
           type="text"
           placeholder="your-startup.com"
           value={url}
           onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
           className="flex-1 min-w-0 bg-transparent text-sm outline-none"
-          style={{ color: "oklch(0.94 0.005 264)" }}
+          style={{ color: TEXT }}
         />
       </div>
       {error && (
-        <p className="text-xs mb-2" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
+        <p className="text-xs mb-2 text-center" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
       )}
       <StartupCTA type="submit" fullWidth showArrow arrowSize={15}>
         Find my investors
       </StartupCTA>
-      <p className="text-[10px] text-center mt-2.5" style={{ color: "oklch(0.4 0.01 264)" }}>
+      <p className="text-[10px] text-center mt-2.5" style={{ color: DIM }}>
         No credit card · No signup · ~20 seconds
       </p>
     </form>
@@ -611,112 +320,190 @@ function HeroSection({
 
   return (
     <section
-      className="relative pt-16 pb-10 lg:pb-14 overflow-hidden"
-      style={{ backgroundColor: "oklch(0.09 0.01 264)" }}
+      className="relative pt-20 pb-14 lg:pb-20 overflow-hidden text-center"
+      style={{
+        backgroundColor: PAGE,
+        backgroundImage: "radial-gradient(ellipse 70% 50% at 50% -10%, oklch(0.696 0.17 162.48 / 0.08) 0%, transparent 60%)",
+      }}
     >
-      {/* Subtle grid */}
-      <div
-        className="absolute inset-0 opacity-[0.025]"
-        style={{
-          backgroundImage: "linear-gradient(oklch(0.6 0.01 264) 1px, transparent 1px), linear-gradient(90deg, oklch(0.6 0.01 264) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-        }}
-      />
-      {/* Violet ambient — top left */}
-      <div
-        className="absolute -top-32 -left-32 w-[700px] h-[700px] opacity-[0.07] pointer-events-none"
-        style={{ background: "radial-gradient(circle, #7c3aed 0%, transparent 65%)" }}
-      />
-      <div className="absolute bottom-0 left-0 right-0 h-40" style={{ background: "linear-gradient(to top, oklch(0.09 0.01 264), transparent)" }} />
+      <div className="container relative z-10 max-w-[820px] mx-auto px-6 py-8">
+        <span
+          className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase mb-6 px-3 py-1.5 rounded-full"
+          style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: G }} />
+          Investor Intelligence · Live
+        </span>
 
-      <div className="container relative z-10 py-6 lg:py-8">
+        <p className="text-sm font-bold font-mono mb-4" style={{ color: G }}>
+          {formatMatchFull(matchCount)}+ investor matches
+          <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
+        </p>
 
-        {/* ── Main two-column layout ── */}
-        <div className="flex flex-col lg:flex-row items-start gap-10 lg:gap-16 xl:gap-24">
+        <h1
+          className="font-display font-bold leading-[1.08] mb-4"
+          style={{ fontSize: "clamp(2.2rem, 5.5vw, 3.9rem)", color: TEXT, letterSpacing: "-0.04em" }}
+        >
+          Find your investors.
+          <br />
+          <span style={{ color: G_HOVER }}>Build your term sheet.</span>
+        </h1>
 
-          {/* ── Left: pitch ── */}
-          <div className="flex-1 max-w-[580px]">
+        <p
+          className="text-base sm:text-lg leading-relaxed mb-8 mx-auto max-w-[580px]"
+          style={{ color: MUTED }}
+        >
+          Submit your URL. Pythh scores your startup, matches aligned investors,
+          and guides you to a commitment doc that closes the gap to funding.
+        </p>
 
-            {/* Super-headline */}
-            <p className="text-sm font-bold font-mono mb-3" style={{ color: G }}>
-              {formatMatchFull(matchCount)}+ investor matches
-              <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
-            </p>
+        <div className="mb-6">{urlForm()}</div>
 
-            <h1
-              className="font-display font-bold leading-[1.05] mb-3"
-              style={{ fontSize: "clamp(2.25rem, 5.5vw, 4.5rem)", color: "oklch(0.97 0.005 264)", letterSpacing: "-0.025em" }}
-            >
-              Accelerate your
-              <br />
-              time to term sheet.
-            </h1>
+        <a
+          href="/portfolio"
+          className="inline-flex items-center gap-2 text-sm font-semibold mb-8 transition-colors"
+          style={{ color: G }}
+        >
+          See the Oracle&apos;s track record <ArrowRight size={14} />
+        </a>
 
-            <p
-              className="font-display font-medium mb-5"
-              style={{ fontSize: "clamp(1.05rem, 2vw, 1.4rem)", color: "#a78bfa", letterSpacing: "-0.01em", lineHeight: 1.35 }}
-            >
-              Drop your URL. Pythh&apos;s signal engine returns the investors who match your thesis —
-              ranked, with warm paths first — so you skip months of cold outreach.
-            </p>
+        <p className="text-xs leading-relaxed mx-auto max-w-[520px]" style={{ color: DIM }}>
+          {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
+          {portfolioMetrics?.verified_funded_picks != null && (
+            <>
+              {" · "}
+              <span style={{ color: G }}>
+                {portfolioMetrics.verified_funded_picks} verified funded
+                {portfolioMetrics.verified_funded_rate_pct != null
+                  ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
+                  : ""}
+              </span>
+            </>
+          )}
+        </p>
+      </div>
+    </section>
+  );
+}
 
-            {/* Primary CTA — left column on all breakpoints */}
-            <div className="mb-4">
-              {urlForm()}
+const HOW_IT_WORKS_STEPS = [
+  {
+    num: "01",
+    icon: Zap,
+    accent: G,
+    title: "Submit your URL",
+    body: "Pythh reads your public site, extracts signals, scores your startup across 5 dimensions, and returns aligned investors in seconds.",
+  },
+  {
+    num: "02",
+    icon: TrendingUp,
+    accent: AMBER,
+    title: "Close the gaps",
+    body: "Answer focused questions. The wizard identifies your weakest GOD score dimensions and shows you exactly what to fix and when.",
+  },
+  {
+    num: "03",
+    icon: FileText,
+    accent: G_HOVER,
+    title: "Build your term sheet",
+    body: "Acknowledge tasks, set deadlines, submit proof. Your commitment doc becomes an investment memo — ready to send to matched investors.",
+  },
+] as const;
+
+function HowItWorksSection() {
+  return (
+    <section className="border-t py-14 lg:py-16" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
+      <div className="container max-w-[960px] mx-auto px-6">
+        <p className="text-center text-[11px] font-mono tracking-widest uppercase mb-8" style={{ color: DIM }}>
+          How it works
+        </p>
+        <div className="grid gap-px rounded-xl overflow-hidden" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", backgroundColor: BORDER }}>
+          {HOW_IT_WORKS_STEPS.map(({ num, icon: Icon, accent, title, body }) => (
+            <div key={num} className="p-6 flex flex-col gap-3" style={{ backgroundColor: PAGE }}>
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-mono" style={{ color: DIM }}>{num}</span>
+                <span className="w-7 h-7 rounded-md flex items-center justify-center" style={{ border: `1px solid ${accent}33`, background: `${accent}14` }}>
+                  <Icon size={14} style={{ color: accent }} />
+                </span>
+              </div>
+              <h3 className="font-display font-bold text-base" style={{ color: TEXT }}>{title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: MUTED }}>{body}</p>
             </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-            <a
-              href="/portfolio"
-              className="inline-flex items-center gap-2 text-sm font-semibold mb-6 transition-colors"
-              style={{ color: "oklch(0.696 0.17 162.48)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
-            >
-              See the Oracle&apos;s track record <ArrowRight size={14} />
-            </a>
+function TermSheetSection() {
+  const [, navigate] = useLocation();
+  const commitments = [
+    { task: "Add a technical co-founder", status: "completed", impact: "+18 GOD pts", component: "Team" },
+    { task: "Sign your first paying customer", status: "acknowledged", impact: "+14 GOD pts", component: "Traction", deadline: "Jun 30" },
+    { task: 'Write your "Why Now" in 2 sentences', status: "pending", impact: "+7 GOD pts", component: "Market" },
+  ];
 
-            <div
-              className="text-[15px] leading-[1.65] mb-5 max-w-[500px]"
-              style={{ color: "oklch(0.58 0.01 264)" }}
-            >
-              <p>
-                Pythh's scoring algorithms remove market noise to uncover patterns that matter,
-                not marketing hype. Built on 40+ observable signals and 33,000+ startup outcomes —
-                the same engine institutional investors query through Pythh Connect.
-              </p>
+  return (
+    <section
+      className="border-t py-14 lg:py-16"
+      style={{
+        borderColor: BORDER,
+        background: `linear-gradient(180deg, oklch(0.696 0.17 162.48 / 0.04) 0%, ${PAGE} 60%)`,
+      }}
+    >
+      <div className="container max-w-[1040px] mx-auto px-6 grid gap-10 lg:grid-cols-2 items-center">
+        <div>
+          <span
+            className="inline-flex items-center gap-1.5 text-[10px] font-mono tracking-widest uppercase mb-4 px-3 py-1 rounded-full"
+            style={{ color: AMBER, border: `1px solid oklch(0.769 0.188 70.08 / 0.3)`, background: "oklch(0.769 0.188 70.08 / 0.08)" }}
+          >
+            <Sparkles size={10} />
+            New — Commitment Wizard
+          </span>
+          <h2 className="font-display font-bold text-2xl sm:text-3xl leading-tight mb-4" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
+            Pythh builds your term sheet — aligned with your investor profiles.
+          </h2>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>
+            After matching, the wizard analyzes your GOD score gaps and gives you a prioritized list of what to fix. You acknowledge each task, set a deadline, and submit proof.
+          </p>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: MUTED }}>
+            When tasks are complete, your commitment document upgrades from provisional to a full investment memo you can send to matched investors.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/activate")}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+            style={{ border: `1px solid ${G_BORDER}`, color: G, background: G_SUBTLE }}
+          >
+            Start your readiness doc <ArrowRight size={14} />
+          </button>
+        </div>
+
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}`, background: CARD }}>
+          <div className="px-4 py-3 border-b flex justify-between items-center" style={{ borderColor: BORDER }}>
+            <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: DIM }}>Commitment doc · provisional</span>
+            <span className="text-[10px] font-mono" style={{ color: AMBER }}>GOD 62 → 78 projected</span>
+          </div>
+          {commitments.map((c) => (
+            <div key={c.task} className="px-4 py-3 border-b flex items-start justify-between gap-3" style={{ borderColor: BORDER }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: TEXT }}>{c.task}</p>
+                <p className="text-[10px] font-mono mt-0.5" style={{ color: DIM }}>
+                  {c.component}{c.deadline ? ` · due ${c.deadline}` : ""}
+                </p>
+              </div>
+              <span
+                className="text-[10px] font-mono px-2 py-0.5 rounded flex-shrink-0"
+                style={{
+                  color: c.status === "completed" ? G : c.status === "acknowledged" ? AMBER : DIM,
+                  border: `1px solid ${c.status === "completed" ? G_BORDER : BORDER}`,
+                }}
+              >
+                {c.impact}
+              </span>
             </div>
-
-            <a
-              href="/oracle"
-              className="inline-flex items-center gap-2 text-sm font-medium mb-4 transition-colors"
-              style={{ color: "oklch(0.48 0.01 264)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.72 0.01 264)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.48 0.01 264)"; }}
-            >
-              How it works <ChevronRight size={14} />
-            </a>
-
-            <p className="text-xs leading-relaxed max-w-[480px]" style={{ color: "oklch(0.42 0.01 264)" }}>
-              {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
-              {portfolioMetrics?.verified_funded_picks != null && (
-                <>
-                  {" · "}
-                  <span style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                    {portfolioMetrics.verified_funded_picks} verified funded
-                    {portfolioMetrics.verified_funded_rate_pct != null
-                      ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
-                      : ""}
-                  </span>
-                </>
-              )}
-            </p>
-          </div>
-
-          {/* ── Right: live results preview (desktop) ── */}
-          <div className="hidden lg:flex flex-shrink-0 flex-1 justify-end lg:sticky lg:top-16 self-stretch">
-            <HeroResultsPreview />
-          </div>
-
+          ))}
         </div>
       </div>
     </section>
@@ -1541,6 +1328,8 @@ export default function Home() {
         heroCta={{ label: "Find investors", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
+      <HowItWorksSection />
+      <TermSheetSection />
       <SignalProofBar />
       <InvestorStrip />
       <TrackRecordStrip platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
