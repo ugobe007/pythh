@@ -14,7 +14,8 @@ COPY package*.json ./
 # Install ALL dependencies (including devDependencies for Vite build)
 RUN npm ci --legacy-peer-deps
 
-# Copy source code
+# Copy source code (CACHEBUST ensures server/ changes invalidate stale layers)
+ARG CACHEBUST=1
 COPY . .
 
 # Vite inlines VITE_* env vars at build time — pass them as build args

@@ -43,9 +43,36 @@ async function probe(path) {
   }
 }
 
+async function probeInstantSubmit() {
+  const started = Date.now();
+  const url = `${base}/api/instant/submit`;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://readyforrobots.com' }),
+      signal: controller.signal,
+    });
+    const elapsed = Date.now() - started;
+    const ok = res.status === 200;
+    return { path: '/api/instant/submit', status: res.status, ok, elapsed };
+  } catch (err) {
+    const elapsed = Date.now() - started;
+    const name = err && err.name === 'AbortError' ? 'timeout' : err.message || String(err);
+    return { path: '/api/instant/submit', status: 0, ok: false, elapsed, error: name };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function main() {
   console.log(`Running post-deploy checks against ${base}`);
-  const results = await Promise.all(targets.map(probe));
+  const results = await Promise.all([
+    ...targets.map(probe),
+    probeInstantSubmit(),
+  ]);
   let failed = 0;
   for (const r of results) {
     const mark = r.ok ? 'PASS' : 'FAIL';

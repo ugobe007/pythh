@@ -52,6 +52,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+
+      - name: Boot smoke test
+        run: node scripts/smoke-boot.js
       
       # Deploy to Fly.io using local Docker build so the pre-built dist/ is used
       # --local-only builds Docker on this runner (where dist/ already exists)
@@ -61,7 +64,7 @@ jobs:
         run: |
           ok=0
           for attempt in 1 2 3 4 5; do
-            if flyctl deploy --local-only; then
+            if flyctl deploy --local-only --no-cache; then
               ok=1
               break
             fi
@@ -74,3 +77,6 @@ jobs:
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Post-deploy smoke test
+        run: APP_URL=https://hot-honey.fly.dev SKIP_DEEP_HEALTH=1 node scripts/post-deploy-health-check.js
