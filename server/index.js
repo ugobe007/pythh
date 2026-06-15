@@ -6330,6 +6330,10 @@ app.use('/api/discovery', discoveryDiagnostic);
 const oracleRouter = require('./routes/oracle');
 app.use('/api/oracle', oracleRouter);
 
+// Commitment Wizard API routes
+const wizardRouter = require('./routes/wizardRoute');
+app.use('/api/wizard', wizardRouter);
+
 // Deep health check (tests all critical pipelines end-to-end)
 const healthCheckRouter = require('./routes/healthCheck');
 app.use('/api/health', healthCheckRouter);

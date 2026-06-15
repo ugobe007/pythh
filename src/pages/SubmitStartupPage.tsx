@@ -361,6 +361,7 @@ export default function SubmitStartupPage() {
                 isRefined={isRefined}
                 previousAccuracy={isRefined ? (stage1Accuracy ?? undefined) : undefined}
                 onImprove={!isRefined ? () => setStep('refine') : undefined}
+                startupId={isRefined ? pendingStartupId : null}
               />
             )}
             <InvestorReadinessReport report={report} showFooter={true} onReset={reset} />

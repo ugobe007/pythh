@@ -48,14 +48,14 @@ export function GODScoreExplainer({ variant = 'icon', className = '' }: GODScore
           e.stopPropagation();
           setOpen(!open);
         }}
-        className="text-zinc-500 hover:text-cyan-400 transition-colors focus:outline-none focus:ring-0"
+        className="text-zinc-500 hover:text-emerald-400 transition-colors focus:outline-none focus:ring-0"
         title={GOD_SCORE_COPY.tagline}
         aria-label="What is GOD score?"
       >
         {variant === 'icon' ? (
           <HelpCircle className="w-3.5 h-3.5" />
         ) : (
-          <span className="text-xs text-zinc-500 hover:text-cyan-400 underline decoration-dotted cursor-help">
+          <span className="text-xs text-zinc-500 hover:text-emerald-400 underline decoration-dotted cursor-help">
             What's this?
           </span>
         )}
@@ -86,7 +86,7 @@ export function GODScoreExplainer({ variant = 'icon', className = '' }: GODScore
               <ul className="text-xs text-zinc-400 space-y-1">
                 {GOD_SCORE_COPY.vcCriteria.map(({ label, desc }) => (
                   <li key={label} className="flex gap-2">
-                    <span className="text-cyan-400/80 font-medium w-14">{label}</span>
+                    <span className="text-emerald-400/80 font-medium w-14">{label}</span>
                     <span>{desc}</span>
                   </li>
                 ))}

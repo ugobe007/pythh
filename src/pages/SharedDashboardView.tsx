@@ -30,28 +30,28 @@ interface ShareData {
 function signalColor(value: number, max: number): string {
   const pct = value / max;
   if (pct >= 0.7) return 'text-emerald-400';
-  if (pct >= 0.4) return 'text-cyan-400';
+  if (pct >= 0.4) return 'text-emerald-400';
   if (pct >= 0.2) return 'text-amber-400';
   return 'text-zinc-500';
 }
 
 function barColor(pct: number): string {
   if (pct >= 0.7) return 'bg-emerald-500';
-  if (pct >= 0.4) return 'bg-cyan-500';
+  if (pct >= 0.4) return 'bg-emerald-500';
   if (pct >= 0.2) return 'bg-amber-500';
   return 'bg-zinc-600';
 }
 
 function qualityColor(score: number): string {
   if (score >= 70) return 'text-emerald-400';
-  if (score >= 40) return 'text-cyan-400';
+  if (score >= 40) return 'text-emerald-400';
   if (score >= 20) return 'text-amber-400';
   return 'text-zinc-500';
 }
 
 function qualityBarColor(score: number): string {
   if (score >= 70) return 'bg-emerald-500';
-  if (score >= 40) return 'bg-cyan-500';
+  if (score >= 40) return 'bg-emerald-500';
   if (score >= 20) return 'bg-amber-500';
   return 'bg-zinc-600';
 }
@@ -108,7 +108,7 @@ export default function SharedDashboardView() {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
         <div className="max-w-sm text-center space-y-4">
           <p className="text-zinc-400 text-sm">{error || 'Something went wrong.'}</p>
-          <Link to="/" className="text-cyan-400 text-sm hover:text-cyan-300 transition-colors">
+          <Link to="/" className="text-emerald-400 text-sm hover:text-emerald-300 transition-colors">
             Go to Pythh →
           </Link>
         </div>
@@ -129,7 +129,7 @@ export default function SharedDashboardView() {
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
       <div className="max-w-sm text-center space-y-4">
         <p className="text-zinc-400 text-sm">Unsupported share type.</p>
-        <Link to="/" className="text-cyan-400 text-sm hover:text-cyan-300 transition-colors">
+        <Link to="/" className="text-emerald-400 text-sm hover:text-emerald-300 transition-colors">
           Go to Pythh →
         </Link>
       </div>
@@ -314,7 +314,7 @@ function SharedFounderDashboard({ payload, createdAt }: { payload: Record<string
                 <div key={i} className="px-4 py-3">
                   <div className="flex items-start gap-3">
                     <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
-                      a.priority === 'critical' ? 'bg-red-400' : a.priority === 'high' ? 'bg-amber-400' : a.priority === 'medium' ? 'bg-cyan-400' : 'bg-zinc-600'
+                      a.priority === 'critical' ? 'bg-red-400' : a.priority === 'high' ? 'bg-amber-400' : a.priority === 'medium' ? 'bg-emerald-400' : 'bg-zinc-600'
                     }`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-zinc-200">{a.title}</p>
@@ -331,7 +331,7 @@ function SharedFounderDashboard({ payload, createdAt }: { payload: Record<string
         {/* Footer */}
         <footer className="border-t border-zinc-800/50 pt-6 text-center">
           <p className="text-zinc-600 text-xs">
-            Shared from <Link to="/" className="text-cyan-400/70 hover:text-cyan-400 transition-colors">pythh.ai</Link> · Read-only snapshot · {sharedDate}
+            Shared from <Link to="/" className="text-emerald-400/70 hover:text-emerald-400 transition-colors">pythh.ai</Link> · Read-only snapshot · {sharedDate}
           </p>
         </footer>
       </div>
@@ -396,7 +396,7 @@ function SharedInvestorPipeline({ payload, createdAt }: { payload: Record<string
                 {summary.new_this_week != null && (
                   <div className="px-4 py-4">
                     <p className="text-[11px] uppercase tracking-wider text-zinc-600 mb-1">New this week</p>
-                    <p className="text-[22px] font-semibold tabular-nums text-cyan-400">{summary.new_this_week}</p>
+                    <p className="text-[22px] font-semibold tabular-nums text-emerald-400">{summary.new_this_week}</p>
                   </div>
                 )}
                 {summary.strong_alignment_count != null && (
@@ -470,7 +470,7 @@ function SharedInvestorPipeline({ payload, createdAt }: { payload: Record<string
         {/* Footer */}
         <footer className="border-t border-zinc-800/50 pt-6 text-center">
           <p className="text-zinc-600 text-xs">
-            Shared from <Link to="/" className="text-cyan-400/70 hover:text-cyan-400 transition-colors">pythh.ai</Link> · Read-only snapshot · {sharedDate}
+            Shared from <Link to="/" className="text-emerald-400/70 hover:text-emerald-400 transition-colors">pythh.ai</Link> · Read-only snapshot · {sharedDate}
           </p>
         </footer>
       </div>

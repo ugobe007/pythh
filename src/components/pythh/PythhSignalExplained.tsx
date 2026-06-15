@@ -36,7 +36,7 @@ const DIMENSIONS = [
     label: 'VC++ Score',
     desc: 'How an investor is perceived by other VCs — co-investment history, portfolio reputation, founder NPS. Signal quality, not just quantity.',
     detail: 'Peer-weighted scoring',
-    color: '#22d3ee',
+    color: 'rgba(255,255,255,0.5)',
   },
 ];
 
@@ -54,7 +54,7 @@ export default function PythhSignalExplained() {
   }, []);
 
   return (
-    <section ref={ref} style={{ background: '#0b0e13', padding: '2rem 0 2.25rem' }}>
+    <section ref={ref} style={{ background: '#080808', padding: '2rem 0 2.25rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 2rem' }}>
 
         {/* Headline + body inline when wide; stacks on narrow */}
@@ -116,7 +116,7 @@ export default function PythhSignalExplained() {
               animate={visible ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.15 + i * 0.12 }}
               style={{
-                background: '#0f1318',
+                background: '#0d0d0d',
                 padding: '0.95rem 0.95rem 0.85rem',
                 position: 'relative',
               }}

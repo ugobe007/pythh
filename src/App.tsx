@@ -156,6 +156,7 @@ const EnginePipelineView = lazy(() => import("./pages/app/Engine"));
 
 const OracleDashboard = lazy(() => import("./pages/app/OracleDashboard"));
 const OracleWizard = lazy(() => import("./pages/app/OracleWizard"));
+const CommitmentWizardPage = lazy(() => import("./pages/app/CommitmentWizardPage"));
 const OracleCohorts = lazy(() => import("./pages/app/OracleCohorts"));
 const OracleActions = lazy(() => import("./pages/app/OracleActions"));
 const OracleVCStrategy = lazy(() => import("./pages/app/OracleVCStrategy"));
@@ -355,6 +356,7 @@ const App = () => {
               <Route path="investors/:investorId" element={<InvestorRevealPage />} />
               <Route path="engine" element={<EnginePipelineView />} />
 
+              <Route path="wizard/:startupId" element={<CommitmentWizardPage />} />
               <Route path="oracle" element={<OracleDashboard />} />
               <Route path="oracle/wizard" element={<OracleWizard />} />
               <Route path="oracle/cohorts" element={<OracleCohorts />} />

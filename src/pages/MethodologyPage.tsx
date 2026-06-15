@@ -16,7 +16,7 @@ const GOD_DIMENSIONS = [
     id: "team",
     label: "Team",
     weight: "20 pts",
-    color: "#22d3ee",
+    color: "#34d399",
     desc:
       "Founder background, domain expertise, repeat-founder status, and advisor network depth. We look at what signals the team has publicly demonstrated, not self-reported bios.",
   },
@@ -116,7 +116,7 @@ const MATCHING_STEPS = [
 
 const TIERS = [
   { label: "Elite", range: "70 – 100", color: "#f59e0b", desc: "Top-quartile investors — rich data, active deployment, strong track record." },
-  { label: "Strong", range: "50 – 69", color: "#22d3ee", desc: "High-quality investors with solid focus and meaningful activity." },
+  { label: "Strong", range: "50 – 69", color: "#34d399", desc: "High-quality investors with solid focus and meaningful activity." },
   { label: "Solid", range: "30 – 49", color: "#10b981", desc: "Minimum viable signal — included in matching pool." },
   { label: "Emerging", range: "0 – 29", color: "#6b7280", desc: "Insufficient data — excluded from matching to protect match quality." },
 ];
@@ -132,7 +132,7 @@ export default function MethodologyPage() {
 
         {/* Hero */}
         <div className="mb-14">
-          <p className="text-xs text-cyan-400 tracking-[2px] uppercase mb-3">Pythh Capital · Methodology</p>
+          <p className="text-xs text-emerald-400 tracking-[2px] uppercase mb-3">Pythh Capital · Methodology</p>
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4 leading-tight">
             How we score.<br />
             <span className="text-zinc-500">How we match.</span>
@@ -260,8 +260,8 @@ export default function MethodologyPage() {
           <div className="space-y-3">
             {MATCHING_STEPS.map((s) => (
               <div key={s.n} className="flex gap-4 items-start p-4 rounded-xl border border-zinc-800/40 bg-zinc-900/30">
-                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
-                  <span className="text-[10px] font-mono text-cyan-400">{s.n}</span>
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <span className="text-[10px] font-mono text-emerald-400">{s.n}</span>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-white mb-0.5">{s.label}</p>
@@ -313,7 +313,7 @@ export default function MethodologyPage() {
               "Both sides are scored. Founder readiness and investor quality must both meet a floor.",
             ].map((p) => (
               <li key={p} className="flex gap-3 text-sm text-zinc-400">
-                <span className="flex-shrink-0 w-1.5 h-1.5 mt-2 rounded-full bg-cyan-400" />
+                <span className="flex-shrink-0 w-1.5 h-1.5 mt-2 rounded-full bg-emerald-400" />
                 {p}
               </li>
             ))}
@@ -324,7 +324,7 @@ export default function MethodologyPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
             to="/signal-matches"
-            className="px-6 py-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition text-center"
+            className="px-6 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium hover:bg-emerald-500/20 transition text-center"
           >
             Get your signal score →
           </Link>

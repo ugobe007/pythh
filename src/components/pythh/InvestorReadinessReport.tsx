@@ -82,14 +82,12 @@ export interface ReportData {
 
 function scoreColor(s: number) {
   if (s >= 70) return 'text-emerald-400';
-  if (s >= 55) return 'text-cyan-400';
-  if (s >= 40) return 'text-amber-400';
+  if (s >= 50) return 'text-amber-400';
   return 'text-zinc-500';
 }
 function barColor(s: number) {
   if (s >= 70) return 'bg-emerald-500';
-  if (s >= 55) return 'bg-cyan-500';
-  if (s >= 40) return 'bg-amber-500';
+  if (s >= 50) return 'bg-amber-500';
   return 'bg-zinc-600';
 }
 function formatSectors(v: string[] | string | undefined): string[] {
@@ -237,7 +235,7 @@ function MatchTableRow({
             </span>
           ))}
           {check && (
-            <span className="text-[10px] px-1.5 py-0 rounded border border-cyan-500/20 text-cyan-500/80">
+            <span className="text-[10px] px-1.5 py-0 rounded border border-emerald-500/20 text-emerald-500/80">
               {check}
             </span>
           )}
@@ -251,14 +249,14 @@ function MatchTableRow({
           <span className="text-zinc-600 italic">Thesis fit from pythh match engine</span>
         )}
         {to ? (
-          <span className="mt-1 block text-[10px] text-cyan-500/70">Open profile · full thesis →</span>
+          <span className="mt-1 block text-[10px] text-emerald-500/70">Open profile · full thesis →</span>
         ) : null}
       </div>
     </>
   );
 
   const shellClass =
-    'group grid grid-cols-12 gap-2 items-start py-2.5 border-b border-white/[0.06] last:border-0 text-[13px] leading-snug rounded-md -mx-1 px-1 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-cyan-500/40 focus-visible:outline-offset-0 cursor-pointer';
+    'group grid grid-cols-12 gap-2 items-start py-2.5 border-b border-white/[0.06] last:border-0 text-[13px] leading-snug rounded-md -mx-1 px-1 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-emerald-500/40 focus-visible:outline-offset-0 cursor-pointer';
 
   if (!to) {
     return <div className={shellClass}>{rowInner}</div>;
@@ -327,7 +325,7 @@ export default function InvestorReadinessReport({
                 href={startup.website.startsWith('http') ? startup.website : `https://${startup.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-cyan-400/90 hover:text-cyan-300 mt-2"
+                className="inline-flex items-center gap-1 text-xs text-emerald-400/90 hover:text-emerald-300 mt-2"
               >
                 {startup.website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                 <ExternalLink className="w-3 h-3 opacity-70" />
@@ -338,13 +336,13 @@ export default function InvestorReadinessReport({
             <div className="rounded border border-white/[0.08] bg-black/40 px-3 py-2 min-w-[5.5rem]">
               <div className={labelCaps}>Signal</div>
               {showSignalNumericHeadline ? (
-                <div className="text-lg font-semibold text-cyan-400 font-mono tabular-nums leading-tight">
+                <div className="text-lg font-semibold text-emerald-400 font-mono tabular-nums leading-tight">
                   {signalTotal.toFixed(1)}
                   <span className="text-zinc-600 text-sm font-normal">/10</span>
                 </div>
               ) : (
                 <>
-                  <div className="text-lg font-semibold text-cyan-400 leading-tight font-sans tracking-tight">
+                  <div className="text-lg font-semibold text-emerald-400 leading-tight font-sans tracking-tight">
                     {signalHeadlineWord}
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1 leading-snug normal-case tracking-normal font-normal">
@@ -377,7 +375,7 @@ export default function InvestorReadinessReport({
         )}
         <p className="text-[11px] text-zinc-600 mt-3 leading-snug border-t border-white/[0.06] pt-3">
           Save this report:{' '}
-          <Link to={reportUrl} className="text-cyan-500/85 hover:underline font-mono text-[10px] break-all">
+          <Link to={reportUrl} className="text-emerald-500/85 hover:underline font-mono text-[10px] break-all">
             {typeof window !== 'undefined' ? `${window.location.origin}${reportUrl}` : reportUrl}
           </Link>
         </p>
@@ -431,11 +429,11 @@ export default function InvestorReadinessReport({
               No matches in this preview yet — the matcher may still be running after your URL scan.
             </p>
             <p>
-              <Link to={reportUrl} className="text-cyan-500/90 hover:underline">
+              <Link to={reportUrl} className="text-emerald-500/90 hover:underline">
                 Reload your readiness report
               </Link>
               {' · '}
-              <Link to={dashboardUrl} className="text-cyan-500/90 hover:underline">
+              <Link to={dashboardUrl} className="text-emerald-500/90 hover:underline">
                 Open full live matches
               </Link>
               {' '}
@@ -461,7 +459,7 @@ export default function InvestorReadinessReport({
             {total_matches > 5 && (
               <p className="text-[11px] text-zinc-600 mt-3">
                 Showing 5 of {total_matches} ranked matches.
-                <Link to={signupUrl} className="text-cyan-500/80 hover:underline ml-1">
+                <Link to={signupUrl} className="text-emerald-500/80 hover:underline ml-1">
                   Create an account
                 </Link>{' '}
                 to track the full list and get alerts.
@@ -475,7 +473,7 @@ export default function InvestorReadinessReport({
       <div className={`${panel} px-4 py-3`}>
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5 text-cyan-400/90" />
+            <Activity className="w-3.5 h-3.5 text-emerald-400/90" />
             <span className="text-sm font-medium text-zinc-200">Signals & intelligence</span>
           </div>
           <span className={`${labelCaps} text-zinc-600`}>Live layer on GOD</span>
@@ -503,7 +501,7 @@ export default function InvestorReadinessReport({
                   </div>
                   <div className="h-1 w-full bg-zinc-900 rounded overflow-hidden">
                     <div
-                      className="h-1 rounded bg-cyan-500/70"
+                      className="h-1 rounded bg-emerald-500/70"
                       style={{ width: `${signalBarPct(v)}%` }}
                     />
                   </div>
@@ -515,11 +513,11 @@ export default function InvestorReadinessReport({
         ) : (
           <p className="text-xs text-zinc-600">
             Signal subscores appear once enrichment finishes (usually within a minute of submit).{' '}
-            <Link to={reportUrl} className="text-cyan-500/90 hover:underline">
+            <Link to={reportUrl} className="text-emerald-500/90 hover:underline">
               Reload your report
             </Link>
             {' · '}
-            <Link to={dashboardUrl} className="text-cyan-500/90 hover:underline">
+            <Link to={dashboardUrl} className="text-emerald-500/90 hover:underline">
               Full match dashboard
             </Link>
             .
@@ -569,17 +567,17 @@ export default function InvestorReadinessReport({
       {/* Forecast — single compact row */}
       <div className={`${panel} px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3`}>
         <div className="flex items-center gap-2 shrink-0">
-          <TrendingUp className="w-3.5 h-3.5 text-cyan-400/90" />
+          <TrendingUp className="w-3.5 h-3.5 text-emerald-400/90" />
           <span className="text-sm font-medium text-zinc-200">Meeting success estimate</span>
         </div>
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className="text-2xl font-semibold text-cyan-400 font-mono tabular-nums shrink-0">
+          <span className="text-2xl font-semibold text-emerald-400 font-mono tabular-nums shrink-0">
             {successRate}%
           </span>
           <div className="flex-1 min-w-0">
             <div className="h-1.5 bg-zinc-900 rounded overflow-hidden mb-1">
               <div
-                className="h-1.5 bg-cyan-500/80 rounded"
+                className="h-1.5 bg-emerald-500/80 rounded"
                 style={{ width: `${successRate}%` }}
               />
             </div>
@@ -603,7 +601,7 @@ export default function InvestorReadinessReport({
         <div className="flex flex-wrap gap-2">
           <a
             href={signupUrl}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-cyan-500/40 text-cyan-400 text-sm font-medium hover:bg-cyan-500/10 transition"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-emerald-500/40 text-emerald-400 text-sm font-medium hover:bg-emerald-500/10 transition"
           >
             Create account <ChevronRight className="w-3.5 h-3.5" />
           </a>

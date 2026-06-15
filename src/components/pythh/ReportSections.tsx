@@ -128,17 +128,17 @@ export function MeetingSuccessForecast({ context, topMatchScores, totalMatches }
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 mb-6">
       <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="w-4 h-4 text-cyan-400" />
+        <TrendingUp className="w-4 h-4 text-emerald-400" />
         <h2 className="text-sm font-semibold text-white">Meeting Success Forecast</h2>
       </div>
       <div className="flex items-center gap-6">
         <div className="flex-shrink-0 text-center">
-          <div className="text-5xl font-bold text-cyan-400" style={{ filter: 'drop-shadow(0 0 12px rgba(34,211,238,0.4))' }}>{successRate}%</div>
+          <div className="text-5xl font-bold text-emerald-400" style={{ filter: 'drop-shadow(0 0 12px rgba(16,185,129,0.4))' }}>{successRate}%</div>
           <div className="text-xs text-zinc-600 mt-1 font-mono">estimated response rate</div>
         </div>
         <div className="flex-1 space-y-2">
           <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-            <div className="h-2 bg-cyan-500 rounded-full transition-all duration-1000" style={{ width: `${successRate}%`, filter: 'drop-shadow(0 0 4px rgba(34,211,238,0.5))' }} />
+            <div className="h-2 bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${successRate}%`, filter: 'drop-shadow(0 0 4px rgba(16,185,129,0.5))' }} />
           </div>
           <p className="text-xs text-zinc-500 leading-relaxed">
             Based on {totalMatches} matched investors in your category — startups scoring {

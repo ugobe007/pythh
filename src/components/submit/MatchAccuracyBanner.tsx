@@ -7,13 +7,15 @@
  * Stage 1+2:     shows ~80–91% accuracy + "Refined" pill, no CTA
  */
 
-import { Sparkles, TrendingUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Sparkles, TrendingUp } from 'lucide-react';
 
 interface MatchAccuracyBannerProps {
   godScore: number;
   isRefined: boolean;
   previousAccuracy?: number;
   onImprove?: () => void;
+  startupId?: string | null;
 }
 
 function computeAccuracy(godScore: number, refined: boolean): number {
@@ -29,7 +31,9 @@ export default function MatchAccuracyBanner({
   isRefined,
   previousAccuracy,
   onImprove,
+  startupId,
 }: MatchAccuracyBannerProps) {
+  const navigate = useNavigate();
   const accuracy = computeAccuracy(godScore, isRefined);
   const improved = isRefined && previousAccuracy != null;
 
@@ -92,22 +96,40 @@ export default function MatchAccuracyBanner({
         </div>
       </div>
 
-      {/* Right: CTA or refined message */}
-      {!isRefined && onImprove && (
-        <button
-          onClick={onImprove}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-black bg-emerald-400 hover:bg-emerald-300 transition-all duration-200 flex-shrink-0"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Improve Your Matches
-        </button>
-      )}
+      {/* Right: CTA or refined actions */}
+      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+        {!isRefined && onImprove && (
+          <button
+            onClick={onImprove}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-black bg-emerald-400 hover:bg-emerald-300 transition-all duration-200"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Improve Your Matches
+          </button>
+        )}
 
-      {isRefined && (
-        <p className="text-xs text-zinc-500 text-right max-w-[180px]">
-          Matches updated with your strategic profile
-        </p>
-      )}
+        {isRefined && startupId && (
+          <button
+            onClick={() => navigate(`/app/wizard/${startupId}`)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200"
+            style={{
+              background: 'rgba(52,211,153,0.1)',
+              color: '#34d399',
+              border: '1px solid rgba(52,211,153,0.25)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Build Your Readiness Doc
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {isRefined && !startupId && (
+          <p className="text-xs text-zinc-500 text-right max-w-[180px]">
+            Matches updated with your strategic profile
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -490,7 +490,7 @@ export default function SignalMatches() {
           </div>
 
           <p className="text-sm text-zinc-400">
-            <Link to="/signal-matches" className="text-cyan-400 hover:text-cyan-300 transition">Try again</Link>
+            <Link to="/signal-matches" className="text-emerald-400 hover:text-emerald-300 transition">Try again</Link>
             <span className="text-zinc-700 mx-3">·</span>
             <Link to="/signal-matches" className="text-zinc-400 hover:text-white transition">Browse startups</Link>
           </p>
@@ -575,7 +575,7 @@ export default function SignalMatches() {
             intro). For the shorter bookmarkable report (same engine), open the{' '}
             <Link
               to={`/submit?startup=${encodeURIComponent(resolvedStartupId)}`}
-              className="text-cyan-400/90 hover:text-cyan-300 underline-offset-2 hover:underline"
+              className="text-emerald-400/90 hover:text-emerald-300 underline-offset-2 hover:underline"
             >
               investor readiness report
             </Link>
@@ -584,7 +584,7 @@ export default function SignalMatches() {
         )}
 
         <p className="text-sm text-zinc-400 leading-relaxed mb-2">
-          <span className="text-cyan-400">Signal</span> = timing.
+          <span className="text-emerald-400">Signal</span> = timing.
           <span className="text-zinc-300 ml-1">
             GOD
             <GODScoreExplainer variant="icon" className="ml-1 align-middle" />
@@ -592,7 +592,7 @@ export default function SignalMatches() {
           {' '}= your investment readiness (what tier 1 VCs evaluate).
           <span className="text-zinc-300 ml-1">YC++</span> = how investors perceive you.
         </p>
-        <p className="text-sm text-cyan-300/90 mb-8">
+        <p className="text-sm text-emerald-300/90 mb-8">
           Get the meeting: use <strong>Copy intro</strong> on each row to grab a ready-made outreach line.
         </p>
 
@@ -673,7 +673,7 @@ export default function SignalMatches() {
         {!!context && unlocksRemaining === 0 && (
           <p className="text-sm text-amber-400/70 mt-6">
             Daily unlock limit reached — resets at midnight.
-            <Link to="/pricing" className="text-cyan-400 hover:text-cyan-300 ml-1 transition">
+            <Link to="/pricing" className="text-emerald-400 hover:text-emerald-300 ml-1 transition">
               Upgrade
             </Link>{' '}
             for unlimited.
@@ -727,11 +727,11 @@ function NextStepsBlock({
         <button
           type="button"
           onClick={() => setShowImproveWizard(true)}
-          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition text-left w-full"
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-emerald-500/40 hover:bg-zinc-800/60 transition text-left w-full"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">0</span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400 font-bold text-sm">0</span>
           <div>
-            <p className="font-medium text-white group-hover:text-cyan-400 transition">Improve your score</p>
+            <p className="font-medium text-white group-hover:text-emerald-400 transition">Improve your score</p>
             <p className="text-xs text-zinc-500 mt-0.5">3 steps: know score → add evidence → see impact</p>
           </div>
         </button>
@@ -747,21 +747,21 @@ function NextStepsBlock({
         </Link>
         <Link
           to={`${basePath}/pitch-scan`}
-          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition"
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-emerald-500/40 hover:bg-zinc-800/60 transition"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">2</span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400 font-bold text-sm">2</span>
           <div>
-            <p className="font-medium text-white group-hover:text-cyan-400 transition">Scan your pitch</p>
+            <p className="font-medium text-white group-hover:text-emerald-400 transition">Scan your pitch</p>
             <p className="text-xs text-zinc-500 mt-0.5">Prep before outreach</p>
           </div>
         </Link>
         <Link
           to={`${basePath}/playbook`}
-          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-cyan-500/40 hover:bg-zinc-800/60 transition"
+          className="group flex items-start gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 p-4 hover:border-emerald-500/40 hover:bg-zinc-800/60 transition"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/20 text-cyan-400 font-bold text-sm">3</span>
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400 font-bold text-sm">3</span>
           <div>
-            <p className="font-medium text-white group-hover:text-cyan-400 transition">Signal Playbook</p>
+            <p className="font-medium text-white group-hover:text-emerald-400 transition">Signal Playbook</p>
             <p className="text-xs text-zinc-500 mt-0.5">Learn how to time outreach</p>
           </div>
         </Link>
@@ -786,7 +786,7 @@ function NextStepsBlock({
         </button>
         {justSaved && (
           <span className="text-xs text-zinc-500">
-            <Link to="/signup?ref=matches" className="text-cyan-400 hover:text-cyan-300">
+            <Link to="/signup?ref=matches" className="text-emerald-400 hover:text-emerald-300">
               Create account
             </Link>{' '}
             to keep them across devices
@@ -881,7 +881,7 @@ function FullPageSkeleton({ message }: { message: string }) {
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
       <div className="flex flex-col items-center gap-6 max-w-xs w-full px-4">
-        <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
+        <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
 
         <div className="space-y-3 w-full">
           {steps.map((step, index) => (
@@ -896,7 +896,7 @@ function FullPageSkeleton({ message }: { message: string }) {
                   index < activeStep
                     ? 'bg-emerald-400'
                     : index === activeStep
-                      ? 'bg-cyan-400 animate-pulse'
+                      ? 'bg-emerald-400 animate-pulse'
                       : 'bg-zinc-700'
                 }`}
               />
@@ -1036,8 +1036,8 @@ function RadarMatchTable({
     return (
       <div className="mb-8 flex items-center justify-center py-20" data-testid="match-table">
         <div className="flex flex-col items-center gap-4 text-gray-400">
-          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-lg font-medium text-cyan-400">Generating matches…</p>
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-lg font-medium text-emerald-400">Generating matches…</p>
           <p className="text-sm text-gray-500">
             Our engine is analyzing investor alignment. This usually takes 30–60 seconds.
           </p>

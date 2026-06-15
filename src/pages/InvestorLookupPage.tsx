@@ -478,12 +478,12 @@ export default function InvestorLookupPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div className="mb-6">
           <div className="text-[11px] uppercase tracking-[1.5px] text-zinc-500 mb-2 flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             founder investor lookup
           </div>
           <h1 className="text-[32px] font-semibold leading-tight mb-2">
             <span className="text-white">Top 10 investors by industry. </span>
-            <span className="text-cyan-400" style={{ textShadow: '0 0 30px rgba(34,211,238,0.3)' }}>
+            <span className="text-emerald-400" style={{ textShadow: '0 0 30px rgba(34,211,238,0.3)' }}>
               Instant.
             </span>
           </h1>
@@ -494,13 +494,13 @@ export default function InvestorLookupPage() {
         </div>
 
         <div
-          className="mb-5 p-4 sm:p-5 rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-950/35 via-zinc-900/45 to-zinc-950/50"
+          className="mb-5 p-4 sm:p-5 rounded-xl border border-emerald-500/25 bg-gradient-to-br from-cyan-950/35 via-zinc-900/45 to-zinc-950/50"
           style={{
             boxShadow:
               'inset 0 1px 0 0 rgba(34,211,238,0.12), 0 12px 40px -12px rgba(0,0,0,0.55), 0 0 48px -20px rgba(34,211,238,0.12)',
           }}
         >
-          <div className="text-[10px] uppercase tracking-widest text-cyan-500/90 mb-3 font-medium">Choose industry</div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald-500/90 mb-3 font-medium">Choose industry</div>
           <div className="flex flex-wrap gap-2">
             {INDUSTRIES.map((industry) => (
               <button
@@ -522,7 +522,7 @@ export default function InvestorLookupPage() {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   selectedIndustry === industry
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_20px_-4px_rgba(34,211,238,0.35)]'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-[0_0_20px_-4px_rgba(34,211,238,0.35)]'
                     : 'bg-zinc-900/80 text-zinc-400 border border-zinc-700/80 hover:border-emerald-500/30 hover:text-emerald-300/90'
                 }`}
               >
@@ -552,7 +552,7 @@ export default function InvestorLookupPage() {
                   ? 'Free lookup limit reached — sign in or use a new browser session'
                   : undefined
               }
-              className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600/25 to-emerald-600/20 text-cyan-200 border border-cyan-400/45 hover:from-cyan-500/35 hover:to-emerald-500/25 transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_24px_-8px_rgba(34,211,238,0.4)]"
+              className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600/25 to-emerald-600/20 text-cyan-200 border border-emerald-400/45 hover:from-emerald-500/35 hover:to-emerald-500/25 transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_24px_-8px_rgba(34,211,238,0.4)]"
             >
               {loading ? 'Generating...' : `Generate Top 10 — ${selectedIndustry}`}
             </button>
@@ -561,7 +561,7 @@ export default function InvestorLookupPage() {
                 Free queries:{' '}
                 <span className="text-emerald-400 font-semibold tabular-nums">{queriesRemaining}</span>
                 <span className="text-zinc-600"> / </span>
-                <span className="text-cyan-400/90 tabular-nums">{FREE_QUERY_LIMIT}</span>
+                <span className="text-emerald-400/90 tabular-nums">{FREE_QUERY_LIMIT}</span>
                 <span className="text-zinc-600 ml-1">this browser</span>
               </span>
             )}
@@ -615,7 +615,7 @@ export default function InvestorLookupPage() {
             <div>Investor</div>
             <div>Firm</div>
             <div>Activity</div>
-            <div className="text-cyan-400">Score</div>
+            <div className="text-emerald-400">Score</div>
             <div>Freshness</div>
             <div className="text-right">Action</div>
           </div>
@@ -637,7 +637,7 @@ export default function InvestorLookupPage() {
                     <div className="flex items-center gap-2 min-w-0">
                       <Link
                         to={`/investor/${row.id}`}
-                        className="text-sm text-white truncate hover:text-cyan-400 min-w-0 flex-1"
+                        className="text-sm text-white truncate hover:text-emerald-400 min-w-0 flex-1"
                       >
                         {row.name || '—'}
                       </Link>
@@ -669,7 +669,7 @@ export default function InvestorLookupPage() {
                         ? `${row.total_investments} total`
                         : 'active'}
                   </div>
-                  <div className="text-sm font-semibold tabular-nums text-cyan-400">
+                  <div className="text-sm font-semibold tabular-nums text-emerald-400">
                     {typeof row.investor_score === 'number' ? row.investor_score.toFixed(1) : '—'}
                   </div>
                   <div className="text-xs">
@@ -694,7 +694,7 @@ export default function InvestorLookupPage() {
                         href={row.linkedin_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-2 py-1 rounded text-xs bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/25"
+                        className="px-2 py-1 rounded text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
                       >
                         LinkedIn
                       </a>
@@ -781,7 +781,7 @@ export default function InvestorLookupPage() {
             Want personalized investor matching, more than Top 10, and timing + outreach guidance?
             <Link
               to="/signup"
-              className="ml-1 text-cyan-400 hover:text-cyan-300 underline"
+              className="ml-1 text-emerald-400 hover:text-emerald-300 underline"
               onClick={() => {
                 localStorage.setItem(LOOKUP_SIGNUP_CLICK_KEY, '1');
                 trackEvent('lookup_signup_cta_clicked', { variant: abVariant, placement: 'footer' });

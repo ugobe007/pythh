@@ -94,7 +94,7 @@ export default function PythhUnifiedNav() {
 
         {/* Brand */}
         <Link to="/" className="flex items-center gap-3 group">
-          <span className="text-white font-semibold text-base group-hover:text-cyan-400 transition">
+          <span className="text-white font-semibold text-base group-hover:text-emerald-400 transition">
             pythh.ai
           </span>
           <span className="text-zinc-600 text-[10px] tracking-[2px] uppercase hidden sm:inline">
@@ -158,7 +158,7 @@ export default function PythhUnifiedNav() {
           {isLoggedIn ? (
             <Link
               to="/account"
-              className="px-3 py-1.5 rounded-md text-sm text-cyan-400/90 hover:text-cyan-300 transition-colors"
+              className="px-3 py-1.5 rounded-md text-sm text-emerald-400/90 hover:text-emerald-300 transition-colors"
             >
               Account
             </Link>
@@ -172,7 +172,7 @@ export default function PythhUnifiedNav() {
               </Link>
               <Link
                 to="/signup"
-                className="ml-1 px-4 py-1.5 rounded-md text-sm font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition-all"
+                className="ml-1 px-4 py-1.5 rounded-md text-sm font-semibold bg-emerald-500 text-black hover:bg-emerald-400 transition-all"
               >
                 Sign up
               </Link>
@@ -185,14 +185,14 @@ export default function PythhUnifiedNav() {
           {isLoggedIn ? (
             <Link
               to="/account"
-              className="px-3 py-1.5 rounded-md text-xs font-medium text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10 transition"
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition"
             >
               Account
             </Link>
           ) : (
             <Link
               to="/signup"
-              className="px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-500 text-black hover:bg-cyan-400 transition"
+              className="px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500 text-black hover:bg-emerald-400 transition"
             >
               Sign up
             </Link>
@@ -214,7 +214,7 @@ export default function PythhUnifiedNav() {
                   className={`block px-4 py-3 text-sm border-b border-zinc-800/50 ${
                     isActive("/account")
                       ? "text-white bg-zinc-800/40"
-                      : "text-cyan-400 hover:text-cyan-300 hover:bg-zinc-800/30"
+                      : "text-emerald-400 hover:text-emerald-300 hover:bg-zinc-800/30"
                   }`}
                 >
                   Account

@@ -90,44 +90,52 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   [pyth] ai - ORACLE OF TRUTH - AMBER/ORANGE & CYAN/BLUE PALETTE
+   PYTHH — Monochrome + Emerald/Amber design system
+   Emerald (#10b981) = live · action · CTA · positive
+   Amber   (#f59e0b) = scores · data · value highlights
+   Everything else: greyscale.
    ════════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Primary: Flame Orange (70% - Headlines, CTAs, Main Actions) */
-  --hh-fire: #FF5A09;        /* Primary flame orange */
-  --hh-fire-light: #FF7840;  /* Hover states */
-  --hh-fire-dark: #E54D00;   /* Pressed states */
-  --hh-coral: #F3843E;       /* Secondary warm accent */
-  --hh-amber: #FF9900;       /* Highlights, badges */
-  --hh-honey: #FFB402;       /* Subtle warmth */
-  
-  /* Secondary: Cyan/Blue (30% - Data, Badges, Secondary Info) */
-  --hh-cyan: #06B6D4;        /* Primary cyan (cyan-500) */
-  --hh-cyan-light: #22D3EE;  /* Cyan-400 - lighter */
-  --hh-cyan-dark: #0891B2;   /* Cyan-600 - darker */
-  --hh-blue: #3B82F6;        /* Blue-500 - complementary */
-  --hh-teal: #14B8A6;        /* Teal-500 - alternative */
-  
-  /* Neutrals: Dark Backgrounds & Grays */
-  --hh-charcoal: #393939;
-  --hh-charcoal-light: #454545;
-  --hh-charcoal-dark: #2d2d2d;
-  --hh-slate: #0F172A;
-  --hh-slate-light: #1E293B;
-  --hh-steel: #6E6E6E;
-  --hh-white: #FFFFFF;
-  --hh-gray: #E5E5E5;
-  --hh-gray-dark: #CCCCCC;
-  
-  /* Legacy (keeping for backwards compat) */
-  --hh-gold: #FF9900;        /* Maps to amber */
-  --hh-navy: #0F172A;        /* Maps to slate */
-  
+  /* Primary accent: Emerald (CTAs, live signals, positive deltas) */
+  --hh-emerald: #10b981;
+  --hh-emerald-light: #34d399;
+  --hh-emerald-dark: #059669;
+
+  /* Secondary accent: Amber (scores, data values, secondary CTAs) */
+  --hh-amber: #f59e0b;
+  --hh-amber-light: #fbbf24;
+  --hh-amber-dark: #d97706;
+
+  /* Legacy aliases — remapped to emerald/amber to avoid breaking old refs */
+  --hh-fire: #f59e0b;        /* was flame orange → now amber */
+  --hh-fire-light: #fbbf24;
+  --hh-fire-dark: #d97706;
+  --hh-coral: #f59e0b;       /* was coral → amber */
+  --hh-honey: #fbbf24;       /* honey → amber-light */
+  --hh-cyan: #10b981;        /* was cyan → now emerald */
+  --hh-cyan-light: #34d399;
+  --hh-cyan-dark: #059669;
+  --hh-blue: #3f3f46;        /* was blue → zinc-700 (neutral) */
+  --hh-teal: #10b981;        /* was teal → emerald */
+  --hh-gold: #f59e0b;        /* was gold → amber */
+  --hh-navy: #0f172a;
+
+  /* Greyscale surfaces */
+  --hh-charcoal: #27272a;
+  --hh-charcoal-light: #3f3f46;
+  --hh-charcoal-dark: #18181b;
+  --hh-slate: #09090b;
+  --hh-slate-light: #18181b;
+  --hh-steel: #71717a;
+  --hh-white: #ffffff;
+  --hh-gray: #e4e4e7;
+  --hh-gray-dark: #a1a1aa;
+
   /* Semantic */
-  --hh-success: #22C55E;
-  --hh-warning: #FF9900;     /* Uses amber */
-  --hh-error: #EF4444;
-  --hh-info: #06B6D4;        /* Uses cyan */
+  --hh-success: #10b981;     /* emerald */
+  --hh-warning: #f59e0b;     /* amber */
+  --hh-error: #ef4444;       /* keep red for errors only */
+  --hh-info: #10b981;        /* emerald */
 }
 
 /* Base styles */
@@ -389,14 +397,14 @@ nav, [class*="fixed"] {
   cursor: pointer;
 }
 
-.pythh-table-row:hover { background: rgba(16, 185, 129, 0.04); }
-.pythh-table-row:hover .pythh-investor-name { color: #0ecf8e; }
+.pythh-table-row:hover { background: rgba(255,255,255,0.025); }
+.pythh-table-row:hover .pythh-investor-name { color: #ffffff; }
 
 .pythh-investor-name {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-weight: 600;
   font-size: 0.9375rem;
-  color: #10b981;
+  color: rgba(255,255,255,0.85);
   transition: color 0.15s ease;
 }
 
@@ -453,3 +461,62 @@ nav, [class*="fixed"] {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   GLOBAL COLOUR HARMONISATION
+   Remap Tailwind cyan/blue/violet/purple → emerald or grey.
+   This covers all components that haven't been individually updated.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Cyan → Emerald remaps */
+.text-cyan-300 { color: #6ee7b7 !important; }
+.text-cyan-400 { color: #34d399 !important; }
+.text-cyan-500 { color: #10b981 !important; }
+.text-cyan-600 { color: #059669 !important; }
+
+.bg-cyan-400   { background-color: #34d399 !important; }
+.bg-cyan-500   { background-color: #10b981 !important; }
+.hover\:bg-cyan-400:hover { background-color: #34d399 !important; }
+.hover\:bg-cyan-500:hover { background-color: #10b981 !important; }
+
+.border-cyan-400 { border-color: rgba(52,211,153,0.4) !important; }
+.border-cyan-500 { border-color: rgba(16,185,129,0.4) !important; }
+
+.bg-cyan-500\/10 { background-color: rgba(16,185,129,0.1) !important; }
+.bg-cyan-500\/20 { background-color: rgba(16,185,129,0.18) !important; }
+.border-cyan-500\/20 { border-color: rgba(16,185,129,0.2) !important; }
+.border-cyan-500\/30 { border-color: rgba(16,185,129,0.3) !important; }
+.border-cyan-500\/40 { border-color: rgba(16,185,129,0.4) !important; }
+.hover\:bg-cyan-500\/10:hover { background-color: rgba(16,185,129,0.1) !important; }
+.hover\:bg-cyan-500\/20:hover { background-color: rgba(16,185,129,0.18) !important; }
+.hover\:border-cyan-500\/40:hover { border-color: rgba(16,185,129,0.4) !important; }
+.hover\:text-cyan-300:hover { color: #6ee7b7 !important; }
+.hover\:text-cyan-400:hover { color: #34d399 !important; }
+
+.shadow-\[0_0_8px_rgba\(34\,211\,238\,0\.4\)\] {
+  box-shadow: 0 0 8px rgba(16,185,129,0.35) !important;
+}
+
+/* Blue → grey remaps */
+.text-blue-400 { color: rgba(255,255,255,0.5) !important; }
+.text-blue-500 { color: rgba(255,255,255,0.45) !important; }
+.bg-blue-500\/10 { background-color: rgba(255,255,255,0.04) !important; }
+.border-blue-500\/20 { border-color: rgba(255,255,255,0.1) !important; }
+
+/* Purple/Violet/Indigo → grey remaps */
+.text-purple-400 { color: rgba(255,255,255,0.5) !important; }
+.text-violet-400 { color: rgba(255,255,255,0.5) !important; }
+.text-indigo-400 { color: rgba(255,255,255,0.5) !important; }
+.bg-purple-500\/10 { background-color: rgba(255,255,255,0.04) !important; }
+.bg-violet-500\/10 { background-color: rgba(255,255,255,0.04) !important; }
+
+/* Cyan gradient bars → emerald */
+.from-cyan-400 { --tw-gradient-from: #34d399 !important; }
+.from-cyan-500 { --tw-gradient-from: #10b981 !important; }
+.from-cyan-600 { --tw-gradient-from: #059669 !important; }
+.to-cyan-400   { --tw-gradient-to: rgba(52,211,153,0.35) !important; }
+.to-cyan-500   { --tw-gradient-to: rgba(16,185,129,0.35) !important; }
+
+/* Red delta indicators → grey (we use emerald for positive, grey for negative) */
+.text-red-400  { color: rgba(255,255,255,0.25) !important; }
+.text-red-500  { color: rgba(255,255,255,0.2) !important; }

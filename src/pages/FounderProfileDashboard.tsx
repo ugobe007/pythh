@@ -34,21 +34,21 @@ import { GOD_MAX_SCORES, SIGNAL_WEIGHTS, MOMENTUM_DISPLAY } from '../lib/pythh-t
 function signalColor(value: number, max: number): string {
   const pct = value / max;
   if (pct >= 0.7) return 'text-emerald-400';
-  if (pct >= 0.4) return 'text-cyan-400';
+  if (pct >= 0.4) return 'text-emerald-400';
   if (pct >= 0.2) return 'text-amber-400';
   return 'text-zinc-500';
 }
 
 function barColor(pct: number): string {
   if (pct >= 0.7) return 'bg-emerald-500';
-  if (pct >= 0.4) return 'bg-cyan-500';
+  if (pct >= 0.4) return 'bg-emerald-500';
   if (pct >= 0.2) return 'bg-amber-500';
   return 'bg-zinc-600';
 }
 
 function momentumDot(bucket: string): string {
   if (bucket === 'strong') return 'bg-emerald-400';
-  if (bucket === 'emerging') return 'bg-cyan-400';
+  if (bucket === 'emerging') return 'bg-emerald-400';
   if (bucket === 'neutral') return 'bg-zinc-500';
   if (bucket === 'cooling') return 'bg-amber-400';
   return 'bg-zinc-600';
@@ -321,7 +321,7 @@ export default function FounderProfileDashboard() {
         <div className="max-w-sm text-center space-y-5">
           <p className="text-zinc-400 text-sm">Sign in to access your founder dashboard.</p>
           <div className="flex gap-3 justify-center">
-            <Link to="/login" className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors">Sign in</Link>
+            <Link to="/login" className="text-sm text-emerald-400 hover:text-emerald-300 transition-colors">Sign in</Link>
             <span className="text-zinc-700">·</span>
             <Link to="/signup" className="text-sm text-zinc-400 hover:text-zinc-300 transition-colors">Create account</Link>
           </div>
@@ -351,13 +351,13 @@ export default function FounderProfileDashboard() {
               <p className="text-zinc-300 text-sm mb-4">Enter your startup URL to begin.</p>
               <Link
                 to="/"
-                className="text-cyan-400 text-sm hover:text-cyan-300 transition-colors"
+                className="text-emerald-400 text-sm hover:text-emerald-300 transition-colors"
               >
                 Go to Pythh submission →
               </Link>
             </div>
             <div className="pt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-600">
-              <Link to="/account" className="hover:text-cyan-400/90 transition-colors">Account</Link>
+              <Link to="/account" className="hover:text-emerald-400/90 transition-colors">Account</Link>
               <Link to="/settings" className="hover:text-zinc-400 transition-colors">Settings</Link>
               <button type="button" onClick={() => { logout(); navigate('/'); }} className="hover:text-zinc-400 transition-colors">Sign out</button>
             </div>
@@ -598,7 +598,7 @@ export default function FounderProfileDashboard() {
                       ) : (
                         <Link
                           to={`/app/investors/${m.investor_id}?startup=${startupId}`}
-                          className="text-sm text-zinc-200 hover:text-cyan-400 transition-colors truncate block"
+                          className="text-sm text-zinc-200 hover:text-emerald-400 transition-colors truncate block"
                         >
                           {m.investor_name}
                         </Link>
@@ -647,7 +647,7 @@ export default function FounderProfileDashboard() {
 
           {matches.length > 7 && (
             <p className="text-xs text-zinc-600 mt-2">
-              <Link to={`/matches?startupId=${startupId}`} className="text-cyan-400/70 hover:text-cyan-400 transition-colors">
+              <Link to={`/matches?startupId=${startupId}`} className="text-emerald-400/70 hover:text-emerald-400 transition-colors">
                 View all {matches.length} matches →
               </Link>
             </p>
@@ -670,7 +670,7 @@ export default function FounderProfileDashboard() {
                     <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
                       action.priority === 'critical' ? 'bg-red-400' :
                       action.priority === 'high' ? 'bg-amber-400' :
-                      action.priority === 'medium' ? 'bg-cyan-400' : 'bg-zinc-600'
+                      action.priority === 'medium' ? 'bg-emerald-400' : 'bg-zinc-600'
                     }`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-zinc-200">{action.title}</p>
@@ -680,7 +680,7 @@ export default function FounderProfileDashboard() {
                         {action.link && (
                           <>
                             <span>·</span>
-                            <Link to={action.link} className="text-cyan-400/70 hover:text-cyan-400 transition-colors">
+                            <Link to={action.link} className="text-emerald-400/70 hover:text-emerald-400 transition-colors">
                               Start this →
                             </Link>
                           </>
@@ -714,7 +714,7 @@ export default function FounderProfileDashboard() {
                       <span className={`block w-1.5 h-1.5 rounded-full ${
                         event.type === 'deadline' ? 'bg-red-400' :
                         event.type === 'action' ? 'bg-amber-400' :
-                        event.type === 'meeting' ? 'bg-cyan-400' :
+                        event.type === 'meeting' ? 'bg-emerald-400' :
                         'bg-zinc-600'
                       }`} />
                     </div>
@@ -787,7 +787,7 @@ export default function FounderProfileDashboard() {
                       {isToday && <span className="absolute inset-0 bg-zinc-800 rounded" />}
                       <span className="relative">{day}</span>
                       {hasEvent && (
-                        <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-cyan-500" />
+                        <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-emerald-500" />
                       )}
                     </span>
                   );

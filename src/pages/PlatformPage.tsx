@@ -104,7 +104,7 @@ export default function PlatformPage() {
       ═══════════════════════════════════════════════════════════════ */}
       <section className="max-w-5xl mx-auto px-4 sm:px-8 pt-8 sm:pt-14 pb-6">
         <div className="text-center">
-          <p className="text-sm text-cyan-400 tracking-widest uppercase mb-4">Pythh Capital · The engine</p>
+          <p className="text-sm text-emerald-400 tracking-widest uppercase mb-4">Pythh Capital · The engine</p>
           <h1
             className="text-3xl sm:text-5xl font-bold text-white mb-4"
             style={{
@@ -113,7 +113,7 @@ export default function PlatformPage() {
           >
             See what investors{" "}
             <span
-              className="text-cyan-400"
+              className="text-emerald-400"
               style={{
                 textShadow:
                   "0 0 16px rgba(34, 211, 238, 0.45), 0 0 32px rgba(34, 211, 238, 0.2)",
@@ -125,7 +125,7 @@ export default function PlatformPage() {
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto mb-5">
             We track real investor behavior—portfolio moves, thesis shifts, deployment signals—and rank who is most likely to fund you next. The same engine powers the live product and the{' '}
-            <Link to="/pricing#fundraising-brief" className="text-cyan-400 hover:underline">
+            <Link to="/pricing#fundraising-brief" className="text-emerald-400 hover:underline">
               Fundraising Brief
             </Link>
             .
@@ -155,7 +155,7 @@ export default function PlatformPage() {
             <div className="w-px h-6 bg-zinc-800" />
             <div>
               <span
-                className="text-2xl font-bold tabular-nums text-cyan-400"
+                className="text-2xl font-bold tabular-nums text-emerald-400"
                 style={{ textShadow: "0 0 18px rgba(34, 211, 238, 0.35)" }}
               >
                 {stats.matches.toLocaleString()}
@@ -166,22 +166,22 @@ export default function PlatformPage() {
 
           {/* Quick links to sections */}
           <div className="flex items-center justify-center gap-4 text-xs text-zinc-500">
-            <a href="#signals" className="hover:text-cyan-400 transition">Signals ↓</a>
+            <a href="#signals" className="hover:text-emerald-400 transition">Signals ↓</a>
             <span>·</span>
-            <a href="#engine" className="hover:text-cyan-400 transition">Engine ↓</a>
+            <a href="#engine" className="hover:text-emerald-400 transition">Engine ↓</a>
             <span>·</span>
-            <a href="#playbook" className="hover:text-cyan-400 transition">Playbook ↓</a>
+            <a href="#playbook" className="hover:text-emerald-400 transition">Playbook ↓</a>
             <span>·</span>
-            <a href="#why" className="hover:text-cyan-400 transition">Why Pythh ↓</a>
+            <a href="#why" className="hover:text-emerald-400 transition">Why Pythh ↓</a>
           </div>
 
           {/* Sector hubs */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
             <span className="text-zinc-600 mr-1">Investor sector hubs:</span>
-            <Link to="/ai-ml-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">AI/ML</Link>
-            <Link to="/robotics-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">Robotics</Link>
-            <Link to="/spacetech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">SpaceTech</Link>
-            <Link to="/deeptech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-cyan-500/50 hover:text-cyan-300 transition-colors">DeepTech</Link>
+            <Link to="/ai-ml-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors">AI/ML</Link>
+            <Link to="/robotics-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors">Robotics</Link>
+            <Link to="/spacetech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors">SpaceTech</Link>
+            <Link to="/deeptech-investors" className="px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors">DeepTech</Link>
           </div>
         </div>
       </section>
@@ -202,7 +202,7 @@ export default function PlatformPage() {
           </h2>
           <p className="text-base text-zinc-400 max-w-2xl">
             Signals are real-time indicators of investor behavior — not stated intent. 
-            We observe <span className="text-cyan-400">what investors do</span>, not what they say.
+            We observe <span className="text-emerald-400">what investors do</span>, not what they say.
           </p>
         </div>
 
@@ -211,8 +211,8 @@ export default function PlatformPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-500 uppercase tracking-wider">Signal Flow</span>
-              <span className="flex items-center gap-1.5 text-xs text-cyan-400">
-                <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
+              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                 Live
               </span>
             </div>
@@ -226,10 +226,10 @@ export default function PlatformPage() {
           {SIGNAL_TYPES.map((signal, i) => (
             <div
               key={i}
-              className="px-4 py-3 border border-zinc-800/50 rounded-lg bg-zinc-900/20 hover:border-cyan-500/20 transition"
+              className="px-4 py-3 border border-zinc-800/50 rounded-lg bg-zinc-900/20 hover:border-emerald-500/20 transition"
             >
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-cyan-400 font-mono text-xs">
+                <span className="text-emerald-400 font-mono text-xs">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="text-white text-sm font-medium">{signal.name}</span>
@@ -287,7 +287,7 @@ export default function PlatformPage() {
               key={i}
               className="relative p-5 border border-zinc-800/50 rounded-lg bg-zinc-900/20"
             >
-              <span className="text-3xl font-bold text-cyan-400/30 absolute top-3 right-4">
+              <span className="text-3xl font-bold text-emerald-400/30 absolute top-3 right-4">
                 {step.step}
               </span>
               <h3 className="text-white font-medium mb-2">{step.label}</h3>
@@ -305,7 +305,7 @@ export default function PlatformPage() {
         <div className="border border-zinc-800/50 rounded-lg bg-zinc-900/20 p-6">
           <h3 className="text-xs text-zinc-500 uppercase tracking-widest mb-4">GOD Score Components</h3>
           <p className="text-sm text-zinc-400 mb-5">
-            Your <span className="text-cyan-400">GOD Score</span> (0-100) is the math behind investor alignment.
+            Your <span className="text-emerald-400">GOD Score</span> (0-100) is the math behind investor alignment.
             It's not a vanity metric — it's what determines your rank relative to every other startup in the database.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -346,7 +346,7 @@ export default function PlatformPage() {
         <div className="mb-8">
           <p className="text-[11px] uppercase tracking-[2px] text-zinc-500 mb-3">Timing</p>
           <h2 className="text-2xl sm:text-3xl font-semibold text-white mb-3">
-            Stop pitching. <span className="text-cyan-400">Start timing.</span>
+            Stop pitching. <span className="text-emerald-400">Start timing.</span>
           </h2>
           <p className="text-base text-zinc-400 max-w-2xl">
             <span className="text-white font-medium">90% of pitches are rejected</span> because of
@@ -358,10 +358,10 @@ export default function PlatformPage() {
           {PLAYBOOK.map((strategy, i) => (
             <div
               key={strategy.id}
-              className="p-5 border border-zinc-800/50 rounded-lg bg-zinc-900/20 hover:border-cyan-500/20 transition group"
+              className="p-5 border border-zinc-800/50 rounded-lg bg-zinc-900/20 hover:border-emerald-500/20 transition group"
             >
               <div className="flex items-center gap-3 mb-3">
-                <span className="text-cyan-500 font-mono text-xs">
+                <span className="text-emerald-500 font-mono text-xs">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <h3 className="text-white font-medium">{strategy.name}</h3>
@@ -478,19 +478,19 @@ export default function PlatformPage() {
             style={{ boxShadow: "0 0 40px rgba(34, 211, 238, 0.1)" }}
           >
             <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-500" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500" />
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="yourstartup.com"
-                className="w-full pl-12 pr-4 py-3.5 bg-zinc-900 border border-cyan-500/50 rounded-t sm:rounded-l sm:rounded-tr-none text-white text-sm placeholder-zinc-500 outline-none focus:border-cyan-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
+                className="w-full pl-12 pr-4 py-3.5 bg-zinc-900 border border-emerald-500/50 rounded-t sm:rounded-l sm:rounded-tr-none text-white text-sm placeholder-zinc-500 outline-none focus:border-emerald-400 transition shadow-[0_0_20px_rgba(34,211,238,0.15)] focus:shadow-[0_0_25px_rgba(34,211,238,0.3)]"
               />
             </div>
             <button
               onClick={handleSubmit}
-              className="px-8 py-3.5 bg-transparent border border-cyan-500 text-cyan-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-cyan-500/10 transition whitespace-nowrap"
+              className="px-8 py-3.5 bg-transparent border border-emerald-500 text-emerald-400 font-semibold rounded-b sm:rounded-r sm:rounded-bl-none hover:bg-emerald-500/10 transition whitespace-nowrap"
             >
               Find Signals →
             </button>
@@ -502,7 +502,7 @@ export default function PlatformPage() {
           <span className="text-zinc-600">or</span>
           <Link
             to="/rankings"
-            className="text-cyan-400 hover:text-cyan-300 transition"
+            className="text-emerald-400 hover:text-emerald-300 transition"
           >
             See live rankings →
           </Link>
