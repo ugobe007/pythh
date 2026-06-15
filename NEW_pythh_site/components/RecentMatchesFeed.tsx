@@ -80,6 +80,10 @@ export function useRecentMatches(limit = 5) {
 
   useEffect(() => {
     let cancelled = false;
+    const maxWait = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12_000);
+
     fetchRecentMatches(limit)
       .then((list) => {
         if (!cancelled) setMatches(list);
@@ -88,10 +92,14 @@ export function useRecentMatches(limit = 5) {
         if (!cancelled) setMatches([]);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          clearTimeout(maxWait);
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
+      clearTimeout(maxWait);
     };
   }, [limit]);
 

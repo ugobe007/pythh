@@ -37,6 +37,11 @@ const {
   calculateGodScoreColumnsFromStartup: calculateGODScore,
 } = require('../scoring/hotGodFromStartupRow');
 
+// Declared immediately after requires — boot guard at file bottom references these.
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 // =============================================================================
 // URL scraping (separate from GOD mapping — see server/scoring/hotGodFromStartupRow.js)
 // =============================================================================
@@ -157,9 +162,6 @@ function resolveSubmitSectors({ inferenceData, aiData, fullUrl, displayName, web
   const resolved = reconcileSectors(raw, fullUrl, bestName, content);
   return resolved.length > 0 ? resolved : ['Technology'];
 }
-
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // ============================================================================
 // INVESTOR CACHE - Avoid loading 3700+ investors on every request

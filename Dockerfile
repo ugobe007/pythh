@@ -14,9 +14,12 @@ COPY package*.json ./
 # Install ALL dependencies (including devDependencies for Vite build)
 RUN npm ci --legacy-peer-deps
 
-# Copy source code (CACHEBUST ensures server/ changes invalidate stale layers)
-ARG CACHEBUST=1
+# Copy source code
+ARG CACHEBUST=dev
+RUN echo "Docker build CACHEBUST=${CACHEBUST}"
 COPY . .
+RUN grep -q 'const SUPABASE_URL' server/routes/instantSubmit.js \
+  || (echo 'FATAL: instantSubmit.js missing SUPABASE_URL — aborting image build' && exit 1)
 
 # Vite inlines VITE_* env vars at build time — pass them as build args
 ARG VITE_SUPABASE_URL

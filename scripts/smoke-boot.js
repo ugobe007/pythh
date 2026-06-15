@@ -25,6 +25,10 @@ const checks = [
       if (!/const SUPABASE_URL\s*=/.test(src)) {
         throw new Error('instantSubmit.js missing const SUPABASE_URL');
       }
+      const firstChunk = src.slice(0, 2500);
+      if (!/const SUPABASE_URL\s*=/.test(firstChunk)) {
+        throw new Error('SUPABASE_URL must be declared near top of file (before boot guard)');
+      }
       const constIdx = src.indexOf('const SUPABASE_URL');
       const guardIdx = src.indexOf('if (!SUPABASE_URL');
       if (guardIdx >= 0 && constIdx > guardIdx) {

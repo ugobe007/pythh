@@ -14,7 +14,7 @@ jobs:
     # another actor (dashboard, tokens.fly.io). Retries on the deploy step cover that.
     concurrency:
       group: fly-deploy-${{ github.repository }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       
@@ -64,7 +64,7 @@ jobs:
         run: |
           ok=0
           for attempt in 1 2 3 4 5; do
-            if flyctl deploy --local-only --no-cache; then
+            if flyctl deploy --local-only --no-cache --build-arg CACHEBUST="${{ github.sha }}"; then
               ok=1
               break
             fi
