@@ -48,7 +48,7 @@ try {
   console.warn('[instantSubmit] urlScrapingService.ts not available. Using stub.');
   scrapeAndScoreStartup = () => Promise.resolve({ data: null });
 }
-const { extractInferenceData } = require('../../lib/inference-extractor');
+const { extractInferenceData, reconcileSectors } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
@@ -145,7 +145,19 @@ function extractPageSummaryFromHtml(rawHtml) {
   };
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+function resolveSubmitSectors({ inferenceData, aiData, fullUrl, displayName, websiteContent }) {
+  const bestName = aiData?.name || inferenceData?.name || displayName;
+  const content = websiteContent || '';
+  const raw =
+    inferenceData?.sectors?.length > 0
+      ? inferenceData.sectors
+      : aiData?.sectors?.length > 0
+        ? aiData.sectors
+        : [];
+  const resolved = reconcileSectors(raw, fullUrl, bestName, content);
+  return resolved.length > 0 ? resolved : ['Technology'];
+}
+
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // ============================================================================
@@ -696,7 +708,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
 
     let inferenceData = null;
     let dataTier = 'C';
-    if (websiteContent && websiteContent.length >= 50) {
+    if (websiteContent && websiteContent.length >= 15) {
       inferenceData = extractInferenceData(websiteContent, fullUrl);
       if (inferenceData) {
         dataTier = inferenceData.confidence?.tier || 'C';
@@ -770,7 +782,13 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
       description:
         aiData?.description || aiData?.pitch || inferenceData?.product_description || inferenceMeta?.product_description || null,
       pitch: aiData?.pitch || inferenceData?.value_proposition || null,
-      sectors: inferenceData?.sectors?.length > 0 ? inferenceData.sectors : aiData?.sectors || ['Technology'],
+      sectors: resolveSubmitSectors({
+        inferenceData,
+        aiData,
+        fullUrl,
+        displayName,
+        websiteContent,
+      }),
       stage: aiData?.stage ||
         (inferenceData?.funding_stage
           ? {
@@ -1309,7 +1327,7 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
     // ── Inference engine (free, instant) ──
     let inferenceData = null;
     dataTier = 'C';
-    if (websiteContent && websiteContent.length >= 50) {
+    if (websiteContent && websiteContent.length >= 15) {
       inferenceData = extractInferenceData(websiteContent, fullUrl);
       if (inferenceData) {
         dataTier = inferenceData.confidence?.tier || 'C';
@@ -1404,7 +1422,13 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       tagline: aiData?.tagline || inferenceData?.tagline || inferenceMeta?.tagline || null,
       description: aiData?.description || aiData?.pitch || inferenceData?.product_description || inferenceMeta?.product_description || null,
       pitch: aiData?.pitch || inferenceData?.value_proposition || null,
-      sectors: inferenceData?.sectors?.length > 0 ? inferenceData.sectors : (aiData?.sectors || ['Technology']),
+      sectors: resolveSubmitSectors({
+        inferenceData,
+        aiData,
+        fullUrl,
+        displayName,
+        websiteContent,
+      }),
       stage: aiData?.stage || (inferenceData?.funding_stage ?
         ({'pre-seed': 1, 'pre seed': 1, 'seed': 2, 'series a': 3, 'series b': 4}[inferenceData.funding_stage.toLowerCase()] || 1) : 1),
       is_launched: inferenceData?.is_launched || aiData?.is_launched || false,

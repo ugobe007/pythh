@@ -12,7 +12,9 @@ const {
   extractFunding,
   extractSectors,
   extractExecutionSignals,
-  extractTeamSignals
+  extractTeamSignals,
+  reconcileSectors,
+  isSparsePageText,
 } = require('../../lib/inference-extractor');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { detectSignals } = require('./signalDetector');
@@ -915,6 +917,13 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
       enrichedData.industries = sectors;
       fieldsEnriched.push('sectors');
     }
+  }
+
+  if (enrichedData.sectors?.length) {
+    const website = enrichedData.website || currentData.website || '';
+    const pageText = isSparsePageText(allText) ? allText.slice(0, 500) : allText.slice(0, 4000);
+    enrichedData.sectors = reconcileSectors(enrichedData.sectors, website, startupName, pageText);
+    enrichedData.industries = enrichedData.sectors;
   }
   
   // Extract execution signals (traction, customers, revenue)

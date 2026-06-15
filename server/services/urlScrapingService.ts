@@ -16,6 +16,10 @@ import { createClient } from '@supabase/supabase-js';
 // CJS module — keep resolution aligned with discoverySubmit / DB normalize_url()
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { normalizeUrl } = require('../lib/urlNormalize.js') as { normalizeUrl: (s: string) => string };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { reconcileSectors } = require('../../lib/inference-extractor.js') as {
+  reconcileSectors: (sectors: string[] | undefined, url?: string, name?: string, text?: string) => string[];
+};
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 /** Server-side must use service role — anon + RLS hides rows and breaks URL dedupe (false inserts → name_unique). */
@@ -142,6 +146,13 @@ TASK: Extract startup data, but BE SKEPTICAL of marketing claims.
 5. "Customers include [logos]" does NOT equal a customer count
 6. Growth claims without numbers = NULL
 7. When in doubt, report NULL - we have a separate inference engine for qualitative signals
+
+SECTOR CLASSIFICATION (critical):
+- Only assign sectors supported by explicit website evidence
+- If the page is a JavaScript SPA with almost no visible text, infer from COMPANY NAME and DOMAIN only
+- Names/domains containing robot, robotics, automation, or drone → Robotics (NOT HealthTech by default)
+- Do NOT assign HealthTech unless the site explicitly mentions healthcare, medical, clinical, patients, hospitals, or pharma
+- Never guess HealthTech from "robots" alone — surgical/medical robotics requires explicit health context on the page
 
 Return a JSON object with these fields:
 
@@ -334,7 +345,13 @@ export async function scrapeAndScoreStartup(url: string): Promise<{
 
   // 3. Extract structured data with AI
   console.log(`🤖 Extracting data for ${formattedName}...`);
-  const data = await extractStartupData(formattedName, websiteContent, fullUrl);
+  let data = await extractStartupData(formattedName, websiteContent, fullUrl);
+  if (data.sectors?.length) {
+    data = {
+      ...data,
+      sectors: reconcileSectors(data.sectors, fullUrl, data.name || formattedName, websiteContent),
+    };
+  }
 
   // 4. Determine data tier (informational only)
   const dataTier = determineDataTier(data);
