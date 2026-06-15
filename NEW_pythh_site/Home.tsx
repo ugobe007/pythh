@@ -290,74 +290,71 @@ function HeroSection({
     <form
       id="hero-cta"
       onSubmit={handleSubmit}
-      className="w-full"
+      className="w-full rounded-xl"
       style={{
-        background: "linear-gradient(145deg, oklch(0.14 0.012 264) 0%, oklch(0.11 0.01 264) 100%)",
-        border: `1px solid ${error ? "rgba(248,113,113,0.6)" : G_BORDER}`,
-        borderRadius: 16,
-        padding: "1.5rem 1.5rem 1.25rem",
-        boxShadow: error
-          ? "none"
-          : "0 0 0 1px oklch(0.696 0.17 162.48 / 0.08), 0 24px 48px -12px oklch(0.696 0.17 162.48 / 0.18), 0 0 80px -20px oklch(0.696 0.17 162.48 / 0.12)",
+        background: CARD,
+        border: `1px solid ${error ? "rgba(248,113,113,0.6)" : BORDER}`,
+        padding: "1.25rem 1.25rem 1.1rem",
       }}
     >
-      <div className="flex items-center justify-between gap-3 mb-3.5">
-        <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: G }}>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-[10px] font-mono font-semibold tracking-widest uppercase" style={{ color: G }}>
           Submit your startup URL
         </p>
         <span
-          className="text-[10px] font-mono px-2.5 py-0.5 rounded-full"
-          style={{ color: AMBER, border: "1px solid oklch(0.769 0.188 70.08 / 0.35)", background: "oklch(0.769 0.188 70.08 / 0.1)" }}
+          className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+          style={{ color: AMBER, border: "1px solid oklch(0.769 0.188 70.08 / 0.35)", background: "oklch(0.769 0.188 70.08 / 0.08)" }}
         >
           ~20 sec
         </span>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3">
         <div
-          className="flex flex-1 items-center gap-3 px-4 py-3.5 rounded-lg min-w-0 transition-all"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg min-w-0 transition-all"
           style={{
             backgroundColor: "oklch(0.09 0.01 264)",
-            border: `1px solid ${error ? "rgba(248,113,113,0.5)" : "oklch(0.22 0.01 264)"}`,
+            border: `1px solid ${error ? "rgba(248,113,113,0.5)" : BORDER}`,
           }}
         >
-          <ExternalLink size={16} className="flex-shrink-0" style={{ color: error ? "#f87171" : G }} />
+          <ExternalLink size={15} className="flex-shrink-0" style={{ color: error ? "#f87171" : DIM }} />
           <input
             type="text"
             placeholder="your-startup.com"
             value={url}
             onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-            className="flex-1 min-w-0 bg-transparent text-base outline-none placeholder:opacity-40"
+            className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:opacity-40"
             style={{ color: TEXT }}
           />
         </div>
         <button
           type="submit"
-          className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-base font-semibold font-mono whitespace-nowrap transition-all flex-shrink-0"
+          className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 rounded-lg text-sm font-semibold font-mono transition-all"
           style={{
-            background: G,
-            color: "oklch(0.1 0.02 162)",
-            border: `1px solid ${G_HOVER}`,
-            boxShadow: "0 4px 20px oklch(0.696 0.17 162.48 / 0.35)",
+            background: "transparent",
+            color: G,
+            border: `1px solid ${G_BORDER}`,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = G_HOVER;
-            e.currentTarget.style.boxShadow = "0 6px 28px oklch(0.696 0.17 162.48 / 0.45)";
+            e.currentTarget.style.background = G_SUBTLE;
+            e.currentTarget.style.borderColor = G;
+            e.currentTarget.style.color = G_HOVER;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = G;
-            e.currentTarget.style.boxShadow = "0 4px 20px oklch(0.696 0.17 162.48 / 0.35)";
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.borderColor = G_BORDER;
+            e.currentTarget.style.color = G;
           }}
         >
           Find my investors
-          <ArrowRight size={16} />
+          <ArrowRight size={15} />
         </button>
       </div>
 
       {error && (
         <p className="text-xs mt-3" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
       )}
-      <p className="text-[11px] mt-3" style={{ color: DIM }}>
+      <p className="text-[10px] mt-3 text-center" style={{ color: DIM }}>
         No credit card · No signup required
       </p>
     </form>
@@ -369,7 +366,7 @@ function HeroSection({
       style={{
         backgroundColor: PAGE,
         backgroundImage:
-          "radial-gradient(ellipse 55% 45% at 85% 20%, oklch(0.696 0.17 162.48 / 0.1) 0%, transparent 55%), radial-gradient(ellipse 40% 30% at 10% 80%, oklch(0.769 0.188 70.08 / 0.04) 0%, transparent 50%)",
+          "radial-gradient(ellipse 50% 40% at 50% 0%, oklch(0.696 0.17 162.48 / 0.06) 0%, transparent 60%)",
       }}
     >
       <div
@@ -381,11 +378,11 @@ function HeroSection({
         }}
       />
 
-      <div className="container relative z-10 max-w-[1240px] mx-auto px-6 py-8 lg:py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-10 lg:gap-14 xl:gap-20 items-center">
+      <div className="container relative z-10 max-w-[1100px] mx-auto px-6 py-8 lg:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 xl:gap-16 items-center">
 
-          {/* Left — pitch */}
-          <div className="text-left">
+          {/* Left — pitch (mirrors right column toward center gutter) */}
+          <div className="flex flex-col justify-center text-left max-w-[460px] w-full mx-auto lg:mx-0 lg:ml-auto lg:pr-6 xl:pr-10">
             <span
               className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase mb-5 px-3 py-1.5 rounded-full"
               style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
@@ -409,7 +406,7 @@ function HeroSection({
             </h1>
 
             <p
-              className="text-base sm:text-lg leading-relaxed mb-6 max-w-[540px]"
+              className="text-base sm:text-lg leading-relaxed mb-6"
               style={{ color: MUTED }}
             >
               Submit your URL. Pythh scores your startup, matches aligned investors,
@@ -424,7 +421,7 @@ function HeroSection({
               See the Oracle&apos;s track record <ArrowRight size={14} />
             </a>
 
-            <p className="text-xs leading-relaxed max-w-[520px]" style={{ color: DIM }}>
+            <p className="text-xs leading-relaxed" style={{ color: DIM }}>
               {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
               {portfolioMetrics?.verified_funded_picks != null && (
                 <>
@@ -440,19 +437,10 @@ function HeroSection({
             </p>
           </div>
 
-          {/* Right — CTA card */}
-          <div className="relative w-full lg:max-w-[520px] lg:ml-auto">
-            <div
-              className="absolute -inset-px rounded-[17px] pointer-events-none opacity-60"
-              style={{
-                background: `linear-gradient(135deg, ${G}44, transparent 40%, oklch(0.769 0.188 70.08 / 0.2))`,
-              }}
-            />
-            <div className="relative">{urlForm()}</div>
-
-            <div className="mt-4">
-              <LatestMatchPanel match={latestMatch} loading={recentLoading} />
-            </div>
+          {/* Right — CTA + live match (mirrors left toward center gutter) */}
+          <div className="flex flex-col justify-center gap-3.5 w-full max-w-[460px] mx-auto lg:mx-0 lg:mr-auto lg:pl-6 xl:pl-10">
+            {urlForm()}
+            <LatestMatchPanel match={latestMatch} loading={recentLoading} />
           </div>
 
         </div>

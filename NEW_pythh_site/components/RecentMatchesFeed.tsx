@@ -207,7 +207,7 @@ export function LatestMatchPanel({
     return (
       <div
         className="rounded-xl animate-pulse"
-        style={{ ...cardStyle, height: "5.75rem" }}
+        style={{ ...cardStyle, height: "5.5rem" }}
       />
     );
   }
