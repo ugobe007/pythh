@@ -1256,48 +1256,60 @@ function isCleanStartupNameForFeed(name) {
 app.get('/api/recent-matches', async (req, res) => {
   try {
     const limitCount = Math.min(Math.max(parseInt(req.query.limit, 10) || 5, 1), 20);
-    const supabase = getSupabaseClient();
 
-    const { data: rows, error } = await supabase
-      .from('startup_investor_matches')
-      .select(`
-        id,
-        startup_id,
-        investor_id,
-        match_score,
-        created_at,
-        startup_uploads!startup_id ( name, total_god_score, status ),
-        investors!investor_id ( name, firm )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(100);
+    const { payload, fromCache, degraded } = await resolveWithCacheAndBackoff({
+      cacheKey: `api:recent-matches:${limitCount}`,
+      ttlMs: 25_000,
+      fetcher: async () => {
+        const supabase = getSupabaseClient();
 
-    if (error) throw error;
+        const { data: rows, error } = await supabase
+          .from('startup_investor_matches')
+          .select(`
+            id,
+            startup_id,
+            investor_id,
+            match_score,
+            created_at,
+            startup_uploads!startup_id ( name, total_god_score, status ),
+            investors!investor_id ( name, firm )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-    const seen = new Set();
-    const matches = [];
-    for (const m of rows || []) {
-      if (!m.startup_id || seen.has(m.startup_id)) continue;
-      const su = m.startup_uploads;
-      if (!su || su.status !== 'approved') continue;
-      if (!isCleanStartupNameForFeed(su.name)) continue;
-      seen.add(m.startup_id);
-      matches.push({
-        match_id: m.id,
-        startup_id: m.startup_id,
-        investor_id: m.investor_id,
-        startup_name: su.name,
-        startup_god_score: su.total_god_score ?? null,
-        investor_name: m.investors?.name || 'Investor',
-        investor_firm: m.investors?.firm || null,
-        match_score: Math.round(m.match_score || 0),
-        created_at: m.created_at,
-        time_ago: formatTimeAgo(new Date(m.created_at)),
-      });
-      if (matches.length >= limitCount) break;
-    }
+        if (error) throw error;
 
-    res.json({ matches, timestamp: new Date().toISOString() });
+        const seen = new Set();
+        const matches = [];
+        for (const m of rows || []) {
+          if (!m.startup_id || seen.has(m.startup_id)) continue;
+          const su = m.startup_uploads;
+          if (!su || su.status !== 'approved') continue;
+          if (!isCleanStartupNameForFeed(su.name)) continue;
+          seen.add(m.startup_id);
+          matches.push({
+            match_id: m.id,
+            startup_id: m.startup_id,
+            investor_id: m.investor_id,
+            startup_name: su.name,
+            startup_god_score: su.total_god_score ?? null,
+            investor_name: m.investors?.name || 'Investor',
+            investor_firm: m.investors?.firm || null,
+            match_score: Math.round(m.match_score || 0),
+            created_at: m.created_at,
+            time_ago: formatTimeAgo(new Date(m.created_at)),
+          });
+          if (matches.length >= limitCount) break;
+        }
+
+        return { matches, timestamp: new Date().toISOString() };
+      },
+    });
+
+    res.json({
+      ...payload,
+      _meta: { cached: fromCache, degraded },
+    });
   } catch (err) {
     console.error('[/api/recent-matches]', err.message);
     res.status(200).json({ matches: [], timestamp: new Date().toISOString(), stale: true });

@@ -13,7 +13,7 @@ const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
 import StatStrip from "@/components/design/StatStrip";
-import { LatestMatchSnippet, useRecentMatches } from "@/components/RecentMatchesFeed";
+import { LatestMatchPanel, useRecentMatches } from "@/components/RecentMatchesFeed";
 import FilterTabs from "@/components/design/FilterTabs";
 import InlineMeta from "@/components/design/InlineMeta";
 import {
@@ -451,18 +451,7 @@ function HeroSection({
             <div className="relative">{urlForm()}</div>
 
             <div className="mt-4">
-              {recentLoading ? (
-                <div
-                  className="rounded-xl animate-pulse"
-                  style={{ background: CARD, border: `1px solid ${BORDER}`, height: "5.5rem" }}
-                />
-              ) : latestMatch ? (
-                <LatestMatchSnippet match={latestMatch} />
-              ) : (
-                <p className="text-[10px] font-mono px-1" style={{ color: DIM }}>
-                  Signal engine live · matches ranked by thesis fit
-                </p>
-              )}
+              <LatestMatchPanel match={latestMatch} loading={recentLoading} />
             </div>
           </div>
 

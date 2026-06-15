@@ -21,16 +21,68 @@ export interface RecentMatch {
   time_ago: string;
 }
 
+function formatTimeAgo(iso: string) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function mapHotMatch(raw: Record<string, unknown>): RecentMatch {
+  const created = String(raw.created_at || "");
+  return {
+    match_id: String(raw.match_id || raw.id || ""),
+    startup_id: String(raw.startup_id || ""),
+    investor_id: String(raw.investor_id || ""),
+    startup_name: String(raw.startup_name || "Startup"),
+    startup_god_score:
+      typeof raw.startup_god_score === "number" ? raw.startup_god_score : null,
+    investor_name: String(raw.investor_name || "Investor"),
+    investor_firm: raw.investor_firm ? String(raw.investor_firm) : null,
+    match_score: Math.round(Number(raw.match_score) || 0),
+    created_at: created,
+    time_ago: created ? formatTimeAgo(created) : "recent",
+  };
+}
+
+async function fetchRecentMatches(limit: number): Promise<RecentMatch[]> {
+  try {
+    const r = await fetch(`/api/recent-matches?limit=${limit}`);
+    if (r.ok) {
+      const d = await r.json();
+      const list = Array.isArray(d.matches) ? d.matches : [];
+      if (list.length > 0) return list as RecentMatch[];
+    }
+  } catch {
+    // fall through
+  }
+
+  try {
+    const r = await fetch(`/api/hot-matches?limit_count=${limit}`);
+    if (r.ok) {
+      const d = await r.json();
+      const list = Array.isArray(d.matches) ? d.matches : [];
+      if (list.length > 0) return list.map((m) => mapHotMatch(m as Record<string, unknown>));
+    }
+  } catch {
+    // fall through
+  }
+
+  return [];
+}
+
 export function useRecentMatches(limit = 5) {
   const [matches, setMatches] = useState<RecentMatch[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/recent-matches?limit=${limit}`)
-      .then((r) => (r.ok ? r.json() : { matches: [] }))
-      .then((d) => {
-        if (!cancelled) setMatches(Array.isArray(d.matches) ? d.matches : []);
+    fetchRecentMatches(limit)
+      .then((list) => {
+        if (!cancelled) setMatches(list);
       })
       .catch(() => {
         if (!cancelled) setMatches([]);
@@ -53,17 +105,49 @@ function investorLabel(m: RecentMatch) {
   return m.investor_name;
 }
 
+const cardStyle = {
+  background: CARD,
+  border: `1px solid ${BORDER}`,
+  padding: "0.85rem 1rem",
+} as const;
+
+/** Visible card when live data is still loading or unavailable */
+export function LatestMatchPlaceholder() {
+  return (
+    <Link
+      href="/matches"
+      className="block rounded-xl transition-all group"
+      style={cardStyle}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span
+          className="text-[10px] font-mono font-semibold tracking-widest uppercase flex items-center gap-1.5"
+          style={{ color: G }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
+          Live match network
+        </span>
+      </div>
+      <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
+        Startup-investor pairings ranked by thesis fit, timing, and GOD score.
+      </p>
+      <p
+        className="text-[10px] font-mono mt-2 flex items-center gap-1 group-hover:opacity-100 transition-opacity"
+        style={{ color: G }}
+      >
+        View live matches <ArrowRight size={11} />
+      </p>
+    </Link>
+  );
+}
+
 /** Compact link card for hero — latest match only */
 export function LatestMatchSnippet({ match }: { match: RecentMatch }) {
   return (
     <Link
       href={`/matches?highlight=${encodeURIComponent(match.match_id)}`}
       className="block rounded-xl transition-all group"
-      style={{
-        background: CARD,
-        border: `1px solid ${BORDER}`,
-        padding: "0.85rem 1rem",
-      }}
+      style={cardStyle}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <span
@@ -101,6 +185,26 @@ export function LatestMatchSnippet({ match }: { match: RecentMatch }) {
       </p>
     </Link>
   );
+}
+
+/** Hero panel — always renders a card below the CTA */
+export function LatestMatchPanel({
+  match,
+  loading,
+}: {
+  match: RecentMatch | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div
+        className="rounded-xl animate-pulse"
+        style={{ ...cardStyle, height: "5.75rem" }}
+      />
+    );
+  }
+  if (match) return <LatestMatchSnippet match={match} />;
+  return <LatestMatchPlaceholder />;
 }
 
 /** Full feed for /matches — highlight param pinned to top */
