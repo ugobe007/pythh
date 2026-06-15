@@ -5,9 +5,11 @@
  * aggregate stats, sector distribution of matches, how matching works,
  * and a CTA to get your startup analyzed and matched.
  */
+import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import StartupCTA from "@/components/design/StartupCTA";
+import { RecentMatchesList } from "@/components/RecentMatchesFeed";
 import {
   Zap, Target, TrendingUp, Activity, ArrowRight,
   CircleDot, BarChart3, CheckCircle, Users, Flame,
@@ -154,6 +156,13 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Matches() {
+  const [location] = useLocation();
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHighlightId(new URLSearchParams(window.location.search).get("highlight"));
+  }, [location]);
+
   const { data: stats, isLoading } = trpc.matches.getStats.useQuery(undefined, {
     staleTime: 5 * 60 * 1000,
   });
@@ -241,6 +250,27 @@ export default function Matches() {
             />
           </div>
         </div>
+
+        {/* ── Latest live matches (from network) ── */}
+        <section className="mb-20" id="latest-matches">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Latest live matches</h2>
+              <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
+                Most recent startup↔investor pairings from the signal engine
+                {highlightId ? " — your link is highlighted at the top" : ""}
+              </p>
+            </div>
+            <div
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: "oklch(0.13 0.01 264)", border: "1px solid oklch(0.22 0.01 264)", color: "#22c55e" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Live
+            </div>
+          </div>
+          <RecentMatchesList highlightId={highlightId} limit={12} />
+        </section>
 
         {/* ── Live match signals ── */}
         <section className="mb-20">

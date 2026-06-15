@@ -13,6 +13,7 @@ const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
 import StatStrip from "@/components/design/StatStrip";
+import { LatestMatchSnippet, useRecentMatches } from "@/components/RecentMatchesFeed";
 import FilterTabs from "@/components/design/FilterTabs";
 import InlineMeta from "@/components/design/InlineMeta";
 import {
@@ -282,6 +283,8 @@ function HeroSection({
   const matchCount = platformStats?.matches ?? 1_812_680;
   const startupCount = platformStats?.startups ?? 11_298;
   const investorCount = platformStats?.investors ?? 6_376;
+  const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
+  const latestMatch = recentMatches[0] ?? null;
 
   const urlForm = () => (
     <form
@@ -291,46 +294,46 @@ function HeroSection({
       style={{
         background: "linear-gradient(145deg, oklch(0.14 0.012 264) 0%, oklch(0.11 0.01 264) 100%)",
         border: `1px solid ${error ? "rgba(248,113,113,0.6)" : G_BORDER}`,
-        borderRadius: 14,
-        padding: "1.25rem 1.25rem 1rem",
+        borderRadius: 16,
+        padding: "1.5rem 1.5rem 1.25rem",
         boxShadow: error
           ? "none"
           : "0 0 0 1px oklch(0.696 0.17 162.48 / 0.08), 0 24px 48px -12px oklch(0.696 0.17 162.48 / 0.18), 0 0 80px -20px oklch(0.696 0.17 162.48 / 0.12)",
       }}
     >
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-[11px] font-semibold tracking-widest uppercase" style={{ color: G }}>
+      <div className="flex items-center justify-between gap-3 mb-3.5">
+        <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: G }}>
           Submit your startup URL
         </p>
         <span
-          className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+          className="text-[10px] font-mono px-2.5 py-0.5 rounded-full"
           style={{ color: AMBER, border: "1px solid oklch(0.769 0.188 70.08 / 0.35)", background: "oklch(0.769 0.188 70.08 / 0.1)" }}
         >
           ~20 sec
         </span>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div
-          className="flex flex-1 items-center gap-2.5 px-3.5 py-3 rounded-lg min-w-0 transition-all"
+          className="flex flex-1 items-center gap-3 px-4 py-3.5 rounded-lg min-w-0 transition-all"
           style={{
             backgroundColor: "oklch(0.09 0.01 264)",
             border: `1px solid ${error ? "rgba(248,113,113,0.5)" : "oklch(0.22 0.01 264)"}`,
           }}
         >
-          <ExternalLink size={15} className="flex-shrink-0" style={{ color: error ? "#f87171" : G }} />
+          <ExternalLink size={16} className="flex-shrink-0" style={{ color: error ? "#f87171" : G }} />
           <input
             type="text"
             placeholder="your-startup.com"
             value={url}
             onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-            className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:opacity-40"
+            className="flex-1 min-w-0 bg-transparent text-base outline-none placeholder:opacity-40"
             style={{ color: TEXT }}
           />
         </div>
         <button
           type="submit"
-          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold font-mono whitespace-nowrap transition-all flex-shrink-0"
+          className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-base font-semibold font-mono whitespace-nowrap transition-all flex-shrink-0"
           style={{
             background: G,
             color: "oklch(0.1 0.02 162)",
@@ -347,14 +350,14 @@ function HeroSection({
           }}
         >
           Find my investors
-          <ArrowRight size={15} />
+          <ArrowRight size={16} />
         </button>
       </div>
 
       {error && (
-        <p className="text-xs mt-2.5" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
+        <p className="text-xs mt-3" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
       )}
-      <p className="text-[10px] mt-2.5" style={{ color: DIM }}>
+      <p className="text-[11px] mt-3" style={{ color: DIM }}>
         No credit card · No signup required
       </p>
     </form>
@@ -438,31 +441,28 @@ function HeroSection({
           </div>
 
           {/* Right — CTA card */}
-          <div className="relative w-full lg:max-w-[480px] lg:ml-auto">
+          <div className="relative w-full lg:max-w-[520px] lg:ml-auto">
             <div
-              className="absolute -inset-px rounded-[15px] pointer-events-none opacity-60"
+              className="absolute -inset-px rounded-[17px] pointer-events-none opacity-60"
               style={{
                 background: `linear-gradient(135deg, ${G}44, transparent 40%, oklch(0.769 0.188 70.08 / 0.2))`,
               }}
             />
             <div className="relative">{urlForm()}</div>
 
-            <div
-              className="mt-4 flex items-center gap-3 px-1"
-              style={{ color: DIM }}
-            >
-              <div className="flex -space-x-1.5">
-                {[G, BAR_GREY, G].map((c, i) => (
-                  <span
-                    key={i}
-                    className="w-2 h-2 rounded-full border"
-                    style={{ backgroundColor: c, borderColor: PAGE }}
-                  />
-                ))}
-              </div>
-              <p className="text-[10px] font-mono leading-snug">
-                Signal engine live · matches ranked by thesis fit
-              </p>
+            <div className="mt-4">
+              {recentLoading ? (
+                <div
+                  className="rounded-xl animate-pulse"
+                  style={{ background: CARD, border: `1px solid ${BORDER}`, height: "5.5rem" }}
+                />
+              ) : latestMatch ? (
+                <LatestMatchSnippet match={latestMatch} />
+              ) : (
+                <p className="text-[10px] font-mono px-1" style={{ color: DIM }}>
+                  Signal engine live · matches ranked by thesis fit
+                </p>
+              )}
             </div>
           </div>
 
