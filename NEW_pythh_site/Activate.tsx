@@ -1081,7 +1081,13 @@ function ResultsStep({
   const godColor = godScore >= 60 ? "#22c55e" : godScore >= 45 ? "#eab308" : "oklch(0.55 0.01 264)";
   const superCount = investors.filter(i => i.isSuperMatch).length;
   const primarySector = (apiResult?.startup?.sectors as string[] | undefined)?.[0] ?? "tech";
-  const topFirm = investors[0]?.firm;
+  const topFirm = (() => {
+    for (const m of apiResult?.matches ?? []) {
+      const sectors = m.investors?.sectors ?? [];
+      if (sectors.includes(primarySector)) return m.investors?.firm;
+    }
+    return investors[0]?.firm;
+  })();
 
   const positioning = (() => {
     if (!investors.length) return "Evaluating your startup against 6,250+ investors across sector, stage, and timing signals.";
