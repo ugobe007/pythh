@@ -1,5 +1,5 @@
-# Production frontend on Vercel — driven entirely from GitHub Actions.
-# Use this when Vercel's "Connect Git Repository" integration is missing or unreliable.
+# Production frontend on Vercel — project: pythh (custom domain pythh.ai).
+# NOT hot-money-honey — that is a legacy project; pushes there do not update pythh.ai.
 #
 # Required GitHub Actions secrets (repo → Settings → Secrets and variables → Actions):
 #   VERCEL_TOKEN         — https://vercel.com/account/tokens
@@ -51,4 +51,4 @@ jobs:
       - name: Deploy to Vercel (production)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
+        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes --project pythh
