@@ -15,10 +15,9 @@ import PythiaIcon from "@/components/PythiaIcon";
 import StatStrip from "@/components/design/StatStrip";
 import FilterTabs from "@/components/design/FilterTabs";
 import InlineMeta from "@/components/design/InlineMeta";
-import StartupCTA from "@/components/design/StartupCTA";
 import {
   G, CYAN, AMBER, GOLD, PURPLE, MUTED, DIM, BORDER, TEXT, PAGE, CARD,
-  G_BORDER, G_SUBTLE, G_HOVER,
+  G_BORDER, G_SUBTLE, G_HOVER, BAR_GREY,
   deltaColor, godScoreColor,
 } from "@/lib/designTokens";
 import {
@@ -285,102 +284,189 @@ function HeroSection({
   const investorCount = platformStats?.investors ?? 6_376;
 
   const urlForm = () => (
-    <form id="hero-cta" onSubmit={handleSubmit} className="w-full max-w-[520px] mx-auto">
-      <p className="text-[11px] font-semibold tracking-widest uppercase mb-2.5 text-center" style={{ color: G }}>
-        Submit your startup URL
-      </p>
-      <div
-        className="flex items-center gap-2 px-3 py-3.5 rounded-lg mb-3 transition-all w-full"
-        style={{
-          backgroundColor: "oklch(0.115 0.01 264)",
-          border: `1px solid ${error ? "#f87171" : G_BORDER}`,
-        }}
-      >
-        <ExternalLink size={14} className="flex-shrink-0" style={{ color: error ? "#f87171" : G }} />
-        <input
-          type="text"
-          placeholder="your-startup.com"
-          value={url}
-          onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-          className="flex-1 min-w-0 bg-transparent text-sm outline-none"
-          style={{ color: TEXT }}
-        />
+    <form
+      id="hero-cta"
+      onSubmit={handleSubmit}
+      className="w-full"
+      style={{
+        background: "linear-gradient(145deg, oklch(0.14 0.012 264) 0%, oklch(0.11 0.01 264) 100%)",
+        border: `1px solid ${error ? "rgba(248,113,113,0.6)" : G_BORDER}`,
+        borderRadius: 14,
+        padding: "1.25rem 1.25rem 1rem",
+        boxShadow: error
+          ? "none"
+          : "0 0 0 1px oklch(0.696 0.17 162.48 / 0.08), 0 24px 48px -12px oklch(0.696 0.17 162.48 / 0.18), 0 0 80px -20px oklch(0.696 0.17 162.48 / 0.12)",
+      }}
+    >
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-[11px] font-semibold tracking-widest uppercase" style={{ color: G }}>
+          Submit your startup URL
+        </p>
+        <span
+          className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+          style={{ color: AMBER, border: "1px solid oklch(0.769 0.188 70.08 / 0.35)", background: "oklch(0.769 0.188 70.08 / 0.1)" }}
+        >
+          ~20 sec
+        </span>
       </div>
+
+      <div className="flex flex-col sm:flex-row gap-2.5">
+        <div
+          className="flex flex-1 items-center gap-2.5 px-3.5 py-3 rounded-lg min-w-0 transition-all"
+          style={{
+            backgroundColor: "oklch(0.09 0.01 264)",
+            border: `1px solid ${error ? "rgba(248,113,113,0.5)" : "oklch(0.22 0.01 264)"}`,
+          }}
+        >
+          <ExternalLink size={15} className="flex-shrink-0" style={{ color: error ? "#f87171" : G }} />
+          <input
+            type="text"
+            placeholder="your-startup.com"
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
+            className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:opacity-40"
+            style={{ color: TEXT }}
+          />
+        </div>
+        <button
+          type="submit"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold font-mono whitespace-nowrap transition-all flex-shrink-0"
+          style={{
+            background: G,
+            color: "oklch(0.1 0.02 162)",
+            border: `1px solid ${G_HOVER}`,
+            boxShadow: "0 4px 20px oklch(0.696 0.17 162.48 / 0.35)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = G_HOVER;
+            e.currentTarget.style.boxShadow = "0 6px 28px oklch(0.696 0.17 162.48 / 0.45)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = G;
+            e.currentTarget.style.boxShadow = "0 4px 20px oklch(0.696 0.17 162.48 / 0.35)";
+          }}
+        >
+          Find my investors
+          <ArrowRight size={15} />
+        </button>
+      </div>
+
       {error && (
-        <p className="text-xs mb-2 text-center" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
+        <p className="text-xs mt-2.5" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
       )}
-      <StartupCTA type="submit" fullWidth showArrow arrowSize={15}>
-        Find my investors
-      </StartupCTA>
-      <p className="text-[10px] text-center mt-2.5" style={{ color: DIM }}>
-        No credit card · No signup · ~20 seconds
+      <p className="text-[10px] mt-2.5" style={{ color: DIM }}>
+        No credit card · No signup required
       </p>
     </form>
   );
 
   return (
     <section
-      className="relative pt-20 pb-14 lg:pb-20 overflow-hidden text-center"
+      className="relative pt-16 pb-12 lg:pb-16 overflow-hidden"
       style={{
         backgroundColor: PAGE,
-        backgroundImage: "radial-gradient(ellipse 70% 50% at 50% -10%, oklch(0.696 0.17 162.48 / 0.08) 0%, transparent 60%)",
+        backgroundImage:
+          "radial-gradient(ellipse 55% 45% at 85% 20%, oklch(0.696 0.17 162.48 / 0.1) 0%, transparent 55%), radial-gradient(ellipse 40% 30% at 10% 80%, oklch(0.769 0.188 70.08 / 0.04) 0%, transparent 50%)",
       }}
     >
-      <div className="container relative z-10 max-w-[820px] mx-auto px-6 py-8">
-        <span
-          className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase mb-6 px-3 py-1.5 rounded-full"
-          style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: G }} />
-          Investor Intelligence · Live
-        </span>
+      <div
+        className="absolute inset-0 opacity-[0.02] pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(oklch(0.6 0.01 264) 1px, transparent 1px), linear-gradient(90deg, oklch(0.6 0.01 264) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
+      />
 
-        <p className="text-sm font-bold font-mono mb-4" style={{ color: G }}>
-          {formatMatchFull(matchCount)}+ investor matches
-          <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
-        </p>
+      <div className="container relative z-10 max-w-[1240px] mx-auto px-6 py-8 lg:py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-10 lg:gap-14 xl:gap-20 items-center">
 
-        <h1
-          className="font-display font-bold leading-[1.08] mb-4"
-          style={{ fontSize: "clamp(2.2rem, 5.5vw, 3.9rem)", color: TEXT, letterSpacing: "-0.04em" }}
-        >
-          Find your investors.
-          <br />
-          <span style={{ color: G_HOVER }}>Build your term sheet.</span>
-        </h1>
+          {/* Left — pitch */}
+          <div className="text-left">
+            <span
+              className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase mb-5 px-3 py-1.5 rounded-full"
+              style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
+              Investor Intelligence · Live
+            </span>
 
-        <p
-          className="text-base sm:text-lg leading-relaxed mb-8 mx-auto max-w-[580px]"
-          style={{ color: MUTED }}
-        >
-          Submit your URL. Pythh scores your startup, matches aligned investors,
-          and guides you to a commitment doc that closes the gap to funding.
-        </p>
+            <p className="text-sm font-bold font-mono mb-4" style={{ color: G }}>
+              {formatMatchFull(matchCount)}+ investor matches
+              <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
+            </p>
 
-        <div className="mb-6">{urlForm()}</div>
+            <h1
+              className="font-display font-bold leading-[1.06] mb-4"
+              style={{ fontSize: "clamp(2.4rem, 4.8vw, 4rem)", color: TEXT, letterSpacing: "-0.04em" }}
+            >
+              Find your investors.
+              <br />
+              <span style={{ color: G_HOVER }}>Build your term sheet.</span>
+            </h1>
 
-        <a
-          href="/portfolio"
-          className="inline-flex items-center gap-2 text-sm font-semibold mb-8 transition-colors"
-          style={{ color: G }}
-        >
-          See the Oracle&apos;s track record <ArrowRight size={14} />
-        </a>
+            <p
+              className="text-base sm:text-lg leading-relaxed mb-6 max-w-[540px]"
+              style={{ color: MUTED }}
+            >
+              Submit your URL. Pythh scores your startup, matches aligned investors,
+              and guides you to a commitment doc that closes the gap to funding.
+            </p>
 
-        <p className="text-xs leading-relaxed mx-auto max-w-[520px]" style={{ color: DIM }}>
-          {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
-          {portfolioMetrics?.verified_funded_picks != null && (
-            <>
-              {" · "}
-              <span style={{ color: G }}>
-                {portfolioMetrics.verified_funded_picks} verified funded
-                {portfolioMetrics.verified_funded_rate_pct != null
-                  ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
-                  : ""}
-              </span>
-            </>
-          )}
-        </p>
+            <a
+              href="/portfolio"
+              className="inline-flex items-center gap-2 text-sm font-semibold mb-6 transition-colors"
+              style={{ color: G }}
+            >
+              See the Oracle&apos;s track record <ArrowRight size={14} />
+            </a>
+
+            <p className="text-xs leading-relaxed max-w-[520px]" style={{ color: DIM }}>
+              {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
+              {portfolioMetrics?.verified_funded_picks != null && (
+                <>
+                  {" · "}
+                  <span style={{ color: G }}>
+                    {portfolioMetrics.verified_funded_picks} verified funded
+                    {portfolioMetrics.verified_funded_rate_pct != null
+                      ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
+                      : ""}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+
+          {/* Right — CTA card */}
+          <div className="relative w-full lg:max-w-[480px] lg:ml-auto">
+            <div
+              className="absolute -inset-px rounded-[15px] pointer-events-none opacity-60"
+              style={{
+                background: `linear-gradient(135deg, ${G}44, transparent 40%, oklch(0.769 0.188 70.08 / 0.2))`,
+              }}
+            />
+            <div className="relative">{urlForm()}</div>
+
+            <div
+              className="mt-4 flex items-center gap-3 px-1"
+              style={{ color: DIM }}
+            >
+              <div className="flex -space-x-1.5">
+                {[G, BAR_GREY, G].map((c, i) => (
+                  <span
+                    key={i}
+                    className="w-2 h-2 rounded-full border"
+                    style={{ backgroundColor: c, borderColor: PAGE }}
+                  />
+                ))}
+              </div>
+              <p className="text-[10px] font-mono leading-snug">
+                Signal engine live · matches ranked by thesis fit
+              </p>
+            </div>
+          </div>
+
+        </div>
       </div>
     </section>
   );
