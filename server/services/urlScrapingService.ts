@@ -17,8 +17,16 @@ import { createClient } from '@supabase/supabase-js';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { normalizeUrl } = require('../lib/urlNormalize.js') as { normalizeUrl: (s: string) => string };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { reconcileSectors } = require('../../lib/inference-extractor.js') as {
+const { reconcileSectors, resolveStartupSectors } = require('../../lib/inference-extractor.js') as {
   reconcileSectors: (sectors: string[] | undefined, url?: string, name?: string, text?: string) => string[];
+  resolveStartupSectors: (opts?: {
+    url?: string;
+    name?: string;
+    text?: string;
+    inferenceSectors?: string[];
+    aiSectors?: string[];
+    storedSectors?: string[];
+  }) => string[];
 };
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -346,12 +354,15 @@ export async function scrapeAndScoreStartup(url: string): Promise<{
   // 3. Extract structured data with AI
   console.log(`🤖 Extracting data for ${formattedName}...`);
   let data = await extractStartupData(formattedName, websiteContent, fullUrl);
-  if (data.sectors?.length) {
-    data = {
-      ...data,
-      sectors: reconcileSectors(data.sectors, fullUrl, data.name || formattedName, websiteContent),
-    };
-  }
+  data = {
+    ...data,
+    sectors: resolveStartupSectors({
+      url: fullUrl,
+      name: data.name || formattedName,
+      text: websiteContent,
+      aiSectors: data.sectors,
+    }),
+  };
 
   // 4. Determine data tier (informational only)
   const dataTier = determineDataTier(data);

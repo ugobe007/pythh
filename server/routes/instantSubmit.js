@@ -53,7 +53,7 @@ try {
   console.warn('[instantSubmit] urlScrapingService.ts not available. Using stub.');
   scrapeAndScoreStartup = () => Promise.resolve({ data: null });
 }
-const { extractInferenceData, reconcileSectors } = require('../../lib/inference-extractor');
+const { extractInferenceData, reconcileSectors, resolveStartupSectors, inferSectorsFromIdentity } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
 const { buildMatchFeatureSnapshot } = require('../../lib/matchFeatureSnapshot');
@@ -150,32 +150,49 @@ function extractPageSummaryFromHtml(rawHtml) {
   };
 }
 
-function resolveSubmitSectors({ inferenceData, aiData, fullUrl, displayName, websiteContent }) {
-  const bestName = aiData?.name || inferenceData?.name || displayName;
-  const content = websiteContent || '';
-  const raw =
-    inferenceData?.sectors?.length > 0
-      ? inferenceData.sectors
-      : aiData?.sectors?.length > 0
-        ? aiData.sectors
-        : [];
-  const resolved = reconcileSectors(raw, fullUrl, bestName, content);
-  return resolved.length > 0 ? resolved : ['Technology'];
+function resolveSubmitSectors({ inferenceData, aiData, fullUrl, displayName, websiteContent, storedSectors }) {
+  return resolveStartupSectors({
+    url: fullUrl,
+    name: aiData?.name || inferenceData?.name || displayName,
+    text: websiteContent || '',
+    inferenceSectors: inferenceData?.sectors,
+    aiSectors: aiData?.sectors,
+    storedSectors,
+  });
 }
 
-/** Re-rank stored sectors using URL/name identity (fixes stale DB rows on cache hits). */
+/** Re-rank stored sectors using the same canonical resolver as the scraper. */
 function reconcileStartupRow(row, { companyName, domain } = {}) {
   if (!row) return row;
   const url = row.website || (domain ? `https://${domain}` : '');
   const name = row.name || companyName || '';
-  const reconciled = reconcileSectors(
-    Array.isArray(row.sectors) ? row.sectors : [],
+  const extracted = row.extracted_data && typeof row.extracted_data === 'object' ? row.extracted_data : {};
+  const text =
+    row.description ||
+    row.tagline ||
+    extracted.product_description ||
+    extracted.description ||
+    extracted.pitch ||
+    '';
+  const sectors = resolveStartupSectors({
     url,
     name,
-    '',
-  );
-  const sectors = reconciled.length > 0 ? reconciled : ['Technology'];
+    text,
+    inferenceSectors: extracted.sectors,
+    storedSectors: row.sectors,
+  });
   return { ...row, sectors };
+}
+
+function shouldRunAiScraper(dataTier, fullUrl, displayName, websiteContent, inferenceData) {
+  if (dataTier === 'C') return true;
+  const identitySectors = inferSectorsFromIdentity(fullUrl, displayName, websiteContent || '');
+  const inferenceSectors = inferenceData?.sectors || [];
+  return (
+    identitySectors.length > 0 &&
+    inferenceSectors.length > 0 &&
+    !identitySectors.some((s) => inferenceSectors.includes(s))
+  );
 }
 
 function sectorsChanged(before, after) {
@@ -809,7 +826,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
     }
 
     let aiData = null;
-    if (!checkTimeout() && dataTier === 'C') {
+    if (!checkTimeout() && shouldRunAiScraper(dataTier, fullUrl, displayName, websiteContent, inferenceData)) {
       try {
         const scrapeTimeout = Math.min(2500, deadline - Date.now());
         if (scrapeTimeout > 800) {
@@ -819,7 +836,7 @@ async function syncEnrichmentAndGodScoreForSubmit(supabase, { startupId, fullUrl
           ]);
           aiData = scrapeResult?.data;
           const hasSomeAI = !!(aiData?.description || aiData?.pitch || aiData?.problem || aiData?.solution);
-          dataTier = hasSomeAI ? 'B' : 'C';
+          dataTier = hasSomeAI ? 'B' : dataTier;
         }
       } catch (aiErr) {
         console.warn(`  [SYNC] AI scraper: ${aiErr.message}`);
@@ -963,16 +980,24 @@ const MATCH_API_SELECT = `
 function uploadRowToPlaceholderStartup(startupId, row) {
   const r = row || {};
   const url = r.website || '';
-  const reconciled = reconcileSectors(
-    Array.isArray(r.sectors) && r.sectors.length ? r.sectors : [],
+  const extracted = r.extracted_data && typeof r.extracted_data === 'object' ? r.extracted_data : {};
+  const text =
+    r.description ||
+    r.tagline ||
+    extracted.product_description ||
+    extracted.description ||
+    '';
+  const sectors = resolveStartupSectors({
     url,
-    r.name || '',
-    '',
-  );
+    name: r.name || '',
+    text,
+    inferenceSectors: extracted.sectors,
+    storedSectors: r.sectors,
+  });
   return {
     id: startupId,
     name: r.name || 'Startup',
-    sectors: reconciled.length > 0 ? reconciled : ['Technology'],
+    sectors,
     stage: r.stage ?? 1,
     total_god_score: typeof r.total_god_score === 'number' ? r.total_god_score : 50,
     team_score: r.team_score ?? null,
@@ -1424,9 +1449,9 @@ async function runBackgroundPipeline({ startupId, domain, inputRaw, genSource, r
       }
     }
 
-    // ── AI scraper fallback (ONLY for Tier C, skip if timeout approaching) ──
+    // ── AI scraper fallback (Tier C or identity/inference sector conflict) ──
     let aiData = null;
-    if (!checkTimeout() && dataTier === 'C') {
+    if (!checkTimeout() && shouldRunAiScraper(dataTier, fullUrl, displayName, websiteContent, inferenceData)) {
       try {
         const scrapeTimeout = Math.min(3000, pipelineDeadline - Date.now());
         if (scrapeTimeout > 1000) {
@@ -2052,7 +2077,7 @@ router.post('/submit', async (req, res) => {
     ];
     let { data: candidates, error: searchErr } = await supabase
       .from('startup_uploads')
-      .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
+      .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness, description, tagline, extracted_data')
       .or(exactPatterns.join(','))
       .eq('status', 'approved')
       .limit(20);
@@ -2066,7 +2091,7 @@ router.post('/submit', async (req, res) => {
       ];
       const fallback = await supabase
         .from('startup_uploads')
-        .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness')
+        .select('id, name, website, sectors, stage, total_god_score, status, enrichment_token, data_completeness, description, tagline, extracted_data')
         .or(searchPatterns.join(','))
         .eq('status', 'approved')
         .limit(100);
@@ -2341,7 +2366,7 @@ router.post('/submit', async (req, res) => {
         vision_score: 50,
         created_at: new Date().toISOString()
       })
-      .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
+      .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, description, tagline, extracted_data')
       .single();
     
     // Handle name conflict
@@ -2368,7 +2393,7 @@ router.post('/submit', async (req, res) => {
           vision_score: 50,
           created_at: new Date().toISOString()
         })
-        .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
+        .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, description, tagline, extracted_data')
         .single();
       newStartup = retry.data;
       insertErr = retry.error;
@@ -2379,7 +2404,7 @@ router.post('/submit', async (req, res) => {
       console.error(`  ✗ Insert error: ${insertErr.message}`);
       const { data: found } = await supabase
         .from('startup_uploads')
-        .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness')
+        .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, description, tagline, extracted_data')
         .ilike('website', `%${domain}%`)
         .limit(1)
         .maybeSingle();
@@ -2453,7 +2478,7 @@ router.post('/submit', async (req, res) => {
       if (sr.ok) {
         const { data: fresh } = await supabase
           .from('startup_uploads')
-          .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, team_score, traction_score, market_score, product_score, vision_score')
+          .select('id, name, website, sectors, stage, total_god_score, enrichment_token, data_completeness, description, tagline, extracted_data, team_score, traction_score, market_score, product_score, vision_score')
           .eq('id', startupId)
           .single();
         if (fresh) startup = fresh;
@@ -2720,7 +2745,7 @@ router.get('/results', async (req, res) => {
     const [{ data: startup, error: startupErr }, { count: matchCount }] = await Promise.all([
       supabase
         .from('startup_uploads')
-        .select('id, name, website, sectors, stage, total_god_score, status')
+        .select('id, name, website, sectors, stage, total_god_score, status, description, tagline, extracted_data')
         .eq('id', startupId)
         .eq('status', 'approved')
         .single(),

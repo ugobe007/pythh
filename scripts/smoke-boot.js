@@ -53,17 +53,19 @@ const checks = [
     },
   },
   {
-    name: 'sector reconcile (ReadyForRobots cached DB row)',
+    name: 'resolveStartupSectors (canonical merge)',
     run: () => {
-      const { reconcileSectors } = require('../lib/inference-extractor.js');
-      const rec = reconcileSectors(
-        ['HealthTech', 'Robotics'],
-        'https://readyforrobots.com',
-        'Readyforrobots',
-        '',
-      );
-      if (rec[0] !== 'Robotics' || rec.includes('HealthTech')) {
-        throw new Error(`expected Robotics-only, got ${JSON.stringify(rec)}`);
+      const { resolveStartupSectors } = require('../lib/inference-extractor.js');
+      const merged = resolveStartupSectors({
+        url: 'https://readyforrobots.com',
+        name: 'Readyforrobots',
+        text: '',
+        inferenceSectors: ['HealthTech', 'Robotics'],
+        aiSectors: ['Robotics', 'AI/ML'],
+        storedSectors: ['HealthTech'],
+      });
+      if (merged[0] !== 'Robotics' || merged.includes('HealthTech')) {
+        throw new Error(`canonical merge failed: ${JSON.stringify(merged)}`);
       }
     },
   },
