@@ -669,35 +669,57 @@ const SLOW_WARN_MS = 18000;
 // Hard client-side timeout — avoids indefinite hang on Fly.io cold start.
 const CLIENT_FETCH_TIMEOUT_MS = 60000;
 
-function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: ApiResult | null) => void }) {
+function ScanningStep({
+  url,
+  onComplete,
+  onFailed,
+}: {
+  url: string;
+  onComplete: (result: ApiResult) => void;
+  onFailed: (message: string) => void;
+}) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [progress, setProgress] = useState(0);
   const [slowWarn, setSlowWarn] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const capturedEmail = sessionStorage.getItem("pythia_email") || "";
   const apiResultRef = useRef<ApiResult | null | undefined>(undefined);
   const completeCalledRef = useRef(false);
+  const failedCalledRef = useRef(false);
+  const cancelledRef = useRef(false);
 
   const MIN_DISPLAY_MS = 1200;
   const mountTimeRef = useRef(Date.now());
 
   const maybeComplete = () => {
-    if (completeCalledRef.current) return;
+    if (completeCalledRef.current || failedCalledRef.current) return;
     if (apiResultRef.current === undefined) return;
+    if (!apiResultRef.current) return;
     const elapsed = Date.now() - mountTimeRef.current;
     const delay = Math.max(0, MIN_DISPLAY_MS - elapsed);
     completeCalledRef.current = true;
-    setTimeout(() => onComplete(apiResultRef.current as ApiResult | null), delay);
+    cancelledRef.current = true;
+    setTimeout(() => onComplete(apiResultRef.current as ApiResult), delay);
+  };
+
+  const failScan = (message: string) => {
+    if (completeCalledRef.current || failedCalledRef.current) return;
+    failedCalledRef.current = true;
+    cancelledRef.current = true;
+    setFetchError(message);
+    setTimeout(() => onFailed(message), 600);
   };
 
   useEffect(() => {
     const normalized = url.startsWith("http") ? url : `https://${url}`;
     const controller = new AbortController();
 
-    // Show slow-warn banner after SLOW_WARN_MS
     const slowTimer = setTimeout(() => setSlowWarn(true), SLOW_WARN_MS);
-    // Hard client-side abort after CLIENT_FETCH_TIMEOUT_MS
-    const abortTimer = setTimeout(() => controller.abort(), CLIENT_FETCH_TIMEOUT_MS);
+    const abortTimer = setTimeout(() => {
+      failScan("Lookup timed out — the server took too long to respond. Please try again.");
+      controller.abort();
+    }, CLIENT_FETCH_TIMEOUT_MS);
 
     fetch("/api/instant/submit", {
       method: "POST",
@@ -705,8 +727,20 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
       body: JSON.stringify({ url: normalized }),
       signal: controller.signal,
     })
-      .then((r) => r.json())
-      .then((data: Record<string, unknown>) => {
+      .then(async (r) => {
+        if (!r.ok) {
+          throw new Error(
+            r.status === 503 || r.status === 502
+              ? "Lookup service is temporarily unavailable. Please try again in a moment."
+              : `Lookup failed (${r.status}). Please try again.`,
+          );
+        }
+        let data: Record<string, unknown>;
+        try {
+          data = await r.json();
+        } catch {
+          throw new Error("Lookup service returned an invalid response. Please try again.");
+        }
         const result: ApiResult = {
           startup: (data.startup as ApiStartup) ?? null,
           matches: Array.isArray(data.matches) ? (data.matches as ApiMatch[]) : [],
@@ -715,9 +749,22 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
           is_new: Boolean(data.is_new),
           gen_in_progress: Boolean(data.gen_in_progress),
         };
+        if (!result.startup_id && result.matches.length === 0 && !result.gen_in_progress) {
+          throw new Error("Lookup did not return startup data. Please try again.");
+        }
         apiResultRef.current = result;
       })
-      .catch(() => { apiResultRef.current = null; })
+      .catch((err: unknown) => {
+        if (failedCalledRef.current) return;
+        const message =
+          err instanceof Error && err.name === "AbortError"
+            ? "Lookup timed out — the server took too long to respond. Please try again."
+            : err instanceof Error
+              ? err.message
+              : "Lookup service unavailable. Please try again.";
+        apiResultRef.current = null;
+        failScan(message);
+      })
       .finally(() => {
         clearTimeout(slowTimer);
         clearTimeout(abortTimer);
@@ -727,10 +774,9 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
     // Animation loops through steps continuously until the API responds.
     let stepIndex = 0;
     let loopCount = 0;
-    let cancelled = false;
 
     const runStep = () => {
-      if (cancelled) return;
+      if (cancelledRef.current) return;
       const realIdx = stepIndex % SCAN_STEPS.length;
       if (realIdx === 0 && stepIndex > 0) loopCount++;
       setCurrentStep(realIdx);
@@ -751,7 +797,7 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
         if (elapsed >= duration) clearInterval(progressInterval);
       }, 16);
       setTimeout(() => {
-        if (cancelled) return;
+        if (cancelledRef.current) return;
         setCompletedSteps((prev) => {
           const next = [...prev, realIdx];
           return next.length > SCAN_STEPS.length ? [realIdx] : next;
@@ -762,8 +808,8 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
     };
 
     runStep();
-    return () => { cancelled = true; };
-  }, []);
+    return () => { cancelledRef.current = true; };
+  }, [onComplete, onFailed, url]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"
@@ -858,6 +904,21 @@ function ScanningStep({ url, onComplete }: { url: string; onComplete: (result: A
         <p className="text-xs mt-8 text-center" style={{ color: "oklch(0.35 0.01 264)" }}>
           PYTHIA is analyzing your product, team, traction, and market positioning
         </p>
+
+        {fetchError && (
+          <div
+            className="mt-6 rounded-lg px-4 py-3 text-center"
+            style={{
+              backgroundColor: "oklch(0.65 0.2 27 / 0.08)",
+              border: "1px solid oklch(0.65 0.2 27 / 0.25)",
+            }}
+          >
+            <p className="text-sm font-medium mb-1" style={{ color: "oklch(0.75 0.18 27)" }}>
+              Could not complete lookup
+            </p>
+            <p className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>{fetchError}</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2306,12 +2367,18 @@ export default function Activate() {
     setStep("scanning");
   };
 
-  const handleScanComplete = (result: ApiResult | null) => {
+  const handleScanComplete = (result: ApiResult) => {
     setApiResult(result);
-    // Clear sessionStorage so a component remount can't restart the scan.
     sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
     setStep("results");
+  };
+
+  const handleScanFailed = (_message: string) => {
+    sessionStorage.removeItem("pythia_url");
+    sessionStorage.removeItem("pythia_email");
+    setApiResult(null);
+    setStep("entry");
   };
 
   /** Polling-triggered: re-fetch without busting the pipeline cache */
@@ -2425,7 +2492,9 @@ export default function Activate() {
         </>
       )}
       {loadingShared && <SharedResultsLoader />}
-      {step === "scanning" && !loadingShared && <ScanningStep url={url} onComplete={handleScanComplete} />}
+      {step === "scanning" && !loadingShared && (
+        <ScanningStep url={url} onComplete={handleScanComplete} onFailed={handleScanFailed} />
+      )}
       {step === "results" && !loadingShared && (
         <ResultsStep
           url={url}

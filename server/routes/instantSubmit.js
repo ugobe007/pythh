@@ -158,6 +158,7 @@ function resolveSubmitSectors({ inferenceData, aiData, fullUrl, displayName, web
   return resolved.length > 0 ? resolved : ['Technology'];
 }
 
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // ============================================================================
