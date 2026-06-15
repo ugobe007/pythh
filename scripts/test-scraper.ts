@@ -2,7 +2,7 @@
  * Test the startup scraper with 10 sample startups
  */
 
-import { generateSampleStartups, calculateStartupScores } from './startup-scraper';
+import { generateSampleStartups, calculateStartupScores } from './archive/startup-scraper';
 
 console.log('🧪 Testing Startup Scraper...\n');
 

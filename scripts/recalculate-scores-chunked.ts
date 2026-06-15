@@ -99,7 +99,7 @@ function calculateGODScore(startup: any): any {
     product_score: Math.min(Math.round(((result.breakdown.product || 0) / 2.0) * 100), 100),
     vision_score: Math.min(Math.round(((result.breakdown.product_vision || 0) / 2.0) * 100), 100),
     total_god_score: total,
-    psychological_multiplier: result.psychological_multiplier || 0,
+    psychological_bonus: result.psychological_bonus || 0,
     enhanced_god_score: result.enhanced_total ? Math.round(result.enhanced_total * 10) : total
   };
 }
@@ -232,11 +232,16 @@ async function recalculateChunk(): Promise<void> {
         } catch (e) {}
         
         try {
-          const apPromResult = calculateAPOrPromisingBonus(
-            { ...startup, team_score: scores.team_score, traction_score: scores.traction_score, market_score: scores.market_score, product_score: scores.product_score, vision_score: scores.vision_score },
-            scores.total_god_score + signalsBonus + momentumBonus
-          );
-          if (apPromResult.applied && apPromResult.bonus > 0) {
+          const apPromResult = calculateAPOrPromisingBonus({
+            ...startup,
+            team_score: scores.team_score,
+            traction_score: scores.traction_score,
+            market_score: scores.market_score,
+            product_score: scores.product_score,
+            vision_score: scores.vision_score,
+            total_god_score: scores.total_god_score + signalsBonus + momentumBonus,
+          });
+          if (apPromResult.bonus > 0 && apPromResult.type !== 'none') {
             apPromisingBonus = apPromResult.bonus;
           }
         } catch (e) {}
@@ -271,7 +276,7 @@ async function recalculateChunk(): Promise<void> {
       } catch (e) {}
       
       // Calculate final score
-      const psychBonus = scores.psychological_multiplier || 0;
+      const psychBonus = scores.psychological_bonus || 0;
       const psychBonusGOD = Math.min(Math.max(psychBonus * 10, -5), 7);
       
       const rawBonuses = signalsBonus + momentumBonus + apPromisingBonus + eliteSpikyBonus + psychBonusGOD + pedigreeBonus;

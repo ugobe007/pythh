@@ -14,8 +14,12 @@
  */
 
 import 'dotenv/config';
+import { createRequire } from 'node:module';
 import { createClient } from '@supabase/supabase-js';
 import { scrapeAndScoreStartup, updateStartupWithScrapedData } from '../server/services/urlScrapingService';
+
+const require = createRequire(import.meta.url);
+const { calculateGodScoreColumnsFromStartup } = require('../server/scoring/hotGodFromStartupRow.js');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
@@ -92,8 +96,18 @@ async function main() {
     console.log(`   Current GOD Score: ${startup.total_god_score}`);
 
     try {
-      // Scrape and score
-      const { data, scores } = await scrapeAndScoreStartup(startup.website);
+      const { data, dataTier } = await scrapeAndScoreStartup(startup.website);
+
+      const mergedRow = {
+        ...startup,
+        ...data,
+        tagline: data.tagline,
+        description: data.description || data.pitch,
+        pitch: data.pitch,
+        sectors: data.sectors,
+        extracted_data: { ...data, data_tier: dataTier },
+      };
+      const scores = calculateGodScoreColumnsFromStartup(mergedRow);
 
       console.log(`   📈 Extracted Data:`);
       console.log(`      Name: ${data.name}`);
@@ -105,7 +119,7 @@ async function main() {
       console.log(`      Is Launched: ${data.is_launched || false}`);
 
       console.log(`   🎯 GOD Score Breakdown:`);
-      console.log(`      Data Tier: ${scores.data_tier}`);
+      console.log(`      Data Tier: ${dataTier}`);
       console.log(`      Vision: ${scores.vision_score}`);
       console.log(`      Market: ${scores.market_score}`);
       console.log(`      Traction: ${scores.traction_score}`);
@@ -113,16 +127,33 @@ async function main() {
       console.log(`      Product: ${scores.product_score}`);
       console.log(`      TOTAL: ${scores.total_god_score}`);
 
-      // Update database
-      const updated = await updateStartupWithScrapedData(startup.id, data, scores);
+      const updated = await updateStartupWithScrapedData(startup.id, data, dataTier);
 
       if (updated) {
+        const { error: scoreError } = await supabase
+          .from('startup_uploads')
+          .update({
+            team_score: scores.team_score,
+            traction_score: scores.traction_score,
+            market_score: scores.market_score,
+            product_score: scores.product_score,
+            vision_score: scores.vision_score,
+            total_god_score: scores.total_god_score,
+          })
+          .eq('id', startup.id);
+
+        if (scoreError) {
+          failed++;
+          console.log(`   ❌ Failed to update GOD scores: ${scoreError.message}`);
+          continue;
+        }
+
         enriched++;
         results.push({
           name: startup.name || data.name,
           before: startup.total_god_score || 60,
           after: scores.total_god_score,
-          tier: scores.data_tier,
+          tier: dataTier,
         });
         console.log(`   ✅ Updated! GOD Score: ${startup.total_god_score} → ${scores.total_god_score}`);
       } else {

@@ -13,7 +13,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { calculateHotScore } from '../server/services/startupScoringService';
+import { calculateHotScore } from '../../server/services/startupScoringService';
 
 // Initialize Supabase client
 const supabaseUrl = 'https://unkpogyhhjbvxxjvmxlt.supabase.co';

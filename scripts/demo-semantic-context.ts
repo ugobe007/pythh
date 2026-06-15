@@ -31,14 +31,13 @@ for (const headline of testHeadlines) {
   if (frame.slots.tertiary) console.log(`   Tertiary: ${frame.slots.tertiary}`);
   if (frame.slots.person) console.log(`   Person:  ${frame.slots.person}`);
   
-  if (frame.semantic_context) {
-    console.log(`\n   💡 Semantic Context (${frame.semantic_context.context_type}):`);
-    frame.semantic_context.descriptors.forEach((desc, i) => {
-      console.log(`      [${i + 1}] ${desc}`);
+  if (frame.semantic_context?.length) {
+    console.log(`\n   💡 Semantic Context (${frame.semantic_context.length} evidence):`);
+    frame.semantic_context.forEach((ev, i) => {
+      console.log(
+        `      [${i + 1}] ${ev.type}: ${ev.text} (${(ev.confidence * 100).toFixed(0)}%)`
+      );
     });
-    if (frame.semantic_context.qualifiers.length > 0) {
-      console.log(`      Qualifiers: ${frame.semantic_context.qualifiers.join(', ')}`);
-    }
   }
   
   console.log(`   Confidence: ${(frame.meta.confidence * 100).toFixed(0)}%`);

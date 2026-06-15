@@ -361,11 +361,16 @@ async function recalculateScores(): Promise<void> {
       
       // AP + Promising bonus — detects premium startups stuck below their tier
       try {
-        const apPromResult = calculateAPOrPromisingBonus(
-          { ...startup, team_score: scores.team_score, traction_score: scores.traction_score, market_score: scores.market_score, product_score: scores.product_score, vision_score: scores.vision_score },
-          scores.total_god_score + signalsBonus + momentumBonus
-        );
-        if (apPromResult.applied && apPromResult.bonus > 0) {
+        const apPromResult = calculateAPOrPromisingBonus({
+          ...startup,
+          team_score: scores.team_score,
+          traction_score: scores.traction_score,
+          market_score: scores.market_score,
+          product_score: scores.product_score,
+          vision_score: scores.vision_score,
+          total_god_score: scores.total_god_score + signalsBonus + momentumBonus,
+        });
+        if (apPromResult.bonus > 0 && apPromResult.type !== 'none') {
           apPromisingBonus = apPromResult.bonus;
           apType = apPromResult.type;
           if (apPromResult.type === 'ap') apApplied++;
