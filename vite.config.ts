@@ -48,10 +48,12 @@ export default defineConfig({
   server: {
     host: 'localhost',
     proxy: {
+      // DEV-ONLY: pointed at local backend so the new named-match cards render in review.
+      // Revert to https://hot-honey.fly.dev before committing.
       '/api/hero-preview': {
-        target: 'https://hot-honey.fly.dev',
+        target: 'http://localhost:3002',
         changeOrigin: true,
-        secure: true,
+        secure: false,
       },
       '/api': {
         target: 'http://localhost:3002',

@@ -2486,6 +2486,84 @@ router.post('/submit', async (req, res) => {
 });
 
 /**
+ * POST /api/instant/rescore
+ * Re-scores a startup's GOD score from current DB fields, writes the new
+ * score columns back to startup_uploads, then re-generates top investor matches.
+ *
+ * Triggered after progressive question answers (Stage 1 / Stage 2) update
+ * has_revenue, team_size, sectors, growth_rate_monthly, etc. so the report
+ * immediately reflects the enriched data without waiting for a batch run.
+ *
+ * Fast path — no scraping, no enrichment, ~2-4 seconds.
+ */
+router.post('/rescore', async (req, res) => {
+  const { startup_id: startupId } = req.body || {};
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!startupId || !uuidRe.test(startupId)) {
+    return res.status(400).json({ error: 'startup_id is required and must be a valid UUID' });
+  }
+  try {
+    // Select * so toScoringProfileFromStartupUpload has all fields it needs;
+    // the scoring function handles missing columns gracefully via || null fallbacks.
+    const { data: startup, error: sErr } = await supabase
+      .from('startup_uploads')
+      .select('*')
+      .eq('id', startupId)
+      .maybeSingle();
+
+    if (sErr || !startup) {
+      return res.status(404).json({ error: 'Startup not found' });
+    }
+
+    // ── Step 1: Re-compute GOD score from current DB fields ───────────────
+    const godColumns = calculateGODScore(startup);
+    const { error: updateErr } = await supabase
+      .from('startup_uploads')
+      .update(godColumns)
+      .eq('id', startupId);
+    if (updateErr) {
+      console.warn('[rescore] GOD score write failed:', updateErr.message);
+    }
+
+    // ── Step 2: Re-generate investor matches with the updated score ────────
+    const updatedStartup = { ...startup, ...godColumns };
+    const { data: sigRow } = await supabase
+      .from('startup_signal_scores')
+      .select('signals_total')
+      .eq('startup_id', startupId)
+      .maybeSingle();
+    const signalTotal = sigRow?.signals_total != null
+      ? parseFloat(sigRow.signals_total)
+      : signalTotalFromGod(godColumns.total_god_score);
+
+    const placeholderStartup = uploadRowToPlaceholderStartup(startupId, updatedStartup);
+    const result = await generateSyncTopMatchesForHttpResponse(supabase, {
+      startupId,
+      placeholderStartup,
+      signalTotal,
+      maxMs: 6000,
+    });
+
+    return res.json({
+      ok: true,
+      god_score: godColumns.total_god_score,
+      score_components: {
+        team: godColumns.team_score,
+        traction: godColumns.traction_score,
+        market: godColumns.market_score,
+        product: godColumns.product_score,
+        vision: godColumns.vision_score,
+      },
+      match_count: result.match_count,
+      rescore_error: result.error || null,
+    });
+  } catch (err) {
+    console.error('[rescore] unexpected error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
  * GET /api/instant/health
  * Quick health check endpoint
  */

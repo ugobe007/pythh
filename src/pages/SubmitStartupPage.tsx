@@ -14,6 +14,8 @@ import { supabase } from '../lib/supabase';
 import { fetchPlatformStats } from '../lib/platformStats';
 import { fetchPreviewReport, fetchTimeoutSignal } from '../lib/apiConfig';
 import { isUuidString } from '../lib/isUuid';
+import { Stage1Questions, Stage2Questions, type Stage1Answers, type Stage2Answers } from '../components/submit/ProgressiveQuestions';
+import MatchAccuracyBanner from '../components/submit/MatchAccuracyBanner';
 
 function Counter({ target, duration = 2000 }: { target: number; duration?: number }) {
   const [val, setVal] = useState(0);
@@ -47,7 +49,7 @@ const LOADING_STAGES = [
 
 // ─── Main component ────────────────────────────────────────────────────────
 
-type Step = 'form' | 'loading' | 'report' | 'error';
+type Step = 'form' | 'loading' | 'qualify' | 'refine' | 'report' | 'error';
 
 export default function SubmitStartupPage() {
   const navigate = useNavigate();
@@ -61,6 +63,12 @@ export default function SubmitStartupPage() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [loadingStage, setLoadingStage] = useState(0);
   const [stats, setStats] = useState({ startups: 0, investors: 0, matches: 0 });
+
+  // Progressive refinement state
+  const [pendingStartupId, setPendingStartupId] = useState<string | null>(null);
+  const [stage1Answers, setStage1Answers] = useState<Stage1Answers | null>(null);
+  const [stage2Answers, setStage2Answers] = useState<Stage2Answers | null>(null);
+  const [stage1Accuracy, setStage1Accuracy] = useState<number | null>(null);
 
   // Keep URL in sync when we have a loaded report (bookmarkable deep link)
   useEffect(() => {
@@ -148,16 +156,96 @@ export default function SubmitStartupPage() {
         setStep('error');
         return;
       }
-      const res = await fetchPreviewReport(result.startup_id, {
-        signal: fetchTimeoutSignal(60_000),
-      });
-      if (!res.ok) {
-        const detail =
-          res.status === 404
-            ? 'Report not ready yet — try again in a moment.'
-            : `Could not load report (${res.status}).`;
-        throw new Error(detail);
+      // Route through qualification questions before showing the report
+      setPendingStartupId(result.startup_id);
+      setStep('qualify');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setStep('error');
+    }
+  };
+
+  // Map Stage 1 answers to startup_uploads columns and load report
+  const handleStage1Complete = async (answers: Stage1Answers) => {
+    if (!pendingStartupId) return;
+    setStage1Answers(answers);
+
+    // Map radio answers → DB fields
+    const update: Record<string, unknown> = {};
+    if (answers.revenue_stage === 'pre_revenue') { update.has_revenue = false; }
+    else if (answers.revenue_stage === 'revenue') { update.has_revenue = true; }
+    else if (answers.revenue_stage === 'scaling') { update.has_revenue = true; update.growth_rate_monthly = update.growth_rate_monthly ?? 15; }
+
+    if (answers.team_size === 'solo') update.team_size = 1;
+    else if (answers.team_size === 'small') update.team_size = 3;
+    else if (answers.team_size === 'larger') update.team_size = 8;
+
+    if (answers.raised === 'none') { update.raise_amount = null; update.raise_type = 'bootstrapped'; }
+    else if (answers.raised === 'angel_preseed') { update.raise_type = 'pre_seed'; }
+    else if (answers.raised === 'seed_plus') { update.raise_type = 'seed'; }
+
+    // Save to DB (best-effort — don't block the report load on failure)
+    await supabase.from('startup_uploads').update(update).eq('id', pendingStartupId).catch(() => null);
+
+    // Re-score matches with the updated DB fields, then load the report
+    setStep('loading');
+    try {
+      // Re-compute GOD score + regenerate matches with the updated has_revenue / team_size fields
+      await fetch(`/api/instant/rescore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startup_id: pendingStartupId }),
+      }).catch(() => null);
+
+      const res = await fetchPreviewReport(pendingStartupId, { signal: fetchTimeoutSignal(60_000) });
+      if (!res.ok) throw new Error(`Could not load report (${res.status}).`);
+      const data: ReportData = await res.json();
+      // Compute and store the stage-1 accuracy so we can show the improvement delta
+      const acc = Math.min(65 + Math.round((data.startup.god_score / 100) * 10), 75);
+      setStage1Accuracy(acc);
+      setReport(data);
+      setStep('report');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setStep('error');
+    }
+  };
+
+  // Map Stage 2 answers and reload for refined matches
+  const handleStage2Complete = async (answers: Stage2Answers) => {
+    if (!pendingStartupId) return;
+    setStage2Answers(answers);
+
+    const update: Record<string, unknown> = {
+      fundraising_timeline: answers.fundraising_timing,
+      current_priority: answers.primary_focus,
+    };
+    // Map business_type to sectors (merge with existing)
+    const sectorMap: Record<string, string> = {
+      software: 'SaaS', ai: 'AI/ML', robotics: 'Robotics',
+      energy: 'Energy', marketplace: 'Marketplace',
+    };
+    if (answers.business_type && answers.business_type !== 'other') {
+      const currentSectors = report?.startup?.sectors ?? [];
+      const newSector = sectorMap[answers.business_type];
+      if (newSector && !currentSectors.includes(newSector)) {
+        update.sectors = [newSector, ...currentSectors.slice(0, 3)];
       }
+    }
+
+    await supabase.from('startup_uploads').update(update).eq('id', pendingStartupId).catch(() => null);
+
+    setStep('loading');
+    try {
+      // Re-score with updated sectors (Stage 2's key field — worth up to 40 pts in match scoring)
+      await fetch(`/api/instant/rescore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startup_id: pendingStartupId }),
+      }).catch(() => null);
+
+      const res = await fetchPreviewReport(pendingStartupId, { signal: fetchTimeoutSignal(60_000) });
+      if (!res.ok) throw new Error(`Could not load report (${res.status}).`);
       const data: ReportData = await res.json();
       setReport(data);
       setStep('report');
@@ -172,8 +260,32 @@ export default function SubmitStartupPage() {
     setUrl('');
     setError('');
     setReport(null);
+    setPendingStartupId(null);
+    setStage1Answers(null);
+    setStage2Answers(null);
+    setStage1Accuracy(null);
     navigate('/submit', { replace: true });
   };
+
+  // ── Stage 1: qualification questions ─────────────────────────────────────
+  if (step === 'qualify') {
+    return (
+      <Stage1Questions
+        onComplete={handleStage1Complete}
+        onBack={() => setStep('form')}
+      />
+    );
+  }
+
+  // ── Stage 2: refinement questions ─────────────────────────────────────────
+  if (step === 'refine') {
+    return (
+      <Stage2Questions
+        onComplete={handleStage2Complete}
+        onBack={() => setStep('report')}
+      />
+    );
+  }
 
   // ── Loading view ─────────────────────────────────────────────────────────
   if (step === 'loading') {
@@ -236,11 +348,21 @@ export default function SubmitStartupPage() {
 
   // ── Report view ──────────────────────────────────────────────────────────
   if (step === 'report' && report) {
+    const isRefined = stage2Answers != null;
     return (
       <div className="min-h-screen bg-[#080808] flex flex-col" style={{ backgroundImage: 'radial-gradient(ellipse 80% 40% at 50% 0%, rgba(62,207,142,0.08) 0%, transparent 55%)' }}>
         <PythhUnifiedNav />
         <div className="flex-1 px-4 pt-12 pb-24">
           <div className="max-w-5xl mx-auto w-full">
+            {/* Accuracy banner — only when questions were answered (not deep-linked) */}
+            {stage1Answers && (
+              <MatchAccuracyBanner
+                godScore={report.startup.god_score}
+                isRefined={isRefined}
+                previousAccuracy={isRefined ? (stage1Accuracy ?? undefined) : undefined}
+                onImprove={!isRefined ? () => setStep('refine') : undefined}
+              />
+            )}
             <InvestorReadinessReport report={report} showFooter={true} onReset={reset} />
           </div>
         </div>

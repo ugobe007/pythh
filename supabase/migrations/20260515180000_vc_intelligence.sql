@@ -104,7 +104,8 @@ COMMENT ON TABLE public.vc_deal_positioning IS
 -- Automated discovery queue: startups found by the intelligence agent
 -- from RSS feeds, ProductHunt, Hacker News, VC tweets, etc.
 CREATE TABLE IF NOT EXISTS public.hot_startup_discoveries (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id              uuid PRIMARY KEY DEFAULT gen_random _uuid(),
+
   discovered_at   timestamptz NOT NULL DEFAULT now(),
   source          text NOT NULL,          -- 'producthunt'|'hackernews'|'vc_rss'|'techcrunch'|'crunchbase'|'twitter'
   source_url      text,
