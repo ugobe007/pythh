@@ -198,15 +198,15 @@ async function matchesLookSectorStale(supabase, startup) {
 
   if (error || !top || top.length < 5) return false;
 
-  const startupSectors = new Set(
-    getExpandedInvestorSectors(Array.isArray(startup.sectors) ? startup.sectors : []),
+  const startupCanon = new Set(
+    normalizeSectors(Array.isArray(startup.sectors) ? startup.sectors : []),
   );
 
   let aligned = 0;
   for (const row of top) {
     const invSectors = Array.isArray(row.investors?.sectors) ? row.investors.sectors : [];
-    const expanded = getExpandedInvestorSectors(invSectors);
-    if (expanded.some((s) => startupSectors.has(s))) aligned += 1;
+    const invCanon = normalizeSectors(invSectors);
+    if (invCanon.some((s) => startupCanon.has(s))) aligned += 1;
   }
 
   return aligned < 3;
