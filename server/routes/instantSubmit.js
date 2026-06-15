@@ -183,6 +183,35 @@ function sectorsChanged(before, after) {
   return norm(before) !== norm(after);
 }
 
+/** True when top cached matches mostly miss the startup's reconciled primary sector. */
+async function matchesLookSectorStale(supabase, startup) {
+  const primary = Array.isArray(startup?.sectors) ? startup.sectors[0] : null;
+  if (!primary || primary === 'Technology') return false;
+
+  const { data: top, error } = await supabase
+    .from('startup_investor_matches')
+    .select('investors:investor_id ( sectors )')
+    .eq('startup_id', startup.id)
+    .eq('status', 'suggested')
+    .order('match_score', { ascending: false })
+    .limit(10);
+
+  if (error || !top || top.length < 5) return false;
+
+  const startupSectors = new Set(
+    getExpandedInvestorSectors(Array.isArray(startup.sectors) ? startup.sectors : []),
+  );
+
+  let aligned = 0;
+  for (const row of top) {
+    const invSectors = Array.isArray(row.investors?.sectors) ? row.investors.sectors : [];
+    const expanded = getExpandedInvestorSectors(invSectors);
+    if (expanded.some((s) => startupSectors.has(s))) aligned += 1;
+  }
+
+  return aligned < 3;
+}
+
 // ============================================================================
 // INVESTOR CACHE - Avoid loading 3700+ investors on every request
 // ============================================================================
@@ -2080,6 +2109,13 @@ router.post('/submit', async (req, res) => {
             .eq('id', startupId)
             .then(() => {})
             .catch((e) => console.warn('[INSTANT] sector persist failed:', e?.message));
+          void supabase
+            .from('startup_investor_matches')
+            .delete()
+            .eq('startup_id', startupId)
+            .eq('status', 'suggested')
+            .then(() => {})
+            .catch((e) => console.warn('[INSTANT] match purge failed:', e?.message));
           matchCacheInvalidate(startupId);
         }
         console.log(`  ✓ Found existing startup: ${startup.name} (score: ${scored[0].matchScore}, hasUrl: ${!!(startup.website)})`);
@@ -2094,6 +2130,21 @@ router.post('/submit', async (req, res) => {
         .select('*', { count: 'exact', head: true })
         .eq('startup_id', startupId)
         .eq('status', 'suggested');
+
+      if (!sectorRegenRequired && (existingMatchCount || 0) >= 20) {
+        if (await matchesLookSectorStale(supabase, startup)) {
+          sectorRegenRequired = true;
+          console.log(`  🔄 Stale sector-aligned matches for ${startup.name} — queuing regen`);
+          void supabase
+            .from('startup_investor_matches')
+            .delete()
+            .eq('startup_id', startupId)
+            .eq('status', 'suggested')
+            .then(() => {})
+            .catch((e) => console.warn('[INSTANT] stale match purge failed:', e?.message));
+          matchCacheInvalidate(startupId);
+        }
+      }
       
       if (existingMatchCount && existingMatchCount >= 20 && !forceGenerate && !sectorRegenRequired) {
         // ── Check in-memory cache first (avoids a Supabase SELECT per request) ──
