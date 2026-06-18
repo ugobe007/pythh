@@ -424,7 +424,7 @@ function HeroSection({
               style={{ color: MUTED }}
             >
               Submit your URL. Pythh reads your signals, matches you to top investors
-              and builds funding stacks... automatically.
+              and automates your funding round.
             </p>
 
             <a

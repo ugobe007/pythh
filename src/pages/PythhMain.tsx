@@ -194,7 +194,7 @@ function Hero() {
         }}
       >
         Submit your URL. Pythh reads your signals, matches you to top investors
-        and builds funding stacks... automatically.
+        and automates your funding round.
       </motion.p>
 
       {/* URL input + CTA */}
