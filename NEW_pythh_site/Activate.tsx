@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
+import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
 
 function formatStageLabel(stage: unknown): string {
@@ -51,11 +52,12 @@ import {
   Check,
   Copy,
   Download,
+  Eye,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "entry" | "scanning" | "results" | "pipeline";
+type Step = "entry" | "scanning" | "investor-read" | "results" | "pipeline";
 
 interface MatchedInvestor {
   id: number;
@@ -956,6 +958,7 @@ function ResultsStep({
   onForceRefresh,
   isSharedView = false,
   onRunOwnScan,
+  onViewInvestorRead,
 }: {
   url: string;
   onActivate: () => void;
@@ -964,6 +967,7 @@ function ResultsStep({
   onForceRefresh?: () => void;
   isSharedView?: boolean;
   onRunOwnScan?: () => void;
+  onViewInvestorRead?: () => void;
 }) {
   const [expanded, setExpanded] = useState<number | null>(1);
   const [refreshing, setRefreshing] = useState(false);
@@ -1137,6 +1141,17 @@ function ResultsStep({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {onViewInvestorRead && startupId && !isSharedView && (
+              <button
+                type="button"
+                onClick={onViewInvestorRead}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border"
+                style={{ color: "#22d3ee", backgroundColor: "transparent", borderColor: "#22d3ee40" }}
+              >
+                <Eye size={11} />
+                Investor read
+              </button>
+            )}
             <button
               onClick={handleDownloadProfiles}
               disabled={investors.length === 0}
@@ -2354,8 +2369,12 @@ export default function Activate() {
           is_new: false,
           gen_in_progress: false,
         });
-        setIsSharedView(true);
-        setStep("results");
+        setIsSharedView(!new URLSearchParams(window.location.search).has("pipeline"));
+        setStep(
+          new URLSearchParams(window.location.search).get("pipeline") === "1"
+            ? "pipeline"
+            : "results",
+        );
       } catch {
         if (!cancelled) {
           setSharedLoadError("Could not load shared results");
@@ -2389,7 +2408,8 @@ export default function Activate() {
     setApiResult(result);
     sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
-    setStep("results");
+    // Act 1: investor read reveal before full match results
+    setStep(result.startup_id ? "investor-read" : "results");
   };
 
   const handleScanFailed = (_message: string) => {
@@ -2454,12 +2474,16 @@ export default function Activate() {
   };
 
   const handleActivatePipeline = () => {
+    const sid = apiResult?.startup_id;
+    if (sid) {
+      navigate(`/wizard/${sid}?tab=round`);
+      return;
+    }
     const hasActivePlan =
       user?.role === "admin" ||
       subscription?.status === "active" ||
       subscription?.status === "trialing";
     if (!isAuthenticated || !hasActivePlan) {
-      // Not subscribed — return to home so they can start the journey
       navigate("/");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -2513,6 +2537,13 @@ export default function Activate() {
       {step === "scanning" && !loadingShared && (
         <ScanningStep url={url} onComplete={handleScanComplete} onFailed={handleScanFailed} />
       )}
+      {step === "investor-read" && !loadingShared && apiResult?.startup_id && (
+        <InvestorReadStep
+          startupId={apiResult.startup_id}
+          startupName={apiResult.startup?.name || url.replace(/https?:\/\//, "").replace(/\/.*/, "")}
+          onSeeMatches={() => setStep("results")}
+        />
+      )}
       {step === "results" && !loadingShared && (
         <ResultsStep
           url={url}
@@ -2522,6 +2553,7 @@ export default function Activate() {
           onForceRefresh={handleForceRefreshMatches}
           isSharedView={isSharedView}
           onRunOwnScan={handleRunOwnScan}
+          onViewInvestorRead={() => setStep("investor-read")}
         />
       )}
       {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} apiResult={apiResult} />}

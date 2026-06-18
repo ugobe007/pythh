@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./Home";
 import Activate from "./Activate";
+import Wizard from "./pages/Wizard";
 import Pricing from "./Pricing";
 import CheckoutSuccess from "./CheckoutSuccess";
 import CheckoutCancel from "./CheckoutCancel";
@@ -59,6 +60,7 @@ function Router() {
       <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/activate"} component={Activate} />
+      <Route path={"/wizard/:startupId"} component={Wizard} />
       {/* /rankings = startup VC-lens scoreboard (legacy app canonical route) */}
       <Route path={"/rankings"} component={SignalTrends} />
       {/* /signal-trends redirects to /rankings for backward compat */}

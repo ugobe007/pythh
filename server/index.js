@@ -182,6 +182,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const logger = require('./logger');
 const { getSupabaseClient, paginateStartupUploads } = require('./lib/supabaseClient');
+const { isCleanStartupNameForFeed, isCleanInvestorNameForFeed } = require('./lib/feedNameGuards');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.FLY_APP_NAME;
 
 // Supabase outage guard: avoid hammering upstream during 522/timeout windows.
@@ -483,12 +484,30 @@ app.get(['/api/health', '/api/v1/health'], async (req, res) => {
       ttlMs: 5_000,
       fetcher: async () => {
         const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-          .from('ai_logs')
-          .select('created_at')
-          .limit(1)
-          .maybeSingle();
-        if (error) throw error;
+        const [matchRes, uploadRes] = await Promise.all([
+          supabase
+            .from('startup_investor_matches')
+            .select('created_at')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('startup_uploads')
+            .select('updated_at')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+        if (matchRes.error && uploadRes.error) throw matchRes.error;
+
+        const candidates = [
+          matchRes.data?.created_at,
+          uploadRes.data?.updated_at,
+        ].filter(Boolean);
+        const lastActivity = candidates.length
+          ? candidates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+          : null;
+
         return {
           status: 'ok',
           timestamp: new Date().toISOString(),
@@ -496,9 +515,9 @@ app.get(['/api/health', '/api/v1/health'], async (req, res) => {
           version: '0.1.0',
           database: {
             connected: true,
-            lastActivity: data?.created_at || null,
+            lastActivity,
             error: null,
-          }
+          },
         };
       },
     });
@@ -1156,30 +1175,18 @@ app.get('/api/hot-matches', async (req, res) => {
         if (matchesResult.error) throw matchesResult.error;
         const matches = matchesResult.data || [];
 
-        // Name quality guard — same patterns used in cleanup-junk-startups.ts
-        function isCleanStartupName(name) {
-          if (!name || name.trim() === '') return false;
-          const n = name.trim();
-          if (n.length > 60) return false;                                      // Too long
-          if (n.split(/\s+/).length > 6) return false;                         // Sentence fragment
-          if (/^[a-z]/.test(n)) return false;                                   // Lowercase start
-          if (/^(How|Why|What|When|Where|While|If|As|Since|After|Before|Former|Post)\s+/i.test(n)) return false;
-          if (/\b(funding|raises|raised|million|billion)\b/i.test(n)) return false;
-          if (/^(Startup|Firm|Company|Article|Report|Deeptech|European)\s+/i.test(n)) return false;
-          if (/\b(startup|platform|service|solution|provider|startups)s?\s*$/i.test(n) && n.split(/\s+/).length > 1) return false;
-          return true;
-        }
-
-        // Deduplicate: keep only approved startups with clean names, best match per startup
+        // Name quality guard — shared with /api/recent-matches
         const seenStartups = new Set();
         const deduped = [];
         for (const m of matches) {
           if (!m.startup_id || seenStartups.has(m.startup_id)) continue;
-          // Only show approved startups
           const status = m.startup_uploads?.status;
           if (!status || status !== 'approved') continue;
-          // Skip junk names
-          if (!isCleanStartupName(m.startup_uploads?.name)) continue;
+          const startupName = m.startup_uploads?.name || '';
+          const invName = m.investors?.name || '';
+          const invFirm = m.investors?.firm || null;
+          if (!isCleanStartupNameForFeed(startupName)) continue;
+          if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
           seenStartups.add(m.startup_id);
           deduped.push(m);
         }
@@ -1238,20 +1245,6 @@ app.get('/api/hot-matches', async (req, res) => {
   }
 });
 
-// Startup name guard for public match feeds (same rules as /api/hot-matches)
-function isCleanStartupNameForFeed(name) {
-  if (!name || name.trim() === '') return false;
-  const n = name.trim();
-  if (n.length > 60) return false;
-  if (n.split(/\s+/).length > 6) return false;
-  if (/^[a-z]/.test(n)) return false;
-  if (/^(How|Why|What|When|Where|While|If|As|Since|After|Before|Former|Post)\s+/i.test(n)) return false;
-  if (/\b(funding|raises|raised|million|billion)\b/i.test(n)) return false;
-  if (/^(Startup|Firm|Company|Article|Report|Deeptech|European)\s+/i.test(n)) return false;
-  if (/\b(startup|platform|service|solution|provider|startups)s?\s*$/i.test(n) && n.split(/\s+/).length > 1) return false;
-  return true;
-}
-
 // GET /api/recent-matches — latest startup↔investor pairings (by created_at)
 app.get('/api/recent-matches', async (req, res) => {
   try {
@@ -1286,6 +1279,9 @@ app.get('/api/recent-matches', async (req, res) => {
           const su = m.startup_uploads;
           if (!su || su.status !== 'approved') continue;
           if (!isCleanStartupNameForFeed(su.name)) continue;
+          const invName = m.investors?.name || '';
+          const invFirm = m.investors?.firm || null;
+          if (!isCleanInvestorNameForFeed(invName, invFirm)) continue;
           seen.add(m.startup_id);
           matches.push({
             match_id: m.id,
@@ -1293,8 +1289,8 @@ app.get('/api/recent-matches', async (req, res) => {
             investor_id: m.investor_id,
             startup_name: su.name,
             startup_god_score: su.total_god_score ?? null,
-            investor_name: m.investors?.name || 'Investor',
-            investor_firm: m.investors?.firm || null,
+            investor_name: invName || 'Investor',
+            investor_firm: invFirm,
             match_score: Math.round(m.match_score || 0),
             created_at: m.created_at,
             time_ago: formatTimeAgo(new Date(m.created_at)),

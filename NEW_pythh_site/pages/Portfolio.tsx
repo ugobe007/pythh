@@ -528,15 +528,15 @@ export default function Portfolio() {
               ? `${analytics.value.avg_moic}×`
               : analytics?.value.avg_moic_capped != null
               ? `${analytics.value.avg_moic_capped}×`
-              : metrics.avg_moic
-              ? `${metrics.avg_moic}×`
               : "—",
           benchmark: analytics?.value.avg_moic_industry_avg
             ? `${analytics.value.avg_moic_industry_avg}×`
             : undefined,
           label: "Avg MOIC",
           valueColor: G, // seed fund = green
-          sub: `seed · blended · capped ${analytics?.value.per_position_moic_cap ?? 50}× · [ ] = industry avg`,
+          sub: analytics
+            ? `seed · blended · capped ${analytics.value?.per_position_moic_cap ?? 50}× · [ ] = industry avg`
+            : "loading fund analytics…",
         },
         {
           value:

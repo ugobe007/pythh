@@ -119,6 +119,11 @@ const cardStyle = {
   padding: "0.85rem 1rem",
 } as const;
 
+const heroCardStyle = {
+  ...cardStyle,
+  padding: "1.1rem 1.25rem",
+} as const;
+
 /** Visible card when live data is still loading or unavailable */
 export function LatestMatchPlaceholder() {
   return (
@@ -150,36 +155,46 @@ export function LatestMatchPlaceholder() {
 }
 
 /** Compact link card for hero — latest match only */
-export function LatestMatchSnippet({ match }: { match: RecentMatch }) {
+export function LatestMatchSnippet({
+  match,
+  size = "default",
+}: {
+  match: RecentMatch;
+  size?: "default" | "hero";
+}) {
+  const style = size === "hero" ? heroCardStyle : cardStyle;
   return (
     <Link
       href={`/matches?highlight=${encodeURIComponent(match.match_id)}`}
       className="block rounded-xl transition-all group"
-      style={cardStyle}
+      style={style}
     >
-      <div className="flex items-center justify-between gap-2 mb-2">
+      <div className="flex items-center justify-between gap-2 mb-2.5">
         <span
-          className="text-[10px] font-mono font-semibold tracking-widest uppercase flex items-center gap-1.5"
+          className={`font-mono font-semibold tracking-widest uppercase flex items-center gap-1.5 ${size === "hero" ? "text-[11px]" : "text-[10px]"}`}
           style={{ color: G }}
         >
           <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
           Latest match
         </span>
-        <span className="text-[10px] font-mono" style={{ color: DIM }}>
+        <span className={`font-mono ${size === "hero" ? "text-[11px]" : "text-[10px]"}`} style={{ color: DIM }}>
           {match.time_ago}
         </span>
       </div>
-      <p className="text-sm font-semibold leading-snug mb-0.5 group-hover:underline" style={{ color: TEXT }}>
+      <p
+        className={`font-semibold leading-snug mb-0.5 group-hover:underline ${size === "hero" ? "text-base" : "text-sm"}`}
+        style={{ color: TEXT }}
+      >
         {match.startup_name}
         <span style={{ color: MUTED, fontWeight: 500 }}> → </span>
         {investorLabel(match)}
       </p>
-      <div className="flex items-center justify-between gap-2 mt-2">
-        <span className="text-[10px] font-mono" style={{ color: DIM }}>
+      <div className="flex items-center justify-between gap-2 mt-2.5">
+        <span className={`font-mono ${size === "hero" ? "text-[11px]" : "text-[10px]"}`} style={{ color: DIM }}>
           {match.startup_god_score != null ? `GOD ${match.startup_god_score}` : "Thesis aligned"}
         </span>
         <span
-          className="text-xs font-mono font-bold px-2 py-0.5 rounded"
+          className={`font-mono font-bold px-2.5 py-1 rounded ${size === "hero" ? "text-sm" : "text-xs"}`}
           style={{ color: AMBER, background: "oklch(0.769 0.188 70.08 / 0.12)", border: `1px solid oklch(0.769 0.188 70.08 / 0.25)` }}
         >
           {match.match_score}
@@ -199,19 +214,21 @@ export function LatestMatchSnippet({ match }: { match: RecentMatch }) {
 export function LatestMatchPanel({
   match,
   loading,
+  size = "default",
 }: {
   match: RecentMatch | null;
   loading: boolean;
+  size?: "default" | "hero";
 }) {
   if (loading) {
     return (
       <div
         className="rounded-xl animate-pulse"
-        style={{ ...cardStyle, height: "5.5rem" }}
+        style={{ ...(size === "hero" ? heroCardStyle : cardStyle), height: size === "hero" ? "6.5rem" : "5.5rem" }}
       />
     );
   }
-  if (match) return <LatestMatchSnippet match={match} />;
+  if (match) return <LatestMatchSnippet match={match} size={size} />;
   return <LatestMatchPlaceholder />;
 }
 

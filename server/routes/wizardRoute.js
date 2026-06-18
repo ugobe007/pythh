@@ -15,11 +15,16 @@
  *   7. POST /:startupId/document       — generate/regenerate commitment doc
  *   8. GET  /:startupId/document       — fetch latest commitment doc
  *   9. GET  /:startupId/outreach-package — generate email drafts for top investors
+ *  10. GET  /:startupId/round-status   — Act 3 readiness gate
+ *  11. POST /:startupId/activate-round — activate PYTHIA pipeline
  */
 
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { buildInvestorReadPayload } = require('../lib/investorReadService');
+const { enrichGapTasks, buildUnlockSummary } = require('../lib/taskUnlockCatalog');
+const { computeRoundReadiness, gateOutreachPayload } = require('../lib/readinessGateService');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -292,6 +297,65 @@ function deriveGapTasks(startup) {
 }
 
 /**
+ * Fetch suggested match count for unlock estimates.
+ */
+async function fetchMatchCount(startupId) {
+  const { count, error } = await supabase
+    .from('startup_investor_matches')
+    .select('*', { count: 'exact', head: true })
+    .eq('startup_id', startupId)
+    .eq('status', 'suggested');
+  if (error) return 0;
+  return count || 0;
+}
+
+/**
+ * Load startup, tasks, doc, matches for round readiness.
+ */
+async function loadRoundContext(startupId) {
+  const [
+    { data: startup },
+    { data: tasks },
+    { data: doc },
+    matchCount,
+    { data: topMatch },
+  ] = await Promise.all([
+    supabase
+      .from('startup_uploads')
+      .select('id, name, website, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .eq('id', startupId)
+      .maybeSingle(),
+    supabase.from('founder_commitment_tasks').select('*').eq('startup_id', startupId),
+    supabase
+      .from('commitment_documents')
+      .select('id, content, is_provisional, generated_at')
+      .eq('startup_id', startupId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    fetchMatchCount(startupId),
+    supabase
+      .from('startup_investor_matches')
+      .select('match_score')
+      .eq('startup_id', startupId)
+      .eq('status', 'suggested')
+      .order('match_score', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const gate = computeRoundReadiness({
+    startup,
+    tasks: tasks || [],
+    doc,
+    matchCount,
+    topMatchScore: topMatch?.match_score ?? 0,
+  });
+
+  return { startup, tasks: tasks || [], doc, matchCount, gate };
+}
+
+/**
  * Generate commitment document content from startup + tasks.
  */
 function buildDocumentContent(startup, tasks) {
@@ -348,13 +412,59 @@ function buildDocumentContent(startup, tasks) {
         proof: t.proof_data || null,
       })),
     note:
-      'This document is provisional. It becomes your investment memo once commitments are marked complete with verified proof.',
+      'Provisional readiness doc. Each proved unlock upgrades this toward your investment memo — partners read proof, not promises.',
   };
 }
 
 // ============================================================================
 // ROUTES
 // ============================================================================
+
+/**
+ * GET /:startupId/investor-read
+ * Act 1 reveal: GOD breakdown, founder proxies, partner consensus map, hot-company gap.
+ */
+router.get('/:startupId/investor-read', async (req, res) => {
+  const { startupId } = req.params;
+  if (!validateUuid(startupId)) return res.status(400).json({ error: 'Invalid startup ID' });
+
+  try {
+    const { data: startup, error } = await supabase
+      .from('startup_uploads')
+      .select(`
+        id, name, website, sectors, stage, tagline, pitch, description, extracted_data,
+        total_god_score, team_score, traction_score, market_score, product_score, vision_score,
+        has_revenue, has_customers, is_launched, mrr, customer_count, growth_rate_monthly, data_completeness
+      `)
+      .eq('id', startupId)
+      .maybeSingle();
+
+    if (error || !startup) return res.status(404).json({ error: 'Startup not found' });
+
+    const gapTasks = deriveGapTasks(startup);
+
+    const { data: matches, error: matchErr } = await supabase
+      .from('startup_investor_matches')
+      .select(`
+        id, match_score, reasoning, confidence_level, why_you_match,
+        investors:investor_id ( id, name, firm, sectors, stage, investment_thesis )
+      `)
+      .eq('startup_id', startupId)
+      .eq('status', 'suggested')
+      .order('match_score', { ascending: false })
+      .limit(10);
+
+    if (matchErr) {
+      console.error('[wizard] investor-read matches error:', matchErr);
+    }
+
+    const payload = buildInvestorReadPayload(startup, matches || [], gapTasks);
+    return res.json(payload);
+  } catch (err) {
+    console.error('[wizard] investor-read error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
 /**
  * GET /:startupId/gaps
@@ -374,7 +484,9 @@ router.get('/:startupId/gaps', async (req, res) => {
 
     if (error || !startup) return res.status(404).json({ error: 'Startup not found' });
 
-    const tasks = deriveGapTasks(startup);
+    const rawTasks = deriveGapTasks(startup);
+    const matchCount = await fetchMatchCount(startupId);
+    const tasks = enrichGapTasks(rawTasks, startup, matchCount);
 
     // Check if any tasks already exist in DB (to mark them)
     const { data: existingTasks } = await supabase
@@ -390,8 +502,11 @@ router.get('/:startupId/gaps', async (req, res) => {
       existing_deadline: existingMap.get(t.task_key)?.deadline || null,
     }));
 
+    const unlockSummary = buildUnlockSummary(enrichedTasks, startup);
+
     return res.json({
       startup_id: startupId,
+      startup_name: startup.name || 'Unnamed Startup',
       god_score: startup.total_god_score,
       score_components: {
         team: startup.team_score,
@@ -401,8 +516,10 @@ router.get('/:startupId/gaps', async (req, res) => {
         vision: startup.vision_score,
       },
       gap_tasks: enrichedTasks,
+      unlock_summary: unlockSummary,
       total_tasks: enrichedTasks.length,
-      total_potential_gain: enrichedTasks.reduce((s, t) => s + (t.impact_points || 0), 0),
+      total_potential_gain: unlockSummary.total_potential_gain,
+      total_investors_unlocked: unlockSummary.total_investors_unlocked,
     });
   } catch (err) {
     console.error('[wizard] gaps error:', err);
@@ -773,6 +890,18 @@ router.post('/:startupId/document', async (req, res) => {
     const version = (existing?.version || 0) + 1;
     const content = buildDocumentContent(startup, tasks || []);
 
+    // Preserve round activation across doc regenerations
+    const { data: latestFull } = await supabase
+      .from('commitment_documents')
+      .select('content')
+      .eq('startup_id', startupId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestFull?.content?.header?.round_activated_at) {
+      content.header.round_activated_at = latestFull.content.header.round_activated_at;
+    }
+
     const completedTasks = (tasks || []).filter(t => t.status === 'completed');
     const activeTasks = (tasks || []).filter(t => t.status !== 'skipped');
     const isProvisional = activeTasks.length === 0 || completedTasks.length < activeTasks.length;
@@ -849,6 +978,94 @@ router.get('/:startupId/document', async (req, res) => {
 });
 
 /**
+ * GET /:startupId/round-status
+ * Act 3 — readiness gate for outreach + PYTHIA pipeline.
+ */
+router.get('/:startupId/round-status', async (req, res) => {
+  const { startupId } = req.params;
+  if (!validateUuid(startupId)) return res.status(400).json({ error: 'Invalid startup ID' });
+
+  try {
+    const { startup, gate } = await loadRoundContext(startupId);
+    if (!startup) return res.status(404).json({ error: 'Startup not found' });
+    return res.json({
+      startup_id: startupId,
+      startup_name: startup.name,
+      ...gate,
+    });
+  } catch (err) {
+    console.error('[wizard] round-status error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /:startupId/activate-round
+ * Activate PYTHIA automated outreach (requires pipeline_ready).
+ */
+router.post('/:startupId/activate-round', async (req, res) => {
+  const { startupId } = req.params;
+  if (!validateUuid(startupId)) return res.status(400).json({ error: 'Invalid startup ID' });
+
+  try {
+    const { startup, doc, gate } = await loadRoundContext(startupId);
+    if (!startup) return res.status(404).json({ error: 'Startup not found' });
+
+    if (gate.pipeline_active) {
+      return res.json({
+        ok: true,
+        already_active: true,
+        round_activated_at: gate.round_activated_at,
+        activate_url: `/activate?sid=${startupId}&pipeline=1`,
+      });
+    }
+
+    if (!gate.pipeline_ready) {
+      return res.status(403).json({
+        error: 'Round not ready for automation',
+        gate,
+        message: `Reach readiness ${gate.thresholds.pipeline}+ and prove at least one unlock to activate PYTHIA.`,
+      });
+    }
+
+    if (!doc) {
+      return res.status(400).json({ error: 'Generate a readiness doc before activating the round' });
+    }
+
+    const activatedAt = new Date().toISOString();
+    const newContent = {
+      ...doc.content,
+      header: {
+        ...(doc.content?.header || {}),
+        round_activated_at: activatedAt,
+        round_status: 'active',
+      },
+    };
+
+    const { error: updateErr } = await supabase
+      .from('commitment_documents')
+      .update({ content: newContent })
+      .eq('id', doc.id);
+
+    if (updateErr) {
+      console.error('[wizard] activate-round error:', updateErr);
+      return res.status(500).json({ error: 'Failed to activate round' });
+    }
+
+    return res.json({
+      ok: true,
+      round_activated_at: activatedAt,
+      startup_id: startupId,
+      activate_url: `/activate?sid=${startupId}&pipeline=1`,
+      message: 'PYTHIA round activated. Open Activate to track your pipeline.',
+    });
+  } catch (err) {
+    console.error('[wizard] activate-round error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
  * GET /:startupId/outreach-package
  * Generate outreach package: top investor matches + LLM email drafts.
  * Returns investor list + draft email content for each.
@@ -858,23 +1075,24 @@ router.get('/:startupId/outreach-package', async (req, res) => {
   if (!validateUuid(startupId)) return res.status(400).json({ error: 'Invalid startup ID' });
 
   try {
-    // Fetch startup + latest doc
-    const [{ data: startup }, { data: doc }] = await Promise.all([
-      supabase
-        .from('startup_uploads')
-        .select('id, name, website, sectors, stage, pitch, description, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
-        .eq('id', startupId)
-        .maybeSingle(),
-      supabase
-        .from('commitment_documents')
-        .select('content, is_provisional')
-        .eq('startup_id', startupId)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    const { gate } = await loadRoundContext(startupId);
+
+    const { data: startup } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, sectors, stage, pitch, description, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .eq('id', startupId)
+      .maybeSingle();
 
     if (!startup) return res.status(404).json({ error: 'Startup not found' });
+
+    // Fetch latest doc
+    const { data: doc } = await supabase
+      .from('commitment_documents')
+      .select('content, is_provisional')
+      .eq('startup_id', startupId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     // Fetch top matched investors
     const { data: matchRows } = await supabase
@@ -901,14 +1119,18 @@ router.get('/:startupId/outreach-package', async (req, res) => {
     }
 
     if (topMatches.length === 0) {
-      return res.json({
-        startup_id: startupId,
-        is_provisional: doc?.is_provisional ?? true,
-        investors: [],
-        email_drafts: [],
-        memo_markdown: null,
-        message: 'No investor matches found yet. Complete the wizard and try again.',
-      });
+      const empty = gateOutreachPayload(
+        {
+          startup_id: startupId,
+          is_provisional: doc?.is_provisional ?? true,
+          investors: [],
+          email_drafts: [],
+          memo_markdown: null,
+          message: 'No investor matches found yet. Complete the wizard and try again.',
+        },
+        gate,
+      );
+      return res.json(empty);
     }
 
     // Build outreach emails (one per investor — using existing template logic)
@@ -937,8 +1159,9 @@ router.get('/:startupId/outreach-package', async (req, res) => {
     // Build investment memo markdown
     const memoMarkdown = buildInvestmentMemo(startup, doc, topMatches);
 
-    return res.json({
+    const fullPayload = {
       startup_id: startupId,
+      startup_name: startup.name,
       is_provisional: doc?.is_provisional ?? true,
       investors: topMatches.map(m => ({
         id: m.investor.id,
@@ -951,7 +1174,9 @@ router.get('/:startupId/outreach-package', async (req, res) => {
       })),
       email_drafts: emailDrafts,
       memo_markdown: memoMarkdown,
-    });
+    };
+
+    return res.json(gateOutreachPayload(fullPayload, gate));
   } catch (err) {
     console.error('[wizard] outreach-package error:', err);
     return res.status(500).json({ error: 'Server error' });

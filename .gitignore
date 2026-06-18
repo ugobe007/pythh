@@ -68,3 +68,4 @@ temp/
 # Python venv + NLTK demo corpora (local text)
 .venv/
 scripts/corpus/*.txt
+.vercel

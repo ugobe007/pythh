@@ -62,6 +62,7 @@ function formatMatchFull(n: number): string {
 
 function usePlatformStats() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     fetch("/api/platform-stats")
       .then((r) => (r.ok ? r.json() : null))
@@ -73,9 +74,10 @@ function usePlatformStats() {
           matches: Number(d.matches) || 0,
         });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setReady(true));
   }, []);
-  return stats;
+  return { stats, ready };
 }
 
 interface PortfolioHeadlineMetrics {
@@ -253,9 +255,11 @@ function SignalBar({ value, max = 10, color = "emerald" }: { value: number; max?
 
 function HeroSection({
   platformStats,
+  platformStatsReady,
   portfolioMetrics,
 }: {
   platformStats: PlatformStats | null;
+  platformStatsReady: boolean;
   portfolioMetrics: PortfolioHeadlineMetrics | null;
 }) {
   const [url, setUrl] = useState("");
@@ -280,9 +284,9 @@ function HeroSection({
     navigate("/activate");
   };
 
-  const matchCount = platformStats?.matches ?? 1_812_680;
-  const startupCount = platformStats?.startups ?? 11_298;
-  const investorCount = platformStats?.investors ?? 6_376;
+  const matchCount = platformStats?.matches ?? 0;
+  const startupCount = platformStats?.startups ?? 0;
+  const investorCount = platformStats?.investors ?? 0;
   const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
   const latestMatch = recentMatches[0] ?? null;
 
@@ -311,7 +315,7 @@ function HeroSection({
 
       <div className="flex flex-col gap-3">
         <div
-          className="flex items-center gap-3 px-4 py-3 rounded-lg min-w-0 transition-all"
+          className="flex items-center gap-3 px-4 py-3.5 rounded-lg min-w-0 transition-all"
           style={{
             backgroundColor: "oklch(0.09 0.01 264)",
             border: `1px solid ${error ? "rgba(248,113,113,0.5)" : BORDER}`,
@@ -329,7 +333,7 @@ function HeroSection({
         </div>
         <button
           type="submit"
-          className="inline-flex items-center justify-center gap-2 w-full px-6 py-3 rounded-lg text-sm font-semibold font-mono transition-all"
+          className="inline-flex items-center justify-center gap-2 w-full px-6 py-3.5 rounded-lg text-sm font-semibold font-mono transition-all"
           style={{
             background: "transparent",
             color: G,
@@ -378,35 +382,45 @@ function HeroSection({
         }}
       />
 
-      <div className="container relative z-10 max-w-[1100px] mx-auto px-6 py-8 lg:py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 xl:gap-16 items-center">
+      <div className="container relative z-10 max-w-[1180px] mx-auto px-6 py-8 lg:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 xl:gap-14 items-center">
 
-          {/* Left — pitch (mirrors right column toward center gutter) */}
-          <div className="flex flex-col justify-center text-left max-w-[460px] w-full mx-auto lg:mx-0 lg:ml-auto lg:pr-6 xl:pr-10">
-            <span
-              className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase mb-5 px-3 py-1.5 rounded-full"
-              style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
-              Investor Intelligence · Live
-            </span>
-
-            <p className="text-sm font-bold font-mono mb-4" style={{ color: G }}>
-              {formatMatchFull(matchCount)}+ investor matches
-              <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
-            </p>
+          {/* Left — pitch; min-w-0 keeps headline inside the grid column */}
+          <div className="flex flex-col justify-center text-left w-full min-w-0 max-w-[560px] mx-auto lg:mx-0 lg:ml-auto lg:pr-6 xl:pr-10 order-2 lg:order-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
+              <span
+                className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase px-3 py-1.5 rounded-full"
+                style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
+                Investor Intelligence · Live
+              </span>
+              <p className="text-sm font-bold font-mono" style={{ color: G }}>
+                {platformStatsReady && matchCount > 0 ? (
+                  <>
+                    {formatMatchFull(matchCount)}+ investor matches
+                    <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
+                  </>
+                ) : (
+                  <span className="inline-block h-4 w-40 rounded animate-pulse" style={{ backgroundColor: G_SUBTLE }} />
+                )}
+              </p>
+            </div>
 
             <h1
-              className="font-display font-bold leading-[1.06] mb-4"
-              style={{ fontSize: "clamp(2.4rem, 4.8vw, 4rem)", color: TEXT, letterSpacing: "-0.04em" }}
+              className="font-display font-bold leading-[1.12] mb-4"
+              style={{ fontSize: "clamp(2rem, 3.4vw, 3.35rem)", color: TEXT, letterSpacing: "-0.04em" }}
             >
-              Find your investors.
-              <br />
-              <span style={{ color: G_HOVER }}>Build your term sheet.</span>
+              <span className="block">Find investors that match your thesis.</span>
+              <span className="block">
+                <span style={{ color: TEXT }}>Get </span>
+                <span style={{ color: G_HOVER }}>funded</span>
+                <span style={{ color: TEXT }}>.</span>
+              </span>
             </h1>
 
             <p
-              className="text-base sm:text-lg leading-relaxed mb-6"
+              className="text-base sm:text-lg leading-relaxed mb-5 max-w-[52ch]"
               style={{ color: MUTED }}
             >
               Submit your URL. Pythh scores your startup, matches aligned investors,
@@ -415,32 +429,38 @@ function HeroSection({
 
             <a
               href="/portfolio"
-              className="inline-flex items-center gap-2 text-sm font-semibold mb-6 transition-colors"
+              className="inline-flex items-center gap-2 text-sm font-semibold mb-5 transition-colors"
               style={{ color: G }}
             >
               See the Oracle&apos;s track record <ArrowRight size={14} />
             </a>
 
             <p className="text-xs leading-relaxed" style={{ color: DIM }}>
-              {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
-              {portfolioMetrics?.verified_funded_picks != null && (
+              {platformStatsReady && startupCount > 0 ? (
                 <>
-                  {" · "}
-                  <span style={{ color: G }}>
-                    {portfolioMetrics.verified_funded_picks} verified funded
-                    {portfolioMetrics.verified_funded_rate_pct != null
-                      ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
-                      : ""}
-                  </span>
+                  {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
+                  {portfolioMetrics?.verified_funded_picks != null && (
+                    <>
+                      {" · "}
+                      <span style={{ color: G }}>
+                        {portfolioMetrics.verified_funded_picks} verified funded
+                        {portfolioMetrics.verified_funded_rate_pct != null
+                          ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
+                          : ""}
+                      </span>
+                    </>
+                  )}
                 </>
+              ) : (
+                <span className="inline-block h-3 w-56 max-w-full rounded animate-pulse" style={{ backgroundColor: "oklch(0.2 0.01 264)" }} />
               )}
             </p>
           </div>
 
-          {/* Right — CTA + live match (mirrors left toward center gutter) */}
-          <div className="flex flex-col justify-center gap-3.5 w-full max-w-[460px] mx-auto lg:mx-0 lg:mr-auto lg:pl-6 xl:pl-10">
+          {/* Right — CTA + live match */}
+          <div className="flex flex-col justify-center gap-3.5 w-full min-w-0 max-w-[500px] mx-auto lg:mx-0 lg:mr-auto lg:pl-6 xl:pl-10 order-1 lg:order-2">
             {urlForm()}
-            <LatestMatchPanel match={latestMatch} loading={recentLoading} />
+            <LatestMatchPanel match={latestMatch} loading={recentLoading} size="hero" />
           </div>
 
         </div>
@@ -756,20 +776,23 @@ function PortfolioTeaser() {
 // ─── Track Record Strip ─────────────────────────────────────────────────────
 function TrackRecordStrip({
   platformStats,
+  platformStatsReady,
   portfolioMetrics,
 }: {
   platformStats: PlatformStats | null;
+  platformStatsReady: boolean;
   portfolioMetrics: PortfolioHeadlineMetrics | null;
 }) {
   const { ref, isVisible } = useIntersectionObserver();
-  const matchCount = platformStats?.matches ?? 1_812_680;
-  const startupsTarget = platformStats?.startups ?? 33_241;
-  const investorsTarget = platformStats?.investors ?? 6_250;
+  const matchCount = platformStats?.matches ?? 0;
+  const startupsTarget = platformStats?.startups ?? 0;
+  const investorsTarget = platformStats?.investors ?? 0;
   const verifiedTarget = portfolioMetrics?.verified_funded_picks ?? 0;
   const verifiedPct = portfolioMetrics?.verified_funded_rate_pct;
-  const startups = useCountUp(startupsTarget, 1600, isVisible);
-  const investors = useCountUp(investorsTarget, 1800, isVisible);
-  const verified = useCountUp(verifiedTarget, 1400, isVisible);
+  const statsLive = platformStatsReady && startupsTarget > 0;
+  const startups = useCountUp(startupsTarget, 1600, isVisible && statsLive);
+  const investors = useCountUp(investorsTarget, 1800, isVisible && statsLive);
+  const verified = useCountUp(verifiedTarget, 1400, isVisible && statsLive);
 
   const stats = [
     {
@@ -780,9 +803,9 @@ function TrackRecordStrip({
       accent: true,
       href: "/portfolio",
     },
-    { value: formatMatchCompact(matchCount), suffix: "+", label: "Pre-computed Matches", sub: "startup ↔ investor pairs · updated daily", color: G, href: null },
-    { value: startups.toLocaleString(), suffix: "+", label: "Startups Scored", sub: "in the Pythh network, updated daily", color: CYAN, href: null },
-    { value: investors.toLocaleString(), suffix: "+", label: "Investors Qualified", sub: "entity-resolved, thesis-mapped, GOD-ranked", color: PURPLE, href: null },
+    { value: statsLive ? formatMatchCompact(matchCount) : "—", suffix: statsLive ? "+" : "", label: "Pre-computed Matches", sub: statsLive ? "startup ↔ investor pairs · updated daily" : "loading network stats…", color: G, href: null },
+    { value: statsLive ? startups.toLocaleString() : "—", suffix: statsLive ? "+" : "", label: "Startups Scored", sub: statsLive ? "in the Pythh network, updated daily" : "loading network stats…", color: CYAN, href: null },
+    { value: statsLive ? investors.toLocaleString() : "—", suffix: statsLive ? "+" : "", label: "Investors Qualified", sub: statsLive ? "entity-resolved, thesis-mapped, GOD-ranked" : "loading network stats…", color: PURPLE, href: null },
   ];
 
   return (
@@ -1380,7 +1403,7 @@ function Footer() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const platformStats = usePlatformStats();
+  const { stats: platformStats, ready: platformStatsReady } = usePlatformStats();
   const portfolioMetrics = usePortfolioHeadlineMetrics();
 
   return (
@@ -1390,12 +1413,12 @@ export default function Home() {
         variant="hero"
         heroCta={{ label: "Find investors", targetId: "hero-cta" }}
       />
-      <HeroSection platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
+      <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <HowItWorksSection />
       <TermSheetSection />
       <SignalProofBar />
       <InvestorStrip />
-      <TrackRecordStrip platformStats={platformStats} portfolioMetrics={portfolioMetrics} />
+      <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <PortfolioTeaser />
       <GODScoreSection />
       <AgentIntroSection />
