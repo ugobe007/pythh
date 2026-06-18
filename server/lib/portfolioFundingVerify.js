@@ -4,7 +4,7 @@
 
 const FUNDING_RE = /\b(raises?|raised|secures?|closed|announces?\s+\$|seed\s+round|series\s+[a-e]|pre[- ]?seed|funding\s+round|venture\s+capital|vc\s+backed|unicorn|billion|million.*round|round.*investment)\b/i;
 const AMOUNT_RE = /\$\s*(\d[\d,.]*)\s*(million|billion|M|B)\b/gi;
-const ROUND_RE = /\b(pre[- ]?seed|seed|series\s+[a-e]\+?|growth\s+round|late\s+stage)\b/i;
+const ROUND_RE = /\b(pre[- ]?seed|seed|series\s+[a-e]\+?|mezzanine|mezz(?:anine)?\s+round|growth\s+round|late\s+stage)\b/i;
 const INVESTOR_RE = /\b(led\s+by|co[- ]?led\s+by|backed\s+by)\s+([A-Z][A-Za-z\s,&]+?)(?:\s+and\s+|\.|,|\n)/;
 
 function extractAmountUsd(text) {

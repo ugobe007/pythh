@@ -7,6 +7,10 @@
  *   Seed      $10M – $20M
  *   Series A  $30M – $40M
  *   Series B  $50M – $100M
+ *   Mezzanine $75M – $125M  (between B and C)
+ *   Series C  $100M – $200M
+ *
+ * Fallback only — prefer timed rounds from fundingTimelineService when available.
  */
 
 const STAGE_VALUATION_RANGES = {
@@ -14,6 +18,7 @@ const STAGE_VALUATION_RANGES = {
   seed: [10_000_000, 20_000_000],
   'series a': [30_000_000, 40_000_000],
   'series b': [50_000_000, 100_000_000],
+  mezzanine: [75_000_000, 125_000_000],
   'series c': [100_000_000, 200_000_000],
 };
 
@@ -33,6 +38,8 @@ const STAGE_ALIASES = {
   'stage 4': 'series b',
   'series b': 'series b',
   'series b+': 'series b',
+  mezzanine: 'mezzanine',
+  'mezz round': 'mezzanine',
   5: 'series c',
   'stage 5': 'series c',
   'series c': 'series c',

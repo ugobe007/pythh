@@ -29,6 +29,7 @@ import * as dotenv from 'dotenv';
 import OpenAI from 'openai';
 import { parseGoogleNewsRss } from '../server/lib/portfolioFundingVerify.js';
 import { estimateEntryValuationUsd } from '../server/lib/stageValuationBenchmarks.js';
+import { valuationAtDate, buildFundingTimeline } from '../server/lib/fundingTimelineService.js';
 
 dotenv.config();
 
@@ -157,24 +158,13 @@ function honestEntryFromSignals({ deal, preExit, existingEntry, entryGodScore, s
 async function lastVerifiedPreExitValuation(supabase, startupId, exitDate) {
   const { data, error } = await supabase
     .from('portfolio_events')
-    .select('post_money_usd, amount_usd, event_date, verified')
-    .eq('startup_id', startupId)
-    .eq('event_type', 'funding_round')
-    .order('event_date', { ascending: false });
+    .select('*')
+    .eq('startup_id', startupId);
   if (error) return 0;
-  const exitMs = exitDate ? new Date(exitDate).getTime() : Date.now();
-  for (const e of data || []) {
-    const v = Number(e.post_money_usd) || Number(e.amount_usd) || 0;
-    if (v <= 0 || v > MAX_PLAUSIBLE) continue;
-    if (new Date(e.event_date).getTime() >= exitMs) continue;
-    if (e.verified) return v;
-  }
-  for (const e of data || []) {
-    const v = Number(e.post_money_usd) || Number(e.amount_usd) || 0;
-    if (v <= 0 || v > MAX_PLAUSIBLE) continue;
-    if (new Date(e.event_date).getTime() < exitMs) return v;
-  }
-  return 0;
+  const timeline = buildFundingTimeline(data || []);
+  const row = valuationAtDate(timeline, exitDate, { verifiedOnly: true })
+    || valuationAtDate(timeline, exitDate, { verifiedOnly: false });
+  return row?.post_money_usd || 0;
 }
 
 async function main() {

@@ -9470,6 +9470,7 @@ const {
   isGenericRationale,
 } = require('./lib/portfolioAnalytics');
 const { computeFollowOnValue } = require('./lib/followOnAnalytics');
+const { resolvePositionValuation, buildFundingTimeline, firstRoundByStage } = require('./lib/fundingTimelineService');
 const { computeSignalTrackRecord } = require('./lib/signalTrackRecord');
 const { computeSignalVelocity } = require('./lib/signalVelocity');
 
@@ -9648,7 +9649,21 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
       ].sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
     }
 
-    res.json({ entry: merged, events: timeline, recent_news: recentNews });
+    res.json({
+      entry: merged,
+      events: timeline,
+      recent_news: recentNews,
+      funding_timeline: resolvePositionValuation({
+        events: allEvents,
+        entryDate: merged.entry_date,
+        exitDate: merged.exit_date,
+        status: merged.status,
+        exitValuationUsd: merged.exit_valuation_usd,
+        stage: merged.current_stage || merged.entry_stage,
+        entryGodScore: merged.entry_god_score,
+      }),
+      funding_rounds_by_stage: firstRoundByStage(buildFundingTimeline(allEvents)),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
