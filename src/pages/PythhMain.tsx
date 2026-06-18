@@ -193,8 +193,8 @@ function Hero() {
           margin: '0 auto 2.25rem',
         }}
       >
-        Submit your URL. Pythh scores your startup, matches aligned investors,
-        and guides you to a commitment doc that closes the gap to funding.
+        Submit your URL. Pythh reads your signals, matches you to top investors
+        and builds funding stacks... automatically.
       </motion.p>
 
       {/* URL input + CTA */}

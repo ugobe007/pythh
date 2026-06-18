@@ -17,6 +17,7 @@
     "test:hot-god-contract": "node --test tests/hotGodFromStartupRow.contract.test.mjs",
     "test:oauth-smoke": "node scripts/smoke-oauth-prod.mjs",
     "test:wizard-smoke": "node scripts/smoke-wizard-3act.mjs",
+    "test:wizard-smoke:local": "node scripts/smoke-wizard-3act-local.mjs",
     "check:ontology-alignment": "node scripts/check-ontology-alignment.js",
     "pipeline": "node scripts/core/hot-match-autopilot.js",
     "pipeline:daemon": "node scripts/core/hot-match-autopilot.js --daemon",

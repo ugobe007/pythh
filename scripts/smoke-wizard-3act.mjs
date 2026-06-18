@@ -5,7 +5,8 @@
  * Usage:
  *   node scripts/smoke-wizard-3act.mjs
  *   BASE=https://pythh.ai node scripts/smoke-wizard-3act.mjs
- *   BASE=http://localhost:3002 node scripts/smoke-wizard-3act.mjs
+ *   npm run test:wizard-smoke:local   # auto-starts dev server if needed
+ *   BASE=http://127.0.0.1:3002 node scripts/smoke-wizard-3act.mjs   # server must already be running
  */
 
 import { createRequire } from 'node:module';
@@ -41,18 +42,27 @@ function isRouteNotDeployed(res, body) {
 
 async function fetchJson(path, opts = {}) {
   const url = `${BASE}${path.startsWith('/') ? path : `/${path}`}`;
-  const res = await fetch(url, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
-  });
-  let body = null;
-  const text = await res.text();
   try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = { _raw: text.slice(0, 300) };
+    const res = await fetch(url, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    let body = null;
+    const text = await res.text();
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = { _raw: text.slice(0, 300) };
+    }
+    return { res, body, url };
+  } catch (err) {
+    const code = err?.cause?.code || err?.code;
+    return { connectionError: true, code, message: err?.message || String(err), url };
   }
-  return { res, body, url };
+}
+
+function isLocalBase() {
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(BASE);
 }
 
 // ── 1. Local lib smoke (no network) ─────────────────────────────────────────
@@ -143,6 +153,13 @@ async function testApi() {
 
   // Health
   const health = await fetchJson('/api/health');
+  if (health.connectionError) {
+    const hint = isLocalBase()
+      ? 'start API: npm run dev:server  (or: npm run test:wizard-smoke:local)'
+      : `cannot reach ${BASE}`;
+    skipTest('API smoke', `${health.code || 'fetch failed'} — ${hint}`);
+    return;
+  }
   if (health.res.ok) ok('GET /api/health', String(health.res.status));
   else bad('GET /api/health', String(health.res.status));
 

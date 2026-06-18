@@ -423,8 +423,8 @@ function HeroSection({
               className="text-base sm:text-lg leading-relaxed mb-5 max-w-[52ch]"
               style={{ color: MUTED }}
             >
-              Submit your URL. Pythh scores your startup, matches aligned investors,
-              and guides you to a commitment doc that closes the gap to funding.
+              Submit your URL. Pythh reads your signals, matches you to top investors
+              and builds funding stacks... automatically.
             </p>
 
             <a
