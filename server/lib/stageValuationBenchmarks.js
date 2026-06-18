@@ -74,9 +74,113 @@ function stageValuationMidpoints() {
   return out;
 }
 
+/** Median primary-round dilution (ownership sold) by stage — for post-money inference. */
+const TYPICAL_ROUND_DILUTION = {
+  'pre-seed': 0.12,
+  seed: 0.18,
+  'series a': 0.2,
+  'series b': 0.16,
+  mezzanine: 0.1,
+  'series c': 0.1,
+};
+
+const ROUND_TYPE_TO_STAGE = {
+  'pre-seed': 'pre-seed',
+  seed: 'seed',
+  'series-a': 'series a',
+  'series-b': 'series b',
+  mezzanine: 'mezzanine',
+  'series-c': 'series c',
+  growth: 'series c',
+  'late-stage': 'series c',
+};
+
+function roundTypeToStageKey(roundType) {
+  const raw = String(roundType ?? '').trim().toLowerCase().replace(/_/g, '-');
+  if (ROUND_TYPE_TO_STAGE[raw]) return ROUND_TYPE_TO_STAGE[raw];
+  const m = raw.match(/series-?([a-e])/);
+  if (m) {
+    const letter = m[1];
+    if (letter === 'a') return 'series a';
+    if (letter === 'b') return 'series b';
+    return 'series c';
+  }
+  if (raw.includes('pre') && raw.includes('seed')) return 'pre-seed';
+  if (raw.includes('seed')) return 'seed';
+  if (raw.includes('mezz')) return 'mezzanine';
+  if (raw.includes('extension')) return 'series a';
+  return 'seed';
+}
+
+function isExtensionRound(roundType, headline = '') {
+  const text = `${roundType || ''} ${headline || ''}`.toLowerCase();
+  return /\bextension\b|\btop[- ]?up\b|\badd[- ]?on\b|\banother\b|\badditional\b/i.test(text);
+}
+
+/**
+ * Estimate post-money when press reports raise size but not valuation.
+ * Uses typical dilution by stage; does not cap mega-rounds to stage bands.
+ *
+ * @param {object} p
+ * @param {string} [p.roundType]
+ * @param {number} [p.amountUsd]
+ * @param {number} [p.preMoneyUsd]
+ * @param {number} [p.postMoneyUsd]
+ * @param {string} [p.headline]
+ * @param {number} [p.totalRaisedUsd] cumulative "total funding" from headline
+ * @returns {number|null}
+ */
+function estimatePostMoneyFromRound({
+  roundType,
+  amountUsd,
+  preMoneyUsd,
+  postMoneyUsd,
+  headline,
+  totalRaisedUsd,
+} = {}) {
+  const post = Number(postMoneyUsd);
+  if (post > 0 && post <= 15_000_000_000) return Math.round(post);
+
+  const pre = Number(preMoneyUsd);
+  const amt = Number(amountUsd);
+  if (pre > 0 && amt > 0) return Math.round(pre + amt);
+
+  if (!(amt > 0)) {
+    const total = Number(totalRaisedUsd);
+    if (total > 0 && total <= 15_000_000_000) return Math.round(total * 1.35);
+    return null;
+  }
+
+  const stageKey = roundTypeToStageKey(roundType);
+  const [bandMin, bandMax] = STAGE_VALUATION_RANGES[stageKey] || STAGE_VALUATION_RANGES.seed;
+  let dilution = TYPICAL_ROUND_DILUTION[stageKey] || 0.18;
+  if (isExtensionRound(roundType, headline)) dilution *= 0.55;
+
+  const implied = Math.round(amt / dilution);
+  const total = Number(totalRaisedUsd);
+
+  // Mega-round: dilution model; lift using cumulative funding when reported.
+  if (amt >= bandMax || implied >= bandMax * 2) {
+    let est = implied;
+    if (total > 0) est = Math.round(Math.max(est, total * 1.15));
+    return Math.min(est, 15_000_000_000);
+  }
+
+  // Typical round: dilution estimate, floored at stage band, soft-capped above band.
+  const softCap = Math.round(bandMax * 2.5);
+  let est = Math.max(bandMin, Math.min(implied, softCap));
+  if (total > est && total <= 15_000_000_000) {
+    est = Math.round(Math.max(est, total * 1.15));
+  }
+  return est;
+}
+
 module.exports = {
   STAGE_VALUATION_RANGES,
+  TYPICAL_ROUND_DILUTION,
   normalizeStage,
   estimateEntryValuationUsd,
   stageValuationMidpoints,
+  roundTypeToStageKey,
+  estimatePostMoneyFromRound,
 };

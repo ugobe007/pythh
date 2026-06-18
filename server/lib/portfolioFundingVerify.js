@@ -82,7 +82,8 @@ function parseGoogleNewsRss(xml) {
       (item.match(/<description>(.*?)<\/description>/) || [])[1] ||
       '';
     const link = (item.match(/<link>(.*?)<\/link>/) || [])[1] || '';
-    return { title: title.trim(), desc: desc.trim(), link: link.trim() };
+    const pubDate = (item.match(/<pubDate>(.*?)<\/pubDate>/) || [])[1] || '';
+    return { title: title.trim(), desc: desc.trim(), link: link.trim(), pubDate: pubDate.trim() };
   });
 }
 

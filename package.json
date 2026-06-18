@@ -19,6 +19,8 @@
     "test:wizard-smoke": "node scripts/smoke-wizard-3act.mjs",
     "test:wizard-smoke:local": "node scripts/smoke-wizard-3act-local.mjs",
     "portfolio:timelines": "node scripts/apply-funding-timelines.mjs --apply",
+    "portfolio:backfill-funding": "node scripts/backfill-funding-history.mjs --apply --timelines",
+    "portfolio:fix-post-money": "node scripts/backfill-funding-history.mjs --apply --fix-post-only --timelines",
     "check:ontology-alignment": "node scripts/check-ontology-alignment.js",
     "pipeline": "node scripts/core/hot-match-autopilot.js",
     "pipeline:daemon": "node scripts/core/hot-match-autopilot.js --daemon",

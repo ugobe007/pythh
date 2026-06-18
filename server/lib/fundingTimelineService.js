@@ -6,7 +6,7 @@
  * Fallback (no timed round) = stage band estimate from stageValuationBenchmarks.
  */
 
-const { estimateEntryValuationUsd, normalizeStage } = require('./stageValuationBenchmarks.js');
+const { estimateEntryValuationUsd, normalizeStage, estimatePostMoneyFromRound } = require('./stageValuationBenchmarks.js');
 
 const MAX_PLAUSIBLE_USD = 15_000_000_000;
 
@@ -79,6 +79,29 @@ function plausibleVal(n) {
   return v > 0 && v <= MAX_PLAUSIBLE_USD ? v : 0;
 }
 
+function resolveEventPostMoney(e) {
+  const explicit = plausibleVal(e.post_money_usd);
+  if (explicit && explicit !== plausibleVal(e.amount_usd)) return explicit;
+  const totalMatch = (e.headline || '').match(
+    /(?:bringing|total|raised)\s+(?:funding\s+)?(?:to\s+)?\$\s*(\d[\d,.]*)\s*(million|billion|M|B)/i,
+  );
+  let totalRaisedUsd = null;
+  if (totalMatch) {
+    const num = parseFloat(totalMatch[1].replace(/,/g, ''));
+    const mult = totalMatch[2].toLowerCase().startsWith('b') ? 1_000_000_000 : 1_000_000;
+    totalRaisedUsd = Math.round(num * mult);
+  }
+  const est = estimatePostMoneyFromRound({
+    roundType: e.round_type,
+    amountUsd: plausibleVal(e.amount_usd) || null,
+    preMoneyUsd: plausibleVal(e.pre_money_usd) || null,
+    postMoneyUsd: explicit || null,
+    headline: e.headline,
+    totalRaisedUsd,
+  });
+  return plausibleVal(est) || explicit || plausibleVal(e.amount_usd);
+}
+
 /**
  * Build ordered funding + liquidity timeline from portfolio_events rows.
  */
@@ -86,7 +109,7 @@ function buildFundingTimeline(events = []) {
   const rows = [];
   for (const e of events) {
     if (e.event_type === 'funding_round') {
-      const post = plausibleVal(e.post_money_usd) || plausibleVal(e.amount_usd);
+      const post = resolveEventPostMoney(e);
       if (!post) continue;
       rows.push({
         kind: 'funding_round',
@@ -261,4 +284,5 @@ module.exports = {
   nextRoundAfter,
   firstRoundByStage,
   resolvePositionValuation,
+  resolveEventPostMoney,
 };
