@@ -28,6 +28,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import OpenAI from 'openai';
 import { parseGoogleNewsRss } from '../server/lib/portfolioFundingVerify.js';
+import { estimateEntryValuationUsd } from '../server/lib/stageValuationBenchmarks.js';
 
 dotenv.config();
 
@@ -148,15 +149,7 @@ function honestEntryFromSignals({ deal, preExit, existingEntry, entryGodScore, s
   else if (existingEntry > 0 && !placeholder && !entryEqualsDeal && existingEntry < deal * 0.98) {
     honestEntry = existingEntry;
   } else {
-    const bases = {
-      'Stage 1': 15_000_000, '1': 15_000_000, 'Pre-Seed': 15_000_000,
-      'Stage 2': 35_000_000, '2': 35_000_000, 'Seed': 35_000_000,
-      'Stage 3': 80_000_000, '3': 80_000_000, 'Series A': 80_000_000,
-      'Stage 4': 250_000_000, '4': 250_000_000, 'Series B': 250_000_000,
-    };
-    const base = bases[String(stage || '').trim()] || 12_000_000;
-    const premium = Math.max(0.8, (Number(entryGodScore) || 70) / 70);
-    honestEntry = Math.round(base * premium);
+    honestEntry = estimateEntryValuationUsd(stage, entryGodScore);
   }
   return Math.min(honestEntry, deal * 0.95);
 }

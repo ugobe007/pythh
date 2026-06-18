@@ -174,18 +174,7 @@ function assignSector(startup) {
   return bestMatchCount > 0 ? bestSector : null;
 }
 
-function estimateValuation(stage, godScore) {
-  const bases = {
-    '1': 15_000_000, 'pre-seed': 15_000_000, 'preseed': 15_000_000,
-    '2': 35_000_000, 'seed': 35_000_000,
-    '3': 80_000_000, 'series a': 80_000_000,
-    '4': 200_000_000, 'series b': 200_000_000,
-  };
-  const s = String(stage || '').toLowerCase().trim();
-  const base = bases[s] || 15_000_000;
-  const premium = Math.max(0.8, (godScore || 70) / 70);
-  return Math.round(base * premium);
-}
+import { estimateEntryValuationUsd } from '../server/lib/stageValuationBenchmarks.js';
 
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 async function run() {
@@ -295,7 +284,7 @@ async function run() {
 
   for (const [sector, picks] of Object.entries(portfolio)) {
     for (const p of picks) {
-      const val = p.valuation_usd || estimateValuation(p.stage, p.total_god_score);
+      const val = p.valuation_usd || estimateEntryValuationUsd(p.stage, p.total_god_score);
       const { error: insErr } = await supabase.from('virtual_portfolio').insert({
         startup_id:           p.id,
         entry_date:           p.created_at || new Date().toISOString(),

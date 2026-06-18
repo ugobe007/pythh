@@ -16,7 +16,9 @@ import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const { isFundLocked, lockNote } = createRequire(import.meta.url)('../server/lib/fundLock.js');
+const require = createRequire(import.meta.url);
+const { isFundLocked, lockNote } = require('../server/lib/fundLock.js');
+const { estimateEntryValuationUsd } = require('../server/lib/stageValuationBenchmarks.js');
 if (isFundLocked()) {
   console.error('🔒  ' + lockNote());
   console.error('    Seeding is disabled. Set PORTFOLIO_UNLOCK=true to open a new vintage.');
@@ -44,20 +46,9 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ---------------------------------------------------------------------------
-// Stage → estimated valuation
-// ---------------------------------------------------------------------------
-// 2025 market benchmarks (YC standard: pre-seed ~$20M post, seed ~$30-50M, etc.)
+// Stage → estimated valuation (server/lib/stageValuationBenchmarks.js)
 function estimateValuation(stage, godScore) {
-  const bases = {
-    'Stage 1': 15_000_000, '1': 15_000_000, 'Pre-Seed': 15_000_000, 'pre-seed': 15_000_000,
-    'Stage 2': 35_000_000, '2': 35_000_000, 'Seed': 35_000_000, 'seed': 35_000_000,
-    'Stage 3': 80_000_000, '3': 80_000_000, 'Series A': 80_000_000,
-    'Stage 4': 250_000_000, '4': 250_000_000, 'Series B': 250_000_000, 'Series B+': 250_000_000,
-  };
-  const base = bases[String(stage || '').trim()] ?? 15_000_000; // null stage → $15M pre-seed floor
-  const premium = Math.max(0.8, (godScore || 70) / 70);
-  return Math.round(base * premium);
+  return estimateEntryValuationUsd(stage, godScore);
 }
 
 // ---------------------------------------------------------------------------

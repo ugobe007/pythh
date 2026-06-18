@@ -16,43 +16,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY || ''
 );
 
-// ---------------------------------------------------------------------------
-// VALUATION ESTIMATION
-// ---------------------------------------------------------------------------
-// Because very few startups have a real valuation in the DB we estimate
-// entry valuation from the funding stage + GOD score premium.
-//
-//  Stage 1 (pre-seed)  → $3M base
-//  Stage 2 (seed)      → $8M base
-//  Stage 3 (Series A)  → $20M base
-//  Stage 4+ (Series B+)→ $60M base
-//  GOD premium         → base × (score / 70)  (score 70 = 1×, 100 = 1.43×)
-// ---------------------------------------------------------------------------
-
-function estimateEntryValuationUsd(stage: string | null, godScore: number): number {
-  // 2025 market benchmarks (YC standard: pre-seed ~$20M post, seed ~$30-50M, etc.)
-  const bases: Record<string, number> = {
-    'Stage 1': 15_000_000,
-    'Stage 2': 35_000_000,
-    'Stage 3': 80_000_000,
-    'Stage 4': 250_000_000,
-    '1': 15_000_000,
-    '2': 35_000_000,
-    '3': 80_000_000,
-    '4': 250_000_000,
-    'Pre-Seed': 15_000_000,
-    'Seed': 35_000_000,
-    'Series A': 80_000_000,
-    'Series B': 250_000_000,
-    'Series B+': 250_000_000,
-    'Series C': 600_000_000,
-  };
-
-  const stageKey = stage ? String(stage).trim() : 'Pre-Seed';
-  const base = bases[stageKey] ?? bases['Pre-Seed']; // null stage → $15M pre-seed floor
-  const premium = Math.max(0.8, (godScore || 70) / 70);
-  return Math.round(base * premium);
-}
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { estimateEntryValuationUsd } = require('../lib/stageValuationBenchmarks.js');
 
 // ---------------------------------------------------------------------------
 // MOIC + IRR
