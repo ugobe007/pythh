@@ -150,6 +150,52 @@ router.post('/generate', async (req, res) => {
   }
 });
 
+// ── Engagement helpers (view → intro → contact → feedback) ──
+function engagementSupabase() {
+  return createClient(
+    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+  );
+}
+
+async function patchMatchEngagement(matchId, patch) {
+  const supabase = engagementSupabase();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('startup_investor_matches')
+    .update({ ...patch, last_interaction: now })
+    .eq('id', matchId)
+    .select('id, startup_id, investor_id, match_score, viewed_at, intro_requested_at, contacted_at, feedback_received, success_score')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** GET /api/matches/engagement/metrics */
+router.get('/engagement/metrics', async (req, res) => {
+  try {
+    const supabase = engagementSupabase();
+    const total = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true });
+    const viewed = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).not('viewed_at', 'is', null);
+    const intro = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).not('intro_requested_at', 'is', null);
+    const contacted = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).not('contacted_at', 'is', null);
+    const feedback = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).eq('feedback_received', true);
+    res.json({
+      success: true,
+      data: {
+        total_matches: total.count ?? 0,
+        viewed: viewed.count ?? 0,
+        intro_requested: intro.count ?? 0,
+        contacted: contacted.count ?? 0,
+        feedback_received: feedback.count ?? 0,
+        intro_rate: total.count ? (intro.count ?? 0) / total.count : 0,
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 // Ensure services are loaded before handling requests
 router.use(async (req, res, next) => {
   await loadServices();
@@ -858,6 +904,105 @@ router.get('/top', async (req, res) => {
       success: false,
       error: err.message,
     });
+  }
+});
+
+// ============================================
+// MATCH ENGAGEMENT (view → intro → contact → feedback)
+// ============================================
+
+/**
+ * POST /api/matches/:matchId/view
+ */
+router.post('/:matchId/view', async (req, res) => {
+  try {
+    const data = await patchMatchEngagement(req.params.matchId, {
+      viewed_at: new Date().toISOString(),
+      status: 'viewed',
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/matches/:matchId/intro
+ */
+router.post('/:matchId/intro', async (req, res) => {
+  try {
+    const data = await patchMatchEngagement(req.params.matchId, {
+      intro_requested_at: new Date().toISOString(),
+      status: 'intro_requested',
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/matches/:matchId/contact
+ */
+router.post('/:matchId/contact', async (req, res) => {
+  try {
+    const data = await patchMatchEngagement(req.params.matchId, {
+      contacted_at: new Date().toISOString(),
+      status: 'contacted',
+    });
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/matches/:matchId/feedback
+ * Body: { feedback_type, notes?, investment_amount?, created_by? }
+ */
+router.post('/:matchId/feedback', async (req, res) => {
+  try {
+    const { feedback_type, notes, investment_amount, created_by = 'api' } = req.body || {};
+    const allowed = ['intro_sent', 'meeting_scheduled', 'investment_made', 'passed', 'no_response'];
+    if (!allowed.includes(feedback_type)) {
+      return res.status(400).json({ success: false, error: `feedback_type must be one of: ${allowed.join(', ')}` });
+    }
+    const supabase = engagementSupabase();
+    const { data: match, error: mErr } = await supabase
+      .from('startup_investor_matches')
+      .select('id, startup_id, investor_id')
+      .eq('id', req.params.matchId)
+      .single();
+    if (mErr || !match) return res.status(404).json({ success: false, error: 'Match not found' });
+
+    const successScore = {
+      passed: 0,
+      no_response: 0.2,
+      intro_sent: 0.4,
+      meeting_scheduled: 0.7,
+      investment_made: 1.0,
+    }[feedback_type];
+
+    await supabase.from('match_feedback').insert({
+      match_id: match.id,
+      startup_id: match.startup_id,
+      investor_id: match.investor_id,
+      feedback_type,
+      feedback_date: new Date().toISOString(),
+      investment_amount: investment_amount ?? null,
+      notes: notes ?? null,
+      created_by,
+      created_at: new Date().toISOString(),
+    });
+
+    const data = await patchMatchEngagement(match.id, {
+      success_score: successScore,
+      feedback_received: true,
+    });
+
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 

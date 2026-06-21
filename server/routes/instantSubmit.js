@@ -63,6 +63,7 @@ const {
   fetchPatentEvidence,
 } = require('../../lib/proprietaryTechAssessment');
 const { applyStageInvestorFitAdjustment } = require('../../lib/stageInvestorFit');
+const { applyInvestorRecencyAdjustment } = require('../../lib/matchInvestorRecency');
 const intel = require('../services/submitUrlIntelligence');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { enrichSocialScore } = require('../services/newsSignalService');
@@ -653,11 +654,12 @@ function calculateMatchScore(startup, investor, signalScore, investorSignals) {
     confidence: baseTotal >= 75 ? 'high' : baseTotal >= 55 ? 'medium' : 'low',
   };
 
-  return applyStageInvestorFitAdjustment(
+  const stageAdjusted = applyStageInvestorFitAdjustment(
     applyTechVcMatchAdjustment(base, startup, investor, investorSignals),
     startup,
     investor
   );
+  return applyInvestorRecencyAdjustment(stageAdjusted, investor);
 }
 
 function formatSectors(sectors) {

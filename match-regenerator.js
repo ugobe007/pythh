@@ -16,6 +16,7 @@
 const { supabase } = require('./server/lib/supabaseClient');
 const { applyTechVcMatchAdjustment } = require('./lib/proprietaryTechAssessment');
 const { applyStageInvestorFitAdjustment } = require('./lib/stageInvestorFit');
+const { applyInvestorRecencyAdjustment } = require('./lib/matchInvestorRecency');
 const { isNonInvestorAggregator } = require('./lib/investorAggregatorBlocklist');
 
 // Matching configuration
@@ -764,7 +765,7 @@ async function regenerateMatches() {
       const { data, error } = await supabase
         .from('investors')
         // Omit embedding — coverage is 0%, and large vectors cause payload truncation
-        .select('id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, investment_thesis, signals, status')
+        .select('id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, investment_thesis, signals, status, last_investment_date, deployment_velocity_index')
         .eq('status', 'active')
         .order('id', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -959,7 +960,21 @@ async function regenerateMatches() {
           });
         }
 
-        const confidenceLevel = stageAdjusted.confidence;
+        const recencyAdjusted = applyInvestorRecencyAdjustment(
+          { score: finalScore, fitAnalysis, confidence: stageAdjusted.confidence },
+          investor,
+        );
+        finalScore = recencyAdjusted.score;
+        fitAnalysis = recencyAdjusted.fitAnalysis;
+        if (fitAnalysis.investor_recency_delta) {
+          reasons.push({
+            key: 'investor_recency',
+            points: fitAnalysis.investor_recency_delta,
+            note: fitAnalysis.investor_recency?.note || 'Investor deployment recency',
+          });
+        }
+
+        const confidenceLevel = recencyAdjusted.confidence;
         const reasoning = generateReasoning(startup, investor, fitAnalysis);
         const whyYouMatch = generateWhyYouMatch(startup, investor, fitAnalysis);
         
@@ -968,7 +983,7 @@ async function regenerateMatches() {
           investor_id: investor.id,
           match_score: finalScore,
           similarity_score: rawSimilarity,
-          algorithm_version: 'v3.2-pythh-stagefit',
+          algorithm_version: 'v3.3-pythh-recency',
           status: 'suggested',
           confidence_level: confidenceLevel,
           fit_analysis: fitAnalysis,

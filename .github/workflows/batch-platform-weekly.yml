@@ -5,6 +5,7 @@ on:
   schedule:
     - cron: '0 2 * * 0'   # Sunday — full match regen
     - cron: '0 2 * * 3'   # Wednesday — social signals fetcher
+    - cron: '0 6 * * 1'   # Monday — pipeline weekly runbook (dashboard + enrichment)
     - cron: '0 7 * * 1'   # Monday — portfolio signal refresh
     - cron: '0 8 * * 1'   # Monday — portfolio funding verification
   workflow_dispatch:
@@ -17,6 +18,7 @@ on:
           - social-signals
           - portfolio-signal-refresh
           - portfolio-verify-funding
+          - pipeline-weekly-runbook
 
 concurrency:
   group: platform-weekly-${{ github.event.schedule || github.event.inputs.job }}
@@ -54,3 +56,11 @@ jobs:
     with:
       run: node scripts/verify-portfolio-funding.mjs
       timeout_minutes: 30
+
+  pipeline-weekly-runbook:
+    if: github.event.schedule == '0 6 * * 1' || github.event.inputs.job == 'pipeline-weekly-runbook'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/pipeline-weekly-runbook.mjs --apply
+      timeout_minutes: 120
