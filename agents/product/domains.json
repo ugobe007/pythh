@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "domains": [
+    {
+      "id": "growth",
+      "agent": "agents/growth",
+      "metrics_script": "scripts/growth-metrics-snapshot.mjs",
+      "registry": "agents/growth/experiment-registry.json",
+      "focus": "Signup funnels, form schemas, hero copy, preview-before-signup"
+    },
+    {
+      "id": "pipeline",
+      "metrics_script": "scripts/pipeline-weekly-dashboard.mjs",
+      "focus": "Enrichment throughput, GOD quality, investor recency, ingest gates"
+    },
+    {
+      "id": "matching",
+      "metrics_script": "scripts/pipeline-weekly-dashboard.mjs",
+      "focus": "Match score distribution, algorithm version, recency weights"
+    },
+    {
+      "id": "engagement",
+      "metrics_script": "scripts/pipeline-weekly-dashboard.mjs",
+      "focus": "Match viewed, intro requested, contacted, feedback — post-signup activation"
+    },
+    {
+      "id": "services",
+      "registry": "agents/product/opportunity-registry.json",
+      "focus": "MCP tools, APIs, automations, new revenue/retention surfaces"
+    }
+  ]
+}

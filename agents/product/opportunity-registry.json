@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-22T00:00:00Z",
+  "opportunities": [
+    {
+      "id": "match_engagement_instrumentation",
+      "domain": "engagement",
+      "priority": "P0",
+      "status": "validating",
+      "title": "Match engagement API + UI events",
+      "problem": "3.7M matches exist but viewed/intro/contact events are not wired — we cannot optimize post-signup funnel.",
+      "hypothesis": "Instrumenting view → intro → contact will reveal where founders drop off and unlock engagement experiments.",
+      "metric": "match_intro_rate",
+      "baseline": null,
+      "target": "5% intro rate on viewed matches within 30d of launch",
+      "next_step": "Wire POST /api/matches/:id/view|intro|contact from matches UI; track in ai_logs + growth events",
+      "related_experiments": ["founder_hero_entry"]
+    },
+    {
+      "id": "founder_match_nudges",
+      "domain": "engagement",
+      "priority": "P1",
+      "status": "idea",
+      "title": "Founder match nudge service",
+      "problem": "Founders submit URL but may not return to view matches.",
+      "hypothesis": "Email/in-app nudge with top 3 investor names increases return visits 2x.",
+      "metric": "return_visit_7d",
+      "baseline": null,
+      "target": "20% return within 7d",
+      "next_step": "Spec email template + Resend trigger after first match batch",
+      "related_experiments": []
+    },
+    {
+      "id": "investor_dealflow_digest",
+      "domain": "services",
+      "priority": "P1",
+      "status": "idea",
+      "title": "Weekly investor dealflow digest (MCP + email)",
+      "problem": "Investors lack a reason to log in after signup.",
+      "hypothesis": "Thesis-matched startup digest increases investor retention and intro acceptance.",
+      "metric": "investor_weekly_active",
+      "baseline": null,
+      "target": "15% WAU among signed-up investors",
+      "next_step": "Design digest schema: top 5 startups by thesis fit + deployment velocity signal",
+      "related_experiments": ["investor_signup_schema"]
+    },
+    {
+      "id": "instant_matches_gate",
+      "domain": "growth",
+      "priority": "P0",
+      "status": "building",
+      "title": "Preview matches before signup (matches_preview variant)",
+      "problem": "Founders may bounce before seeing value.",
+      "hypothesis": "Showing 3 blurred matches before account creation increases signup completion.",
+      "metric": "founder_signup_completed",
+      "baseline": null,
+      "target": "+15% vs url_first control",
+      "next_step": "Ensure /matches?url= flow tracks instant_matches_viewed; compare variants after 7d",
+      "related_experiments": ["founder_hero_entry"]
+    },
+    {
+      "id": "god_ingest_gate",
+      "domain": "pipeline",
+      "priority": "P1",
+      "status": "idea",
+      "title": "Reject junk names at ingest",
+      "problem": "Low-quality startup names pollute match pool and depress GOD means.",
+      "hypothesis": "Entity-resolution gate at submit reduces C-tier approved startups by 30%.",
+      "metric": "approved_tier_c_pct",
+      "baseline": null,
+      "target": "C-tier < 25% of approved",
+      "next_step": "Run npm run pipeline:god-audit; tighten correlate-policy thresholds",
+      "related_experiments": []
+    },
+    {
+      "id": "match_explain_service",
+      "domain": "services",
+      "priority": "P2",
+      "status": "idea",
+      "title": "Why this investor? — match explain API",
+      "problem": "Founders see scores but not reasoning; investors distrust black-box ranking.",
+      "hypothesis": "Structured explain blocks (portfolio fit, stage, check size, recency) increase intro requests.",
+      "metric": "intro_per_match_view",
+      "baseline": null,
+      "target": "+25% intro rate when explain shown",
+      "next_step": "Extend get_match_insights MCP tool with copy-ready explain blocks",
+      "related_experiments": []
+    }
+  ]
+}
