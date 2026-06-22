@@ -1,19 +1,10 @@
 {
   "installCommand": "npm ci --legacy-peer-deps",
-  "buildCommand": "npm run build",
+  "buildCommand": "mkdir -p dist && echo '<!doctype html><title>pythh fly proxy</title>' > dist/index.html",
   "outputDirectory": "./dist",
   "headers": [
     {
       "source": "/",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/index.html",
       "headers": [
         {
           "key": "Cache-Control",
@@ -32,12 +23,8 @@
   ],
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://hot-honey.fly.dev/api/:path*"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "https://hot-honey.fly.dev/$1"
     }
   ]
 }

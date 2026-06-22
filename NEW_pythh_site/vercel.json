@@ -1,6 +1,6 @@
 {
-  "installCommand": "cd .. && npm ci --legacy-peer-deps",
-  "buildCommand": "bash -lc 'cd .. && npm run build && rm -rf NEW_pythh_site/dist && cp -r dist NEW_pythh_site/'",
+  "installCommand": "echo skip",
+  "buildCommand": "mkdir -p dist && echo '<!doctype html><title>pythh fly proxy</title>' > dist/index.html",
   "outputDirectory": "dist",
   "headers": [
     {
@@ -9,31 +9,14 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=0, must-revalidate"
-        },
-        {
-          "key": "Vary",
-          "value": "Accept-Encoding"
-        }
-      ]
-    },
-    {
-      "source": "/assets/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
         }
       ]
     }
   ],
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://hot-honey.fly.dev/api/:path*"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "https://hot-honey.fly.dev/$1"
     }
   ]
 }
