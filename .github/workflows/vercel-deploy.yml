@@ -2,6 +2,7 @@
 # NOT hot-money-honey — that is a legacy project; pushes there do not update pythh.ai.
 #
 # Required GitHub Actions secrets (repo → Settings → Secrets and variables → Actions):
+#   VERCEL_DEPLOY_HOOK   — **pythh** project → Settings → Git → Deploy Hooks (main) — preferred
 #   VERCEL_TOKEN         — https://vercel.com/account/tokens
 #   VERCEL_ORG_ID        — Vercel → **pythh** project → Settings → General (Team ID)
 #   VERCEL_PROJECT_ID    — **pythh** project → Settings → General (Project ID) — must own pythh.ai
@@ -51,7 +52,16 @@ jobs:
       - name: Deploy to Vercel (production)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "Using VERCEL_DEPLOY_HOOK (pythh project deploy hook)…"
+            curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+            echo "Deploy hook triggered."
+          else
+            echo "No deploy hook — using vercel CLI (requires correct VERCEL_PROJECT_ID)…"
+            npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
+          fi
 
       - name: Verify pythh.ai serves this commit
         run: |

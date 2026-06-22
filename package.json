@@ -26,6 +26,7 @@
     "pipeline:weekly-runbook": "node scripts/pipeline-weekly-runbook.mjs --apply",
     "pipeline:weekly-runbook:report": "node scripts/pipeline-weekly-runbook.mjs",
     "pipeline:refresh-platform-stats": "node scripts/refresh-platform-stats-cache.mjs --apply",
+    "check:pythh-frontend": "node scripts/check-pythh-frontend-deploy.mjs",
     "pipeline:apply-platform-stats-cache": "node scripts/apply-platform-stats-cache.mjs",
     "growth:apply-schema": "node scripts/apply-growth-experiments.mjs",
     "growth:metrics": "node scripts/growth-metrics-snapshot.mjs",

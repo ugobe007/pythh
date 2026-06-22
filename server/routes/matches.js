@@ -189,6 +189,47 @@ async function logMatchEngagement(operation, { matchId, startupId, investorId, s
   }
 }
 
+async function countAiLogOperations(operation) {
+  const supabase = engagementSupabase();
+  const { count, error } = await supabase
+    .from('ai_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('operation', operation);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+async function countMatchColumn(column) {
+  const supabase = engagementSupabase();
+  const timeoutMs = 8000;
+  const query = supabase
+    .from('startup_investor_matches')
+    .select('id', { count: 'exact', head: true })
+    .not(column, 'is', null);
+  const result = await Promise.race([
+    query,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+  ]);
+  if (result.error) throw result.error;
+  return result.count ?? 0;
+}
+
+async function totalMatchesFromCache() {
+  const supabase = engagementSupabase();
+  const { data, error } = await supabase
+    .from('platform_stats_cache')
+    .select('matches')
+    .order('computed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!error && data?.matches != null) return Number(data.matches);
+  const { count, error: countErr } = await supabase
+    .from('startup_investor_matches')
+    .select('id', { count: 'estimated', head: true });
+  if (countErr) throw countErr;
+  return count ?? 0;
+}
+
 /**
  * POST /api/matches/engage
  * Body: { startup_id, investor_id, action: view|intro|contact, source? }
@@ -245,21 +286,60 @@ router.post('/engage', async (req, res) => {
 /** GET /api/matches/engagement/metrics */
 router.get('/engagement/metrics', async (req, res) => {
   try {
-    const supabase = engagementSupabase();
-    const total = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true });
-    const viewed = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).not('viewed_at', 'is', null);
-    const intro = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).not('intro_requested_at', 'is', null);
-    const contacted = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).not('contacted_at', 'is', null);
-    const feedback = await supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }).eq('feedback_received', true);
+    const total_matches = await totalMatchesFromCache();
+    let viewed = 0;
+    let intro_requested = 0;
+    let contacted = 0;
+    let feedback_received = 0;
+    let source = 'ai_logs';
+
+    try {
+      [viewed, intro_requested, contacted] = await Promise.all([
+        countAiLogOperations('match_viewed'),
+        countAiLogOperations('match_intro_requested'),
+        countAiLogOperations('match_contacted'),
+      ]);
+    } catch {
+      source = 'match_table_fallback';
+    }
+
+    if (source === 'match_table_fallback' || (viewed === 0 && intro_requested === 0)) {
+      try {
+        [viewed, intro_requested, contacted, feedback_received] = await Promise.all([
+          countMatchColumn('viewed_at'),
+          countMatchColumn('intro_requested_at'),
+          countMatchColumn('contacted_at'),
+          Promise.resolve(0),
+        ]);
+        source = 'match_table';
+      } catch {
+        /* keep ai_logs counts */
+      }
+    }
+
+    if (!feedback_received) {
+      try {
+        const supabase = engagementSupabase();
+        const { count, error } = await supabase
+          .from('startup_investor_matches')
+          .select('id', { count: 'exact', head: true })
+          .eq('feedback_received', true);
+        if (!error) feedback_received = count ?? 0;
+      } catch {
+        feedback_received = 0;
+      }
+    }
+
     res.json({
       success: true,
       data: {
-        total_matches: total.count ?? 0,
-        viewed: viewed.count ?? 0,
-        intro_requested: intro.count ?? 0,
-        contacted: contacted.count ?? 0,
-        feedback_received: feedback.count ?? 0,
-        intro_rate: total.count ? (intro.count ?? 0) / total.count : 0,
+        total_matches,
+        viewed,
+        intro_requested,
+        contacted,
+        feedback_received,
+        intro_rate: total_matches ? intro_requested / total_matches : 0,
+        source,
       },
     });
   } catch (err) {
