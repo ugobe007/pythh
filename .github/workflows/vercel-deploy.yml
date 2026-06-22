@@ -3,8 +3,8 @@
 #
 # Required GitHub Actions secrets (repo → Settings → Secrets and variables → Actions):
 #   VERCEL_TOKEN         — https://vercel.com/account/tokens
-#   VERCEL_ORG_ID        — Vercel → hot-money-honey → Settings → General (Team ID)
-#   VERCEL_PROJECT_ID    — same page (Project ID)
+#   VERCEL_ORG_ID        — Vercel → **pythh** project → Settings → General (Team ID)
+#   VERCEL_PROJECT_ID    — **pythh** project → Settings → General (Project ID) — must own pythh.ai
 #   Values also appear in .vercel/project.json after: npx vercel link
 #
 # The Vercel project must have Production env vars for the Vite build (e.g. VITE_SUPABASE_*),
@@ -51,4 +51,21 @@ jobs:
       - name: Deploy to Vercel (production)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes --project pythh
+        run: npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
+
+      - name: Verify pythh.ai serves this commit
+        run: |
+          expected="${{ github.sha }}"
+          echo "Expect pythh-build meta = $expected"
+          for i in $(seq 1 12); do
+            html=$(curl -fsSL "https://pythh.ai/?v=$i" || true)
+            got=$(echo "$html" | grep -o 'name="pythh-build" content="[^"]*"' | sed 's/.*content="//;s/"//' || true)
+            echo "Attempt $i: got=${got:-<missing>}"
+            if [ "$got" = "$expected" ]; then
+              echo "✅ pythh.ai is live on $expected"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::pythh.ai still serves '${got:-unknown}' — expected '$expected'. Check VERCEL_PROJECT_ID points to the Vercel **pythh** project that owns pythh.ai (not hot-money-honey)."
+          exit 1
