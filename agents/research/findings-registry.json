@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-22T21:05:00Z",
+  "updated_at": "2026-06-22T22:20:00Z",
   "findings": [
     {
       "id": "F-2026-0622-01",
@@ -151,6 +151,75 @@
       "signup_lever": "awareness (positioning)",
       "confidence": "medium",
       "status": "open"
+    },
+    {
+      "id": "F-2026-0622-08",
+      "type": "market",
+      "friction_category": "timing_velocity",
+      "audience": "founder",
+      "title": "Founders are routing around VC — matching to the right capital TYPE (not just VCs) broadens Pythh's TAM",
+      "founder_problem": "Many founders are not VC-fit (wrong stage, sector, growth profile) yet still need capital. They increasingly bypass the VC grind via crowdfunding, angels, revenue-based finance, and strategics — but have no single place that tells them which capital TYPE fits them and routes them to it.",
+      "investor_problem": "Non-VC capital providers (syndicates, crowdfunding platforms, RBF, angels) also lack a quality, pre-qualified founder pipeline.",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-22: Sifted (Jun 2026) 'How these fintech founders crowdfunded EUR8m in less than an hour' — founders raising fast outside traditional VC outreach.",
+        "web": "Morgan Stanley 2026: >half of founders pursuing a broader range of capital sources; prior-cycle corroboration.",
+        "strength": "hypothesis (external/secondary); recurring 'broader capital sources' theme across multiple cycles"
+      },
+      "pythh_opportunity": "Add a capital-type router to the match preview: classify the founder and surface the best-fit capital TYPE (VC / angel / crowdfunding / RBF / strategic) alongside specific matches. Captures the large segment of founders who would bounce off a VC-only product, widening top-of-funnel without new acquisition spend.",
+      "suggested_product_shape": "Match preview returns a 'best capital fit' verdict + routes (VC shortlist, or angel/crowdfunding/RBF alternatives) instead of VC-only results.",
+      "signup_lever": "awareness (broader TAM) + conversion",
+      "confidence": "medium",
+      "status": "open",
+      "product_opportunity_id": "capital_type_router",
+      "handoff": {
+        "suggested_opportunity_id": "capital_type_router",
+        "title": "Capital-type router in match preview (VC vs angel/crowdfunding/RBF/strategic)",
+        "priority": "P2",
+        "domain": "growth"
+      }
+    },
+    {
+      "id": "F-2026-0622-09",
+      "type": "market",
+      "friction_category": "dealflow_noise",
+      "audience": "both",
+      "title": "Capital is rotating fast between hot sectors — a live 'is your sector hot / who's deploying' signal sharpens the value moment",
+      "founder_problem": "Founders can't see, in the moment, whether capital is flowing into their sector this quarter or which investors are actively writing checks there — so they mistime outreach and pitch funds that have rotated away.",
+      "investor_problem": "Investors want to spot where momentum is concentrating (and where it is cooling) without manually tracking round-by-round news.",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-22: Crunchbase News 'Robotics Startups On Fire As Venture Funding Surges To Record Numbers In 2026'; 'World-Model Startup Odyssey Leads With $310M In Slower Week For Large Deals' (rotation + cooling in same week); ~81% of Q1 2026 venture to AI.",
+        "strength": "hypothesis (external); distinct from F-05 (fund-level deploy timing) — this is sector-level demand heat"
+      },
+      "pythh_opportunity": "A sector-heat signal on the match preview: 'Your sector is hot right now — N matched investors made a check here in the last 90 days' (or a cooling warning). Cheap to compute from funding RSS + internal startup_events; deepens the pre-signup value moment for both audiences and gives investors a reason to return.",
+      "suggested_product_shape": "Sector-heat badge in preview (heating/cooling + count of recently-active matched investors), sourced from funding RSS + internal startup_events.",
+      "signup_lever": "conversion (richer preview) + investor retention",
+      "confidence": "medium",
+      "status": "open",
+      "product_opportunity_id": "sector_heat_signal"
+    },
+    {
+      "id": "F-2026-0622-10",
+      "type": "pipeline",
+      "friction_category": "missing_signals",
+      "audience": "both",
+      "title": "Internal founder-side inventory is empty (startup_events = 0) — the match engine has nothing to match",
+      "founder_problem": "No founder/startup events are being captured, so even a perfect match preview has no live demand-side data to learn from or personalize against.",
+      "investor_problem": "Without a populated founder/startup inventory there is no dealflow to curate or digest for investors — the investor side cannot launch.",
+      "evidence": {
+        "internal": "research-snapshot 2026-06-22T22:20Z: internal_events.sampled=0, friction_hits=0; startup_events returned 0 rows over the 7-day window. Pairs with F-01 (uninstrumented funnel).",
+        "strength": "validated (internal data, strongest evidence) — this is a confirmed supply gap, not a hypothesis"
+      },
+      "pythh_opportunity": "Seed and instrument the founder-supply layer: capture every URL submission / preview request as a startup_event so the match engine and dealflow digest have inventory. This is the data prerequisite that makes instant_match_preview and dealflow_quality_score actually work end-to-end.",
+      "suggested_product_shape": "Log startup_events on every public preview request (URL, derived profile, sector, stage); backfill from existing sources so matching + digest have a corpus.",
+      "signup_lever": "conversion (enables match quality) + investor retention (enables digest)",
+      "confidence": "high",
+      "status": "open",
+      "handoff": {
+        "suggested_opportunity_id": "founder_supply_seeding",
+        "title": "Capture startup_events on every preview request to populate match-engine inventory",
+        "priority": "P1",
+        "domain": "pipeline"
+      }
     }
   ]
 }

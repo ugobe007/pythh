@@ -1,7 +1,22 @@
 {
   "version": 1,
-  "updated_at": "2026-06-22T00:00:00Z",
+  "updated_at": "2026-06-22T22:30:00Z",
   "opportunities": [
+    {
+      "id": "founder_supply_seeding",
+      "domain": "pipeline",
+      "priority": "P0",
+      "status": "validating",
+      "title": "Funnel event observability + startup_events capture",
+      "problem": "Entire user-side funnel is blind: ai_logs.by_operation={}, growth_event_count=1, startup_events=0 rows, matches 0 viewed/intro/contacted. Two 'shipped' P0 instrumentation items emit zero events and we cannot tell no-traffic from no-logging.",
+      "hypothesis": "Funnel is under-instrumented, not un-trafficked. A synthetic probe + funnel heartbeat + preview_requested write disambiguates in 48h and seeds match inventory.",
+      "metric": "funnel_stages_emitting_events",
+      "baseline": "0 of 5 stages observed",
+      "target": "5/5 stages verified within 48h; traffic-vs-logging resolved",
+      "next_step": "Run synthetic probe through /matches?url=, /api/matches/engage, investor signup; add funnel block to product-metrics-snapshot.mjs; wire preview_requested to startup_events. Spec: agents/product/specs/founder_supply_seeding.md",
+      "finding_id": "F-2026-0622-10",
+      "related_experiments": ["founder_hero_entry", "investor_signup_schema"]
+    },
     {
       "id": "match_engagement_instrumentation",
       "domain": "engagement",
@@ -13,7 +28,7 @@
       "metric": "match_intro_rate",
       "baseline": null,
       "target": "5% intro rate on viewed matches within 30d of launch",
-      "next_step": "Monitor /api/matches/engagement/metrics after Activate + preview traffic",
+      "next_step": "BLIND: 0 viewed/intro/contacted of 3.73M matches. Marked shipped but emitting zero events — verify via founder_supply_seeding probe before trusting.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
@@ -55,7 +70,7 @@
       "metric": "founder_signup_completed",
       "baseline": null,
       "target": "+15% vs url_first control",
-      "next_step": "Live on /matches?url= and /matches/preview/:id — compare founder_hero_entry variants after 7d",
+      "next_step": "BLIND: growth_event_count=1 in 7d — cannot compare variants. Gated behind founder_supply_seeding observability fix before any traffic-reallocation decision.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
