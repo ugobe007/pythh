@@ -13,7 +13,7 @@
       "metric": "match_intro_rate",
       "baseline": null,
       "target": "5% intro rate on viewed matches within 30d of launch",
-      "next_step": "Verify events in ai_logs (match_viewed, match_intro_requested) and growth_experiment_events",
+      "next_step": "Deploy NEW_pythh_site; verify instant_matches_viewed + match_viewed in ai_logs after traffic",
       "related_experiments": ["founder_hero_entry"]
     },
     {
@@ -55,7 +55,7 @@
       "metric": "founder_signup_completed",
       "baseline": null,
       "target": "+15% vs url_first control",
-      "next_step": "Ensure /matches?url= flow tracks instant_matches_viewed; compare variants after 7d",
+      "next_step": "Live on /matches?url= and /matches/preview/:id — compare founder_hero_entry variants after 7d",
       "related_experiments": ["founder_hero_entry"]
     },
     {

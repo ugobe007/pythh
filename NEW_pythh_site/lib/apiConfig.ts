@@ -41,3 +41,27 @@ export function apiUrl(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }
+
+export function fetchTimeoutSignal(ms: number): AbortSignal {
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
+}
+
+/** GET /api/preview/:startupId — retries on 404 while row propagates. */
+export async function fetchPreviewReport(
+  startupId: string,
+  options: { signal?: AbortSignal; maxRetries?: number } = {},
+): Promise<Response> {
+  const maxRetries = Math.max(1, options.maxRetries ?? 4);
+  const signal = options.signal ?? fetchTimeoutSignal(45_000);
+  let last: Response | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    last = await fetch(apiUrl(`/api/preview/${startupId}`), { signal });
+    if (last.ok || last.status !== 404) return last;
+    if (attempt < maxRetries - 1) {
+      await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+    }
+  }
+  return last!;
+}

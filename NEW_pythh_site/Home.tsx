@@ -662,9 +662,10 @@ function InvestorStrip() {
             runs on — live deal flow without exports or stale spreadsheets.
           </p>
 
+          <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
           <a
             href="/developers"
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold flex-shrink-0 transition-all"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition-all"
             style={{ border: "1px solid #7c3aed", color: "#a78bfa" }}
             onMouseEnter={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#a78bfa"; el.style.color = "#c4b5fd"; }}
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "#7c3aed"; el.style.color = "#a78bfa"; }}
@@ -673,6 +674,15 @@ function InvestorStrip() {
             Connect your agent
             <ArrowRight size={14} />
           </a>
+          <a
+            href="/signup/investor"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition-all"
+            style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "#000" }}
+          >
+            Join as investor
+            <ArrowRight size={14} />
+          </a>
+          </div>
         </div>
       </div>
     </section>

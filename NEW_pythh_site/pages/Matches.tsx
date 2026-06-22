@@ -17,6 +17,7 @@ import {
 import { trpc } from "@/lib/trpc";
 
 import SharedNavbar from "@/components/SharedNavbar";
+import InstantMatchPreview from "@/components/InstantMatchPreview";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -158,9 +159,12 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
 export default function Matches() {
   const [location] = useLocation();
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    setHighlightId(new URLSearchParams(window.location.search).get("highlight"));
+    const params = new URLSearchParams(window.location.search);
+    setHighlightId(params.get("highlight"));
+    setPreviewUrl(params.get("url"));
   }, [location]);
 
   const { data: stats, isLoading } = trpc.matches.getStats.useQuery(undefined, {
@@ -192,6 +196,10 @@ export default function Matches() {
 
       <main className="container pt-24 pb-20 max-w-5xl">
 
+        {previewUrl ? (
+          <InstantMatchPreview url={previewUrl} />
+        ) : (
+        <>
         {/* ── Hero ── */}
         <div className="mb-16">
           <div
@@ -487,6 +495,9 @@ export default function Matches() {
             </Link>
           </div>
         </section>
+
+        </>
+        )}
 
       </main>
 
