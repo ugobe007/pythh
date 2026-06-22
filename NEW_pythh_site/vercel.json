@@ -1,6 +1,6 @@
 {
   "installCommand": "echo skip",
-  "buildCommand": "mkdir -p dist && echo '<!doctype html><title>pythh fly proxy</title>' > dist/index.html",
+  "buildCommand": "mkdir -p dist",
   "outputDirectory": "dist",
   "headers": [
     {

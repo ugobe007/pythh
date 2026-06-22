@@ -10,8 +10,11 @@ const expected =
   process.env.EXPECTED_SHA?.trim() ||
   execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
+// Root `/` may be a Vercel placeholder; probe a known SPA route instead.
+const PROBE_PATH = '/signup/investor';
+
 async function fetchHtml(url) {
-  return fetch(`${url}/?t=${Date.now()}`, {
+  return fetch(`${url}${PROBE_PATH}?t=${Date.now()}`, {
     headers: { 'Cache-Control': 'no-cache' },
   }).then((r) => r.text());
 }

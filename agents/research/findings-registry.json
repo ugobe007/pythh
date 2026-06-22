@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-22T17:30:00Z",
+  "updated_at": "2026-06-22T21:05:00Z",
   "findings": [
     {
       "id": "F-2026-0622-01",
@@ -113,6 +113,42 @@
       "pythh_opportunity": "Investor deployment-timing alerts ('this fund just closed / is actively deploying in your sector') for founders, and broader-capital-source matching. Recurring alerts create a retention loop.",
       "suggested_product_shape": "Timing signal on investor profiles ('recently raised / actively deploying') surfaced in matches + alert subscription.",
       "signup_lever": "retention + engagement",
+      "confidence": "medium",
+      "status": "open"
+    },
+    {
+      "id": "F-2026-0622-06",
+      "type": "market",
+      "friction_category": "pricing_terms",
+      "audience": "both",
+      "title": "Valuation/terms uncertainty in a frothy-but-cautious market — founders don't know what to ask, investors lack live comps",
+      "founder_problem": "Founders entering a round have no trustworthy, sector/stage-specific reference for what valuation, check size, or terms (SAFE cap, dilution) to expect — so they over/under-ask, stall, or get washed out in negotiation.",
+      "investor_problem": "Investors want defensible, current comps to anchor offers; firm-level databases lag and headline mega-rounds distort expectations.",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-22: crunchbase_news friction hit category=pricing_terms on 'AppsFlyer Reportedly Lands $1B At $2.7B Valuation'; Crunchbase News: 'Greenspan Penned Irrational Exuberance 30 Years Ago. It Aged Well.' (valuation-frothiness caution); Q1 2026 record ~$297B venture with 81% to AI = bifurcated, distorted pricing.",
+        "strength": "hypothesis (external/secondary); pricing_terms is a recurring friction category with a live RSS hit today"
+      },
+      "pythh_opportunity": "Add a valuation/terms benchmark to the match preview: 'comparable raises at your stage/sector look like X' plus a thesis-aligned check-size expectation per matched investor. Appeals to both sides and deepens the value moment before signup.",
+      "suggested_product_shape": "Stage/sector terms benchmark widget in match preview + per-investor expected check size; sourced from internal startup_events + funding RSS.",
+      "signup_lever": "conversion (richer value preview) + awareness",
+      "confidence": "medium",
+      "status": "open"
+    },
+    {
+      "id": "F-2026-0622-07",
+      "type": "market",
+      "friction_category": "workflow_tools",
+      "audience": "both",
+      "title": "'Services-as-software' shift — position Pythh as an agent that does the fundraising work, not another database",
+      "founder_problem": "Founders are tired of buying yet another data tool they must operate manually (lists, CRMs, spreadsheets); they want the work done for them.",
+      "investor_problem": "Investors equally want curated output (a digest, a shortlist) rather than another dashboard to maintain.",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-22: crunchbase_news 'Saas Isn't Coming Back. Something Much Bigger Is Replacing It' (services-as-software / agentic shift); venturebeat cluster on agentic enterprises and self-improving agents.",
+        "strength": "hypothesis (external); positioning/messaging signal rather than a discrete feature gap"
+      },
+      "pythh_opportunity": "Frame Pythh's wedge (instant match preview + thesis-fit explainer + curated digest) as agentic 'fundraising-as-a-service' in landing copy and onboarding — differentiator vs database competitors (PitchBook, Harmonic, Affinity) and an awareness lever.",
+      "suggested_product_shape": "Messaging/positioning experiment for Growth Agent: 'Pythh does the fundraising legwork' landing variant; measure value_preview->account_created lift.",
+      "signup_lever": "awareness (positioning)",
       "confidence": "medium",
       "status": "open"
     }
