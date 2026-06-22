@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "rss_feeds": [
+    { "id": "techcrunch", "url": "https://techcrunch.com/feed/", "weight": 1.0 },
+    { "id": "venturebeat", "url": "https://venturebeat.com/feed/", "weight": 0.9 },
+    { "id": "sifted", "url": "https://sifted.eu/feed/", "weight": 0.85 },
+    { "id": "crunchbase_news", "url": "https://news.crunchbase.com/feed/", "weight": 0.9 }
+  ],
+  "search_themes": [
+    "founders struggle fundraising",
+    "investor dealflow quality",
+    "startup investor matching",
+    "fundraising CRM alternatives",
+    "warm intro platforms"
+  ],
+  "communities": [
+    { "id": "hn_ask", "note": "Hacker News Ask HN — manual or API in future" },
+    { "id": "twitter_vc", "note": "VC Twitter discourse — future social-signals integration" }
+  ],
+  "internal_sources": [
+    "startup_events",
+    "ai_logs",
+    "growth_experiment_events",
+    "product_opportunities"
+  ],
+  "competitor_watch": [
+    "Harmonic", "PitchBook", "Carta", "Affinity", "Visible", "Fundraise.com", "OpenVC"
+  ]
+}

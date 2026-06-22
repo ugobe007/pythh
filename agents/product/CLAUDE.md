@@ -13,8 +13,11 @@ Read `agents/product/domains.json` for the full map. Primary domains:
 | **matching** | Match relevance & ranking | avg score, algorithm version, intro rate |
 | **engagement** | Post-signup activation | match viewed, intro requested, contacted |
 | **services** | New MCP tools, APIs, automations | usage, time-to-value, support burden |
+| **research** | Market pain, workflow friction, funding gaps | findings count, handoffs to backlog |
 
 Delegate narrow signup tests to the Growth Agent (`agents/growth/`). You decide *what* to test; Growth runs *how*.
+
+**Research handoff:** At the start of each run, read the latest `reports/research-agent-*.json` and `agents/research/briefs/*-market-brief.md`. Promote high-confidence research findings into `opportunity-registry.json` before internal-only gaps.
 
 ## Every run
 

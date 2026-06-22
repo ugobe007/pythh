@@ -77,6 +77,19 @@ async function main() {
     growth = latestReport('growth-metrics-') || { error: growthRun.stderr?.slice(0, 300) || 'growth snapshot failed' };
   }
 
+  // Research snapshot (RSS + friction + signup velocity)
+  const researchRun = runSnapshot('scripts/research-snapshot.mjs', ['--json']);
+  let research = null;
+  if (researchRun.ok && researchRun.stdout) {
+    try {
+      research = JSON.parse(researchRun.stdout);
+    } catch {
+      research = latestReport('research-snapshot-') || { parse_error: true };
+    }
+  } else {
+    research = latestReport('research-snapshot-') || { error: researchRun.stderr?.slice(0, 300) || 'research snapshot failed' };
+  }
+
   const registry = readJson(path.join(repoRoot, 'agents/product/opportunity-registry.json'));
   const domains = readJson(path.join(repoRoot, 'agents/product/domains.json'));
   const growthRegistry = readJson(path.join(repoRoot, 'agents/growth/experiment-registry.json'));
@@ -112,6 +125,14 @@ async function main() {
         }
       : null,
     growth,
+    research: research
+      ? {
+          north_star: research.north_star,
+          signup_velocity: research.signup_velocity,
+          top_friction: research.internal_events?.top_friction_categories,
+          open_findings: research.open_findings,
+        }
+      : null,
     backlog: {
       p0_open: p0Open.map((o) => ({ id: o.id, title: o.title, status: o.status, next_step: o.next_step })),
       all: opportunities.map((o) => ({
@@ -125,6 +146,7 @@ async function main() {
     },
     domains: domains?.domains?.map((d) => d.id) || [],
     recent_agent_runs: {
+      research: latestReport('research-agent-run-'),
       product: latestReport('product-agent-run-'),
       growth: latestReport('growth-agent-run-'),
     },

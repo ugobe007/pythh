@@ -1,0 +1,42 @@
+name: Research Agent Weekly
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Monday 8am UTC — before Product (10am) and Growth (9am)
+  workflow_dispatch:
+
+jobs:
+  research-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Research snapshot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run research:snapshot
+
+      - name: Research agent loop
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run research:agent -- --max-turns=25 --max-budget-usd=2
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-agent-reports
+          path: |
+            reports/research-*.json
+            agents/research/briefs/*.md
+            agents/research/findings-registry.json

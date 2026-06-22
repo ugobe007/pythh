@@ -24,6 +24,13 @@
       "focus": "Match viewed, intro requested, contacted, feedback — post-signup activation"
     },
     {
+      "id": "research",
+      "agent": "agents/research",
+      "metrics_script": "scripts/research-snapshot.mjs",
+      "registry": "agents/research/findings-registry.json",
+      "focus": "Market survey — founder/investor pain, workflow friction, missing data, funding process gaps"
+    },
+    {
       "id": "services",
       "registry": "agents/product/opportunity-registry.json",
       "focus": "MCP tools, APIs, automations, new revenue/retention surfaces"

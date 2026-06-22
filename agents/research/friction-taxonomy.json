@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "investor_outreach",
+      "label": "Finding & reaching investors",
+      "keywords": ["cold email", "warm intro", "investor list", "CRM", "pipeline", "no response", "ghosted", "fundraising is a full-time job"],
+      "audience": "founder"
+    },
+    {
+      "id": "thesis_fit",
+      "label": "Thesis and stage mismatch",
+      "keywords": ["wrong stage", "not a fit", "thesis", "check size", "sector mismatch", "wasted meetings"],
+      "audience": "founder"
+    },
+    {
+      "id": "data_room",
+      "label": "Data room & diligence friction",
+      "keywords": ["data room", "due diligence", "cap table", "metrics deck", "update investors", "reporting"],
+      "audience": "both"
+    },
+    {
+      "id": "missing_signals",
+      "label": "Missing or stale market data",
+      "keywords": ["no traction data", "outdated", "can't find", "no email", "wrong contact", "stale portfolio"],
+      "audience": "both"
+    },
+    {
+      "id": "dealflow_noise",
+      "label": "Dealflow quality & noise",
+      "keywords": ["inbound spam", "cold pitch", "low quality", "deal flow", "filter", "signal vs noise"],
+      "audience": "investor"
+    },
+    {
+      "id": "timing_velocity",
+      "label": "Timing & deployment velocity",
+      "keywords": ["dry powder", "deployment", "fund cycle", "last investment", "slow process", "months to close"],
+      "audience": "both"
+    },
+    {
+      "id": "pricing_terms",
+      "label": "Terms, valuation, process",
+      "keywords": ["valuation", "term sheet", "dilution", "SAFE", "priced round", "negotiation"],
+      "audience": "founder"
+    },
+    {
+      "id": "workflow_tools",
+      "label": "Tool sprawl & workflow",
+      "keywords": ["spreadsheet", "Notion", "Airtable", "Carta", "Affinity", "Harmonic", "PitchBook", "manual"],
+      "audience": "both"
+    }
+  ]
+}
