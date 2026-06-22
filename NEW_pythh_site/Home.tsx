@@ -42,8 +42,13 @@ import {
 
 interface PlatformStats {
   startups: number;
+  startups_total?: number;
   investors: number;
   matches: number;
+  matches_new_7d?: number;
+  matches_new_30d?: number;
+  signals?: number;
+  computed_at?: string;
 }
 
 function formatMatchCompact(n: number): string {
@@ -55,9 +60,16 @@ function formatMatchCompact(n: number): string {
   return String(n);
 }
 
+/** Exact full-table count for hero (no rounding down to 10K blocks). */
 function formatMatchFull(n: number): string {
-  const rounded = n >= 1_000_000 ? Math.floor(n / 10_000) * 10_000 : n;
-  return rounded.toLocaleString();
+  return n.toLocaleString();
+}
+
+function formatVelocitySub(n: number): string {
+  if (n <= 0) return "";
+  if (n >= 1_000_000) return `${formatMatchCompact(n)} scored this week`;
+  if (n >= 1_000) return `${Math.round(n / 1000)}K scored this week`;
+  return `${n.toLocaleString()} scored this week`;
 }
 
 function usePlatformStats() {
@@ -70,8 +82,13 @@ function usePlatformStats() {
         if (!d) return;
         setStats({
           startups: Number(d.startups) || 0,
+          startups_total: Number(d.startups_total) || Number(d.startups) || 0,
           investors: Number(d.investors) || 0,
           matches: Number(d.matches) || 0,
+          matches_new_7d: Number(d.matches_new_7d) || 0,
+          matches_new_30d: Number(d.matches_new_30d) || 0,
+          signals: Number(d.signals) || 0,
+          computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
         });
       })
       .catch(() => {})
@@ -285,6 +302,8 @@ function HeroSection({
   };
 
   const matchCount = platformStats?.matches ?? 0;
+  const matchesNew7d = platformStats?.matches_new_7d ?? 0;
+  const signalCount = platformStats?.signals ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
   const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
@@ -399,7 +418,9 @@ function HeroSection({
                 {platformStatsReady && matchCount > 0 ? (
                   <>
                     {formatMatchFull(matchCount)}+ investor matches
-                    <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>· updated daily</span>
+                    <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>
+                      {matchesNew7d > 0 ? `· ${formatVelocitySub(matchesNew7d)}` : "· updated daily"}
+                    </span>
                   </>
                 ) : (
                   <span className="inline-block h-4 w-40 rounded animate-pulse" style={{ backgroundColor: G_SUBTLE }} />
@@ -438,7 +459,10 @@ function HeroSection({
             <p className="text-xs leading-relaxed" style={{ color: DIM }}>
               {platformStatsReady && startupCount > 0 ? (
                 <>
-                  {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchCompact(matchCount)}+ pre-computed matches
+                  {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchFull(matchCount)}+ pre-computed matches
+                  {matchesNew7d > 0 && (
+                    <span style={{ color: G }}> · {formatVelocitySub(matchesNew7d)}</span>
+                  )}
                   {portfolioMetrics?.verified_funded_picks != null && (
                     <>
                       {" · "}
@@ -785,14 +809,23 @@ function TrackRecordStrip({
 }) {
   const { ref, isVisible } = useIntersectionObserver();
   const matchCount = platformStats?.matches ?? 0;
+  const matchesNew7d = platformStats?.matches_new_7d ?? 0;
+  const signalCount = platformStats?.signals ?? 0;
   const startupsTarget = platformStats?.startups ?? 0;
   const investorsTarget = platformStats?.investors ?? 0;
   const verifiedTarget = portfolioMetrics?.verified_funded_picks ?? 0;
   const verifiedPct = portfolioMetrics?.verified_funded_rate_pct;
-  const statsLive = platformStatsReady && startupsTarget > 0;
+  const statsLive = platformStatsReady && (startupsTarget > 0 || matchCount > 0);
   const startups = useCountUp(startupsTarget, 1600, isVisible && statsLive);
   const investors = useCountUp(investorsTarget, 1800, isVisible && statsLive);
   const verified = useCountUp(verifiedTarget, 1400, isVisible && statsLive);
+
+  const matchSub = statsLive
+    ? [
+        `${formatMatchFull(matchCount)} startup ↔ investor pairs`,
+        matchesNew7d > 0 ? `${formatVelocitySub(matchesNew7d)} · v3.3 recency` : "full-table count · updated daily",
+      ].join(" · ")
+    : "loading network stats…";
 
   const stats = [
     {
@@ -803,9 +836,34 @@ function TrackRecordStrip({
       accent: true,
       href: "/portfolio",
     },
-    { value: statsLive ? formatMatchCompact(matchCount) : "—", suffix: statsLive ? "+" : "", label: "Pre-computed Matches", sub: statsLive ? "startup ↔ investor pairs · updated daily" : "loading network stats…", color: G, href: null },
-    { value: statsLive ? startups.toLocaleString() : "—", suffix: statsLive ? "+" : "", label: "Startups Scored", sub: statsLive ? "in the Pythh network, updated daily" : "loading network stats…", color: CYAN, href: null },
-    { value: statsLive ? investors.toLocaleString() : "—", suffix: statsLive ? "+" : "", label: "Investors Qualified", sub: statsLive ? "entity-resolved, thesis-mapped, GOD-ranked" : "loading network stats…", color: PURPLE, href: null },
+    {
+      value: statsLive ? formatMatchFull(matchCount) : "—",
+      suffix: statsLive ? "+" : "",
+      label: "Pre-computed Matches",
+      sub: matchSub,
+      color: G,
+      href: null,
+    },
+    {
+      value: statsLive ? startups.toLocaleString() : "—",
+      suffix: statsLive ? "+" : "",
+      label: "Startups Scored",
+      sub: statsLive ? "approved · GOD-ranked · updated daily" : "loading network stats…",
+      color: CYAN,
+      href: null,
+    },
+    {
+      value: statsLive ? investors.toLocaleString() : "—",
+      suffix: statsLive ? "+" : "",
+      label: "Investors Qualified",
+      sub: statsLive
+        ? signalCount > 0
+          ? `${signalCount.toLocaleString()} signal scores · thesis-mapped`
+          : "entity-resolved, thesis-mapped, GOD-ranked"
+        : "loading network stats…",
+      color: PURPLE,
+      href: null,
+    },
   ];
 
   return (

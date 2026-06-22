@@ -25,6 +25,8 @@
     "pipeline:weekly-dashboard:json": "node scripts/pipeline-weekly-dashboard.mjs --json --write",
     "pipeline:weekly-runbook": "node scripts/pipeline-weekly-runbook.mjs --apply",
     "pipeline:weekly-runbook:report": "node scripts/pipeline-weekly-runbook.mjs",
+    "pipeline:refresh-platform-stats": "node scripts/refresh-platform-stats-cache.mjs --apply",
+    "pipeline:apply-platform-stats-cache": "node scripts/apply-platform-stats-cache.mjs",
     "pipeline:enrich-priority": "node scripts/pipeline-priority-enrichment.mjs --apply --limit=200",
     "pipeline:investor-intelligence": "node scripts/pipeline-investor-intelligence.mjs --apply --limit=150",
     "pipeline:god-audit": "node scripts/god-score-audit.js",

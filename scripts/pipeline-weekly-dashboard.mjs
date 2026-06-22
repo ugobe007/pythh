@@ -40,6 +40,18 @@ async function count(table, filter) {
   return c ?? 0;
 }
 
+/** Count with timeout fallback — full-table filters on 3M+ matches can 500. */
+async function safeCount(table, filter, { fallback = 0, label } = {}) {
+  try {
+    return await count(table, filter);
+  } catch (e) {
+    if (label && !JSON_MODE) {
+      console.warn(`  ⚠️  ${label}: count skipped (${e.message || 'timeout'})`);
+    }
+    return fallback;
+  }
+}
+
 function startupNeedsEnrichment(r) {
   if (!r?.extracted_data) return true;
   const tier = r.extracted_data?.data_tier;
@@ -136,10 +148,10 @@ async function main() {
     suggested: await count('startup_investor_matches', (q) => q.eq('status', 'suggested')),
     new_7d: await count('startup_investor_matches', (q) => q.gte('created_at', daysAgo(7))),
     new_30d: await count('startup_investor_matches', (q) => q.gte('created_at', daysAgo(30))),
-    viewed: await count('startup_investor_matches', (q) => q.not('viewed_at', 'is', null)),
-    intro_requested: await count('startup_investor_matches', (q) => q.not('intro_requested_at', 'is', null)),
-    contacted: await count('startup_investor_matches', (q) => q.not('contacted_at', 'is', null)),
-    feedback_true: await count('startup_investor_matches', (q) => q.eq('feedback_received', true)),
+    viewed: await safeCount('startup_investor_matches', (q) => q.not('viewed_at', 'is', null), { label: 'match viewed count' }),
+    intro_requested: await safeCount('startup_investor_matches', (q) => q.not('intro_requested_at', 'is', null), { label: 'match intro count' }),
+    contacted: await safeCount('startup_investor_matches', (q) => q.not('contacted_at', 'is', null), { label: 'match contacted count' }),
+    feedback_true: await safeCount('startup_investor_matches', (q) => q.eq('feedback_received', true), { label: 'match feedback count' }),
   };
 
   const { data: mSample } = await sb
@@ -196,9 +208,13 @@ async function main() {
     },
     {
       id: 'match_ranking',
-      severity: 'info',
-      observation: `Recent match avg ${report.sections.match_quality_recent_5k.avg_score}; similarity/success often zero until recency v3.3 regen.`,
-      action: 'Full match regen after investor intelligence backfill (algorithm v3.3-pythh-recency).',
+      severity: (report.sections.match_quality_recent_5k.algorithm_versions || []).includes('v3.3-pythh-recency')
+        ? 'info'
+        : 'warn',
+      observation: `Recent match avg ${report.sections.match_quality_recent_5k.avg_score}; algorithms: ${(report.sections.match_quality_recent_5k.algorithm_versions || []).join(', ') || 'unknown'}.`,
+      action: (report.sections.match_quality_recent_5k.algorithm_versions || []).includes('v3.3-pythh-recency')
+        ? 'v3.3 recency applied — wire engagement API to measure intro/contact lift.'
+        : 'Run node match-regenerator.js --full for v3.3-pythh-recency.',
     },
   ];
 
@@ -211,6 +227,14 @@ async function main() {
     const file = path.join(dir, `pipeline-weekly-${generated_at.slice(0, 10)}.json`);
     fs.writeFileSync(file, JSON.stringify(report, null, 2));
     if (!JSON_MODE) console.log(`\n📁 Wrote ${file}\n`);
+  }
+
+  // Refresh homepage stats cache (full-table counts — too slow per HTTP request)
+  try {
+    const { refreshPlatformStatsCache } = await import('./refresh-platform-stats-cache.mjs');
+    await refreshPlatformStatsCache({ source: 'pipeline-weekly-dashboard' });
+  } catch (e) {
+    if (!JSON_MODE) console.warn(`  ⚠️  platform stats cache refresh skipped: ${e.message}`);
   }
 
   if (JSON_MODE) {
@@ -250,6 +274,7 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error('Fatal:', e.message);
+  console.error('Fatal:', e.message || e.code || String(e));
+  if (e.details) console.error('Details:', e.details);
   process.exit(1);
 });

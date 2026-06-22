@@ -1,0 +1,21 @@
+---
+description: When the user asks to ship pipeline/platform work, commit, push, and deploy automatically.
+alwaysApply: true
+---
+
+# Ship on Request (hot-honey)
+
+When the user asks to **commit**, **push**, **deploy**, or **ship** changes (including phrases like "commit push deploy", "get this live", "deploy to production"):
+
+1. **Fix blockers first** — scripts must run; do not commit broken refresh/deploy paths.
+2. **Commit** — stage only relevant files; exclude `.DS_Store`, `data/*.json` enrichment dumps, secrets.
+3. **Push** to `origin` on the current branch (usually `main`).
+4. **Deploy** — rely on CI unless the user needs immediate local deploy:
+   - API: `.github/workflows/fly-deploy.yml` on push to `main`
+   - Frontend: `.github/workflows/vercel-deploy.yml` on push to `main`
+   - After push, confirm with `gh run list --limit 3` or `gh run watch` when deploy was requested.
+5. **Post-deploy** — if platform stats changed, remind or run `npm run pipeline:refresh-platform-stats` (DB cache already on remote).
+
+Do **not** wait for a second confirmation when the user explicitly requested commit + push + deploy in one message.
+
+Use commit message style: `feat(scope): why` — one focused sentence on the why.

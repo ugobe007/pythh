@@ -1572,39 +1572,104 @@ const { matchesCache } = require('./utils/cache');
 // ============================================================
 // Public marketing stats — same-origin for Safari / strict clients
 // (browser bundle may fail direct *.supabase.co requests; server uses service role.)
+// Full-table COUNT(*) on ~3.7M matches — cache 5m server-side, 60s CDN.
 // ============================================================
+const PLATFORM_STATS_TTL_MS = 5 * 60 * 1000;
+let platformStatsCache = { payload: null, at: 0 };
+
+function normalizePlatformStatsPayload(raw, source) {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const startups = Number(o.startups ?? 0) || 0;
+  const matches = Number(o.matches ?? 0) || 0;
+  return {
+    startups,
+    startups_total: Number(o.startups_total ?? startups) || startups,
+    investors: Number(o.investors ?? 0) || 0,
+    matches,
+    matches_new_7d: Number(o.matches_new_7d ?? 0) || 0,
+    matches_new_30d: Number(o.matches_new_30d ?? 0) || 0,
+    signals: Number(o.signals ?? 0) || 0,
+    computed_at: o.computed_at || new Date().toISOString(),
+    source,
+  };
+}
+
 app.get('/api/platform-stats', async (req, res) => {
   try {
+    const now = Date.now();
+    if (platformStatsCache.payload && now - platformStatsCache.at < PLATFORM_STATS_TTL_MS) {
+      return res
+        .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+        .json({ ...platformStatsCache.payload, source: platformStatsCache.payload.source || 'memory-cache' });
+    }
+
     const supabase = getSupabaseClient();
+
+    // 1) DB cache table (refreshed after match regen / weekly dashboard — no 3.7M scan)
+    const { data: cacheRow, error: cacheErr } = await supabase
+      .from('platform_stats_cache')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+
+    if (!cacheErr && cacheRow && Number(cacheRow.matches) > 0) {
+      const payload = normalizePlatformStatsPayload(
+        { ...cacheRow, computed_at: cacheRow.updated_at },
+        cacheRow.refresh_source || 'cache-table',
+      );
+      platformStatsCache = { payload, at: now };
+      return res
+        .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+        .json(payload);
+    }
+
+    // 2) RPC (reads cache table when migrated; avoids live COUNT on matches)
     const { data: rpcData, error: rpcErr } = await supabase.rpc('get_platform_stats');
     const fromRpc = rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData);
-    const startupsRpc = fromRpc ? Number(rpcData.startups ?? 0) || 0 : 0;
     const matchesRpc = fromRpc ? Number(rpcData.matches ?? 0) || 0 : 0;
-    if (!rpcErr && fromRpc && (startupsRpc > 0 || matchesRpc > 0)) {
+    if (!rpcErr && fromRpc && matchesRpc > 0) {
+      const payload = normalizePlatformStatsPayload(rpcData, rpcData.source || 'rpc');
+      platformStatsCache = { payload, at: now };
       return res
-        .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120')
-        .json({
-          startups: startupsRpc,
-          investors: Number(rpcData.investors ?? 0) || 0,
-          matches: matchesRpc,
-          source: 'rpc',
-        });
+        .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+        .json(payload);
     }
-    const [su, inv, mat] = await Promise.all([
+
+    // 3) Live head counts (slow; matches often times out at 3M+ rows)
+    const daysAgoIso = (n) => new Date(Date.now() - n * 86_400_000).toISOString();
+    const [su, suTotal, inv, mat, mat7, mat30, sig] = await Promise.all([
       supabase.from('startup_uploads').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('startup_uploads').select('*', { count: 'exact', head: true }),
       supabase.from('investors').select('*', { count: 'exact', head: true }),
       supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', daysAgoIso(7)),
+      supabase.from('startup_investor_matches').select('*', { count: 'exact', head: true }).gte('created_at', daysAgoIso(30)),
+      supabase.from('startup_signal_scores').select('*', { count: 'exact', head: true }),
     ]);
-    return res
-      .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120')
-      .json({
+    const payload = normalizePlatformStatsPayload(
+      {
         startups: su.count ?? 0,
+        startups_total: suTotal.count ?? 0,
         investors: inv.count ?? 0,
         matches: mat.count ?? 0,
-        source: 'count',
-      });
+        matches_new_7d: mat7.count ?? 0,
+        matches_new_30d: mat30.count ?? 0,
+        signals: sig.count ?? 0,
+        computed_at: new Date().toISOString(),
+      },
+      'count',
+    );
+    platformStatsCache = { payload, at: now };
+    return res
+      .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+      .json(payload);
   } catch (err) {
     console.error('[platform-stats]', err.message);
+    if (platformStatsCache.payload) {
+      return res
+        .set('Cache-Control', 'public, max-age=30, stale-while-revalidate=600')
+        .json({ ...platformStatsCache.payload, source: 'stale-cache' });
+    }
     return res.status(503).json({ error: 'stats_unavailable', message: err.message });
   }
 });

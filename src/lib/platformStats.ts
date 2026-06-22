@@ -7,16 +7,33 @@
 import { supabase } from './supabase';
 import { apiUrl } from './apiConfig';
 
-export type PlatformStats = { startups: number; investors: number; matches: number };
+export type PlatformStats = {
+  startups: number;
+  startups_total?: number;
+  investors: number;
+  matches: number;
+  matches_new_7d?: number;
+  matches_new_30d?: number;
+  signals?: number;
+  computed_at?: string;
+  source?: string;
+};
 
 function normalizeRpcPayload(data: unknown): PlatformStats | null {
   if (data == null) return null;
   if (typeof data === 'object' && !Array.isArray(data)) {
     const o = data as Record<string, unknown>;
+    const startups = Number(o.startups ?? 0) || 0;
     return {
-      startups: Number(o.startups ?? 0) || 0,
+      startups,
+      startups_total: Number(o.startups_total ?? startups) || startups,
       investors: Number(o.investors ?? 0) || 0,
       matches: Number(o.matches ?? 0) || 0,
+      matches_new_7d: Number(o.matches_new_7d ?? 0) || 0,
+      matches_new_30d: Number(o.matches_new_30d ?? 0) || 0,
+      signals: Number(o.signals ?? 0) || 0,
+      computed_at: typeof o.computed_at === 'string' ? o.computed_at : undefined,
+      source: typeof o.source === 'string' ? o.source : undefined,
     };
   }
   return null;
@@ -40,7 +57,7 @@ export async function fetchPlatformStats(): Promise<PlatformStats> {
         typeof j.investors === 'number' &&
         typeof j.matches === 'number'
       ) {
-        return {
+        return normalizeRpcPayload(j) ?? {
           startups: j.startups,
           investors: j.investors,
           matches: j.matches,

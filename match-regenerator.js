@@ -1100,8 +1100,14 @@ async function regenerateMatches() {
 }
 
 // Run
-regenerateMatches().then(() => {
+regenerateMatches().then(async () => {
   console.log('🏁 Done');
+  try {
+    const { refreshPlatformStatsCache } = await import('./scripts/refresh-platform-stats-cache.mjs');
+    await refreshPlatformStatsCache({ source: 'match-regenerator' });
+  } catch (e) {
+    console.warn('⚠️  platform stats cache refresh skipped:', e.message);
+  }
   process.exit(0);
 }).catch(err => {
   console.error('Fatal error:', err);

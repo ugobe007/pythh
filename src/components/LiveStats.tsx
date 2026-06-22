@@ -9,10 +9,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+import { fetchPlatformStats } from '@/lib/platformStats';
+
 interface Stats {
   startups: number;
   investors: number;
   matches: number;
+  matches_new_7d: number;
   signals: number;
   latestGodScore: number | null;
   loading: boolean;
@@ -23,6 +26,7 @@ export default function LiveStats() {
     startups: 0,
     investors: 0,
     matches: 0,
+    matches_new_7d: 0,
     signals: 0,
     latestGodScore: null,
     loading: true,
@@ -31,18 +35,15 @@ export default function LiveStats() {
   useEffect(() => {
     loadStats();
     
-    // Refresh every 30 seconds
-    const interval = setInterval(loadStats, 30000);
+    // Refresh every 5 minutes (full-table counts are server-cached)
+    const interval = setInterval(loadStats, 300000);
     return () => clearInterval(interval);
   }, []);
 
   async function loadStats() {
     try {
-      const [startupsRes, investorsRes, matchesRes, signalsRes, latestStartupRes] = await Promise.all([
-        supabase.from('startup_uploads').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-        supabase.from('investors').select('id', { count: 'exact', head: true }),
-        supabase.from('startup_investor_matches').select('id', { count: 'exact', head: true }),
-        supabase.from('startup_signal_scores').select('startup_id', { count: 'exact', head: true }),
+      const [platform, latestStartupRes] = await Promise.all([
+        fetchPlatformStats(),
         supabase
           .from('startup_uploads')
           .select('total_god_score')
@@ -54,10 +55,11 @@ export default function LiveStats() {
       ]);
 
       setStats({
-        startups: startupsRes.count ?? 0,
-        investors: investorsRes.count ?? 0,
-        matches: matchesRes.count ?? 0,
-        signals: signalsRes.count ?? 0,
+        startups: platform.startups,
+        investors: platform.investors,
+        matches: platform.matches,
+        matches_new_7d: platform.matches_new_7d ?? 0,
+        signals: platform.signals ?? 0,
         latestGodScore: latestStartupRes.data?.total_god_score ?? null,
         loading: false,
       });
@@ -91,6 +93,9 @@ export default function LiveStats() {
       <StatItem label="Startups" value={stats.startups} />
       <StatItem label="Investors" value={stats.investors} />
       <StatItem label="Matches" value={stats.matches} />
+      {stats.matches_new_7d > 0 && (
+        <StatItem label="Matches (7d)" value={stats.matches_new_7d} highlight />
+      )}
       <StatItem label="Signals" value={stats.signals} />
       {stats.latestGodScore !== null && (
         <StatItem label="Latest GOD" value={stats.latestGodScore} highlight />
