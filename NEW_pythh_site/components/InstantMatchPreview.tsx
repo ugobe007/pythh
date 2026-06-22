@@ -7,7 +7,7 @@ import { Link } from 'wouter';
 import { Loader2, ArrowRight, Lock } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
-import { recordMatchViewOnce, trackFunnelEvent } from '@/lib/matchEngagement';
+import { recordMatchViewOnce, trackFunnelEvent, recordMatchEngagement } from '@/lib/matchEngagement';
 
 type PreviewMatch = {
   investor_id?: string;
@@ -196,6 +196,11 @@ export default function InstantMatchPreview({ url }: Props) {
             className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm"
             onClick={() => {
               trackFunnelEvent('url_submitted', { url, source: 'instant_preview_cta' });
+              const top = visible[0];
+              const invId = top?.investor_id || top?.investor?.id;
+              if (preview.startup?.id && invId) {
+                void recordMatchEngagement(preview.startup.id, invId, 'intro', 'instant_preview_cta');
+              }
               if (founderExpRef.current) {
                 void trackGrowthEvent(founderExpRef.current, 'founder_signup_started', { url });
               }

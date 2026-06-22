@@ -11,6 +11,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
+import {
+  recordMatchEngagement,
+  recordMatchViewOnce,
+  trackFunnelEvent,
+} from "@/lib/matchEngagement";
 
 function formatStageLabel(stage: unknown): string {
   const n = typeof stage === "number" ? stage : Number.parseInt(String(stage ?? ""), 10);
@@ -61,6 +66,7 @@ type Step = "entry" | "scanning" | "investor-read" | "results" | "pipeline";
 
 interface MatchedInvestor {
   id: number;
+  investorUuid?: string;
   name: string;
   firm: string;
   role: string;
@@ -410,6 +416,7 @@ function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
     const isSuperMatch = tags.some((t) => t.includes("SUPER MATCH"));
     return {
       id: i + 1,
+      investorUuid: inv.id,
       name: inv.name || "Unknown",
       firm: inv.firm || "Unknown Firm",
       role: "Partner",
@@ -1093,6 +1100,22 @@ function ResultsStep({
     return investors[0]?.firm;
   })();
 
+  const handleExpandInvestor = (inv: MatchedInvestor) => {
+    const next = expanded === inv.id ? null : inv.id;
+    setExpanded(next);
+    if (next != null && startupId && inv.investorUuid) {
+      recordMatchViewOnce(startupId, inv.investorUuid, "activate_results");
+    }
+  };
+
+  const handleStartOutreach = () => {
+    const top = investors[0];
+    if (startupId && top?.investorUuid) {
+      void recordMatchEngagement(startupId, top.investorUuid, "intro", "activate_start_outreach");
+    }
+    onActivate();
+  };
+
   const positioning = (() => {
     if (!investors.length) return "Evaluating your startup against 6,250+ investors across sector, stage, and timing signals.";
     const firmNote = topFirm ? ` Top thesis alignment: ${topFirm}.` : "";
@@ -1172,7 +1195,7 @@ function ResultsStep({
               {copied ? "Copied!" : "Share"}
             </button>
             <button
-              onClick={onActivate}
+              onClick={handleStartOutreach}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border"
               style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.08)"; }}
@@ -1291,7 +1314,7 @@ function ResultsStep({
                   </div>
                 )}
                 <button
-                  onClick={onActivate}
+                  onClick={handleStartOutreach}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap border"
                   style={{ color: "oklch(0.696 0.17 162.48)", backgroundColor: "transparent", borderColor: "oklch(0.696 0.17 162.48 / 0.4)" }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.08)"; }}
@@ -1335,7 +1358,7 @@ function ResultsStep({
             <div key={inv.id}
               className="rounded-xl border overflow-hidden transition-all duration-200 cursor-pointer"
               style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: expanded === inv.id ? "oklch(0.696 0.17 162.48 / 0.3)" : "oklch(0.25 0.01 264)" }}
-              onClick={() => setExpanded(expanded === inv.id ? null : inv.id)}>
+              onClick={() => handleExpandInvestor(inv)}>
               {/* Row */}
               <div className="flex items-center gap-4 p-4">
                 {/* Rank */}
@@ -1465,6 +1488,34 @@ function ResultsStep({
                         </div>
                       </div>
                     )}
+                    {startupId && inv.investorUuid && !isSharedView && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void recordMatchEngagement(startupId, inv.investorUuid!, "intro", "activate_results");
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                          style={{ color: "#22c55e", borderColor: "#22c55e40" }}
+                        >
+                          <Mail size={11} />
+                          Request intro
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void recordMatchEngagement(startupId, inv.investorUuid!, "contact", "activate_results");
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                          style={{ color: "#22d3ee", borderColor: "#22d3ee40" }}
+                        >
+                          <Check size={11} />
+                          Mark contacted
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1486,7 +1537,7 @@ function ResultsStep({
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <button
-                onClick={onActivate}
+                onClick={handleStartOutreach}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all border"
                 style={{ color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.5)" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.08)"; }}
@@ -2401,6 +2452,7 @@ export default function Activate() {
     setUrl(submittedUrl);
     sessionStorage.setItem("pythia_url", submittedUrl);
     sessionStorage.setItem("pythia_email", submittedEmail);
+    trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate" });
     setStep("scanning");
   };
 
