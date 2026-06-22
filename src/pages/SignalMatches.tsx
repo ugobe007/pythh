@@ -1057,6 +1057,7 @@ function RadarMatchTable({
         onUnlock={onUnlock}
         unlocksRemaining={unlocksRemaining}
         mode={mode}
+        startupId={context?.startup?.id ?? null}
         startupName={context?.startup?.name}
         startupTagline={context?.startup?.tagline}
         startupSectors={context?.startup?.sectors}

@@ -30,6 +30,7 @@ import {
 import { ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchPlatformStats } from '../lib/platformStats';
+import { recordMatchViewOnce } from '../lib/matchEngagement';
 import MatchHeatMap, { SectorMatch } from '../components/MatchHeatMap';
 
 // Pipeline stages
@@ -167,6 +168,17 @@ export default function FounderMatchesPage() {
     // Always route to /signal-matches — it uses pythhRpc.resolveStartup()
     // which checks match_count and triggers Express backend for match generation
     navigate(`/signal-matches?url=${encodeURIComponent(url.trim())}`);
+  };
+
+  const openInvestor = (investorId: string) => {
+    if (investorId.startsWith('demo-')) {
+      navigate('/signup/founder');
+      return;
+    }
+    if (startupId) {
+      recordMatchViewOnce(startupId, investorId, 'founder_matches_page');
+    }
+    navigate(`/investor/${investorId}${startupId ? `?startup=${startupId}` : ''}`);
   };
 
   const loadMatches = async (sid: string) => {
@@ -761,7 +773,7 @@ export default function FounderMatchesPage() {
                       <div className="flex items-center gap-2">
                         <CheckCircle className="w-3 h-3 text-emerald-500" />
                         <button 
-                          onClick={() => match.investor_id.startsWith('demo-') ? navigate('/signup/founder') : navigate(`/investor/${match.investor_id}`)}
+                          onClick={() => openInvestor(match.investor_id)}
                           className="text-xs text-white hover:text-cyan-400 transition-colors text-left"
                         >
                           {match.investor_name}
@@ -784,7 +796,7 @@ export default function FounderMatchesPage() {
                       <div className="flex items-center gap-1">
                         <button className="p-1 hover:bg-zinc-700 rounded" title="Save"><Bookmark className="w-3 h-3 text-zinc-500 hover:text-cyan-400" /></button>
                         <button 
-                          onClick={() => match.investor_id.startsWith('demo-') ? navigate('/signup/founder') : navigate(`/investor/${match.investor_id}`)}
+                          onClick={() => openInvestor(match.investor_id)}
                           className="p-1 hover:bg-zinc-700 rounded" 
                           title="View"
                         >
@@ -802,7 +814,7 @@ export default function FounderMatchesPage() {
                 {(matches.length > 0 ? filteredMatches : EXAMPLE_MATCHES).map((match) => (
                   <button
                     key={match.investor_id}
-                    onClick={() => match.investor_id.startsWith('demo-') ? navigate('/signup/founder') : navigate(`/investor/${match.investor_id}`)}
+                    onClick={() => openInvestor(match.investor_id)}
                     className="w-full px-3 py-3 flex items-center gap-3 hover:bg-zinc-800/30 transition text-left"
                   >
                     <span className={`font-mono text-xs w-5 shrink-0 ${match.rank <= 3 ? 'text-cyan-400' : 'text-zinc-500'}`}>{match.rank}</span>

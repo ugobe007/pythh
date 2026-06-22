@@ -1,5 +1,120 @@
 {
   "version": 1,
-  "updated_at": "2026-06-22T00:00:00Z",
-  "findings": []
+  "updated_at": "2026-06-22T17:30:00Z",
+  "findings": [
+    {
+      "id": "F-2026-0622-01",
+      "type": "funnel",
+      "friction_category": "missing_signals",
+      "audience": "both",
+      "title": "Empty / uninstrumented signup funnel is the #1 blocker to the 100/day north star",
+      "founder_problem": "There is no measurable acquisition happening. Without instrumented top-of-funnel events and a public value moment, no experiment can be evaluated against the 100/day target.",
+      "investor_problem": "Investor side is not being acquired at all; no investor signup operations recorded.",
+      "evidence": {
+        "internal": "research-snapshot 2026-06-22: signup_velocity.signups_per_day=0, gap_to_target=100, pct_of_target=0; ai_logs had 0 of [url_submitted, login_completed, lookup_signup_completed, checkout_completed] in 7d; internal_events.sampled=0.",
+        "strength": "validated (internal funnel data, strongest evidence)"
+      },
+      "pythh_opportunity": "Ship a public, pre-signup 'instant investor match preview' so a visitor gets value (a ranked shortlist + one thesis-fit reason) BEFORE creating an account, then instrument every funnel stage. This is the single lever that converts the 0 baseline into measurable signups.",
+      "suggested_product_shape": "Public URL-submission -> instant match preview -> account-create CTA. Instrument awareness/value_preview/account_created events in ai_logs.",
+      "signup_lever": "awareness + conversion",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "instant_match_preview",
+      "handoff": {
+        "suggested_opportunity_id": "instant_match_preview",
+        "title": "Public instant investor-match preview (value before signup) + funnel instrumentation",
+        "priority": "P0",
+        "domain": "growth"
+      }
+    },
+    {
+      "id": "F-2026-0622-02",
+      "type": "market",
+      "friction_category": "dealflow_noise",
+      "audience": "investor",
+      "title": "Investors are drowning in 'vibe-coded slop' — dealflow volume is now a vanity metric",
+      "founder_problem": "Quality founders are buried under noise and struggle to stand out / earn investor trust.",
+      "investor_problem": "AI lets software startups fabricate credibility in an afternoon; investors face a surge of low-signal submissions and fewer seed startups graduating to Series A, so they concentrate capital in fewer, stronger bets and need better filtering.",
+      "evidence": {
+        "rss": "Sifted (2026-06): 'Investors bemoan vibe-coded product slop'; Crunchbase News: 'AI Is Rewriting What Investors Should Look For In Early Startup Teams'.",
+        "web": "Crunchbase/seed reports 2026: 'dealflow volume has become a vanity metric... software startups can fabricate credibility in a single afternoon'; fewer seed->Series A graduations; capital concentrating.",
+        "strength": "hypothesis (external/secondary) with strong corroboration"
+      },
+      "pythh_opportunity": "A data-completeness + quality/traction signal score on every startup profile, powering a curated weekly dealflow digest for investors. Opens the investor side of the marketplace (currently 0 acquisition).",
+      "suggested_product_shape": "Profile 'data completeness score' + signal filter; investor-facing curated digest of high-signal matches.",
+      "signup_lever": "investor awareness + retention",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "dealflow_quality_score",
+      "handoff": {
+        "suggested_opportunity_id": "dealflow_quality_score",
+        "title": "Data-completeness/quality score + curated investor dealflow digest",
+        "priority": "P1",
+        "domain": "services"
+      }
+    },
+    {
+      "id": "F-2026-0622-03",
+      "type": "workflow",
+      "friction_category": "investor_outreach",
+      "audience": "founder",
+      "title": "Founders burn ~6 weeks on a spreadsheet + a month cold-emailing wrong-fit investors",
+      "founder_problem": "Most founders spend more time finding investors than talking to them: ~6 weeks building a list, ~1 month emailing people who were never going to say yes, with work split across disconnected tools (inboxes, sheets, notes, calendars).",
+      "investor_problem": "Mis-targeted cold outreach adds to inbound noise (links to F-2026-0622-02).",
+      "evidence": {
+        "web": "seedlegals/thevccorner 2026: 'most founders spend more time looking for investors than talking to them... six weeks building a spreadsheet, another month cold emailing people who were never going to say yes'; 'work split across too many disconnected tools'.",
+        "rss": "Sifted (2026-06): fintech founders crowdfunded EUR8m in <1hr — founders routing around painful VC outreach via alternative channels.",
+        "strength": "hypothesis (external) corroborating Pythh's core wedge"
+      },
+      "pythh_opportunity": "Pythh's core wedge: instant match preview + 'why this VC' thesis-fit explanation that replaces the spreadsheet-and-cold-email grind with a ranked, reasoned shortlist in minutes.",
+      "suggested_product_shape": "Match preview returns ranked investors each with a one-line thesis-fit rationale and suggested approach.",
+      "signup_lever": "awareness + conversion",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "thesis_fit_explainer",
+      "handoff": {
+        "suggested_opportunity_id": "thesis_fit_explainer",
+        "title": "Thesis-fit explainer ('why this VC') on every match",
+        "priority": "P1",
+        "domain": "growth"
+      }
+    },
+    {
+      "id": "F-2026-0622-04",
+      "type": "market",
+      "friction_category": "thesis_fit",
+      "audience": "both",
+      "title": "Targeting must be partner-level, not firm-level — a data gap competitors leave open",
+      "founder_problem": "Every partner has distinct tastes and convictions; founders waste meetings pitching firms instead of the one aligned partner, and lack partner-level data to do it.",
+      "investor_problem": "Individual partners get pitched on themes outside their conviction.",
+      "evidence": {
+        "web": "thevccorner 2026: 'partner targeting — not firm targeting'; seedblink 'what investors expect from founders in 2026'.",
+        "strength": "hypothesis (external)"
+      },
+      "pythh_opportunity": "Resolve and score thesis fit at partner granularity (not firm), a differentiator vs firm-level databases (PitchBook, Harmonic). Feeds the match preview and completeness score.",
+      "suggested_product_shape": "Partner-level profiles with thesis/stage/check-size completeness; match at partner level.",
+      "signup_lever": "conversion (match quality) + retention",
+      "confidence": "medium",
+      "status": "open"
+    },
+    {
+      "id": "F-2026-0622-05",
+      "type": "market",
+      "friction_category": "timing_velocity",
+      "audience": "both",
+      "title": "Fresh seed dry powder + bifurcated AI-winner market = deployment-timing matching opportunity",
+      "founder_problem": "In a bifurcated, AI-winner-take-most market founders must time outreach to funds that just raised / are actively deploying, and broaden capital sources.",
+      "investor_problem": "Newly-raised funds (e.g. Seedcamp $320M) need quality seed dealflow to deploy.",
+      "evidence": {
+        "rss": "TechCrunch/Crunchbase/Sifted (2026-06): 'Seedcamp raises $320M new fund'; Crunchbase 'Robotics startups on fire... record numbers 2026'.",
+        "web": "Crunchbase: Q1 2026 record ~$297B venture, 81% to AI; Morgan Stanley: >half of founders pursuing broader range of capital sources.",
+        "strength": "hypothesis (external)"
+      },
+      "pythh_opportunity": "Investor deployment-timing alerts ('this fund just closed / is actively deploying in your sector') for founders, and broader-capital-source matching. Recurring alerts create a retention loop.",
+      "suggested_product_shape": "Timing signal on investor profiles ('recently raised / actively deploying') surfaced in matches + alert subscription.",
+      "signup_lever": "retention + engagement",
+      "confidence": "medium",
+      "status": "open"
+    }
+  ]
 }

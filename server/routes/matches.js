@@ -171,6 +171,77 @@ async function patchMatchEngagement(matchId, patch) {
   return data;
 }
 
+async function logMatchEngagement(operation, { matchId, startupId, investorId, source }) {
+  try {
+    const supabase = engagementSupabase();
+    await supabase.from('ai_logs').insert({
+      operation,
+      status: 'success',
+      output: {
+        match_id: matchId,
+        startup_id: startupId,
+        investor_id: investorId,
+        source: source || 'api',
+      },
+    });
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/**
+ * POST /api/matches/engage
+ * Body: { startup_id, investor_id, action: view|intro|contact, source? }
+ */
+router.post('/engage', async (req, res) => {
+  try {
+    const { startup_id, investor_id, action, source } = req.body || {};
+    const allowed = ['view', 'intro', 'contact'];
+    if (!startup_id || !investor_id || !allowed.includes(action)) {
+      return res.status(400).json({
+        success: false,
+        error: 'startup_id, investor_id, and action (view|intro|contact) required',
+      });
+    }
+
+    const supabase = engagementSupabase();
+    const { data: match, error: findErr } = await supabase
+      .from('startup_investor_matches')
+      .select('id')
+      .eq('startup_id', startup_id)
+      .eq('investor_id', investor_id)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!match) {
+      return res.status(404).json({ success: false, error: 'Match not found' });
+    }
+
+    const now = new Date().toISOString();
+    const patchByAction = {
+      view: { viewed_at: now, status: 'viewed' },
+      intro: { intro_requested_at: now, status: 'intro_requested' },
+      contact: { contacted_at: now, status: 'contacted' },
+    };
+    const opByAction = {
+      view: 'match_viewed',
+      intro: 'match_intro_requested',
+      contact: 'match_contacted',
+    };
+
+    const data = await patchMatchEngagement(match.id, patchByAction[action]);
+    void logMatchEngagement(opByAction[action], {
+      matchId: match.id,
+      startupId: startup_id,
+      investorId: investor_id,
+      source,
+    });
+
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 /** GET /api/matches/engagement/metrics */
 router.get('/engagement/metrics', async (req, res) => {
   try {

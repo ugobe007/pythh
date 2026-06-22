@@ -27,6 +27,7 @@ import { useOracleStartupId } from '../hooks/useOracleStartupId';
 import { isUuidString } from '../lib/isUuid';
 import { apiUrl } from '../lib/apiConfig';
 import { PYTHH_MARKETING_BG } from '../lib/pythhMarketingTheme';
+import { recordMatchViewOnce } from '../lib/matchEngagement';
 import { Briefcase, TrendingUp, Clock, Award, Users, Target, Zap, ChevronLeft } from 'lucide-react';
 
 /** Stroke-only surfaces — cyan accent, no fill (pythh public UI) */
@@ -298,17 +299,24 @@ export default function InvestorProfile() {
           return;
         }
 
-        // Load match data if founder is logged in (startup_id must be a UUID or PostgREST returns 400)
+        // Load match data if founder has a startup context (logged-in or ?startup= deep link)
         let matchData: { score: number; reasons: string[] } | undefined;
-        if (startupId && isLoggedIn && isUuidString(startupId)) {
+        const engageStartupId =
+          startupId && isLoggedIn && isUuidString(startupId)
+            ? startupId
+            : isUuidString(startupFromQuery ?? '')
+              ? startupFromQuery!
+              : null;
+
+        if (engageStartupId && id) {
           try {
             const { data: match } = await supabase
               .from('startup_investor_matches')
               .select('match_score, reasoning, why_you_match')
-              .eq('startup_id', startupId)
+              .eq('startup_id', engageStartupId)
               .eq('investor_id', id)
               .single();
-            
+
             if (match) {
               matchData = {
                 score: Math.round(match.match_score || 0),
@@ -317,9 +325,9 @@ export default function InvestorProfile() {
                   match.why_you_match || '',
                 ].filter(Boolean).slice(0, 3),
               };
+              recordMatchViewOnce(engageStartupId, id, 'investor_profile');
             }
-          } catch (matchErr) {
-            // Match not found or error - that's okay, continue without match data
+          } catch {
             console.log('[InvestorProfile] No match data available');
           }
         }
@@ -338,7 +346,7 @@ export default function InvestorProfile() {
     }
 
     loadInvestor();
-  }, [id, startupId, isLoggedIn]);
+  }, [id, startupId, isLoggedIn, startupFromQuery]);
 
   // Public report deep-link: /investor/:id?startup=UUID — oracle match copy without login
   useEffect(() => {
@@ -364,7 +372,10 @@ export default function InvestorProfile() {
           return;
         }
         const data = (await res.json()) as PreviewMatchPayload;
-        if (!cancelled) setPreviewMatch(data);
+        if (!cancelled) {
+          setPreviewMatch(data);
+          recordMatchViewOnce(sid, id, 'investor_profile_preview');
+        }
       } catch {
         if (!cancelled) setPreviewMatch(null);
       }

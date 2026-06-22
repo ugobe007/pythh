@@ -19,6 +19,7 @@ import type { RadarRowViewModel } from '@/lib/radar-view-model';
 import { RADAR_THRESHOLDS } from '@/lib/radar-view-model';
 import { UnlockButton } from './UnlockButton';
 import { MaturityStrip } from './MaturityStrip';
+import { recordMatchIntro, recordMatchViewOnce } from '@/lib/matchEngagement';
 
 // -----------------------------------------------------------------------------
 // PROPS (View Model Based)
@@ -49,6 +50,8 @@ interface LiveMatchTableProps {
   maturityLevel?: string | null;
   maturityScore?: number | null;
   maturityGaps?: unknown;
+  /** Startup UUID for engagement funnel tracking */
+  startupId?: string | null;
 }
 
 // -----------------------------------------------------------------------------
@@ -132,11 +135,15 @@ export function LiveMatchTable({
   maturityLevel,
   maturityScore,
   maturityGaps,
+  startupId,
 }: LiveMatchTableProps) {
   const navigate = useNavigate();
 
   const handleView = (investorId: string) => {
-    navigate(`/investor/${investorId}`);
+    if (startupId) {
+      recordMatchViewOnce(startupId, investorId, 'live_match_table');
+    }
+    navigate(`/investor/${investorId}${startupId ? `?startup=${startupId}` : ''}`);
   };
 
   const showUnlocked = mode === 'unlocked' || mode === 'all';
@@ -222,6 +229,7 @@ export function LiveMatchTable({
           startupName={startupName}
           startupTagline={startupTagline}
           startupSectors={startupSectors}
+          startupId={startupId}
         />
       ))}
 
@@ -238,6 +246,7 @@ export function LiveMatchTable({
           startupName={startupName}
           startupTagline={startupTagline}
           startupSectors={startupSectors}
+          startupId={startupId}
         />
       ))}
 
@@ -266,14 +275,18 @@ interface RadarTableRowProps {
   startupName?: string;
   startupTagline?: string | null;
   startupSectors?: string[];
+  startupId?: string | null;
 }
 
-function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex, startupName, startupTagline, startupSectors }: RadarTableRowProps) {
+function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex, startupName, startupTagline, startupSectors, startupId }: RadarTableRowProps) {
   const [copied, setCopied] = useState(false);
   const handleCopyIntro = useCallback(() => {
     const name = startupName || 'Our startup';
     const investor = row.entity.name || 'there';
     const line = buildIntroLine(investor, name, startupTagline, startupSectors);
+    if (startupId) {
+      recordMatchIntro(startupId, row.investorId, 'live_match_table_copy_intro');
+    }
     void navigator.clipboard.writeText(line).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
