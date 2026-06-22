@@ -6416,7 +6416,9 @@ app.use('/api/admin', adminImportDiscovered.default || adminImportDiscovered);
 // Match API routes
 const matchesRouter = require('./routes/matches');
 const scanRouter = require('./routes/scan');
+const growthRouter = require('./routes/growth')(getSupabaseClient);
 app.use('/api/matches', matchesRouter);
+app.use('/api/growth', growthRouter);
 app.use('/api', scanRouter);
 
 // Match Run API routes (V1 - Supabase RPC-native orchestration)

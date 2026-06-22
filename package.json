@@ -27,6 +27,11 @@
     "pipeline:weekly-runbook:report": "node scripts/pipeline-weekly-runbook.mjs",
     "pipeline:refresh-platform-stats": "node scripts/refresh-platform-stats-cache.mjs --apply",
     "pipeline:apply-platform-stats-cache": "node scripts/apply-platform-stats-cache.mjs",
+    "growth:apply-schema": "node scripts/apply-growth-experiments.mjs",
+    "growth:metrics": "node scripts/growth-metrics-snapshot.mjs",
+    "growth:sync-registry": "node -e \"require('dotenv').config();const {createClient}=require('@supabase/supabase-js');const g=require('./server/lib/growthExperiments');g.syncRegistryToDb(createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY)).then(r=>console.log(r)).catch(e=>{console.error(e);process.exit(1)})\"",
+    "growth:agent": "node scripts/growth-agent-loop.mjs",
+    "growth:agent:plan": "node scripts/growth-agent-loop.mjs --dry-run",
     "pipeline:enrich-priority": "node scripts/pipeline-priority-enrichment.mjs --apply --limit=200",
     "pipeline:investor-intelligence": "node scripts/pipeline-investor-intelligence.mjs --apply --limit=150",
     "pipeline:god-audit": "node scripts/god-score-audit.js",
@@ -213,6 +218,7 @@
     "freshness:audit": "node scripts/data-freshness-audit.js"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.185",
     "@anthropic-ai/sdk": "^0.71.2",
     "@browserbasehq/stagehand": "^3.0.7",
     "@lottiefiles/dotlottie-web": "^0.57.0",

@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-22T00:00:00Z",
+  "experiments": [
+    {
+      "id": "founder_hero_entry",
+      "audience": "founder",
+      "name": "Founder hero entry",
+      "status": "running",
+      "hypothesis": "URL-first hero converts better than email-first for founders who already have a site.",
+      "variants": [
+        {
+          "key": "url_first",
+          "traffic_pct": 50,
+          "schema": {
+            "entry": "url",
+            "steps": ["url", "activate", "matches"],
+            "signup_path": "/activate",
+            "fields_required": ["startup_url"]
+          },
+          "copy": {
+            "headline": "Find investors that match your thesis.",
+            "cta": "Submit your startup URL",
+            "subline": "Pythh reads your site and maps investors in ~20 seconds."
+          }
+        },
+        {
+          "key": "matches_preview",
+          "traffic_pct": 50,
+          "schema": {
+            "entry": "url_with_preview",
+            "steps": ["url", "instant_matches", "signup_gate"],
+            "signup_path": "/signup/founder",
+            "fields_required": ["startup_url", "email"]
+          },
+          "copy": {
+            "headline": "See your investor matches before you sign up.",
+            "cta": "Preview matches",
+            "subline": "URL → live match preview → account to save intros."
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_signup_completed",
+        "secondary": ["url_submitted", "instant_matches_viewed", "checkout_started"]
+      }
+    },
+    {
+      "id": "investor_signup_schema",
+      "audience": "investor",
+      "name": "Investor signup form depth",
+      "status": "running",
+      "hypothesis": "Short investor intake (firm + thesis) beats long multi-step for qualified leads.",
+      "variants": [
+        {
+          "key": "short_form",
+          "traffic_pct": 50,
+          "schema": {
+            "steps": 1,
+            "fields": ["name", "email", "firm", "sectors", "check_size_band"],
+            "review_gate": false
+          },
+          "copy": {
+            "headline": "Join the Pythh investor network",
+            "cta": "Request access"
+          }
+        },
+        {
+          "key": "thesis_deep",
+          "traffic_pct": 50,
+          "schema": {
+            "steps": 2,
+            "fields": ["name", "email", "firm", "title", "sectors", "stages", "check_size_min", "check_size_max", "geography", "investment_thesis"],
+            "review_gate": true
+          },
+          "copy": {
+            "headline": "Tell us your thesis — we route dealflow",
+            "cta": "Complete investor profile"
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "investor_signup_completed",
+        "secondary": ["investor_signup_started", "investor_profile_step_2"]
+      }
+    }
+  ]
+}

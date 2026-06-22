@@ -15,6 +15,7 @@ When the user asks to **commit**, **push**, **deploy**, or **ship** changes (inc
    - Frontend: `.github/workflows/vercel-deploy.yml` on push to `main`
    - After push, confirm with `gh run list --limit 3` or `gh run watch` when deploy was requested.
 5. **Post-deploy** — if platform stats changed, remind or run `npm run pipeline:refresh-platform-stats` (DB cache already on remote).
+6. **Growth agent** — after signup funnel changes, run `npm run growth:apply-schema` on remote DB if needed; weekly loop is `npm run growth:agent` (needs `ANTHROPIC_API_KEY`).
 
 Do **not** wait for a second confirmation when the user explicitly requested commit + push + deploy in one message.
 

@@ -22,6 +22,11 @@ import {
   deltaColor, godScoreColor,
 } from "@/lib/designTokens";
 import {
+  fetchGrowthAssignment,
+  trackGrowthEvent,
+  type GrowthAssignment,
+} from "@/lib/growthExperiment";
+import {
   ArrowRight,
   ExternalLink,
   Mail,
@@ -281,7 +286,12 @@ function HeroSection({
 }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
+  const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
+
+  useEffect(() => {
+    fetchGrowthAssignment("founder").then(setFounderExperiment).catch(() => {});
+  }, []);
 
   // Clear any stale session so returning visitors don't get auto-sent to scanning
   useEffect(() => {
@@ -298,6 +308,14 @@ function HeroSection({
     setError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
     sessionStorage.setItem("pythia_url", normalized);
+    if (founderExperiment) {
+      void trackGrowthEvent(founderExperiment, "founder_url_submitted", { url: normalized });
+    }
+    const entry = founderExperiment?.schema?.entry as string | undefined;
+    if (entry === "url_with_preview") {
+      navigate(`/matches?url=${encodeURIComponent(normalized)}`);
+      return;
+    }
     navigate("/activate");
   };
 
