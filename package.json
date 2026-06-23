@@ -27,6 +27,7 @@
     "pipeline:weekly-runbook:report": "node scripts/pipeline-weekly-runbook.mjs",
     "pipeline:refresh-platform-stats": "node scripts/refresh-platform-stats-cache.mjs --apply",
     "check:pythh-frontend": "node scripts/check-pythh-frontend-deploy.mjs",
+    "check:deploy-cache": "node scripts/check-deploy-cache.mjs",
     "funnel:heartbeat": "node scripts/funnel-heartbeat-probe.mjs",
     "agents:daily": "node scripts/agents-daily.mjs",
     "agents:daily:full": "node scripts/agents-daily.mjs --with-agents",

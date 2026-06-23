@@ -20,6 +20,8 @@ primary_region = 'lax'
   [build.args]
     VITE_SUPABASE_URL = "https://unkpogyhhjbvxxjvmxlt.supabase.co"
     VITE_SUPABASE_ANON_KEY = "sb_publishable_Ii6LaEBqdDaBkPfNl_lsXg_kiUGPiD2"
+    # Bust Docker layer cache for app source on each deploy (CI passes github.sha).
+    CACHEBUST = "local"
 
 [http_service]
   internal_port = 8080

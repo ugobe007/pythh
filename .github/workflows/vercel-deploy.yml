@@ -49,32 +49,26 @@ jobs:
           mkdir -p .vercel
           node -e "const fs=require('fs'); fs.mkdirSync('.vercel',{recursive:true}); fs.writeFileSync('.vercel/project.json', JSON.stringify({ orgId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID }));"
 
-      - name: Deploy to Vercel (production)
+      - name: Deploy to Vercel (production, no build cache)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          VERCEL_FORCE_NO_BUILD_CACHE: "1"
         run: |
-          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
-            echo "Using VERCEL_DEPLOY_HOOK (pythh project deploy hook)…"
+          # Prefer CLI with --force so Vercel rebuilds dist/ and busts build cache.
+          # Deploy hooks cannot skip build cache and may serve stale static layers.
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "Deploying via vercel CLI --prod --force (build cache disabled)…"
+            npx vercel@latest deploy --prod --force --yes --token "$VERCEL_TOKEN"
+          elif [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "⚠️  VERCEL_TOKEN missing — falling back to deploy hook (may use build cache)."
             curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
-            echo "Deploy hook triggered."
           else
-            echo "No deploy hook — using vercel CLI (requires correct VERCEL_PROJECT_ID)…"
-            npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
+            echo "::error::Set VERCEL_TOKEN + VERCEL_ORG_ID + VERCEL_PROJECT_ID for cache-safe deploys."
+            exit 1
           fi
 
       - name: Verify pythh.ai frontend build
-        run: |
-          for i in $(seq 1 12); do
-            html=$(curl -fsSL "https://pythh.ai/?v=$i" || true)
-            if echo "$html" | grep -q 'pythh fly proxy'; then
-              echo "Attempt $i: still placeholder homepage"
-            elif echo "$html" | grep -qE 'assets/index-|<div id="root"'; then
-              echo "✅ pythh.ai homepage serves Vite app"
-              npm run check:pythh-frontend || true
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "::error::pythh.ai homepage still broken after deploy"
-          exit 1
+        run: npm run check:deploy-cache
