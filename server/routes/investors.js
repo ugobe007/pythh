@@ -30,14 +30,25 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function normalizeStringArray(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v).trim()).filter(Boolean);
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 function buildSignupPayload(body) {
   const email = normalizeEmail(body.email);
   const name = String(body.name || '').trim();
   if (!name) return { error: 'Name is required' };
   if (!isValidEmail(email)) return { error: 'Valid email is required' };
 
-  const sectors = Array.isArray(body.sectors) ? body.sectors.filter(Boolean) : [];
-  const stage = Array.isArray(body.stage) ? body.stage.filter(Boolean) : [];
+  const sectors = normalizeStringArray(body.sectors);
+  const stage = normalizeStringArray(body.stage);
+  const geography = normalizeStringArray(body.geography_focus ?? body.geography);
 
   let checkMin = body.check_size_min;
   let checkMax = body.check_size_max;
@@ -57,7 +68,7 @@ function buildSignupPayload(body) {
       check_size_max: Number.isFinite(checkMax) ? checkMax : null,
       sectors,
       stage,
-      geography_focus: body.geography_focus ? String(body.geography_focus).trim() : null,
+      geography_focus: geography.length > 0 ? geography : null,
       investment_thesis: body.investment_thesis ? String(body.investment_thesis).trim() : null,
       // inactive = pending review; public browse filters status = active
       status: 'inactive',
@@ -230,7 +241,13 @@ router.post('/signup', async (req, res) => {
       .select('id, status')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[investors/signup] insert error:', error.message, error.code, error.details);
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'An account with this email already exists.' });
+      }
+      throw error;
+    }
 
     return res.status(201).json({
       success: true,

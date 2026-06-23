@@ -179,7 +179,7 @@ export default function InvestorSignup() {
         check_size_max: checkMax,
         sectors: formData.sectors,
         stage: isShortForm ? [] : formData.stages,
-        geography_focus: isShortForm ? null : formData.geography.join(', ') || null,
+        geography: isShortForm ? [] : formData.geography,
         investment_thesis: formData.investmentThesis || null,
       });
 
