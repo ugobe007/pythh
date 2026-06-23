@@ -188,6 +188,37 @@ async function runProbe() {
     steps.push({ step: 'investor_signup_started', ok: res.ok, status: res.status });
   }
 
+  // 7. founder signup started (preview gate — matches_preview variant)
+  {
+    let experimentId = 'founder_hero_entry';
+    let variantKey = 'matches_preview';
+    const assign = await fetchJson(
+      `/api/growth/assign?audience=founder&anon_id=${encodeURIComponent(anonId)}`,
+    );
+    if (assign.res.ok && assign.body?.assignment) {
+      experimentId = assign.body.assignment.experiment_id || experimentId;
+      variantKey = assign.body.assignment.variant_key || variantKey;
+    }
+
+    const { res } = await fetchJson('/api/growth/event', {
+      method: 'POST',
+      body: JSON.stringify({
+        experiment_id: experimentId,
+        variant_key: variantKey,
+        audience: 'founder',
+        event_name: 'founder_signup_started',
+        anon_id: anonId,
+        payload: {
+          probe_run_id: probeRunId,
+          source: 'funnel_probe',
+          gated_action: 'save',
+          startup_id: startupId,
+        },
+      }),
+    });
+    steps.push({ step: 'founder_signup_started', ok: res.ok, status: res.status });
+  }
+
   await sleep(3500);
 
   const sb = createClient(

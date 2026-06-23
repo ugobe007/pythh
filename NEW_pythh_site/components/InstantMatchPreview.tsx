@@ -1,13 +1,17 @@
 /**
  * Public instant match preview — ?url= on /matches (founder_hero_entry matches_preview variant).
+ * Value-first: full shortlist reveal, signup gate on save / intro / export only.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'wouter';
-import { Loader2, ArrowRight, Lock } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { Loader2, ArrowRight, Download, Bookmark, Send } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
-import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
+import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
 import { recordMatchViewOnce, trackFunnelEvent, recordMatchEngagement } from '@/lib/matchEngagement';
+import { trackFounderGateStarted, type FounderGatedAction } from '@/lib/founderSignupGate';
+
+const PREVIEW_LIMIT = 10;
 
 type PreviewMatch = {
   investor_id?: string;
@@ -32,6 +36,7 @@ interface Props {
 }
 
 export default function InstantMatchPreview({ url }: Props) {
+  const [, navigate] = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -52,6 +57,9 @@ export default function InstantMatchPreview({ url }: Props) {
       setLoading(true);
       setError(null);
       try {
+        const assignment = await fetchGrowthAssignment('founder');
+        if (assignment) founderExpRef.current = assignment;
+
         const submitRes = await fetch(apiUrl('/api/instant/submit'), {
           method: 'POST',
           credentials: 'same-origin',
@@ -91,14 +99,8 @@ export default function InstantMatchPreview({ url }: Props) {
           url,
           match_count: data.matches?.length ?? 0,
         });
-        if (founderExpRef.current) {
-          void trackGrowthEvent(founderExpRef.current, 'instant_matches_viewed', {
-            startup_id: startupId,
-            url,
-          });
-        }
 
-        for (const m of (data.matches || []).slice(0, 3)) {
+        for (const m of (data.matches || []).slice(0, PREVIEW_LIMIT)) {
           const invId = m.investor_id || m.investor?.id;
           if (invId) recordMatchViewOnce(startupId, invId, 'instant_match_preview');
         }
@@ -115,6 +117,21 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [url]);
 
+  const handleGate = async (action: FounderGatedAction) => {
+    if (!preview?.startup?.id) return;
+    const top = (preview.matches || [])[0];
+    const invId = top?.investor_id || top?.investor?.id;
+    if (action === 'intro' && invId) {
+      void recordMatchEngagement(preview.startup.id, invId, 'intro', 'instant_preview_gate');
+    }
+    await trackFounderGateStarted(
+      action,
+      { url, startupId: preview.startup.id },
+      founderExpRef.current,
+    );
+    navigate('/activate');
+  };
+
   if (loading) {
     return (
       <div className="py-16 flex flex-col items-center gap-4 text-center">
@@ -129,18 +146,20 @@ export default function InstantMatchPreview({ url }: Props) {
     return (
       <div className="py-12 px-4 rounded-xl border border-red-500/30 bg-red-500/5 text-center max-w-lg mx-auto">
         <p className="text-red-300 text-sm mb-4">{error || 'Preview unavailable'}</p>
-        <Link href="/activate">
-          <a className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm">
-            Continue to full analysis <ArrowRight className="w-4 h-4" />
-          </a>
-        </Link>
+        <button
+          type="button"
+          onClick={() => navigate('/activate')}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm"
+        >
+          Continue to full analysis <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
     );
   }
 
   const matches = preview.matches || [];
-  const visible = matches.slice(0, 3);
-  const hidden = Math.max(0, (preview.total_matches ?? matches.length) - visible.length);
+  const visible = matches.slice(0, PREVIEW_LIMIT);
+  const total = preview.total_matches ?? matches.length;
   const startupName = preview.startup?.name || 'Your startup';
 
   return (
@@ -148,10 +167,10 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="mb-8 text-center">
         <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Instant preview</p>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-          {startupName} — top investor matches
+          {startupName} — your investor shortlist
         </h1>
         <p className="text-sm text-zinc-400">
-          {preview.total_matches?.toLocaleString() ?? matches.length} matches found · create a free account to save intros
+          {total.toLocaleString()} matches in network · showing top {visible.length} — free, no account required
         </p>
       </div>
 
@@ -181,40 +200,56 @@ export default function InstantMatchPreview({ url }: Props) {
             </div>
           );
         })}
-
-        {hidden > 0 && (
-          <div className="p-4 rounded-xl border border-dashed border-zinc-700 flex items-center justify-center gap-2 text-zinc-500 text-sm">
-            <Lock className="w-4 h-4" />
-            +{hidden.toLocaleString()} more matches — sign up to unlock
-          </div>
-        )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <Link href="/activate">
-          <a
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm"
-            onClick={() => {
-              trackFunnelEvent('url_submitted', { url, source: 'instant_preview_cta' });
-              const top = visible[0];
-              const invId = top?.investor_id || top?.investor?.id;
-              if (preview.startup?.id && invId) {
-                void recordMatchEngagement(preview.startup.id, invId, 'intro', 'instant_preview_cta');
-              }
-              if (founderExpRef.current) {
-                void trackGrowthEvent(founderExpRef.current, 'founder_signup_started', { url });
-              }
-            }}
+      {total > visible.length && (
+        <p className="text-center text-xs text-zinc-500 mb-6">
+          +{(total - visible.length).toLocaleString()} more ranked investors in your full list after signup
+        </p>
+      )}
+
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center mb-4">
+        <button
+          type="button"
+          onClick={() => void handleGate('save')}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm"
+        >
+          <Bookmark className="w-4 h-4" />
+          Save shortlist
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleGate('intro')}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm border border-zinc-600"
+        >
+          <Send className="w-4 h-4" />
+          Request intro
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleGate('export')}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-zinc-700 text-zinc-300 text-sm hover:border-zinc-500"
+        >
+          <Download className="w-4 h-4" />
+          Export list
+        </button>
+      </div>
+
+      <p className="text-center text-xs text-zinc-500 mb-6">
+        Create a free account to save, request intros, or export — your shortlist stays unlocked.
+      </p>
+
+      {preview.startup?.id && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => navigate(`/matches/preview/${preview.startup!.id}`)}
+            className="text-xs text-zinc-500 hover:text-zinc-300 underline-offset-2 hover:underline"
           >
-            Save matches &amp; get intros <ArrowRight className="w-4 h-4" />
-          </a>
-        </Link>
-        <Link href={`/matches/preview/${preview.startup?.id}`}>
-          <a className="inline-flex items-center justify-center px-6 py-3 rounded-lg border border-zinc-700 text-zinc-300 text-sm hover:border-zinc-500">
             Share preview link
-          </a>
-        </Link>
-      </div>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,10 +3,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link, useRoute } from 'wouter';
+import { Link, useRoute, useLocation } from 'wouter';
 import { Helmet } from 'react-helmet-async';
 import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 import { recordMatchViewOnce, trackFunnelEvent } from '@/lib/matchEngagement';
+import { trackFounderGateStarted } from '@/lib/founderSignupGate';
 
 interface Investor {
   id: string;
@@ -42,6 +43,7 @@ function scoreColor(score: number): string {
 
 export default function MatchPreview() {
   const [, params] = useRoute('/matches/preview/:startupId');
+  const [, navigate] = useLocation();
   const startupId = params?.startupId;
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,8 +96,15 @@ export default function MatchPreview() {
   }
 
   const { startup, total_matches, matches } = data;
-  const visible = matches.slice(0, 5);
+  const visible = matches.slice(0, 10);
   const hidden = Math.max(0, total_matches - visible.length);
+  const startupUrl = startup.website || '';
+
+  const handleGate = async (action: 'save' | 'intro' | 'export') => {
+    if (startupUrl) sessionStorage.setItem('pythia_url', startupUrl);
+    await trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id });
+    navigate('/activate');
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -108,11 +117,13 @@ export default function MatchPreview() {
           <Link href="/">
             <a className="text-lg font-bold">pythh</a>
           </Link>
-          <Link href={`/activate?ref=preview&startup=${startupId}`}>
-            <a className="px-4 py-1.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold">
-              Claim matches
-            </a>
-          </Link>
+          <button
+            type="button"
+            onClick={() => void handleGate('save')}
+            className="px-4 py-1.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
+          >
+            Save shortlist
+          </button>
         </div>
       </nav>
 
@@ -156,13 +167,24 @@ export default function MatchPreview() {
         </div>
 
         {hidden > 0 && (
-          <div className="text-center p-6 rounded-xl border border-dashed border-zinc-700">
-            <p className="text-zinc-400 text-sm mb-3">+{hidden.toLocaleString()} more investors</p>
-            <Link href={`/activate?ref=preview&startup=${startupId}`}>
-              <a className="inline-block px-5 py-2 rounded-lg bg-emerald-500 text-black text-sm font-semibold">
-                Unlock all matches
-              </a>
-            </Link>
+          <div className="text-center p-6 rounded-xl border border-dashed border-zinc-700 space-y-3">
+            <p className="text-zinc-400 text-sm">+{hidden.toLocaleString()} more investors in your ranked list</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleGate('intro')}
+                className="px-5 py-2 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
+              >
+                Request intro
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGate('export')}
+                className="px-5 py-2 rounded-lg border border-zinc-600 text-zinc-300 text-sm"
+              >
+                Export list
+              </button>
+            </div>
           </div>
         )}
 

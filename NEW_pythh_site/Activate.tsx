@@ -16,6 +16,10 @@ import {
   recordMatchViewOnce,
   trackFunnelEvent,
 } from "@/lib/matchEngagement";
+import { consumeFounderGatePending, trackFounderGateCompleted } from "@/lib/founderSignupGate";
+import { consumeFounderGatePending, trackFounderGateCompleted } from "@/lib/founderSignupGate";
+import {
+} from "@/lib/matchEngagement";
 
 function formatStageLabel(stage: unknown): string {
   const n = typeof stage === "number" ? stage : Number.parseInt(String(stage ?? ""), 10);
@@ -574,8 +578,8 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
 // ─── Step 1: URL Entry ────────────────────────────────────────────────────────
 
 function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => void }) {
-  const [url, setUrl] = useState("");
-  const [email, setEmail] = useState("");
+  const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
+  const [email, setEmail] = useState(() => sessionStorage.getItem("pythia_email") || "");
   const [urlError, setUrlError] = useState(false);
 
   // Pre-warm the Fly.io machine as soon as the entry form mounts so the
@@ -2453,6 +2457,15 @@ export default function Activate() {
     sessionStorage.setItem("pythia_url", submittedUrl);
     sessionStorage.setItem("pythia_email", submittedEmail);
     trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate" });
+    const { action: gatedAction } = consumeFounderGatePending();
+    if (gatedAction) {
+      void trackFounderGateCompleted({
+        url: submittedUrl,
+        email: submittedEmail,
+        startupId: sessionStorage.getItem("pythia_startup_id"),
+        gatedAction,
+      });
+    }
     setStep("scanning");
   };
 

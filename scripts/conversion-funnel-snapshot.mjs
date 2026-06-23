@@ -99,6 +99,8 @@ async function main() {
     },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
+      founder_preview_to_started: rate(g.founder_signup_started || 0, f.instant_matches_viewed || 0),
+      founder_started_to_completed: rate(g.founder_signup_completed || 0, g.founder_signup_started || 0),
       signup_per_preview: rate(founderSignups + investorSignups, f.preview_requested || 0),
       intro_per_match_view: rate(f.match_intro_requested || 0, f.match_viewed || 0),
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),

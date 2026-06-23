@@ -29,9 +29,10 @@
           "traffic_pct": 50,
           "schema": {
             "entry": "url_with_preview",
-            "steps": ["url", "instant_matches", "signup_gate"],
-            "signup_path": "/signup/founder",
-            "fields_required": ["startup_url", "email"]
+            "steps": ["url", "instant_matches", "action_gate"],
+            "signup_path": "/activate",
+            "fields_required": ["startup_url"],
+            "gate_actions": ["save", "intro", "export"]
           },
           "copy": {
             "headline": "See your investor matches before you sign up.",
@@ -77,6 +78,22 @@
             "headline": "Tell us your thesis — we route dealflow",
             "cta": "Complete investor profile"
           }
+        },
+        {
+          "key": "short_form_email_first",
+          "status": "draft",
+          "traffic_pct": 0,
+          "schema": {
+            "steps": 1,
+            "fields": ["email"],
+            "fields_optional_post_signup": ["name", "firm", "sectors", "check_size_band"],
+            "review_gate": false
+          },
+          "copy": {
+            "headline": "Join the Pythh investor network",
+            "cta": "Get access with your email"
+          },
+          "note": "DRAFT — proposed 2026-06-23 by growth agent to fix investor_signup completion (0/8). Email-first capture; defer firm/sectors/check_size to post-signup enrichment. Guardrail: qualified_firm_rate within 24h to avoid junk records. Awaiting human approval before traffic allocation."
         }
       ],
       "metrics": {

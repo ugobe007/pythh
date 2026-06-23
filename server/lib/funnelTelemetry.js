@@ -107,6 +107,16 @@ async function getFunnelCounts(supabase, { days = 7 } = {}) {
     growth_events,
     totals: { ai_logs: aiTotal, growth_events: growthTotal },
     funnel_blind: aiTotal === 0 && growthTotal === 0,
+    rates: {
+      founder_preview_to_started:
+        ai_logs.instant_matches_viewed > 0
+          ? Math.round((growth_events.founder_signup_started / ai_logs.instant_matches_viewed) * 1000) / 10
+          : null,
+      founder_started_to_completed:
+        growth_events.founder_signup_started > 0
+          ? Math.round((growth_events.founder_signup_completed / growth_events.founder_signup_started) * 1000) / 10
+          : null,
+    },
   };
 }
 
@@ -119,6 +129,7 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'instant_matches_viewed', store: 'ai_logs', operation: 'instant_matches_viewed' },
     { id: 'match_viewed', store: 'ai_logs', operation: 'match_viewed' },
     { id: 'investor_signup_started', store: 'growth', event_name: 'investor_signup_started' },
+    { id: 'founder_signup_started', store: 'growth', event_name: 'founder_signup_started' },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase
@@ -135,7 +146,7 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     .from('growth_experiment_events')
     .select('event_name, payload, created_at')
     .gte('created_at', since)
-    .eq('event_name', 'investor_signup_started')
+    .in('event_name', ['investor_signup_started', 'founder_signup_started'])
     .limit(100);
 
   const probeAi = (aiRows || []).filter((r) => {

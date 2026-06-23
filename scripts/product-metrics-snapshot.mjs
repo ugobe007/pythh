@@ -186,7 +186,17 @@ async function main() {
     if (funnel && !funnel.error) {
       const p = funnel.ai_logs?.preview_requested ?? 0;
       const u = funnel.ai_logs?.url_submitted ?? 0;
+      const g = funnel.growth_events || {};
+      const imv = funnel.ai_logs?.instant_matches_viewed ?? 0;
       console.log(`   Funnel (7d): url_submitted=${u} preview_requested=${p}`);
+      console.log(
+        `   Founder: instant_matches_viewed=${imv} signup_started=${g.founder_signup_started ?? 0} completed=${g.founder_signup_completed ?? 0}`,
+      );
+      if (funnel.rates?.founder_preview_to_started != null) {
+        console.log(
+          `   Founder preview→started: ${funnel.rates.founder_preview_to_started}% · started→completed: ${funnel.rates.founder_started_to_completed ?? '—'}%`,
+        );
+      }
       if (funnel.latest_heartbeat?.diagnosis) {
         console.log(`   Last heartbeat: ${funnel.latest_heartbeat.diagnosis}`);
       }
