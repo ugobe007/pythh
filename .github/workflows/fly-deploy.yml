@@ -55,6 +55,11 @@ jobs:
 
       - name: Boot smoke test
         run: node scripts/smoke-boot.js
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY || 'ci-smoke-placeholder' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       
       # Deploy to Fly.io using local Docker build so the pre-built dist/ is used
       # --local-only builds Docker on this runner (where dist/ already exists)
