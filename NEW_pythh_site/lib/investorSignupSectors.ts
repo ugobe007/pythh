@@ -1,0 +1,20 @@
+/** Sector chips for investor intake — aligned with platform taxonomy + deep-tech coverage. */
+export const INVESTOR_SIGNUP_SECTORS = [
+  'AI/ML',
+  'SaaS',
+  'FinTech',
+  'HealthTech',
+  'BioTech',
+  'CleanTech',
+  'Climate',
+  'Cybersecurity',
+  'EdTech',
+  'Developer Tools',
+  'Consumer',
+  'Marketplace',
+  'Enterprise',
+  'DeepTech',
+  'Robotics',
+  'SpaceTech',
+  'Material Science',
+] as const;

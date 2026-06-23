@@ -20,9 +20,9 @@ import {
 } from "@/lib/designTokens";
 
 const SECTORS = [
-  "AI/ML", "SaaS", "FinTech", "HealthTech", "CleanTech",
+  "AI/ML", "SaaS", "FinTech", "HealthTech", "CleanTech", "Climate",
   "Cybersecurity", "EdTech", "Developer Tools", "Consumer", "Marketplace",
-  "DeepTech", "BioTech",
+  "DeepTech", "BioTech", "Robotics", "SpaceTech", "Material Science", "Enterprise",
 ];
 
 const STAGES = ["Pre-Seed", "Seed", "Series A", "Series B", "Series C+"];

@@ -32,6 +32,7 @@ import Oracle from "./pages/Oracle";
 import Matches from "./pages/Matches";
 import MatchPreview from "./pages/MatchPreview";
 import InvestorSignup from "./pages/InvestorSignup";
+import InvestorSignupComplete from "./pages/InvestorSignupComplete";
 import Developers from "./pages/Developers";
 import Outreach from "./pages/Outreach";
 import Calendar from "./pages/Calendar";
@@ -77,6 +78,7 @@ function Router() {
       <Route path={"/matches/preview/:startupId"} component={MatchPreview} />
       <Route path={"/matches"} component={Matches} />
       <Route path={"/signup/investor"} component={InvestorSignup} />
+      <Route path={"/signup/investor/complete"} component={InvestorSignupComplete} />
       <Route path={"/developers"} component={Developers} />
       <Route path={"/outreach"}><Redirect to="/admin/outreach" /></Route>
       <Route path={"/calendar"}><Redirect to="/admin/calendar" /></Route>

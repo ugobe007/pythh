@@ -40,13 +40,20 @@ function normalizeStringArray(raw) {
   return [];
 }
 
+function normalizeSignupSectors(raw) {
+  return normalizeStringArray(raw).map((sector) => {
+    if (/material\s*science/i.test(sector)) return 'Materials';
+    return getCanonicalSector(sector) || sector;
+  });
+}
+
 function buildSignupPayload(body) {
   const email = normalizeEmail(body.email);
   const name = String(body.name || '').trim();
   if (!name) return { error: 'Name is required' };
   if (!isValidEmail(email)) return { error: 'Valid email is required' };
 
-  const sectors = normalizeStringArray(body.sectors);
+  const sectors = normalizeSignupSectors(body.sectors);
   const stage = normalizeStringArray(body.stage);
   const geography = normalizeStringArray(body.geography_focus ?? body.geography);
 

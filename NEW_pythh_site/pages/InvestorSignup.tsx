@@ -13,6 +13,7 @@ import {
   trackGrowthEvent,
   type GrowthAssignment,
 } from '@/lib/growthExperiment';
+import { INVESTOR_SIGNUP_SECTORS } from '@/lib/investorSignupSectors';
 
 const CHECK_SIZE_BANDS: { key: string; label: string; min: number; max: number }[] = [
   { key: '25-100', label: '$25K – $100K', min: 25_000, max: 100_000 },
@@ -78,10 +79,7 @@ export default function InvestorSignup() {
     };
   }, []);
 
-  const sectors = [
-    'AI/ML', 'SaaS', 'Fintech', 'HealthTech', 'CleanTech',
-    'Cybersecurity', 'EdTech', 'Developer Tools', 'Consumer', 'Marketplace',
-  ];
+  const sectors = [...INVESTOR_SIGNUP_SECTORS];
   const stages = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C+'];
   const geographies = ['US West', 'US East', 'Europe', 'Asia', 'Global'];
 
@@ -153,7 +151,7 @@ export default function InvestorSignup() {
           });
         }
 
-        navigate('/investors?welcome=1&complete_profile=1');
+        navigate('/signup/investor/complete?profile=incomplete');
         return;
       }
 
@@ -190,7 +188,7 @@ export default function InvestorSignup() {
         });
       }
 
-      navigate('/investors?welcome=1');
+      navigate('/signup/investor/complete');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
     } finally {
