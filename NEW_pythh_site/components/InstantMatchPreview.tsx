@@ -9,6 +9,7 @@ import { Loader2, ArrowRight, Download, Bookmark, Send } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
 import { recordMatchViewOnce, trackFunnelEvent, recordMatchEngagement } from '@/lib/matchEngagement';
+import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction } from '@/lib/founderSignupGate';
 
 const PREVIEW_LIMIT = 10;
@@ -207,8 +208,7 @@ export default function InstantMatchPreview({ url }: Props) {
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-zinc-500">#{i + 1}</span>
                   <span className="text-white font-medium truncate">
-                    {inv?.name || 'Investor'}
-                    {inv?.firm ? ` · ${inv.firm}` : ''}
+                    {formatInvestorDisplayLabel(inv?.name, inv?.firm)}
                   </span>
                 </div>
                 {m.why_you_match && (

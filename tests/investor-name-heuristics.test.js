@@ -55,4 +55,11 @@ test('rejects headline / role prefixes', () => {
   assert.strictEqual(isGarbageInvestorName('Data Scientist Jane Smith'), true);
 });
 
+test('rejects NFX blog scraper fragments', () => {
+  assert.strictEqual(isGarbageInvestorName('investing network for (Nfx)'), true);
+  assert.strictEqual(isGarbageInvestorName('invested in diverse (Nfx)'), true);
+  assert.strictEqual(isGarbageInvestorName('Investors who were (Nfx)'), true);
+  assert.strictEqual(isGarbageInvestorName('NFX'), false);
+});
+
 console.log('\ninvestor-name-heuristics: all passed\n');

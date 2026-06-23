@@ -69,3 +69,4 @@ temp/
 .venv/
 scripts/corpus/*.txt
 .vercel
+.env*

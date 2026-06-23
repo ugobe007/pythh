@@ -7,6 +7,7 @@ import { Link, useRoute, useLocation } from 'wouter';
 import { Helmet } from 'react-helmet-async';
 import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 import { recordMatchViewOnce, trackFunnelEvent } from '@/lib/matchEngagement';
+import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted } from '@/lib/founderSignupGate';
 
 interface Investor {
@@ -152,8 +153,7 @@ export default function MatchPreview() {
               <div>
                 <span className="text-xs text-zinc-500 mr-2">#{i + 1}</span>
                 <span className="font-medium">
-                  {m.investor.name}
-                  {m.investor.firm ? ` · ${m.investor.firm}` : ''}
+                  {formatInvestorDisplayLabel(m.investor.name, m.investor.firm)}
                 </span>
                 {m.why_you_match && (
                   <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.why_you_match}</p>
