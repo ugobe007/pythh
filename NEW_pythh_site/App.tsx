@@ -47,6 +47,7 @@ import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
 import Pythiam from "./pages/Pythiam";
 import { OAuthSessionBridge } from "./components/OAuthSessionBridge";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // Scroll to top on every client-side navigation
 function ScrollToTop() {
@@ -123,6 +124,7 @@ function App() {
         <TooltipProvider>
           <OAuthSessionBridge />
           <Toaster />
+          <SpeedInsights />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

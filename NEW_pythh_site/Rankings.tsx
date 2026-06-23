@@ -136,8 +136,18 @@ function LockedRow({ rank }: { rank: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+function getSignupBannerParams() {
+  if (typeof window === 'undefined') return { showWelcome: false, needsProfile: false };
+  const params = new URLSearchParams(window.location.search);
+  return {
+    showWelcome: params.get('welcome') === '1',
+    needsProfile: params.get('complete_profile') === '1',
+  };
+}
+
 export default function Rankings() {
   const { user, isAuthenticated } = useAuth();
+  const { showWelcome, needsProfile } = getSignupBannerParams();
 
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("All");
@@ -204,6 +214,41 @@ export default function Rankings() {
       <SharedNavbar activePath="/investors" />
 
       <div className="container pt-24 pb-20">
+        {showWelcome && (
+          <div
+            className="mb-6 px-4 py-3 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+            style={{
+              backgroundColor: 'oklch(0.696 0.17 162.48 / 0.08)',
+              border: '1px solid oklch(0.696 0.17 162.48 / 0.25)',
+            }}
+          >
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'oklch(0.97 0.005 264)' }}>
+                {needsProfile ? "You're in — finish your profile to get dealflow routed to your inbox." : 'Welcome to Pythh investor intelligence.'}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'oklch(0.62 0.01 264)' }}>
+                {needsProfile
+                  ? 'Add firm, sectors, and check size — takes under a minute.'
+                  : 'Browse ranked investor signals below. Upgrade to Oracle for full scoring data.'}
+              </p>
+            </div>
+            {needsProfile && (
+              <Link href="/signup/investor">
+                <a
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap"
+                  style={{
+                    backgroundColor: 'oklch(0.696 0.17 162.48)',
+                    color: 'oklch(0.12 0.01 264)',
+                  }}
+                >
+                  Complete profile
+                  <ArrowRight size={14} />
+                </a>
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* ── Header (2-panel) ── */}
         <div className="grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-16 mb-10 items-start pt-4">
 

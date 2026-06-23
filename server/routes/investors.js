@@ -22,6 +22,49 @@ const { getCanonicalSector } = require('../lib/sectorTaxonomy');
 
 const router = express.Router();
 
+function normalizeEmail(raw) {
+  return String(raw || '').trim().toLowerCase();
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function buildSignupPayload(body) {
+  const email = normalizeEmail(body.email);
+  const name = String(body.name || '').trim();
+  if (!name) return { error: 'Name is required' };
+  if (!isValidEmail(email)) return { error: 'Valid email is required' };
+
+  const sectors = Array.isArray(body.sectors) ? body.sectors.filter(Boolean) : [];
+  const stage = Array.isArray(body.stage) ? body.stage.filter(Boolean) : [];
+
+  let checkMin = body.check_size_min;
+  let checkMax = body.check_size_max;
+  if (checkMin != null && checkMin !== '') checkMin = Number(checkMin);
+  else checkMin = null;
+  if (checkMax != null && checkMax !== '') checkMax = Number(checkMax);
+  else checkMax = null;
+
+  return {
+    payload: {
+      name,
+      email,
+      firm: body.firm ? String(body.firm).trim() : null,
+      title: body.title ? String(body.title).trim() : null,
+      type: body.type ? String(body.type).trim() : 'VC',
+      check_size_min: Number.isFinite(checkMin) ? checkMin : null,
+      check_size_max: Number.isFinite(checkMax) ? checkMax : null,
+      sectors,
+      stage,
+      geography_focus: body.geography_focus ? String(body.geography_focus).trim() : null,
+      investment_thesis: body.investment_thesis ? String(body.investment_thesis).trim() : null,
+      // inactive = pending review; public browse filters status = active
+      status: 'inactive',
+    },
+  };
+}
+
 const SELECT_COLS =
   'id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, geography_focus, investment_thesis, linkedin_url, url, total_investments, updated_at';
 
@@ -141,6 +184,62 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('[investors] list error:', err.message);
     return res.status(500).json({ error: 'Failed to load investors' });
+  }
+});
+
+/**
+ * POST /api/investors/signup — anonymous investor intake (service role bypasses RLS).
+ */
+router.post('/signup', async (req, res) => {
+  const built = buildSignupPayload(req.body || {});
+  if (built.error) {
+    return res.status(400).json({ error: built.error });
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseClient();
+  } catch (e) {
+    console.error('[investors/signup] Supabase client:', e);
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const { email } = built.payload;
+
+    const { data: existing } = await supabase
+      .from('investors')
+      .select('id, status')
+      .eq('email', email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      return res.json({
+        success: true,
+        investor_id: existing.id,
+        existing: true,
+        status: existing.status,
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('investors')
+      .insert(built.payload)
+      .select('id, status')
+      .single();
+
+    if (error) throw error;
+
+    return res.status(201).json({
+      success: true,
+      investor_id: data.id,
+      status: data.status,
+    });
+  } catch (err) {
+    console.error('[investors/signup] error:', err.message);
+    return res.status(500).json({ error: 'Failed to create account. Please try again.' });
   }
 });
 

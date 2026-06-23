@@ -7,7 +7,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import SharedNavbar from '@/components/SharedNavbar';
-import { supabase } from '@/lib/supabase';
+import { apiUrl } from '@/lib/apiConfig';
 import {
   fetchGrowthAssignment,
   trackGrowthEvent,
@@ -108,18 +108,30 @@ export default function InvestorSignup() {
     setStep(2);
   };
 
-  const handleSubmit = async () => {
-    if (!supabase) {
-      setError('Sign-up is temporarily unavailable. Please try again later.');
-      return;
+  const submitInvestorSignup = async (payload: Record<string, unknown>) => {
+    const res = await fetch(apiUrl('/api/investors/signup'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      investor_id?: string;
+    };
+    if (!res.ok) {
+      throw new Error(json.error || 'Failed to create account. Please try again.');
     }
+    return json;
+  };
+
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     setError('');
 
     try {
       if (isEmailFirst) {
         const displayName = nameFromEmail(formData.email);
-        const payload: Record<string, unknown> = {
+        const result = await submitInvestorSignup({
           name: displayName,
           email: formData.email,
           firm: null,
@@ -131,21 +143,11 @@ export default function InvestorSignup() {
           stage: [],
           geography_focus: null,
           investment_thesis: null,
-          status: 'pending_review',
-          created_at: new Date().toISOString(),
-        };
-
-        const { data, error: insertError } = await supabase
-          .from('investors')
-          .insert(payload)
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
+        });
 
         if (assignment) {
           await trackGrowthEvent(assignment, 'investor_signup_completed', {
-            investor_id: data?.id,
+            investor_id: result.investor_id,
             email_first: true,
             profile_incomplete: true,
           });
@@ -167,7 +169,7 @@ export default function InvestorSignup() {
         checkMax = formData.checkSizeMax ? parseInt(formData.checkSizeMax, 10) * 1000 : null;
       }
 
-      const payload: Record<string, unknown> = {
+      const result = await submitInvestorSignup({
         name: formData.name,
         email: formData.email,
         firm: formData.firm || null,
@@ -179,21 +181,11 @@ export default function InvestorSignup() {
         stage: isShortForm ? [] : formData.stages,
         geography_focus: isShortForm ? null : formData.geography.join(', ') || null,
         investment_thesis: formData.investmentThesis || null,
-        status: 'pending_review',
-        created_at: new Date().toISOString(),
-      };
-
-      const { data, error: insertError } = await supabase
-        .from('investors')
-        .insert(payload)
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
+      });
 
       if (assignment) {
         await trackGrowthEvent(assignment, 'investor_signup_completed', {
-          investor_id: data?.id,
+          investor_id: result.investor_id,
           review_gate: reviewGate,
         });
       }
