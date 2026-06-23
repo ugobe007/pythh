@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-22T00:00:00Z",
+  "updated_at": "2026-06-23T00:00:00Z",
   "experiments": [
     {
       "id": "founder_hero_entry",
@@ -82,6 +82,37 @@
       "metrics": {
         "primary": "investor_signup_completed",
         "secondary": ["investor_signup_started", "investor_profile_step_2"]
+      }
+    },
+    {
+      "id": "pricing_oracle_cta",
+      "audience": "founder",
+      "name": "Oracle pricing page CTA",
+      "status": "draft",
+      "hypothesis": "Trial-first CTA ('Start 7-day free trial') converts better than value-first ('Automate your pipeline') on /pricing.",
+      "variants": [
+        {
+          "key": "trial_first",
+          "traffic_pct": 50,
+          "schema": { "cta_style": "trial", "emphasis": "7-day free trial" },
+          "copy": {
+            "headline": "Start your 7-day free trial",
+            "subline": "Full PYTHIA pipeline — cancel anytime."
+          }
+        },
+        {
+          "key": "value_first",
+          "traffic_pct": 50,
+          "schema": { "cta_style": "value", "emphasis": "automation" },
+          "copy": {
+            "headline": "Automate your investor pipeline",
+            "subline": "Matches, outreach, and meeting prep on autopilot."
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "checkout_completed",
+        "secondary": ["pricing_viewed", "checkout_started", "checkout_cancelled"]
       }
     }
   ]

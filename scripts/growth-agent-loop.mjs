@@ -32,12 +32,13 @@ const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 3;
 const PROMPT = `You are the Pythh Growth Agent. Follow agents/growth/CLAUDE.md.
 
 Run this growth optimization cycle now:
-1. node scripts/growth-metrics-snapshot.mjs --json
-2. Read agents/growth/experiment-registry.json
-3. Analyze founder + investor signup experiments; compare variant performance
-4. Run npm run test:wizard-smoke (skip if network fails — note in report)
-5. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, and ONE concrete proposal
-6. If a registry change is warranted, edit agents/growth/experiment-registry.json (new variants as draft only)
+1. node scripts/conversion-funnel-snapshot.mjs --json
+2. node scripts/growth-metrics-snapshot.mjs --json
+3. Read agents/growth/experiment-registry.json
+4. Analyze founder + investor signup AND pricing→checkout experiments; compare variant performance
+5. Run npm run funnel:heartbeat -- --no-fail and npm run test:wizard-smoke (note failures in report)
+6. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, and ONE concrete proposal for the weakest funnel stage
+7. If a registry change is warranted, edit agents/growth/experiment-registry.json (new variants as draft only)
 
 Do not git commit or deploy. End with a 5-bullet executive summary in the report JSON.`;
 

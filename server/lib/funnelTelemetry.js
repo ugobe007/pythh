@@ -3,6 +3,8 @@
 /** Funnel operations tracked in ai_logs (see product spec founder_supply_seeding). */
 const FUNNEL_OPERATIONS = [
   'page_view',
+  'pricing_viewed',
+  'paywall_shown',
   'url_submitted',
   'preview_requested',
   'instant_matches_viewed',
@@ -13,6 +15,7 @@ const FUNNEL_OPERATIONS = [
   'lookup_signup_completed',
   'checkout_started',
   'checkout_completed',
+  'checkout_cancelled',
 ];
 
 const GROWTH_FUNNEL_EVENTS = [

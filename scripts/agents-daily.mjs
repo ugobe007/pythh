@@ -29,6 +29,7 @@ function run(label, script, args = [], { allowFail = false } = {}) {
 }
 
 run('Funnel heartbeat probe', 'scripts/funnel-heartbeat-probe.mjs');
+run('Conversion funnel snapshot', 'scripts/conversion-funnel-snapshot.mjs');
 run('Product metrics snapshot', 'scripts/product-metrics-snapshot.mjs');
 run('Growth metrics snapshot', 'scripts/growth-metrics-snapshot.mjs');
 run('Research snapshot', 'scripts/research-snapshot.mjs', [], { allowFail: true });
@@ -38,6 +39,7 @@ if (WITH_AGENTS) {
     console.warn('\n⚠️  ANTHROPIC_API_KEY missing — skipping LLM agent loops');
   } else {
     run('Research agent loop', 'scripts/research-agent-loop.mjs', ['--max-turns=25', '--max-budget-usd=2']);
+    run('Growth agent loop', 'scripts/growth-agent-loop.mjs', ['--max-turns=22', '--max-budget-usd=2']);
     run('Product agent loop', 'scripts/product-agent-loop.mjs', ['--max-turns=30', '--max-budget-usd=3']);
   }
 }

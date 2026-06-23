@@ -1,6 +1,6 @@
 {
-  "goal": "100 founder + investor signups per day",
-  "updated_at": "2026-06-22",
+  "goal": "100 founder + investor signups per day; convert visitors to paying Oracle/Pantheon subscribers",
+  "updated_at": "2026-06-23",
   "metrics": {
     "primary": "total_signups_per_day",
     "secondary": [
@@ -8,7 +8,11 @@
       "investor_signups_per_day",
       "url_submissions_per_day",
       "signup_conversion_rate",
-      "match_intro_rate"
+      "match_intro_rate",
+      "pricing_to_checkout_rate",
+      "checkout_completion_rate",
+      "trial_to_paid_rate",
+      "active_paid_subscribers"
     ]
   },
   "funnel_stages": [
@@ -18,18 +22,31 @@
     "account_created",
     "first_match_viewed",
     "intro_requested",
-    "retained_7d"
+    "pricing_viewed",
+    "checkout_started",
+    "checkout_completed",
+    "product_active_7d",
+    "retained_7d",
+    "paid_subscriber"
   ],
+  "conversion_chain": "visitor → preview → signup → use (matches/wizard) → pricing → checkout → paid",
   "milestones": [
     { "signups_per_day": 1, "phase": "validate", "note": "Prove one channel converts" },
     { "signups_per_day": 10, "phase": "repeatable", "note": "Instrumented funnel + one winning experiment" },
     { "signups_per_day": 30, "phase": "scale", "note": "Multiple channels + engagement loops" },
-    { "signups_per_day": 100, "phase": "target", "note": "Product-market pull; research-informed roadmap" }
+    { "signups_per_day": 100, "phase": "target", "note": "Product-market pull; research-informed roadmap" },
+    { "paid_subscribers": 10, "phase": "monetize_validate", "note": "First repeatable visitor→paid path" },
+    { "paid_subscribers": 100, "phase": "monetize_scale", "note": "Pricing experiments + activation loops driving MRR" }
   ],
   "agent_roles": {
-    "research": "Survey market — founder pain, workflow friction, missing data, funding-process gaps",
-    "product": "Prioritize backlog — turn signals into specs and experiments",
-    "growth": "Test signup schemas and copy — maximize conversion",
-    "pipeline": "Keep match quality and data trustworthy — retention depends on it"
+    "research": "Survey market — founder/investor pain, pricing sensitivity, workflow friction",
+    "product": "Prioritize backlog — specs for features that move preview→signup→use→pay",
+    "growth": "Test signup schemas, hero entry, pricing copy — maximize conversion at each stage",
+    "pipeline": "Keep match quality trustworthy — retention and paid conversion depend on it"
+  },
+  "autopilot": {
+    "daily": ["funnel_heartbeat", "conversion_snapshot", "growth_metrics"],
+    "rotating_llm": ["research", "growth", "product"],
+    "weekly_full": "All three LLM agents + pipeline dashboard"
   }
 }

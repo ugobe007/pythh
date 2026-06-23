@@ -1,0 +1,57 @@
+name: Agent Autopilot Daily
+
+on:
+  schedule:
+    - cron: '0 11 * * *'  # 11am UTC daily — after funnel heartbeat (9am)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        default: 'rotate'
+        type: choice
+        options:
+          - rotate
+          - full
+          - metrics-only
+
+jobs:
+  autopilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Agent autopilot
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BASE: https://pythh.ai
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.mode }}" = "full" ]; then ARGS="--full"; fi
+          if [ "${{ github.event.inputs.mode }}" = "metrics-only" ]; then ARGS="--metrics-only"; fi
+          npm run agents:autopilot -- $ARGS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-autopilot-${{ github.run_id }}
+          path: |
+            reports/conversion-funnel-*.json
+            reports/funnel-heartbeat-*.json
+            reports/product-metrics-*.json
+            reports/growth-metrics-*.json
+            reports/research-snapshot-*.json
+            reports/*-agent-run-*.json
+            reports/*-agent-*.json
+            agents/research/briefs/*.md
+            agents/product/specs/*.md

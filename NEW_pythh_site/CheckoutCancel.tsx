@@ -3,11 +3,17 @@
  * Design: Obsidian Terminal — Data Noir
  */
 import { Helmet } from "react-helmet-async";
+import { useEffect } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
+import { trackFunnelEvent } from "@/lib/matchEngagement";
 
 export default function CheckoutCancel() {
+  useEffect(() => {
+    trackFunnelEvent("checkout_cancelled", { plan: "oracle", path: "/checkout/cancel" });
+  }, []);
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4"

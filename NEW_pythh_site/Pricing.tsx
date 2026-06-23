@@ -3,7 +3,7 @@
  * Terminal / data-noir — outline CTAs, inline tabs, no pill fills
  */
 import { Helmet } from "react-helmet-async";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, X, Building2, Loader2, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import StartupCTA from "@/components/design/StartupCTA";
 import {
   G, GOLD, MUTED, DIM, BORDER, CARD, PAGE, TEXT, G_BORDER,
 } from "@/lib/designTokens";
+import { trackFunnelEvent } from "@/lib/matchEngagement";
 
 type BillingCycle = "monthly" | "annual";
 
@@ -254,6 +255,10 @@ export default function Pricing() {
   const isActiveSubscriber =
     subscription?.status === "active" || subscription?.status === "trialing";
 
+  useEffect(() => {
+    trackFunnelEvent("pricing_viewed", { path: "/pricing", authenticated: isAuthenticated });
+  }, [isAuthenticated]);
+
   const checkoutMutation = trpc.stripe.createCheckoutSession.useMutation({
     onSuccess: (data) => {
       window.location.href = data.url;
@@ -267,6 +272,11 @@ export default function Pricing() {
   });
 
   const handleOracleCTA = () => {
+    trackFunnelEvent("checkout_started", {
+      plan: "oracle",
+      billing,
+      path: "/pricing",
+    });
     checkoutMutation.mutate({
       billingCycle: billing,
       origin: window.location.origin,

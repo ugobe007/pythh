@@ -111,6 +111,7 @@ async function main() {
   const p0Open = opportunities.filter((o) => o.priority === 'P0' && !['shipped', 'killed'].includes(o.status));
 
   let funnel = null;
+  let conversion = null;
   try {
     const sb = createClient(
       process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -121,6 +122,7 @@ async function main() {
   } catch (e) {
     funnel = { error: e.message };
   }
+  conversion = latestReport('conversion-funnel-');
 
   const report = {
     generated_at,
@@ -143,6 +145,7 @@ async function main() {
       : null,
     growth,
     funnel,
+    conversion,
     research: research
       ? {
           north_star: research.north_star,
