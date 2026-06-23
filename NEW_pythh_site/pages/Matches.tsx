@@ -154,18 +154,113 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
+// ─── Preview URL (?url= must be a real startup domain — not empty) ───────────
+
+function normalizePreviewUrl(raw: string | null): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+}
+
+function readMatchesSearchState() {
+  const params = new URLSearchParams(window.location.search);
+  const rawUrl = params.get("url");
+  return {
+    highlightId: params.get("highlight"),
+    previewUrl: normalizePreviewUrl(rawUrl),
+    missingUrlParam: params.has("url") && !rawUrl?.trim(),
+  };
+}
+
+function MatchesUrlEntry({
+  onSubmit,
+  error,
+  hint,
+}: {
+  onSubmit: (url: string) => void;
+  error?: boolean;
+  hint?: string;
+}) {
+  const [url, setUrl] = useState("");
+
+  return (
+    <div
+      className="mb-12 p-6 rounded-xl"
+      style={{
+        backgroundColor: "oklch(0.115 0.01 264)",
+        border: `1px solid ${error ? "oklch(0.65 0.2 27 / 0.5)" : "oklch(0.696 0.17 162.48 / 0.25)"}`,
+      }}
+    >
+      <p className="text-[11px] uppercase tracking-[2px] mb-2" style={{ color: "#22c55e" }}>
+        Instant match preview
+      </p>
+      <h2 className="text-xl font-bold text-white mb-2">See your investor shortlist</h2>
+      <p className="text-sm mb-4" style={{ color: "oklch(0.58 0.01 264)" }}>
+        {hint || "Enter your startup URL — we’ll rank your top investor matches in about a minute."}
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(url);
+        }}
+        className="flex flex-col sm:flex-row gap-3"
+      >
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="yourstartup.com"
+          className="flex-1 px-4 py-3 rounded-lg text-sm outline-none"
+          style={{
+            backgroundColor: "oklch(0.09 0.01 264)",
+            border: `1px solid ${error ? "oklch(0.65 0.2 27)" : "oklch(0.25 0.01 264)"}`,
+            color: "oklch(0.94 0.005 264)",
+          }}
+        />
+        <button
+          type="submit"
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold whitespace-nowrap"
+          style={{ backgroundColor: "#22c55e", color: "#000" }}
+        >
+          Find matches
+          <ArrowRight size={16} />
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Matches() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [missingUrlParam, setMissingUrlParam] = useState(false);
+  const [urlEntryError, setUrlEntryError] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setHighlightId(params.get("highlight"));
-    setPreviewUrl(params.get("url"));
+    const state = readMatchesSearchState();
+    setHighlightId(state.highlightId);
+    setPreviewUrl(state.previewUrl);
+    setMissingUrlParam(state.missingUrlParam);
+    setUrlEntryError(state.missingUrlParam);
+
+    if (state.missingUrlParam && typeof window !== "undefined") {
+      window.history.replaceState({}, "", "/matches");
+    }
   }, [location]);
+
+  const submitPreviewUrl = (raw: string) => {
+    const normalized = normalizePreviewUrl(raw);
+    if (!normalized) {
+      setUrlEntryError(true);
+      return;
+    }
+    setUrlEntryError(false);
+    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
+  };
 
   const { data: stats, isLoading } = trpc.matches.getStats.useQuery(undefined, {
     staleTime: 5 * 60 * 1000,
@@ -200,6 +295,16 @@ export default function Matches() {
           <InstantMatchPreview url={previewUrl} />
         ) : (
         <>
+        <MatchesUrlEntry
+          onSubmit={submitPreviewUrl}
+          error={urlEntryError}
+          hint={
+            missingUrlParam
+              ? "That link was missing a startup URL. Paste yours below — e.g. pythh.ai/matches?url=yourstartup.com"
+              : undefined
+          }
+        />
+
         {/* ── Hero ── */}
         <div className="mb-16">
           <div
