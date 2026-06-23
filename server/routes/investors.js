@@ -267,4 +267,71 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/investors/signup/:investorId — complete a partial (email-first) profile.
+ * Requires matching email in body; only updates inactive intake records.
+ */
+router.patch('/signup/:investorId', async (req, res) => {
+  const investorId = String(req.params.investorId || '').trim();
+  if (!investorId) {
+    return res.status(400).json({ error: 'Investor id is required' });
+  }
+
+  const built = buildSignupPayload(req.body || {});
+  if (built.error) {
+    return res.status(400).json({ error: built.error });
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseClient();
+  } catch (e) {
+    console.error('[investors/signup/patch] Supabase client:', e);
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const { email, ...profileFields } = built.payload;
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('investors')
+      .select('id, email, status')
+      .eq('id', investorId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!existing) {
+      return res.status(404).json({ error: 'Investor profile not found' });
+    }
+    if (normalizeEmail(existing.email) !== email) {
+      return res.status(403).json({ error: 'Email does not match this profile' });
+    }
+    if (existing.status !== 'inactive') {
+      return res.status(409).json({ error: 'This profile can no longer be edited here' });
+    }
+
+    const { data, error } = await supabase
+      .from('investors')
+      .update(profileFields)
+      .eq('id', investorId)
+      .select('id, status')
+      .single();
+
+    if (error) {
+      console.error('[investors/signup/patch] update error:', error.message, error.code, error.details);
+      throw error;
+    }
+
+    return res.json({
+      success: true,
+      investor_id: data.id,
+      status: data.status,
+      updated: true,
+    });
+  } catch (err) {
+    console.error('[investors/signup/patch] error:', err.message);
+    return res.status(500).json({ error: 'Failed to update profile. Please try again.' });
+  }
+});
+
 module.exports = router;

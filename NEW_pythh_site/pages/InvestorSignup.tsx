@@ -14,6 +14,13 @@ import {
   type GrowthAssignment,
 } from '@/lib/growthExperiment';
 import { INVESTOR_SIGNUP_SECTORS } from '@/lib/investorSignupSectors';
+import {
+  clearInvestorSignupDraft,
+  isResumeSignupUrl,
+  readInvestorSignupDraft,
+  saveInvestorSignupDraft,
+  type InvestorSignupDraft,
+} from '@/lib/investorSignupDraft';
 
 const CHECK_SIZE_BANDS: { key: string; label: string; min: number; max: number }[] = [
   { key: '25-100', label: '$25K – $100K', min: 25_000, max: 100_000 },
@@ -39,58 +46,79 @@ function nameFromEmail(email: string): string {
 
 export default function InvestorSignup() {
   const [, navigate] = useLocation();
+  const [resumeDraft] = useState<InvestorSignupDraft | null>(() =>
+    isResumeSignupUrl() ? readInvestorSignupDraft() : null,
+  );
+  const isResumeMode = Boolean(resumeDraft);
   const [assignment, setAssignment] = useState<GrowthAssignment | null>(null);
   const variantKey = assignment?.variant_key ?? 'thesis_deep';
-  const isEmailFirst = variantKey === 'short_form_email_first';
-  const isShortForm = variantKey === 'short_form';
+  const isEmailFirst = !isResumeMode && variantKey === 'short_form_email_first';
+  const isShortForm = !isResumeMode && variantKey === 'short_form';
   const reviewGate = Boolean(
     (assignment?.schema as { review_gate?: boolean } | undefined)?.review_gate,
   );
   const copy = (assignment?.copy ?? {}) as { headline?: string; subline?: string; cta?: string };
 
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2>(() => (isResumeSignupUrl() && readInvestorSignupDraft() ? 1 : 1));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    firm: '',
-    title: '',
-    investorType: '' as 'VC' | 'Angel' | 'Family Office' | 'Corporate VC' | 'Accelerator' | '',
-    checkSizeMin: '',
-    checkSizeMax: '',
-    checkSizeBand: '',
-    sectors: [] as string[],
-    stages: [] as string[],
-    geography: [] as string[],
-    investmentThesis: '',
+  const [formData, setFormData] = useState(() => {
+    const draft = isResumeSignupUrl() ? readInvestorSignupDraft() : null;
+    return {
+      name: draft?.name || (draft?.email ? nameFromEmail(draft.email) : ''),
+      email: draft?.email || '',
+      firm: '',
+      title: '',
+      investorType: '' as 'VC' | 'Angel' | 'Family Office' | 'Corporate VC' | 'Accelerator' | '',
+      checkSizeMin: '',
+      checkSizeMax: '',
+      checkSizeBand: '',
+      sectors: [] as string[],
+      stages: [] as string[],
+      geography: [] as string[],
+      investmentThesis: '',
+    };
   });
+
+  useEffect(() => {
+    if (isResumeSignupUrl() && !readInvestorSignupDraft()) {
+      setError('Session expired. Enter your email again to continue.');
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void fetchGrowthAssignment('investor').then((a) => {
       if (cancelled || !a) return;
       setAssignment(a);
-      void trackGrowthEvent(a, 'investor_signup_started');
+      if (!isResumeMode) {
+        void trackGrowthEvent(a, 'investor_signup_started');
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isResumeMode]);
 
   const sectors = [...INVESTOR_SIGNUP_SECTORS];
   const stages = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C+'];
   const geographies = ['US West', 'US East', 'Europe', 'Asia', 'Global'];
 
-  const totalSteps = isEmailFirst || isShortForm ? 1 : 2;
-  const headline = copy.headline || (isEmailFirst
-    ? 'Get dealflow routed to your inbox'
-    : isShortForm
-      ? 'Join the Pythh investor network'
-      : 'Create investor account');
-  const subline = copy.subline || (isEmailFirst ? 'One field now — firm and thesis later.' : null);
-  const submitLabel = copy.cta || (isEmailFirst ? 'Get access' : isShortForm ? 'Request access' : 'Create account');
+  const totalSteps = isResumeMode || (!isEmailFirst && !isShortForm) ? 2 : 1;
+  const headline = isResumeMode
+    ? 'Complete your investor profile'
+    : copy.headline || (isEmailFirst
+      ? 'Get dealflow routed to your inbox'
+      : isShortForm
+        ? 'Join the Pythh investor network'
+        : 'Create investor account');
+  const subline = isResumeMode
+    ? (formData.email ? `Finishing setup for ${formData.email}` : 'Add firm, sectors, and check size.')
+    : copy.subline || (isEmailFirst ? 'One field now — firm and thesis later.' : null);
+  const submitLabel = isResumeMode
+    ? 'Save profile'
+    : copy.cta || (isEmailFirst ? 'Get access' : isShortForm ? 'Request access' : 'Create account');
 
   const handleToggle = (field: 'sectors' | 'stages' | 'geography', value: string) => {
     setFormData((prev) => ({
@@ -122,6 +150,53 @@ export default function InvestorSignup() {
     return json;
   };
 
+  const updateInvestorProfile = async (payload: Record<string, unknown>) => {
+    if (!resumeDraft?.investor_id) {
+      throw new Error('Session expired. Please start again from the completion page.');
+    }
+    const res = await fetch(apiUrl(`/api/investors/signup/${resumeDraft.investor_id}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      investor_id?: string;
+    };
+    if (!res.ok) {
+      throw new Error(json.error || 'Failed to update profile. Please try again.');
+    }
+    return json;
+  };
+
+  const buildProfilePayload = () => {
+    let checkMin: number | null = null;
+    let checkMax: number | null = null;
+
+    if (isShortForm && formData.checkSizeBand) {
+      const band = bandToCheckSize(formData.checkSizeBand);
+      checkMin = band.min;
+      checkMax = band.max;
+    } else {
+      checkMin = formData.checkSizeMin ? parseInt(formData.checkSizeMin, 10) * 1000 : null;
+      checkMax = formData.checkSizeMax ? parseInt(formData.checkSizeMax, 10) * 1000 : null;
+    }
+
+    return {
+      name: formData.name,
+      email: formData.email,
+      firm: formData.firm || null,
+      title: isShortForm ? null : formData.title || null,
+      type: isShortForm ? 'VC' : formData.investorType || null,
+      check_size_min: checkMin,
+      check_size_max: checkMax,
+      sectors: formData.sectors,
+      stage: isShortForm ? [] : formData.stages,
+      geography: isShortForm ? [] : formData.geography,
+      investment_thesis: formData.investmentThesis || null,
+    };
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setError('');
@@ -151,7 +226,31 @@ export default function InvestorSignup() {
           });
         }
 
+        if (result.investor_id) {
+          saveInvestorSignupDraft({
+            investor_id: result.investor_id,
+            email: formData.email,
+            name: displayName,
+          });
+        }
+
         navigate('/signup/investor/complete?profile=incomplete');
+        return;
+      }
+
+      if (isResumeMode) {
+        const result = await updateInvestorProfile(buildProfilePayload());
+
+        if (assignment) {
+          await trackGrowthEvent(assignment, 'investor_signup_completed', {
+            investor_id: result.investor_id,
+            profile_completed: true,
+            resumed: true,
+          });
+        }
+
+        clearInvestorSignupDraft();
+        navigate('/signup/investor/complete');
         return;
       }
 
@@ -291,7 +390,13 @@ export default function InvestorSignup() {
             {!isShortForm && !isEmailFirst && step === 1 && (
               <div className="space-y-4">
                 <Field label="Full name *" value={formData.name} onChange={(v) => setFormData({ ...formData, name: v })} />
-                <Field label="Email *" value={formData.email} onChange={(v) => setFormData({ ...formData, email: v })} type="email" />
+                <Field
+                  label="Email *"
+                  value={formData.email}
+                  onChange={(v) => setFormData({ ...formData, email: v })}
+                  type="email"
+                  readOnly={isResumeMode}
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Firm" value={formData.firm} onChange={(v) => setFormData({ ...formData, firm: v })} />
                   <Field label="Title" value={formData.title} onChange={(v) => setFormData({ ...formData, title: v })} />
@@ -359,7 +464,7 @@ export default function InvestorSignup() {
                     disabled={isSubmitting || formData.sectors.length === 0 || formData.stages.length === 0}
                     className="flex-1 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-md disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Creating…' : submitLabel}
+                    {isSubmitting ? 'Saving…' : submitLabel}
                   </button>
                 </div>
               </div>
@@ -381,11 +486,13 @@ function Field({
   value,
   onChange,
   type = 'text',
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -394,8 +501,9 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
         autoComplete="off"
-        className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm focus:outline-none"
+        className={`w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm focus:outline-none ${readOnly ? 'text-zinc-500 cursor-not-allowed' : ''}`}
       />
     </div>
   );
