@@ -1,7 +1,6 @@
 {
   "installCommand": "echo skip",
-  "buildCommand": "mkdir -p dist",
-  "outputDirectory": "dist",
+  "buildCommand": "echo skip",
   "headers": [
     {
       "source": "/(.*)",
@@ -15,8 +14,12 @@
   ],
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "https://hot-honey.fly.dev/$1"
+      "source": "/",
+      "destination": "https://hot-honey.fly.dev/"
+    },
+    {
+      "source": "/:path*",
+      "destination": "https://hot-honey.fly.dev/:path*"
     }
   ]
 }

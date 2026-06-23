@@ -63,19 +63,5 @@ jobs:
             npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
           fi
 
-      - name: Verify pythh.ai serves this commit
-        run: |
-          expected="${{ github.sha }}"
-          echo "Expect pythh-build meta = $expected"
-          for i in $(seq 1 12); do
-            html=$(curl -fsSL "https://pythh.ai/?v=$i" || true)
-            got=$(echo "$html" | grep -o 'name="pythh-build" content="[^"]*"' | sed 's/.*content="//;s/"//' || true)
-            echo "Attempt $i: got=${got:-<missing>}"
-            if [ "$got" = "$expected" ]; then
-              echo "✅ pythh.ai is live on $expected"
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "::error::pythh.ai still serves '${got:-unknown}' — expected '$expected'. Check VERCEL_PROJECT_ID points to the Vercel **pythh** project that owns pythh.ai (not hot-money-honey)."
-          exit 1
+      - name: Verify pythh.ai proxies to Fly
+        run: npm run check:pythh-frontend

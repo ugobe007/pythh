@@ -10,13 +10,17 @@ const expected =
   process.env.EXPECTED_SHA?.trim() ||
   execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
-// Root `/` may be a Vercel placeholder; probe a known SPA route instead.
-const PROBE_PATH = '/signup/investor';
+// Root `/` may be a Vercel placeholder until proxy-only redeploy; probe known routes.
+const PROBE_PATHS = ['/', '/signup/investor'];
 
-async function fetchHtml(url) {
-  return fetch(`${url}${PROBE_PATH}?t=${Date.now()}`, {
+async function fetchHtml(url, path) {
+  return fetch(`${url}${path}?t=${Date.now()}`, {
     headers: { 'Cache-Control': 'no-cache' },
   }).then((r) => r.text());
+}
+
+function isPlaceholderHome(html) {
+  return /pythh fly proxy/i.test(html) || html.length < 200;
 }
 
 function assetHash(html) {
@@ -29,13 +33,20 @@ function buildMeta(html) {
   return m?.[1] ?? null;
 }
 
-const [liveHtml, flyHtml] = await Promise.all([fetchHtml(ORIGIN), fetchHtml(FLY)]);
+const [liveHomeHtml, liveRouteHtml, flyHtml] = await Promise.all([
+  fetchHtml(ORIGIN, PROBE_PATHS[0]),
+  fetchHtml(ORIGIN, PROBE_PATHS[1]),
+  fetchHtml(FLY, '/'),
+]);
+const liveHtml = isPlaceholderHome(liveHomeHtml) ? liveRouteHtml : liveHomeHtml;
 const liveMeta = buildMeta(liveHtml);
 const liveAsset = assetHash(liveHtml);
 const flyAsset = assetHash(flyHtml);
+const homeBroken = isPlaceholderHome(liveHomeHtml);
 
 console.log(`Expected (local HEAD): ${expected}`);
-console.log(`Live  (${ORIGIN}):      meta=${liveMeta ?? '—'} asset=${liveAsset ?? '—'}`);
+console.log(`Live  (${ORIGIN}/):           home=${homeBroken ? 'PLACEHOLDER' : 'ok'} asset=${assetHash(liveHomeHtml) ?? '—'}`);
+console.log(`Live  (${ORIGIN}${PROBE_PATHS[1]}): asset=${assetHash(liveRouteHtml) ?? '—'}`);
 console.log(`Fly   (${FLY}):        asset=${flyAsset ?? '—'}`);
 
 if (liveMeta && (liveMeta.startsWith(expected.slice(0, 7)) || liveMeta === expected)) {
@@ -45,6 +56,10 @@ if (liveMeta && (liveMeta.startsWith(expected.slice(0, 7)) || liveMeta === expec
 
 if (liveAsset && flyAsset && liveAsset === flyAsset) {
   console.log('✅ pythh.ai asset bundle matches Fly (proxy OK)');
+  if (homeBroken) {
+    console.warn('⚠️  Homepage / still Vercel placeholder — redeploy **pythh** project on Vercel (proxy-only vercel.json)');
+    process.exit(1);
+  }
   process.exit(0);
 }
 
