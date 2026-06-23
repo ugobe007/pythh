@@ -6,7 +6,7 @@
       "id": "preview_to_signup_conversion",
       "domain": "growth",
       "priority": "P0",
-      "status": "building",
+      "status": "shipped",
       "title": "Close the preview->signup leak: invert the gate (value-first), wire founder signup events",
       "problem": "Founders reach the value moment (32 url_submitted, 39 preview_requested, 10 match_viewed in 7d) but 0 create an account (founder_signup_started=0, completed=0). preview->account conversion = 0%.",
       "hypothesis": "Delivering the full shortlist reveal un-gated and gating save/intro/export behind signup (plus wiring founder_signup_started/completed) converts >=25% of preview viewers to signup-started at zero acquisition cost.",
