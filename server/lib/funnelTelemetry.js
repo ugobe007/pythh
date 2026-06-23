@@ -130,6 +130,8 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'match_viewed', store: 'ai_logs', operation: 'match_viewed' },
     { id: 'investor_signup_started', store: 'growth', event_name: 'investor_signup_started' },
     { id: 'founder_signup_started', store: 'growth', event_name: 'founder_signup_started' },
+    { id: 'founder_signup_completed', store: 'growth', event_name: 'founder_signup_completed' },
+    { id: 'lookup_signup_completed', store: 'ai_logs', operation: 'lookup_signup_completed' },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase
@@ -146,7 +148,7 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     .from('growth_experiment_events')
     .select('event_name, payload, created_at')
     .gte('created_at', since)
-    .in('event_name', ['investor_signup_started', 'founder_signup_started'])
+    .in('event_name', ['investor_signup_started', 'founder_signup_started', 'founder_signup_completed'])
     .limit(100);
 
   const probeAi = (aiRows || []).filter((r) => {

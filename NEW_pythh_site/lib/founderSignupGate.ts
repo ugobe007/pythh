@@ -9,6 +9,30 @@ export type FounderGatedAction = 'save' | 'intro' | 'export';
 
 const GATE_PENDING_KEY = 'pythia_founder_gate_pending';
 const GATED_ACTION_KEY = 'pythia_gated_action';
+const STORAGE_KEY = 'pyth_growth_assignment';
+
+const FALLBACK_FOUNDER_ASSIGNMENT: GrowthAssignment = {
+  experiment_id: 'founder_hero_entry',
+  variant_key: 'matches_preview',
+  audience: 'founder',
+  schema: {},
+  copy: {},
+};
+
+function getCachedAssignment(audience: 'founder' | 'investor'): GrowthAssignment | null {
+  const cacheKey = `${STORAGE_KEY}:${audience}`;
+  const cached = sessionStorage.getItem(cacheKey);
+  if (!cached) return null;
+  try {
+    return JSON.parse(cached) as GrowthAssignment;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveFounderAssignment(): Promise<GrowthAssignment> {
+  return getCachedAssignment('founder') ?? (await fetchGrowthAssignment('founder')) ?? FALLBACK_FOUNDER_ASSIGNMENT;
+}
 
 export function peekFounderGatePending(): { action: FounderGatedAction | null; pending: boolean } {
   const pending = sessionStorage.getItem(GATE_PENDING_KEY);
@@ -64,13 +88,12 @@ export async function trackFounderGateStarted(
   }
 
   const assignment = await resolveAssignment(assignmentRef ?? null);
-  if (assignment) {
-    await trackGrowthEvent(assignment, 'founder_signup_started', {
-      url: ctx.url,
-      startup_id: ctx.startupId,
-      gated_action: action,
-    });
-  }
+  const resolved = assignment ?? (await fetchGrowthAssignment('founder')) ?? FALLBACK_FOUNDER_ASSIGNMENT;
+  await trackGrowthEvent(resolved, 'founder_signup_started', {
+    url: ctx.url,
+    startup_id: ctx.startupId,
+    gated_action: action,
+  });
 
   if (gateCtaAssignment) {
     await trackGrowthEvent(gateCtaAssignment, 'founder_signup_started', {
@@ -86,20 +109,24 @@ export async function trackFounderGateStarted(
 export async function trackFounderGateCompleted(
   ctx: { url: string; email?: string; startupId?: string | null; gatedAction?: FounderGatedAction | null },
 ) {
-  const assignment = await fetchGrowthAssignment('founder');
-  if (assignment) {
-    await trackGrowthEvent(assignment, 'founder_signup_completed', {
-      url: ctx.url,
-      startup_id: ctx.startupId ?? sessionStorage.getItem('pythia_startup_id'),
-      gated_action: ctx.gatedAction ?? sessionStorage.getItem(GATED_ACTION_KEY),
-      email_provided: Boolean(ctx.email),
-    });
-  }
   trackFunnelEvent('lookup_signup_completed', {
     url: ctx.url,
     source: 'preview_gate',
     gated_action: ctx.gatedAction ?? sessionStorage.getItem(GATED_ACTION_KEY),
+    email_provided: Boolean(ctx.email),
+    startup_id: ctx.startupId ?? sessionStorage.getItem('pythia_startup_id'),
   });
+
+  const assignment = await resolveFounderAssignment();
+  await trackGrowthEvent(assignment, 'founder_signup_completed', {
+    url: ctx.url,
+    startup_id: ctx.startupId ?? sessionStorage.getItem('pythia_startup_id'),
+    gated_action: ctx.gatedAction ?? sessionStorage.getItem(GATED_ACTION_KEY),
+    email_provided: Boolean(ctx.email),
+    attribution_fallback: assignment.experiment_id === FALLBACK_FOUNDER_ASSIGNMENT.experiment_id
+      && assignment.variant_key === FALLBACK_FOUNDER_ASSIGNMENT.variant_key,
+  });
+
   sessionStorage.removeItem(GATED_ACTION_KEY);
   sessionStorage.removeItem('pythia_startup_id');
 }

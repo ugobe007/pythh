@@ -217,6 +217,45 @@ async function runProbe() {
       }),
     });
     steps.push({ step: 'founder_signup_started', ok: res.ok, status: res.status });
+
+    const { res: completeRes } = await fetchJson('/api/growth/event', {
+      method: 'POST',
+      body: JSON.stringify({
+        experiment_id: experimentId,
+        variant_key: variantKey,
+        audience: 'founder',
+        event_name: 'founder_signup_completed',
+        anon_id: anonId,
+        payload: {
+          probe_run_id: probeRunId,
+          source: 'funnel_probe',
+          gated_action: 'save',
+          startup_id: startupId,
+          email_provided: true,
+        },
+      }),
+    });
+    steps.push({ step: 'founder_signup_completed', ok: completeRes.ok, status: completeRes.status });
+
+    const { res: lookupRes } = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'lookup_signup_completed',
+            status: 'tracked',
+            output: {
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+              gated_action: 'save',
+              startup_id: startupId,
+              email_provided: true,
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({ step: 'lookup_signup_completed', ok: lookupRes.ok, status: lookupRes.status });
   }
 
   await sleep(3500);

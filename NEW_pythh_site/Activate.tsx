@@ -578,7 +578,7 @@ function EntryStep({
   onSubmit,
   gateAction,
 }: {
-  onSubmit: (url: string, email: string) => void;
+  onSubmit: (url: string, email: string) => void | Promise<void>;
   gateAction?: FounderGatedAction | null;
 }) {
   const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
@@ -594,7 +594,7 @@ function EntryStep({
     fetch("/api/instant/health", { method: "GET" }).catch(() => {});
   }, []);
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
     if (!url.trim()) {
       setUrlError(true);
       return;
@@ -607,7 +607,7 @@ function EntryStep({
     setEmailError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
     if (email) sessionStorage.setItem("pythia_email", email);
-    onSubmit(normalized, email.trim());
+    await onSubmit(normalized, email.trim());
   };
 
   return (
@@ -2487,14 +2487,14 @@ export default function Activate() {
     setStep("entry");
   };
 
-  const handleUrlSubmit = (submittedUrl: string, submittedEmail: string) => {
+  const handleUrlSubmit = async (submittedUrl: string, submittedEmail: string) => {
     setUrl(submittedUrl);
     sessionStorage.setItem("pythia_url", submittedUrl);
     sessionStorage.setItem("pythia_email", submittedEmail);
     trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate" });
     const { action: gatedAction } = consumeFounderGatePending();
     if (gatedAction) {
-      void trackFounderGateCompleted({
+      await trackFounderGateCompleted({
         url: submittedUrl,
         email: submittedEmail,
         startupId: sessionStorage.getItem("pythia_startup_id"),
