@@ -1,15 +1,15 @@
 # Production frontend on Vercel — project: pythh (custom domain pythh.ai).
 # NOT hot-money-honey — that is a legacy project; pushes there do not update pythh.ai.
 #
-# Required GitHub Actions secrets (repo → Settings → Secrets and variables → Actions):
-#   VERCEL_DEPLOY_HOOK   — **pythh** project → Settings → Git → Deploy Hooks (main) — preferred
+# GitHub Actions secrets (Settings → Secrets and variables → Actions):
 #   VERCEL_TOKEN         — https://vercel.com/account/tokens
-#   VERCEL_ORG_ID        — Vercel → **pythh** project → Settings → General (Team ID)
-#   VERCEL_PROJECT_ID    — **pythh** project → Settings → General (Project ID) — must own pythh.ai
-#   Values also appear in .vercel/project.json after: npx vercel link
+#   VERCEL_ORG_ID        — pythh → Settings → General → Team ID
+#   VERCEL_PROJECT_ID    — pythh → Settings → General → Project ID
+#   VERCEL_DEPLOY_HOOK   — optional fallback (Settings → Git → Deploy Hooks)
 #
-# The Vercel project must have Production env vars for the Vite build (e.g. VITE_SUPABASE_*),
-# same as you would for a dashboard-triggered deploy.
+# Correct IDs (from `npx vercel link --yes --project pythh`):
+#   VERCEL_ORG_ID=team_i9wBQr2ur295OmAB8COX5Q0r
+#   VERCEL_PROJECT_ID=prj_BmDVCcXOsQrTW5iZCxiU1Mmo1vuW
 
 name: Vercel Deploy
 
@@ -26,8 +26,13 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
       - name: Verify Vercel secrets
         env:
@@ -36,10 +41,17 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           missing=0
-          if [ -z "$VERCEL_TOKEN" ]; then echo "::error::Missing secret VERCEL_TOKEN — create at https://vercel.com/account/tokens"; missing=1; fi
-          if [ -z "$VERCEL_ORG_ID" ]; then echo "::error::Missing secret VERCEL_ORG_ID — Vercel project Settings → General (Team ID)"; missing=1; fi
-          if [ -z "$VERCEL_PROJECT_ID" ]; then echo "::error::Missing secret VERCEL_PROJECT_ID — Vercel project Settings → General (Project ID)"; missing=1; fi
+          if [ -z "$VERCEL_TOKEN" ]; then echo "::error::Missing VERCEL_TOKEN"; missing=1; fi
+          if [ -z "$VERCEL_ORG_ID" ]; then echo "::error::Missing VERCEL_ORG_ID"; missing=1; fi
+          if [ -z "$VERCEL_PROJECT_ID" ]; then echo "::error::Missing VERCEL_PROJECT_ID"; missing=1; fi
           exit "$missing"
+
+      - name: Confirm secrets point at pythh project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node scripts/verify-vercel-project.mjs
 
       - name: Write .vercel/project.json for CLI
         env:
@@ -47,28 +59,48 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
           mkdir -p .vercel
-          node -e "const fs=require('fs'); fs.mkdirSync('.vercel',{recursive:true}); fs.writeFileSync('.vercel/project.json', JSON.stringify({ orgId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID }));"
+          node -e "const fs=require('fs'); fs.writeFileSync('.vercel/project.json', JSON.stringify({ orgId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID }));"
 
-      - name: Deploy to Vercel (production, no build cache)
+      - name: Deploy to Vercel (production)
+        id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
-          VERCEL_FORCE_NO_BUILD_CACHE: "1"
         run: |
-          # Prefer CLI with --force so Vercel rebuilds dist/ and busts build cache.
-          # Deploy hooks cannot skip build cache and may serve stale static layers.
-          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
-            echo "Deploying via vercel CLI --prod --force (build cache disabled)…"
-            npx vercel@latest deploy --prod --force --yes --token "$VERCEL_TOKEN"
-          elif [ -n "$VERCEL_DEPLOY_HOOK" ]; then
-            echo "⚠️  VERCEL_TOKEN missing — falling back to deploy hook (may use build cache)."
-            curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
-          else
-            echo "::error::Set VERCEL_TOKEN + VERCEL_ORG_ID + VERCEL_PROJECT_ID for cache-safe deploys."
-            exit 1
+          deploy_cli() {
+            echo "Deploying via vercel CLI --prod --force…"
+            npx vercel@54.15.0 deploy --prod --force --yes --logs --token "$VERCEL_TOKEN"
+          }
+
+          if deploy_cli; then
+            echo "method=cli" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          echo "::warning::CLI deploy failed — trying deploy hook fallback"
+          if [ -n "$VERCEL_DEPLOY_HOOK" ]; then
+            curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+            echo "method=hook" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::error::Vercel CLI deploy failed and no VERCEL_DEPLOY_HOOK fallback"
+          exit 1
+
+      - name: Wait for deployment to propagate
+        if: steps.deploy.outputs.method == 'hook'
+        run: sleep 90
+
       - name: Verify pythh.ai frontend build
-        run: npm run check:deploy-cache
+        run: |
+          for i in $(seq 1 12); do
+            if npm run check:deploy-cache; then
+              exit 0
+            fi
+            echo "Attempt $i: waiting for pythh.ai…"
+            sleep 15
+          done
+          echo "::error::pythh.ai still broken after deploy"
+          exit 1

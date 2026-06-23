@@ -1,0 +1,9 @@
+.git
+node_modules
+reports
+data
+.venv
+__pycache__
+*.log
+agent-transcripts
+.cursor
