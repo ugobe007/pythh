@@ -48,6 +48,14 @@ Run this product improvement cycle now:
 Do not git commit or deploy. End with executive summary in the report JSON.`;
 
 async function preflight() {
+  console.log('💓 Preflight: funnel heartbeat…');
+  const hb = spawnSync(process.execPath, ['scripts/funnel-heartbeat-probe.mjs', '--no-fail'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (hb.status !== 0) console.warn('   ⚠️  funnel heartbeat reported gaps (agent may still proceed)');
+
   console.log('📊 Preflight: product metrics snapshot…');
   const r = spawnSync(process.execPath, ['scripts/product-metrics-snapshot.mjs'], {
     cwd: repoRoot,

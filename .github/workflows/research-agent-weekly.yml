@@ -19,6 +19,13 @@ jobs:
 
       - run: npm ci
 
+      - name: Funnel heartbeat
+        env:
+          BASE: https://pythh.ai
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run funnel:heartbeat -- --no-fail
+
       - name: Research snapshot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

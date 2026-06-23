@@ -46,6 +46,14 @@ Run this research cycle now:
 Do not git commit or deploy. Hand off high-confidence items to Product Agent via handoff block in findings.`;
 
 async function preflight() {
+  console.log('💓 Preflight: funnel heartbeat…');
+  const hb = spawnSync(process.execPath, ['scripts/funnel-heartbeat-probe.mjs', '--no-fail'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (hb.status !== 0) console.warn('   ⚠️  funnel heartbeat reported gaps (agent may still proceed)');
+
   console.log('🔭 Preflight: research snapshot…');
   const r = spawnSync(process.execPath, ['scripts/research-snapshot.mjs'], {
     cwd: repoRoot,

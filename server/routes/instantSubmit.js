@@ -22,6 +22,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
+const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
 const { 
   normalizeSectors, 
@@ -432,7 +433,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   global: { fetch: fetchWithTimeout }
 });
 
-// Do NOT load the database on server startup. Cache is filled on first request that needs it (getInvestors is called from route handlers).
+function trackInstantSubmitFunnel(req, { startupId, url, matchCount }) {
+  void logInstantSubmitFunnel(supabase, {
+    startupId,
+    url,
+    matchCount: matchCount ?? 0,
+    source: req.body?.source || req.headers['x-funnel-source'] || 'instant_submit',
+    probeRunId: req.body?.probe_run_id || req.headers['x-probe-run-id'] || null,
+  });
+}
+
+// Do NOT load the database on server startup.
 
 /**
  * URL Normalization - FAULT TOLERANT
@@ -2180,6 +2191,11 @@ router.post('/submit', async (req, res) => {
           const processingTime = Date.now() - startTime;
           console.log(`  ⚡ Cache hit for ${startupId} — ${cached.matchCount} matches in ${processingTime}ms`);
           _intelMatches = cached.matchCount;
+          trackInstantSubmitFunnel(req, {
+            startupId,
+            url: inputRaw,
+            matchCount: cached.matchCount,
+          });
           return res.json({
             startup_id: startupId,
             startup,
@@ -2242,6 +2258,11 @@ router.post('/submit', async (req, res) => {
         }).then(() => {}).catch(() => {});
         
         _intelMatches = existingMatchCount || 0;
+        trackInstantSubmitFunnel(req, {
+          startupId,
+          url: inputRaw,
+          matchCount: existingMatchCount || 0,
+        });
         return res.json({
           startup_id: startupId,
           startup,
@@ -2303,7 +2324,12 @@ router.post('/submit', async (req, res) => {
         console.log(
           `  ⚡ Return (existing, needs regen) in ${processingTime}ms — first_paint=${firstMatches.length}`
         );
-        
+
+        trackInstantSubmitFunnel(req, {
+          startupId,
+          url: inputRaw,
+          matchCount: firstCount,
+        });
         return res.json({
           startup_id: startupId,
           startup,
@@ -2593,7 +2619,12 @@ router.post('/submit', async (req, res) => {
     console.log(
       `  ⚡ Early return (new startup) in ${processingTime}ms — first_paint=${firstPaintMatches.length}, background started`
     );
-    
+
+    trackInstantSubmitFunnel(req, {
+      startupId,
+      url: inputRaw,
+      matchCount: firstMatchCount,
+    });
     safeJson(200, {
       startup_id: startupId,
       startup,

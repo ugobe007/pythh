@@ -126,6 +126,11 @@ async function recordEvent(supabase, event) {
   if (error) throw error;
 }
 
+const {
+  FUNNEL_OPERATIONS,
+  GROWTH_FUNNEL_EVENTS,
+} = require('./funnelTelemetry');
+
 async function getMetricsSnapshot(supabase, { days = 7 } = {}) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
@@ -139,14 +144,7 @@ async function getMetricsSnapshot(supabase, { days = 7 } = {}) {
     .from('ai_logs')
     .select('operation, output, created_at')
     .gte('created_at', since)
-    .in('operation', [
-      'url_submitted',
-      'instant_matches_viewed',
-      'login_completed',
-      'checkout_started',
-      'checkout_completed',
-      'lookup_signup_completed',
-    ])
+    .in('operation', FUNNEL_OPERATIONS)
     .limit(5000);
   if (logErr && logErr.code !== 'PGRST205') throw logErr;
 
@@ -173,6 +171,10 @@ async function getMetricsSnapshot(supabase, { days = 7 } = {}) {
     generated_at: new Date().toISOString(),
     window_days: days,
     funnel_from_ai_logs: funnel,
+    growth_funnel_events: GROWTH_FUNNEL_EVENTS.reduce((acc, name) => {
+      acc[name] = (events || []).filter((e) => e.event_name === name).length;
+      return acc;
+    }, {}),
     experiment_variants: Object.values(byVariant),
     growth_event_count: (events || []).length,
   };

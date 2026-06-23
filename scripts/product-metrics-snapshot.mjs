@@ -11,9 +11,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
+
+const require = createRequire(import.meta.url);
+const { createClient } = require('@supabase/supabase-js');
+const { getFunnelCounts, latestHeartbeatReport } = require('../server/lib/funnelTelemetry.js');
 
 const JSON_OUT = process.argv.includes('--json');
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -105,6 +110,18 @@ async function main() {
   const criticalLearnings = (pipeline?.learnings || []).filter((l) => l.severity === 'critical');
   const p0Open = opportunities.filter((o) => o.priority === 'P0' && !['shipped', 'killed'].includes(o.status));
 
+  let funnel = null;
+  try {
+    const sb = createClient(
+      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    );
+    funnel = await getFunnelCounts(sb, { days: 7 });
+    funnel.latest_heartbeat = latestHeartbeatReport(reportsDir);
+  } catch (e) {
+    funnel = { error: e.message };
+  }
+
   const report = {
     generated_at,
     health_grade: pipeline?.health_grade || (criticalLearnings.length ? 'NEEDS_ATTENTION' : 'UNKNOWN'),
@@ -125,6 +142,7 @@ async function main() {
         }
       : null,
     growth,
+    funnel,
     research: research
       ? {
           north_star: research.north_star,
@@ -162,6 +180,14 @@ async function main() {
     console.log(`   Critical learnings: ${criticalLearnings.length}`);
     console.log(`   P0 backlog open: ${p0Open.length}`);
     console.log(`   Growth experiments: ${report.summary.growth_experiments_running}`);
+    if (funnel && !funnel.error) {
+      const p = funnel.ai_logs?.preview_requested ?? 0;
+      const u = funnel.ai_logs?.url_submitted ?? 0;
+      console.log(`   Funnel (7d): url_submitted=${u} preview_requested=${p}`);
+      if (funnel.latest_heartbeat?.diagnosis) {
+        console.log(`   Last heartbeat: ${funnel.latest_heartbeat.diagnosis}`);
+      }
+    }
     if (p0Open.length) {
       console.log('\n   P0 opportunities:');
       for (const o of p0Open) console.log(`     · ${o.id}: ${o.title} (${o.status})`);

@@ -171,18 +171,23 @@ async function patchMatchEngagement(matchId, patch) {
   return data;
 }
 
-async function logMatchEngagement(operation, { matchId, startupId, investorId, source }) {
+async function logMatchEngagement(operation, { matchId, startupId, investorId, source, probeRunId }) {
   try {
     const supabase = engagementSupabase();
+    const output = {
+      match_id: matchId,
+      startup_id: startupId,
+      investor_id: investorId,
+      source: source || 'api',
+    };
+    if (probeRunId) output.probe_run_id = probeRunId;
+    else if (typeof source === 'string' && source.startsWith('funnel_probe:')) {
+      output.probe_run_id = source.slice('funnel_probe:'.length);
+    }
     await supabase.from('ai_logs').insert({
       operation,
       status: 'success',
-      output: {
-        match_id: matchId,
-        startup_id: startupId,
-        investor_id: investorId,
-        source: source || 'api',
-      },
+      output,
     });
   } catch {
     /* non-fatal */
@@ -236,7 +241,7 @@ async function totalMatchesFromCache() {
  */
 router.post('/engage', async (req, res) => {
   try {
-    const { startup_id, investor_id, action, source } = req.body || {};
+    const { startup_id, investor_id, action, source, probe_run_id } = req.body || {};
     const allowed = ['view', 'intro', 'contact'];
     if (!startup_id || !investor_id || !allowed.includes(action)) {
       return res.status(400).json({
@@ -275,6 +280,7 @@ router.post('/engage', async (req, res) => {
       startupId: startup_id,
       investorId: investor_id,
       source,
+      probeRunId: probe_run_id,
     });
 
     res.json({ success: true, data });

@@ -18,6 +18,7 @@ const supabase = createClient(
 );
 
 const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
+const { logPreviewLoaded } = require('../lib/funnelTelemetry');
 
 /**
  * When startup_investor_matches has no rows yet (pipeline still running, or failed),
@@ -272,6 +273,13 @@ router.get('/:startupId', async (req, res) => {
     }
 
     const descriptionForUi = effectiveStartupDescription(startup);
+
+    void logPreviewLoaded(supabase, {
+      startupId,
+      source: req.query.source || 'preview_api',
+      probeRunId: req.query.probe_run_id || req.headers['x-probe-run-id'] || null,
+      matchCount: matches.length,
+    });
 
     res.json({
       startup: {

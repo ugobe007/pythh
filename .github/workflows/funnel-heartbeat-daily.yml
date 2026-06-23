@@ -1,14 +1,14 @@
-name: Product Agent Weekly
+name: Funnel Heartbeat Daily
 
 on:
   schedule:
-    - cron: '0 10 * * 1'  # Monday 10am UTC (after growth metrics at 9am)
+    - cron: '0 9 * * *'  # 9am UTC — before research (Mon 8am is weekly only)
   workflow_dispatch:
 
 jobs:
-  product-agent:
+  funnel-heartbeat:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -19,12 +19,12 @@ jobs:
 
       - run: npm ci
 
-      - name: Funnel heartbeat
+      - name: Funnel heartbeat probe (pythh.ai)
         env:
           BASE: https://pythh.ai
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: npm run funnel:heartbeat -- --no-fail
+        run: npm run funnel:heartbeat
 
       - name: Product metrics snapshot
         env:
@@ -32,17 +32,10 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: npm run product:metrics
 
-      - name: Product agent loop
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: npm run product:agent -- --max-turns=30 --max-budget-usd=3
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: product-agent-reports
+          name: funnel-heartbeat-${{ github.run_id }}
           path: |
-            reports/product-*.json
-            agents/product/specs/*.md
+            reports/funnel-heartbeat-*.json
+            reports/product-metrics-*.json
