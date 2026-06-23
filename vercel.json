@@ -1,6 +1,7 @@
 {
   "installCommand": "echo skip",
-  "buildCommand": "echo skip",
+  "buildCommand": "mkdir -p dist && rm -f dist/index.html",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/(.*)",
