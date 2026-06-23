@@ -406,7 +406,7 @@ function matchFeatureSnapshotFor(engine, phase, startupPayload, investor, extra)
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('[instantSubmit] CRITICAL: Missing Supabase credentials');
   const errorRouter = express.Router();
-  errorRouter.all('*', (req, res) => res.status(503).json({ error: 'Service unavailable' }));
+  errorRouter.use((_req, res) => res.status(503).json({ error: 'Service unavailable' }));
   module.exports = errorRouter;
   return;
 }
