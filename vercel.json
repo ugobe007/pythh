@@ -1,8 +1,17 @@
 {
-  "installCommand": "echo skip",
-  "buildCommand": "mkdir -p dist && printf 'pythh.ai proxies to Fly — do not add index.html here\\n' > dist/README.txt && rm -f dist/index.html",
+  "installCommand": "npm ci --legacy-peer-deps",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [
@@ -23,12 +32,12 @@
   ],
   "rewrites": [
     {
-      "source": "/",
-      "destination": "https://hot-honey.fly.dev/"
+      "source": "/api/:path*",
+      "destination": "https://hot-honey.fly.dev/api/:path*"
     },
     {
-      "source": "/:path*",
-      "destination": "https://hot-honey.fly.dev/:path*"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

@@ -63,5 +63,18 @@ jobs:
             npx vercel@latest deploy --prod --token "$VERCEL_TOKEN" --yes
           fi
 
-      - name: Verify pythh.ai proxies to Fly
-        run: npm run check:pythh-frontend
+      - name: Verify pythh.ai frontend build
+        run: |
+          for i in $(seq 1 12); do
+            html=$(curl -fsSL "https://pythh.ai/?v=$i" || true)
+            if echo "$html" | grep -q 'pythh fly proxy'; then
+              echo "Attempt $i: still placeholder homepage"
+            elif echo "$html" | grep -qE 'assets/index-|<div id="root"'; then
+              echo "✅ pythh.ai homepage serves Vite app"
+              npm run check:pythh-frontend || true
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::pythh.ai homepage still broken after deploy"
+          exit 1
