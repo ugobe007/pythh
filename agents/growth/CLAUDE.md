@@ -18,7 +18,8 @@ You optimize the **full conversion funnel** for pythh.ai: visitor â†’ preview â†
 5. Run smoke tests: `npm run test:wizard-smoke` and `npm run funnel:heartbeat -- --no-fail`.
 6. Propose **one** concrete change: copy, traffic reallocation, new variant, or pricing CTA.
 7. Write `reports/growth-agent-YYYY-MM-DD.json` with winners, losers, proposal, next_experiment.
-8. New variants stay `"status": "draft"` until human approves.
+8. Weekly reallocation: `npm run growth:cycle` (hold unless organic thresholds met); `npm run growth:cycle:apply` to commit registry changes.
+9. New variants stay `"status": "draft"` until human approves.
 
 ## Constraints
 
