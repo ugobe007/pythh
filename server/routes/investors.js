@@ -19,6 +19,13 @@ const {
 } = require('../../lib/stageInvestorFit');
 const { scorePartnerAngelInvestor } = require('../../lib/partnerAngelInvestors');
 const { getCanonicalSector } = require('../lib/sectorTaxonomy');
+const {
+  createMagicLinkToken,
+  createSessionToken,
+  verifyMagicLinkToken,
+  requireInvestorSession,
+  sendInvestorMagicLinkEmail,
+} = require('../lib/investorSession');
 
 const router = express.Router();
 
@@ -85,6 +92,9 @@ function buildSignupPayload(body) {
 
 const SELECT_COLS =
   'id, name, firm, type, title, is_individual, sectors, stage, check_size_min, check_size_max, capital_type, investor_score, investor_tier, geography_focus, investment_thesis, linkedin_url, url, total_investments, updated_at';
+
+const PROFILE_COLS =
+  'id, name, email, firm, title, type, sectors, stage, check_size_min, check_size_max, geography_focus, investment_thesis, status';
 
 const VALID_STAGES = new Set(['all', 'early', 'mid', 'late', 'angel', 'angels', 'partner', 'partners', 'growth']);
 
@@ -331,6 +341,160 @@ router.patch('/signup/:investorId', async (req, res) => {
   } catch (err) {
     console.error('[investors/signup/patch] error:', err.message);
     return res.status(500).json({ error: 'Failed to update profile. Please try again.' });
+  }
+});
+
+/**
+ * POST /api/investors/auth/magic-link — email a one-time sign-in link.
+ */
+router.post('/auth/magic-link', async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseClient();
+  } catch (e) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const { data: investor } = await supabase
+      .from('investors')
+      .select('id, email, status')
+      .eq('email', email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Always return success to avoid email enumeration
+    if (!investor) {
+      return res.json({ success: true, sent: false });
+    }
+
+    const token = createMagicLinkToken(investor.id, email);
+    const baseUrl = process.env.APP_BASE_URL || process.env.SITE_URL || 'https://pythh.ai';
+    const magicUrl = `${baseUrl}/investor/login?token=${encodeURIComponent(token)}`;
+    const sent = await sendInvestorMagicLinkEmail({ to: email, magicUrl });
+    if (!sent.success) {
+      return res.status(503).json({ error: sent.error || 'Could not send sign-in email' });
+    }
+
+    return res.json({ success: true, sent: true });
+  } catch (err) {
+    console.error('[investors/auth/magic-link]', err.message);
+    return res.status(500).json({ error: 'Failed to send sign-in link' });
+  }
+});
+
+/**
+ * POST /api/investors/auth/verify — exchange magic-link token for session token.
+ */
+router.post('/auth/verify', async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const magic = verifyMagicLinkToken(token);
+  if (!magic) {
+    return res.status(401).json({ error: 'Invalid or expired sign-in link' });
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseClient();
+  } catch (e) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const { data: investor, error } = await supabase
+      .from('investors')
+      .select(PROFILE_COLS)
+      .eq('id', magic.investorId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!investor || normalizeEmail(investor.email) !== magic.email) {
+      return res.status(401).json({ error: 'Invalid or expired sign-in link' });
+    }
+
+    const sessionToken = createSessionToken(investor.id, investor.email);
+    return res.json({
+      success: true,
+      session_token: sessionToken,
+      investor,
+    });
+  } catch (err) {
+    console.error('[investors/auth/verify]', err.message);
+    return res.status(500).json({ error: 'Sign-in failed' });
+  }
+});
+
+/**
+ * GET /api/investors/me — signed-in investor profile.
+ */
+router.get('/me', requireInvestorSession, async (req, res) => {
+  let supabase;
+  try {
+    supabase = getSupabaseClient();
+  } catch (e) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const { data: investor, error } = await supabase
+      .from('investors')
+      .select(PROFILE_COLS)
+      .eq('id', req.investorSession.investorId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!investor || normalizeEmail(investor.email) !== req.investorSession.email) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    return res.json({ success: true, investor });
+  } catch (err) {
+    console.error('[investors/me]', err.message);
+    return res.status(500).json({ error: 'Failed to load profile' });
+  }
+});
+
+/**
+ * PATCH /api/investors/profile — update signed-in investor profile.
+ */
+router.patch('/profile', requireInvestorSession, async (req, res) => {
+  const built = buildSignupPayload(req.body || {});
+  if (built.error) {
+    return res.status(400).json({ error: built.error });
+  }
+
+  if (normalizeEmail(built.payload.email) !== req.investorSession.email) {
+    return res.status(403).json({ error: 'Email cannot be changed here' });
+  }
+
+  let supabase;
+  try {
+    supabase = getSupabaseClient();
+  } catch (e) {
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  try {
+    const { email, ...profileFields } = built.payload;
+    const { data, error } = await supabase
+      .from('investors')
+      .update(profileFields)
+      .eq('id', req.investorSession.investorId)
+      .select(PROFILE_COLS)
+      .single();
+
+    if (error) throw error;
+
+    return res.json({ success: true, investor: data });
+  } catch (err) {
+    console.error('[investors/profile]', err.message);
+    return res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

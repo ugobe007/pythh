@@ -86,7 +86,9 @@ export default function InvestorSignupComplete() {
 
           {!profileIncomplete && (
             <p className="text-xs text-zinc-600 mt-8">
-              Dealflow alerts go live once your profile is reviewed. You can still browse the startup database anytime.
+              Dealflow alerts go live once your profile is reviewed.{' '}
+              <Link href="/investor/login"><a className="text-zinc-400 hover:text-white underline-offset-2 hover:underline">Sign in later</a></Link>{' '}
+              to edit your thesis anytime.
             </p>
           )}
         </div>

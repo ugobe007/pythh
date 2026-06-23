@@ -10,6 +10,21 @@ export type FounderGatedAction = 'save' | 'intro' | 'export';
 const GATE_PENDING_KEY = 'pythia_founder_gate_pending';
 const GATED_ACTION_KEY = 'pythia_gated_action';
 
+export function peekFounderGatePending(): { action: FounderGatedAction | null; pending: boolean } {
+  const pending = sessionStorage.getItem(GATE_PENDING_KEY);
+  if (!pending) return { action: null, pending: false };
+  return {
+    pending: true,
+    action: (sessionStorage.getItem(GATED_ACTION_KEY) as FounderGatedAction | null) ?? null,
+  };
+}
+
+export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
+  save: 'save your investor shortlist',
+  intro: 'request intros to top matches',
+  export: 'export your match list',
+};
+
 export function persistFounderGateContext(url: string, startupId: string, action: FounderGatedAction) {
   sessionStorage.setItem('pythia_url', url);
   sessionStorage.setItem('pythia_startup_id', startupId);

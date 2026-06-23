@@ -11,14 +11,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
+import { consumeFounderGatePending, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction } from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
   recordMatchViewOnce,
   trackFunnelEvent,
-} from "@/lib/matchEngagement";
-import { consumeFounderGatePending, trackFounderGateCompleted } from "@/lib/founderSignupGate";
-import { consumeFounderGatePending, trackFounderGateCompleted } from "@/lib/founderSignupGate";
-import {
 } from "@/lib/matchEngagement";
 
 function formatStageLabel(stage: unknown): string {
@@ -577,10 +574,19 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
 
 // ─── Step 1: URL Entry ────────────────────────────────────────────────────────
 
-function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => void }) {
+function EntryStep({
+  onSubmit,
+  gateAction,
+}: {
+  onSubmit: (url: string, email: string) => void;
+  gateAction?: FounderGatedAction | null;
+}) {
   const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
   const [email, setEmail] = useState(() => sessionStorage.getItem("pythia_email") || "");
   const [urlError, setUrlError] = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const fromGate = Boolean(gateAction);
+  const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
 
   // Pre-warm the Fly.io machine as soon as the entry form mounts so the
   // backend is ready before the user hits Activate (prevents cold-start lag).
@@ -593,10 +599,15 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
       setUrlError(true);
       return;
     }
+    if (fromGate && !email.trim().includes("@")) {
+      setEmailError(true);
+      return;
+    }
     setUrlError(false);
+    setEmailError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
     if (email) sessionStorage.setItem("pythia_email", email);
-    onSubmit(normalized, email);
+    onSubmit(normalized, email.trim());
   };
 
   return (
@@ -622,8 +633,23 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
           Where should I start?
         </h1>
         <p className="text-base mb-8 leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
-          Give me your startup URL. I'll read everything — your product, team, traction, and market — then find the investors most likely to write you a check right now.
+          {fromGate && gateLabel
+            ? `You're one step away — enter your email to ${gateLabel}. We'll unlock your full shortlist and keep your matches saved.`
+            : "Give me your startup URL. I'll read everything — your product, team, traction, and market — then find the investors most likely to write you a check right now."}
         </p>
+
+        {fromGate && (
+          <div
+            className="mb-4 px-4 py-3 rounded-lg text-sm"
+            style={{
+              backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)",
+              border: "1px solid oklch(0.696 0.17 162.48 / 0.25)",
+              color: "oklch(0.85 0.05 162.48)",
+            }}
+          >
+            Your matches are ready. Free account required to {gateLabel}.
+          </div>
+        )}
 
         <div className="rounded-xl p-6 border mb-4"
           style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: urlError ? "oklch(0.65 0.2 27)" : "oklch(0.25 0.01 264)" }}>
@@ -639,9 +665,10 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
               value={url}
               onChange={(e) => { setUrl(e.target.value); if (urlError) setUrlError(false); }}
               onKeyDown={(e) => e.key === "Enter" && handleActivate()}
+              readOnly={fromGate && Boolean(url)}
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: "oklch(0.94 0.005 264)" }}
-              autoFocus
+              autoFocus={!fromGate}
             />
           </div>
           {urlError && (
@@ -649,21 +676,26 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
           )}
           {/* Email — optional, used to send report copy */}
           <label className="block text-xs font-semibold mb-3 mt-5 tracking-widest" style={{ color: "oklch(0.5 0.01 264)" }}>
-            SEND REPORT TO EMAIL <span style={{ color: "oklch(0.38 0.01 264)", fontWeight: 400 }}>(optional)</span>
+            {fromGate ? "YOUR EMAIL *" : "SEND REPORT TO EMAIL "}
+            {!fromGate && <span style={{ color: "oklch(0.38 0.01 264)", fontWeight: 400 }}>(optional)</span>}
           </label>
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg border mb-4 transition-all duration-200"
-            style={{ backgroundColor: "oklch(0.13 0.01 264)", borderColor: "oklch(0.3 0.01 264)" }}>
-            <Mail size={16} style={{ color: "oklch(0.5 0.01 264)", flexShrink: 0 }} />
+            style={{ backgroundColor: "oklch(0.13 0.01 264)", borderColor: emailError ? "oklch(0.65 0.2 27)" : "oklch(0.3 0.01 264)" }}>
+            <Mail size={16} style={{ color: emailError ? "oklch(0.65 0.2 27)" : "oklch(0.5 0.01 264)", flexShrink: 0 }} />
             <input
               type="email"
-              placeholder="you@yourstartup.com (optional)"
+              placeholder={fromGate ? "you@yourstartup.com" : "you@yourstartup.com (optional)"}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(false); }}
               onKeyDown={(e) => e.key === "Enter" && handleActivate()}
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: "oklch(0.94 0.005 264)" }}
+              autoFocus={fromGate}
             />
           </div>
+          {emailError && (
+            <p className="text-xs mb-4" style={{ color: "oklch(0.65 0.2 27)" }}>Email is required to unlock your shortlist.</p>
+          )}
           <button
             onClick={handleActivate}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-lg font-semibold text-sm transition-all duration-200"
@@ -672,7 +704,7 @@ function EntryStep({ onSubmit }: { onSubmit: (url: string, email: string) => voi
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
           >
             <Sparkles size={16} />
-            Find my investors
+            {fromGate ? "Unlock my shortlist" : "Find my investors"}
             <ArrowRight size={16} />
           </button>
         </div>
@@ -2382,9 +2414,12 @@ export default function Activate() {
     if (sharedUrl) return sharedUrl;
     return sessionStorage.getItem("pythia_url") || "";
   });
+  const [gateAction] = useState<FounderGatedAction | null>(() => peekFounderGatePending().action);
   const [step, setStep] = useState<Step>(() => {
     if (shareStartupId) return "entry";
     if (prefilledInvestor) return "pipeline";
+    // Preview gate: collect email before scanning (signup completion)
+    if (sessionStorage.getItem("pythia_founder_gate_pending")) return "entry";
     // Shared link auto-starts scanning
     const params = new URLSearchParams(window.location.search);
     const sharedUrl = params.get("startup");
@@ -2595,7 +2630,7 @@ export default function Activate() {
               </div>
             </div>
           )}
-          <EntryStep onSubmit={handleUrlSubmit} />
+          <EntryStep onSubmit={handleUrlSubmit} gateAction={gateAction} />
         </>
       )}
       {loadingShared && <SharedResultsLoader />}

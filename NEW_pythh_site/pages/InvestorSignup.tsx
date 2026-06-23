@@ -471,8 +471,10 @@ export default function InvestorSignup() {
             )}
 
             <p className="text-center text-zinc-600 text-xs mt-8">
-              Already have an account?{' '}
-              <Link href="/login"><a className="text-zinc-400 hover:text-white">Sign in</a></Link>
+              Already signed up?{' '}
+              <Link href="/investor/login"><a className="text-zinc-400 hover:text-white">Sign in with magic link</a></Link>
+              {' · '}
+              <Link href="/login"><a className="text-zinc-400 hover:text-white">Founder login</a></Link>
             </p>
           </div>
         </div>
