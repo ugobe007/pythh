@@ -59,6 +59,13 @@ async function syncRegistryToDb(supabase) {
 }
 
 async function assignVariant(supabase, { audience, anonId, experimentId }) {
+  const registry = loadRegistry();
+  if (!experimentId) {
+    experimentId = (registry.experiments || []).find(
+      (e) => e.audience === audience && e.status === 'running' && !e.parent_experiment,
+    )?.id;
+  }
+
   let query = supabase
     .from('growth_experiments')
     .select('*')
@@ -69,7 +76,6 @@ async function assignVariant(supabase, { audience, anonId, experimentId }) {
   const { data, error } = await query;
   if (error) throw error;
   if (!data?.length) {
-    const registry = loadRegistry();
     const exp = (registry.experiments || []).find(
       (e) => e.audience === audience && (!experimentId || e.id === experimentId),
     );

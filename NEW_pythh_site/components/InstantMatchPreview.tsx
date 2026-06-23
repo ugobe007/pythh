@@ -41,11 +41,31 @@ export default function InstantMatchPreview({ url }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
+  const gateCtaRef = useRef<GrowthAssignment | null>(null);
+  const [gateCopy, setGateCopy] = useState({
+    save: 'Save shortlist',
+    intro: 'Request intro',
+    export: 'Export list',
+    footer: 'Create a free account to save, request intros, or export — your shortlist stays unlocked.',
+  });
 
   useEffect(() => {
-    fetchGrowthAssignment('founder')
+    fetchGrowthAssignment('founder', 'founder_hero_entry')
       .then((a) => {
         founderExpRef.current = a;
+      })
+      .catch(() => {});
+    fetchGrowthAssignment('founder', 'founder_preview_gate_cta')
+      .then((a) => {
+        if (!a) return;
+        gateCtaRef.current = a;
+        const c = a.copy as { save?: string; intro?: string; export?: string; footer?: string };
+        setGateCopy({
+          save: c.save || gateCopy.save,
+          intro: c.intro || gateCopy.intro,
+          export: c.export || gateCopy.export,
+          footer: c.footer || gateCopy.footer,
+        });
       })
       .catch(() => {});
   }, []);
@@ -57,7 +77,7 @@ export default function InstantMatchPreview({ url }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const assignment = await fetchGrowthAssignment('founder');
+        const assignment = await fetchGrowthAssignment('founder', 'founder_hero_entry');
         if (assignment) founderExpRef.current = assignment;
 
         const submitRes = await fetch(apiUrl('/api/instant/submit'), {
@@ -128,6 +148,7 @@ export default function InstantMatchPreview({ url }: Props) {
       action,
       { url, startupId: preview.startup.id },
       founderExpRef.current,
+      gateCtaRef.current,
     );
     navigate('/activate');
   };
@@ -215,7 +236,7 @@ export default function InstantMatchPreview({ url }: Props) {
           className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm"
         >
           <Bookmark className="w-4 h-4" />
-          Save shortlist
+          {gateCopy.save}
         </button>
         <button
           type="button"
@@ -223,7 +244,7 @@ export default function InstantMatchPreview({ url }: Props) {
           className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm border border-zinc-600"
         >
           <Send className="w-4 h-4" />
-          Request intro
+          {gateCopy.intro}
         </button>
         <button
           type="button"
@@ -231,12 +252,12 @@ export default function InstantMatchPreview({ url }: Props) {
           className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-zinc-700 text-zinc-300 text-sm hover:border-zinc-500"
         >
           <Download className="w-4 h-4" />
-          Export list
+          {gateCopy.export}
         </button>
       </div>
 
       <p className="text-center text-xs text-zinc-500 mb-6">
-        Create a free account to save, request intros, or export — your shortlist stays unlocked.
+        {gateCopy.footer}
       </p>
 
       {preview.startup?.id && (

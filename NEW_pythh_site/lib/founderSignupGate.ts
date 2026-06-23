@@ -35,6 +35,7 @@ export async function trackFounderGateStarted(
   action: FounderGatedAction,
   ctx: { url: string; startupId: string },
   assignmentRef?: GrowthAssignment | null,
+  gateCtaAssignment?: GrowthAssignment | null,
 ) {
   persistFounderGateContext(ctx.url, ctx.startupId, action);
 
@@ -53,6 +54,15 @@ export async function trackFounderGateStarted(
       url: ctx.url,
       startup_id: ctx.startupId,
       gated_action: action,
+    });
+  }
+
+  if (gateCtaAssignment) {
+    await trackGrowthEvent(gateCtaAssignment, 'founder_signup_started', {
+      url: ctx.url,
+      startup_id: ctx.startupId,
+      gated_action: action,
+      gate_cta_experiment: gateCtaAssignment.experiment_id,
     });
   }
 }

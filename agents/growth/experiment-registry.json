@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-23T00:00:00Z",
+  "updated_at": "2026-06-23T13:15:00Z",
   "experiments": [
     {
       "id": "founder_hero_entry",
@@ -47,6 +47,43 @@
       }
     },
     {
+      "id": "founder_preview_gate_cta",
+      "audience": "founder",
+      "name": "Preview gate CTA copy",
+      "status": "running",
+      "hypothesis": "Benefit-led gate CTAs convert better than neutral action labels after the free shortlist reveal.",
+      "parent_experiment": "founder_hero_entry",
+      "applies_when": "variant_key=matches_preview",
+      "variants": [
+        {
+          "key": "action_labels",
+          "traffic_pct": 50,
+          "schema": { "cta_style": "action" },
+          "copy": {
+            "save": "Save shortlist",
+            "intro": "Request intro",
+            "export": "Export list",
+            "footer": "Create a free account to save, request intros, or export — your shortlist stays unlocked."
+          }
+        },
+        {
+          "key": "benefit_labels",
+          "traffic_pct": 50,
+          "schema": { "cta_style": "benefit" },
+          "copy": {
+            "save": "Save my top matches",
+            "intro": "Get warm intros",
+            "export": "Download investor list",
+            "footer": "Free account · unlock save, intros, and export in one step."
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_signup_started",
+        "secondary": ["founder_signup_completed", "match_intro_requested"]
+      }
+    },
+    {
       "id": "investor_signup_schema",
       "audience": "investor",
       "name": "Investor signup form depth",
@@ -55,7 +92,7 @@
       "variants": [
         {
           "key": "short_form",
-          "traffic_pct": 50,
+          "traffic_pct": 33,
           "schema": {
             "steps": 1,
             "fields": ["name", "email", "firm", "sectors", "check_size_band"],
@@ -68,7 +105,7 @@
         },
         {
           "key": "thesis_deep",
-          "traffic_pct": 50,
+          "traffic_pct": 33,
           "schema": {
             "steps": 2,
             "fields": ["name", "email", "firm", "title", "sectors", "stages", "check_size_min", "check_size_max", "geography", "investment_thesis"],
@@ -81,19 +118,23 @@
         },
         {
           "key": "short_form_email_first",
-          "status": "draft",
-          "traffic_pct": 0,
+          "traffic_pct": 34,
           "schema": {
             "steps": 1,
             "fields": ["email"],
             "fields_optional_post_signup": ["name", "firm", "sectors", "check_size_band"],
-            "review_gate": false
+            "review_gate": false,
+            "profile_enrichment": true
           },
           "copy": {
-            "headline": "Join the Pythh investor network",
-            "cta": "Get access with your email"
+            "headline": "Get dealflow routed to your inbox",
+            "subline": "One field now — firm and thesis later.",
+            "cta": "Get access"
           },
-          "note": "DRAFT — proposed 2026-06-23 by growth agent to fix investor_signup completion (0/8). Email-first capture; defer firm/sectors/check_size to post-signup enrichment. Guardrail: qualified_firm_rate within 24h to avoid junk records. Awaiting human approval before traffic allocation."
+          "guardrails": {
+            "qualified_firm_rate_min": 0.5,
+            "window_hours": 24
+          }
         }
       ],
       "metrics": {

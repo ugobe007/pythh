@@ -26,15 +26,26 @@ function bandToCheckSize(bandKey: string) {
   return band ? { min: band.min, max: band.max } : { min: null, max: null };
 }
 
+function nameFromEmail(email: string): string {
+  const local = email.split('@')[0] || 'Investor';
+  const cleaned = local.replace(/[.+_-]+/g, ' ').trim();
+  if (!cleaned) return 'Investor';
+  return cleaned
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
+
 export default function InvestorSignup() {
   const [, navigate] = useLocation();
   const [assignment, setAssignment] = useState<GrowthAssignment | null>(null);
   const variantKey = assignment?.variant_key ?? 'thesis_deep';
+  const isEmailFirst = variantKey === 'short_form_email_first';
   const isShortForm = variantKey === 'short_form';
   const reviewGate = Boolean(
     (assignment?.schema as { review_gate?: boolean } | undefined)?.review_gate,
   );
-  const copy = (assignment?.copy ?? {}) as { headline?: string; cta?: string };
+  const copy = (assignment?.copy ?? {}) as { headline?: string; subline?: string; cta?: string };
 
   const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,9 +85,14 @@ export default function InvestorSignup() {
   const stages = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C+'];
   const geographies = ['US West', 'US East', 'Europe', 'Asia', 'Global'];
 
-  const totalSteps = isShortForm ? 1 : 2;
-  const headline = copy.headline || (isShortForm ? 'Join the Pythh investor network' : 'Create investor account');
-  const submitLabel = copy.cta || (isShortForm ? 'Request access' : 'Create account');
+  const totalSteps = isEmailFirst || isShortForm ? 1 : 2;
+  const headline = copy.headline || (isEmailFirst
+    ? 'Get dealflow routed to your inbox'
+    : isShortForm
+      ? 'Join the Pythh investor network'
+      : 'Create investor account');
+  const subline = copy.subline || (isEmailFirst ? 'One field now — firm and thesis later.' : null);
+  const submitLabel = copy.cta || (isEmailFirst ? 'Get access' : isShortForm ? 'Request access' : 'Create account');
 
   const handleToggle = (field: 'sectors' | 'stages' | 'geography', value: string) => {
     setFormData((prev) => ({
@@ -101,6 +117,44 @@ export default function InvestorSignup() {
     setError('');
 
     try {
+      if (isEmailFirst) {
+        const displayName = nameFromEmail(formData.email);
+        const payload: Record<string, unknown> = {
+          name: displayName,
+          email: formData.email,
+          firm: null,
+          title: null,
+          type: 'VC',
+          check_size_min: null,
+          check_size_max: null,
+          sectors: [],
+          stage: [],
+          geography_focus: null,
+          investment_thesis: null,
+          status: 'pending_review',
+          created_at: new Date().toISOString(),
+        };
+
+        const { data, error: insertError } = await supabase
+          .from('investors')
+          .insert(payload)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        if (assignment) {
+          await trackGrowthEvent(assignment, 'investor_signup_completed', {
+            investor_id: data?.id,
+            email_first: true,
+            profile_incomplete: true,
+          });
+        }
+
+        navigate('/investors?welcome=1&complete_profile=1');
+        return;
+      }
+
       let checkMin: number | null = null;
       let checkMax: number | null = null;
 
@@ -171,6 +225,7 @@ export default function InvestorSignup() {
 
             <div className="mb-4">
               <h1 className="text-xl font-semibold text-white mb-1">{headline}</h1>
+              {subline && <p className="text-sm text-zinc-400 mb-1">{subline}</p>}
               <p className="text-sm text-zinc-500">
                 Step {step} of {totalSteps}
               </p>
@@ -188,6 +243,28 @@ export default function InvestorSignup() {
             {error && (
               <div className="mb-4 px-3 py-2 border-l-2 border-red-500/60 bg-red-500/5 text-red-400/80 text-xs">
                 {error}
+              </div>
+            )}
+
+            {isEmailFirst && (
+              <div className="space-y-4">
+                <Field
+                  label="Work email *"
+                  value={formData.email}
+                  onChange={(v) => setFormData({ ...formData, email: v })}
+                  type="email"
+                />
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  We&apos;ll ask for firm, sectors, and check size after you&apos;re in — takes under a minute.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || !formData.email.includes('@')}
+                  className="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Submitting…' : submitLabel}
+                </button>
               </div>
             )}
 
@@ -221,7 +298,7 @@ export default function InvestorSignup() {
               </div>
             )}
 
-            {!isShortForm && step === 1 && (
+            {!isShortForm && !isEmailFirst && step === 1 && (
               <div className="space-y-4">
                 <Field label="Full name *" value={formData.name} onChange={(v) => setFormData({ ...formData, name: v })} />
                 <Field label="Email *" value={formData.email} onChange={(v) => setFormData({ ...formData, email: v })} type="email" />
@@ -263,7 +340,7 @@ export default function InvestorSignup() {
               </div>
             )}
 
-            {!isShortForm && step === 2 && (
+            {!isShortForm && !isEmailFirst && step === 2 && (
               <div className="space-y-4">
                 <ChipGroup label="Sectors *" options={sectors} selected={formData.sectors} onToggle={(v) => handleToggle('sectors', v)} />
                 <ChipGroup label="Stages *" options={stages} selected={formData.stages} onToggle={(v) => handleToggle('stages', v)} />

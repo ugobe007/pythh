@@ -34,8 +34,12 @@ function getSessionId(): string {
   return id;
 }
 
-export async function fetchGrowthAssignment(audience: GrowthAudience): Promise<GrowthAssignment | null> {
-  const cached = sessionStorage.getItem(`${STORAGE_KEY}:${audience}`);
+export async function fetchGrowthAssignment(
+  audience: GrowthAudience,
+  experimentId?: string,
+): Promise<GrowthAssignment | null> {
+  const cacheKey = `${STORAGE_KEY}:${audience}${experimentId ? `:${experimentId}` : ''}`;
+  const cached = sessionStorage.getItem(cacheKey);
   if (cached) {
     try {
       return JSON.parse(cached) as GrowthAssignment;
@@ -44,11 +48,12 @@ export async function fetchGrowthAssignment(audience: GrowthAudience): Promise<G
     }
   }
   const params = new URLSearchParams({ audience, anon_id: getAnonId() });
+  if (experimentId) params.set('experiment_id', experimentId);
   const res = await fetch(`/api/growth/assign?${params}`, { credentials: 'same-origin' });
   if (!res.ok) return null;
   const j = await res.json();
   const assignment = j?.assignment as GrowthAssignment | undefined;
-  if (assignment) sessionStorage.setItem(`${STORAGE_KEY}:${audience}`, JSON.stringify(assignment));
+  if (assignment) sessionStorage.setItem(cacheKey, JSON.stringify(assignment));
   return assignment ?? null;
 }
 
