@@ -11,7 +11,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
-import { consumeFounderGatePending, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction } from "@/lib/founderSignupGate";
+import { consumeFounderGatePending, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
   recordMatchViewOnce,
@@ -577,9 +577,11 @@ function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" 
 function EntryStep({
   onSubmit,
   gateAction,
+  gatedInvestor,
 }: {
   onSubmit: (url: string, email: string) => void | Promise<void>;
   gateAction?: FounderGatedAction | null;
+  gatedInvestor?: GatedInvestorContext | null;
 }) {
   const [url, setUrl] = useState(() => sessionStorage.getItem("pythia_url") || "");
   const [email, setEmail] = useState(() => sessionStorage.getItem("pythia_email") || "");
@@ -587,6 +589,9 @@ function EntryStep({
   const [emailError, setEmailError] = useState(false);
   const fromGate = Boolean(gateAction);
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
+  const investorLabel = gatedInvestor
+    ? `${gatedInvestor.name}${gatedInvestor.firm ? ` · ${gatedInvestor.firm}` : ''}`
+    : null;
 
   // Pre-warm the Fly.io machine as soon as the entry form mounts so the
   // backend is ready before the user hits Activate (prevents cold-start lag).
@@ -633,7 +638,9 @@ function EntryStep({
           Where should I start?
         </h1>
         <p className="text-base mb-8 leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
-          {fromGate && gateLabel
+          {fromGate && gateAction === 'intro' && investorLabel
+            ? `You're one step from a warm intro to ${investorLabel}. Enter your email — we'll unlock your full shortlist and route the intro request.`
+            : fromGate && gateLabel
             ? `You're one step away — enter your email to ${gateLabel}. We'll unlock your full shortlist and keep your matches saved.`
             : "Give me your startup URL. I'll read everything — your product, team, traction, and market — then find the investors most likely to write you a check right now."}
         </p>
@@ -647,7 +654,9 @@ function EntryStep({
               color: "oklch(0.85 0.05 162.48)",
             }}
           >
-            Your matches are ready. Free account required to {gateLabel}.
+            {gateAction === 'intro' && investorLabel
+              ? `Intro queued for ${investorLabel}. Free account required to send.`
+              : `Your matches are ready. Free account required to ${gateLabel}.`}
           </div>
         )}
 
@@ -704,7 +713,11 @@ function EntryStep({
             onMouseLeave={(e) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = "oklch(0.696 0.17 162.48)"; el.style.color = "oklch(0.696 0.17 162.48)"; }}
           >
             <Sparkles size={16} />
-            {fromGate ? "Unlock my shortlist" : "Find my investors"}
+            {fromGate
+              ? gateAction === 'intro' && investorLabel
+                ? `Request intro to ${gatedInvestor?.name?.split(' ')[0] || 'investor'}`
+                : 'Unlock my shortlist'
+              : 'Find my investors'}
             <ArrowRight size={16} />
           </button>
         </div>
@@ -2415,6 +2428,7 @@ export default function Activate() {
     return sessionStorage.getItem("pythia_url") || "";
   });
   const [gateAction] = useState<FounderGatedAction | null>(() => peekFounderGatePending().action);
+  const [gatedInvestor] = useState<GatedInvestorContext | null>(() => peekFounderGatePending().investor);
   const [step, setStep] = useState<Step>(() => {
     if (shareStartupId) return "entry";
     if (prefilledInvestor) return "pipeline";
@@ -2630,7 +2644,7 @@ export default function Activate() {
               </div>
             </div>
           )}
-          <EntryStep onSubmit={handleUrlSubmit} gateAction={gateAction} />
+          <EntryStep onSubmit={handleUrlSubmit} gateAction={gateAction} gatedInvestor={gatedInvestor} />
         </>
       )}
       {loadingShared && <SharedResultsLoader />}

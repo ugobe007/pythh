@@ -324,6 +324,19 @@ function HeroSection({
   const signalCount = platformStats?.signals ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
+  const entry = founderExperiment?.schema?.entry as string | undefined;
+  const heroCopy = (founderExperiment?.copy ?? {}) as {
+    headline?: string;
+    cta?: string;
+    subline?: string;
+  };
+  const previewFirst = entry === 'url_with_preview';
+  const heroHeadline = heroCopy.headline || 'Find investors that match your thesis.';
+  const heroSubline =
+    heroCopy.subline ||
+    'Submit your URL. Pythh reads your signals, matches you to top investors and automates your funding round.';
+  const heroCta = heroCopy.cta || (previewFirst ? 'Preview matches' : 'Find my investors');
+  const formLabel = previewFirst ? 'Preview your investor matches' : 'Submit your startup URL';
   const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
   const latestMatch = recentMatches[0] ?? null;
 
@@ -340,7 +353,7 @@ function HeroSection({
     >
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className="text-[10px] font-mono font-semibold tracking-widest uppercase" style={{ color: G }}>
-          Submit your startup URL
+          {formLabel}
         </p>
         <span
           className="text-[10px] font-mono px-2 py-0.5 rounded-full"
@@ -387,7 +400,7 @@ function HeroSection({
             e.currentTarget.style.color = G;
           }}
         >
-          Find my investors
+          {heroCta}
           <ArrowRight size={15} />
         </button>
       </div>
@@ -450,20 +463,30 @@ function HeroSection({
               className="font-display font-bold leading-[1.12] mb-4"
               style={{ fontSize: "clamp(2rem, 3.4vw, 3.35rem)", color: TEXT, letterSpacing: "-0.04em" }}
             >
-              <span className="block">Find investors that match your thesis.</span>
-              <span className="block">
-                <span style={{ color: TEXT }}>Get </span>
-                <span style={{ color: G_HOVER }}>funded</span>
-                <span style={{ color: TEXT }}>.</span>
-              </span>
+              {previewFirst ? (
+                <span className="block">{heroHeadline}</span>
+              ) : (
+                <>
+                  <span className="block">Find investors that match your thesis.</span>
+                  <span className="block">
+                    <span style={{ color: TEXT }}>Get </span>
+                    <span style={{ color: G_HOVER }}>funded</span>
+                    <span style={{ color: TEXT }}>.</span>
+                  </span>
+                </>
+              )}
             </h1>
 
             <p
               className="text-base sm:text-lg leading-relaxed mb-5 max-w-[52ch]"
               style={{ color: MUTED }}
             >
-              Submit your URL. Pythh reads your signals, matches you to top investors
-              and automates your funding round.
+              {previewFirst ? heroSubline : (
+                <>
+                  Submit your URL. Pythh reads your signals, matches you to top investors
+                  and automates your funding round.
+                </>
+              )}
             </p>
 
             <a

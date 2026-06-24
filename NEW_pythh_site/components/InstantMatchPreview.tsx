@@ -10,7 +10,7 @@ import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
 import { recordMatchViewOnce, trackFunnelEvent, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
-import { trackFounderGateStarted, type FounderGatedAction } from '@/lib/founderSignupGate';
+import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
 
 const PREVIEW_LIMIT = 10;
 
@@ -138,20 +138,25 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [url]);
 
-  const handleGate = async (action: FounderGatedAction) => {
+  const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
-    const top = (preview.matches || [])[0];
-    const invId = top?.investor_id || top?.investor?.id;
-    if (action === 'intro' && invId) {
-      void recordMatchEngagement(preview.startup.id, invId, 'intro', 'instant_preview_gate');
+    if (action === 'intro' && investor?.id) {
+      void recordMatchEngagement(preview.startup.id, investor.id, 'intro', 'instant_preview_gate');
     }
     await trackFounderGateStarted(
       action,
-      { url, startupId: preview.startup.id },
+      { url, startupId: preview.startup.id, investor },
       founderExpRef.current,
       gateCtaRef.current,
     );
     navigate('/activate');
+  };
+
+  const investorFromMatch = (m: PreviewMatch): GatedInvestorContext | null => {
+    const id = m.investor_id || m.investor?.id;
+    const name = m.investor?.name;
+    if (!id || !name) return null;
+    return { id, name, firm: m.investor?.firm };
   };
 
   if (loading) {
@@ -185,7 +190,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const startupName = preview.startup?.name || 'Your startup';
 
   return (
-    <div className="mb-16">
+    <div className="mb-16 pb-28">
       <div className="mb-8 text-center">
         <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Instant preview</p>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -199,14 +204,24 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="space-y-3 mb-8">
         {visible.map((m, i) => {
           const inv = m.investor;
+          const gatedInvestor = investorFromMatch(m);
           return (
             <div
               key={inv?.id || i}
-              className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col sm:flex-row sm:items-center gap-3"
+              className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center gap-3 ${
+                i === 0
+                  ? 'border-emerald-500/40 bg-emerald-500/5'
+                  : 'border-zinc-800 bg-zinc-900/40'
+              }`}
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono text-zinc-500">#{i + 1}</span>
+                  {i === 0 && (
+                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      Top match
+                    </span>
+                  )}
                   <span className="text-white font-medium truncate">
                     {formatInvestorDisplayLabel(inv?.name, inv?.firm)}
                   </span>
@@ -215,9 +230,21 @@ export default function InstantMatchPreview({ url }: Props) {
                   <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{m.why_you_match}</p>
                 )}
               </div>
-              {typeof m.match_score === 'number' && (
-                <span className="text-sm font-mono text-cyan-400 shrink-0">{Math.round(m.match_score)}% fit</span>
-              )}
+              <div className="flex items-center gap-3 shrink-0">
+                {typeof m.match_score === 'number' && (
+                  <span className="text-sm font-mono text-cyan-400">{Math.round(m.match_score)}% fit</span>
+                )}
+                {gatedInvestor && (
+                  <button
+                    type="button"
+                    onClick={() => void handleGate('intro', gatedInvestor)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {i === 0 ? gateCopy.intro : 'Intro'}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -232,19 +259,19 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center mb-4">
         <button
           type="button"
-          onClick={() => void handleGate('save')}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm"
-        >
-          <Bookmark className="w-4 h-4" />
-          {gateCopy.save}
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleGate('intro')}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm border border-zinc-600"
+          onClick={() => void handleGate('intro', investorFromMatch(visible[0] ?? {}))}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-900/30"
         >
           <Send className="w-4 h-4" />
           {gateCopy.intro}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleGate('save')}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm border border-zinc-600"
+        >
+          <Bookmark className="w-4 h-4" />
+          {gateCopy.save}
         </button>
         <button
           type="button"
@@ -271,6 +298,32 @@ export default function InstantMatchPreview({ url }: Props) {
           </button>
         </div>
       )}
+
+      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-zinc-400 text-center sm:text-left">
+            {total.toLocaleString()} ranked investors · unlock intros with a free account
+          </p>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => void handleGate('intro', investorFromMatch(visible[0] ?? {}))}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"
+            >
+              <Send className="w-4 h-4" />
+              {gateCopy.intro}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleGate('save')}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-zinc-600 text-zinc-200 text-sm font-medium hover:border-zinc-400"
+            >
+              <Bookmark className="w-4 h-4" />
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

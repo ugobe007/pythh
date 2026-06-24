@@ -8,7 +8,7 @@ import { Helmet } from 'react-helmet-async';
 import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 import { recordMatchViewOnce, trackFunnelEvent } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
-import { trackFounderGateStarted } from '@/lib/founderSignupGate';
+import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
 
 interface Investor {
   id: string;
@@ -101,9 +101,12 @@ export default function MatchPreview() {
   const hidden = Math.max(0, total_matches - visible.length);
   const startupUrl = startup.website || '';
 
-  const handleGate = async (action: 'save' | 'intro' | 'export') => {
+  const handleGate = async (
+    action: 'save' | 'intro' | 'export',
+    investor?: GatedInvestorContext | null,
+  ) => {
     if (startupUrl) sessionStorage.setItem('pythia_url', startupUrl);
-    await trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id });
+    await trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id, investor });
     navigate('/activate');
   };
 
@@ -120,10 +123,10 @@ export default function MatchPreview() {
           </Link>
           <button
             type="button"
-            onClick={() => void handleGate('save')}
+            onClick={() => void handleGate('intro')}
             className="px-4 py-1.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
           >
-            Save shortlist
+            Request intro
           </button>
         </div>
       </nav>
@@ -144,13 +147,21 @@ export default function MatchPreview() {
           </div>
         </div>
 
-        <div className="space-y-3">
-          {visible.map((m, i) => (
+        <div className="space-y-3 pb-24">
+          {visible.map((m, i) => {
+            const investor: GatedInvestorContext = {
+              id: m.investor.id,
+              name: m.investor.name,
+              firm: m.investor.firm,
+            };
+            return (
             <div
               key={m.investor.id}
-              className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/50 flex justify-between gap-4"
+              className={`p-4 rounded-xl border flex justify-between gap-4 items-center ${
+                i === 0 ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50'
+              }`}
             >
-              <div>
+              <div className="min-w-0">
                 <span className="text-xs text-zinc-500 mr-2">#{i + 1}</span>
                 <span className="font-medium">
                   {formatInvestorDisplayLabel(m.investor.name, m.investor.firm)}
@@ -159,11 +170,21 @@ export default function MatchPreview() {
                   <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.why_you_match}</p>
                 )}
               </div>
-              <span className={`text-sm font-mono shrink-0 ${scoreColor(m.match_score)}`}>
-                {Math.round(m.match_score)}%
-              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`text-sm font-mono ${scoreColor(m.match_score)}`}>
+                  {Math.round(m.match_score)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleGate('intro', investor)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black text-xs font-semibold whitespace-nowrap"
+                >
+                  Intro
+                </button>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {hidden > 0 && (
@@ -199,6 +220,25 @@ export default function MatchPreview() {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-zinc-400">
+            {total_matches.toLocaleString()} matches · free account to request intros
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleGate('intro', visible[0] ? {
+              id: visible[0].investor.id,
+              name: visible[0].investor.name,
+              firm: visible[0].investor.firm,
+            } : null)}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
+          >
+            Request intro to top match
+          </button>
+        </div>
       </div>
     </div>
   );
