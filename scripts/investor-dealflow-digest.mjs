@@ -86,6 +86,30 @@ const TRAJ_LABELS = {
 };
 
 const URGENCY_EMOJI = { high: '🔴', medium: '🟡', low: '🟢' };
+const URGENCY_RANK = { high: 3, medium: 2, low: 1 };
+
+function compareMatchRows(a, b) {
+  const ua = URGENCY_RANK[a.urgency] || 0;
+  const ub = URGENCY_RANK[b.urgency] || 0;
+  if (ub !== ua) return ub - ua;
+  return (b.match_score || 0) - (a.match_score || 0);
+}
+
+/** One row per startup — pythh_top_matches has one row per entity×candidate pair. */
+function dedupeMatchesByEntity(rows) {
+  const best = new Map();
+  for (const row of rows) {
+    const key = String(row.entity_name || '')
+      .trim()
+      .toLowerCase();
+    if (!key) continue;
+    const existing = best.get(key);
+    if (!existing || compareMatchRows(row, existing) > 0) {
+      best.set(key, row);
+    }
+  }
+  return [...best.values()].sort(compareMatchRows);
+}
 
 async function fetchTopMatches({ sectors = [], stages = [], topN = 5 }) {
   const { data, error } = await sb
@@ -113,19 +137,12 @@ async function fetchTopMatches({ sectors = [], stages = [], topN = 5 }) {
     );
   }
 
-  rows.sort((a, b) => {
-    const urgencyRank = { high: 3, medium: 2, low: 1 };
-    const ua = urgencyRank[a.urgency] || 0;
-    const ub = urgencyRank[b.urgency] || 0;
-    if (ub !== ua) return ub - ua;
-    return (b.match_score || 0) - (a.match_score || 0);
-  });
+  rows.sort(compareMatchRows);
 
-  return rows.slice(0, topN);
+  return dedupeMatchesByEntity(rows).slice(0, topN);
 }
 
-function matchLink(entityName, entityId) {
-  if (entityId) return `${SITE_BASE}/portfolio/${entityId}`;
+function matchLink(entityName) {
   if (entityName) return `${SITE_BASE}/investors?q=${encodeURIComponent(entityName)}`;
   return `${SITE_BASE}/investors`;
 }
@@ -163,7 +180,10 @@ function buildEmail(matches, recipientName = 'Investor', prefs = {}) {
       const sectors = (m.entity_sectors || []).slice(0, 3).join(', ');
       const stage = m.entity_stage || '';
       const bgColor = i % 2 === 0 ? '#111111' : '#0e0e0e';
-      const href = matchLink(m.entity_name, m.entity_id || m.startup_id);
+      const href = matchLink(m.entity_name);
+      const fitInvestor = m.candidate_name
+        ? `<span style="font-size:11px;color:#666;margin-left:8px;">↔ ${m.candidate_name}</span>`
+        : '';
 
       return `
     <tr>
@@ -174,7 +194,7 @@ function buildEmail(matches, recipientName = 'Investor', prefs = {}) {
               <table cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td>
-                    <span style="font-size:17px;font-weight:700;color:#ffffff;">${m.entity_name || '—'}</span>
+                    <span style="font-size:17px;font-weight:700;color:#ffffff;">${m.entity_name || '—'}</span>${fitInvestor}
                     ${stage ? `<span style="font-size:11px;background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;border-radius:20px;margin-left:8px;">${stage}</span>` : ''}
                     ${m.urgency === 'high' ? '<span style="font-size:11px;background:#422;border:1px solid #633;color:#f97316;padding:2px 8px;border-radius:20px;margin-left:4px;">🔥 Hot</span>' : ''}
                   </td>

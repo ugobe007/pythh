@@ -53,6 +53,25 @@ const TRAJ_LABELS = {
 };
 
 const URGENCY_EMOJI = { high: '🔴', medium: '🟡', low: '🟢' };
+const URGENCY_RANK = { high: 3, medium: 2, low: 1 };
+
+function compareMatchRows(a, b) {
+  const ua = URGENCY_RANK[a.urgency] || 0;
+  const ub = URGENCY_RANK[b.urgency] || 0;
+  if (ub !== ua) return ub - ua;
+  return (b.match_score || 0) - (a.match_score || 0);
+}
+
+function dedupeMatchesByEntity(rows) {
+  const best = new Map();
+  for (const row of rows) {
+    const key = String(row.entity_name || '').trim().toLowerCase();
+    if (!key) continue;
+    const existing = best.get(key);
+    if (!existing || compareMatchRows(row, existing) > 0) best.set(key, row);
+  }
+  return [...best.values()].sort(compareMatchRows);
+}
 
 // ── Fetch top matches ────────────────────────────────────────────────────────
 async function fetchTopMatches({ sectors = [], stages = [], topN = 10 }) {
@@ -84,16 +103,9 @@ async function fetchTopMatches({ sectors = [], stages = [], topN = 10 }) {
     );
   }
 
-  // Sort: hot signals first, then by score
-  rows.sort((a, b) => {
-    const urgencyRank = { high: 3, medium: 2, low: 1 };
-    const ua = urgencyRank[a.urgency] || 0;
-    const ub = urgencyRank[b.urgency] || 0;
-    if (ub !== ua) return ub - ua;
-    return (b.match_score || 0) - (a.match_score || 0);
-  });
+  rows.sort(compareMatchRows);
 
-  return rows.slice(0, topN);
+  return dedupeMatchesByEntity(rows).slice(0, topN);
 }
 
 // ── Build HTML email ─────────────────────────────────────────────────────────

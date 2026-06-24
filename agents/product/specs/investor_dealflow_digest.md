@@ -10,7 +10,7 @@ Investors complete signup but lack a recurring reason to return. Founder supply 
 
 ## Solution
 
-Weekly email digest: top 5 startups from `pythh_top_matches` (capital_match), filtered by investor sector/stage prefs, ranked by urgency + match score.
+Weekly email digest: top 5 **unique startups** from `pythh_top_matches` (capital_match). The view is one row per entity×candidate pair — the digest dedupes by `entity_name` and keeps the best-scoring pair per startup (shows `candidate_name` as thesis-fit investor).
 
 ## Implementation
 
