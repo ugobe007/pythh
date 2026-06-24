@@ -40,7 +40,10 @@ export default function AdminToolsGrid({ category, compact }: { category?: Admin
         </p>
       )}
       {categories.map(({ id, label }) => {
-        const tools = ADMIN_TOOLS.filter((t) => t.category === id);
+        const tools = ADMIN_TOOLS.filter((t) => t.category === id).sort((a, b) => {
+          if (Boolean(a.vital) !== Boolean(b.vital)) return a.vital ? -1 : 1;
+          return a.label.localeCompare(b.label);
+        });
         if (!tools.length) return null;
         return (
           <section key={id}>

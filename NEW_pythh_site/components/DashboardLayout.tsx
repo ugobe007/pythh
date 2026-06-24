@@ -5,9 +5,10 @@ const NAV = [
   {
     group: "OVERVIEW",
     links: [
-      { label: "Dashboard",       href: "/admin" },
-      { label: "All Tools",       href: "/admin/tools" },
-      { label: "Analytics",       href: "/admin/analytics" },
+      { label: "Dashboard",           href: "/admin" },
+      { label: "Junk Startup Cleanup", href: "/admin/junk-startups", highlight: true },
+      { label: "All Tools",           href: "/admin/tools" },
+      { label: "Analytics",           href: "/admin/analytics" },
     ],
   },
   {
@@ -35,19 +36,19 @@ const NAV = [
     ],
   },
   {
+    group: "DATA",
+    links: [
+      { label: "Junk Startup Cleanup", href: "/admin/junk-startups", highlight: true },
+      { label: "Startups",            href: "/explore" },
+      { label: "Investors",           href: "/investors" },
+      { label: "Rankings",            href: "/rankings" },
+    ],
+  },
+  {
     group: "OUTREACH",
     links: [
       { label: "Outreach",        href: "/admin/outreach" },
       { label: "Meeting Pipeline",href: "/admin/calendar" },
-    ],
-  },
-  {
-    group: "PIPELINE",
-    links: [
-      { label: "Startups",        href: "/explore" },
-      { label: "Investors",       href: "/investors" },
-      { label: "Rankings",        href: "/rankings" },
-      { label: "Matches",         href: "/matches" },
     ],
   },
   {
@@ -78,15 +79,16 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {NAV.map(({ group, links }) => (
           <div key={group} className="mb-3">
             <div className="text-[9px] font-bold tracking-widest mb-1.5 px-2" style={{ color: "oklch(0.38 0.01 264)" }}>{group}</div>
-            {links.map(({ label, href }) => {
+            {links.map(({ label, href, highlight }) => {
               const active = location === href || (href !== "/admin" && location.startsWith(href + "/"));
               return (
                 <Link key={href} href={href}
                   className="block text-xs px-2 py-1.5 rounded transition-colors"
                   style={{
-                    color: active ? "oklch(0.92 0.005 264)" : "oklch(0.55 0.01 264)",
-                    backgroundColor: active ? "oklch(0.18 0.01 264)" : "transparent",
+                    color: active ? "oklch(0.92 0.005 264)" : highlight ? "oklch(0.75 0.15 80)" : "oklch(0.55 0.01 264)",
+                    backgroundColor: active ? "oklch(0.18 0.01 264)" : highlight ? "oklch(0.55 0.15 80 / 0.08)" : "transparent",
                     textDecoration: "none",
+                    fontWeight: highlight ? 600 : 400,
                   }}>
                   {label}
                 </Link>

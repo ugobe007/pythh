@@ -70,6 +70,29 @@ export default function AdminPage() {
         </p>
       </div>
 
+      {/* Junk cleanup — first action on admin home */}
+      <section className="mb-8">
+        <Link href="/admin/junk-startups"
+          className="block no-underline rounded-lg border p-4 transition-colors hover:bg-white/[0.03]"
+          style={{ borderColor: "oklch(0.55 0.15 80 / 0.55)", background: "oklch(0.55 0.15 80 / 0.06)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <Trash2 size={22} className="shrink-0 mt-0.5" style={{ color: "oklch(0.75 0.15 80)" }} />
+              <div>
+                <div className="text-base font-bold" style={{ color: "oklch(0.92 0.005 264)" }}>Junk Startup Cleanup</div>
+                <p className="text-[11px] leading-snug m-0 mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
+                  Scan RSS headline junk, test names, and entity_gate rejects — bulk reject (recommended) or hard delete.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold shrink-0 px-3 py-1.5 rounded-md"
+              style={{ color: "oklch(0.13 0.01 264)", background: "oklch(0.75 0.15 80)" }}>
+              Open tool →
+            </span>
+          </div>
+        </Link>
+      </section>
+
       {/* Core control tools */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
@@ -86,26 +109,6 @@ export default function AdminPage() {
         <div className="mt-3">
           <AdminToolsGrid category="data" compact />
         </div>
-      </section>
-
-      {/* Junk cleanup — prominent shortcut */}
-      <section className="mb-8">
-        <Link href="/admin/junk-startups"
-          className="block no-underline rounded-lg border p-4 transition-colors hover:bg-white/[0.03]"
-          style={{ borderColor: "oklch(0.55 0.15 80 / 0.45)", background: "oklch(0.15 0.01 264)" }}>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex items-start gap-3 flex-1 min-w-0">
-              <Trash2 size={20} className="shrink-0 mt-0.5" style={{ color: "oklch(0.75 0.15 80)" }} />
-              <div>
-                <div className="text-sm font-semibold" style={{ color: "oklch(0.92 0.005 264)" }}>Junk Startup Cleanup</div>
-                <p className="text-[11px] leading-snug m-0 mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-                  Scan RSS headline junk, test names, and entity_gate rejects — bulk reject (recommended) or hard delete.
-                </p>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold shrink-0" style={{ color: "oklch(0.85 0.17 162)" }}>Open tool →</span>
-          </div>
-        </Link>
       </section>
 
       {/* Platform stats */}
