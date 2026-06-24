@@ -4,11 +4,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Loader2, ArrowRight, Download, Bookmark, Send } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
-import { recordMatchViewOnce, trackFunnelEvent, recordMatchEngagement } from '@/lib/matchEngagement';
+import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
@@ -138,6 +138,14 @@ export default function InstantMatchPreview({ url }: Props) {
       cancelled = true;
     };
   }, [url]);
+
+  const handlePricingFromPreview = () => {
+    void trackFunnelEventOnce('pythh_preview_pricing_click', 'pricing_viewed', {
+      path: '/pricing',
+      source: 'preview_sticky',
+      startup_id: preview?.startup?.id,
+    });
+  };
 
   const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
@@ -317,7 +325,10 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left">
-            {total.toLocaleString()} ranked investors · unlock intros with a free account
+            {total.toLocaleString()} ranked investors ·{' '}
+            <Link href="/pricing" onClick={handlePricingFromPreview} className="text-amber-400/90 hover:text-amber-300 underline-offset-2 hover:underline">
+              Automate outreach with Oracle
+            </Link>
           </p>
           <div className="flex gap-2 w-full sm:w-auto">
             <button

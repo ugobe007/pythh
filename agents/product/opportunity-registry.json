@@ -85,7 +85,7 @@
       "metric": "founder_signup_completed",
       "baseline": null,
       "target": "+15% vs url_first control",
-      "next_step": "BLIND: growth_event_count=1 in 7d — cannot compare variants. Gated behind founder_supply_seeding observability fix before any traffic-reallocation decision.",
+      "next_step": "Reallocated 70% traffic to matches_preview (2026-06-24) to close url_submitted→preview_view leak (6.6%). 14d: compare completion vs url_first.",
       "related_experiments": ["founder_hero_entry"]
     },
     {

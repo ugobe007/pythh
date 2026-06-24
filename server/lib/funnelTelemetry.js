@@ -136,6 +136,7 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'pricing_viewed', store: 'ai_logs', operation: 'pricing_viewed' },
     { id: 'checkout_started', store: 'ai_logs', operation: 'checkout_started' },
     { id: 'checkout_completed', store: 'ai_logs', operation: 'checkout_completed' },
+    { id: 'preview_email_captured', store: 'ai_logs', operation: 'preview_email_captured' },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase

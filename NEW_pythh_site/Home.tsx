@@ -1431,8 +1431,8 @@ function Footer() {
   const cols: { title: string; links: { label: string; href: string | null }[] }[] = [
     { title: "Product", links: [
       { label: "How it works", href: "/oracle" },
-      { label: "Find my investors", href: "/matches" },
-      { label: "Matches", href: "/matches" },
+      { label: "Find my investors", href: "/find-investors" },
+      { label: "Match preview", href: "/matches" },
       { label: "Rankings", href: "/rankings" },
       { label: "Investors", href: "/investors" },
       { label: "Portfolio", href: "/portfolio" },

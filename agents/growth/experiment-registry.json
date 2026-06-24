@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-23T13:15:00Z",
+  "updated_at": "2026-06-24T04:35:00Z",
   "experiments": [
     {
       "id": "founder_hero_entry",
@@ -11,7 +11,7 @@
       "variants": [
         {
           "key": "url_first",
-          "traffic_pct": 50,
+          "traffic_pct": 30,
           "schema": {
             "entry": "url",
             "steps": ["url", "activate", "matches"],
@@ -26,7 +26,7 @@
         },
         {
           "key": "matches_preview",
-          "traffic_pct": 50,
+          "traffic_pct": 70,
           "schema": {
             "entry": "url_with_preview",
             "steps": ["url", "instant_matches", "action_gate"],

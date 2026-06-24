@@ -111,6 +111,8 @@ async function main() {
       signup_per_preview: rate(founderSignups + investorSignups, f.preview_requested || 0),
       intro_per_match_view: rate(f.match_intro_requested || 0, f.match_viewed || 0),
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),
+      preview_view_per_url: rate(f.instant_matches_viewed || 0, f.url_submitted || 0),
+      email_capture_per_preview: rate(f.preview_email_captured || 0, f.instant_matches_viewed || 0),
       complete_per_checkout: rate(f.checkout_completed || 0, f.checkout_started || 0),
     },
     totals: {
@@ -124,17 +126,22 @@ async function main() {
     agent_focus: [],
   };
 
-  if ((f.pricing_viewed || 0) === 0 && (f.checkout_started || 0) === 0) {
-    report.agent_focus.push('Monetization: drive traffic to /pricing; verify via npm run funnel:heartbeat');
+  if ((f.url_submitted || 0) > 15 && (f.instant_matches_viewed || 0) < (f.url_submitted || 0) * 0.15) {
+    report.agent_focus.push(
+      'Funnel leak: url_submitted >> instant_matches_viewed — route more traffic through /find-investors and matches_preview (now 70%)',
+    );
   }
-  if ((report.totals.signups_7d || 0) === 0) {
-    report.agent_focus.push('Acquisition: drive traffic to /matches?url= and founder hero experiments');
+  if ((f.pricing_viewed || 0) < 10 && (f.instant_matches_viewed || 0) > 5) {
+    report.agent_focus.push('Monetization: preview→Oracle bridge live — drive pricing_viewed from match preview sticky bar');
   }
-  if (report.funnel_healthy === false) {
+  if ((report.totals.signups_per_day || 0) < 1) {
+    report.agent_focus.push('Acquisition: SEO /find-investors + paid/community tests for first-time founders (F-12)');
+  }
+  if (report.funnel_healthy === false || heartbeat?.diagnosis === 'probe_failed') {
     report.agent_focus.push('Fix funnel instrumentation gaps (run npm run funnel:heartbeat)');
   }
-  if ((f.match_viewed || 0) > 0 && (f.match_intro_requested || 0) === 0) {
-    report.agent_focus.push('Activation: improve intro CTA on match preview and Activate');
+  if ((f.instant_matches_viewed || 0) > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
+    report.agent_focus.push('Activation: intro/email capture on preview — watch match_intro_requested and preview_email_captured');
   }
 
   fs.mkdirSync(reportsDir, { recursive: true });
@@ -146,6 +153,7 @@ async function main() {
   } else {
     console.log(`\n📈 Conversion funnel (${days}d)`);
     console.log(`   Signups: ${report.totals.signups_7d} (${report.totals.signups_per_day}/day)`);
+    console.log(`   URL → preview view: ${report.rates.preview_view_per_url ?? '—'}%`);
     console.log(`   Preview → signup rate: ${report.rates.signup_per_preview ?? '—'}%`);
     console.log(`   Pricing → checkout: ${report.rates.checkout_per_pricing ?? '—'}%`);
     console.log(`   Paid subscribers: ${report.totals.paid_subscribers ?? 'unknown'}`);

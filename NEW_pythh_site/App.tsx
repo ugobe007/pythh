@@ -30,6 +30,7 @@ import Portfolio from "./pages/Portfolio";
 import PortfolioDetail from "./pages/PortfolioDetail";
 import Oracle from "./pages/Oracle";
 import Matches from "./pages/Matches";
+import FindInvestors from "./pages/FindInvestors";
 import MatchPreview from "./pages/MatchPreview";
 import InvestorSignup from "./pages/InvestorSignup";
 import InvestorSignupComplete from "./pages/InvestorSignupComplete";
@@ -77,9 +78,7 @@ function Router() {
       <Route path={"/investors"} component={InvestorRankings} />
       <Route path={"/explore"} component={Explore} />
       <Route path={"/oracle"} component={Oracle} />
-      <Route path={"/find-investors"}>
-        <Redirect to="/matches" />
-      </Route>
+      <Route path={"/find-investors"} component={FindInvestors} />
       <Route path={"/matches/preview/:startupId"} component={MatchPreview} />
       <Route path={"/matches"} component={Matches} />
       <Route path={"/signup/investor"} component={InvestorSignup} />

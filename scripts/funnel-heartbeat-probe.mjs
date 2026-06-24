@@ -325,6 +325,28 @@ async function runProbe() {
       ok: checkoutCompleteRes.res.ok,
       status: checkoutCompleteRes.res.status,
     });
+
+    const emailCaptureRes = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'preview_email_captured',
+            status: 'tracked',
+            output: {
+              startup_id: startupId,
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({
+      step: 'preview_email_captured',
+      ok: emailCaptureRes.res.ok,
+      status: emailCaptureRes.res.status,
+    });
   }
 
   await sleep(3500);
