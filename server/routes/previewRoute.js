@@ -19,6 +19,7 @@ const supabase = createClient(
 
 const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
+const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
 
@@ -437,6 +438,14 @@ router.get('/:startupId', async (req, res) => {
       matchCount: matches.length,
     });
 
+    const topInvestorIds = matches
+      .map((m) => m.investor_id || m.investor?.id)
+      .filter(Boolean);
+    const matchMovement = await getPreviewMatchDelta(supabase, startupId, {
+      totalMatches: totalMatches || 0,
+      topInvestorIds,
+    });
+
     res.json({
       startup: {
         id: startup.id,
@@ -467,6 +476,7 @@ router.get('/:startupId', async (req, res) => {
       },
       total_matches: totalMatches || 0,
       matches,
+      match_movement: matchMovement,
       suggested_investor_fallback: suggestedInvestorFallback,
     });
 

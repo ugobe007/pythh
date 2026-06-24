@@ -1,7 +1,43 @@
 {
   "version": 1,
-  "updated_at": "2026-06-24T04:35:00Z",
+  "updated_at": "2026-06-24T23:35:00Z",
   "experiments": [
+    {
+      "id": "founder_preview_signal_delta_gate",
+      "audience": "founder",
+      "name": "Preview cliffhanger × signal-delta gate",
+      "status": "running",
+      "parent_experiment": "founder_hero_entry",
+      "applies_when": "variant_key=matches_preview",
+      "hypothesis": "A locked signal-delta teaser on the action_gate (matches shifted thesis-fit this week) converts more previewers to signup than utility-only gates (save/intro/export), and seeds a return trigger.",
+      "loops": ["preview_cliffhanger", "signal_delta"],
+      "variants": [
+        {
+          "key": "delta_cliffhanger",
+          "traffic_pct": 100,
+          "schema": {
+            "gate_addon": "signal_delta_card",
+            "requires_real_god_history": true,
+            "fields_shown": ["moved_toward_count", "moved_away_count", "match_count"]
+          },
+          "copy": {
+            "picky": "We screened {match_count} investors; {moved_toward_count} changed thesis-fit toward you this week and {moved_away_count} cooled.",
+            "headline": "Your matches moved this week.",
+            "cta": "See which moved — create a free account",
+            "footer": "Free account unlocks the full delta, the why, and the warm intro before the window closes."
+          },
+          "guardrails": {
+            "no_fabricated_deltas": true,
+            "source": "god_score_history"
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_signup_started",
+        "secondary": ["preview_delta_teaser_viewed", "founder_signup_completed", "return_visit_7d"]
+      },
+      "promotion_note": "Running 2026-06-24 — preview_delta_teaser_viewed wired; real deltas only (null when no movement)."
+    },
     {
       "id": "founder_hero_entry",
       "audience": "founder",
@@ -11,7 +47,7 @@
       "variants": [
         {
           "key": "url_first",
-          "traffic_pct": 30,
+          "traffic_pct": 10,
           "schema": {
             "entry": "url",
             "steps": ["url", "activate", "matches"],
@@ -26,7 +62,7 @@
         },
         {
           "key": "matches_preview",
-          "traffic_pct": 70,
+          "traffic_pct": 90,
           "schema": {
             "entry": "url_with_preview",
             "steps": ["url", "instant_matches", "action_gate"],
@@ -92,7 +128,7 @@
       "variants": [
         {
           "key": "short_form",
-          "traffic_pct": 33,
+          "traffic_pct": 0,
           "schema": {
             "steps": 1,
             "fields": ["name", "email", "firm", "sectors", "check_size_band"],
@@ -105,7 +141,7 @@
         },
         {
           "key": "thesis_deep",
-          "traffic_pct": 33,
+          "traffic_pct": 67,
           "schema": {
             "steps": 2,
             "fields": ["name", "email", "firm", "title", "sectors", "stages", "check_size_min", "check_size_max", "geography", "investment_thesis"],
@@ -118,7 +154,7 @@
         },
         {
           "key": "short_form_email_first",
-          "traffic_pct": 34,
+          "traffic_pct": 33,
           "schema": {
             "steps": 1,
             "fields": ["email"],

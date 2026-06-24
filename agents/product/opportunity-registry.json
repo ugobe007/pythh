@@ -13,9 +13,9 @@
       "metric": "founder_signup_completed",
       "baseline": "0 founder_signup_started / 0 completed in 7d (path unwired); 100% preview->account drop-off",
       "target": ">=25% preview->signup_started; first non-zero account baseline (>=3) within 14d",
-      "next_step": "Shipped: inverted gate on /matches preview + founder_signup_started/completed wiring. 48h: confirm events emit on gate CTA. 14d: compare matches_preview vs url_first; Growth owns traffic reallocation.",
+      "next_step": "Shipped: inverted gate + signal-delta cliffhanger (founder_preview_signal_delta_gate running). Traffic: matches_preview 90% / url_first 10%. Monitor preview_delta_teaser_viewed and founder_signup_started over 14d.",
       "finding_id": "F-2026-0623-11",
-      "related_experiments": ["founder_hero_entry"]
+      "related_experiments": ["founder_hero_entry", "founder_preview_signal_delta_gate"]
     },
     {
       "id": "founder_supply_seeding",

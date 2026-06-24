@@ -5,7 +5,7 @@
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
-export type FounderGatedAction = 'save' | 'intro' | 'export';
+export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta';
 
 const GATE_PENDING_KEY = 'pythia_founder_gate_pending';
 const GATED_ACTION_KEY = 'pythia_gated_action';
@@ -66,6 +66,7 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   save: 'save your investor shortlist',
   intro: 'request intros to top matches',
   export: 'export your match list',
+  delta: 'see which investors moved toward you',
 };
 
 export function persistFounderGateContext(

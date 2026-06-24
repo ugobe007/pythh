@@ -17,6 +17,7 @@ const FUNNEL_OPERATIONS = [
   'checkout_completed',
   'checkout_cancelled',
   'preview_email_captured',
+  'preview_delta_teaser_viewed',
   'investor_dealflow_digest_sent',
 ];
 

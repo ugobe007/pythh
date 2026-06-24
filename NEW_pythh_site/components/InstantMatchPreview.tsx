@@ -7,11 +7,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Loader2, ArrowRight, Download, Bookmark, Send } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
-import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperiment';
+import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
+import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 
 const PREVIEW_LIMIT = 10;
 
@@ -31,6 +32,7 @@ type PreviewPayload = {
   startup?: { id?: string; name?: string; god_score?: number };
   total_matches?: number;
   matches?: PreviewMatch[];
+  match_movement?: MatchMovement | null;
 };
 
 interface Props {
@@ -44,6 +46,9 @@ export default function InstantMatchPreview({ url }: Props) {
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
+  const deltaExpRef = useRef<GrowthAssignment | null>(null);
+  const deltaTeaserTrackedRef = useRef(false);
+  const [deltaAssignment, setDeltaAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
     save: 'Save shortlist',
     intro: 'Request intro',
@@ -68,6 +73,12 @@ export default function InstantMatchPreview({ url }: Props) {
           export: c.export || gateCopy.export,
           footer: c.footer || gateCopy.footer,
         });
+      })
+      .catch(() => {});
+    fetchGrowthAssignment('founder', 'founder_preview_signal_delta_gate')
+      .then((a) => {
+        deltaExpRef.current = a;
+        if (a) setDeltaAssignment(a);
       })
       .catch(() => {});
   }, []);
@@ -116,6 +127,37 @@ export default function InstantMatchPreview({ url }: Props) {
         if (cancelled) return;
 
         setPreview(data);
+
+        const resolvedDelta =
+          deltaExpRef.current ??
+          (await fetchGrowthAssignment('founder', 'founder_preview_signal_delta_gate').catch(() => null));
+        if (resolvedDelta) {
+          deltaExpRef.current = resolvedDelta;
+          setDeltaAssignment(resolvedDelta);
+        }
+
+        if (
+          data.match_movement &&
+          resolvedDelta?.variant_key === 'delta_cliffhanger' &&
+          !deltaTeaserTrackedRef.current
+        ) {
+          deltaTeaserTrackedRef.current = true;
+          void trackFunnelEventOnce('pythh_preview_delta_teaser', 'preview_delta_teaser_viewed', {
+            startup_id: startupId,
+            url,
+            moved_toward_count: data.match_movement.moved_toward_count,
+            moved_away_count: data.match_movement.moved_away_count,
+            match_count: data.match_movement.match_count,
+            signal_score_delta: data.match_movement.signal_score_delta,
+            source: data.match_movement.source,
+          });
+          void trackGrowthEvent(resolvedDelta, 'preview_delta_teaser_viewed', {
+            startup_id: startupId,
+            url,
+            ...data.match_movement,
+          });
+        }
+
         trackFunnelEvent('instant_matches_viewed', {
           startup_id: startupId,
           url,
@@ -197,6 +239,12 @@ export default function InstantMatchPreview({ url }: Props) {
   const visible = matches.slice(0, PREVIEW_LIMIT);
   const total = preview.total_matches ?? matches.length;
   const startupName = preview.startup?.name || 'Your startup';
+  const showDeltaTeaser =
+    Boolean(preview.match_movement) &&
+    deltaAssignment?.variant_key === 'delta_cliffhanger';
+  const deltaCopy = preview.match_movement
+    ? buildDeltaCopy(preview.match_movement, deltaAssignment)
+    : null;
 
   return (
     <div className="mb-16 pb-28">
@@ -276,6 +324,14 @@ export default function InstantMatchPreview({ url }: Props) {
             firm: m.investor?.firm,
           }))}
           source="instant_match_preview"
+        />
+      )}
+
+      {showDeltaTeaser && preview.match_movement && deltaCopy && (
+        <PreviewSignalDeltaTeaser
+          movement={preview.match_movement}
+          copy={deltaCopy}
+          onUnlock={() => void handleGate('delta')}
         />
       )}
 
