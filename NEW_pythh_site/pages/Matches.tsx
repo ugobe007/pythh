@@ -18,6 +18,8 @@ import { trpc } from "@/lib/trpc";
 
 import SharedNavbar from "@/components/SharedNavbar";
 import InstantMatchPreview from "@/components/InstantMatchPreview";
+import { trackFunnelEventOnce } from "@/lib/matchEngagement";
+import { fetchGrowthAssignment, trackGrowthEvent } from "@/lib/growthExperiment";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -177,57 +179,77 @@ function MatchesUrlEntry({
   onSubmit,
   error,
   hint,
+  networkTotal,
 }: {
   onSubmit: (url: string) => void;
   error?: boolean;
   hint?: string;
+  networkTotal?: number;
 }) {
   const [url, setUrl] = useState("");
 
   return (
-    <div
-      className="mb-12 p-6 rounded-xl"
-      style={{
-        backgroundColor: "oklch(0.115 0.01 264)",
-        border: `1px solid ${error ? "oklch(0.65 0.2 27 / 0.5)" : "oklch(0.696 0.17 162.48 / 0.25)"}`,
-      }}
+    <section
+      id="preview-url"
+      className="mb-16 scroll-mt-28"
     >
-      <p className="text-[11px] uppercase tracking-[2px] mb-2" style={{ color: "#22c55e" }}>
-        Instant match preview
-      </p>
-      <h2 className="text-xl font-bold text-white mb-2">See your investor shortlist</h2>
-      <p className="text-sm mb-4" style={{ color: "oklch(0.58 0.01 264)" }}>
-        {hint || "Enter your startup URL — we’ll rank your top investor matches in about a minute."}
-      </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSubmit(url);
+      <div
+        className="p-6 sm:p-8 rounded-2xl"
+        style={{
+          backgroundColor: "oklch(0.115 0.01 264)",
+          border: `1px solid ${error ? "oklch(0.65 0.2 27 / 0.5)" : "oklch(0.696 0.17 162.48 / 0.35)"}`,
+          boxShadow: "0 0 60px oklch(0.696 0.17 162.48 / 0.06)",
         }}
-        className="flex flex-col sm:flex-row gap-3"
       >
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="yourstartup.com"
-          className="flex-1 px-4 py-3 rounded-lg text-sm outline-none"
-          style={{
-            backgroundColor: "oklch(0.09 0.01 264)",
-            border: `1px solid ${error ? "oklch(0.65 0.2 27)" : "oklch(0.25 0.01 264)"}`,
-            color: "oklch(0.94 0.005 264)",
+        <p className="text-[11px] uppercase tracking-[2px] mb-3" style={{ color: "#22c55e" }}>
+          Free · No signup required
+        </p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
+          Find investors that match your startup
+        </h1>
+        <p className="text-base mb-6 max-w-2xl" style={{ color: "oklch(0.58 0.01 264)" }}>
+          {hint || "Paste your startup URL — see your ranked investor shortlist in about a minute. Save, request intros, or export after a free account."}
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit(url);
           }}
-        />
-        <button
-          type="submit"
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold whitespace-nowrap"
-          style={{ backgroundColor: "#22c55e", color: "#000" }}
+          className="flex flex-col sm:flex-row gap-3"
         >
-          Find matches
-          <ArrowRight size={16} />
-        </button>
-      </form>
-    </div>
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="yourstartup.com"
+            className="flex-1 px-4 py-3.5 rounded-lg text-sm outline-none"
+            style={{
+              backgroundColor: "oklch(0.09 0.01 264)",
+              border: `1px solid ${error ? "oklch(0.65 0.2 27)" : "oklch(0.25 0.01 264)"}`,
+              color: "oklch(0.94 0.005 264)",
+            }}
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold whitespace-nowrap"
+            style={{ backgroundColor: "#22c55e", color: "#000" }}
+          >
+            Preview my matches
+            <ArrowRight size={16} />
+          </button>
+        </form>
+        {error && (
+          <p className="text-xs mt-3" style={{ color: "oklch(0.65 0.2 27)" }}>
+            Enter a valid startup URL — e.g. stripe.com or https://yourstartup.com
+          </p>
+        )}
+        <p className="text-[11px] mt-4" style={{ color: "oklch(0.45 0.01 264)" }}>
+          No credit card · Results in ~60 seconds
+          {networkTotal != null && networkTotal > 0 ? ` · ${networkTotal.toLocaleString()} matches in network` : ''}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -250,15 +272,26 @@ export default function Matches() {
     if (state.missingUrlParam && typeof window !== "undefined") {
       window.history.replaceState({}, "", "/matches");
     }
+
+    if (!state.previewUrl) {
+      void trackFunnelEventOnce('pythh_matches_landing_view', 'page_view', {
+        path: '/matches',
+        source: 'matches_acquisition_landing',
+      });
+    }
   }, [location]);
 
-  const submitPreviewUrl = (raw: string) => {
+  const submitPreviewUrl = async (raw: string) => {
     const normalized = normalizePreviewUrl(raw);
     if (!normalized) {
       setUrlEntryError(true);
       return;
     }
     setUrlEntryError(false);
+    const assignment = await fetchGrowthAssignment('founder').catch(() => null);
+    if (assignment) {
+      void trackGrowthEvent(assignment, 'founder_url_submitted', { url: normalized, source: 'matches_landing' });
+    }
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
@@ -278,13 +311,28 @@ export default function Matches() {
       style={{ backgroundColor: "oklch(0.09 0.01 264)", color: "oklch(0.9 0.01 264)", fontFamily: "'Inter', sans-serif" }}
     >
       <Helmet>
-        <title>Active Matches — Startup-Investor Network — Pythh.ai</title>
+        <title>
+          {previewUrl
+            ? 'Investor match preview — Pythh.ai'
+            : 'Find investors for your startup — free match preview — Pythh.ai'}
+        </title>
         <meta
           name="description"
-          content={`${total.toLocaleString()} active startup-investor matches in the Pythh network. See how PYTHIA matches founders to the right investors at the right time.`}
+          content={
+            previewUrl
+              ? 'Live investor shortlist ranked by sector fit, stage, and thesis alignment. Request intros with a free account.'
+              : `Paste your startup URL and see ranked investor matches in ~60 seconds. ${total > 0 ? `${total.toLocaleString()} active matches` : 'Thousands of matches'} in the Pythh network — free, no signup required.`
+          }
         />
-        <meta property="og:title" content="Active Matches — Pythh.ai" />
+        <meta
+          name="keywords"
+          content="find investors, startup fundraising, investor matching, VC matching, angel investors, free investor preview"
+        />
+        <link rel="canonical" href={previewUrl ? `https://pythh.ai/matches?url=${encodeURIComponent(previewUrl)}` : 'https://pythh.ai/matches'} />
+        <meta property="og:title" content="Find investors for your startup — Pythh.ai" />
+        <meta property="og:description" content="Free instant investor match preview. Paste your URL, see your ranked shortlist, request intros." />
         <meta property="og:url" content="https://pythh.ai/matches" />
+        <meta property="og:type" content="website" />
       </Helmet>
 
       <SharedNavbar activePath="/matches" />
@@ -296,8 +344,9 @@ export default function Matches() {
         ) : (
         <>
         <MatchesUrlEntry
-          onSubmit={submitPreviewUrl}
+          onSubmit={(url) => void submitPreviewUrl(url)}
           error={urlEntryError}
+          networkTotal={total}
           hint={
             missingUrlParam
               ? "That link was missing a startup URL. Paste yours below — e.g. pythh.ai/matches?url=yourstartup.com"
@@ -317,8 +366,8 @@ export default function Matches() {
             />
             Live match network
           </div>
-          <h1
-            className="font-display font-bold text-4xl sm:text-5xl leading-tight mb-4"
+          <h2
+            className="font-display font-bold text-3xl sm:text-4xl leading-tight mb-4"
             style={{ letterSpacing: "-0.02em" }}
           >
             {isLoading ? (
@@ -328,7 +377,7 @@ export default function Matches() {
                 <span style={{ color: "#22c55e" }}>{total.toLocaleString()}</span> active matches
               </span>
             )}
-          </h1>
+          </h2>
           <p className="text-lg leading-relaxed max-w-2xl mb-10" style={{ color: "oklch(0.58 0.01 264)" }}>
             The Pythh match network continuously pairs startups with investors based on
             sector alignment, stage fit, timing windows, and thesis depth. Every match is
@@ -587,8 +636,8 @@ export default function Matches() {
             in seconds — ranked by timing, thesis fit, and sector alignment.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <StartupCTA href="/activate" size="lg" showArrow arrowSize={16}>
-              Activate matching
+            <StartupCTA href="/matches#preview-url" size="lg" showArrow arrowSize={16}>
+              Preview my matches
             </StartupCTA>
             <Link href="/oracle">
               <span

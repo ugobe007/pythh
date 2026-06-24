@@ -248,8 +248,8 @@ export default function Oracle() {
               </p>
 
               <div className="flex flex-wrap gap-3 mb-10">
-                <StartupCTA href="/activate" showArrow>
-                  Submit your startup URL
+                <StartupCTA href="/matches" showArrow>
+                  Preview my investor matches
                 </StartupCTA>
                 <Link href="/methodology">
                   <span
@@ -327,7 +327,7 @@ export default function Oracle() {
                 Four steps. URL to investor pipeline.
               </h2>
             </div>
-            <StartupCTA href="/activate" size="sm" className="hidden sm:inline-flex" showArrow>
+            <StartupCTA href="/matches" size="sm" className="hidden sm:inline-flex" showArrow>
               Try it now
             </StartupCTA>
           </div>
@@ -481,7 +481,7 @@ export default function Oracle() {
             No deck, no intro, no waiting.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <StartupCTA href="/activate" size="lg" showArrow arrowSize={16}>
+            <StartupCTA href="/matches" size="lg" showArrow arrowSize={16}>
               Find my investors
             </StartupCTA>
             <Link href="/matches">

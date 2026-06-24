@@ -77,6 +77,9 @@ function Router() {
       <Route path={"/investors"} component={InvestorRankings} />
       <Route path={"/explore"} component={Explore} />
       <Route path={"/oracle"} component={Oracle} />
+      <Route path={"/find-investors"}>
+        <Redirect to="/matches" />
+      </Route>
       <Route path={"/matches/preview/:startupId"} component={MatchPreview} />
       <Route path={"/matches"} component={Matches} />
       <Route path={"/signup/investor"} component={InvestorSignup} />

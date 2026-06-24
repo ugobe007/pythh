@@ -156,8 +156,8 @@ export default function SharedNavbar({
                     {heroCta.label}
                   </button>
                 ) : (
-                  <StartupCTA href="/activate" size="sm" className="px-4 py-1.5">
-                    Activate
+                  <StartupCTA href="/matches" size="sm" className="px-4 py-1.5">
+                    Preview matches
                   </StartupCTA>
                 )}
               </>
@@ -226,8 +226,8 @@ export default function SharedNavbar({
                         {heroCta.label}
                       </button>
                     ) : (
-                      <StartupCTA href="/activate" size="sm" className="text-left">
-                        Activate PYTHIA
+                      <StartupCTA href="/matches" size="sm" className="text-left">
+                        Preview matches
                       </StartupCTA>
                     )}
                   </>
