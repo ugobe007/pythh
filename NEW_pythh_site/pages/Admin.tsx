@@ -99,7 +99,7 @@ export default function AdminPage() {
               <div>
                 <div className="text-sm font-semibold" style={{ color: "oklch(0.92 0.005 264)" }}>Junk Startup Cleanup</div>
                 <p className="text-[11px] leading-snug m-0 mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-                  Scan RSS headline junk, test names, and entity_gate rejects — bulk reject or delete from the database.
+                  Scan RSS headline junk, test names, and entity_gate rejects — bulk reject (recommended) or hard delete.
                 </p>
               </div>
             </div>

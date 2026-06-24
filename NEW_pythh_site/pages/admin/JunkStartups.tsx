@@ -71,10 +71,11 @@ export default function JunkStartupsPage() {
   const apply = async (action: "reject" | "delete") => {
     const ids = Array.from(selected);
     if (!ids.length) return;
-    const verb = action === "delete" ? "permanently delete" : "reject";
     if (
       !confirm(
-        `${verb.charAt(0).toUpperCase() + verb.slice(1)} ${ids.length} junk startup(s)?\n\nReject is reversible; delete is permanent.`,
+        action === 'delete'
+          ? `${ids.length} startup(s) will be permanently deleted (social signals, matches, and other linked rows removed first).\n\nUse Reject instead if you only want to hide them from the active pool.`
+          : `Reject ${ids.length} junk startup(s)? They stay in the database with status=rejected.`,
       )
     ) {
       return;

@@ -8129,7 +8129,14 @@ app.patch('/api/admin/startups/:id', async (req, res) => {
 app.delete('/api/admin/startups/:id', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('startup_uploads').delete().eq('id', req.params.id);
+    const { deleteStartupDependents } = require('./lib/deleteStartupDependents');
+    const id = req.params.id;
+    const deps = await deleteStartupDependents(supabase, [id]);
+    if (!deps.ok) {
+      const msg = deps.failed.map((f) => `${f.table}: ${f.error}`).join('; ');
+      throw new Error(`Failed to remove dependent rows: ${msg}`);
+    }
+    const { error } = await supabase.from('startup_uploads').delete().eq('id', id);
     if (error) throw error;
     res.json({ ok: true });
   } catch (err) {

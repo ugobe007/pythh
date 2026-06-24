@@ -10,6 +10,7 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { evaluateStartupNameForPipeline } = require('../../lib/startupNameGate');
+const { deleteStartupDependents } = require('../lib/deleteStartupDependents');
 
 const router = express.Router();
 
@@ -138,6 +139,11 @@ router.post('/junk-startups/apply', async (req, res) => {
       const BATCH = 100;
       for (let i = 0; i < uniqueIds.length; i += BATCH) {
         const batch = uniqueIds.slice(i, i + BATCH);
+        const deps = await deleteStartupDependents(supabase, batch);
+        if (!deps.ok) {
+          const msg = deps.failed.map((f) => `${f.table}: ${f.error}`).join('; ');
+          throw new Error(`Failed to remove dependent rows: ${msg}`);
+        }
         const { data, error } = await supabase
           .from('startup_uploads')
           .delete()
