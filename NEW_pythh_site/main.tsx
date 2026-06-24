@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
+import { bootstrapSupabase } from "./lib/supabase";
 import { bootstrapOAuthFromHash } from "./lib/supabaseOAuth";
 import "./index.css";
 
@@ -59,6 +60,8 @@ const trpcClient = trpc.createClient({
 });
 
 async function mountApp() {
+  await bootstrapSupabase();
+  const { bootstrapOAuthFromHash } = await import("./lib/supabaseOAuth");
   await bootstrapOAuthFromHash();
 
   createRoot(document.getElementById("root")!).render(

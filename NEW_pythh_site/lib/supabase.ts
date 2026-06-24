@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 declare global {
   interface Window {
@@ -21,30 +21,93 @@ function browserSupabaseAnonKey(): string {
   return r?.supabaseAnonKey?.trim() || (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || "";
 }
 
-const supabaseUrl = isServer ? "" : browserSupabaseUrl();
-const supabaseKey = isServer ? "" : browserSupabaseAnonKey();
-
-export const hasValidSupabaseCredentials = !!(supabaseUrl && supabaseKey);
-
-if (!isServer && !hasValidSupabaseCredentials) {
-  console.warn("[auth] Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — OAuth sign-in disabled.");
+function getSyncCredentials(): { url: string; key: string } | null {
+  if (isServer) return null;
+  const url = browserSupabaseUrl();
+  const key = browserSupabaseAnonKey();
+  return url && key ? { url, key } : null;
 }
 
 const authConfig = {
   flowType: "pkce" as const,
   persistSession: true,
   autoRefreshToken: true,
-  // Inline hash sync + bridge handle returns; detectSessionInUrl for ?code= on /account.
   detectSessionInUrl: true,
   storage: typeof window !== "undefined" ? window.localStorage : undefined,
 };
 
-export const supabase = hasValidSupabaseCredentials
-  ? createClient(supabaseUrl, supabaseKey, {
-      auth: authConfig,
-      global: {
-        fetch: (input: RequestInfo | URL, init?: RequestInit) =>
-          fetch(input, { ...init, cache: "no-store" }),
-      },
-    })
+function createSupabaseClient(url: string, key: string): SupabaseClient {
+  return createClient(url, key, {
+    auth: authConfig,
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
+  });
+}
+
+const syncCreds = getSyncCredentials();
+export let supabase: SupabaseClient | null = syncCreds
+  ? createSupabaseClient(syncCreds.url, syncCreds.key)
   : null;
+
+/** True once supabase client exists (build-time env, runtime inject, or /api/public-config). */
+export function hasValidSupabaseCredentials(): boolean {
+  return supabase !== null;
+}
+
+let bootstrapPromise: Promise<boolean> | null = null;
+
+/**
+ * Load Supabase anon config when Vercel static build lacks VITE_SUPABASE_*.
+ * Fly serves HTML with __PYTHH_RUNTIME__; Vercel uses /api/public-config proxy.
+ */
+export function bootstrapSupabase(): Promise<boolean> {
+  if (supabase) return Promise.resolve(true);
+  if (bootstrapPromise) return bootstrapPromise;
+
+  bootstrapPromise = (async () => {
+    if (isServer) return false;
+
+    const sync = getSyncCredentials();
+    if (sync) {
+      window.__PYTHH_RUNTIME__ = {
+        supabaseUrl: sync.url,
+        supabaseAnonKey: sync.key,
+      };
+      supabase = createSupabaseClient(sync.url, sync.key);
+      return true;
+    }
+
+    try {
+      const res = await fetch("/api/public-config", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        console.warn("[auth] /api/public-config unavailable:", res.status);
+        return false;
+      }
+      const data = (await res.json()) as {
+        supabaseUrl?: string;
+        supabaseAnonKey?: string;
+      };
+      const url = String(data.supabaseUrl || "").trim();
+      const key = String(data.supabaseAnonKey || "").trim();
+      if (!url || !key) return false;
+
+      window.__PYTHH_RUNTIME__ = { supabaseUrl: url, supabaseAnonKey: key };
+      supabase = createSupabaseClient(url, key);
+      return true;
+    } catch (err) {
+      console.warn("[auth] bootstrapSupabase failed:", err);
+      return false;
+    }
+  })();
+
+  return bootstrapPromise;
+}
+
+if (!isServer && !supabase) {
+  console.info("[auth] No build-time Supabase creds — loading from /api/public-config on boot.");
+}

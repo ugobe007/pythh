@@ -269,7 +269,7 @@ export async function bootstrapOAuthFromHash(): Promise<{ ok: boolean; error?: s
 export async function completeSupabaseOAuthIfNeeded(
   syncSession: OAuthSyncFn,
 ): Promise<{ ok: boolean; error?: string; user?: AuthedUser }> {
-  if (!supabase || !hasValidSupabaseCredentials) {
+  if (!supabase || !hasValidSupabaseCredentials()) {
     return { ok: false, error: "OAuth is not configured in this build." };
   }
 

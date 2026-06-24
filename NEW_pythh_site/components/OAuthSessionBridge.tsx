@@ -61,7 +61,7 @@ export function OAuthSessionBridge() {
   const syncSession = trpc.auth.syncSupabaseSession.useMutation();
 
   useEffect(() => {
-    if (!supabase || !hasValidSupabaseCredentials) return;
+    if (!supabase || !hasValidSupabaseCredentials()) return;
 
     const shouldRun =
       hasOAuthReturnInUrl() ||

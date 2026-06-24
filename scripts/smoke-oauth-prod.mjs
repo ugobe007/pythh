@@ -76,6 +76,15 @@ async function main() {
   if (syncRes.ok) fail("sync-supabase should reject empty token");
   else pass(`sync-supabase rejects empty token (${syncRes.status})`);
 
+  // 6) Public Supabase config for Vercel static builds (OAuth buttons)
+  const cfgRes = await fetch(`${ORIGIN}/api/public-config`);
+  if (!cfgRes.ok) fail(`public-config HTTP ${cfgRes.status}`);
+  else {
+    const cfg = await cfgRes.json();
+    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) fail("public-config missing supabase keys");
+    else pass("public-config returns Supabase anon credentials");
+  }
+
   if (failures.length) {
     console.error(`\n${failures.length} smoke test(s) failed.`);
     process.exit(1);

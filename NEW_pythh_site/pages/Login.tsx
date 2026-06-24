@@ -84,7 +84,7 @@ export default function Login() {
   });
 
   const handleSocialLogin = async (provider: "google" | "github") => {
-    if (!supabase || !hasValidSupabaseCredentials) {
+    if (!supabase || !hasValidSupabaseCredentials()) {
       setError("OAuth sign-in is not configured. Use email sign-in or contact support.");
       return;
     }
@@ -120,7 +120,7 @@ export default function Login() {
     loginMutation.mutate({ email: trimmed, name: name.trim() || undefined });
   }
 
-  const oauthDisabled = !hasValidSupabaseCredentials;
+  const oauthDisabled = !hasValidSupabaseCredentials();
 
   return (
     <div
