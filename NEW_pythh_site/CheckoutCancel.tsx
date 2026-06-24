@@ -7,11 +7,14 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { trackFunnelEvent } from "@/lib/matchEngagement";
+import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 
 export default function CheckoutCancel() {
   useEffect(() => {
-    trackFunnelEvent("checkout_cancelled", { plan: "oracle", path: "/checkout/cancel" });
+    void trackFunnelEventOnce("pythh_checkout_cancelled", "checkout_cancelled", {
+      plan: "oracle",
+      path: "/checkout/cancel",
+    });
   }, []);
 
   return (

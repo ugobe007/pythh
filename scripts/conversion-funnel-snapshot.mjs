@@ -124,7 +124,7 @@ async function main() {
   };
 
   if ((f.pricing_viewed || 0) === 0 && (f.checkout_started || 0) === 0) {
-    report.agent_focus.push('Wire pricing_viewed + checkout_* events on /pricing and /checkout/success');
+    report.agent_focus.push('Monetization: drive traffic to /pricing; verify via npm run funnel:heartbeat');
   }
   if ((report.totals.signups_7d || 0) === 0) {
     report.agent_focus.push('Acquisition: drive traffic to /matches?url= and founder hero experiments');

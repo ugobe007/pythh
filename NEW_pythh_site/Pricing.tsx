@@ -17,7 +17,7 @@ import StartupCTA from "@/components/design/StartupCTA";
 import {
   G, GOLD, MUTED, DIM, BORDER, CARD, PAGE, TEXT, G_BORDER,
 } from "@/lib/designTokens";
-import { trackFunnelEvent } from "@/lib/matchEngagement";
+import { trackFunnelEvent, trackFunnelEventOnce } from "@/lib/matchEngagement";
 
 type BillingCycle = "monthly" | "annual";
 
@@ -256,7 +256,10 @@ export default function Pricing() {
     subscription?.status === "active" || subscription?.status === "trialing";
 
   useEffect(() => {
-    trackFunnelEvent("pricing_viewed", { path: "/pricing", authenticated: isAuthenticated });
+    void trackFunnelEventOnce("pythh_pricing_viewed", "pricing_viewed", {
+      path: "/pricing",
+      authenticated: isAuthenticated,
+    });
   }, [isAuthenticated]);
 
   const checkoutMutation = trpc.stripe.createCheckoutSession.useMutation({
@@ -271,8 +274,8 @@ export default function Pricing() {
     },
   });
 
-  const handleOracleCTA = () => {
-    trackFunnelEvent("checkout_started", {
+  const handleOracleCTA = async () => {
+    await trackFunnelEvent("checkout_started", {
       plan: "oracle",
       billing,
       path: "/pricing",

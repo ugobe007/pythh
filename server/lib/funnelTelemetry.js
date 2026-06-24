@@ -132,6 +132,9 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'founder_signup_started', store: 'growth', event_name: 'founder_signup_started' },
     { id: 'founder_signup_completed', store: 'growth', event_name: 'founder_signup_completed' },
     { id: 'lookup_signup_completed', store: 'ai_logs', operation: 'lookup_signup_completed' },
+    { id: 'pricing_viewed', store: 'ai_logs', operation: 'pricing_viewed' },
+    { id: 'checkout_started', store: 'ai_logs', operation: 'checkout_started' },
+    { id: 'checkout_completed', store: 'ai_logs', operation: 'checkout_completed' },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase

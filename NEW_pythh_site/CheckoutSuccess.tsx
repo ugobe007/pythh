@@ -7,12 +7,12 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, ArrowRight, Zap } from "lucide-react";
 import { motion } from "framer-motion";
-import { trackFunnelEvent } from "@/lib/matchEngagement";
+import { trackFunnelEvent, trackFunnelEventOnce } from "@/lib/matchEngagement";
 
 export default function CheckoutSuccess() {
   useEffect(() => {
     window.scrollTo(0, 0);
-    trackFunnelEvent("checkout_completed", {
+    void trackFunnelEventOnce("pythh_checkout_completed", "checkout_completed", {
       plan: "oracle",
       path: "/checkout/success",
       session_id: new URLSearchParams(window.location.search).get("session_id") || undefined,

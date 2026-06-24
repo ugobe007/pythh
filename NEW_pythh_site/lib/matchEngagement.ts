@@ -45,16 +45,53 @@ export function recordMatchViewOnce(
   void recordMatchEngagement(startupId, investorId, 'view', source);
 }
 
+function flushPayload(operation: string, output: Record<string, unknown>): string {
+  return JSON.stringify({
+    rows: [{ operation, status: 'tracked', output }],
+  });
+}
+
+/** Persist funnel event — keepalive/beacon so redirects (Stripe) do not abort the request. */
 export function trackFunnelEvent(
   operation: string,
   output: Record<string, unknown> = {},
-): void {
-  void fetch(apiUrl('/api/analytics/flush'), {
+): Promise<void> {
+  const url = apiUrl('/api/analytics/flush');
+  const body = flushPayload(operation, output);
+
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    try {
+      const blob = new Blob([body], { type: 'application/json' });
+      if (navigator.sendBeacon(url, blob)) {
+        return Promise.resolve();
+      }
+    } catch {
+      /* fall through to fetch */
+    }
+  }
+
+  return fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      rows: [{ operation, status: 'tracked', output }],
-    }),
-  }).catch(() => {});
+    body,
+    keepalive: true,
+  })
+    .then(() => undefined)
+    .catch(() => undefined);
+}
+
+/** Once per browser session (e.g. pricing_viewed). */
+export function trackFunnelEventOnce(
+  sessionKey: string,
+  operation: string,
+  output: Record<string, unknown> = {},
+): Promise<void> {
+  if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(sessionKey)) {
+    return Promise.resolve();
+  }
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(sessionKey, '1');
+  }
+  return trackFunnelEvent(operation, output);
 }

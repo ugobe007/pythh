@@ -258,6 +258,75 @@ async function runProbe() {
     steps.push({ step: 'lookup_signup_completed', ok: lookupRes.ok, status: lookupRes.status });
   }
 
+  // 8. pricing + checkout funnel (client-style analytics)
+  {
+    const pricingRes = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'pricing_viewed',
+            status: 'tracked',
+            output: {
+              path: '/pricing',
+              plan: 'oracle',
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({ step: 'pricing_viewed', ok: pricingRes.res.ok, status: pricingRes.res.status });
+
+    const checkoutStartRes = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'checkout_started',
+            status: 'tracked',
+            output: {
+              path: '/pricing',
+              plan: 'oracle',
+              billing: 'monthly',
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({
+      step: 'checkout_started',
+      ok: checkoutStartRes.res.ok,
+      status: checkoutStartRes.res.status,
+    });
+
+    const checkoutCompleteRes = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'checkout_completed',
+            status: 'tracked',
+            output: {
+              path: '/checkout/success',
+              plan: 'oracle',
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({
+      step: 'checkout_completed',
+      ok: checkoutCompleteRes.res.ok,
+      status: checkoutCompleteRes.res.status,
+    });
+  }
+
   await sleep(3500);
 
   const sb = createClient(

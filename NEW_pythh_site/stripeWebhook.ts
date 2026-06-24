@@ -38,6 +38,31 @@ function billingCycleFromInterval(
   return interval === "year" ? "annual" : "monthly";
 }
 
+async function recordCheckoutCompletedFunnel(
+  session: Stripe.Checkout.Session,
+  billingCycle: "monthly" | "annual",
+): Promise<void> {
+  const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return;
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(sbUrl, sbKey);
+    await sb.from("ai_logs").insert({
+      operation: "checkout_completed",
+      status: "success",
+      output: {
+        source: "stripe_webhook",
+        plan: "oracle",
+        billing_cycle: billingCycle,
+        session_id: session.id,
+      },
+    });
+  } catch (err) {
+    console.warn("[Webhook] checkout_completed funnel log failed (non-critical):", err);
+  }
+}
+
 // ─── Event handlers ──────────────────────────────────────────────────────────
 
 /**
@@ -101,6 +126,8 @@ export async function handleCheckoutSessionCompleted(
     status: "active",
     currentPeriodEnd,
   });
+
+  await recordCheckoutCompletedFunnel(session, billingCycle);
 
   console.log(
     `[Webhook] Oracle plan provisioned for userId=${user.id} (${billingCycle})`
