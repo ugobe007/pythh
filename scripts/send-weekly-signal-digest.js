@@ -1,18 +1,9 @@
 #!/usr/bin/env node
 /**
- * PYTHH WEEKLY SIGNAL DIGEST
+ * DEPRECATED — use scripts/investor-dealflow-digest.mjs (npm run digest:investor)
  * ════════════════════════════════════════════════════════════════════
- * Sends a curated weekly email digest to investors showing their
- * top signal-matched startups, ranked by score + urgency.
- *
- * Usage:
- *   node scripts/send-weekly-signal-digest.js --to investor@firm.com
- *   node scripts/send-weekly-signal-digest.js --to investor@firm.com --sectors "AI/ML,SaaS" --stages "Seed,Series A"
- *   node scripts/send-weekly-signal-digest.js --to all                    # batch send to all active investors
- *   node scripts/send-weekly-signal-digest.js --dry-run --to test@test.com
- *
- * Scheduled via cron (every Monday 8am):
- *   0 8 * * 1 cd /path/to/hot-honey && node scripts/send-weekly-signal-digest.js --to all >> logs/digest.log 2>&1
+ * Legacy weekly signal digest. Kept for backward-compatible one-off runs.
+ * New sends: telemetry, signed-up cohort, pythh.ai links, EMAIL_FROM env.
  * ════════════════════════════════════════════════════════════════════
  */
 'use strict';

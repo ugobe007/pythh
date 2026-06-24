@@ -69,13 +69,13 @@ case "${1:-install}" in
     echo "To run now: ./scripts/run-pipeline.sh --apply --signals-only"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📧 Weekly Investor Email Digest (manual setup required):"
+    echo "📧 Weekly Investor Dealflow Digest:"
     echo ""
-    echo "  Add this line to crontab for Monday 8am digest:"
-    echo "  0 8 * * 1 cd \"$ROOT\" && node scripts/send-weekly-signal-digest.js --to YOUR_EMAIL >> logs/digest.log 2>&1"
+    echo "  Production: GitHub Actions — batch-platform-weekly.yml (Mon 08:30 UTC)"
+    echo "  Local PM2:  pm2 start ecosystem.config.js --only investor-dealflow-digest"
     echo ""
-    echo "  Test with dry-run first:"
-    echo "  node scripts/send-weekly-signal-digest.js --dry-run --to you@firm.com"
+    echo "  Manual run:  npm run digest:investor"
+    echo "  Dry run:     npm run digest:investor:dry"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     ;;
 esac

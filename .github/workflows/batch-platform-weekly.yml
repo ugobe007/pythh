@@ -8,6 +8,7 @@ on:
     - cron: '0 6 * * 1'   # Monday — pipeline weekly runbook (dashboard + enrichment)
     - cron: '0 7 * * 1'   # Monday — portfolio signal refresh
     - cron: '0 8 * * 1'   # Monday — portfolio funding verification
+    - cron: '30 8 * * 1'   # Monday — investor dealflow digest email
   workflow_dispatch:
     inputs:
       job:
@@ -19,6 +20,7 @@ on:
           - portfolio-signal-refresh
           - portfolio-verify-funding
           - pipeline-weekly-runbook
+          - investor-dealflow-digest
 
 concurrency:
   group: platform-weekly-${{ github.event.schedule || github.event.inputs.job }}
@@ -64,3 +66,11 @@ jobs:
     with:
       run: node scripts/pipeline-weekly-runbook.mjs --apply
       timeout_minutes: 120
+
+  investor-dealflow-digest:
+    if: github.event.schedule == '30 8 * * 1' || github.event.inputs.job == 'investor-dealflow-digest'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: npm run digest:investor
+      timeout_minutes: 30

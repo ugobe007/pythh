@@ -100,6 +100,7 @@ async function main() {
       checkout_completed: f.checkout_completed || 0,
       checkout_cancelled: f.checkout_cancelled || 0,
       preview_email_captured: f.preview_email_captured || 0,
+      investor_dealflow_digest_sent: f.investor_dealflow_digest_sent || 0,
     },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
@@ -142,6 +143,9 @@ async function main() {
   }
   if ((f.instant_matches_viewed || 0) > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
     report.agent_focus.push('Activation: intro/email capture on preview — watch match_intro_requested and preview_email_captured');
+  }
+  if (investorSignups > 0 && (f.investor_dealflow_digest_sent || 0) === 0) {
+    report.agent_focus.push('Investor retention: run npm run digest:investor:dry then digest:investor (--to signed-up)');
   }
 
   fs.mkdirSync(reportsDir, { recursive: true });

@@ -594,6 +594,22 @@ module.exports = {
       // Includes: insights, actions, score updates
       // Target: 45% open rate, 15% click-through
     },
+    {
+      name: 'investor-dealflow-digest',
+      script: 'node',
+      args: 'scripts/investor-dealflow-digest.mjs --to signed-up',
+      cwd: './',
+      instances: 1,
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '300M',
+      cron_restart: '30 8 * * 1',  // Monday 8:30am (local dev; prod uses GitHub Actions)
+      env: {
+        NODE_ENV: 'production'
+      }
+      // Weekly thesis-matched startups for signed-up investors
+      // Prod schedule: batch-platform-weekly.yml (Mon 08:30 UTC)
+    },
     // ========================================
     // MATCH ENGINE - Pattern A v1.1 (PRODUCTION)
     // ========================================

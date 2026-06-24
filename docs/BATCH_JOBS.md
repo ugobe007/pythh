@@ -41,6 +41,7 @@ Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, `LINKEDI
 | | Wed 02:00 | Social signals fetcher |
 | | Mon 07:00 | Portfolio signal refresh |
 | | Mon 08:00 | Portfolio funding verification |
+| | Mon 08:30 | Investor dealflow digest (`npm run digest:investor`) |
 | [batch-match-engine.yml](../.github/workflows/batch-match-engine.yml) | Every 15 min | Match run worker (queued runs) |
 | | Every 2 days 03:00 | Delta match regen |
 | [batch-social-poster.yml](../.github/workflows/batch-social-poster.yml) | Mon/Wed/Fri 09:00 | LinkedIn/X/Threads poster |
