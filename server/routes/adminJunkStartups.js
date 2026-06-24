@@ -8,17 +8,14 @@
  */
 
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
 const { evaluateStartupNameForPipeline } = require('../../lib/startupNameGate');
+const { getSupabaseClient } = require('../lib/supabaseClient');
 const { deleteStartupDependents } = require('../lib/deleteStartupDependents');
 
 const router = express.Router();
 
 function getSupabase() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('Supabase not configured');
-  return createClient(url, key);
+  return getSupabaseClient();
 }
 
 function classifyRow(row) {
