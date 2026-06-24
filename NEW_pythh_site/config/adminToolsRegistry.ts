@@ -29,6 +29,7 @@ export const ADMIN_TOOLS: AdminTool[] = [
   { id: "matching", label: "Matching Engine", description: "Match queue stats and regeneration", route: "/admin/matching", category: "matching", vital: true },
   { id: "scrapers", label: "Scraper Management", description: "Run and monitor data scrapers", route: "/admin/scrapers", category: "pipeline", vital: true },
   { id: "rss", label: "RSS Manager", description: "Feed sources — activate, health, refresh", route: "/admin/rss", category: "pipeline" },
+  { id: "junk-startups", label: "Junk Startup Cleanup", description: "Scan headline fragments and test names — bulk reject or delete", route: "/admin/junk-startups", category: "data", vital: true },
   { id: "explore", label: "Startups", description: "Browse startup database", route: "/explore", category: "data" },
   { id: "investors", label: "Investors", description: "Investor intelligence table", route: "/investors", category: "data" },
   { id: "rankings", label: "Rankings", description: "VC lens signal rankings", route: "/rankings", category: "data" },

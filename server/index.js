@@ -6448,6 +6448,9 @@ app.use('/api/admin', adminPlatformAnalytics);
 const adminScoringConsole = require('./routes/adminScoringConsole');
 app.use('/api/admin', adminScoringConsole);
 
+const adminJunkStartups = require('./routes/adminJunkStartups');
+app.use('/api/admin', adminJunkStartups);
+
 const { loadSignalWeightConfig } = require('../lib/signalWeightConfig');
 loadSignalWeightConfig(getSupabaseClient()).catch((e) => {
   console.warn('[startup] signal weight config preload skipped:', e.message);

@@ -143,6 +143,14 @@ export const ADMIN_TOOLS: AdminTool[] = [
     priority: "important",
   },
   {
+    id: "junk-startups",
+    label: "Junk Startup Cleanup",
+    description: "Scan headline fragments and test names — bulk reject or delete junk rows",
+    route: "/admin/junk-startups",
+    category: "data",
+    priority: "important",
+  },
+  {
     id: "discovered-startups",
     label: "RSS Discoveries",
     description: "Startups found via RSS and scrapers",

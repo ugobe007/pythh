@@ -7,7 +7,7 @@ import { getLoginUrl } from "@/const";
 import DashboardLayout from "@/components/DashboardLayout";
 import AdminToolsGrid from "@/components/AdminToolsGrid";
 import { ADMIN_TOOLS } from "@/config/adminToolsRegistry";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { apiUrl } from "../lib/apiConfig";
 
@@ -83,6 +83,29 @@ export default function AdminPage() {
         <div className="mt-3">
           <AdminToolsGrid category="pipeline" compact />
         </div>
+        <div className="mt-3">
+          <AdminToolsGrid category="data" compact />
+        </div>
+      </section>
+
+      {/* Junk cleanup — prominent shortcut */}
+      <section className="mb-8">
+        <Link href="/admin/junk-startups"
+          className="block no-underline rounded-lg border p-4 transition-colors hover:bg-white/[0.03]"
+          style={{ borderColor: "oklch(0.55 0.15 80 / 0.45)", background: "oklch(0.15 0.01 264)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <Trash2 size={20} className="shrink-0 mt-0.5" style={{ color: "oklch(0.75 0.15 80)" }} />
+              <div>
+                <div className="text-sm font-semibold" style={{ color: "oklch(0.92 0.005 264)" }}>Junk Startup Cleanup</div>
+                <p className="text-[11px] leading-snug m-0 mt-1" style={{ color: "oklch(0.45 0.01 264)" }}>
+                  Scan RSS headline junk, test names, and entity_gate rejects — bulk reject or delete from the database.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold shrink-0" style={{ color: "oklch(0.85 0.17 162)" }}>Open tool →</span>
+          </div>
+        </Link>
       </section>
 
       {/* Platform stats */}

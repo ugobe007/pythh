@@ -49,6 +49,7 @@ import ToolsHub from "./pages/admin/ToolsHub";
 import MlAgent from "./pages/admin/MlAgent";
 import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
+import JunkStartups from "./pages/admin/JunkStartups";
 import Pythiam from "./pages/Pythiam";
 import { OAuthSessionBridge } from "./components/OAuthSessionBridge";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -116,6 +117,7 @@ function Router() {
       <Route path={"/admin/scrapers"}  component={Scrapers} />
       <Route path={"/admin/ml"}        component={MlAgent} />
       <Route path={"/admin/rss"}       component={RssManager} />
+      <Route path={"/admin/junk-startups"} component={JunkStartups} />
       <Route path={"/login"} component={Login} />
       <Route path={"/auth/callback"} component={AuthCallback} />
       <Route path={"/404"} component={NotFound} />

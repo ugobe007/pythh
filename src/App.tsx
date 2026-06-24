@@ -190,6 +190,7 @@ const AIIntelligenceDashboard = lazy(() => import("./pages/AIIntelligenceDashboa
 const SignalFeedPage = lazy(() => import("./pages/SignalFeedPage"));
 const InvestorMatchFeedPage = lazy(() => import("./pages/InvestorMatchFeedPage"));
 const AdminActions = lazy(() => import("./pages/AdminActions"));
+const AdminJunkStartupsPage = lazy(() => import("./pages/AdminJunkStartupsPage"));
 const ReviewQueue = lazy(() => import("./pages/ReviewQueue"));
 const MLDashboard = lazy(() => import("./pages/MLDashboard"));
 const PortfolioPage = lazy(() => import("./pages/PortfolioPage"));
@@ -388,6 +389,7 @@ const App = () => {
               <Route path="god-settings" element={<GODSettingsPage />} />
               <Route path="industry-rankings" element={<IndustryRankingsPage />} />
               <Route path="edit-startups" element={<EditStartups />} />
+              <Route path="junk-startups" element={<AdminJunkStartupsPage />} />
               <Route path="discovered-startups" element={<DiscoveredStartups />} />
               <Route path="discovered-investors" element={<DiscoveredInvestors />} />
               <Route path="bulk-upload" element={<BulkUpload />} />

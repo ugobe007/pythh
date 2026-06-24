@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Sparkles, Database, Activity, Cpu, RefreshCw, 
   Settings, ArrowRight, Rss, Users, BarChart3,
-  FileText, Search, Shield, AlertCircle, Brain, Briefcase, Send, Sliders
+  FileText, Search, Shield, AlertCircle, Brain, Briefcase, Send, Sliders, Trash2
 } from 'lucide-react';
 import { adminRpc } from '../services/adminRpc';
 import { GODScoreMonitor, SocialSignalsMonitor, SystemHealthAlerts } from '../components/admin';
@@ -64,6 +64,7 @@ export default function UnifiedAdminDashboard() {
   }) => {
     const colorClasses: Record<string, string> = {
       amber: 'hover:border-amber-500/50 hover:bg-amber-500/10',
+      orange: 'hover:border-orange-500/50 hover:bg-orange-500/10',
       cyan: 'hover:border-cyan-500/50 hover:bg-cyan-500/10',
       green: 'hover:border-green-500/50 hover:bg-green-500/10',
       purple: 'hover:border-purple-500/50 hover:bg-purple-500/10',
@@ -220,6 +221,7 @@ export default function UnifiedAdminDashboard() {
             </div>
             <div className="space-y-2">
               <QuickLink icon={FileText} label="Edit Startups" route="/admin/edit-startups" color="cyan" stat={`${stats.startups_approved} approved`} />
+              <QuickLink icon={Trash2} label="Junk Startup Cleanup" route="/admin/junk-startups" color="orange" />
               <QuickLink icon={Search} label="RSS Discoveries" route="/admin/discovered-startups" color="cyan" />
               <QuickLink icon={Users} label="Investors" route="/admin/discovered-investors" color="cyan" stat={`${stats.investors_total} total`} />
               <QuickLink icon={Rss} label="RSS Manager" route="/admin/rss-manager" color="cyan" />

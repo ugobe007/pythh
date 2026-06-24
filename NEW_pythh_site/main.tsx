@@ -61,7 +61,6 @@ const trpcClient = trpc.createClient({
 
 async function mountApp() {
   await bootstrapSupabase();
-  const { bootstrapOAuthFromHash } = await import("./lib/supabaseOAuth");
   await bootstrapOAuthFromHash();
 
   createRoot(document.getElementById("root")!).render(
