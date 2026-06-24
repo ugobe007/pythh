@@ -18,6 +18,7 @@ import {
   G, GOLD, MUTED, DIM, BORDER, CARD, PAGE, TEXT, G_BORDER,
 } from "@/lib/designTokens";
 import { trackFunnelEvent, trackFunnelEventOnce } from "@/lib/matchEngagement";
+import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from "@/lib/growthExperiment";
 
 type BillingCycle = "monthly" | "annual";
 
@@ -56,8 +57,8 @@ const PLANS = [
     tagline: "3 searches. See who fits.",
     monthlyPrice: 29,
     annualPrice: 24,
-    cta: "Get Scout",
-    ctaHref: "/activate",
+    cta: "Preview matches",
+    ctaHref: "/matches",
     color: MUTED,
     borderColor: BORDER,
     featured: false,
@@ -103,11 +104,13 @@ function PlanCTA({
   onOracleCTA,
   isCheckingOut,
   isActiveSubscriber,
+  oracleCtaLabel,
 }: {
   plan: (typeof PLANS)[0];
   onOracleCTA?: () => void;
   isCheckingOut?: boolean;
   isActiveSubscriber?: boolean;
+  oracleCtaLabel?: string;
 }) {
   if (plan.id === "pro" && isActiveSubscriber) {
     return (
@@ -137,7 +140,7 @@ function PlanCTA({
             <Loader2 size={14} className="animate-spin" /> Redirecting…
           </>
         ) : (
-          plan.cta
+          oracleCtaLabel || plan.cta
         )}
       </StrokeButton>
     );
@@ -162,12 +165,14 @@ function PricingCard({
   onOracleCTA,
   isCheckingOut,
   isActiveSubscriber,
+  oracleCtaLabel,
 }: {
   plan: (typeof PLANS)[0];
   billing: BillingCycle;
   onOracleCTA?: () => void;
   isCheckingOut?: boolean;
   isActiveSubscriber?: boolean;
+  oracleCtaLabel?: string;
 }) {
   const price = billing === "annual" ? plan.annualPrice : plan.monthlyPrice;
   const planFeatures = FEATURES.filter((f) => f[plan.id as keyof PlanFeature] !== false);
@@ -218,6 +223,7 @@ function PricingCard({
           onOracleCTA={onOracleCTA}
           isCheckingOut={isCheckingOut}
           isActiveSubscriber={isActiveSubscriber}
+          oracleCtaLabel={oracleCtaLabel}
         />
       </div>
 
@@ -245,6 +251,8 @@ function PricingCard({
 export default function Pricing() {
   const [billing, setBilling] = useState<BillingCycle>("annual");
   const [showFullTable, setShowFullTable] = useState(false);
+  const [pricingExp, setPricingExp] = useState<GrowthAssignment | null>(null);
+  const [oracleCtaLabel, setOracleCtaLabel] = useState("Start 7-day free trial");
   const { isAuthenticated } = useAuth();
 
   const { data: subscription } = trpc.stripe.getSubscription.useQuery(undefined, {
@@ -260,6 +268,14 @@ export default function Pricing() {
       path: "/pricing",
       authenticated: isAuthenticated,
     });
+    fetchGrowthAssignment("founder", "pricing_oracle_cta")
+      .then((assignment) => {
+        if (!assignment) return;
+        setPricingExp(assignment);
+        const headline = (assignment.copy as { headline?: string })?.headline;
+        if (headline) setOracleCtaLabel(headline);
+      })
+      .catch(() => {});
   }, [isAuthenticated]);
 
   const checkoutMutation = trpc.stripe.createCheckoutSession.useMutation({
@@ -279,7 +295,15 @@ export default function Pricing() {
       plan: "oracle",
       billing,
       path: "/pricing",
+      pricing_experiment: pricingExp?.experiment_id,
+      pricing_variant: pricingExp?.variant_key,
     });
+    if (pricingExp) {
+      await trackGrowthEvent(pricingExp, "checkout_started", {
+        billing,
+        path: "/pricing",
+      });
+    }
     checkoutMutation.mutate({
       billingCycle: billing,
       origin: window.location.origin,
@@ -345,6 +369,7 @@ export default function Pricing() {
               onOracleCTA={plan.id === "pro" ? handleOracleCTA : undefined}
               isCheckingOut={plan.id === "pro" && checkoutMutation.isPending}
               isActiveSubscriber={plan.id === "pro" ? isActiveSubscriber : false}
+              oracleCtaLabel={plan.id === "pro" ? oracleCtaLabel : undefined}
             />
           ))}
         </div>
@@ -383,6 +408,7 @@ export default function Pricing() {
                   onOracleCTA={plan.id === "pro" ? handleOracleCTA : undefined}
                   isCheckingOut={plan.id === "pro" && checkoutMutation.isPending}
                   isActiveSubscriber={plan.id === "pro" ? isActiveSubscriber : false}
+                  oracleCtaLabel={plan.id === "pro" ? oracleCtaLabel : undefined}
                 />
               </div>
             ))}
@@ -469,9 +495,9 @@ export default function Pricing() {
         </div>
 
         <div className="text-center border-t pt-10" style={{ borderColor: BORDER }}>
-          <p className="text-sm mb-4" style={{ color: MUTED }}>Ready to activate your pipeline?</p>
-          <StartupCTA href="/activate" showArrow size="lg">
-            Activate PYTHIA
+          <p className="text-sm mb-4" style={{ color: MUTED }}>Start with a free match preview</p>
+          <StartupCTA href="/matches" showArrow size="lg">
+            Preview my matches
           </StartupCTA>
         </div>
       </div>

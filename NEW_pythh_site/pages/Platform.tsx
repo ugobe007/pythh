@@ -613,7 +613,7 @@ export default function Platform() {
               through Pythh Connect MCP. Same signals. Same scores. No stale spreadsheets.
             </p>
             <div className="flex flex-wrap gap-3">
-              <StartupCTA href="/activate" showArrow>
+              <StartupCTA href="/matches" showArrow>
                 Find my investors
               </StartupCTA>
               <StrokeButton href="/developers" showArrow muted>
@@ -774,7 +774,7 @@ export default function Platform() {
             Submit your URL. PYTHIA finds your investors, times the outreach, and writes the intro.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <StartupCTA href="/activate" showArrow>
+            <StartupCTA href="/matches" showArrow>
               Find my investors
             </StartupCTA>
             <Link href="/methodology">

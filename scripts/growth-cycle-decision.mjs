@@ -146,6 +146,53 @@ function applyInvestorReallocation(registry, winnerKey) {
   return true;
 }
 
+function comparePricingOracle(rows) {
+  const filtered = rows.filter((r) => r.event_name === 'checkout_started');
+  const byKey = {};
+  for (const r of filtered) {
+    if (!byKey[r.variant_key]) byKey[r.variant_key] = { clicks: 0, organic: 0, probe: 0 };
+    byKey[r.variant_key].clicks += 1;
+    if (isProbe(r.payload)) byKey[r.variant_key].probe += 1;
+    else byKey[r.variant_key].organic += 1;
+  }
+
+  const variants = Object.entries(byKey).map(([key, v]) => ({
+    variant_key: key,
+    checkout_clicks: v.clicks,
+    organic_clicks: v.organic,
+  }));
+
+  const organicTotal = variants.reduce((s, v) => s + v.organic_clicks, 0);
+  let winner = null;
+  let decision = 'HOLD';
+  let reason = '';
+
+  if (organicTotal < 10) {
+    reason = `Insufficient organic pricing checkout clicks (${organicTotal}, need 10)`;
+  } else {
+    const sorted = [...variants].sort((a, b) => b.organic_clicks - a.organic_clicks);
+    winner = sorted[0];
+    const runner = sorted[1];
+    if (winner && runner && winner.organic_clicks >= runner.organic_clicks * (1 + WIN_MARGIN)) {
+      decision = 'REALLOCATE';
+      reason = `${winner.variant_key} leads organic checkout clicks ${winner.organic_clicks} vs ${runner.organic_clicks}`;
+    } else {
+      reason = 'Pricing Oracle CTA split inconclusive';
+    }
+  }
+
+  return { variants, organicTotal, winner, decision, reason };
+}
+
+function applyPricingOracleReallocation(registry, winnerKey) {
+  const exp = registry.experiments.find((e) => e.id === 'pricing_oracle_cta');
+  if (!exp) return false;
+  for (const v of exp.variants) {
+    v.traffic_pct = v.key === winnerKey ? 80 : 20;
+  }
+  registry.updated_at = new Date().toISOString();
+  return true;
+}
 function applyGateCtaReallocation(registry, winnerKey) {
   const exp = registry.experiments.find((e) => e.id === 'founder_preview_gate_cta');
   if (!exp) return false;
@@ -171,6 +218,7 @@ async function main() {
 
   const investorRows = (events || []).filter((e) => e.experiment_id === 'investor_signup_schema');
   const gateRows = (events || []).filter((e) => e.experiment_id === 'founder_preview_gate_cta');
+  const pricingRows = (events || []).filter((e) => e.experiment_id === 'pricing_oracle_cta');
 
   const investor = compareVariants(investorRows, {
     startedEvent: 'investor_signup_started',
@@ -178,6 +226,7 @@ async function main() {
   });
 
   const gateCta = compareGateCta(gateRows);
+  const pricingOracle = comparePricingOracle(pricingRows);
 
   const registry = loadRegistry();
   const actions = [];
@@ -202,6 +251,16 @@ async function main() {
     if (APPLY) applyGateCtaReallocation(registry, gateCta.winner.variant_key);
   }
 
+  if (pricingOracle.decision === 'REALLOCATE' && pricingOracle.winner) {
+    actions.push({
+      experiment: 'pricing_oracle_cta',
+      action: 'reallocate',
+      winner: pricingOracle.winner.variant_key,
+      new_split: { winner: 80, loser: 20 },
+    });
+    if (APPLY) applyPricingOracleReallocation(registry, pricingOracle.winner.variant_key);
+  }
+
   if (APPLY && actions.length) {
     const regPath = path.join(repoRoot, 'agents/growth/experiment-registry.json');
     fs.writeFileSync(regPath, `${JSON.stringify(registry, null, 2)}\n`);
@@ -220,6 +279,14 @@ async function main() {
             ? `Shift traffic to ${gateCta.winner?.variant_key} (80/20)`
             : 'Keep 50/50 — collect more organic gate clicks',
       },
+      pricing_oracle_cta: {
+        ...pricingOracle,
+        decision: pricingOracle.decision,
+        recommendation:
+          pricingOracle.decision === 'REALLOCATE'
+            ? `Shift traffic to ${pricingOracle.winner?.variant_key} (80/20)`
+            : 'Keep 50/50 — collect more organic pricing checkout clicks',
+      },
       investor_signup_schema: {
         ...investor,
         decision: investor.decision,
@@ -233,6 +300,7 @@ async function main() {
     apply_mode: APPLY,
     executive_summary: [
       `Gate CTA (${days}d): ${gateCta.reason}`,
+      `Pricing Oracle CTA (${days}d): ${pricingOracle.reason}`,
       `Investor signup (${days}d): ${investor.reason}`,
       actions.length
         ? `Applied ${actions.length} reallocation(s) to registry`
@@ -252,6 +320,8 @@ async function main() {
     console.log(`\n📈 Growth cycle decision (${days}d)\n`);
     console.log('founder_preview_gate_cta:', report.decisions.founder_preview_gate_cta.decision);
     console.log('  ', report.decisions.founder_preview_gate_cta.recommendation);
+    console.log('pricing_oracle_cta:', report.decisions.pricing_oracle_cta.decision);
+    console.log('  ', report.decisions.pricing_oracle_cta.recommendation);
     console.log('investor_signup_schema:', report.decisions.investor_signup_schema.decision);
     console.log('  ', report.decisions.investor_signup_schema.recommendation);
     if (actions.length && APPLY) console.log('\n✅ Registry updated + synced');

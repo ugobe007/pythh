@@ -11,6 +11,7 @@ import { fetchGrowthAssignment, type GrowthAssignment } from '@/lib/growthExperi
 import { recordMatchViewOnce, trackFunnelEvent, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
+import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 
 const PREVIEW_LIMIT = 10;
 
@@ -254,6 +255,20 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="text-center text-xs text-zinc-500 mb-6">
           +{(total - visible.length).toLocaleString()} more ranked investors in your full list after signup
         </p>
+      )}
+
+      {preview.startup?.id && (
+        <PreviewEmailCapture
+          startupId={preview.startup.id}
+          startupUrl={url}
+          startupName={startupName}
+          totalMatches={total}
+          topInvestors={visible.map((m) => ({
+            name: m.investor?.name || 'Investor',
+            firm: m.investor?.firm,
+          }))}
+          source="instant_match_preview"
+        />
       )}
 
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center mb-4">

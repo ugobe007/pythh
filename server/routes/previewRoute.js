@@ -18,7 +18,153 @@ const supabase = createClient(
 );
 
 const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
-const { logPreviewLoaded } = require('../lib/funnelTelemetry');
+const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
+
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
+const APP_BASE = (process.env.APP_BASE_URL || 'https://pythh.ai').replace(/\/$/, '');
+
+async function sendPreviewShortlistEmail({ to, startupName, previewUrl, topInvestors, matchCount }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { success: false, error: 'RESEND_API_KEY not configured' };
+
+  const lines = (topInvestors || [])
+    .slice(0, 3)
+    .map((inv, i) => {
+      const label = inv.firm ? `${inv.name} · ${inv.firm}` : inv.name;
+      return `${i + 1}. ${label}`;
+    })
+    .join('\n');
+
+  const subject = `Your investor shortlist for ${startupName}`;
+  const text = [
+    `Hi —`,
+    ``,
+    `You asked for your Pythh investor shortlist for ${startupName}.`,
+    matchCount ? `${matchCount.toLocaleString()} ranked matches are ready in your network.` : '',
+    ``,
+    lines ? `Top matches:\n${lines}` : '',
+    ``,
+    `View your full preview: ${previewUrl}`,
+    ``,
+    `Request intros or save your list with a free account when you're ready.`,
+    ``,
+    `— Pythh`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
+      <p>You asked for your investor shortlist for <strong>${startupName}</strong>.</p>
+      ${matchCount ? `<p>${matchCount.toLocaleString()} ranked matches are ready in the Pythh network.</p>` : ''}
+      ${lines ? `<pre style="background:#f4f4f5;padding:12px;border-radius:8px;font-size:13px;white-space:pre-wrap;">${lines.replace(/</g, '&lt;')}</pre>` : ''}
+      <p><a href="${previewUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">View my shortlist</a></p>
+      <p style="color:#666;font-size:13px;">Request intros or save your list with a free account when you're ready.</p>
+    </div>`;
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html, text }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, error: data.message || 'Resend error' };
+    return { success: true, id: data.id };
+  } catch (err) {
+    return { success: false, error: err.message || 'send failed' };
+  }
+}
+
+function isValidEmail(email) {
+  return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+// POST /api/preview/email-shortlist — capture email + send shortlist link (no account required)
+router.post('/email-shortlist', async (req, res) => {
+  try {
+    const {
+      email,
+      startup_id: startupId,
+      startup_url: startupUrl,
+      startup_name: startupName,
+      match_count: matchCount,
+      top_investors: topInvestors,
+      source,
+    } = req.body || {};
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'invalid_email', message: 'Valid email required' });
+    }
+    if (!startupId) {
+      return res.status(400).json({ error: 'startup_id_required' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from('preview_lead_captures')
+      .select('id, resend_message_id')
+      .eq('email', normalizedEmail)
+      .eq('startup_id', startupId)
+      .gte('created_at', since)
+      .limit(1);
+
+    if (recent?.[0]?.resend_message_id) {
+      return res.json({ success: true, deduped: true, message_id: recent[0].resend_message_id });
+    }
+
+    const previewPath = `/matches/preview/${startupId}`;
+    const previewUrl = `${APP_BASE}${previewPath}`;
+    const sendResult = await sendPreviewShortlistEmail({
+      to: normalizedEmail,
+      startupName: startupName || 'your startup',
+      previewUrl,
+      topInvestors: Array.isArray(topInvestors) ? topInvestors : [],
+      matchCount: Number(matchCount) || 0,
+    });
+
+    const row = {
+      email: normalizedEmail,
+      startup_id: startupId,
+      startup_url: startupUrl || null,
+      startup_name: startupName || null,
+      top_investors: Array.isArray(topInvestors) ? topInvestors.slice(0, 5) : [],
+      match_count: Number(matchCount) || null,
+      source: source || 'instant_preview',
+      resend_message_id: sendResult.id || null,
+      email_sent_at: sendResult.success ? new Date().toISOString() : null,
+    };
+
+    const { error: insertErr } = await supabase.from('preview_lead_captures').insert(row);
+    if (insertErr) {
+      console.warn('[preview/email-shortlist] insert failed:', insertErr.message);
+    }
+
+    await recordFunnelEvent(supabase, 'preview_email_captured', {
+      startup_id: startupId,
+      startup_url: startupUrl,
+      source: source || 'instant_preview',
+      email_sent: sendResult.success,
+    });
+
+    if (!sendResult.success) {
+      return res.status(502).json({
+        error: 'email_send_failed',
+        message: sendResult.error || 'Could not send email — try again shortly',
+        captured: !insertErr,
+      });
+    }
+
+    return res.json({ success: true, message_id: sendResult.id, preview_url: previewUrl });
+  } catch (err) {
+    console.error('[preview/email-shortlist]', err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
 
 /**
  * When startup_investor_matches has no rows yet (pipeline still running, or failed),

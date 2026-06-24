@@ -99,6 +99,7 @@ async function main() {
       checkout_started: f.checkout_started || 0,
       checkout_completed: f.checkout_completed || 0,
       checkout_cancelled: f.checkout_cancelled || 0,
+      preview_email_captured: f.preview_email_captured || 0,
     },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),

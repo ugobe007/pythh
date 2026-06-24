@@ -203,7 +203,7 @@ export default function About() {
             Submit your startup URL and see what the oracle sees.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <StartupCTA href="/activate" size="lg">
+            <StartupCTA href="/matches" size="lg">
               Get Started Free
             </StartupCTA>
             <StrokeButton href="/platform" muted showArrow>

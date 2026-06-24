@@ -13,7 +13,7 @@
       "metric": "founder_signup_completed",
       "baseline": "0 founder_signup_started / 0 completed in 7d (path unwired); 100% preview->account drop-off",
       "target": ">=25% preview->signup_started; first non-zero account baseline (>=3) within 14d",
-      "next_step": "Spec at agents/product/specs/preview_to_signup_conversion.md. Build: invert gate in matches_preview variant + emit founder_signup_started/completed with attribution + add founder stages to snapshot/heartbeat. Then delegate variant steps edit + traffic reallocation to Growth.",
+      "next_step": "Shipped: inverted gate on /matches preview + founder_signup_started/completed wiring. 48h: confirm events emit on gate CTA. 14d: compare matches_preview vs url_first; Growth owns traffic reallocation.",
       "finding_id": "F-2026-0623-11",
       "related_experiments": ["founder_hero_entry"]
     },
@@ -50,14 +50,14 @@
       "id": "founder_match_nudges",
       "domain": "engagement",
       "priority": "P1",
-      "status": "idea",
+      "status": "shipped",
       "title": "Founder match nudge service",
       "problem": "Founders submit URL but may not return to view matches.",
       "hypothesis": "Email/in-app nudge with top 3 investor names increases return visits 2x.",
       "metric": "return_visit_7d",
       "baseline": null,
       "target": "20% return within 7d",
-      "next_step": "Spec email template + Resend trigger after first match batch",
+      "next_step": "Shipped: post-preview email capture on /matches preview + share link. Monitor preview_email_captured in funnel snapshot.",
       "related_experiments": []
     },
     {
@@ -127,7 +127,7 @@
       "metric": "checkout_completion_rate",
       "baseline": "0 pricing_viewed / checkout events in 7d",
       "target": "Measurable preview→signup→checkout funnel; first pricing A/B winner",
-      "next_step": "Funnel now emitting (founder_supply_seeding shipped). Gated behind preview_to_signup_conversion (P0): need a non-zero signup baseline before pricing/checkout stages get traffic. Promote pricing_oracle_cta from draft when baseline >50 pricing_viewed/week.",
+      "next_step": "pricing_oracle_cta promoted to running — trial_first vs value_first on Oracle checkout CTA. Monitor checkout_started by variant via npm run growth:cycle.",
       "related_experiments": ["founder_hero_entry", "pricing_oracle_cta"]
     }
   ]

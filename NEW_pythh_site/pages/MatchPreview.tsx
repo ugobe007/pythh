@@ -9,6 +9,7 @@ import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 import { recordMatchViewOnce, trackFunnelEvent } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
+import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 
 interface Investor {
   id: string;
@@ -88,8 +89,8 @@ export default function MatchPreview() {
           <h1 className="text-xl text-white mb-4">
             {error === 'not_found' ? 'Startup not found' : 'Could not load preview'}
           </h1>
-          <Link href="/activate">
-            <a className="text-emerald-400 text-sm">Analyze your startup →</a>
+          <Link href="/matches">
+            <a className="text-emerald-400 text-sm">Preview your startup →</a>
           </Link>
         </div>
       </div>
@@ -186,6 +187,18 @@ export default function MatchPreview() {
             );
           })}
         </div>
+
+        <PreviewEmailCapture
+          startupId={startup.id}
+          startupUrl={startupUrl}
+          startupName={startup.name}
+          totalMatches={total_matches}
+          topInvestors={visible.map((m) => ({
+            name: m.investor.name,
+            firm: m.investor.firm,
+          }))}
+          source="share_preview"
+        />
 
         {hidden > 0 && (
           <div className="text-center p-6 rounded-xl border border-dashed border-zinc-700 space-y-3">

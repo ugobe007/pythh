@@ -146,7 +146,7 @@
       "id": "pricing_oracle_cta",
       "audience": "founder",
       "name": "Oracle pricing page CTA",
-      "status": "draft",
+      "status": "running",
       "hypothesis": "Trial-first CTA ('Start 7-day free trial') converts better than value-first ('Automate your pipeline') on /pricing.",
       "variants": [
         {

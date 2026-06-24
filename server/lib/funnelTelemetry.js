@@ -16,6 +16,7 @@ const FUNNEL_OPERATIONS = [
   'checkout_started',
   'checkout_completed',
   'checkout_cancelled',
+  'preview_email_captured',
 ];
 
 const GROWTH_FUNNEL_EVENTS = [

@@ -233,8 +233,8 @@ export default function Rankings() {
               at your stage, right now.
             </p>
             {!isAuthenticated && (
-              <StartupCTA href="/activate" showArrow>
-                Match me to investors
+              <StartupCTA href="/matches" showArrow>
+                Preview my matches
               </StartupCTA>
             )}
           </div>

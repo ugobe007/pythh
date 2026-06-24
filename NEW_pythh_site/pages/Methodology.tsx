@@ -358,7 +358,7 @@ export default function Methodology() {
 
         {/* ── CTA ── */}
         <div className="flex flex-wrap gap-3 pt-2">
-          <StartupCTA href="/activate" showArrow>
+          <StartupCTA href="/matches" showArrow>
             Get your signal score
           </StartupCTA>
           <StrokeButton href="/platform" muted showArrow>

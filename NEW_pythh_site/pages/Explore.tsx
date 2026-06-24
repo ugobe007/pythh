@@ -325,7 +325,7 @@ export default function Explore() {
               Submit your startup URL to get your GOD score and investor matches.
             </p>
           </div>
-          <StartupCTA href="/activate" showArrow>
+          <StartupCTA href="/matches" showArrow>
             Analyze my startup
           </StartupCTA>
         </div>

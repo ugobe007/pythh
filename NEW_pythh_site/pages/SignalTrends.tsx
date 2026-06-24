@@ -943,7 +943,7 @@ export default function SignalTrends() {
               <span style={{ color: "oklch(0.4 0.01 264)" }}>Free — no credit card.</span>
             </p>
           </div>
-          <StartupCTA href="/activate" showArrow>
+          <StartupCTA href="/matches" showArrow>
             Analyze my startup
           </StartupCTA>
         </div>

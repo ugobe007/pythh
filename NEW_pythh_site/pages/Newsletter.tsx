@@ -485,7 +485,7 @@ function DailyBrief() {
 
       {/* CTA */}
       <div className="text-center pt-2">
-        <StartupCTA href="/activate" size="sm" showArrow>
+        <StartupCTA href="/matches" size="sm" showArrow>
           Run PYTHIA on your startup
         </StartupCTA>
       </div>
