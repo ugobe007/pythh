@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Github, Loader2 } from "lucide-react";
-import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
+import { supabase, hasValidSupabaseCredentials, bootstrapSupabase } from "@/lib/supabase";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
   buildSupabaseOAuthRedirectUrl,
@@ -30,6 +30,12 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"google" | "github" | null>(null);
+  const [oauthReady, setOauthReady] = useState(() => hasValidSupabaseCredentials());
+
+  useEffect(() => {
+    if (oauthReady) return;
+    void bootstrapSupabase().then((ok) => setOauthReady(ok));
+  }, [oauthReady]);
 
   useEffect(() => {
     clearStaleOAuthKeys();
@@ -84,7 +90,8 @@ export default function Login() {
   });
 
   const handleSocialLogin = async (provider: "google" | "github") => {
-    if (!supabase || !hasValidSupabaseCredentials()) {
+    const ready = oauthReady || (await bootstrapSupabase());
+    if (!ready || !supabase) {
       setError("OAuth sign-in is not configured. Use email sign-in or contact support.");
       return;
     }
@@ -102,8 +109,6 @@ export default function Login() {
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
       markOAuthHandoff();
-      // Verifier is written synchronously by signInWithOAuth; this returns
-      // almost immediately. Short cap avoids any worst-case stall on the click.
       await waitForPkceVerifier(2000);
       window.location.href = data.url;
     } catch (err) {
@@ -120,7 +125,7 @@ export default function Login() {
     loginMutation.mutate({ email: trimmed, name: name.trim() || undefined });
   }
 
-  const oauthDisabled = !hasValidSupabaseCredentials();
+  const oauthDisabled = !oauthReady || !!socialLoading;
 
   return (
     <div
@@ -169,7 +174,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleSocialLogin("google")}
-                disabled={!!socialLoading || oauthDisabled}
+                disabled={oauthDisabled}
                 className="w-full flex items-center justify-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-opacity border disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ color: "oklch(0.88 0.005 264)", backgroundColor: "oklch(0.10 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
               >
@@ -189,7 +194,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleSocialLogin("github")}
-                disabled={!!socialLoading || oauthDisabled}
+                disabled={oauthDisabled}
                 className="w-full flex items-center justify-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-opacity border disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ color: "oklch(0.88 0.005 264)", backgroundColor: "oklch(0.10 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}
               >
