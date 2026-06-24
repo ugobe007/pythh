@@ -21,7 +21,17 @@ const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatches
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
 
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
-const APP_BASE = (process.env.APP_BASE_URL || 'https://pythh.ai').replace(/\/$/, '');
+
+/** Fly/env typos sometimes prefix APP_BASE_URL with '=' — strip and fall back safely. */
+function normalizeAppBase(raw) {
+  const cleaned = String(raw || process.env.SITE_URL || 'https://pythh.ai')
+    .trim()
+    .replace(/^=+/, '');
+  if (!/^https?:\/\//i.test(cleaned)) return 'https://pythh.ai';
+  return cleaned.replace(/\/$/, '');
+}
+
+const APP_BASE = normalizeAppBase(process.env.APP_BASE_URL);
 
 async function sendPreviewShortlistEmail({ to, startupName, previewUrl, topInvestors, matchCount }) {
   const apiKey = process.env.RESEND_API_KEY;

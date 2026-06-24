@@ -176,6 +176,8 @@
     "digest:investor": "node scripts/investor-dealflow-digest.mjs --to signed-up",
     "digest:investor:dry": "node scripts/investor-dealflow-digest.mjs --dry-run --to signed-up",
     "digest:investor:all": "node scripts/investor-dealflow-digest.mjs --to all",
+    "outbound:find-investors": "node scripts/outbound-post-find-investors.mjs --channel all",
+    "outbound:find-investors:dry": "node scripts/outbound-post-find-investors.mjs --channel all --dry-run",
     "portfolio:monitor": "node scripts/portfolio-monitor.mjs",
     "portfolio:monitor:dry": "node scripts/portfolio-monitor.mjs --dry-run --verbose",
     "portfolio:health": "node -e \"require('dotenv').config();const {createClient}=require('@supabase/supabase-js');const sb=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY);sb.from('portfolio_metrics').select('*').maybeSingle().then(({data})=>console.log(JSON.stringify(data,null,2)));\"",
