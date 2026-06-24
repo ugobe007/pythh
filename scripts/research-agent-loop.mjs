@@ -28,20 +28,22 @@ const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 3;
 
 const date = new Date().toISOString().slice(0, 10);
 
-const PROMPT = `You are the Pythh Research Sub-Agent. Follow agents/research/CLAUDE.md.
+const PROMPT = `You are the Pythh Research Sub-Agent. Follow agents/ORCHESTRATOR.md and agents/research/CLAUDE.md.
+
+Read reports/orchestrator-brief-${date}.json (or latest orchestrator-brief-*.json) FIRST.
 
 Survey the market and funding workflow for signals that inform Pythh product strategy.
-North star: 100 signups/day (see agents/north-star.json).
+North star: 100 signups/day (see agents/north-star.json). Focus on distrust, preview bounce, and competitor retention loops.
 
 Run this research cycle now:
 1. node scripts/research-snapshot.mjs --json
 2. Read agents/research/friction-taxonomy.json and agents/research/signal-sources.json
 3. Read agents/research/findings-registry.json
-4. Analyze RSS + internal startup_events for workflow friction, missing data, funding pain
-5. Consider 3–5 product/service ideas that would appeal to founders AND investors
+4. Analyze RSS + internal startup_events for workflow friction, missing data, funding pain, skepticism patterns
+5. Consider 3–5 product/service ideas that create habit loops (not one-shot landing pages)
 6. Update agents/research/findings-registry.json with ranked findings (max 5 new)
 7. Write agents/research/briefs/${date}-market-brief.md (1-page human brief)
-8. Write reports/research-agent-${date}.json with signup_velocity, top problems, market_opportunities, recommended_for_product_backlog
+8. Write reports/research-agent-${date}.json with signup_velocity, top problems, market_opportunities, recommended_for_product_backlog, active_engagement_ideas
 
 Do not git commit or deploy. Hand off high-confidence items to Product Agent via handoff block in findings.`;
 

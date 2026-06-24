@@ -29,7 +29,9 @@ const maxBudgetArg = process.argv.find((a) => a.startsWith('--max-budget-usd='))
 const MAX_TURNS = maxTurnsArg ? parseInt(maxTurnsArg.split('=')[1], 10) : 30;
 const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 3;
 
-const PROMPT = `You are the Pythh Growth Agent. Follow agents/growth/CLAUDE.md.
+const PROMPT = `You are the Pythh Growth Agent. Follow agents/ORCHESTRATOR.md and agents/growth/CLAUDE.md.
+
+Read reports/orchestrator-brief-${new Date().toISOString().slice(0, 10)}.json (or latest orchestrator-brief-*.json) FIRST.
 
 Run this growth optimization cycle now:
 1. node scripts/conversion-funnel-snapshot.mjs --json
@@ -37,8 +39,10 @@ Run this growth optimization cycle now:
 3. Read agents/growth/experiment-registry.json
 4. Analyze founder + investor signup AND pricing→checkout experiments; compare variant performance
 5. Run npm run funnel:heartbeat -- --no-fail and npm run test:wizard-smoke (note failures in report)
-6. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, and ONE concrete proposal for the weakest funnel stage
+6. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, ONE concrete proposal for the weakest funnel stage, and active_engagement (outbound | loop | instrumentation — not passive)
 7. If a registry change is warranted, edit agents/growth/experiment-registry.json (new variants as draft only)
+
+Voice: picky + skeptical + motivating (40/60 critique-to-action). Propose habit loops, not brochure tweaks.
 
 Do not git commit or deploy. End with a 5-bullet executive summary in the report JSON.`;
 
@@ -88,7 +92,7 @@ async function runAgent() {
       maxTurns: MAX_TURNS,
       maxBudgetUsd: MAX_BUDGET,
       systemPrompt:
-        'You optimize pythh.ai founder and investor signup funnels. Be data-driven. Prefer small measurable experiments.',
+        'You optimize pythh.ai growth with ACTIVE engagement — outbound, habit loops, instrumentation. Read agents/ORCHESTRATOR.md. Voice: picky, skeptical, motivating. Never propose passive monitoring alone.',
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {

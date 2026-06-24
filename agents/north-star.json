@@ -30,6 +30,20 @@
     "paid_subscriber"
   ],
   "conversion_chain": "visitor → preview → signup → use (matches/wizard) → pricing → checkout → paid",
+  "voice": {
+    "summary": "Picky like investors, skeptical like founders, motivating with evidence-backed next steps",
+    "critique_to_action_ratio": "40/60",
+    "never": ["passive monitoring only", "hype without evidence", "features without a return loop"]
+  },
+  "engagement_loops": [
+    "preview_cliffhanger",
+    "signal_delta",
+    "investor_movement_digest",
+    "match_explain",
+    "wizard_progression",
+    "outbound_social_proof"
+  ],
+  "active_mandate": "Every agent cycle must propose at least one outbound, in-product habit loop, or instrumentation fix — not monitoring alone.",
   "milestones": [
     { "signups_per_day": 1, "phase": "validate", "note": "Prove one channel converts" },
     { "signups_per_day": 10, "phase": "repeatable", "note": "Instrumented funnel + one winning experiment" },
@@ -39,13 +53,14 @@
     { "paid_subscribers": 100, "phase": "monetize_scale", "note": "Pricing experiments + activation loops driving MRR" }
   ],
   "agent_roles": {
-    "research": "Survey market — founder/investor pain, pricing sensitivity, workflow friction",
-    "product": "Prioritize backlog — specs for features that move preview→signup→use→pay",
-    "growth": "Test signup schemas, hero entry, pricing copy — maximize conversion at each stage",
-    "pipeline": "Keep match quality trustworthy — retention and paid conversion depend on it"
+    "orchestrator": "Set daily focus from funnel data; enforce picky/skeptical/motivating voice and anti-passivity",
+    "research": "Survey market — founder/investor pain, distrust patterns, competitor retention loops",
+    "product": "Prioritize backlog — specs for habit loops, analytics gaps, preview→signup→return",
+    "growth": "Active experiments + outbound — signup schemas, hero entry, pricing copy, social posts",
+    "pipeline": "Keep match quality trustworthy — picky data gate (junk cleanup) enables credible skepticism"
   },
   "autopilot": {
-    "daily": ["funnel_heartbeat", "conversion_snapshot", "growth_metrics"],
+    "daily": ["funnel_heartbeat", "conversion_snapshot", "orchestrator_brief", "growth_metrics"],
     "rotating_llm": ["research", "growth", "product"],
     "weekly_full": "All three LLM agents + pipeline dashboard"
   }

@@ -31,19 +31,23 @@ const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 4;
 
 const date = new Date().toISOString().slice(0, 10);
 
-const PROMPT = `You are the Pythh Product Agent. Follow agents/product/CLAUDE.md.
+const PROMPT = `You are the Pythh Product Agent. Follow agents/ORCHESTRATOR.md and agents/product/CLAUDE.md.
+
+Read reports/orchestrator-brief-${date}.json (or latest orchestrator-brief-*.json) FIRST.
 
 Run this product improvement cycle now:
 0. Read latest reports/research-agent-*.json and agents/research/briefs/ if present
 1. node scripts/product-metrics-snapshot.mjs --json
 2. Read agents/product/opportunity-registry.json and agents/product/domains.json
 3. Read agents/growth/experiment-registry.json
-4. Pick the single highest-leverage gap (critical pipeline learnings or P0 backlog first)
-5. Produce ONE deliverable: feature spec, service design, experiment proposal, or pipeline action
+4. Pick the single highest-leverage gap — prioritize weakest orchestrator funnel stage + habit loops + analytics blind spots
+5. Produce ONE deliverable: feature spec (with engagement loop + voice example), service design, experiment proposal, pipeline action, or analytics fix
    - If spec: write agents/product/specs/<opportunity-id>.md
 6. Update opportunity-registry.json statuses/next_step (max one new opportunity)
-7. Write reports/product-agent-${date}.json with summary, decision, deliverable, backlog_changes
+7. Write reports/product-agent-${date}.json with summary, decision, deliverable, backlog_changes, active_engagement
 8. npm run test:wizard-smoke (skip if network fails — note in report)
+
+Voice: picky + skeptical + motivating. No passive specs.
 
 Do not git commit or deploy. End with executive summary in the report JSON.`;
 

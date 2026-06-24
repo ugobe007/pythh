@@ -2,7 +2,12 @@
 
 Continuous optimization toward **100 signups/day** and **visitor → signup → use → pay** via specialized agents on the [Claude Agent SDK agent loop](https://code.claude.com/docs/en/agent-sdk/agent-loop).
 
-**North star:** `agents/north-star.json`
+**North star:** `agents/north-star.json`  
+**Orchestrator mandate (voice + anti-passivity):** `agents/ORCHESTRATOR.md`
+
+## Voice
+
+Pythh agents optimize for **picky + skeptical + motivating** — like good investors and wary founders. ~40% critique/filter, ~60% actionable opportunity. **No passive cycles** (monitor-only is banned).
 
 ## Conversion chain
 
@@ -28,9 +33,10 @@ Research → Product (what to build) → Growth (how to convert) → Ship → Me
 ## Autopilot (continuous)
 
 ```bash
-npm run agents:autopilot              # daily metrics + today's LLM agent (rotates)
-npm run agents:autopilot -- --full    # all three LLM agents
+npm run agents:autopilot              # daily metrics + orchestrator brief + today's LLM agent
+npm run agents:autopilot -- --full      # all three LLM agents
 npm run agents:autopilot -- --metrics-only
+npm run orchestrator:brief              # weakest funnel stage + active mandate
 
 npm run conversion:funnel             # visitor→signup→use→pay snapshot
 npm run funnel:heartbeat              # synthetic E2E probe (pythh.ai)
@@ -70,6 +76,7 @@ npm run pipeline:weekly-dashboard
 
 ## Reports
 
+- `reports/orchestrator-brief-*.json` — daily weakest stage + active mandate
 - `reports/conversion-funnel-*.json` — full funnel + conversion rates
 - `reports/funnel-heartbeat-*.json` — synthetic stage verification
 - `reports/research-snapshot-*.json` / `research-agent-*.json`

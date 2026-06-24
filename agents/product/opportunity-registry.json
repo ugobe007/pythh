@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-23T04:10:00Z",
+  "updated_at": "2026-06-24T12:00:00Z",
   "opportunities": [
     {
       "id": "preview_to_signup_conversion",
@@ -114,6 +114,48 @@
       "baseline": null,
       "target": "+25% intro rate when explain shown",
       "next_step": "Extend get_match_insights MCP tool with copy-ready explain blocks",
+      "related_experiments": []
+    },
+    {
+      "id": "engagement_addiction_loops",
+      "domain": "engagement",
+      "priority": "P0",
+      "status": "building",
+      "title": "Habit loops — signal delta, return triggers, picky explain blocks",
+      "problem": "Users discover Pythh, peek at preview, and never return. No curiosity hook or daily reason to come back. Analytics show one-shot visits.",
+      "hypothesis": "Signal-delta emails + match explain blocks + gated save/intro create return visits and signup without paid acquisition.",
+      "metric": "return_visit_7d",
+      "baseline": "0 measurable return loop; preview→signup still primary leak",
+      "target": "20% return within 7d of first preview; match_intro_rate > 0",
+      "next_step": "Product spec agents/product/specs/engagement_addiction_loops.md; Growth runs outbound to feed preview URLs.",
+      "related_experiments": ["founder_hero_entry"]
+    },
+    {
+      "id": "active_awareness_outbound",
+      "domain": "growth",
+      "priority": "P0",
+      "status": "validating",
+      "title": "Active awareness — outbound + share proof, not passive SEO",
+      "problem": "Almost no one knows Pythh exists. Waiting for organic traffic is failure.",
+      "hypothesis": "Weekly outbound (find-investors playbook, rankings share cards, X/Reddit) drives url_submitted at near-zero CAC.",
+      "metric": "url_submitted_per_day",
+      "baseline": "~4-5 url_submitted/day organic",
+      "target": "2x url_submitted via outbound-attributed links within 30d",
+      "next_step": "npm run outbound:find-investors weekly; track ref param in url_submitted events.",
+      "related_experiments": ["founder_hero_entry"]
+    },
+    {
+      "id": "analytics_funnel_coverage",
+      "domain": "growth",
+      "priority": "P0",
+      "status": "validating",
+      "title": "Full-funnel analytics — every stage measurable in 7d window",
+      "problem": "Agents cannot optimize addiction or signup when stages read zero or lack attribution.",
+      "hypothesis": "Orchestrator brief + daily heartbeat + founder_signup attribution exposes the real leak within 48h of each ship.",
+      "metric": "funnel_stages_emitting_events",
+      "baseline": "6/6 heartbeat green but signup/return/pay stages thin",
+      "target": "All north_star funnel_stages emit events with variant attribution",
+      "next_step": "Extend product-metrics + conversion-funnel for return_visit_7d, wizard_act, pricing_viewed.",
       "related_experiments": []
     },
     {

@@ -51,6 +51,7 @@ console.log('\n🎵 Pythh agent autopilot\n');
 
 runNode('Funnel heartbeat', 'scripts/funnel-heartbeat-probe.mjs', ['--no-fail'], { allowFail: true });
 runNode('Conversion funnel snapshot', 'scripts/conversion-funnel-snapshot.mjs');
+runNode('Orchestrator brief', 'scripts/orchestrator-brief.mjs', [], { allowFail: true });
 runNode('Product metrics', 'scripts/product-metrics-snapshot.mjs');
 runNode('Growth metrics', 'scripts/growth-metrics-snapshot.mjs');
 runNode('Research snapshot', 'scripts/research-snapshot.mjs', [], { allowFail: true });
