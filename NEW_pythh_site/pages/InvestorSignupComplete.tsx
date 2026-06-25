@@ -70,11 +70,17 @@ export default function InvestorSignupComplete() {
               <Link href="/explore">
                 <a className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">
                   <Search className="w-4 h-4" />
-                  Explore dealflow
+                  Pick your first startups
                   <ArrowRight className="w-4 h-4" />
                 </a>
               </Link>
             )}
+
+            <Link href="/investor/portfolio">
+              <a className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-md border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 text-sm font-medium">
+                My portfolio
+              </a>
+            </Link>
 
             <Link href="/developers">
               <a className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-md border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 text-sm font-medium">

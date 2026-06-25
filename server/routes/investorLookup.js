@@ -21,7 +21,10 @@ const {
   getStartupDetail,
   getPortfolioWithActivity,
   getOrCreateVirtualPortfolioListId,
+  countVirtualPortfolioPicks,
 } = require('../services/investorLookupService');
+const { INVESTOR_PORTFOLIO_MAX_PICKS, portfolioPickMeta } = require('../lib/investorPortfolioConstants');
+const { recordFunnelEvent } = require('../lib/funnelTelemetry');
 
 function getOwnerId(req) {
   return (
@@ -172,6 +175,21 @@ router.post('/portfolio/items', async (req, res) => {
     if (!listId) {
       return res.status(500).json({ ok: false, error: 'Failed to get portfolio list' });
     }
+
+    const picksUsed = await countVirtualPortfolioPicks(supabase, ownerId);
+    if (picksUsed >= INVESTOR_PORTFOLIO_MAX_PICKS) {
+      void recordFunnelEvent(supabase, 'investor_portfolio_cap_reached', {
+        owner_id: ownerId,
+        startup_id: startupId,
+        ...portfolioPickMeta(picksUsed),
+      });
+      return res.status(403).json({
+        ok: false,
+        error: `Portfolio full (${INVESTOR_PORTFOLIO_MAX_PICKS} picks max). Remove a pick to add another.`,
+        ...portfolioPickMeta(picksUsed),
+      });
+    }
+
     const { data, error } = await supabase
       .from('investor_curated_list_items')
       .insert({ list_id: listId, startup_id: startupId, notes: req.body?.notes || null })
@@ -184,10 +202,55 @@ router.post('/portfolio/items', async (req, res) => {
       }
       throw error;
     }
-    res.status(201).json({ ok: true, data });
+
+    const newCount = picksUsed + 1;
+    void recordFunnelEvent(supabase, 'investor_portfolio_pick_added', {
+      owner_id: ownerId,
+      startup_id: startupId,
+      ...portfolioPickMeta(newCount),
+    });
+
+    res.status(201).json({
+      ok: true,
+      data,
+      ...portfolioPickMeta(newCount),
+    });
   } catch (err) {
     console.error('[investor-lookup] add to portfolio error:', err);
     res.status(500).json({ ok: false, error: err.message || 'Failed to add to portfolio' });
+  }
+});
+
+// DELETE /api/investor-lookup/portfolio/items/:startupId — remove from virtual portfolio
+router.delete('/portfolio/items/:startupId', async (req, res) => {
+  try {
+    const ownerId = getOwnerId(req);
+    if (!ownerId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing owner id. Send X-Investor-Session or X-Session-Id header.',
+      });
+    }
+    const { startupId } = req.params;
+    const supabase = getSupabaseClient();
+    const listId = await getOrCreateVirtualPortfolioListId(supabase, ownerId);
+    if (!listId) {
+      return res.status(500).json({ ok: false, error: 'Failed to get portfolio list' });
+    }
+
+    const { error } = await supabase
+      .from('investor_curated_list_items')
+      .delete()
+      .eq('list_id', listId)
+      .eq('startup_id', startupId);
+
+    if (error) throw error;
+
+    const picksUsed = await countVirtualPortfolioPicks(supabase, ownerId);
+    res.json({ ok: true, removed: true, ...portfolioPickMeta(picksUsed) });
+  } catch (err) {
+    console.error('[investor-lookup] remove from portfolio error:', err);
+    res.status(500).json({ ok: false, error: err.message || 'Failed to remove from portfolio' });
   }
 });
 

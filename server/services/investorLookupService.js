@@ -207,6 +207,7 @@ async function getStartupDetail(supabase, startupId) {
 }
 
 const VIRTUAL_PORTFOLIO_LIST_NAME = 'Virtual portfolio';
+const { INVESTOR_PORTFOLIO_MAX_PICKS, portfolioPickMeta } = require('../lib/investorPortfolioConstants');
 
 /**
  * Get or create the investor's "Virtual portfolio" list id.
@@ -219,8 +220,6 @@ async function getOrCreateVirtualPortfolioListId(supabase, ownerId) {
     .limit(20);
   const existing = (rows || []).find((r) => (r.name || '').trim() === VIRTUAL_PORTFOLIO_LIST_NAME);
   if (existing) return existing.id;
-
-  if (existing?.id) return existing.id;
 
   const { data: created, error } = await supabase
     .from('investor_curated_lists')
@@ -257,7 +256,7 @@ async function getPortfolioWithActivity(supabase, ownerId) {
 
   const startupIds = (items || []).map((i) => i.startup_id);
   if (startupIds.length === 0) {
-    return { list, items: [], count: 0 };
+    return { list, items: [], count: 0, ...portfolioPickMeta(0) };
   }
 
   const { data: startups, error: suErr } = await supabase
@@ -265,7 +264,7 @@ async function getPortfolioWithActivity(supabase, ownerId) {
     .select('id, name, tagline, website, sectors, stage_estimate, total_god_score, updated_at, extracted_data')
     .in('id', startupIds);
 
-  if (suErr || !startups) return { list, items: [], count: 0 };
+  if (suErr || !startups) return { list, items: [], count: 0, ...portfolioPickMeta(0) };
 
   const byId = Object.fromEntries(startups.map((s) => [s.id, s]));
   const itemsWithActivity = startupIds.map((sid) => {
@@ -309,7 +308,19 @@ async function getPortfolioWithActivity(supabase, ownerId) {
     list: { ...list, id: listId },
     items: itemsWithActivity,
     count: itemsWithActivity.length,
+    ...portfolioPickMeta(itemsWithActivity.length),
   };
+}
+
+async function countVirtualPortfolioPicks(supabase, ownerId) {
+  const listId = await getOrCreateVirtualPortfolioListId(supabase, ownerId);
+  if (!listId) return 0;
+  const { count, error } = await supabase
+    .from('investor_curated_list_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('list_id', listId);
+  if (error) return 0;
+  return count ?? 0;
 }
 
 module.exports = {
@@ -318,6 +329,7 @@ module.exports = {
   getStartupDetail,
   getOrCreateVirtualPortfolioListId,
   getPortfolioWithActivity,
+  countVirtualPortfolioPicks,
   VIRTUAL_PORTFOLIO_LIST_NAME,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,

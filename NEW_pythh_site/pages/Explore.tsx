@@ -6,10 +6,13 @@
  * Design: Data-noir terminal style consistent with Rankings.
  */
 import { Helmet } from "react-helmet-async";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
-import { Search, X, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, X, ExternalLink, ChevronLeft, ChevronRight, Bookmark } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
+import PortfolioPickButton from "@/components/PortfolioPickButton";
+import { fetchInvestorPortfolio, INVESTOR_PORTFOLIO_MAX_PICKS } from "@/lib/investorPortfolio";
 import FilterTabs from "@/components/design/FilterTabs";
 import InlineMeta from "@/components/design/InlineMeta";
 import SectionLabel from "@/components/design/SectionLabel";
@@ -59,6 +62,21 @@ export default function Explore() {
   const [stage, setStage] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("total_god_score");
   const [page, setPage] = useState(0);
+  const [pickedIds, setPickedIds] = useState<Set<string>>(() => new Set());
+  const [picksUsed, setPicksUsed] = useState(0);
+
+  useEffect(() => {
+    void fetchInvestorPortfolio().then((data) => {
+      if (!data) return;
+      setPicksUsed(data.picks_used ?? data.count ?? 0);
+      setPickedIds(new Set((data.items ?? []).map((i) => i.startup_id)));
+    });
+  }, []);
+
+  const handlePicked = useCallback((startupId: string, used: number) => {
+    setPickedIds((prev) => new Set(prev).add(startupId));
+    setPicksUsed(used);
+  }, []);
 
   const handleQueryChange = useCallback((val: string) => {
     setQuery(val);
@@ -110,6 +128,17 @@ export default function Explore() {
           </h1>
           <p className="text-sm" style={{ color: MUTED }}>
             Search {total > 0 ? total.toLocaleString() : "…"} startups ranked by GOD signal score
+            {picksUsed > 0 && (
+              <>
+                {' · '}
+                <Link href="/investor/portfolio">
+                  <a className="inline-flex items-center gap-1 hover:underline" style={{ color: G }}>
+                    <Bookmark size={12} />
+                    {picksUsed}/{INVESTOR_PORTFOLIO_MAX_PICKS} portfolio picks
+                  </a>
+                </Link>
+              </>
+            )}
           </p>
         </header>
 
@@ -190,7 +219,7 @@ export default function Explore() {
           <div
             className="grid gap-4 px-4 py-3 border-b text-[10px] font-mono uppercase tracking-widest"
             style={{
-              gridTemplateColumns: "1fr 160px 100px 80px",
+              gridTemplateColumns: "1fr 140px 90px 70px 72px",
               color: DIM,
               borderColor: BORDER,
             }}
@@ -199,6 +228,7 @@ export default function Explore() {
             <div>Sector</div>
             <div>Stage</div>
             <div className="text-center" style={{ color: G }}>GOD</div>
+            <div className="text-center">Pick</div>
           </div>
 
           <div>
@@ -240,7 +270,7 @@ export default function Explore() {
                     key={s.id}
                     className="grid gap-4 px-4 py-4 border-b last:border-b-0 hover:bg-white/[0.02] transition-colors"
                     style={{
-                      gridTemplateColumns: "1fr 160px 100px 80px",
+                      gridTemplateColumns: "1fr 140px 90px 70px 72px",
                       borderColor: BORDER,
                     }}
                   >
@@ -273,6 +303,16 @@ export default function Explore() {
 
                     <div className="text-center self-center">
                       <GodScore score={s.total_god_score} />
+                    </div>
+
+                    <div className="text-center self-center">
+                      <PortfolioPickButton
+                        startupId={s.id}
+                        startupName={s.name}
+                        picked={pickedIds.has(s.id)}
+                        picksUsed={picksUsed}
+                        onPicked={handlePicked}
+                      />
                     </div>
                   </div>
                 );

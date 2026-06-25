@@ -94,9 +94,17 @@ Get one startup by id with detail and recent activity (for review). Response inc
 
 Get the investor’s **Virtual portfolio** list (auto-created if missing) with items and **recent activity** per startup (from existing DB: `updated_at`, funding/investor mentions).
 
+Response includes `picks_used`, `picks_max` (10), `picks_remaining`.
+
 ### `POST /api/investor-lookup/portfolio/items`
 
-Add a startup to the virtual portfolio. Body: `{ startup_id }`. 409 if already in portfolio.
+Add a startup to the virtual portfolio. Body: `{ startup_id }`.  
+- **409** if already in portfolio  
+- **403** if at cap (10 picks) — body includes pick counts
+
+### `DELETE /api/investor-lookup/portfolio/items/:startupId`
+
+Remove a startup from the virtual portfolio.
 
 ---
 
