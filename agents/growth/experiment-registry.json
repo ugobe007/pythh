@@ -136,6 +136,7 @@
           },
           "copy": {
             "headline": "Join the Pythh investor network",
+            "subline": "Pick up to 10 startups — Pythh tracks signals and funding for your virtual portfolio.",
             "cta": "Request access"
           }
         },
@@ -148,7 +149,8 @@
             "review_gate": true
           },
           "copy": {
-            "headline": "Tell us your thesis — we route dealflow",
+            "headline": "Automate dealflow — track your top 10 picks",
+            "subline": "Thesis-fit startups ranked live. Build a portfolio that updates itself.",
             "cta": "Complete investor profile"
           }
         },
@@ -163,8 +165,8 @@
             "profile_enrichment": true
           },
           "copy": {
-            "headline": "Get dealflow routed to your inbox",
-            "subline": "One field now — firm and thesis later.",
+            "headline": "Automate dealflow — track your top 10 picks",
+            "subline": "One field now — pick startups and track GOD signals over time. Portfolio tool sync coming soon.",
             "cta": "Get access"
           },
           "guardrails": {

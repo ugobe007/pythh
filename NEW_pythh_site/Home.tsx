@@ -680,9 +680,9 @@ function InvestorStrip() {
           </div>
 
           <p className="flex-1 text-sm leading-relaxed" style={{ color: "oklch(0.58 0.01 264)" }}>
-            Query 11,000+ scored startups, GOD rankings, thesis fit, and deployment signals
-            directly from Claude, Cursor, ChatGPT, or any MCP client. Same engine the platform
-            runs on — live deal flow without exports or stale spreadsheets.
+            Automate dealflow and portfolio management: query 11,000+ scored startups,
+            pick up to 10 for a tracked virtual portfolio, and connect MCP for agent-native
+            workflow. Sync to Carta, Smartsheet, and Standard Metrics — coming soon.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">

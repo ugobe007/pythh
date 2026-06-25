@@ -39,17 +39,17 @@ export default function InvestorSignupComplete() {
 
           <p className="text-sm text-zinc-400 leading-relaxed mb-8">
             {profileIncomplete
-              ? 'Your email is saved. Add firm, sectors, and check size so Pythh can route dealflow that matches your thesis.'
-              : 'Thanks for joining the Pythh investor network. We use your thesis, stage, and sector preferences to surface startups worth a look — ranked by live GOD signals, not static lists.'}
+              ? 'Your email is saved. Add firm, sectors, and check size so Pythh can route thesis-fit dealflow and track your virtual portfolio picks.'
+              : 'You\'re set up to automate dealflow with Pythh. Pick up to 10 startups — we track GOD signals, funding, and momentum on your virtual portfolio over time. Connect MCP for agent-native workflow; sync to Carta, Smartsheet, and Standard Metrics coming soon.'}
           </p>
 
           <div className="space-y-3 text-left mb-8">
             {[
               profileIncomplete
                 ? 'Finish your investor profile (under a minute)'
-                : 'Browse scored startups in Explore',
-              'Filter by sector, stage, and GOD score',
-              'Connect Pythh Connect MCP for agent-native dealflow',
+                : 'Pick your first startups from Explore — up to 10 tracked picks',
+              'Watch score and funding deltas on your virtual portfolio',
+              'Connect Pythh MCP for agent-native dealflow automation',
             ].map((line) => (
               <div key={line} className="flex items-start gap-3 text-sm text-zinc-300">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />

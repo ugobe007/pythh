@@ -137,13 +137,13 @@ export default function InvestorSignup() {
   const headline = isResumeMode
     ? 'Complete your investor profile'
     : copy.headline || (isEmailFirst
-      ? 'Get dealflow routed to your inbox'
+      ? 'Automate dealflow — track your top 10 picks'
       : isShortForm
         ? 'Join the Pythh investor network'
-        : 'Create investor account');
+        : 'Automate dealflow — track your top 10 picks');
   const subline = isResumeMode
     ? (formData.email ? `Finishing setup for ${formData.email}` : 'Add firm, sectors, and check size.')
-    : copy.subline || (isEmailFirst ? 'One field now — firm and thesis later.' : null);
+    : copy.subline || (isEmailFirst ? 'One field now — pick startups and track GOD signals over time.' : null);
   const submitLabel = isResumeMode
     ? 'Save profile'
     : copy.cta || (isEmailFirst ? 'Get access' : isShortForm ? 'Request access' : 'Create account');

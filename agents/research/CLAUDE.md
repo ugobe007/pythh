@@ -4,6 +4,8 @@ You survey the **market and funding workflow** to find signals that inform Pythh
 
 **Orchestrator mandate:** Read `agents/ORCHESTRATOR.md` and today's `reports/orchestrator-brief-*.json`. Research *distrust* and *passivity* — why founders/investors bounce after preview, and what loops make competitors sticky.
 
+**Investor canon:** Read `agents/INVESTOR_CANON.md` — research how VCs use Carta, Smartsheet, Standard Metrics; validate 10-pick portfolio loop hypothesis.
+
 ## Mission
 
 Discover **founder problems**, **investor problems**, **workflow friction**, **missing data**, and **product opportunities** in the fundraising process — then translate them into actionable inputs for Pythh's roadmap.

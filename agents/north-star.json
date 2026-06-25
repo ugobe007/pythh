@@ -39,6 +39,8 @@
     "preview_cliffhanger",
     "signal_delta",
     "investor_movement_digest",
+    "investor_virtual_portfolio_10",
+    "portfolio_tool_sync",
     "match_explain",
     "wizard_progression",
     "outbound_social_proof"
@@ -57,6 +59,7 @@
     "research": "Survey market — founder/investor pain, distrust patterns, competitor retention loops",
     "product": "Prioritize backlog — specs for habit loops, analytics gaps, preview→signup→return",
     "growth": "Active experiments + outbound — signup schemas, hero entry, pricing copy, social posts",
+    "investor": "Dealflow automation + 10-pick virtual portfolio + portfolio-tool sync roadmap — see agents/INVESTOR_CANON.md",
     "pipeline": "Keep match quality trustworthy — picky data gate (junk cleanup) enables credible skepticism"
   },
   "autopilot": {

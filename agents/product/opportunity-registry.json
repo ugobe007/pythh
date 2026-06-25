@@ -61,6 +61,21 @@
       "related_experiments": []
     },
     {
+      "id": "investor_portfolio_automation",
+      "domain": "engagement",
+      "priority": "P0",
+      "status": "building",
+      "title": "Investor virtual portfolio — pick 10 startups, track over time, sync to PM tools",
+      "problem": "Investors lack sticky differentiation vs Affinity/Carta; signup completes but no habit loop on *their* book of picks.",
+      "hypothesis": "Letting each investor pick 10 thesis-fit startups with live GOD/funding tracking + weekly delta creates return visits; export/sync to Smartsheet/Carta/Standard Metrics reduces spreadsheet work.",
+      "metric": "investor_portfolio_pick_added",
+      "baseline": "0 investor pick events; portfolio API exists but no cap/UI in NEW_pythh_site",
+      "target": "40% of investor signups add ≥1 pick in 7d; 15% return_visit_7d",
+      "next_step": "Spec agents/product/specs/investor_portfolio_automation.md; enforce 10-pick cap on investor-lookup API; port portfolio UI to NEW_pythh_site; signup complete → explore picks CTA.",
+      "finding_id": null,
+      "related_experiments": ["investor_signup_schema"]
+    },
+    {
       "id": "investor_dealflow_digest",
       "domain": "services",
       "priority": "P1",
