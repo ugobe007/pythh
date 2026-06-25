@@ -60,6 +60,8 @@ COPY --from=builder /app/ecosystem.prod.config.js ./ecosystem.prod.config.js
 COPY --from=builder /app/run-ml-training.js ./run-ml-training.js
 # NEW_pythh_site TypeScript source — needed so /api/trpc mounts at runtime via tsx
 COPY --from=builder /app/NEW_pythh_site ./NEW_pythh_site
+# Growth experiment registry — assignVariant reads this at runtime (also synced to Supabase)
+COPY --from=builder /app/agents/growth ./agents/growth
 # Remove the nested node_modules and dist (use root node_modules; frontend already in /app/dist)
 RUN rm -rf /app/NEW_pythh_site/node_modules /app/NEW_pythh_site/dist
 

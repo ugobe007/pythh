@@ -9,8 +9,13 @@ const crypto = require('crypto');
 const REGISTRY_PATH = path.join(__dirname, '../../agents/growth/experiment-registry.json');
 
 function loadRegistry() {
-  const raw = fs.readFileSync(REGISTRY_PATH, 'utf8');
-  return JSON.parse(raw);
+  try {
+    const raw = fs.readFileSync(REGISTRY_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === 'ENOENT') return { version: 0, experiments: [] };
+    throw err;
+  }
 }
 
 function hashToUnit(str) {
