@@ -128,7 +128,7 @@
       "variants": [
         {
           "key": "short_form",
-          "traffic_pct": 0,
+          "traffic_pct": 20,
           "schema": {
             "steps": 1,
             "fields": ["name", "email", "firm", "sectors", "check_size_band"],
@@ -141,7 +141,7 @@
         },
         {
           "key": "thesis_deep",
-          "traffic_pct": 67,
+          "traffic_pct": 10,
           "schema": {
             "steps": 2,
             "fields": ["name", "email", "firm", "title", "sectors", "stages", "check_size_min", "check_size_max", "geography", "investment_thesis"],
@@ -154,7 +154,7 @@
         },
         {
           "key": "short_form_email_first",
-          "traffic_pct": 33,
+          "traffic_pct": 70,
           "schema": {
             "steps": 1,
             "fields": ["email"],
@@ -176,7 +176,8 @@
       "metrics": {
         "primary": "investor_signup_completed",
         "secondary": ["investor_signup_started", "investor_profile_step_2"]
-      }
+      },
+      "promotion_note": "Reallocated 2026-06-25: email_first 70%, short_form 20%, thesis_deep 10% holdout — fix 1/34 completion leak."
     },
     {
       "id": "pricing_oracle_cta",

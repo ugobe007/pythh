@@ -71,7 +71,7 @@
       "metric": "investor_weekly_active",
       "baseline": null,
       "target": "15% WAU among signed-up investors",
-      "next_step": "Dry-run npm run digest:investor:dry --to signed-up; schedule Monday cron; monitor investor_dealflow_digest_sent in funnel snapshot.",
+      "next_step": "Shipped email-first resume (localStorage + lightweight enrichment form) and started-on-submit instrumentation. Traffic: email_first 70%, short_form 20%, thesis_deep 10%. Monitor investor_signup_completed / started over 14d.",
       "related_experiments": ["investor_signup_schema"]
     },
     {

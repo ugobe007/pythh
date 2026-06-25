@@ -2,7 +2,7 @@
  * /signup/investor — investor intake with growth experiment variants.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
@@ -29,6 +29,14 @@ const CHECK_SIZE_BANDS: { key: string; label: string; min: number; max: number }
   { key: '2000+', label: '$2M+', min: 2_000_000, max: 10_000_000 },
 ];
 
+const FALLBACK_INVESTOR_ASSIGNMENT: GrowthAssignment = {
+  experiment_id: 'investor_signup_schema',
+  variant_key: 'short_form_email_first',
+  audience: 'investor',
+  schema: { profile_enrichment: true },
+  copy: {},
+};
+
 function bandToCheckSize(bandKey: string) {
   const band = CHECK_SIZE_BANDS.find((b) => b.key === bandKey);
   return band ? { min: band.min, max: band.max } : { min: null, max: null };
@@ -51,7 +59,8 @@ export default function InvestorSignup() {
   );
   const isResumeMode = Boolean(resumeDraft);
   const [assignment, setAssignment] = useState<GrowthAssignment | null>(null);
-  const variantKey = assignment?.variant_key ?? 'thesis_deep';
+  const startedRef = useRef(false);
+  const variantKey = assignment?.variant_key ?? 'short_form_email_first';
   const isEmailFirst = !isResumeMode && variantKey === 'short_form_email_first';
   const isShortForm = !isResumeMode && variantKey === 'short_form';
   const reviewGate = Boolean(
@@ -83,29 +92,48 @@ export default function InvestorSignup() {
 
   useEffect(() => {
     if (isResumeSignupUrl() && !readInvestorSignupDraft()) {
-      setError('Session expired. Enter your email again to continue.');
+      setError('Profile session not found. Enter your email again to continue.');
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     void fetchGrowthAssignment('investor').then((a) => {
-      if (cancelled || !a) return;
+      if (cancelled) return;
       setAssignment(a);
-      if (!isResumeMode) {
-        void trackGrowthEvent(a, 'investor_signup_started');
-      }
     });
     return () => {
       cancelled = true;
     };
-  }, [isResumeMode]);
+  }, []);
+
+  const resolveAssignment = async (): Promise<GrowthAssignment> => {
+    if (assignment) return assignment;
+    const fetched = await fetchGrowthAssignment('investor');
+    if (fetched) {
+      setAssignment(fetched);
+      return fetched;
+    }
+    return FALLBACK_INVESTOR_ASSIGNMENT;
+  };
+
+  const trackInvestorStarted = async () => {
+    if (startedRef.current || isResumeMode) return;
+    startedRef.current = true;
+    const resolved = await resolveAssignment();
+    await trackGrowthEvent(resolved, 'investor_signup_started', { intent: 'form_action' });
+  };
+
+  const trackInvestorCompleted = async (payload: Record<string, unknown>) => {
+    const resolved = await resolveAssignment();
+    await trackGrowthEvent(resolved, 'investor_signup_completed', payload);
+  };
 
   const sectors = [...INVESTOR_SIGNUP_SECTORS];
   const stages = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C+'];
   const geographies = ['US West', 'US East', 'Europe', 'Asia', 'Global'];
 
-  const totalSteps = isResumeMode || (!isEmailFirst && !isShortForm) ? 2 : 1;
+  const totalSteps = isResumeMode || isEmailFirst || isShortForm ? 1 : 2;
   const headline = isResumeMode
     ? 'Complete your investor profile'
     : copy.headline || (isEmailFirst
@@ -129,8 +157,10 @@ export default function InvestorSignup() {
     }));
   };
 
-  const goToStep2 = () => {
-    if (assignment) void trackGrowthEvent(assignment, 'investor_profile_step_2');
+  const goToStep2 = async () => {
+    await trackInvestorStarted();
+    const resolved = await resolveAssignment();
+    void trackGrowthEvent(resolved, 'investor_profile_step_2');
     setStep(2);
   };
 
@@ -173,7 +203,7 @@ export default function InvestorSignup() {
     let checkMin: number | null = null;
     let checkMax: number | null = null;
 
-    if (isShortForm && formData.checkSizeBand) {
+    if ((isShortForm || isResumeMode) && formData.checkSizeBand) {
       const band = bandToCheckSize(formData.checkSizeBand);
       checkMin = band.min;
       checkMax = band.max;
@@ -186,13 +216,13 @@ export default function InvestorSignup() {
       name: formData.name,
       email: formData.email,
       firm: formData.firm || null,
-      title: isShortForm ? null : formData.title || null,
-      type: isShortForm ? 'VC' : formData.investorType || null,
+      title: isShortForm || isResumeMode ? null : formData.title || null,
+      type: isShortForm || isResumeMode ? 'VC' : formData.investorType || null,
       check_size_min: checkMin,
       check_size_max: checkMax,
       sectors: formData.sectors,
-      stage: isShortForm ? [] : formData.stages,
-      geography: isShortForm ? [] : formData.geography,
+      stage: isShortForm || isResumeMode ? [] : formData.stages,
+      geography: isShortForm || isResumeMode ? [] : formData.geography,
       investment_thesis: formData.investmentThesis || null,
     };
   };
@@ -203,6 +233,7 @@ export default function InvestorSignup() {
 
     try {
       if (isEmailFirst) {
+        await trackInvestorStarted();
         const displayName = nameFromEmail(formData.email);
         const result = await submitInvestorSignup({
           name: displayName,
@@ -218,13 +249,11 @@ export default function InvestorSignup() {
           investment_thesis: null,
         });
 
-        if (assignment) {
-          await trackGrowthEvent(assignment, 'investor_signup_completed', {
-            investor_id: result.investor_id,
-            email_first: true,
-            profile_incomplete: true,
-          });
-        }
+        await trackInvestorCompleted({
+          investor_id: result.investor_id,
+          email_first: true,
+          profile_incomplete: true,
+        });
 
         if (result.investor_id) {
           saveInvestorSignupDraft({
@@ -241,18 +270,18 @@ export default function InvestorSignup() {
       if (isResumeMode) {
         const result = await updateInvestorProfile(buildProfilePayload());
 
-        if (assignment) {
-          await trackGrowthEvent(assignment, 'investor_signup_completed', {
-            investor_id: result.investor_id,
-            profile_completed: true,
-            resumed: true,
-          });
-        }
+        await trackInvestorCompleted({
+          investor_id: result.investor_id,
+          profile_completed: true,
+          resumed: true,
+        });
 
         clearInvestorSignupDraft();
         navigate('/signup/investor/complete');
         return;
       }
+
+      await trackInvestorStarted();
 
       let checkMin: number | null = null;
       let checkMax: number | null = null;
@@ -280,12 +309,10 @@ export default function InvestorSignup() {
         investment_thesis: formData.investmentThesis || null,
       });
 
-      if (assignment) {
-        await trackGrowthEvent(assignment, 'investor_signup_completed', {
-          investor_id: result.investor_id,
-          review_gate: reviewGate,
-        });
-      }
+      await trackInvestorCompleted({
+        investor_id: result.investor_id,
+        review_gate: reviewGate,
+      });
 
       navigate('/signup/investor/complete');
     } catch (err: unknown) {
@@ -332,6 +359,38 @@ export default function InvestorSignup() {
             {error && (
               <div className="mb-4 px-3 py-2 border-l-2 border-red-500/60 bg-red-500/5 text-red-400/80 text-xs">
                 {error}
+              </div>
+            )}
+
+            {isResumeMode && (
+              <div className="space-y-4">
+                <Field label="Email" value={formData.email} onChange={() => {}} readOnly />
+                <Field label="Firm *" value={formData.firm} onChange={(v) => setFormData({ ...formData, firm: v })} />
+                <div>
+                  <label className="block text-zinc-500 text-xs mb-1.5">Typical check size *</label>
+                  <select
+                    value={formData.checkSizeBand}
+                    onChange={(e) => setFormData({ ...formData, checkSizeBand: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-[#0a0a0a] border border-zinc-800 rounded-md text-white text-sm"
+                  >
+                    <option value="">Select range</option>
+                    {CHECK_SIZE_BANDS.map((b) => (
+                      <option key={b.key} value={b.key}>{b.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <ChipGroup label="Sectors *" options={sectors} selected={formData.sectors} onToggle={(v) => handleToggle('sectors', v)} />
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Under a minute — then we route thesis-fit startups to your inbox.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || !formData.firm || !formData.checkSizeBand || formData.sectors.length === 0}
+                  className="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-md disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving…' : submitLabel}
+                </button>
               </div>
             )}
 
@@ -387,7 +446,7 @@ export default function InvestorSignup() {
               </div>
             )}
 
-            {!isShortForm && !isEmailFirst && step === 1 && (
+            {!isResumeMode && !isShortForm && !isEmailFirst && step === 1 && (
               <div className="space-y-4">
                 <Field label="Full name *" value={formData.name} onChange={(v) => setFormData({ ...formData, name: v })} />
                 <Field
@@ -435,7 +494,7 @@ export default function InvestorSignup() {
               </div>
             )}
 
-            {!isShortForm && !isEmailFirst && step === 2 && (
+            {!isResumeMode && !isShortForm && !isEmailFirst && step === 2 && (
               <div className="space-y-4">
                 <ChipGroup label="Sectors *" options={sectors} selected={formData.sectors} onToggle={(v) => handleToggle('sectors', v)} />
                 <ChipGroup label="Stages *" options={stages} selected={formData.stages} onToggle={(v) => handleToggle('stages', v)} />
