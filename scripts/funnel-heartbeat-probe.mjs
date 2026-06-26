@@ -347,9 +347,31 @@ async function runProbe() {
       ok: emailCaptureRes.res.ok,
       status: emailCaptureRes.res.status,
     });
+
+    const oracleGapRes = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'preview_oracle_gap_teaser_viewed',
+            status: 'tracked',
+            output: {
+              startup_id: startupId,
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({
+      step: 'preview_oracle_gap_teaser_viewed',
+      ok: oracleGapRes.res.ok,
+      status: oracleGapRes.res.status,
+    });
   }
 
-  await sleep(3500);
+  await sleep(5000);
 
   const sb = createClient(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,

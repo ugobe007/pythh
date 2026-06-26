@@ -9,6 +9,7 @@ on:
     - cron: '0 7 * * 1'   # Monday — portfolio signal refresh
     - cron: '0 8 * * 1'   # Monday — portfolio funding verification
     - cron: '30 8 * * 1'   # Monday — investor dealflow digest email
+    - cron: '45 8 * * 1'   # Monday — investor portfolio delta email
   workflow_dispatch:
     inputs:
       job:
@@ -21,6 +22,7 @@ on:
           - portfolio-verify-funding
           - pipeline-weekly-runbook
           - investor-dealflow-digest
+          - investor-portfolio-delta-digest
 
 concurrency:
   group: platform-weekly-${{ github.event.schedule || github.event.inputs.job }}
@@ -73,4 +75,12 @@ jobs:
     secrets: inherit
     with:
       run: npm run digest:investor
+      timeout_minutes: 30
+
+  investor-portfolio-delta-digest:
+    if: github.event.schedule == '45 8 * * 1' || github.event.inputs.job == 'investor-portfolio-delta-digest'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: npm run digest:investor-portfolio
       timeout_minutes: 30

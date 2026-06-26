@@ -21,6 +21,7 @@ import {
   saveInvestorSignupDraft,
   type InvestorSignupDraft,
 } from '@/lib/investorSignupDraft';
+import { bindInvestorPortfolioOwner } from '@/lib/investorSession';
 
 const CHECK_SIZE_BANDS: { key: string; label: string; min: number; max: number }[] = [
   { key: '25-100', label: '$25K – $100K', min: 25_000, max: 100_000 },
@@ -256,6 +257,7 @@ export default function InvestorSignup() {
         });
 
         if (result.investor_id) {
+          bindInvestorPortfolioOwner(result.investor_id);
           saveInvestorSignupDraft({
             investor_id: result.investor_id,
             email: formData.email,
@@ -275,6 +277,8 @@ export default function InvestorSignup() {
           profile_completed: true,
           resumed: true,
         });
+
+        if (result.investor_id) bindInvestorPortfolioOwner(result.investor_id);
 
         clearInvestorSignupDraft();
         navigate('/signup/investor/complete');
@@ -313,6 +317,8 @@ export default function InvestorSignup() {
         investor_id: result.investor_id,
         review_gate: reviewGate,
       });
+
+      if (result.investor_id) bindInvestorPortfolioOwner(result.investor_id);
 
       navigate('/signup/investor/complete');
     } catch (err: unknown) {

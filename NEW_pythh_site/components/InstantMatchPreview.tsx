@@ -11,7 +11,7 @@ import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '
 import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
-import PreviewEmailCapture from '@/components/PreviewEmailCapture';
+import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 
@@ -304,6 +304,8 @@ export default function InstantMatchPreview({ url }: Props) {
           {total.toLocaleString()} matches in network · showing top {visible.length} — free, no account required
         </p>
       </div>
+
+      <PreviewOracleProofStrip />
 
       <div className="space-y-3 mb-8">
         {visible.map((m, i) => {

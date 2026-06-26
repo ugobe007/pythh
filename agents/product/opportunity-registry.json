@@ -13,9 +13,9 @@
       "metric": "founder_signup_completed",
       "baseline": "0 founder_signup_started / 0 completed in 7d (path unwired); 100% preview->account drop-off",
       "target": ">=25% preview->signup_started; first non-zero account baseline (>=3) within 14d",
-      "next_step": "Shipped: inverted gate + signal-delta cliffhanger (founder_preview_signal_delta_gate running). Traffic: matches_preview 90% / url_first 10%. Monitor preview_delta_teaser_viewed and founder_signup_started over 14d.",
+      "next_step": "Oracle GOD-gap teaser + proof strip + day-0 activation email + wizard outreach nudge shipped. Measure founder_preview_oracle_gap_gate in conversion:funnel (14d).",
       "finding_id": "F-2026-0623-11",
-      "related_experiments": ["founder_hero_entry", "founder_preview_signal_delta_gate"]
+      "related_experiments": ["founder_hero_entry", "founder_preview_signal_delta_gate", "founder_preview_oracle_gap_gate"]
     },
     {
       "id": "founder_supply_seeding",
@@ -71,7 +71,7 @@
       "metric": "investor_portfolio_pick_added",
       "baseline": "0 investor pick events; portfolio API exists but no cap/UI in NEW_pythh_site",
       "target": "40% of investor signups add ≥1 pick in 7d; 15% return_visit_7d",
-      "next_step": "MVP shipped: 10-pick API cap, /investor/portfolio dashboard, Explore pick buttons. Next: weekly delta email, CSV export.",
+      "next_step": "Phase 2 shipped: weekly portfolio delta email (Mon 08:45 UTC), entry GOD on pick. Monitor investor_portfolio_delta_sent + return_visit_7d. Next: CSV export.",
       "finding_id": null,
       "related_experiments": ["investor_signup_schema"]
     },

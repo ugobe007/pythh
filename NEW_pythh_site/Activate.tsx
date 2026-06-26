@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { trpc } from "@/lib/trpc";
+import { apiUrl } from "@/lib/apiConfig";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
@@ -2519,12 +2519,31 @@ export default function Activate() {
   };
 
   const handleScanComplete = (result: ApiResult) => {
+    const capturedEmail = sessionStorage.getItem("pythia_email");
     setApiResult(result);
     sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
+
+    if (capturedEmail && result.startup_id) {
+      void fetch(apiUrl("/api/preview/activation-nudge"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          email: capturedEmail,
+          startup_id: result.startup_id,
+          startup_name: result.startup?.name,
+          source: "activate_scan_complete",
+        }),
+      }).catch(() => {});
+    }
+
     const postSignupPath = consumePostSignupPath();
     if (postSignupPath && result.startup_id) {
-      navigate(postSignupPath);
+      const welcome = postSignupPath.includes("?")
+        ? `${postSignupPath}&welcome=1`
+        : `${postSignupPath}?welcome=1`;
+      navigate(welcome);
       return;
     }
     // Act 1: investor read reveal before full match results

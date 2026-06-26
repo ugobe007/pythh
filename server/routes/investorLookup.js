@@ -190,9 +190,26 @@ router.post('/portfolio/items', async (req, res) => {
       });
     }
 
+    const { data: startupRow } = await supabase
+      .from('startup_uploads')
+      .select('total_god_score')
+      .eq('id', startupId)
+      .maybeSingle();
+
+    const entryGod = startupRow?.total_god_score != null ? Math.round(startupRow.total_god_score) : null;
+    let notes = req.body?.notes || null;
+    if (entryGod != null) {
+      try {
+        const parsed = notes ? JSON.parse(notes) : {};
+        notes = JSON.stringify({ ...parsed, entry_god_score: entryGod, entry_captured_at: new Date().toISOString() });
+      } catch {
+        notes = JSON.stringify({ entry_god_score: entryGod, entry_captured_at: new Date().toISOString() });
+      }
+    }
+
     const { data, error } = await supabase
       .from('investor_curated_list_items')
-      .insert({ list_id: listId, startup_id: startupId, notes: req.body?.notes || null })
+      .insert({ list_id: listId, startup_id: startupId, notes })
       .select('id, startup_id, added_at')
       .single();
 

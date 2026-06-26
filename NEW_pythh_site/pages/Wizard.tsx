@@ -4,7 +4,7 @@
  * Act 3: round automation (gated outreach + PYTHIA)
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { ArrowLeft, BookOpen, FileText, Sparkles, Zap } from "lucide-react";
 import GapCard, { type GapTask } from "@/components/wizard/GapCard";
@@ -12,6 +12,8 @@ import AcknowledgeModal from "@/components/wizard/AcknowledgeModal";
 import ProofSubmitCard from "@/components/wizard/ProofSubmitCard";
 import CommitmentDocument from "@/components/wizard/CommitmentDocument";
 import RoundAutomation from "@/components/wizard/RoundAutomation";
+import WizardActivationBanner from "@/components/wizard/WizardActivationBanner";
+import { trackFunnelEvent } from "@/lib/matchEngagement";
 
 interface DbTask {
   id: string;
@@ -86,6 +88,10 @@ export default function Wizard() {
   const [commitmentDoc, setCommitmentDoc] = useState<unknown>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [unlockSummary, setUnlockSummary] = useState<UnlockSummary | null>(null);
+  const [showWelcome, setShowWelcome] = useState(
+    () => new URLSearchParams(window.location.search).get("welcome") === "1",
+  );
+  const outreachPreviewTrackedRef = useRef(false);
 
   const loadDbTasks = useCallback(async () => {
     if (!startupId) return;
@@ -150,6 +156,16 @@ export default function Wizard() {
   useEffect(() => {
     loadGaps();
   }, [loadGaps]);
+
+  useEffect(() => {
+    if (activeTab === "round" && startupId && !outreachPreviewTrackedRef.current) {
+      outreachPreviewTrackedRef.current = true;
+      void trackFunnelEvent("wizard_outreach_preview_viewed", {
+        startup_id: startupId,
+        source: showWelcome ? "activation_welcome" : "wizard_tab",
+      });
+    }
+  }, [activeTab, startupId, showWelcome]);
 
   const advanceGap = async () => {
     const next = currentGapIndex + 1;
@@ -375,6 +391,19 @@ export default function Wizard() {
             {unlockSummary ? ` · GOD ${unlockSummary.current_god_score} → ${unlockSummary.projected_god_score} projected` : ""}
           </p>
         </div>
+
+        {showWelcome && (
+          <WizardActivationBanner
+            startupName={startupName}
+            gapCount={unlockSummary?.total_tasks ?? gapTasks.length}
+            onOpenRound={() => {
+              setActiveTab("round");
+              setShowWelcome(false);
+            }}
+            onDismiss={() => setShowWelcome(false)}
+          />
+        )}
+
         <div
           className="flex gap-0.5 mb-6 rounded-xl p-1"
           style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}

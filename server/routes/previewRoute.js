@@ -21,6 +21,8 @@ const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatches
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
+const { getPreviewOracleProof } = require('../lib/previewOracleProof');
+const { sendFounderActivationNudge } = require('../lib/founderActivationEmail');
 
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
 
@@ -150,6 +152,47 @@ async function sendPreviewShortlistEmail({
 function isValidEmail(email) {
   return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
+
+// GET /api/preview/oracle-proof — public Oracle fund proof snippet for preview UI
+router.get('/oracle-proof', async (_req, res) => {
+  try {
+    const proof = await getPreviewOracleProof(supabase);
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
+    return res.json({ proof });
+  } catch (err) {
+    console.error('[preview/oracle-proof]', err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// POST /api/preview/activation-nudge — day-0 founder activation email after /activate
+router.post('/activation-nudge', async (req, res) => {
+  try {
+    const { email, startup_id: startupId, startup_name: startupName, source } = req.body || {};
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'invalid_email' });
+    }
+    if (!startupId) {
+      return res.status(400).json({ error: 'startup_id_required' });
+    }
+
+    const result = await sendFounderActivationNudge(supabase, {
+      email,
+      startupId,
+      startupName,
+      source: source || 'activate_scan_complete',
+    });
+
+    if (!result.success && !result.deduped) {
+      return res.status(result.error === 'startup_not_found' ? 404 : 502).json(result);
+    }
+
+    return res.json(result);
+  } catch (err) {
+    console.error('[preview/activation-nudge]', err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
 
 // POST /api/preview/email-shortlist — capture email + send shortlist link (no account required)
 router.post('/email-shortlist', async (req, res) => {

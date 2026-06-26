@@ -67,6 +67,7 @@ async function main() {
   const subs = await countSubscriptions(sb);
   const heartbeat = latestHeartbeatReport(reportsDir);
   const northStar = readJson(path.join(repoRoot, 'agents/north-star.json'));
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
   const f = funnel.ai_logs || {};
   const g = funnel.growth_events || {};
@@ -76,6 +77,17 @@ async function main() {
     (f.lookup_signup_completed || 0) +
     (f.login_completed || 0);
   const investorSignups = g.investor_signup_completed || 0;
+  const investorStarted = g.investor_signup_started || 0;
+
+  const { data: oracleGapEvents } = await sb
+    .from('growth_experiment_events')
+    .select('event_name, payload')
+    .eq('experiment_id', 'founder_preview_oracle_gap_gate')
+    .gte('created_at', since)
+    .limit(5000);
+
+  const oracleGapStarted = (oracleGapEvents || []).filter((e) => e.event_name === 'founder_signup_started').length;
+  const oracleGapTeaserViews = f.preview_oracle_gap_teaser_viewed || 0;
 
   const report = {
     generated_at: new Date().toISOString(),
@@ -100,6 +112,10 @@ async function main() {
       checkout_completed: f.checkout_completed || 0,
       checkout_cancelled: f.checkout_cancelled || 0,
       preview_email_captured: f.preview_email_captured || 0,
+      preview_oracle_gap_teaser_viewed: f.preview_oracle_gap_teaser_viewed || 0,
+      founder_activation_email_sent: f.founder_activation_email_sent || 0,
+      wizard_outreach_preview_viewed: f.wizard_outreach_preview_viewed || 0,
+      investor_portfolio_delta_sent: f.investor_portfolio_delta_sent || 0,
       investor_dealflow_digest_sent: f.investor_dealflow_digest_sent || 0,
     },
     rates: {
@@ -114,7 +130,17 @@ async function main() {
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),
       preview_view_per_url: rate(f.instant_matches_viewed || 0, f.url_submitted || 0),
       email_capture_per_preview: rate(f.preview_email_captured || 0, f.instant_matches_viewed || 0),
+      oracle_gap_teaser_per_preview: rate(f.preview_oracle_gap_teaser_viewed || 0, f.instant_matches_viewed || 0),
+      oracle_gap_signup_per_teaser: rate(oracleGapStarted, f.preview_oracle_gap_teaser_viewed || 0),
+      investor_started_to_completed: rate(investorSignups, investorStarted),
       complete_per_checkout: rate(f.checkout_completed || 0, f.checkout_started || 0),
+    },
+    experiments: {
+      founder_preview_oracle_gap_gate: {
+        teaser_viewed: oracleGapTeaserViews,
+        signup_started: oracleGapStarted,
+        teaser_to_signup_pct: rate(oracleGapStarted, oracleGapTeaserViews),
+      },
     },
     totals: {
       signups_7d: founderSignups + investorSignups,
@@ -144,6 +170,14 @@ async function main() {
   if ((f.instant_matches_viewed || 0) > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
     report.agent_focus.push('Activation: intro/email capture on preview — watch match_intro_requested and preview_email_captured');
   }
+  if (investorStarted > 0 && investorSignups / investorStarted < 0.2) {
+    report.agent_focus.push(
+      `Investor signup leak: ${investorSignups}/${investorStarted} completed (${report.rates.investor_started_to_completed ?? '—'}%) — email_first variant + portfolio delta email live`,
+    );
+  }
+  if ((f.preview_oracle_gap_teaser_viewed || 0) > 0 && oracleGapStarted === 0) {
+    report.agent_focus.push('Oracle gap experiment: teaser views but no oracle_gap signups — review CTA copy');
+  }
   if (investorSignups > 0 && (f.investor_dealflow_digest_sent || 0) === 0) {
     report.agent_focus.push('Investor retention: run npm run digest:investor:dry then digest:investor (--to signed-up)');
   }
@@ -159,6 +193,8 @@ async function main() {
     console.log(`   Signups: ${report.totals.signups_7d} (${report.totals.signups_per_day}/day)`);
     console.log(`   URL → preview view: ${report.rates.preview_view_per_url ?? '—'}%`);
     console.log(`   Preview → signup rate: ${report.rates.signup_per_preview ?? '—'}%`);
+    console.log(`   Oracle gap teaser → signup: ${report.experiments.founder_preview_oracle_gap_gate.teaser_to_signup_pct ?? '—'}%`);
+    console.log(`   Investor started → completed: ${report.rates.investor_started_to_completed ?? '—'}%`);
     console.log(`   Pricing → checkout: ${report.rates.checkout_per_pricing ?? '—'}%`);
     console.log(`   Paid subscribers: ${report.totals.paid_subscribers ?? 'unknown'}`);
     if (report.agent_focus.length) {

@@ -19,6 +19,9 @@ const FUNNEL_OPERATIONS = [
   'preview_email_captured',
   'preview_delta_teaser_viewed',
   'preview_oracle_gap_teaser_viewed',
+  'founder_activation_email_sent',
+  'wizard_outreach_preview_viewed',
+  'investor_portfolio_delta_sent',
   'investor_dealflow_digest_sent',
   'investor_portfolio_pick_added',
   'investor_portfolio_cap_reached',
@@ -142,6 +145,9 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'checkout_started', store: 'ai_logs', operation: 'checkout_started' },
     { id: 'checkout_completed', store: 'ai_logs', operation: 'checkout_completed' },
     { id: 'preview_email_captured', store: 'ai_logs', operation: 'preview_email_captured' },
+    { id: 'preview_oracle_gap_teaser_viewed', store: 'ai_logs', operation: 'preview_oracle_gap_teaser_viewed' },
+    { id: 'founder_activation_email_sent', store: 'ai_logs', operation: 'founder_activation_email_sent' },
+    { id: 'wizard_outreach_preview_viewed', store: 'ai_logs', operation: 'wizard_outreach_preview_viewed' },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase

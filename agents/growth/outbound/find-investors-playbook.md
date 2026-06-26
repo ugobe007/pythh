@@ -201,7 +201,34 @@ Run after each push:
 ```bash
 npm run conversion:funnel
 npm run funnel:heartbeat
+npm run outbound:oracle-scoreboard
 ```
+
+---
+
+## Oracle scoreboard outbound (social proof loop)
+
+Use the public Oracle fund at `/portfolio` as the hook — verified funded picks + GOD-at-entry proof.
+
+**Generate posts:**
+```bash
+npm run outbound:oracle-scoreboard              # X / short form
+npm run outbound:oracle-scoreboard:linkedin       # LinkedIn
+npm run outbound:oracle-scoreboard -- --startup-url=https://yourstartup.com
+```
+
+Output saves to `reports/outbound/oracle-scoreboard-*.md`.
+
+**X template (auto-generated):**
+```
+{N} Oracle picks verified funded ({rate}% of picks).
+Example: {Company} entered at GOD {score} — press-verified raise.
+
+Paste your URL — GOD score + investor matches in ~30 sec:
+https://pythh.ai/matches?url=...&utm_source=x&utm_campaign=oracle_scoreboard
+```
+
+**Weekly rhythm:** Mon post scoreboard proof → Wed founder URL CTA → Fri check `preview_oracle_gap_teaser_viewed` in funnel snapshot.
 
 ---
 
