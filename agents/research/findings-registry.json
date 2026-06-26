@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-22T22:20:00Z",
+  "updated_at": "2026-06-24T23:30:00Z",
   "findings": [
     {
       "id": "F-2026-0622-01",
@@ -19,6 +19,7 @@
       "signup_lever": "awareness + conversion",
       "confidence": "high",
       "status": "open",
+      "status_update": "2026-06-24: top-of-funnel has INFLECTED hard — research-snapshot shows url_submitted=979 in 7d (~140/day, a 34x jump from 29) and signups_total=21 (3/day) with checkout_completed=10. The instant-preview wedge is validated as an awareness driver: this is no longer the binding blocker. The constraint has moved fully to conversion (2.1% url->signup). See F-2026-0624-14. Status: keep open but DOWNGRADE priority — this lever is working.",
       "product_opportunity_id": "instant_match_preview",
       "handoff": {
         "suggested_opportunity_id": "instant_match_preview",
@@ -132,7 +133,8 @@
       "suggested_product_shape": "Stage/sector terms benchmark widget in match preview + per-investor expected check size; sourced from internal startup_events + funding RSS.",
       "signup_lever": "conversion (richer value preview) + awareness",
       "confidence": "medium",
-      "status": "open"
+      "status": "open",
+      "status_update": "2026-06-24: corroborated by a cluster of mega-round froth signals — Sifted 'Records broken as eight European startups raised $1bn+ rounds in 2026', Crunchbase News 'Menlo Ventures Raises $3B In New Funds', and the recurring 'Greenspan Penned Irrational Exuberance 30 Years Ago. It Aged Well.' These headlines actively distort what a typical seed founder thinks their round should look like. Sharpens the opportunity: a 'valuation reality-check' widget in the preview ('mega-rounds aren't your round — comparable seed raises in your sector look like X') doubles as a TRUST signal (picky/skeptical voice), not just data. Promote toward backlog."
     },
     {
       "id": "F-2026-0622-07",
@@ -209,6 +211,7 @@
         "internal": "research-snapshot 2026-06-22T22:20Z: internal_events.sampled=0, friction_hits=0; startup_events returned 0 rows over the 7-day window. Pairs with F-01 (uninstrumented funnel).",
         "strength": "validated (internal data, strongest evidence) — this is a confirmed supply gap, not a hypothesis"
       },
+      "status_update": "2026-06-24: ESCALATED to critical. url_submitted is now 979 in 7d (ai_logs) yet internal_events.sampled (startup_events) is STILL 0. The supply leak grew 34x: ~979 founder records captured as ai_logs operations but never persisted into the startup_events inventory the match engine + dealflow digest read from. Every new signup is being onboarded onto an engine with zero learnable demand-side corpus. This is now the #1 pipeline bug — it caps match quality (and therefore conversion AND retention) regardless of any front-end fix. Re-handing off to Pipeline at P0.",
       "pythh_opportunity": "Seed and instrument the founder-supply layer: capture every URL submission / preview request as a startup_event so the match engine and dealflow digest have inventory. This is the data prerequisite that makes instant_match_preview and dealflow_quality_score actually work end-to-end.",
       "suggested_product_shape": "Log startup_events on every public preview request (URL, derived profile, sector, stage); backfill from existing sources so matching + digest have a corpus.",
       "signup_lever": "conversion (enables match quality) + investor retention (enables digest)",
@@ -216,9 +219,176 @@
       "status": "open",
       "handoff": {
         "suggested_opportunity_id": "founder_supply_seeding",
-        "title": "Capture startup_events on every preview request to populate match-engine inventory",
-        "priority": "P1",
+        "title": "Capture startup_events on every preview request to populate match-engine inventory (979 lost records/7d)",
+        "priority": "P0",
         "domain": "pipeline"
+      }
+    },
+    {
+      "id": "F-2026-0623-11",
+      "type": "funnel",
+      "friction_category": "missing_signals",
+      "audience": "founder",
+      "title": "Preview->signup conversion is 0% — 29 URL submissions in 7d converted to zero accounts",
+      "founder_problem": "Founders are reaching the value moment (submitting a URL to get a match preview) but none create an account afterward. Either the preview never returns enough value to justify signup, the signup gate appears before value is delivered, or the CTA/flow is broken. The intent exists; the conversion does not.",
+      "investor_problem": "Investor side still has zero acquisition; a leaking founder funnel means no founder inventory to ever surface to investors.",
+      "evidence": {
+        "internal": "research-snapshot 2026-06-23T03:57Z: signup_velocity.url_submitted=29 over 7d (~4.1/day) but signups_total=0, signups_per_day=0, pct_of_target=0. by_operation shows ONLY url_submitted firing — no login_completed, lookup_signup_completed, or checkout_completed. This is a sharp change vs the 2026-06-22 cycle where url_submitted was 0; traffic now exists and the leak is fully localized to preview->account_created.",
+        "strength": "validated (internal funnel data, strongest evidence) — measured 100% drop-off at one stage"
+      },
+      "status_update": "2026-06-24: PARTIALLY RESOLVED — preview->signup is no longer 0%. research-snapshot 2026-06-24T23:25Z: url_submitted=979/7d, signups_total=21, lookup_signup_completed=11, checkout_completed=10. The flow now fires login/lookup/checkout operations. But conversion is only ~2.1% (21/979) — the leak is real, just no longer total. Superseded as the headline funnel finding by F-2026-0624-14 (conversion ceiling). Keep open: the gate/CTA optimization work is still the binding constraint.",
+      "pythh_opportunity": "Fix the single highest-leverage stage on the path to 100/day: deliver a complete, compelling preview (ranked shortlist + thesis-fit reason) and place the account gate AFTER the value reveal, with a one-tap signup CTA. Converting even 25% of the existing 4.1 submissions/day is the first real signup baseline at zero acquisition cost.",
+      "suggested_product_shape": "Audit the url_submitted -> preview -> CTA flow; ungate the preview, gate save/intro/export behind signup; instrument value_preview and account_created events so the leak is visible per-stage. A/B the gate position.",
+      "signup_lever": "conversion (the binding constraint right now)",
+      "confidence": "high",
+      "status": "open",
+      "handoff": {
+        "suggested_opportunity_id": "preview_to_signup_conversion",
+        "title": "Close the preview->signup leak (29 submissions/7d, 0 accounts) — ungate value, gate save/intro, instrument per-stage",
+        "priority": "P0",
+        "domain": "conversion"
+      }
+    },
+    {
+      "id": "F-2026-0623-12",
+      "type": "market",
+      "friction_category": "investor_outreach",
+      "audience": "founder",
+      "title": "AI-driven layoff wave is minting a cohort of first-time founders who need exactly Pythh's hand-holding",
+      "founder_problem": "A surge of operators displaced by AI-cited layoffs are starting companies for the first time. They have no investor network, no warm intros, and no idea who fits their thesis/stage — the precise pain Pythh removes — but they don't yet know a tool like Pythh exists.",
+      "investor_problem": "Investors must sift a larger, noisier wave of brand-new, unproven founders (compounds dealflow noise in F-02).",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-23: TechCrunch lead story 'The running list: major tech layoffs in 2026 where employers cited AI'. Pairs with Sifted 'Want to build European AI muscles? Scrap non-compete clauses' (policy easing founder formation).",
+        "strength": "hypothesis (external/secondary) — macro acquisition-timing signal, not a feature gap"
+      },
+      "pythh_opportunity": "Acquisition timing + targeted awareness: position the free instant match preview at displaced-operator / first-time-founder channels (layoff communities, 'I just got laid off, now building' threads). This cohort is large, motivated, and underserved by relationship-gated incumbents (warm-intro-only networks).",
+      "suggested_product_shape": "Growth Agent awareness experiment: 'first-time founder, no investor network? get your investor shortlist in 60s' landing variant aimed at the laid-off-builder segment.",
+      "signup_lever": "awareness (new TAM + timing)",
+      "confidence": "medium",
+      "status": "open"
+    },
+    {
+      "id": "F-2026-0623-13",
+      "type": "market",
+      "friction_category": "dealflow_noise",
+      "audience": "both",
+      "title": "Proof-of-legitimacy gap: AI fabricates credibility, so a verified-signal layer is what cuts through the slop",
+      "founder_problem": "When anyone can vibe-code a credible-looking product in an afternoon, genuine founders with real traction can't visibly distinguish themselves from fabricated ones — their authentic signal is lost in the noise.",
+      "investor_problem": "Investors can no longer trust surface credibility; they need verified, hard-to-fake signals (real usage, real revenue, real team provenance) to filter, and security incidents (e.g. mass-exploited Langflow servers) raise the bar on trusting any self-reported claim.",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-23: Sifted 'Investors bemoan vibe-coded product slop'; VentureBeat '7,000 Langflow servers are under attack' (self-reported tech claims are unreliable). Extends F-02 (dealflow noise) with a distinct VERIFICATION angle rather than a completeness-score angle.",
+        "strength": "hypothesis (external/secondary) — distinct verification framing of the F-02 noise problem"
+      },
+      "pythh_opportunity": "Layer a verification/provenance signal on top of the F-02 data-completeness score: connect-to-verify hooks (analytics, payment processor, domain/code provenance) that turn a profile from 'claimed' to 'verified'. Verified founders convert better (they want the badge); investors get a hard-to-fake filter — a two-sided reason to sign up.",
+      "suggested_product_shape": "Optional 'verify your traction' step (OAuth to analytics/billing) producing a verified badge on the profile; investor digest can filter to verified-only. Pairs with dealflow_quality_score.",
+      "signup_lever": "conversion (founder badge incentive) + investor retention",
+      "confidence": "medium",
+      "status": "open",
+      "handoff": {
+        "suggested_opportunity_id": "verified_traction_signal",
+        "title": "Verified-traction/provenance layer on profiles (connect-to-verify badge + investor verified-only filter)",
+        "priority": "P2",
+        "domain": "services"
+      }
+    },
+    {
+      "id": "F-2026-0624-14",
+      "type": "funnel",
+      "friction_category": "missing_signals",
+      "audience": "founder",
+      "title": "Funnel inflected: 140 URL/day inbound but only 2.1% sign up — the binding constraint is now a leaky bucket, not an empty one",
+      "founder_problem": "Founders are arriving and hitting the value moment at scale (~140 URL submissions/day, far above the 100/day signup target if they converted), but ~98% leave without creating an account. The intent is overwhelming; the conversion is not. This is the single highest-leverage number on the path to 100/day: at 2.1% we get 3 signups/day; at 15% the same traffic yields 21/day; at 50% it clears the north star outright with zero new acquisition spend.",
+      "investor_problem": "Investor-side acquisition is still 0 (no investor signup operations), so a leaking founder funnel is the only fuel — and it is leaking at 98%.",
+      "evidence": {
+        "internal": "research-snapshot 2026-06-24T23:25Z: signup_velocity.url_submitted=979 over 7d (~139.9/day), signups_total=21 (~3/day), pct_of_target=3, gap_to_target=97. by_operation: checkout_completed=10, lookup_signup_completed=11, url_submitted=979. orchestrator-brief 2026-06-24: signup_per_preview=2.4, founder_preview_to_started=46.2, founder_started_to_completed=166.7, complete_per_checkout=100. So once a founder STARTS signup they finish (and 10 reached paid checkout this window — the first validated revenue path), but the preview->started step is where ~98% are lost.",
+        "strength": "validated (internal funnel data, strongest evidence) — measured conversion ceiling"
+      },
+      "pythh_opportunity": "Attack the preview->started step, not acquisition. Two validated facts make this tractable: (1) traffic is abundant (140/day), (2) founders who START signup convert almost fully (46.2% preview->started but 166.7% started->completed implies near-zero abandonment once committed) and 10 even reached paid checkout. So the lever is purely: get more previewers to START. Deliver a complete, evidence-backed preview (ranked shortlist + one thesis-fit 'why' with hard evidence) and gate only save/intro/export behind the account — a one-tap signup CTA placed AFTER the value reveal.",
+      "suggested_product_shape": "Preview-cliffhanger v2: ungated ranked shortlist + 1 explain block visible immediately; account gate moves behind save/intro/export with one-tap signup. A/B the gate position; instrument value_preview and account_started per-stage so the 2.1% is decomposable.",
+      "signup_lever": "conversion (the binding constraint)",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "preview_to_signup_conversion",
+      "handoff": {
+        "suggested_opportunity_id": "preview_to_signup_conversion",
+        "title": "Lift preview->signup from 2.1% — ungate the value reveal, gate save/intro/export, one-tap CTA, per-stage instrumentation",
+        "priority": "P0",
+        "domain": "conversion"
+      }
+    },
+    {
+      "id": "F-2026-0624-15",
+      "type": "market",
+      "friction_category": "dealflow_noise",
+      "audience": "both",
+      "title": "AI-tool ROI distrust is now active buying behavior — the preview must PROVE value before it asks for anything",
+      "founder_problem": "Buyers have become reflexively skeptical of AI tools that burn time or money without proving value. A founder landing on Pythh now arrives pre-loaded with 'is this another AI tool that wastes my afternoon?' distrust — so any signup/cost ask BEFORE a concrete, evidence-backed result triggers a bounce. This is a plausible mechanism behind the 98% preview drop-off in F-14.",
+      "investor_problem": "Investors apply the same ROI-skepticism lens to dealflow tools; they won't adopt a digest unless its first output is verifiably high-signal.",
+      "evidence": {
+        "rss": "research-snapshot 2026-06-24: TechCrunch 'Companies are scrambling to stop employees from maxing out AI budgets with small tasks' (active distrust of AI spend without ROI) and 'New website names and shames companies that still don't offer passkeys' (public trust/accountability pressure). Pairs with the established F-13 'vibe-coded slop' verification theme.",
+        "strength": "hypothesis (external/secondary) proposing a CAUSAL mechanism for the validated F-14 drop-off"
+      },
+      "pythh_opportunity": "Lean into the picky/skeptical voice as a conversion asset: open the preview with proof and filtering ('47 investors screened out, 3 fit — here's the evidence'), never with a gate or a hype claim. Showing what DOESN'T fit, with hard evidence (recent check, stage, check size, portfolio overlap), is exactly the antidote to AI-tool distrust and is on-brand per the orchestrator voice mandate. This is a messaging+sequencing change, not new infra.",
+      "suggested_product_shape": "Preview copy/sequence experiment: evidence-and-rejection-first reveal ('N screened out, M fit, here's why') ahead of any account/cost ask; measure value_preview->account_started lift vs current.",
+      "signup_lever": "conversion (trust-driven)",
+      "confidence": "medium",
+      "status": "open",
+      "handoff": {
+        "suggested_opportunity_id": "evidence_first_preview",
+        "title": "Evidence-and-rejection-first preview reveal (skeptic-proof the value moment before any ask)",
+        "priority": "P1",
+        "domain": "conversion"
+      }
+    },
+    {
+      "id": "F-2026-0624-16",
+      "type": "market",
+      "friction_category": "workflow_tools",
+      "audience": "both",
+      "title": "979 one-shot previews, zero return trigger — Pythh has no habit loop while competitors retain via recurring digests",
+      "founder_problem": "A founder gets a one-shot preview and has no reason to ever come back: fundraising is episodic, and a static shortlist goes stale. Competitors create stickiness with recurring, account-anchored loops (Visible's investor-update cadence, Affinity/Carta's CRM-of-record gravity) that pull users back weekly. Pythh's value evaporates after one visit.",
+      "investor_problem": "Investors won't form a daily/weekly habit around a tool that doesn't deliver fresh, changing signal; without a return trigger the investor side can't retain even if it acquires.",
+      "evidence": {
+        "internal": "research-snapshot 2026-06-24: url_submitted=979/7d with signups_total=21 and intro_per_match_view=0 (orchestrator-brief) — high one-shot volume, no measured downstream return action. north-star engagement_loops list (signal_delta, investor_movement_digest) are defined but unbuilt.",
+        "rss": "Sifted 2026-06 'Records broken as eight European startups raised $1bn+ rounds in 2026' + Crunchbase 'Menlo Ventures Raises $3B' = constant fund/round movement that a delta-digest could surface as a recurring reason to return.",
+        "strength": "validated supply signal (one-shot volume) + hypothesis on the retention remedy"
+      },
+      "pythh_opportunity": "Ship a Signal-Delta Digest: a weekly trigger that re-engages every previewer/signup with what CHANGED — 'N thesis-fit investors became active in your sector this week', 'your GOD score moved +X', 'a matched fund just raised'. This converts a one-shot tool into a habit loop (north-star loops signal_delta + investor_movement_digest) and is the only finding here that targets retention rather than the front door.",
+      "suggested_product_shape": "Weekly delta email/push keyed to each saved profile's sector+stage, sourced from funding RSS + internal startup_events; in-app 'what changed' badge. Requires the F-10 startup_events corpus to be non-empty to personalize.",
+      "signup_lever": "retention + engagement",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "signal_delta_digest",
+      "handoff": {
+        "suggested_opportunity_id": "signal_delta_digest",
+        "title": "Signal-Delta weekly digest (turn one-shot previews into a return loop) — keyed to sector/stage changes",
+        "priority": "P1",
+        "domain": "engagement"
+      }
+    },
+    {
+      "id": "F-2026-0624-17",
+      "type": "funnel",
+      "friction_category": "dealflow_noise",
+      "audience": "investor",
+      "title": "Marketplace is going one-sided — founder acquisition inflected to 140/day while investor signups stay at 0",
+      "founder_problem": "If only founders sign up, the intro/match loop has no one on the other end — founders' intro requests will dead-end, eroding the trust the preview just built.",
+      "investor_problem": "Investors are not being acquired at all (every signup operation this window is founder-side: lookup_signup_completed=11, checkout_completed=10, no investor op). The investor-facing dealflow digest — the natural investor wedge — has no audience and, per F-10, no curated corpus to send. The two-sided marketplace is forming a 1-sided imbalance precisely as founder volume scales.",
+      "evidence": {
+        "internal": "research-snapshot 2026-06-24: signup_velocity.by_operation contains only founder-side ops (lookup_signup_completed=11, checkout_completed=10, url_submitted=979); zero investor signup operations. competitor_watch (Harmonic, PitchBook, Affinity, Visible) all monetize the investor side Pythh hasn't opened.",
+        "strength": "validated (internal funnel data) — confirmed absence of investor-side acquisition"
+      },
+      "pythh_opportunity": "Use the now-abundant founder inventory as the bait to open the investor side: a curated, outbound 'Weekly Dealflow Digest' (top high-signal founders matched to a named investor's thesis) sent cold to a seed list of target investors. This is an ACTIVE outbound loop that seeds investor acquisition from existing founder supply — no new founder-side cost. Depends on F-10 (populate startup_events) to have anything to curate.",
+      "suggested_product_shape": "Outbound investor digest MVP: hand-curate 5 high-signal founders -> match to 20 target investors' theses -> cold send with a one-tap 'see your full thesis-matched dealflow' signup link; measure investor url_submitted/signup from ref.",
+      "signup_lever": "investor awareness + acquisition (opens the second side)",
+      "confidence": "high",
+      "status": "open",
+      "product_opportunity_id": "investor_dealflow_digest",
+      "handoff": {
+        "suggested_opportunity_id": "investor_dealflow_digest",
+        "title": "Outbound Weekly Dealflow Digest to seed investor-side acquisition from existing founder supply",
+        "priority": "P1",
+        "domain": "growth"
       }
     }
   ]

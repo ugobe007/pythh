@@ -1,0 +1,21 @@
+[
+  {
+    "lookup": "Example Startup",
+    "founders": "Jane Doe, John Smith",
+    "team_size": 5,
+    "has_technical_cofounder": true,
+    "has_revenue": true,
+    "mrr": "10K",
+    "customer_count": 50,
+    "sectors": [
+      "AI/ML",
+      "Enterprise"
+    ],
+    "stage": "Seed",
+    "location": "San Francisco, CA",
+    "website": "https://example.com",
+    "value_proposition": "AI-powered analytics for SMBs",
+    "raise_amount": "2M",
+    "raise_type": "Seed"
+  }
+]
