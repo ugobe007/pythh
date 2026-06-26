@@ -13,6 +13,7 @@ import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
+import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 
 const PREVIEW_LIMIT = 10;
 
@@ -33,6 +34,7 @@ type PreviewPayload = {
   total_matches?: number;
   matches?: PreviewMatch[];
   match_movement?: MatchMovement | null;
+  oracle_gap?: OracleGapPayload | null;
 };
 
 interface Props {
@@ -47,8 +49,11 @@ export default function InstantMatchPreview({ url }: Props) {
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const deltaExpRef = useRef<GrowthAssignment | null>(null);
+  const oracleGapExpRef = useRef<GrowthAssignment | null>(null);
   const deltaTeaserTrackedRef = useRef(false);
+  const oracleGapTeaserTrackedRef = useRef(false);
   const [deltaAssignment, setDeltaAssignment] = useState<GrowthAssignment | null>(null);
+  const [oracleGapAssignment, setOracleGapAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
     save: 'Save shortlist',
     intro: 'Request intro',
@@ -79,6 +84,12 @@ export default function InstantMatchPreview({ url }: Props) {
       .then((a) => {
         deltaExpRef.current = a;
         if (a) setDeltaAssignment(a);
+      })
+      .catch(() => {});
+    fetchGrowthAssignment('founder', 'founder_preview_oracle_gap_gate')
+      .then((a) => {
+        oracleGapExpRef.current = a;
+        if (a) setOracleGapAssignment(a);
       })
       .catch(() => {});
   }, []);
@@ -136,6 +147,36 @@ export default function InstantMatchPreview({ url }: Props) {
           setDeltaAssignment(resolvedDelta);
         }
 
+        const resolvedOracleGap =
+          oracleGapExpRef.current ??
+          (await fetchGrowthAssignment('founder', 'founder_preview_oracle_gap_gate').catch(() => null));
+        if (resolvedOracleGap) {
+          oracleGapExpRef.current = resolvedOracleGap;
+          setOracleGapAssignment(resolvedOracleGap);
+        }
+
+        if (
+          data.oracle_gap &&
+          (resolvedOracleGap == null || resolvedOracleGap.variant_key === 'oracle_gap_cliffhanger') &&
+          !oracleGapTeaserTrackedRef.current
+        ) {
+          oracleGapTeaserTrackedRef.current = true;
+          void trackFunnelEventOnce('pythh_preview_oracle_gap_teaser', 'preview_oracle_gap_teaser_viewed', {
+            startup_id: startupId,
+            url,
+            current_god_score: data.oracle_gap.current_god_score,
+            has_top_gap: Boolean(data.oracle_gap.top_gap),
+            total_gaps: data.oracle_gap.total_gaps,
+          });
+          if (resolvedOracleGap) {
+            void trackGrowthEvent(resolvedOracleGap, 'preview_oracle_gap_teaser_viewed', {
+              startup_id: startupId,
+              url,
+              ...data.oracle_gap,
+            });
+          }
+        }
+
         if (
           data.match_movement &&
           resolvedDelta?.variant_key === 'delta_cliffhanger' &&
@@ -181,10 +222,10 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [url]);
 
-  const handlePricingFromPreview = () => {
-    void trackFunnelEventOnce('pythh_preview_pricing_click', 'pricing_viewed', {
+  const handlePricingFromPreview = (source = 'preview_sticky') => {
+    void trackFunnelEventOnce(`pythh_preview_pricing_click_${source}`, 'pricing_viewed', {
       path: '/pricing',
-      source: 'preview_sticky',
+      source,
       startup_id: preview?.startup?.id,
     });
   };
@@ -239,6 +280,12 @@ export default function InstantMatchPreview({ url }: Props) {
   const visible = matches.slice(0, PREVIEW_LIMIT);
   const total = preview.total_matches ?? matches.length;
   const startupName = preview.startup?.name || 'Your startup';
+  const showOracleGapTeaser =
+    Boolean(preview.oracle_gap) &&
+    (oracleGapAssignment == null || oracleGapAssignment.variant_key === 'oracle_gap_cliffhanger');
+  const oracleGapCopy = preview.oracle_gap
+    ? buildOracleGapCopy(preview.oracle_gap, oracleGapAssignment)
+    : null;
   const showDeltaTeaser =
     Boolean(preview.match_movement) &&
     deltaAssignment?.variant_key === 'delta_cliffhanger';
@@ -313,6 +360,18 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       )}
 
+      {showOracleGapTeaser && preview.oracle_gap && oracleGapCopy && (
+        <PreviewOracleGapTeaser
+          gap={preview.oracle_gap}
+          copy={oracleGapCopy}
+          onUnlock={() => void handleGate('oracle_gap')}
+          onTrial={() => {
+            handlePricingFromPreview('preview_oracle_gap_teaser');
+            navigate(`/pricing?trial=1&startup_id=${preview.startup?.id || ''}&source=preview_oracle_gap`);
+          }}
+        />
+      )}
+
       {preview.startup?.id && (
         <PreviewEmailCapture
           startupId={preview.startup.id}
@@ -382,8 +441,12 @@ export default function InstantMatchPreview({ url }: Props) {
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left">
             {total.toLocaleString()} ranked investors ·{' '}
-            <Link href="/pricing" onClick={handlePricingFromPreview} className="text-amber-400/90 hover:text-amber-300 underline-offset-2 hover:underline">
-              Automate outreach with Oracle
+            <Link
+              href={`/pricing?trial=1&startup_id=${preview.startup?.id || ''}&source=preview_sticky`}
+              onClick={() => handlePricingFromPreview('preview_sticky')}
+              className="text-amber-400/90 hover:text-amber-300 underline-offset-2 hover:underline"
+            >
+              Start 7-day Oracle trial — outreach for your top 3 matches
             </Link>
           </p>
           <div className="flex gap-2 w-full sm:w-auto">

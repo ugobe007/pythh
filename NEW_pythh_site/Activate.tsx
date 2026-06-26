@@ -11,7 +11,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
-import { consumeFounderGatePending, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
+import { consumeFounderGatePending, consumePostSignupPath, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
   recordMatchViewOnce,
@@ -2522,6 +2522,11 @@ export default function Activate() {
     setApiResult(result);
     sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
+    const postSignupPath = consumePostSignupPath();
+    if (postSignupPath && result.startup_id) {
+      navigate(postSignupPath);
+      return;
+    }
     // Act 1: investor read reveal before full match results
     setStep(result.startup_id ? "investor-read" : "results");
   };

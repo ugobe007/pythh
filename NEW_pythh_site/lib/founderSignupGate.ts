@@ -5,8 +5,9 @@
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
-export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta';
+export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle_gap';
 
+const POST_SIGNUP_PATH_KEY = 'pythia_post_signup_path';
 const GATE_PENDING_KEY = 'pythia_founder_gate_pending';
 const GATED_ACTION_KEY = 'pythia_gated_action';
 const GATED_INVESTOR_KEY = 'pythia_gated_investor';
@@ -67,6 +68,7 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   intro: 'request intros to top matches',
   export: 'export your match list',
   delta: 'see which investors moved toward you',
+  oracle_gap: 'see your Oracle gap map and unlock outreach',
 };
 
 export function persistFounderGateContext(
@@ -149,19 +151,28 @@ export async function trackFounderGateStarted(
 export async function trackFounderGateCompleted(
   ctx: { url: string; email?: string; startupId?: string | null; gatedAction?: FounderGatedAction | null },
 ) {
+  const gatedAction = ctx.gatedAction ?? (sessionStorage.getItem(GATED_ACTION_KEY) as FounderGatedAction | null);
+  const startupId = ctx.startupId ?? sessionStorage.getItem('pythia_startup_id');
+
+  if (gatedAction === 'oracle_gap' || gatedAction === 'delta') {
+    if (startupId) {
+      sessionStorage.setItem(POST_SIGNUP_PATH_KEY, `/wizard/${startupId}`);
+    }
+  }
+
   trackFunnelEvent('lookup_signup_completed', {
     url: ctx.url,
     source: 'preview_gate',
-    gated_action: ctx.gatedAction ?? sessionStorage.getItem(GATED_ACTION_KEY),
+    gated_action: gatedAction,
     email_provided: Boolean(ctx.email),
-    startup_id: ctx.startupId ?? sessionStorage.getItem('pythia_startup_id'),
+    startup_id: startupId,
   });
 
   const assignment = await resolveFounderAssignment();
   await trackGrowthEvent(assignment, 'founder_signup_completed', {
     url: ctx.url,
-    startup_id: ctx.startupId ?? sessionStorage.getItem('pythia_startup_id'),
-    gated_action: ctx.gatedAction ?? sessionStorage.getItem(GATED_ACTION_KEY),
+    startup_id: startupId,
+    gated_action: gatedAction,
     email_provided: Boolean(ctx.email),
     attribution_fallback: assignment.experiment_id === FALLBACK_FOUNDER_ASSIGNMENT.experiment_id
       && assignment.variant_key === FALLBACK_FOUNDER_ASSIGNMENT.variant_key,
@@ -170,4 +181,10 @@ export async function trackFounderGateCompleted(
   sessionStorage.removeItem(GATED_ACTION_KEY);
   sessionStorage.removeItem('pythia_startup_id');
   sessionStorage.removeItem(GATED_INVESTOR_KEY);
+}
+
+export function consumePostSignupPath(): string | null {
+  const path = sessionStorage.getItem(POST_SIGNUP_PATH_KEY);
+  if (path) sessionStorage.removeItem(POST_SIGNUP_PATH_KEY);
+  return path;
 }

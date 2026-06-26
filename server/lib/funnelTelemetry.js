@@ -18,6 +18,7 @@ const FUNNEL_OPERATIONS = [
   'checkout_cancelled',
   'preview_email_captured',
   'preview_delta_teaser_viewed',
+  'preview_oracle_gap_teaser_viewed',
   'investor_dealflow_digest_sent',
   'investor_portfolio_pick_added',
   'investor_portfolio_cap_reached',

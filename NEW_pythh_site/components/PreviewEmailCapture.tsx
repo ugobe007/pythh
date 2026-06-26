@@ -74,8 +74,8 @@ export default function PreviewEmailCapture({
     return (
       <div className="mb-8 p-5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-center">
         <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
-        <p className="text-sm text-emerald-300 font-medium">Check your inbox — your shortlist link is on the way.</p>
-        <p className="text-xs text-zinc-500 mt-1">We sent top matches for {startupName} to {email.trim()}</p>
+        <p className="text-sm text-emerald-300 font-medium">Check your inbox — your Oracle read is on the way.</p>
+        <p className="text-xs text-zinc-500 mt-1">GOD gap analysis + top matches for {startupName} sent to {email.trim()}</p>
       </div>
     );
   }
@@ -87,9 +87,9 @@ export default function PreviewEmailCapture({
           <Mail className="w-4 h-4 text-emerald-400" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-white mb-1">Email me my shortlist</p>
+          <p className="text-sm font-semibold text-white mb-1">Email me my Oracle read</p>
           <p className="text-xs text-zinc-400 leading-relaxed">
-            Not ready to sign up? Get your top {Math.min(3, topInvestors.length)} matches + a link back to this preview.
+            Get your top {Math.min(3, topInvestors.length)} matches, GOD score gap analysis, and a 7-day Oracle trial link.
           </p>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default function PreviewEmailCapture({
               <Loader2 className="w-4 h-4 animate-spin" /> Sending…
             </>
           ) : (
-            'Send my matches'
+            'Send my Oracle read'
           )}
         </button>
       </div>

@@ -20,6 +20,7 @@ const supabase = createClient(
 const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
+const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
 
@@ -34,7 +35,15 @@ function normalizeAppBase(raw) {
 
 const APP_BASE = normalizeAppBase(process.env.APP_BASE_URL);
 
-async function sendPreviewShortlistEmail({ to, startupName, previewUrl, topInvestors, matchCount }) {
+async function sendPreviewShortlistEmail({
+  to,
+  startupName,
+  previewUrl,
+  topInvestors,
+  matchCount,
+  oracleGap,
+  startupId,
+}) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { success: false, error: 'RESEND_API_KEY not configured' };
 
@@ -46,31 +55,79 @@ async function sendPreviewShortlistEmail({ to, startupName, previewUrl, topInves
     })
     .join('\n');
 
-  const subject = `Your investor shortlist for ${startupName}`;
+  const trialUrl = startupId
+    ? `${APP_BASE}/pricing?trial=1&startup_id=${startupId}&source=preview_email`
+    : `${APP_BASE}/pricing?trial=1&source=preview_email`;
+  const wizardUrl = startupId ? `${APP_BASE}/wizard/${startupId}` : previewUrl;
+
+  const gap = oracleGap || null;
+  const godLine =
+    gap?.current_god_score != null
+      ? `Oracle read: GOD ${gap.current_god_score}${
+          gap.top_gap
+            ? ` — fixing your top ${gap.weakest_component_label || 'signal'} gap (+${gap.god_points_if_top_fix} pts) could unlock ~${gap.investors_unlocked_if_top_fix} more thesis-fit investors.`
+            : ' — strong profile. Next step: personalized outreach for your top matches.'
+        }`
+      : '';
+
+  const gapBlock =
+    gap?.top_gap
+      ? [
+          ``,
+          `Top gap Oracle flagged:`,
+          `${gap.top_gap.title}`,
+          gap.top_gap.partner_objection ? `Partner concern: ${gap.top_gap.partner_objection}` : '',
+          ``,
+          `See your full gap map: ${wizardUrl}`,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : '';
+
+  const subject = gap?.top_gap
+    ? `Oracle read: GOD ${gap.current_god_score} — ${startupName} investor shortlist`
+    : `Your investor shortlist for ${startupName}`;
   const text = [
     `Hi —`,
     ``,
     `You asked for your Pythh investor shortlist for ${startupName}.`,
     matchCount ? `${matchCount.toLocaleString()} ranked matches are ready in your network.` : '',
+    godLine,
+    gapBlock,
     ``,
     lines ? `Top matches:\n${lines}` : '',
     ``,
     `View your full preview: ${previewUrl}`,
     ``,
-    `Request intros or save your list with a free account when you're ready.`,
+    `Start your 7-day Oracle trial — outreach drafts for your top matches: ${trialUrl}`,
     ``,
-    `— Pythh`,
+    `— Pythh Oracle`,
   ]
     .filter(Boolean)
     .join('\n');
+
+  const gapHtml =
+    gap?.top_gap
+      ? `<div style="margin:16px 0;padding:14px;border-radius:8px;background:#1a1a2e;border:1px solid #7c3aed40;">
+      <p style="margin:0 0 8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#a78bfa;">Oracle read</p>
+      <p style="margin:0 0 6px;font-size:15px;color:#fff;"><strong>GOD ${gap.current_god_score}</strong> → <strong>${gap.projected_god_if_top_fix ?? gap.projected_god_score}</strong> if you close the top gap</p>
+      <p style="margin:0 0 8px;font-size:13px;color:#ccc;">${gap.top_gap.title} · ~${gap.investors_unlocked_if_top_fix} investors unlocked</p>
+      ${gap.top_gap.partner_objection ? `<p style="margin:0;font-size:12px;color:#888;font-style:italic;">${String(gap.top_gap.partner_objection).replace(/</g, '&lt;')}</p>` : ''}
+    </div>`
+      : gap?.current_god_score != null
+        ? `<p style="color:#666;">Oracle GOD score: <strong>${gap.current_god_score}</strong></p>`
+        : '';
 
   const html = `
     <div style="font-family: Inter, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #111; max-width: 560px;">
       <p>You asked for your investor shortlist for <strong>${startupName}</strong>.</p>
       ${matchCount ? `<p>${matchCount.toLocaleString()} ranked matches are ready in the Pythh network.</p>` : ''}
+      ${gapHtml}
       ${lines ? `<pre style="background:#f4f4f5;padding:12px;border-radius:8px;font-size:13px;white-space:pre-wrap;">${lines.replace(/</g, '&lt;')}</pre>` : ''}
-      <p><a href="${previewUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">View my shortlist</a></p>
-      <p style="color:#666;font-size:13px;">Request intros or save your list with a free account when you're ready.</p>
+      <p><a href="${previewUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;margin-right:8px;">View my shortlist</a>
+      <a href="${trialUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Start 7-day Oracle trial</a></p>
+      ${gap?.top_gap ? `<p style="font-size:13px;"><a href="${wizardUrl}" style="color:#7c3aed;">See your full gap map →</a></p>` : ''}
+      <p style="color:#666;font-size:13px;">Oracle automates outreach, meeting prep, and round readiness once you're ready.</p>
     </div>`;
 
   try {
@@ -130,12 +187,31 @@ router.post('/email-shortlist', async (req, res) => {
 
     const previewPath = `/matches/preview/${startupId}`;
     const previewUrl = `${APP_BASE}${previewPath}`;
+
+    let oracleGap = null;
+    try {
+      const { data: startupRow } = await supabase
+        .from('startup_uploads')
+        .select(
+          'id, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage',
+        )
+        .eq('id', startupId)
+        .maybeSingle();
+      if (startupRow) {
+        oracleGap = buildPreviewOracleGap(startupRow, Number(matchCount) || 0);
+      }
+    } catch (gapErr) {
+      console.warn('[preview/email-shortlist] oracle gap:', gapErr.message);
+    }
+
     const sendResult = await sendPreviewShortlistEmail({
       to: normalizedEmail,
       startupName: startupName || 'your startup',
       previewUrl,
       topInvestors: Array.isArray(topInvestors) ? topInvestors : [],
       matchCount: Number(matchCount) || 0,
+      oracleGap,
+      startupId,
     });
 
     const row = {
@@ -160,6 +236,7 @@ router.post('/email-shortlist', async (req, res) => {
       startup_url: startupUrl,
       source: source || 'instant_preview',
       email_sent: sendResult.success,
+      has_oracle_gap: Boolean(oracleGap?.top_gap),
     });
 
     if (!sendResult.success) {
@@ -446,6 +523,8 @@ router.get('/:startupId', async (req, res) => {
       topInvestorIds,
     });
 
+    const oracleGap = buildPreviewOracleGap(startup, totalMatches || 0);
+
     res.json({
       startup: {
         id: startup.id,
@@ -477,6 +556,7 @@ router.get('/:startupId', async (req, res) => {
       total_matches: totalMatches || 0,
       matches,
       match_movement: matchMovement,
+      oracle_gap: oracleGap,
       suggested_investor_fallback: suggestedInvestorFallback,
     });
 
