@@ -32,6 +32,8 @@
     "agents:daily": "node scripts/agents-daily.mjs",
     "agents:daily:full": "node scripts/agents-daily.mjs --with-agents",
     "agents:autopilot": "node scripts/agents-autopilot.mjs",
+    "report:agent-daily": "node scripts/send-agent-daily-report.js",
+    "report:agent-daily:dry": "node scripts/send-agent-daily-report.js --dry",
     "orchestrator:brief": "node scripts/orchestrator-brief.mjs",
     "conversion:funnel": "node scripts/conversion-funnel-snapshot.mjs",
     "pipeline:apply-platform-stats-cache": "node scripts/apply-platform-stats-cache.mjs",

@@ -41,6 +41,18 @@ jobs:
           if [ "${{ github.event.inputs.mode }}" = "metrics-only" ]; then ARGS="--metrics-only"; fi
           npm run agents:autopilot -- $ARGS
 
+      - name: Send owner daily agent report
+        if: always()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ADMIN_EMAIL: ugobe07@gmail.com
+          AGENT_DAILY_REPORT_TO: ugobe07@gmail.com
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          SITE_URL: https://pythh.ai
+        run: npm run report:agent-daily
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -53,5 +65,6 @@ jobs:
             reports/research-snapshot-*.json
             reports/*-agent-run-*.json
             reports/*-agent-*.json
+            reports/agent-daily-report-*.json
             agents/research/briefs/*.md
             agents/product/specs/*.md
