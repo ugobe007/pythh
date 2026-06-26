@@ -1,0 +1,114 @@
+# Growth outbound + cycle ops — oracle scoreboard copy, find-investors posts, weekly reallocation report.
+name: Growth Outbound Ops
+
+on:
+  schedule:
+    - cron: '30 9 * * 1,4'  # Mon + Thu — refresh oracle scoreboard copy for replies
+    - cron: '30 9 * * 3'    # Wed — find-investors campaign (X/LinkedIn if creds set)
+    - cron: '0 10 * * 5'    # Fri — 7-day growth cycle decision report
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Job to run'
+        required: true
+        type: choice
+        options:
+          - oracle-scoreboard
+          - find-investors-outbound
+          - growth-cycle
+          - all
+
+concurrency:
+  group: growth-outbound-ops-${{ github.event.schedule || github.event.inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  oracle-scoreboard:
+    if: >-
+      github.event.schedule == '30 9 * * 1,4'
+      || github.event.inputs.job == 'oracle-scoreboard'
+      || github.event.inputs.job == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Oracle scoreboard (X + LinkedIn)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SITE_URL: https://pythh.ai
+        run: |
+          npm run outbound:oracle-scoreboard
+          npm run outbound:oracle-scoreboard:linkedin
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oracle-scoreboard-${{ github.run_id }}
+          path: reports/outbound/oracle-scoreboard-*.md
+
+  find-investors-outbound:
+    if: >-
+      github.event.schedule == '30 9 * * 3'
+      || github.event.inputs.job == 'find-investors-outbound'
+      || github.event.inputs.job == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Find-investors outbound (X / LinkedIn / Reddit URL)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ORGANIZATION_ID: ${{ secrets.LINKEDIN_ORGANIZATION_ID }}
+        run: npm run outbound:find-investors
+
+  growth-cycle:
+    if: >-
+      github.event.schedule == '0 10 * * 5'
+      || github.event.inputs.job == 'growth-cycle'
+      || github.event.inputs.job == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Growth cycle decision (report only)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run growth:cycle
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: growth-cycle-${{ github.run_id }}
+          path: reports/growth-cycle-*.json

@@ -26,6 +26,12 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: npm run funnel:heartbeat
 
+      - name: Conversion funnel snapshot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run conversion:funnel
+
       - name: Product metrics snapshot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -38,4 +44,5 @@ jobs:
           name: funnel-heartbeat-${{ github.run_id }}
           path: |
             reports/funnel-heartbeat-*.json
+            reports/conversion-funnel-*.json
             reports/product-metrics-*.json
