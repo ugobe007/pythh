@@ -5,9 +5,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { Helmet } from 'react-helmet-async';
-import { Bookmark, Loader2, Plus, Trash2, TrendingUp } from 'lucide-react';
+import { Bookmark, Download, Loader2, Plus, Trash2, TrendingUp } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
 import {
+  exportPortfolioCsv,
   fetchInvestorPortfolio,
   removePortfolioPick,
   INVESTOR_PORTFOLIO_MAX_PICKS,
@@ -19,6 +20,7 @@ export default function InvestorPortfolio() {
   const [picksUsed, setPicksUsed] = useState(0);
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +44,12 @@ export default function InvestorPortfolio() {
     setRemovingId(null);
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    await exportPortfolioCsv();
+    setExporting(false);
+  };
+
   const picksRemaining = Math.max(0, INVESTOR_PORTFOLIO_MAX_PICKS - picksUsed);
 
   return (
@@ -58,14 +66,27 @@ export default function InvestorPortfolio() {
             <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Your tracked picks</h1>
             <p className="text-sm text-zinc-400 max-w-xl">
               Up to {INVESTOR_PORTFOLIO_MAX_PICKS} startups — GOD score, funding signals, and momentum over time.
-              Export to Carta, Smartsheet, and Standard Metrics coming soon.
+              Export CSV for Carta, Smartsheet, or your own models.
             </p>
           </div>
-          <div className="text-right shrink-0">
-            <div className="text-2xl font-bold text-white tabular-nums">
-              {picksUsed}<span className="text-zinc-600">/{INVESTOR_PORTFOLIO_MAX_PICKS}</span>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => void handleExport()}
+                disabled={exporting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 text-xs font-medium disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </button>
+            )}
+            <div className="text-right">
+              <div className="text-2xl font-bold text-white tabular-nums">
+                {picksUsed}<span className="text-zinc-600">/{INVESTOR_PORTFOLIO_MAX_PICKS}</span>
+              </div>
+              <p className="text-xs text-zinc-500">{picksRemaining} slots left</p>
             </div>
-            <p className="text-xs text-zinc-500">{picksRemaining} slots left</p>
           </div>
         </div>
 
@@ -111,6 +132,14 @@ export default function InvestorPortfolio() {
                       </Link>
                       <span className="text-sm font-mono text-cyan-400">
                         GOD {item.total_god_score ?? '—'}
+                        {item.entry_god_score != null &&
+                          item.total_god_score != null &&
+                          item.total_god_score !== item.entry_god_score && (
+                          <span className="text-zinc-500 ml-1">
+                            ({item.total_god_score - item.entry_god_score >= 0 ? '+' : ''}
+                            {item.total_god_score - item.entry_god_score} since add)
+                          </span>
+                        )}
                       </span>
                     </div>
                     {item.tagline && (

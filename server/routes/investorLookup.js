@@ -156,6 +156,74 @@ router.get('/portfolio', async (req, res) => {
   }
 });
 
+function escapeCsvValue(value) {
+  const s = value == null ? '' : String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+// GET /api/investor-lookup/portfolio/export.csv — download portfolio as CSV
+router.get('/portfolio/export.csv', async (req, res) => {
+  try {
+    const ownerId = getOwnerId(req);
+    if (!ownerId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Missing owner id. Send X-Investor-Session or X-Session-Id header.',
+      });
+    }
+    const supabase = getSupabaseClient();
+    const portfolio = await getPortfolioWithActivity(supabase, ownerId);
+    if (!portfolio) {
+      return res.status(500).json({ ok: false, error: 'Failed to load portfolio' });
+    }
+
+    const headers = [
+      'name',
+      'website',
+      'sectors',
+      'stage',
+      'god_score',
+      'entry_god_score',
+      'god_delta',
+      'added_at',
+      'tagline',
+    ];
+    const rows = (portfolio.items || []).map((item) => {
+      const entryGod = item.entry_god_score;
+      const currentGod = item.total_god_score;
+      const delta =
+        entryGod != null && currentGod != null ? currentGod - entryGod : '';
+      return [
+        item.name,
+        item.website,
+        (item.sectors || []).join('; '),
+        item.stage_estimate,
+        currentGod,
+        entryGod,
+        delta,
+        item.added_at,
+        item.tagline,
+      ]
+        .map(escapeCsvValue)
+        .join(',');
+    });
+
+    void recordFunnelEvent(supabase, 'investor_portfolio_exported', {
+      owner_id: ownerId,
+      pick_count: portfolio.count || 0,
+      source: 'portfolio_csv_export',
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="pythh-portfolio.csv"');
+    res.send(`${headers.join(',')}\n${rows.join('\n')}`);
+  } catch (err) {
+    console.error('[investor-lookup] portfolio export error:', err);
+    res.status(500).json({ ok: false, error: err.message || 'Failed to export portfolio' });
+  }
+});
+
 // POST /api/investor-lookup/portfolio/items — add startup to virtual portfolio
 router.post('/portfolio/items', async (req, res) => {
   try {

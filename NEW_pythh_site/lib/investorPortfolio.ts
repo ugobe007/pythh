@@ -20,6 +20,7 @@ export type PortfolioItem = {
   sectors: string[];
   stage_estimate: string | null;
   total_god_score: number | null;
+  entry_god_score?: number | null;
   updated_at: string | null;
   recent_activity: PortfolioActivity[];
 };
@@ -100,5 +101,32 @@ export async function removePortfolioPick(startupId: string): Promise<boolean> {
     return res.ok && json.ok;
   } catch {
     return false;
+  }
+}
+
+/** Trigger CSV download of the current virtual portfolio. */
+export async function exportPortfolioCsv(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(apiUrl('/api/investor-lookup/portfolio/export.csv'), {
+      headers: investorSessionHeaders(),
+      credentials: 'same-origin',
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      return { ok: false, error: json.error || 'Export failed' };
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'pythh-portfolio.csv';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    void trackFunnelEvent('investor_portfolio_exported', { source: 'production_ui' });
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Network error' };
   }
 }

@@ -22,6 +22,7 @@ import {
   type InvestorSignupDraft,
 } from '@/lib/investorSignupDraft';
 import { bindInvestorPortfolioOwner } from '@/lib/investorSession';
+import { trackFunnelEvent } from '@/lib/matchEngagement';
 
 const CHECK_SIZE_BANDS: { key: string; label: string; min: number; max: number }[] = [
   { key: '25-100', label: '$25K – $100K', min: 25_000, max: 100_000 },
@@ -96,6 +97,14 @@ export default function InvestorSignup() {
       setError('Profile session not found. Enter your email again to continue.');
     }
   }, []);
+
+  useEffect(() => {
+    if (!isResumeMode || !resumeDraft) return;
+    void trackFunnelEvent('investor_profile_resume_started', {
+      investor_id: resumeDraft.investor_id,
+      source: 'email_first_redirect',
+    });
+  }, [isResumeMode, resumeDraft]);
 
   useEffect(() => {
     let cancelled = false;
@@ -265,7 +274,7 @@ export default function InvestorSignup() {
           });
         }
 
-        navigate('/signup/investor/complete?profile=incomplete');
+        navigate('/signup/investor?resume=1');
         return;
       }
 

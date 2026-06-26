@@ -13,7 +13,7 @@
       "metric": "founder_signup_completed",
       "baseline": "0 founder_signup_started / 0 completed in 7d (path unwired); 100% preview->account drop-off",
       "target": ">=25% preview->signup_started; first non-zero account baseline (>=3) within 14d",
-      "next_step": "Oracle GOD-gap teaser + proof strip + day-0 activation email + wizard outreach nudge shipped. Measure founder_preview_oracle_gap_gate in conversion:funnel (14d).",
+      "next_step": "Oracle gap attribution fixed (signup events on founder_preview_oracle_gap_gate). Monitor teaser→signup + started→completed in conversion:funnel.",
       "finding_id": "F-2026-0623-11",
       "related_experiments": ["founder_hero_entry", "founder_preview_signal_delta_gate", "founder_preview_oracle_gap_gate"]
     },
@@ -71,7 +71,7 @@
       "metric": "investor_portfolio_pick_added",
       "baseline": "0 investor pick events; portfolio API exists but no cap/UI in NEW_pythh_site",
       "target": "40% of investor signups add ≥1 pick in 7d; 15% return_visit_7d",
-      "next_step": "Phase 2 shipped: weekly portfolio delta email (Mon 08:45 UTC), entry GOD on pick. Monitor investor_portfolio_delta_sent + return_visit_7d. Next: CSV export.",
+      "next_step": "CSV export live on /investor/portfolio. Email-first signup skips to resume form. Monitor investor_email_to_profile + investor_portfolio_exported in conversion:funnel.",
       "finding_id": null,
       "related_experiments": ["investor_signup_schema"]
     },

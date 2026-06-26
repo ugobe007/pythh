@@ -87,7 +87,23 @@ async function main() {
     .limit(5000);
 
   const oracleGapStarted = (oracleGapEvents || []).filter((e) => e.event_name === 'founder_signup_started').length;
+  const oracleGapCompleted = (oracleGapEvents || []).filter((e) => e.event_name === 'founder_signup_completed').length;
   const oracleGapTeaserViews = f.preview_oracle_gap_teaser_viewed || 0;
+
+  const { data: investorCompletedEvents } = await sb
+    .from('growth_experiment_events')
+    .select('event_name, payload')
+    .eq('event_name', 'investor_signup_completed')
+    .gte('created_at', since)
+    .limit(5000);
+
+  const investorEmailCaptured = (investorCompletedEvents || []).filter(
+    (e) => e.payload?.email_first || e.payload?.profile_incomplete,
+  ).length;
+  const investorProfileCompleted = (investorCompletedEvents || []).filter(
+    (e) => e.payload?.profile_completed,
+  ).length;
+  const investorProfileResumeStarted = f.investor_profile_resume_started || 0;
 
   const report = {
     generated_at: new Date().toISOString(),
@@ -117,6 +133,8 @@ async function main() {
       wizard_outreach_preview_viewed: f.wizard_outreach_preview_viewed || 0,
       investor_portfolio_delta_sent: f.investor_portfolio_delta_sent || 0,
       investor_dealflow_digest_sent: f.investor_dealflow_digest_sent || 0,
+      investor_profile_resume_started: f.investor_profile_resume_started || 0,
+      investor_portfolio_exported: f.investor_portfolio_exported || 0,
     },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
@@ -133,13 +151,22 @@ async function main() {
       oracle_gap_teaser_per_preview: rate(f.preview_oracle_gap_teaser_viewed || 0, f.instant_matches_viewed || 0),
       oracle_gap_signup_per_teaser: rate(oracleGapStarted, f.preview_oracle_gap_teaser_viewed || 0),
       investor_started_to_completed: rate(investorSignups, investorStarted),
+      investor_email_to_profile: rate(investorProfileCompleted, investorEmailCaptured || investorSignups),
+      investor_resume_to_profile: rate(investorProfileCompleted, investorProfileResumeStarted),
       complete_per_checkout: rate(f.checkout_completed || 0, f.checkout_started || 0),
     },
     experiments: {
       founder_preview_oracle_gap_gate: {
         teaser_viewed: oracleGapTeaserViews,
         signup_started: oracleGapStarted,
+        signup_completed: oracleGapCompleted,
         teaser_to_signup_pct: rate(oracleGapStarted, oracleGapTeaserViews),
+        started_to_completed_pct: rate(oracleGapCompleted, oracleGapStarted),
+      },
+      investor_signup: {
+        email_captured: investorEmailCaptured,
+        profile_completed: investorProfileCompleted,
+        resume_started: investorProfileResumeStarted,
       },
     },
     totals: {
@@ -172,7 +199,7 @@ async function main() {
   }
   if (investorStarted > 0 && investorSignups / investorStarted < 0.2) {
     report.agent_focus.push(
-      `Investor signup leak: ${investorSignups}/${investorStarted} completed (${report.rates.investor_started_to_completed ?? '—'}%) — email_first variant + portfolio delta email live`,
+      `Investor signup leak: ${investorSignups}/${investorStarted} email captured (${report.rates.investor_started_to_completed ?? '—'}%) — ${investorProfileCompleted} profiles completed; email-first now skips to resume form`,
     );
   }
   if ((f.preview_oracle_gap_teaser_viewed || 0) > 0 && oracleGapStarted === 0) {
@@ -195,6 +222,7 @@ async function main() {
     console.log(`   Preview → signup rate: ${report.rates.signup_per_preview ?? '—'}%`);
     console.log(`   Oracle gap teaser → signup: ${report.experiments.founder_preview_oracle_gap_gate.teaser_to_signup_pct ?? '—'}%`);
     console.log(`   Investor started → completed: ${report.rates.investor_started_to_completed ?? '—'}%`);
+    console.log(`   Investor email → profile: ${report.rates.investor_email_to_profile ?? '—'}%`);
     console.log(`   Pricing → checkout: ${report.rates.checkout_per_pricing ?? '—'}%`);
     console.log(`   Paid subscribers: ${report.totals.paid_subscribers ?? 'unknown'}`);
     if (report.agent_focus.length) {

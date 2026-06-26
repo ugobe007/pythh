@@ -235,11 +235,19 @@ export default function InstantMatchPreview({ url }: Props) {
     if (action === 'intro' && investor?.id) {
       void recordMatchEngagement(preview.startup.id, investor.id, 'intro', 'instant_preview_gate');
     }
+    const previewGateAssignment =
+      action === 'oracle_gap'
+        ? oracleGapExpRef.current
+        : action === 'delta'
+          ? deltaExpRef.current
+          : null;
+
     await trackFounderGateStarted(
       action,
       { url, startupId: preview.startup.id, investor },
       founderExpRef.current,
       gateCtaRef.current,
+      previewGateAssignment,
     );
     navigate('/activate');
   };

@@ -25,6 +25,8 @@ const FUNNEL_OPERATIONS = [
   'investor_dealflow_digest_sent',
   'investor_portfolio_pick_added',
   'investor_portfolio_cap_reached',
+  'investor_portfolio_exported',
+  'investor_profile_resume_started',
 ];
 
 const GROWTH_FUNNEL_EVENTS = [

@@ -231,6 +231,16 @@ async function getOrCreateVirtualPortfolioListId(supabase, ownerId) {
   return created.id;
 }
 
+function parsePortfolioNotes(notes) {
+  if (!notes) return { entry_god_score: null };
+  try {
+    const parsed = typeof notes === 'string' ? JSON.parse(notes) : notes;
+    return { entry_god_score: parsed?.entry_god_score ?? null };
+  } catch {
+    return { entry_god_score: null };
+  }
+}
+
 /**
  * Get portfolio list with items and recent activity per startup.
  */
@@ -293,6 +303,7 @@ async function getPortfolioWithActivity(supabase, ownerId) {
       startup_id: sid,
       added_at: item?.added_at,
       notes: item?.notes || null,
+      entry_god_score: parsePortfolioNotes(item?.notes).entry_god_score,
       name: s?.name,
       tagline: s?.tagline,
       website: s?.website,

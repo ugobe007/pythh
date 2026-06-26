@@ -101,6 +101,11 @@ async function resolveAssignment(existing: GrowthAssignment | null): Promise<Gro
   return fetchGrowthAssignment('founder');
 }
 
+const PREVIEW_GATE_EXPERIMENTS: Partial<Record<FounderGatedAction, string>> = {
+  oracle_gap: 'founder_preview_oracle_gap_gate',
+  delta: 'founder_preview_signal_delta_gate',
+};
+
 /** Fire when user clicks a post-reveal gated action (save / intro / export). */
 export async function trackFounderGateStarted(
   action: FounderGatedAction,
@@ -111,6 +116,7 @@ export async function trackFounderGateStarted(
   },
   assignmentRef?: GrowthAssignment | null,
   gateCtaAssignment?: GrowthAssignment | null,
+  previewGateAssignment?: GrowthAssignment | null,
 ) {
   persistFounderGateContext(ctx.url, ctx.startupId, action, ctx.investor);
 
@@ -125,24 +131,34 @@ export async function trackFounderGateStarted(
     });
   }
 
-  const assignment = await resolveAssignment(assignmentRef ?? null);
-  const resolved = assignment ?? (await fetchGrowthAssignment('founder')) ?? FALLBACK_FOUNDER_ASSIGNMENT;
-  await trackGrowthEvent(resolved, 'founder_signup_started', {
+  const gatePayload = {
     url: ctx.url,
     startup_id: ctx.startupId,
     gated_action: action,
     investor_id: ctx.investor?.id,
     investor_name: ctx.investor?.name,
-  });
+  };
+
+  const assignment = await resolveAssignment(assignmentRef ?? null);
+  const resolved = assignment ?? (await fetchGrowthAssignment('founder')) ?? FALLBACK_FOUNDER_ASSIGNMENT;
+  await trackGrowthEvent(resolved, 'founder_signup_started', gatePayload);
 
   if (gateCtaAssignment) {
     await trackGrowthEvent(gateCtaAssignment, 'founder_signup_started', {
-      url: ctx.url,
-      startup_id: ctx.startupId,
-      gated_action: action,
-      investor_id: ctx.investor?.id,
-      investor_name: ctx.investor?.name,
+      ...gatePayload,
       gate_cta_experiment: gateCtaAssignment.experiment_id,
+    });
+  }
+
+  const previewExp =
+    previewGateAssignment ??
+    (PREVIEW_GATE_EXPERIMENTS[action]
+      ? await fetchGrowthAssignment('founder', PREVIEW_GATE_EXPERIMENTS[action])
+      : null);
+  if (previewExp) {
+    await trackGrowthEvent(previewExp, 'founder_signup_started', {
+      ...gatePayload,
+      preview_gate_experiment: previewExp.experiment_id,
     });
   }
 }
@@ -168,15 +184,29 @@ export async function trackFounderGateCompleted(
     startup_id: startupId,
   });
 
-  const assignment = await resolveFounderAssignment();
-  await trackGrowthEvent(assignment, 'founder_signup_completed', {
+  const completedPayload = {
     url: ctx.url,
     startup_id: startupId,
     gated_action: gatedAction,
     email_provided: Boolean(ctx.email),
+  };
+
+  const assignment = await resolveFounderAssignment();
+  await trackGrowthEvent(assignment, 'founder_signup_completed', {
+    ...completedPayload,
     attribution_fallback: assignment.experiment_id === FALLBACK_FOUNDER_ASSIGNMENT.experiment_id
       && assignment.variant_key === FALLBACK_FOUNDER_ASSIGNMENT.variant_key,
   });
+
+  if (gatedAction && PREVIEW_GATE_EXPERIMENTS[gatedAction]) {
+    const previewExp = await fetchGrowthAssignment('founder', PREVIEW_GATE_EXPERIMENTS[gatedAction]);
+    if (previewExp) {
+      await trackGrowthEvent(previewExp, 'founder_signup_completed', {
+        ...completedPayload,
+        preview_gate_experiment: previewExp.experiment_id,
+      });
+    }
+  }
 
   sessionStorage.removeItem(GATED_ACTION_KEY);
   sessionStorage.removeItem('pythia_startup_id');
