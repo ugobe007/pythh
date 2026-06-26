@@ -265,6 +265,11 @@ export default function InvestorSignup() {
           profile_incomplete: true,
         });
 
+        void trackFunnelEvent('investor_email_captured', {
+          investor_id: result.investor_id,
+          source: 'email_first_signup',
+        });
+
         if (result.investor_id) {
           bindInvestorPortfolioOwner(result.investor_id);
           saveInvestorSignupDraft({
@@ -285,6 +290,11 @@ export default function InvestorSignup() {
           investor_id: result.investor_id,
           profile_completed: true,
           resumed: true,
+        });
+
+        void trackFunnelEvent('investor_profile_completed', {
+          investor_id: result.investor_id,
+          source: 'resume_signup',
         });
 
         if (result.investor_id) bindInvestorPortfolioOwner(result.investor_id);

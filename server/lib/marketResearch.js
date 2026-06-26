@@ -101,6 +101,23 @@ async function sampleStartupEvents(supabase, { days = 7, limit = 200 } = {}) {
   return data || [];
 }
 
+async function sampleFounderDemandEvents(supabase, { days = 7, limit = 200 } = {}) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data, error } = await supabase
+    .from('founder_demand_events')
+    .select('event_type, startup_id, startup_url, startup_name, match_count, source, created_at')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    if (error.code === 'PGRST205' || /does not exist/i.test(error.message || '')) {
+      return { rows: [], missing_table: true };
+    }
+    throw error;
+  }
+  return { rows: data || [], missing_table: false };
+}
+
 async function getSignupVelocity(supabase, { days = 7 } = {}) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
   const ops = [
@@ -147,13 +164,15 @@ async function buildResearchSnapshot(supabase, { days = 7 } = {}) {
   const northStar = loadJson(NORTH_STAR_PATH);
   const findings = loadFindingsRegistry();
 
-  const [rss, events, velocity] = await Promise.all([
+  const [rss, events, founderDemand, velocity] = await Promise.all([
     scanRssFeeds(sources, taxonomy),
     sampleStartupEvents(supabase, { days }).catch((e) => ({ error: e.message })),
+    sampleFounderDemandEvents(supabase, { days }).catch((e) => ({ error: e.message, rows: [] })),
     getSignupVelocity(supabase, { days }).catch((e) => ({ error: e.message })),
   ]);
 
   const eventList = Array.isArray(events) ? events : [];
+  const founderDemandRows = founderDemand?.rows || [];
   const eventFriction = eventList
     .map((ev) => {
       const text = ev.source_title || ev.headline || '';
@@ -189,12 +208,15 @@ async function buildResearchSnapshot(supabase, { days = 7 } = {}) {
     rss_scan: rss,
     internal_events: {
       sampled: eventList.length,
+      founder_demand_sampled: founderDemandRows.length,
+      founder_demand_missing_table: Boolean(founderDemand?.missing_table),
       friction_hits: eventFriction.length,
       top_friction_categories: Object.entries(categoryRollup)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 8)
         .map(([id, count]) => ({ category_id: id, count })),
       samples: eventFriction.slice(0, 12),
+      founder_demand_samples: founderDemandRows.slice(0, 8),
     },
     open_findings: (findings.findings || []).filter((f) => f.status === 'open').length,
     competitor_watch: sources.competitor_watch || [],
@@ -229,6 +251,7 @@ module.exports = {
   classifyHeadline,
   scanRssFeeds,
   sampleStartupEvents,
+  sampleFounderDemandEvents,
   getSignupVelocity,
   buildResearchSnapshot,
   syncFindingsToDb,

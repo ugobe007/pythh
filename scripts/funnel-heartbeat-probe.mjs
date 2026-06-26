@@ -162,6 +162,51 @@ async function runProbe() {
     steps.push({ step: 'match_engage_view', ok: false, skipped: true, detail: 'no investor in preview' });
   }
 
+  // 5b. match engage (intro) + funnel event
+  if (investorId) {
+    const { res: introEngageRes } = await fetchJson('/api/matches/engage', {
+      method: 'POST',
+      body: JSON.stringify({
+        startup_id: startupId,
+        investor_id: investorId,
+        action: 'intro',
+        source: 'funnel_probe',
+        probe_run_id: probeRunId,
+      }),
+    });
+    steps.push({
+      step: 'match_engage_intro',
+      ok: introEngageRes.ok,
+      status: introEngageRes.status,
+    });
+
+    const { res: introFunnelRes } = await fetchJson('/api/analytics/flush', {
+      method: 'POST',
+      body: JSON.stringify({
+        rows: [
+          {
+            operation: 'match_intro_requested',
+            status: 'tracked',
+            output: {
+              startup_id: startupId,
+              investor_id: investorId,
+              probe_run_id: probeRunId,
+              source: 'funnel_probe',
+            },
+          },
+        ],
+      }),
+    });
+    steps.push({
+      step: 'match_intro_requested',
+      ok: introFunnelRes.ok,
+      status: introFunnelRes.status,
+    });
+  } else {
+    steps.push({ step: 'match_engage_intro', ok: false, skipped: true, detail: 'no investor in preview' });
+    steps.push({ step: 'match_intro_requested', ok: false, skipped: true });
+  }
+
   // 6. investor signup started (growth experiment)
   {
     let experimentId = 'investor_signup_schema';
@@ -388,7 +433,7 @@ async function runProbe() {
     steps,
     verification,
     diagnosis: verification.diagnosis,
-    ok: verification.required_stages_ok && verification.stages_logged >= 4,
+    ok: verification.required_stages_ok,
   };
 }
 

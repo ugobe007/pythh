@@ -104,6 +104,14 @@ async function main() {
     (e) => e.payload?.profile_completed,
   ).length;
   const investorProfileResumeStarted = f.investor_profile_resume_started || 0;
+  const investorEmailCapturedEvents = f.investor_email_captured || 0;
+
+  const { count: founderDemandCount } = await sb
+    .from('founder_demand_events')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', since)
+    .then((r) => (r.error ? { count: null } : r))
+    .catch(() => ({ count: null }));
 
   const report = {
     generated_at: new Date().toISOString(),
@@ -135,6 +143,12 @@ async function main() {
       investor_dealflow_digest_sent: f.investor_dealflow_digest_sent || 0,
       investor_profile_resume_started: f.investor_profile_resume_started || 0,
       investor_portfolio_exported: f.investor_portfolio_exported || 0,
+      investor_email_captured: f.investor_email_captured || 0,
+      investor_profile_completed: f.investor_profile_completed || 0,
+      preview_evidence_strip_viewed: f.preview_evidence_strip_viewed || 0,
+    },
+    founder_demand: {
+      events_7d: founderDemandCount,
     },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
@@ -164,7 +178,7 @@ async function main() {
         started_to_completed_pct: rate(oracleGapCompleted, oracleGapStarted),
       },
       investor_signup: {
-        email_captured: investorEmailCaptured,
+        email_captured: investorEmailCapturedEvents || investorEmailCaptured,
         profile_completed: investorProfileCompleted,
         resume_started: investorProfileResumeStarted,
       },
@@ -176,6 +190,7 @@ async function main() {
       paid_subscribers_source: subs.table,
     },
     funnel_healthy: heartbeat?.verification?.required_stages_ok ?? null,
+    heartbeat_ok: heartbeat?.ok ?? null,
     heartbeat_diagnosis: heartbeat?.diagnosis ?? null,
     agent_focus: [],
   };
@@ -193,6 +208,11 @@ async function main() {
   }
   if (report.funnel_healthy === false || heartbeat?.diagnosis === 'probe_failed') {
     report.agent_focus.push('Fix funnel instrumentation gaps (run npm run funnel:heartbeat)');
+  }
+  if (founderDemandCount === 0 && (f.preview_requested || 0) > 5) {
+    report.agent_focus.push(
+      'Founder demand corpus empty — run npm run pipeline:apply-founder-demand after deploy',
+    );
   }
   if ((f.instant_matches_viewed || 0) > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
     report.agent_focus.push('Activation: intro/email capture on preview — watch match_intro_requested and preview_email_captured');

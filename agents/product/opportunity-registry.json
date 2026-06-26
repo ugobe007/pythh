@@ -13,7 +13,7 @@
       "metric": "founder_signup_completed",
       "baseline": "0 founder_signup_started / 0 completed in 7d (path unwired); 100% preview->account drop-off",
       "target": ">=25% preview->signup_started; first non-zero account baseline (>=3) within 14d",
-      "next_step": "Oracle gap attribution fixed (signup events on founder_preview_oracle_gap_gate). Monitor teaser→signup + started→completed in conversion:funnel.",
+      "next_step": "Evidence-first preview strip + intro funnel events shipped. Monitor preview_evidence_strip_viewed + match_intro_requested; 14d preview→signup lift.",
       "finding_id": "F-2026-0623-11",
       "related_experiments": ["founder_hero_entry", "founder_preview_signal_delta_gate", "founder_preview_oracle_gap_gate"]
     },
@@ -28,7 +28,7 @@
       "metric": "funnel_stages_emitting_events",
       "baseline": "0 of 6 stages",
       "target": "6/6 stages verified daily",
-      "next_step": "Monitor via npm run funnel:heartbeat and conversion-funnel snapshot; agents use metrics for experiments.",
+      "next_step": "founder_demand_events table + preview capture shipped. Monitor founder_demand.events_7d in conversion:funnel; hand corpus to investor_dealflow_digest.",
       "finding_id": "F-2026-0622-10",
       "related_experiments": ["founder_hero_entry", "investor_signup_schema"]
     },

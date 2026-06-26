@@ -12,6 +12,7 @@ import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatc
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
+import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 
@@ -52,6 +53,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const oracleGapExpRef = useRef<GrowthAssignment | null>(null);
   const deltaTeaserTrackedRef = useRef(false);
   const oracleGapTeaserTrackedRef = useRef(false);
+  const evidenceStripTrackedRef = useRef(false);
   const [deltaAssignment, setDeltaAssignment] = useState<GrowthAssignment | null>(null);
   const [oracleGapAssignment, setOracleGapAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
@@ -205,6 +207,16 @@ export default function InstantMatchPreview({ url }: Props) {
           match_count: data.matches?.length ?? 0,
         });
 
+        if (!evidenceStripTrackedRef.current) {
+          evidenceStripTrackedRef.current = true;
+          void trackFunnelEventOnce('pythh_preview_evidence_strip', 'preview_evidence_strip_viewed', {
+            startup_id: startupId,
+            url,
+            total_in_network: data.total_matches ?? data.matches?.length ?? 0,
+            shown_count: Math.min(PREVIEW_LIMIT, data.matches?.length ?? 0),
+          });
+        }
+
         for (const m of (data.matches || []).slice(0, PREVIEW_LIMIT)) {
           const invId = m.investor_id || m.investor?.id;
           if (invId) recordMatchViewOnce(startupId, invId, 'instant_match_preview');
@@ -233,6 +245,14 @@ export default function InstantMatchPreview({ url }: Props) {
   const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
     if (action === 'intro' && investor?.id) {
+      void trackFunnelEvent('match_intro_requested', {
+        startup_id: preview.startup.id,
+        investor_id: investor.id,
+        investor_name: investor.name,
+        url,
+        source: 'instant_preview_gate',
+        gated_action: action,
+      });
       void recordMatchEngagement(preview.startup.id, investor.id, 'intro', 'instant_preview_gate');
     }
     const previewGateAssignment =
@@ -314,6 +334,12 @@ export default function InstantMatchPreview({ url }: Props) {
       </div>
 
       <PreviewOracleProofStrip />
+
+      <PreviewEvidenceStrip
+        totalInNetwork={total}
+        shownCount={visible.length}
+        startupName={startupName}
+      />
 
       <div className="space-y-3 mb-8">
         {visible.map((m, i) => {

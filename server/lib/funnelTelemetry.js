@@ -1,5 +1,7 @@
 'use strict';
 
+const { recordFounderDemandEvent } = require('./founderDemandEvents');
+
 /** Funnel operations tracked in ai_logs (see product spec founder_supply_seeding). */
 const FUNNEL_OPERATIONS = [
   'page_view',
@@ -19,6 +21,7 @@ const FUNNEL_OPERATIONS = [
   'preview_email_captured',
   'preview_delta_teaser_viewed',
   'preview_oracle_gap_teaser_viewed',
+  'preview_evidence_strip_viewed',
   'founder_activation_email_sent',
   'wizard_outreach_preview_viewed',
   'investor_portfolio_delta_sent',
@@ -27,6 +30,8 @@ const FUNNEL_OPERATIONS = [
   'investor_portfolio_cap_reached',
   'investor_portfolio_exported',
   'investor_profile_resume_started',
+  'investor_email_captured',
+  'investor_profile_completed',
 ];
 
 const GROWTH_FUNNEL_EVENTS = [
@@ -55,7 +60,10 @@ async function recordFunnelEvent(supabase, operation, output = {}, options = {})
   }
 }
 
-async function logInstantSubmitFunnel(supabase, { startupId, url, matchCount, source, probeRunId }) {
+async function logInstantSubmitFunnel(
+  supabase,
+  { startupId, url, matchCount, source, probeRunId, startupName, sectors, stage, godScore },
+) {
   const base = {
     startup_id: startupId,
     startup_url: url || null,
@@ -65,16 +73,56 @@ async function logInstantSubmitFunnel(supabase, { startupId, url, matchCount, so
   if (probeRunId) base.probe_run_id = probeRunId;
   await recordFunnelEvent(supabase, 'url_submitted', base, { source: base.source });
   await recordFunnelEvent(supabase, 'preview_requested', base, { source: base.source });
+  void recordFounderDemandEvent(supabase, {
+    eventType: 'url_submitted',
+    startupId,
+    startupUrl: url,
+    startupName,
+    sectors,
+    stage,
+    godScore,
+    matchCount,
+    source: base.source,
+    probeRunId,
+    payload: base,
+  });
 }
 
-async function logPreviewLoaded(supabase, { startupId, source, probeRunId, matchCount }) {
+async function logPreviewLoaded(
+  supabase,
+  {
+    startupId,
+    source,
+    probeRunId,
+    matchCount,
+    url,
+    startupName,
+    sectors,
+    stage,
+    godScore,
+  },
+) {
   const base = {
     startup_id: startupId,
     match_count: matchCount ?? 0,
     source: source || 'preview_api',
   };
   if (probeRunId) base.probe_run_id = probeRunId;
+  if (url) base.startup_url = url;
   await recordFunnelEvent(supabase, 'preview_requested', base, { source: base.source });
+  void recordFounderDemandEvent(supabase, {
+    eventType: 'preview_requested',
+    startupId,
+    startupUrl: url,
+    startupName,
+    sectors,
+    stage,
+    godScore,
+    matchCount,
+    source: base.source,
+    probeRunId,
+    payload: base,
+  });
 }
 
 async function getFunnelCounts(supabase, { days = 7 } = {}) {
@@ -134,22 +182,23 @@ async function getFunnelCounts(supabase, { days = 7 } = {}) {
 async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) {
   const since = new Date(Date.now() - sinceMinutes * 60_000).toISOString();
   const stages = [
-    { id: 'page_view', store: 'ai_logs', operation: 'page_view' },
-    { id: 'url_submitted', store: 'ai_logs', operation: 'url_submitted' },
-    { id: 'preview_requested', store: 'ai_logs', operation: 'preview_requested' },
-    { id: 'instant_matches_viewed', store: 'ai_logs', operation: 'instant_matches_viewed' },
-    { id: 'match_viewed', store: 'ai_logs', operation: 'match_viewed' },
-    { id: 'investor_signup_started', store: 'growth', event_name: 'investor_signup_started' },
-    { id: 'founder_signup_started', store: 'growth', event_name: 'founder_signup_started' },
-    { id: 'founder_signup_completed', store: 'growth', event_name: 'founder_signup_completed' },
-    { id: 'lookup_signup_completed', store: 'ai_logs', operation: 'lookup_signup_completed' },
-    { id: 'pricing_viewed', store: 'ai_logs', operation: 'pricing_viewed' },
-    { id: 'checkout_started', store: 'ai_logs', operation: 'checkout_started' },
-    { id: 'checkout_completed', store: 'ai_logs', operation: 'checkout_completed' },
-    { id: 'preview_email_captured', store: 'ai_logs', operation: 'preview_email_captured' },
-    { id: 'preview_oracle_gap_teaser_viewed', store: 'ai_logs', operation: 'preview_oracle_gap_teaser_viewed' },
-    { id: 'founder_activation_email_sent', store: 'ai_logs', operation: 'founder_activation_email_sent' },
-    { id: 'wizard_outreach_preview_viewed', store: 'ai_logs', operation: 'wizard_outreach_preview_viewed' },
+    { id: 'page_view', store: 'ai_logs', operation: 'page_view', required: false },
+    { id: 'url_submitted', store: 'ai_logs', operation: 'url_submitted', required: true },
+    { id: 'preview_requested', store: 'ai_logs', operation: 'preview_requested', required: true },
+    { id: 'instant_matches_viewed', store: 'ai_logs', operation: 'instant_matches_viewed', required: true },
+    { id: 'match_viewed', store: 'ai_logs', operation: 'match_viewed', required: true },
+    { id: 'match_intro_requested', store: 'ai_logs', operation: 'match_intro_requested', required: false },
+    { id: 'investor_signup_started', store: 'growth', event_name: 'investor_signup_started', required: false },
+    { id: 'founder_signup_started', store: 'growth', event_name: 'founder_signup_started', required: false },
+    { id: 'founder_signup_completed', store: 'growth', event_name: 'founder_signup_completed', required: false },
+    { id: 'lookup_signup_completed', store: 'ai_logs', operation: 'lookup_signup_completed', required: false },
+    { id: 'pricing_viewed', store: 'ai_logs', operation: 'pricing_viewed', required: false },
+    { id: 'checkout_started', store: 'ai_logs', operation: 'checkout_started', required: false },
+    { id: 'checkout_completed', store: 'ai_logs', operation: 'checkout_completed', required: false },
+    { id: 'preview_email_captured', store: 'ai_logs', operation: 'preview_email_captured', required: false },
+    { id: 'preview_oracle_gap_teaser_viewed', store: 'ai_logs', operation: 'preview_oracle_gap_teaser_viewed', required: false },
+    { id: 'founder_activation_email_sent', store: 'ai_logs', operation: 'founder_activation_email_sent', optional: true },
+    { id: 'wizard_outreach_preview_viewed', store: 'ai_logs', operation: 'wizard_outreach_preview_viewed', optional: true },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase
@@ -189,13 +238,15 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
   });
 
   const loggedCount = results.filter((r) => r.logged).length;
-  const required = ['url_submitted', 'preview_requested', 'instant_matches_viewed', 'match_viewed'];
+  const required = stages.filter((s) => s.required).map((s) => s.id);
   const requiredOk = required.every((id) => results.find((r) => r.id === id)?.logged);
+  const optionalStages = stages.filter((s) => s.optional);
+  const optionalMissing = optionalStages.filter((s) => !results.find((r) => r.id === s.id)?.logged);
 
   let diagnosis = 'healthy';
   if (loggedCount === 0) diagnosis = 'logging_gap_total';
   else if (!requiredOk) diagnosis = 'logging_gap_partial';
-  else if (loggedCount < stages.length) diagnosis = 'logging_gap_minor';
+  else if (optionalMissing.length > 0) diagnosis = 'logging_gap_minor';
 
   return {
     probe_run_id: probeRunId,

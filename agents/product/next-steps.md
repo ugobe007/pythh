@@ -13,7 +13,8 @@ Last deploy: find-investors landing, preview→Oracle bridge, 70% `matches_previ
 
 ### 2. First outbound push
 
-Use `agents/growth/outbound/find-investors-playbook.md`:
+Use `agents/growth/outbound/queue/2026-06-26-posts.md` (ready-to-post Reddit / LinkedIn / X copy).
+Playbook: `agents/growth/outbound/find-investors-playbook.md`
 - [ ] One Reddit post (r/startups or r/Entrepreneur)
 - [ ] One LinkedIn post
 - [ ] Track UTMs in `url_submitted` / page_view payloads

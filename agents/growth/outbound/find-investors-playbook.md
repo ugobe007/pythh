@@ -16,12 +16,13 @@ https://pythh.ai/find-investors?utm_source=reddit&utm_medium=community&utm_campa
 
 ## Core message (all channels)
 
-**One-liner:** Paste your startup URL — see which investors actually fit your stage and sector in ~30 seconds. No signup required for preview.
+**One-liner:** Paste your startup URL — find investors that match your signals. Ranked shortlist in ~20 seconds, free preview.
 
 **Proof points:**
+- We screen the full investor network and show who fit — and who didn't — with evidence
 - Matches ranked by thesis fit + live signals (fundraising, hiring, GTM)
 - Built for founders without a warm intro network
-- Free preview; signup only to unlock intros
+- Free preview; signup only to save, request intros, or export
 
 **CTA:** `https://pythh.ai/find-investors`
 

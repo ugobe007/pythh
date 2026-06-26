@@ -556,6 +556,11 @@ router.get('/:startupId', async (req, res) => {
       source: req.query.source || 'preview_api',
       probeRunId: req.query.probe_run_id || req.headers['x-probe-run-id'] || null,
       matchCount: matches.length,
+      url: startup.website || req.query.url || null,
+      startupName: startup.name,
+      sectors: startup.sectors,
+      stage: startup.stage,
+      godScore: startup.total_god_score,
     });
 
     const topInvestorIds = matches

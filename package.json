@@ -38,6 +38,7 @@
     "growth:apply-schema": "node scripts/apply-growth-experiments.mjs",
     "growth:metrics": "node scripts/growth-metrics-snapshot.mjs",
     "growth:sync-registry": "node -e \"require('dotenv').config();const {createClient}=require('@supabase/supabase-js');const g=require('./server/lib/growthExperiments');g.syncRegistryToDb(createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_KEY)).then(r=>console.log(r)).catch(e=>{console.error(e);process.exit(1)})\"",
+    "pipeline:apply-founder-demand": "node scripts/apply-founder-demand-events.mjs",
     "growth:agent": "node scripts/growth-agent-loop.mjs",
     "growth:agent:plan": "node scripts/growth-agent-loop.mjs --dry-run",
     "growth:cycle": "node scripts/growth-cycle-decision.mjs --days=7",

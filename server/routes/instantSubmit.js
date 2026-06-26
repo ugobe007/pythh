@@ -433,13 +433,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   global: { fetch: fetchWithTimeout }
 });
 
-function trackInstantSubmitFunnel(req, { startupId, url, matchCount }) {
+function trackInstantSubmitFunnel(req, { startupId, url, matchCount, startup }) {
   void logInstantSubmitFunnel(supabase, {
     startupId,
     url,
     matchCount: matchCount ?? 0,
     source: req.body?.source || req.headers['x-funnel-source'] || 'instant_submit',
     probeRunId: req.body?.probe_run_id || req.headers['x-probe-run-id'] || null,
+    startupName: startup?.name,
+    sectors: startup?.sectors,
+    stage: startup?.stage ?? startup?.stage_estimate,
+    godScore: startup?.total_god_score,
   });
 }
 
@@ -2195,6 +2199,7 @@ router.post('/submit', async (req, res) => {
             startupId,
             url: inputRaw,
             matchCount: cached.matchCount,
+            startup,
           });
           return res.json({
             startup_id: startupId,
@@ -2262,6 +2267,7 @@ router.post('/submit', async (req, res) => {
           startupId,
           url: inputRaw,
           matchCount: existingMatchCount || 0,
+          startup,
         });
         return res.json({
           startup_id: startupId,
@@ -2329,6 +2335,7 @@ router.post('/submit', async (req, res) => {
           startupId,
           url: inputRaw,
           matchCount: firstCount,
+          startup,
         });
         return res.json({
           startup_id: startupId,
@@ -2624,6 +2631,7 @@ router.post('/submit', async (req, res) => {
       startupId,
       url: inputRaw,
       matchCount: firstMatchCount,
+      startup,
     });
     safeJson(200, {
       startup_id: startupId,
