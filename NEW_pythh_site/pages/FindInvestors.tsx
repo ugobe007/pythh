@@ -74,11 +74,10 @@ export default function FindInvestors() {
           No warm intro required
         </p>
         <h1 className="text-3xl sm:text-5xl font-bold text-white leading-tight mb-4">
-          First-time founder? See who would actually fund you.
+          Find investors that match your signals.
         </h1>
         <p className="text-lg text-zinc-400 mb-8 max-w-2xl leading-relaxed">
-          Paste your startup URL. Pythh maps your thesis, stage, and traction against thousands of
-          active investors — then shows your ranked shortlist before you create an account.
+          Paste your URL. Get a ranked shortlist in ~20 seconds — free preview, no signup required.
         </p>
 
         <form
@@ -108,7 +107,7 @@ export default function FindInvestors() {
               type="submit"
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
             >
-              Preview my matches
+              See my matches
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -120,7 +119,7 @@ export default function FindInvestors() {
 
         <div className="grid sm:grid-cols-3 gap-4 mb-12">
           {[
-            { icon: Zap, title: '60-second preview', desc: 'Ranked investors with fit scores before signup' },
+            { icon: Zap, title: '~20 second preview', desc: 'Ranked investors with fit scores — free' },
             { icon: Users, title: 'No network needed', desc: 'Built for founders without warm intros' },
             { icon: Target, title: 'Thesis-level matching', desc: 'Sector, stage, timing — not keyword search' },
           ].map(({ icon: Icon, title, desc }) => (

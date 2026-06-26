@@ -107,9 +107,9 @@
             "gate_actions": ["save", "intro", "export"]
           },
           "copy": {
-            "headline": "See your investor matches before you sign up.",
-            "cta": "Preview matches",
-            "subline": "URL → live match preview → account to save intros."
+            "headline": "Find investors that match your signals.",
+            "cta": "See my matches",
+            "subline": "Paste your URL — ranked shortlist in ~20 seconds. Free preview."
           }
         }
       ],

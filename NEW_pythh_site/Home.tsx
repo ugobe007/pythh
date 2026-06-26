@@ -331,12 +331,14 @@ function HeroSection({
     subline?: string;
   };
   const previewFirst = entry === 'url_with_preview';
-  const heroHeadline = heroCopy.headline || 'Find investors that match your thesis.';
+  const heroHeadline = heroCopy.headline || (previewFirst ? 'Find investors that match your signals.' : 'Find investors that match your thesis.');
   const heroSubline =
     heroCopy.subline ||
-    'Submit your URL. Pythh reads your signals, matches you to top investors and automates your funding round.';
-  const heroCta = heroCopy.cta || (previewFirst ? 'Preview matches' : 'Find my investors');
-  const formLabel = previewFirst ? 'Preview your investor matches' : 'Submit your startup URL';
+    (previewFirst
+      ? 'Paste your URL — ranked shortlist in ~20 seconds. Free preview.'
+      : 'Submit your URL. Pythh reads your signals, matches you to top investors and automates your funding round.');
+  const heroCta = heroCopy.cta || (previewFirst ? 'See my matches' : 'Find my investors');
+  const formLabel = previewFirst ? 'Your startup URL' : 'Submit your startup URL';
   const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
   const latestMatch = recentMatches[0] ?? null;
 
