@@ -5,15 +5,20 @@
  * @see server/lib/signalArtDirection.js (registered art direction)
  */
 
-const { SIGNAL_ART, describeLayersForPrompt } = require('./signalArtDirection');
+const { SIGNAL_ART, pickAestheticAnchor, describeLayersForPrompt } = require('./signalArtDirection');
 
 const NEGATIVE_PROMPT = [
-  'coordinate grid',
+  'overlapping squares',
+  'transparent rectangles',
+  'concentric circles',
+  'radar display',
   'node graph',
+  'constellation network',
+  'coordinate grid',
   'spider web',
+  'prism light beams',
   'filled blob cluster',
   'omnidirectional glow',
-  'over-rendered blur',
   '3d render',
   'photorealistic texture',
   'watermark',
@@ -22,6 +27,7 @@ const NEGATIVE_PROMPT = [
   'generic AI art',
   'literal charts',
   'dashboard UI',
+  'symmetrical mandala',
 ].join(', ');
 
 const LIGHTING_STYLES = {
@@ -135,21 +141,26 @@ function buildImageBrief(snapshot, plan, signalArt) {
   };
 }
 
-/** Pure visual description for Gemini — avoids rendering prompt text into the image. */
+/** Narrative visual brief for Gemini — paragraph form, no metadata lists. */
 function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
-  const motifs = [...new Set(
-    signalArt.layers.filter((l) => l.id !== 'void').map((l) => l.motif),
-  )].slice(0, 6);
+  const anchor = pickAestheticAnchor(plan.seed || 0);
+  const leading = snapshot.leading_signal?.label || 'market recalibration';
+  const accent = plan.accent;
+  const accentName = plan.accentLabel;
 
-  const leading = snapshot.leading_signal?.label || 'market signals';
+  const forms = [...new Set(
+    signalArt.layers.filter((l) => l.id !== 'void' && l.id !== 'sector').map((l) => l.motif),
+  )].slice(0, 4);
 
   return [
-    `Abstract digital fine art on a deep black void, square 1:1 composition.`,
-    `${signalArt.layoutMode} layout: ${motifs.join(', ')} — translucent overlapping planes with coordinated depth.`,
-    `Dominant mood: ${leading.toLowerCase()}. Sector chroma: ${plan.accentLabel} (${plan.accent}).`,
-    `Lighting: ${lighting.label.toLowerCase()} — soft neon-adjacent glow, subtle bloom on foreground forms.`,
-    `${plan.tensionLabel} balance, generous negative space, gallery-quality abstract composition.`,
-    `Visual only — absolutely no text, letters, numbers, watermarks, charts, or UI elements anywhere in the image.`,
+    `A square fine-art digital composition on pure black (#050508).`,
+    `${anchor}`,
+    `PYTHH reads today's signal as "${leading.toLowerCase()}" — express that mood through ${signalArt.layoutMode} composition.`,
+    `Use exactly ONE accent color (${accentName}, ${accent}) plus black and subtle grey mist. At most 3-4 abstract forms total: ${forms.join(', ')}.`,
+    `Forms are curved, organic, or thin-stroke — NEVER rectangular panels, NEVER overlapping squares, NEVER radar rings, NEVER dot networks.`,
+    `${lighting.label} lighting: ${lighting.effect}. ${plan.tensionLabel} tension in the placement.`,
+    `90% of the canvas is empty void. Gallery-quality minimalism. Museum print aesthetic.`,
+    `ZERO text, letters, numbers, labels, watermarks, charts, or UI anywhere.`,
   ].join(' ');
 }
 

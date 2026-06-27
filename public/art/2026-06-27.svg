@@ -28,12 +28,12 @@
 <g id="signal-layers" opacity="0.92">
 <rect x="195.30452124029398" y="288.7503672502935" width="294" height="294" fill="#a78bfa" opacity="0.07" transform="rotate(170 342.304521240294 435.7503672502935)"/>
 <line x1="118.7362240627408" y1="502" x2="297.4" y2="475.6" stroke="#a78bfa" stroke-opacity="0.50" stroke-width="2" stroke-linecap="round"/>
-<line x1="400" y1="422" x2="607.1" y2="418.9" stroke="#a78bfa" stroke-opacity="0.67" stroke-width="2" stroke-linecap="round"/>
-<line x1="642.0798417925835" y1="437.32443023473024" x2="818.6" y2="469.4" stroke="#a78bfa" stroke-opacity="0.52" stroke-width="2" stroke-linecap="round"/>
+<circle cx="400" cy="422" r="148" fill="#a78bfa" opacity="0.17" transform="rotate(-2 400 422)"/>
+<circle cx="642.0798417925835" cy="437.32443023473024" r="137" fill="#a78bfa" opacity="0.13" transform="rotate(23 642.0798417925835 437.32443023473024)"/>
 <circle cx="573.5540152713656" cy="618.103877492249" r="124" fill="#a78bfa" opacity="0.12" transform="rotate(3 573.5540152713656 618.103877492249)"/>
 <circle cx="156.74731943756342" cy="575.8146055415273" r="87" fill="#a78bfa" opacity="0.07" transform="rotate(43 156.74731943756342 575.8146055415273)"/>
 <ellipse cx="541.4105612970889" cy="228.60599998384714" rx="84" ry="46" fill="none" stroke="#a78bfa" stroke-opacity="0.26" stroke-width="1.5" transform="rotate(50 541.4105612970889 228.60599998384714)"/>
-<ellipse cx="312.1195290610194" cy="472.9387367144227" rx="76" ry="42" fill="none" stroke="#a78bfa" stroke-opacity="0.22" stroke-width="1.5" transform="rotate(30 312.1195290610194 472.9387367144227)"/>
+<circle cx="312.1195290610194" cy="472.9387367144227" r="76" fill="#a78bfa" opacity="0.06" transform="rotate(30 312.1195290610194 472.9387367144227)"/>
 <line x1="310" y1="462" x2="451.2" y2="505.3" stroke="#a78bfa" stroke-opacity="0.76" stroke-width="2" stroke-linecap="round"/>
 <circle cx="400" cy="382" r="108" fill="#a78bfa" opacity="0.14" transform="rotate(5 400 382)"/>
 </g>

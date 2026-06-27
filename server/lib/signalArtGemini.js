@@ -59,13 +59,13 @@ function buildGeminiPrompt(imageBrief) {
     visual,
     '',
     'CRITICAL REQUIREMENTS:',
-    `- Art direction: ${SIGNAL_ART.name} — digital abstract art, NOT photorealistic`,
-    `- Primary accent color: ${accent}`,
-    `- Layout: ${layout} — multiple translucent abstract layers overlapping in depth`,
-    '- Style: abstract digital composition, neon-adjacent palette, editorial gallery piece',
-    '- Format: square 1:1, harmonious layer stack, generous void between forms',
+    `- Art direction: ${SIGNAL_ART.name} — minimal digital abstract, NOT photorealistic`,
+    `- Primary accent ONLY: ${accent} — do not introduce rainbow or multi-color prism effects`,
+    `- Composition: ${layout} — at most 3-4 forms, 90% negative space`,
+    '- Style: museum-quality minimal abstract — thin strokes, soft glows, organic curves',
+    '- Format: square 1:1',
+    '- DO NOT: overlapping squares, concentric circles, radar UI, node graphs, network dots, transparent rectangles, stock synthwave wallpaper',
     '- ZERO TEXT: no words, letters, numbers, labels, captions, watermarks, or typography of any kind',
-    `- NEVER include: ${imageBrief?.negative || 'text, watermarks, charts, UI, photorealistic clutter'}`,
   ]
     .filter(Boolean)
     .join('\n');

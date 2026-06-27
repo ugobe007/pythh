@@ -10,34 +10,54 @@ const SIGNAL_ART = {
   id: 'signal-art',
   name: 'Signal Art',
   tagline: 'Digital abstract compositions from live market signals',
-  style: ['digital art', 'abstract', 'layered', 'signal-driven', 'editorial'],
+  style: ['digital art', 'abstract', 'layered', 'signal-driven', 'editorial', 'minimal'],
   medium: 'Gemini raster (primary) · SVG fallback',
-  version: '2.0',
+  version: '2.1',
+  /** Anti-patterns — Gemini defaults to these; ban explicitly in every prompt. */
+  avoid: [
+    'overlapping transparent squares or rectangles',
+    'concentric radar circles',
+    'node graphs or constellation networks',
+    'prism light beams',
+    'stock synthwave wallpaper',
+    'dashboard or UI aesthetics',
+  ],
 };
 
+/** Organic motifs — avoid words that trigger grids/radar (lattice, plane, ring, node). */
 const MOTIF_BY_KEYWORD = [
-  ['execution', 'velocity streak lattice'],
-  ['velocity', 'velocity streak lattice'],
-  ['momentum', 'radial pulse rings'],
-  ['capital', 'luminous capital arc'],
-  ['funding', 'parallel thrust ribbons'],
-  ['match', 'tension filament bridge'],
-  ['sector', 'chromatic wash plane'],
-  ['god', 'intensity bloom node'],
-  ['score', 'intensity bloom node'],
-  ['coverage', 'void density field'],
-  ['recalibrat', 'drifting particle mist'],
+  ['execution', 'flowing velocity trail'],
+  ['velocity', 'flowing velocity trail'],
+  ['momentum', 'soft pulse halo'],
+  ['capital', 'single luminous arc'],
+  ['funding', 'ascending light streaks'],
+  ['match', 'thin tension filament'],
+  ['sector', 'atmospheric color wash'],
+  ['god', 'luminous focal ember'],
+  ['score', 'luminous focal ember'],
+  ['coverage', 'deep void mist'],
+  ['recalibrat', 'drifting particle haze'],
   ['innovation', 'fractured light shard'],
-  ['traction', 'ascending signal trail'],
+  ['traction', 'rising signal trail'],
+  ['conviction', 'steady vertical beacon'],
 ];
 
 const LAYOUT_MODES = [
-  { id: 'orbital', description: 'signal motifs orbit a central void' },
-  { id: 'stacked', description: 'translucent abstract planes stacked front to back' },
-  { id: 'fractured', description: 'asymmetric shards intersecting at rule-of-thirds' },
-  { id: 'radial', description: 'concentric signal rings expanding from focal point' },
-  { id: 'diagonal', description: 'layers sheared along a diagonal axis' },
-  { id: 'depth_stack', description: 'deep parallax with foreground signal overlay' },
+  { id: 'horizon', description: 'single focal form on an infinite void horizon' },
+  { id: 'drift', description: 'sparse forms floating in depth, no symmetry' },
+  { id: 'shear', description: 'parallel curved strokes sheared across the frame' },
+  { id: 'beacon', description: 'one vertical accent against vast negative space' },
+  { id: 'tide', description: 'one sweeping arc dominates, secondary whispers at edges' },
+  { id: 'ember', description: 'clustered soft glows, no connecting lines' },
+];
+
+/** Seed-picked aesthetic anchors — narrative scene types, not keyword lists. */
+const AESTHETIC_ANCHORS = [
+  'Like a James Turrell light installation on infinite black — one color, one form, vast silence.',
+  'Like a Hiroshi Sugimoto horizon photograph translated into neon — a single line of energy dividing void from glow.',
+  'Like a minimalist album cover for an electronic composer — one curved stroke, one accent hue, nothing else.',
+  'Like bioluminescence in deep ocean darkness — soft organic glows, no geometry, no grids.',
+  'Like a long-exposure photograph of city light trails reduced to three elegant curves on black.',
 ];
 
 function mulberry32(seed) {
@@ -89,7 +109,7 @@ function interpretSignalLayers(snapshot, plan, seed) {
     id: 'void',
     signal: 'coverage',
     label: `${snapshot.coverage || 0} names in view`,
-    motif: 'void density field',
+    motif: 'deep void mist',
     role: 'background',
     zIndex: 0,
     opacity: Math.min(0.35, 0.12 + (snapshot.coverage || 50) / 400),
@@ -103,7 +123,7 @@ function interpretSignalLayers(snapshot, plan, seed) {
     id: 'sector',
     signal: 'sector',
     label: plan.accentLabel,
-    motif: 'chromatic wash plane',
+    motif: 'atmospheric color wash',
     role: 'background',
     zIndex: 1,
     opacity: 0.14 + rand() * 0.1,
@@ -236,11 +256,17 @@ function buildLayerLegend(signalArt) {
     }));
 }
 
+function pickAestheticAnchor(seed) {
+  return AESTHETIC_ANCHORS[seed % AESTHETIC_ANCHORS.length];
+}
+
 module.exports = {
   SIGNAL_ART,
   LAYOUT_MODES,
+  AESTHETIC_ANCHORS,
   labelToMotif,
   interpretSignalLayers,
   describeLayersForPrompt,
   buildLayerLegend,
+  pickAestheticAnchor,
 };

@@ -137,9 +137,9 @@ export default function Art() {
 
   const copy = edition?.copy;
   const rasterSrc =
-    edition?.raster_url && edition?.seed
-      ? `${edition.raster_url}${edition.raster_url.includes('?') ? '&' : '?'}v=${edition.seed}`
-      : edition?.raster_url ?? null;
+    edition?.raster_url
+      ? `${edition.raster_url}${edition.raster_url.includes('?') ? '&' : '?'}v=${encodeURIComponent(edition.generated_at || String(edition.seed))}`
+      : null;
   const showRaster = Boolean(rasterSrc) && !rasterFailed;
   const showSvg = Boolean(edition?.svg) && (!showRaster || rasterFailed);
 
@@ -213,7 +213,7 @@ export default function Art() {
             </div>
           ) : showRaster ? (
             <img
-              src={edition!.raster_url!}
+              src={rasterSrc!}
               alt={copy?.title || 'Signal Art composition'}
               className="w-full h-full object-contain"
               loading="eager"
