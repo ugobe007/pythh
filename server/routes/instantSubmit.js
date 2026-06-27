@@ -434,6 +434,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 });
 
 function trackInstantSubmitFunnel(req, { startupId, url, matchCount, startup }) {
+  const utm = {};
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
+    if (req.body?.[key]) utm[key] = req.body[key];
+  }
   void logInstantSubmitFunnel(supabase, {
     startupId,
     url,
@@ -444,6 +448,7 @@ function trackInstantSubmitFunnel(req, { startupId, url, matchCount, startup }) 
     sectors: startup?.sectors,
     stage: startup?.stage ?? startup?.stage_estimate,
     godScore: startup?.total_god_score,
+    utm,
   });
 }
 

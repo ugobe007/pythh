@@ -146,6 +146,7 @@ async function main() {
       investor_email_captured: f.investor_email_captured || 0,
       investor_profile_completed: f.investor_profile_completed || 0,
       preview_evidence_strip_viewed: f.preview_evidence_strip_viewed || 0,
+      return_visit_7d: f.return_visit_7d || 0,
     },
     founder_demand: {
       events_7d: founderDemandCount,
@@ -168,6 +169,17 @@ async function main() {
       investor_email_to_profile: rate(investorProfileCompleted, investorEmailCaptured || investorSignups),
       investor_resume_to_profile: rate(investorProfileCompleted, investorProfileResumeStarted),
       complete_per_checkout: rate(f.checkout_completed || 0, f.checkout_started || 0),
+      return_visit_per_preview: rate(f.return_visit_7d || 0, f.instant_matches_viewed || 0),
+      wizard_per_founder_signup: rate(
+        f.wizard_outreach_preview_viewed || 0,
+        (g.founder_signup_completed || 0) + (f.lookup_signup_completed || 0),
+      ),
+      url_submitted_per_day: Math.round(((f.url_submitted || 0) / days) * 100) / 100,
+    },
+    url_attribution: {
+      ai_logs_only: f.url_submitted_ai_logs_only ?? null,
+      founder_url_growth: f.founder_url_submitted_growth ?? null,
+      founder_demand: f.founder_demand_url_submitted ?? null,
     },
     experiments: {
       founder_preview_oracle_gap_gate: {
@@ -189,9 +201,9 @@ async function main() {
       paid_subscribers: subs.active_or_trialing,
       paid_subscribers_source: subs.table,
     },
-    funnel_healthy: heartbeat?.verification?.required_stages_ok ?? null,
-    heartbeat_ok: heartbeat?.ok ?? null,
-    heartbeat_diagnosis: heartbeat?.diagnosis ?? null,
+    funnel_healthy: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? null,
+    heartbeat_ok: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? null,
+    heartbeat_diagnosis: heartbeat?.verification?.diagnosis ?? heartbeat?.diagnosis ?? null,
     agent_focus: [],
   };
 
@@ -206,7 +218,7 @@ async function main() {
   if ((report.totals.signups_per_day || 0) < 1) {
     report.agent_focus.push('Acquisition: SEO /find-investors + paid/community tests for first-time founders (F-12)');
   }
-  if (report.funnel_healthy === false || heartbeat?.diagnosis === 'probe_failed') {
+  if (report.funnel_healthy === false && heartbeat?.diagnosis === 'probe_failed') {
     report.agent_focus.push('Fix funnel instrumentation gaps (run npm run funnel:heartbeat)');
   }
   if (founderDemandCount === 0 && (f.preview_requested || 0) > 5) {

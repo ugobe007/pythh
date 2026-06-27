@@ -119,42 +119,42 @@ async function sampleFounderDemandEvents(supabase, { days = 7, limit = 200 } = {
 }
 
 async function getSignupVelocity(supabase, { days = 7 } = {}) {
-  const since = new Date(Date.now() - days * 86_400_000).toISOString();
-  const ops = [
-    'url_submitted',
-    'login_completed',
-    'lookup_signup_completed',
-    'checkout_completed',
-  ];
-  const { data, error } = await supabase
-    .from('ai_logs')
-    .select('operation, created_at')
-    .gte('created_at', since)
-    .in('operation', ops)
-    .limit(10000);
-  if (error && error.code !== 'PGRST205') throw error;
+  const { getFunnelCounts } = require('./funnelTelemetry');
+  const funnel = await getFunnelCounts(supabase, { days, excludeProbes: true });
+  const f = funnel.ai_logs || {};
+  const g = funnel.growth_events || {};
 
-  const counts = {};
-  for (const row of data || []) {
-    counts[row.operation] = (counts[row.operation] || 0) + 1;
-  }
-
-  const windowDays = days;
-  const signups = (counts.login_completed || 0) + (counts.lookup_signup_completed || 0) + (counts.checkout_completed || 0);
-  const perDay = windowDays ? signups / windowDays : 0;
+  const signups =
+    (g.founder_signup_completed || 0) +
+    (f.lookup_signup_completed || 0) +
+    (f.login_completed || 0) +
+    (g.investor_signup_completed || 0);
+  const perDay = days ? signups / days : 0;
 
   const northStar = loadJson(NORTH_STAR_PATH);
   const target = northStar.milestones?.find((m) => m.phase === 'target')?.signups_per_day || 100;
 
   return {
-    window_days: windowDays,
-    url_submitted: counts.url_submitted || 0,
+    window_days: days,
+    url_submitted: f.url_submitted || 0,
     signups_total: signups,
     signups_per_day: Math.round(perDay * 100) / 100,
     target_signups_per_day: target,
     gap_to_target: Math.round((target - perDay) * 100) / 100,
     pct_of_target: target ? Math.round((perDay / target) * 1000) / 10 : 0,
-    by_operation: counts,
+    by_operation: {
+      url_submitted: f.url_submitted || 0,
+      login_completed: f.login_completed || 0,
+      lookup_signup_completed: f.lookup_signup_completed || 0,
+      checkout_completed: f.checkout_completed || 0,
+      founder_signup_completed: g.founder_signup_completed || 0,
+      investor_signup_completed: g.investor_signup_completed || 0,
+    },
+    url_attribution: {
+      ai_logs_only: f.url_submitted_ai_logs_only ?? null,
+      founder_url_growth: f.founder_url_submitted_growth ?? null,
+      founder_demand: f.founder_demand_url_submitted ?? null,
+    },
   };
 }
 

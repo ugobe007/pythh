@@ -19,7 +19,8 @@ import { trpc } from "@/lib/trpc";
 import SharedNavbar from "@/components/SharedNavbar";
 import InstantMatchPreview from "@/components/InstantMatchPreview";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
-import { fetchGrowthAssignment, trackGrowthEvent } from "@/lib/growthExperiment";
+import { fetchGrowthAssignment } from "@/lib/growthExperiment";
+import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -277,7 +278,9 @@ export default function Matches() {
       void trackFunnelEventOnce('pythh_matches_landing_view', 'page_view', {
         path: '/matches',
         source: 'matches_acquisition_landing',
+        ...getUtmParams(),
       });
+      trackReturnVisitIfEligible('/matches');
     }
   }, [location]);
 
@@ -289,9 +292,7 @@ export default function Matches() {
     }
     setUrlEntryError(false);
     const assignment = await fetchGrowthAssignment('founder').catch(() => null);
-    if (assignment) {
-      void trackGrowthEvent(assignment, 'founder_url_submitted', { url: normalized, source: 'matches_landing' });
-    }
+    trackUrlSubmitted(normalized, 'matches_landing', assignment);
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 

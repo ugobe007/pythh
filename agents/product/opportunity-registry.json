@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-24T12:00:00Z",
+  "updated_at": "2026-06-27T00:00:00Z",
   "opportunities": [
     {
       "id": "preview_to_signup_conversion",
@@ -71,7 +71,7 @@
       "metric": "investor_portfolio_pick_added",
       "baseline": "0 investor pick events; portfolio API exists but no cap/UI in NEW_pythh_site",
       "target": "40% of investor signups add ≥1 pick in 7d; 15% return_visit_7d",
-      "next_step": "CSV export live on /investor/portfolio. Email-first signup skips to resume form. Monitor investor_email_to_profile + investor_portfolio_exported in conversion:funnel.",
+      "next_step": "Monitor investor_email_to_profile + investor_portfolio_exported in conversion:funnel; target 40% pick rate in 7d.",
       "finding_id": null,
       "related_experiments": ["investor_signup_schema"]
     },
@@ -86,7 +86,7 @@
       "metric": "investor_weekly_active",
       "baseline": null,
       "target": "15% WAU among signed-up investors",
-      "next_step": "Shipped email-first resume (localStorage + lightweight enrichment form) and started-on-submit instrumentation. Traffic: email_first 70%, short_form 20%, thesis_deep 10%. Monitor investor_signup_completed / started over 14d.",
+      "next_step": "Live digest Mon 8:30 UTC; monitor investor_started→completed (target >20%) and digest open rate.",
       "related_experiments": ["investor_signup_schema"]
     },
     {
@@ -142,7 +142,7 @@
       "metric": "return_visit_7d",
       "baseline": "0 measurable return loop; preview→signup still primary leak",
       "target": "20% return within 7d of first preview; match_intro_rate > 0",
-      "next_step": "Product spec agents/product/specs/engagement_addiction_loops.md; Growth runs outbound to feed preview URLs.",
+      "next_step": "return_visit_7d + wizard_outreach_preview_viewed instrumented; monitor return_visit_per_preview in conversion:funnel.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
@@ -156,7 +156,7 @@
       "metric": "url_submitted_per_day",
       "baseline": "~4-5 url_submitted/day organic",
       "target": "2x url_submitted via outbound-attributed links within 30d",
-      "next_step": "npm run outbound:find-investors weekly; track ref param in url_submitted events.",
+      "next_step": "Outbound automated Wed 9:30 UTC; UTM params now flow into url_submitted events — filter by utm_source in conversion:funnel.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
@@ -170,7 +170,7 @@
       "metric": "funnel_stages_emitting_events",
       "baseline": "6/6 heartbeat green but signup/return/pay stages thin",
       "target": "All north_star funnel_stages emit events with variant attribution",
-      "next_step": "Extend product-metrics + conversion-funnel for return_visit_7d, wizard_act, pricing_viewed.",
+      "next_step": "conversion:funnel now tracks return_visit_7d, wizard_per_founder_signup, pricing_viewed, url_attribution — review daily agent report.",
       "related_experiments": []
     },
     {
@@ -184,7 +184,7 @@
       "metric": "checkout_completion_rate",
       "baseline": "0 pricing_viewed / checkout events in 7d",
       "target": "Measurable preview→signup→checkout funnel; first pricing A/B winner",
-      "next_step": "pricing_oracle_cta promoted to running — trial_first vs value_first on Oracle checkout CTA. Monitor checkout_started by variant via npm run growth:cycle.",
+      "next_step": "growth:cycle Fri 10 UTC reports pricing_oracle_cta variants; 22 checkouts/7d baseline — optimize trial_first vs value_first.",
       "related_experiments": ["founder_hero_entry", "pricing_oracle_cta"]
     }
   ]

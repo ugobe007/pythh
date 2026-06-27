@@ -166,7 +166,11 @@ async function gatherAgentDailyReportData(opts = {}) {
   const brief = latestBrief(repoRoot);
 
   const openFindings = (findingsRegistry?.findings || [])
-    .filter((f) => f.status === 'open' || f.status === 'validated')
+    .filter((f) => {
+      if (['addressed', 'archived', 'handed_off'].includes(f.status)) return false;
+      if (f.status_update && /DOWNGRADE priority|superseded by F-/i.test(f.status_update)) return false;
+      return f.status === 'open' || f.status === 'validated';
+    })
     .sort((a, b) => {
       const conf = { high: 0, medium: 1, low: 2 };
       return (conf[a.confidence] ?? 9) - (conf[b.confidence] ?? 9);
@@ -235,8 +239,8 @@ async function gatherAgentDailyReportData(opts = {}) {
       founder_demand_events_7d: conversion?.founder_demand?.events_7d ?? null,
     },
     funnel_health: {
-      ok: heartbeat?.ok ?? conversion?.heartbeat_ok,
-      diagnosis: heartbeat?.diagnosis ?? conversion?.heartbeat_diagnosis,
+      ok: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? conversion?.heartbeat_ok,
+      diagnosis: heartbeat?.verification?.diagnosis ?? heartbeat?.diagnosis ?? conversion?.heartbeat_diagnosis,
       weakest_stage: orchestrator?.weakest_stage?.label,
       weakest_rate: orchestrator?.weakest_stage?.score,
       todays_focus: orchestrator?.todays_focus?.primary,
@@ -283,6 +287,7 @@ async function gatherAgentDailyReportData(opts = {}) {
       ? { decision: growthCycle.decision, summary: growthCycle.executive_summary?.slice(0, 3) }
       : null,
     pipeline_grade: productMetrics?.health_grade || productMetrics?.summary?.pipeline_grade,
+    url_attribution: conversion?.url_attribution || null,
   };
 }
 
@@ -391,12 +396,12 @@ function buildAgentDailyReportHtml(data) {
           ${metricRow('Paid checkouts', m.today.checkouts, m.window_7d.checkouts)}
         </tbody>
       </table>
-      <p style="font-size:13px;color:#666;margin:12px 0 0;">${esc(rateLine)}${m.paid_subscribers != null ? ` · Paid subs: ${m.paid_subscribers}` : ''}${m.founder_demand_events_7d != null ? ` · Founder demand events (7d): ${m.founder_demand_events_7d}` : ''}</p>
+      <p style="font-size:13px;color:#666;margin:12px 0 0;">${esc(rateLine)}${m.paid_subscribers != null ? ` · Paid subs: ${m.paid_subscribers}` : ''}${m.founder_demand_events_7d != null ? ` · Founder demand events (7d): ${m.founder_demand_events_7d}` : ''}${data.url_attribution?.founder_demand != null ? ` · URL SSOT (demand): ${data.url_attribution.founder_demand}` : ''}</p>
 
       <h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Funnel focus</h2>
       <p style="font-size:14px;color:#333;margin:0 0 8px;"><strong>Weakest stage:</strong> ${esc(data.funnel_health.weakest_stage || '—')} (${esc(data.funnel_health.weakest_rate ?? '—')}%)</p>
       <p style="font-size:14px;color:#333;margin:0 0 12px;">${esc(data.funnel_health.todays_focus || '')}</p>
-      <p style="font-size:13px;color:#666;margin:0;">Heartbeat: ${data.funnel_health.ok ? '✅ OK' : '⚠️ Needs attention'} — ${esc(data.funnel_health.diagnosis || 'unknown')}</p>
+      <p style="font-size:13px;color:#666;margin:0;">Heartbeat: ${data.funnel_health.ok ? '✅ OK' : data.funnel_health.diagnosis === 'healthy' ? '✅ OK (optional stages pending)' : '⚠️ Needs attention'} — ${esc(data.funnel_health.diagnosis || 'unknown')}</p>
       ${focusHtml ? `<ul style="font-size:13px;color:#444;padding-left:20px;margin:12px 0 0;">${focusHtml}</ul>` : ''}
 
       ${data.market_brief?.highlight ? `<h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Research highlight (${esc(data.market_brief.file)})</h2>

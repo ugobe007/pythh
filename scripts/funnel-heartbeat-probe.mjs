@@ -100,11 +100,13 @@ async function runProbe() {
 
   if (!startupId) {
     return {
+      generated_at: new Date().toISOString(),
       probe_run_id: probeRunId,
       base: BASE,
       steps,
       error: 'instant_submit did not return startup_id',
       diagnosis: 'probe_failed',
+      ok: false,
     };
   }
 

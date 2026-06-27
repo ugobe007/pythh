@@ -8,6 +8,7 @@ import { Link, useLocation } from 'wouter';
 import { Loader2, ArrowRight, Download, Bookmark, Send } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
+import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
 import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
@@ -206,6 +207,7 @@ export default function InstantMatchPreview({ url }: Props) {
           url,
           match_count: data.matches?.length ?? 0,
         });
+        markFirstPreviewSeen();
 
         if (!evidenceStripTrackedRef.current) {
           evidenceStripTrackedRef.current = true;

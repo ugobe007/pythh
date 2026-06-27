@@ -39,7 +39,7 @@ async function recordFounderDemandEvent(supabase, fields = {}) {
   }
 }
 
-async function countFounderDemandEvents(supabase, { days = 7, eventType = null } = {}) {
+async function countFounderDemandEvents(supabase, { days = 7, eventType = null, excludeProbes = true } = {}) {
   if (!supabase) return 0;
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
   let query = supabase
@@ -47,6 +47,7 @@ async function countFounderDemandEvents(supabase, { days = 7, eventType = null }
     .select('*', { count: 'exact', head: true })
     .gte('created_at', since);
   if (eventType) query = query.eq('event_type', eventType);
+  if (excludeProbes) query = query.is('probe_run_id', null);
   const { count, error } = await query;
   if (error) return 0;
   return count ?? 0;

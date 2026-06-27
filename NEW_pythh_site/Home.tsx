@@ -23,9 +23,9 @@ import {
 } from "@/lib/designTokens";
 import {
   fetchGrowthAssignment,
-  trackGrowthEvent,
   type GrowthAssignment,
 } from "@/lib/growthExperiment";
+import { trackUrlSubmitted } from "@/lib/funnelAttribution";
 import {
   ArrowRight,
   ExternalLink,
@@ -308,9 +308,7 @@ function HeroSection({
     setError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
     sessionStorage.setItem("pythia_url", normalized);
-    if (founderExperiment) {
-      void trackGrowthEvent(founderExperiment, "founder_url_submitted", { url: normalized });
-    }
+    trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     const entry = founderExperiment?.schema?.entry as string | undefined;
     if (entry === "url_with_preview") {
       navigate(`/matches?url=${encodeURIComponent(normalized)}`);

@@ -9,7 +9,8 @@ import { useLocation } from 'wouter';
 import { ArrowRight, CheckCircle2, Users, Zap, Target } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
-import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
+import { fetchGrowthAssignment } from '@/lib/growthExperiment';
+import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from '@/lib/funnelAttribution';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -26,7 +27,9 @@ export default function FindInvestors() {
     void trackFunnelEventOnce('pythh_find_investors_view', 'page_view', {
       path: '/find-investors',
       source: 'awareness_landing',
+      ...getUtmParams(),
     });
+    trackReturnVisitIfEligible('/find-investors');
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -38,12 +41,7 @@ export default function FindInvestors() {
     }
     setError(false);
     const assignment = await fetchGrowthAssignment('founder').catch(() => null);
-    if (assignment) {
-      void trackGrowthEvent(assignment, 'founder_url_submitted', {
-        url: normalized,
-        source: 'find_investors_landing',
-      });
-    }
+    trackUrlSubmitted(normalized, 'find_investors_landing', assignment);
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 

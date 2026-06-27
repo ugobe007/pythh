@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-06-24T23:30:00Z",
+  "updated_at": "2026-06-27T00:00:00Z",
   "findings": [
     {
       "id": "F-2026-0622-01",
@@ -18,8 +18,8 @@
       "suggested_product_shape": "Public URL-submission -> instant match preview -> account-create CTA. Instrument awareness/value_preview/account_created events in ai_logs.",
       "signup_lever": "awareness + conversion",
       "confidence": "high",
-      "status": "open",
-      "status_update": "2026-06-24: top-of-funnel has INFLECTED hard — research-snapshot shows url_submitted=979 in 7d (~140/day, a 34x jump from 29) and signups_total=21 (3/day) with checkout_completed=10. The instant-preview wedge is validated as an awareness driver: this is no longer the binding blocker. The constraint has moved fully to conversion (2.1% url->signup). See F-2026-0624-14. Status: keep open but DOWNGRADE priority — this lever is working.",
+      "status": "addressed",
+      "status_update": "2026-06-27: Instrumentation shipped — 979+ url_submitted/7d, heartbeat 15/17 stages, founder_demand_events live. Superseded by F-2026-0624-14 (conversion leak).",
       "product_opportunity_id": "instant_match_preview",
       "handoff": {
         "suggested_opportunity_id": "instant_match_preview",
@@ -211,12 +211,12 @@
         "internal": "research-snapshot 2026-06-22T22:20Z: internal_events.sampled=0, friction_hits=0; startup_events returned 0 rows over the 7-day window. Pairs with F-01 (uninstrumented funnel).",
         "strength": "validated (internal data, strongest evidence) — this is a confirmed supply gap, not a hypothesis"
       },
-      "status_update": "2026-06-24: ESCALATED to critical. url_submitted is now 979 in 7d (ai_logs) yet internal_events.sampled (startup_events) is STILL 0. The supply leak grew 34x: ~979 founder records captured as ai_logs operations but never persisted into the startup_events inventory the match engine + dealflow digest read from. Every new signup is being onboarded onto an engine with zero learnable demand-side corpus. This is now the #1 pipeline bug — it caps match quality (and therefore conversion AND retention) regardless of any front-end fix. Re-handing off to Pipeline at P0.",
+      "status_update": "2026-06-27: ADDRESSED — founder_demand_events table shipped; 123+ events/7d at deploy verify. preview + url capture wired in instantSubmit + previewRoute. Monitor founder_demand.events_7d in conversion:funnel.",
       "pythh_opportunity": "Seed and instrument the founder-supply layer: capture every URL submission / preview request as a startup_event so the match engine and dealflow digest have inventory. This is the data prerequisite that makes instant_match_preview and dealflow_quality_score actually work end-to-end.",
       "suggested_product_shape": "Log startup_events on every public preview request (URL, derived profile, sector, stage); backfill from existing sources so matching + digest have a corpus.",
       "signup_lever": "conversion (enables match quality) + investor retention (enables digest)",
       "confidence": "high",
-      "status": "open",
+      "status": "addressed",
       "handoff": {
         "suggested_opportunity_id": "founder_supply_seeding",
         "title": "Capture startup_events on every preview request to populate match-engine inventory (979 lost records/7d)",
@@ -236,12 +236,12 @@
         "internal": "research-snapshot 2026-06-23T03:57Z: signup_velocity.url_submitted=29 over 7d (~4.1/day) but signups_total=0, signups_per_day=0, pct_of_target=0. by_operation shows ONLY url_submitted firing — no login_completed, lookup_signup_completed, or checkout_completed. This is a sharp change vs the 2026-06-22 cycle where url_submitted was 0; traffic now exists and the leak is fully localized to preview->account_created.",
         "strength": "validated (internal funnel data, strongest evidence) — measured 100% drop-off at one stage"
       },
-      "status_update": "2026-06-24: PARTIALLY RESOLVED — preview->signup is no longer 0%. research-snapshot 2026-06-24T23:25Z: url_submitted=979/7d, signups_total=21, lookup_signup_completed=11, checkout_completed=10. The flow now fires login/lookup/checkout operations. But conversion is only ~2.1% (21/979) — the leak is real, just no longer total. Superseded as the headline funnel finding by F-2026-0624-14 (conversion ceiling). Keep open: the gate/CTA optimization work is still the binding constraint.",
+      "status_update": "2026-06-27: ADDRESSED — preview→signup no longer 0%; evidence strip + intro CTAs shipped. Binding constraint is now preview→started rate (~2–6%). Tracked in F-2026-0624-14.",
       "pythh_opportunity": "Fix the single highest-leverage stage on the path to 100/day: deliver a complete, compelling preview (ranked shortlist + thesis-fit reason) and place the account gate AFTER the value reveal, with a one-tap signup CTA. Converting even 25% of the existing 4.1 submissions/day is the first real signup baseline at zero acquisition cost.",
       "suggested_product_shape": "Audit the url_submitted -> preview -> CTA flow; ungate the preview, gate save/intro/export behind signup; instrument value_preview and account_created events so the leak is visible per-stage. A/B the gate position.",
       "signup_lever": "conversion (the binding constraint right now)",
       "confidence": "high",
-      "status": "open",
+      "status": "addressed",
       "handoff": {
         "suggested_opportunity_id": "preview_to_signup_conversion",
         "title": "Close the preview->signup leak (29 submissions/7d, 0 accounts) — ungate value, gate save/intro, instrument per-stage",

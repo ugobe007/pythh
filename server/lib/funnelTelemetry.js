@@ -32,6 +32,7 @@ const FUNNEL_OPERATIONS = [
   'investor_profile_resume_started',
   'investor_email_captured',
   'investor_profile_completed',
+  'return_visit_7d',
 ];
 
 const GROWTH_FUNNEL_EVENTS = [
@@ -62,13 +63,14 @@ async function recordFunnelEvent(supabase, operation, output = {}, options = {})
 
 async function logInstantSubmitFunnel(
   supabase,
-  { startupId, url, matchCount, source, probeRunId, startupName, sectors, stage, godScore },
+  { startupId, url, matchCount, source, probeRunId, startupName, sectors, stage, godScore, utm = {} },
 ) {
   const base = {
     startup_id: startupId,
     startup_url: url || null,
     match_count: matchCount ?? 0,
     source: source || 'instant_submit',
+    ...(utm && typeof utm === 'object' ? utm : {}),
   };
   if (probeRunId) base.probe_run_id = probeRunId;
   await recordFunnelEvent(supabase, 'url_submitted', base, { source: base.source });
@@ -125,36 +127,65 @@ async function logPreviewLoaded(
   });
 }
 
-async function getFunnelCounts(supabase, { days = 7 } = {}) {
-  const since = new Date(Date.now() - days * 86_400_000).toISOString();
-  const ai_logs = Object.fromEntries(FUNNEL_OPERATIONS.map((op) => [op, 0]));
-
-  const { data: rows, error } = await supabase
+async function countAiLogOperation(supabase, operation, since, { excludeProbes = true } = {}) {
+  if (!supabase || !operation) return 0;
+  let query = supabase
     .from('ai_logs')
-    .select('operation')
-    .gte('created_at', since)
-    .in('operation', FUNNEL_OPERATIONS)
-    .limit(10000);
-
-  if (!error) {
-    for (const row of rows || []) {
-      ai_logs[row.operation] = (ai_logs[row.operation] || 0) + 1;
-    }
+    .select('*', { count: 'exact', head: true })
+    .eq('operation', operation)
+    .gte('created_at', since);
+  if (excludeProbes) {
+    query = query.not('output->>source', 'eq', 'funnel_probe');
   }
+  const { count, error } = await query;
+  if (error) return 0;
+  return count ?? 0;
+}
 
-  const growth_events = Object.fromEntries(GROWTH_FUNNEL_EVENTS.map((e) => [e, 0]));
-  const { data: growthRows, error: gErr } = await supabase
+async function countGrowthFunnelEvent(supabase, eventName, since, { excludeProbes = true } = {}) {
+  if (!supabase || !eventName) return 0;
+  let query = supabase
     .from('growth_experiment_events')
-    .select('event_name')
-    .gte('created_at', since)
-    .in('event_name', GROWTH_FUNNEL_EVENTS)
-    .limit(5000);
-
-  if (!gErr) {
-    for (const row of growthRows || []) {
-      growth_events[row.event_name] = (growth_events[row.event_name] || 0) + 1;
-    }
+    .select('*', { count: 'exact', head: true })
+    .eq('event_name', eventName)
+    .gte('created_at', since);
+  if (excludeProbes) {
+    query = query.is('payload->probe_run_id', null);
   }
+  const { count, error } = await query;
+  if (error) return 0;
+  return count ?? 0;
+}
+
+async function getFunnelCounts(supabase, { days = 7, excludeProbes = true } = {}) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { countFounderDemandEvents } = require('./founderDemandEvents');
+
+  const aiCounts = await Promise.all(
+    FUNNEL_OPERATIONS.map(async (op) => [op, await countAiLogOperation(supabase, op, since, { excludeProbes })]),
+  );
+  const ai_logs = Object.fromEntries(aiCounts);
+
+  const growthCounts = await Promise.all(
+    GROWTH_FUNNEL_EVENTS.map(async (e) => [
+      e,
+      await countGrowthFunnelEvent(supabase, e, since, { excludeProbes }),
+    ]),
+  );
+  const growth_events = Object.fromEntries(growthCounts);
+
+  const founderUrlGrowth = growth_events.founder_url_submitted || 0;
+  const demandUrlCount = await countFounderDemandEvents(supabase, {
+    days,
+    eventType: 'url_submitted',
+    excludeProbes,
+  }).catch(() => 0);
+
+  const aiUrlOnly = ai_logs.url_submitted || 0;
+  ai_logs.url_submitted_ai_logs_only = aiUrlOnly;
+  ai_logs.founder_url_submitted_growth = founderUrlGrowth;
+  ai_logs.founder_demand_url_submitted = demandUrlCount;
+  ai_logs.url_submitted = Math.max(demandUrlCount, aiUrlOnly + founderUrlGrowth);
 
   const aiTotal = Object.values(ai_logs).reduce((s, n) => s + n, 0);
   const growthTotal = Object.values(growth_events).reduce((s, n) => s + n, 0);
@@ -197,6 +228,7 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'checkout_completed', store: 'ai_logs', operation: 'checkout_completed', required: false },
     { id: 'preview_email_captured', store: 'ai_logs', operation: 'preview_email_captured', required: false },
     { id: 'preview_oracle_gap_teaser_viewed', store: 'ai_logs', operation: 'preview_oracle_gap_teaser_viewed', required: false },
+    { id: 'return_visit_7d', store: 'ai_logs', operation: 'return_visit_7d', optional: true },
     { id: 'founder_activation_email_sent', store: 'ai_logs', operation: 'founder_activation_email_sent', optional: true },
     { id: 'wizard_outreach_preview_viewed', store: 'ai_logs', operation: 'wizard_outreach_preview_viewed', optional: true },
   ];
@@ -244,9 +276,9 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
   const optionalMissing = optionalStages.filter((s) => !results.find((r) => r.id === s.id)?.logged);
 
   let diagnosis = 'healthy';
-  if (loggedCount === 0) diagnosis = 'logging_gap_total';
+  if (loggedCount === 0) diagnosis = 'probe_failed';
   else if (!requiredOk) diagnosis = 'logging_gap_partial';
-  else if (optionalMissing.length > 0) diagnosis = 'logging_gap_minor';
+  else if (optionalMissing.length > 0) diagnosis = 'healthy';
 
   return {
     probe_run_id: probeRunId,
