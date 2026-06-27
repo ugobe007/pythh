@@ -22,6 +22,7 @@ const { generateNewsletter } = require('../server/newsletter-generator');
 const { generatePythhArtEdition, saveArtEdition } = require('../server/lib/pythhArtGenerator');
 
 const DRY = process.argv.includes('--dry');
+const FORCE = process.argv.includes('--force');
 const dateArg = process.argv.find((a) => a.startsWith('--date='));
 const targetDate = dateArg ? dateArg.split('=')[1] : null;
 

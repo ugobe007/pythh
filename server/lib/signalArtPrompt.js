@@ -135,6 +135,8 @@ function signalToMotion(snapshot, plan) {
   const leading = (snapshot.leading_signal?.label || '').toLowerCase();
   const pct = plan.leadingPct || 50;
   const funding = plan.fundingCount || 0;
+  const movers = snapshot.god_movers || [];
+  const netDelta = movers.reduce((s, m) => s + (m.delta || 0), 0);
   const parts = [];
 
   if (leading.includes('velocity') || leading.includes('execution')) {
@@ -151,6 +153,14 @@ function signalToMotion(snapshot, plan) {
   if (funding >= 5) parts.push('multiple parallel signal currents each a different hue and speed');
   if (plan.tension > 0.4) parts.push('competing currents — today and tomorrow pulling in different directions');
   if (pct >= 55) parts.push('motion blur and light trails on every flowing form');
+  if (netDelta >= 15) parts.push(`ascending GOD energy — ${movers.filter((m) => m.delta > 0).length} startups rising through the veil`);
+  if (netDelta <= -15) parts.push('cooling mist — scores recalibrating, signals folding inward before the next surge');
+  if (snapshot.sector_trends?.[0]) {
+    parts.push(`sector tide pulling color toward ${snapshot.sector_trends[0].sector}`);
+  }
+  if ((snapshot.top_matches || []).length >= 2) {
+    parts.push('intertwined match filaments — investor-startup tension visible as crossing light streams');
+  }
 
   return parts.join('; ');
 }
@@ -163,18 +173,25 @@ function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
 
   return [
     `Full-bleed cinematic sci-fi oracle artwork — edge to edge, no border, no frame, no white edges.`,
+    `Layout mode: ${signalArt.layoutMode} — ${signalArt.layoutDescription}. This must visibly change the composition structure, not just palette.`,
     `PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon.`,
     `${anchor}`,
     `She is not abstract objects — no cubes, no blocks, no geometric solids, no static shapes. Everything is flowing, alive, and powerful.`,
     `Her signals are sci-fi: rivers of colored light, plasma currents, aurora ribbons, prophetic energy streams — all in motion with vivid color.`,
     `Sublime mysterious aura — a powerful oracle presence felt through radiating light, not a human figure.`,
     `Signal motion today: ${motion}.`,
+    snapshot.god_movers?.length
+      ? `GOD score movement shaping the forms: ${snapshot.god_movers.slice(0, 3).map((m) => `${m.name} ${m.delta > 0 ? 'rising' : 'cooling'} (${m.delta > 0 ? '+' : ''}${m.delta})`).join(', ')}.`
+      : null,
+    snapshot.sector_trends?.[0]
+      ? `Dominant sector tide: ${snapshot.sector_trends[0].sector} (${snapshot.sector_trends[0].count} companies, avg GOD ${snapshot.sector_trends[0].avg_score}).`
+      : null,
     `Color palette: rich sci-fi hues dominated by ${accent}, with complementary electric tones — colors that move and blend like living energy.`,
     `Futuristic, wise, all-knowing mood — the feeling of seeing what others cannot yet see.`,
     `${lighting.label}: ${lighting.effect}.`,
     `Long-exposure flowing light, directional motion blur, ripples of prophetic energy expanding outward.`,
     `No writing, no labels, no typography, no cubes, no blocks, no static objects.`,
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }
 
 module.exports = {

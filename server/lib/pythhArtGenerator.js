@@ -75,6 +75,7 @@ function godVariance(startups) {
 
 function extractSnapshot(newsletter) {
   const nl = newsletter || {};
+  const topMatches = (nl.topMatches || nl.hotMatches || []).slice(0, 3);
   return {
     edition_date: nl.date || new Date().toISOString().slice(0, 10),
     leading_signal: nl.signalsThatMatter?.leading || null,
@@ -83,10 +84,36 @@ function extractSnapshot(newsletter) {
     exemplars: nl.signalsThatMatter?.exemplars || [],
     hottest: (nl.hottestStartups || []).slice(0, 5),
     funding_count: (nl.moneyMoves || nl.fundingRounds || []).length,
-    top_match: nl.topMatches?.[0] || null,
+    top_match: topMatches[0] || null,
+    top_matches: topMatches,
+    god_movers: (nl.scoreMovers || []).slice(0, 5),
+    sector_trends: (nl.sectorTrends || []).slice(0, 5),
     editorial: nl.editorial?.text || null,
     top_sectors: (nl.sectorTrends || []).slice(0, 3).map((s) => s.sector),
   };
+}
+
+/** Stable seed from edition date + live signal fingerprint (not calendar alone). */
+function buildSignalFingerprint(snapshot) {
+  return [
+    snapshot.leading_signal?.label,
+    snapshot.leading_signal?.pct,
+    snapshot.top_sectors?.join('|'),
+    snapshot.funding_count,
+    snapshot.top_match?.startup?.name,
+    snapshot.top_match?.match_score,
+    ...(snapshot.god_movers || []).slice(0, 3).map((m) => `${m.name}:${m.delta}`),
+    ...(snapshot.sector_trends || []).slice(0, 2).map((s) => `${s.sector}:${s.count}:${s.avg_score}`),
+    ...(snapshot.top_matches || []).slice(0, 2).map((m) => `${m.startup?.name}:${m.match_score}`),
+    ...(snapshot.signal_dimensions || []).slice(0, 3).map((d) => `${d.key}:${d.pct}`),
+  ]
+    .filter((x) => x != null && x !== '')
+    .join('::');
+}
+
+function deriveArtSeed(snapshot) {
+  const fp = buildSignalFingerprint(snapshot);
+  return hashSeed(`pythh-art-${snapshot.edition_date}-${fp}`);
 }
 
 function planComposition(snapshot, seed) {
@@ -174,7 +201,14 @@ function renderSignalLayerSvg(layer, accent) {
   let main;
   if (layer.motif.includes('arc') || layer.motif.includes('ring') || layer.motif.includes('pulse')) {
     main = `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${Math.round(r * 0.55)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="1.5" transform="${transform}"/>`;
-  } else if (layer.motif.includes('filament') || layer.motif.includes('ribbon') || layer.motif.includes('streak') || layer.motif.includes('trail')) {
+  } else if (
+    layer.motif.includes('filament') ||
+    layer.motif.includes('ribbon') ||
+    layer.motif.includes('streak') ||
+    layer.motif.includes('trail') ||
+    layer.motif.includes('river') ||
+    layer.motif.includes('current')
+  ) {
     const x2 = x + Math.cos((rot * Math.PI) / 180) * r * 1.4;
     const y2 = y + Math.sin((rot * Math.PI) / 180) * r * 0.6;
     main = `<line x1="${x}" y1="${y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-opacity="${op}" stroke-width="2.5" stroke-linecap="round"/>`;
@@ -184,6 +218,60 @@ function renderSignalLayerSvg(layer, accent) {
     main = `<circle cx="${x}" cy="${y}" r="${Math.round(r * 0.35)}" fill="${color}" opacity="${(parseFloat(op) * 0.5).toFixed(2)}" transform="${transform}"/>`;
   }
   return motionTail + main;
+}
+
+function renderLayoutBackdrop(layoutMode, plan, accent, W, H, horizonY, rand) {
+  const parts = [];
+  switch (layoutMode) {
+    case 'threshold':
+      parts.push(`<rect x="0" y="0" width="${W / 2}" height="${H}" fill="#000000" opacity="0.42"/>`);
+      parts.push(`<rect x="${W / 2}" y="0" width="${W / 2}" height="${H}" fill="${accent}" opacity="0.07"/>`);
+      break;
+    case 'aurora':
+      for (let i = 0; i < 6; i++) {
+        const y = 60 + i * 38;
+        const cp = 80 + rand() * 60;
+        parts.push(
+          `<path d="M 0 ${y} Q ${(W / 3).toFixed(0)} ${y - cp} ${(W / 2).toFixed(0)} ${y + 25} T ${W} ${y - 15}" fill="none" stroke="${accent}" stroke-opacity="${(0.07 + i * 0.025).toFixed(2)}" stroke-width="2.5" stroke-linecap="round"/>`,
+        );
+      }
+      break;
+    case 'prophecy': {
+      const cx = plan.beaconX || 400;
+      const cy = horizonY - 60;
+      for (let i = 0; i < 4; i++) {
+        const r = 90 + i * 55;
+        parts.push(
+          `<path d="${arcPath(cx, cy, r, -120 + i * 8, 240 - i * 16)}" fill="none" stroke="${accent}" stroke-opacity="${(0.06 + i * 0.03).toFixed(2)}" stroke-width="1.5" stroke-linecap="round"/>`,
+        );
+      }
+      break;
+    }
+    case 'conduit':
+      for (let i = 0; i < 5; i++) {
+        const x = 100 + i * 130;
+        const drift = Math.round((rand() - 0.5) * 50);
+        parts.push(
+          `<line x1="${x}" y1="${H}" x2="${x + drift}" y2="100" stroke="${accent}" stroke-opacity="${(0.1 + rand() * 0.08).toFixed(2)}" stroke-width="2" stroke-linecap="round"/>`,
+        );
+      }
+      break;
+    case 'awakening':
+      parts.push(`<ellipse cx="400" cy="720" rx="360" ry="200" fill="${accent}" opacity="0.14"/>`);
+      parts.push(`<ellipse cx="400" cy="680" rx="220" ry="120" fill="${accent}" opacity="0.22"/>`);
+      break;
+    case 'veil':
+      for (let i = 0; i < 7; i++) {
+        const y = 90 + i * 95;
+        parts.push(
+          `<line x1="0" y1="${y}" x2="${W}" y2="${y + 18 - i * 2}" stroke="${accent}" stroke-opacity="0.06" stroke-width="1"/>`,
+        );
+      }
+      break;
+    default:
+      break;
+  }
+  return parts.join('\n');
 }
 
 function generateSvg(snapshot, seed) {
@@ -199,6 +287,8 @@ function generateSvg(snapshot, seed) {
 
   const beaconTop = horizonY - beaconH;
   const beaconW = 28 + plan.leadingPct * 0.15;
+  const layoutMode = signalArt.layoutMode;
+  const useBeacon = layoutMode !== 'aurora' && layoutMode !== 'veil';
   const beacon = [
     `${beaconX.toFixed(1)},${horizonY}`,
     `${(beaconX - beaconW).toFixed(1)},${horizonY}`,
@@ -225,6 +315,7 @@ function generateSvg(snapshot, seed) {
 
   parts.push('<g id="background">');
   parts.push(`<rect width="${W}" height="${H}" fill="url(#void)"/>`);
+  parts.push(renderLayoutBackdrop(signalArt.layoutMode, plan, accent, W, H, horizonY, rand));
   if (plan.lightingStyle === 'split') {
     parts.push(`<rect x="0" y="0" width="${(W / 2).toFixed(0)}" height="${H}" fill="#000" opacity="0.35"/>`);
   }
@@ -275,9 +366,11 @@ function generateSvg(snapshot, seed) {
   parts.push('</g>');
 
   parts.push('<g id="foreground" filter="url(#neonBloom)">');
-  parts.push(
-    `<polyline points="${beacon}" fill="none" stroke="${accent}" stroke-width="2.25" stroke-linejoin="miter" stroke-linecap="square"/>`,
-  );
+  if (useBeacon) {
+    parts.push(
+      `<polyline points="${beacon}" fill="none" stroke="${accent}" stroke-width="2.25" stroke-linejoin="miter" stroke-linecap="square"/>`,
+    );
+  }
   if (plan.lightingStyle === 'rim' || plan.lightingStyle === 'split' || plan.lightingStyle === 'neon_glow') {
     parts.push(
       `<line x1="${(beaconX + beaconW * 0.35).toFixed(1)}" y1="${beaconTop.toFixed(1)}" x2="${(beaconX + beaconW * 0.35).toFixed(1)}" y2="${horizonY.toFixed(1)}" stroke="${accent}" stroke-opacity="0.5" stroke-width="1"/>`,
@@ -322,7 +415,8 @@ function generateSvg(snapshot, seed) {
 
 async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRaster = true } = {}) {
   const snapshot = extractSnapshot(newsletter);
-  const seed = hashSeed(`pythh-art-${snapshot.edition_date}`);
+  const seed = deriveArtSeed(snapshot);
+  const signalFingerprint = buildSignalFingerprint(snapshot);
   const { svg, params, signalArt } = generateSvg(snapshot, seed);
   const imageBrief = buildImageBrief(snapshot, params, signalArt);
   const copy = await generateArtCopy(snapshot, params, imageBrief, signalArt);
@@ -354,6 +448,7 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
     raster_model: raster.ok ? raster.model : null,
     signal_snapshot: {
       ...snapshot,
+      signal_fingerprint: signalFingerprint,
       art_direction: SIGNAL_ART,
       signal_art: {
         layoutMode: signalArt.layoutMode,
@@ -430,6 +525,8 @@ module.exports = {
   loadArtEdition,
   listArtEditions,
   hashSeed,
+  deriveArtSeed,
+  buildSignalFingerprint,
   planComposition,
   buildImageBrief,
 };

@@ -83,8 +83,39 @@ function labelToMotif(label) {
   return 'abstract signal field';
 }
 
-function pickLayoutMode(seed, tension) {
-  const idx = (seed + Math.round(tension * 1000)) % LAYOUT_MODES.length;
+function pickLayoutMode(snapshot, plan, seed) {
+  const leading = (snapshot.leading_signal?.label || '').toLowerCase();
+  const movers = snapshot.god_movers || [];
+  const netDelta = movers.reduce((s, m) => s + (m.delta || 0), 0);
+  const rising = movers.filter((m) => (m.delta || 0) > 0).length;
+  const falling = movers.filter((m) => (m.delta || 0) < 0).length;
+  const matchCount = (snapshot.top_matches || []).length;
+
+  if (plan.fundingCount >= 10) return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[2];
+  if (netDelta >= 20 || rising >= 3) return LAYOUT_MODES.find((l) => l.id === 'awakening') || LAYOUT_MODES[4];
+  if (netDelta <= -20 || falling >= 3) return LAYOUT_MODES.find((l) => l.id === 'veil') || LAYOUT_MODES[5];
+  if (matchCount >= 2 || leading.includes('capital') || leading.includes('convergence')) {
+    return LAYOUT_MODES.find((l) => l.id === 'prophecy') || LAYOUT_MODES[1];
+  }
+  if (leading.includes('velocity') || leading.includes('execution')) {
+    return LAYOUT_MODES.find((l) => l.id === 'conduit') || LAYOUT_MODES[3];
+  }
+  if (plan.tension > 0.55) return LAYOUT_MODES.find((l) => l.id === 'threshold') || LAYOUT_MODES[0];
+  if (leading.includes('receptivity') || leading.includes('momentum')) {
+    return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[2];
+  }
+
+  const fp = [
+    snapshot.edition_date,
+    leading,
+    plan.accentLabel,
+    plan.fundingCount,
+    netDelta,
+    matchCount,
+  ].join('|');
+  let h = 0;
+  for (let i = 0; i < fp.length; i++) h = (Math.imul(31, h) + fp.charCodeAt(i)) | 0;
+  const idx = (Math.abs(h) + seed) % LAYOUT_MODES.length;
   return LAYOUT_MODES[idx];
 }
 
@@ -94,10 +125,17 @@ function buildInterpretation(snapshot, plan, layout, layers) {
   const matchNote = match?.startup?.name
     ? ` Match tension: ${match.startup.name} ↔ ${match.investor?.firm_name || match.investor?.name}.`
     : '';
+  const movers = snapshot.god_movers || [];
+  const moverNote = movers.length
+    ? ` GOD movement: ${movers.slice(0, 2).map((m) => `${m.name} ${m.delta > 0 ? '+' : ''}${m.delta}`).join(', ')}.`
+    : '';
+  const sectorNote = snapshot.sector_trends?.[0]
+    ? ` Sector tide: ${snapshot.sector_trends[0].sector}.`
+    : '';
   return (
     `PYTHH the oracle reads ${snapshot.edition_date}: ${leading.toLowerCase()} dominant — ` +
     `she sees ${layers.length} living signals flowing between today and tomorrow, ` +
-    `${layout.id} formation, sector aura ${plan.accentLabel}.${matchNote}`
+    `${layout.id} formation, sector aura ${plan.accentLabel}.${sectorNote}${moverNote}${matchNote}`
   );
 }
 
@@ -106,8 +144,9 @@ function buildInterpretation(snapshot, plan, layout, layers) {
  */
 function interpretSignalLayers(snapshot, plan, seed) {
   const rand = mulberry32(seed + 7919);
-  const layout = pickLayoutMode(seed, plan.tension || 0);
+  const layout = pickLayoutMode(snapshot, plan, seed);
   const layers = [];
+  const leadingLabel = (snapshot.leading_signal?.label || '').toLowerCase();
 
   layers.push({
     id: 'void',
@@ -157,6 +196,7 @@ function interpretSignalLayers(snapshot, plan, seed) {
   }
 
   (snapshot.signal_dimensions || []).slice(0, 5).forEach((dim, i) => {
+    if ((dim.label || '').toLowerCase() === leadingLabel) return;
     const pct = dim.pct || 25;
     layers.push({
       id: `dimension-${i}`,
@@ -171,6 +211,40 @@ function interpretSignalLayers(snapshot, plan, seed) {
       intensity: pct,
       x: 120 + rand() * 560,
       y: 140 + rand() * 480,
+    });
+  });
+
+  (snapshot.god_movers || []).slice(0, 3).forEach((m, i) => {
+    const delta = m.delta || 0;
+    layers.push({
+      id: `god-mover-${i}`,
+      signal: 'god_delta',
+      label: `${m.name} ${delta > 0 ? '+' : ''}${delta} GOD`,
+      motif: delta > 0 ? 'rising signal current' : 'drifting oracle mist',
+      role: delta > 0 ? 'midground' : 'background',
+      zIndex: 2 + i,
+      opacity: 0.2 + Math.min(0.35, Math.abs(delta) / 80),
+      scale: 0.35 + Math.min(0.4, Math.abs(delta) / 100),
+      rotation: delta > 0 ? Math.round(rand() * 40 - 20) : Math.round(rand() * 60 - 30),
+      x: 140 + i * 180 + rand() * 80,
+      y: 180 + rand() * 320,
+    });
+  });
+
+  (snapshot.sector_trends || []).slice(0, 2).forEach((st, i) => {
+    layers.push({
+      id: `sector-trend-${i}`,
+      signal: 'sector_trend',
+      label: `${st.sector} · ${st.count} cos`,
+      motif: i === 0 ? 'living color aura' : 'parallel thrust ribbons',
+      role: 'background',
+      zIndex: 1 + i,
+      opacity: 0.1 + Math.min(0.22, (st.count || 1) / 200),
+      scale: 0.7 + Math.min(0.5, (st.avg_score || 60) / 200),
+      rotation: Math.round(rand() * 120 - 60),
+      color: i === 0 ? plan.accent : undefined,
+      x: 200 + i * 220,
+      y: 300 + rand() * 160,
     });
   });
 
@@ -207,6 +281,23 @@ function interpretSignalLayers(snapshot, plan, seed) {
       y: (plan.horizonY || 520) - 40,
     });
   }
+
+  (snapshot.top_matches || []).slice(1, 3).forEach((m, i) => {
+    const score = m.match_score || 50;
+    layers.push({
+      id: `match-${i + 2}`,
+      signal: 'match',
+      label: `${m.startup?.name || 'Startup'} ↔ ${m.investor?.firm_name || m.investor?.name || 'Investor'}`,
+      motif: 'intertwined energy filaments',
+      role: 'foreground',
+      zIndex: 9 - i,
+      opacity: 0.28 + score / 320,
+      scale: 0.3 + score / 220,
+      rotation: (plan.tetherAngle || 0) + (i + 1) * 28,
+      x: 180 + rand() * 440,
+      y: 160 + rand() * 280,
+    });
+  });
 
   if (snapshot.hottest?.[0]) {
     layers.push({
