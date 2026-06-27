@@ -81,6 +81,7 @@ export default function Art() {
   const [archive, setArchive] = useState<ArchiveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [rasterFailed, setRasterFailed] = useState(false);
 
   useEffect(() => {
     void trackFunnelEventOnce('pythh_art_page_view', 'page_view', {
@@ -92,35 +93,51 @@ export default function Art() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+
     (async () => {
       setLoading(true);
       setError(null);
+      setRasterFailed(false);
       try {
         const endpoint = dateParam ? apiUrl(`/api/art/${dateParam}`) : apiUrl('/api/art/today');
-        const res = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+        const res = await fetch(endpoint, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as ArtEdition;
         if (!cancelled) setEdition(data);
 
         const archRes = await fetch(apiUrl('/api/art/archive?limit=14'), {
           headers: { Accept: 'application/json' },
+          signal: controller.signal,
         });
         if (archRes.ok && !cancelled) {
           const arch = (await archRes.json()) as { editions: ArchiveItem[] };
           setArchive(arch.editions || []);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load composition');
+        if (!cancelled) {
+          const msg = e instanceof Error ? e.message : 'Failed to load composition';
+          setError(msg.includes('abort') ? 'Request timed out — try refreshing' : msg);
+        }
       } finally {
+        clearTimeout(timeout);
         if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
     };
   }, [dateParam]);
 
   const copy = edition?.copy;
+  const showRaster = Boolean(edition?.raster_url) && !rasterFailed;
+  const showSvg = Boolean(edition?.svg) && (!showRaster || rasterFailed);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE, color: TEXT }}>
@@ -179,7 +196,7 @@ export default function Art() {
         )}
 
         <div
-          className="rounded-2xl overflow-hidden mb-10 aspect-square max-w-2xl mx-auto w-full"
+          className="rounded-2xl overflow-hidden mb-10 aspect-square max-w-2xl mx-auto w-full min-h-[280px]"
           style={{
             border: `1px solid ${BORDER}`,
             backgroundColor: '#0a0a0c',
@@ -187,21 +204,28 @@ export default function Art() {
           }}
         >
           {loading ? (
-            <div className="w-full h-full flex items-center justify-center" style={{ color: DIM }}>
+            <div className="w-full h-full min-h-[280px] flex items-center justify-center" style={{ color: DIM }}>
               Rendering signal field…
             </div>
-          ) : edition?.raster_url ? (
+          ) : showRaster ? (
             <img
-              src={edition.raster_url}
-              alt={copy?.title || 'Signal composition'}
-              className="w-full h-full object-cover"
+              src={edition!.raster_url!}
+              alt={copy?.title || 'Signal Art composition'}
+              className="w-full h-full object-contain"
+              loading="eager"
+              decoding="async"
+              onError={() => setRasterFailed(true)}
             />
-          ) : edition?.svg ? (
+          ) : showSvg ? (
             <div
-              className="w-full h-full [&>svg]:w-full [&>svg]:h-full"
-              dangerouslySetInnerHTML={{ __html: edition.svg }}
+              className="w-full h-full min-h-[280px] [&>svg]:w-full [&>svg]:h-full"
+              dangerouslySetInnerHTML={{ __html: edition!.svg }}
             />
-          ) : null}
+          ) : (
+            <div className="w-full h-full min-h-[280px] flex items-center justify-center px-6 text-center text-sm" style={{ color: DIM }}>
+              No composition available for this date yet.
+            </div>
+          )}
         </div>
 
         {copy && (

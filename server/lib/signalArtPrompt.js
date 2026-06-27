@@ -125,11 +125,32 @@ function buildImageBrief(snapshot, plan, signalArt) {
     lightingStyle: plan.lightingStyle,
     aspectRatio: '1:1',
     accentHex: plan.accent,
+    /** Full brief for PYTHIA copy / storage — not sent verbatim to Gemini. */
     narrative,
+    /** Visual-only prompt for image models — no labels, lists, or metadata text. */
+    visualPrompt: buildVisualPrompt(snapshot, plan, signalArt, lighting),
     negative: NEGATIVE_PROMPT,
     seed: plan.seed,
     signalArt,
   };
+}
+
+/** Pure visual description for Gemini — avoids rendering prompt text into the image. */
+function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
+  const motifs = [...new Set(
+    signalArt.layers.filter((l) => l.id !== 'void').map((l) => l.motif),
+  )].slice(0, 6);
+
+  const leading = snapshot.leading_signal?.label || 'market signals';
+
+  return [
+    `Abstract digital fine art on a deep black void, square 1:1 composition.`,
+    `${signalArt.layoutMode} layout: ${motifs.join(', ')} — translucent overlapping planes with coordinated depth.`,
+    `Dominant mood: ${leading.toLowerCase()}. Sector chroma: ${plan.accentLabel} (${plan.accent}).`,
+    `Lighting: ${lighting.label.toLowerCase()} — soft neon-adjacent glow, subtle bloom on foreground forms.`,
+    `${plan.tensionLabel} balance, generous negative space, gallery-quality abstract composition.`,
+    `Visual only — absolutely no text, letters, numbers, watermarks, charts, or UI elements anywhere in the image.`,
+  ].join(' ');
 }
 
 module.exports = {

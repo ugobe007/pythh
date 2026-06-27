@@ -49,22 +49,22 @@ function tierUpgradeHint() {
 
 const { SIGNAL_ART } = require('./signalArtDirection');
 
-/** Gemini prompt from Signal Art image brief (layered digital abstract). */
+/** Gemini prompt — visual-only; never include layer metadata lists (they render as text). */
 function buildGeminiPrompt(imageBrief) {
-  const narrative = imageBrief?.narrative || '';
+  const visual = imageBrief?.visualPrompt || imageBrief?.narrative || '';
   const accent = imageBrief?.accentHex || '#a78bfa';
   const layout = imageBrief?.signalArt?.layoutMode || 'layered';
 
   return [
-    narrative,
+    visual,
     '',
     'CRITICAL REQUIREMENTS:',
     `- Art direction: ${SIGNAL_ART.name} — digital abstract art, NOT photorealistic`,
-    `- Primary accent: ${accent}`,
-    `- Layout mode: ${layout} — multiple translucent signal layers overlapping in depth`,
+    `- Primary accent color: ${accent}`,
+    `- Layout: ${layout} — multiple translucent abstract layers overlapping in depth`,
     '- Style: abstract digital composition, neon-adjacent palette, editorial gallery piece',
-    '- Format: square 1:1, coordinated layer stack, generous void between forms',
-    '- Each layer should read as a distinct abstract signal motif, harmonized not chaotic',
+    '- Format: square 1:1, harmonious layer stack, generous void between forms',
+    '- ZERO TEXT: no words, letters, numbers, labels, captions, watermarks, or typography of any kind',
     `- NEVER include: ${imageBrief?.negative || 'text, watermarks, charts, UI, photorealistic clutter'}`,
   ]
     .filter(Boolean)
