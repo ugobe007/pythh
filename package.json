@@ -13,6 +13,7 @@
     "test:submit": "node scripts/test-submit-flow.js",
     "test:god-score": "node scripts/test-god-score-sync.js",
     "test:inference-golden": "node tests/inference-golden.test.js",
+    "test:ontology-infer": "node scripts/test-ontological-inference.js",
     "test:correlate-policy": "node tests/startup-correlate-policy.test.js",
     "test:hot-god-contract": "node --test tests/hotGodFromStartupRow.contract.test.mjs",
     "test:oauth-smoke": "node scripts/smoke-oauth-prod.mjs",

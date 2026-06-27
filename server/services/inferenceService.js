@@ -863,6 +863,15 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
   let ontologyInference = extractOntologyFromNewsText(ontologyText, {
     maxSentences: ontologyMaxSentences,
   });
+  let ontologicalFrames = null;
+  try {
+    const { extractOntologicalFramesFromText } = require('../../lib/ontologyNewsInference');
+    ontologicalFrames = extractOntologicalFramesFromText(ontologyText, {
+      maxSentences: ontologyMaxSentences,
+    });
+  } catch (e) {
+    console.warn('[inference] ontological frames skipped:', e.message);
+  }
 
   const ontologyFundraising =
     ontologyInference &&
@@ -1012,6 +1021,16 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
         `[ontology] "${startupName}": ${ontologyInference.signal_classes.length} classes, ${ontologyInference.inferred_strategic_needs.length} strategic needs`,
       );
     }
+  }
+
+  if (ontologicalFrames?.frames?.length) {
+    enrichedData.ontological_frames = {
+      frame_count: ontologicalFrames.frames.length,
+      summary: ontologicalFrames.summary,
+      frames: ontologicalFrames.frames.slice(0, 12),
+      inferred_at: ontologicalFrames.inferred_at,
+    };
+    fieldsEnriched.push('ontological_frames');
   }
 
   enrichedData.enrichment_confidence = {

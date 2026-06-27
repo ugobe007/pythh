@@ -2069,6 +2069,28 @@ app.get('/api/art/teaser', async (req, res) => {
   }
 });
 
+app.post('/api/ontology/infer', async (req, res) => {
+  const text = (req.body?.text || req.body?.passage || '').trim();
+  if (!text || text.length < 8) {
+    return res.status(400).json({ error: 'Provide text (min 8 chars) in body.text' });
+  }
+  try {
+    const { inferOntologicalFrame, inferOntologicalFrames } = require('./lib/ontologicalInferenceEngine');
+    const multi = req.body?.multi === true || text.length > 280;
+    const result = multi
+      ? inferOntologicalFrames(text, {
+          maxSentences: Math.min(32, parseInt(req.body?.max_sentences, 10) || 16),
+          source_type: req.body?.source_type || 'news_article',
+        })
+      : inferOntologicalFrame(text, { source_type: req.body?.source_type || 'news_article' });
+    if (!result) return res.status(422).json({ error: 'Could not infer ontological frame from text' });
+    return res.json(result);
+  } catch (err) {
+    console.error('[ontology/infer] error:', err.message);
+    return res.status(500).json({ error: 'Ontological inference failed' });
+  }
+});
+
 app.get('/api/art/archive', async (req, res) => {
   try {
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 30));
