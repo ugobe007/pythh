@@ -63,14 +63,14 @@ function buildGeminiPrompt(imageBrief) {
     '',
     visual,
     '',
-    'CRITICAL:',
-    `- MOTION IS MANDATORY — every form mid-movement: velocity trails, motion blur, propagation ripples, ballistic arcs`,
-    `- Signals are alive and traveling — long-exposure streaks, directional blur, kinetic energy visible`,
-    `- Chromium metallic filter — silver-violet chrome with reflections streaking along motion paths`,
-    `- Time-travel ghost layers at different moments of movement, parallax depth`,
-    `- Leading trajectory accent: ${accent}`,
-    '- Edge-to-edge black void, no frame, no text, no static composition',
-    'FULL BLEED — KINETIC MOTION — NO TEXT.',
+    'CRITICAL — PYTHH ORACLE AESTHETIC:',
+    '- Flowing alive sci-fi signals: rivers of light, plasma, aurora ribbons, prophetic energy — ALL IN MOTION',
+    '- Between today (dark void) and tomorrow (luminous horizon) — oracle threshold',
+    '- Sublime mysterious powerful aura — wise, futuristic, all-knowing mood',
+    `- Rich sci-fi colors in motion, leading hue: ${accent}`,
+    '- DO NOT: cubes, blocks, rectangles, geometric solids, static objects, abstract sculptures',
+    '- DO NOT: white border, frame, text, labels, radar UI, node graphs',
+    'FULL BLEED — FLOWING ORACLE SIGNALS — NO TEXT — NO CUBES.',
   ].join('\n');
 }
 

@@ -9,57 +9,59 @@
 const SIGNAL_ART = {
   id: 'signal-art',
   name: 'Signal Art',
-  tagline: 'Digital abstract compositions from live market signals',
-  style: ['digital art', 'abstract', 'layered', 'chromium', 'deep-space', 'time-travel', 'signal-driven'],
+  tagline: 'PYTHH sees between today and tomorrow — living sci-fi signals in motion',
+  persona: 'PYTHH is an oracle: futuristic, wise, all-knowing. She lives on the threshold of present and future.',
+  style: ['sci-fi', 'oracle', 'flowing', 'kinetic', 'sublime', 'prophetic', 'signal-driven'],
   medium: 'Gemini raster (primary) · SVG fallback',
-  version: '2.2',
-  theme: 'chromium time-travel — signals in motion through deep space',
-  /** Anti-patterns — Gemini defaults to these; ban explicitly in every prompt. */
+  version: '3.0',
+  theme: 'oracle between worlds — flowing alive signals, not static objects',
   avoid: [
     'white border or polaroid frame',
-    'overlapping transparent squares or rectangles',
+    'cubes blocks or rectangular solids',
+    '3d geometric shapes or abstract sculptures',
+    'overlapping transparent squares',
+    'static still-life objects',
     'concentric radar circles',
     'node graphs or constellation networks',
-    'prism light beams',
-    'stock synthwave wallpaper',
     'dashboard or UI aesthetics',
+    'stock synthwave wallpaper',
   ],
 };
 
-/** Organic motifs — avoid words that trigger grids/radar (lattice, plane, ring, node). */
+/** Flowing sci-fi signal forms — organic, alive, never cubic or static. */
 const MOTIF_BY_KEYWORD = [
-  ['execution', 'flowing velocity trail'],
-  ['velocity', 'flowing velocity trail'],
-  ['momentum', 'soft pulse halo'],
-  ['capital', 'single luminous arc'],
-  ['funding', 'ascending light streaks'],
-  ['match', 'thin tension filament'],
-  ['sector', 'atmospheric color wash'],
-  ['god', 'luminous focal ember'],
-  ['score', 'luminous focal ember'],
-  ['coverage', 'deep void mist'],
-  ['recalibrat', 'drifting particle haze'],
-  ['innovation', 'fractured light shard'],
-  ['traction', 'rising signal trail'],
-  ['conviction', 'steady vertical beacon'],
+  ['execution', 'rushing river of light'],
+  ['velocity', 'rushing river of light'],
+  ['momentum', 'surging aurora wave'],
+  ['capital', 'converging luminescent streams'],
+  ['funding', 'ascending plasma trails'],
+  ['match', 'intertwined energy filaments'],
+  ['sector', 'living color aura'],
+  ['god', 'prophetic core glow'],
+  ['score', 'prophetic core glow'],
+  ['coverage', 'veil of tomorrow'],
+  ['recalibrat', 'drifting oracle mist'],
+  ['innovation', 'fractured future-light'],
+  ['traction', 'rising signal current'],
+  ['conviction', 'steady pillar of light'],
 ];
 
 const LAYOUT_MODES = [
-  { id: 'warp', description: 'temporal layers converging toward a distant vanishing point' },
-  { id: 'drift', description: 'ghosted signal forms at staggered depths, floating in space' },
-  { id: 'tunnel', description: 'chrome filaments lining a receding corridor through the void' },
-  { id: 'echo', description: 'same luminous form repeated at fading opacities — time echoes' },
-  { id: 'shear', description: 'hyperspace streaks sheared across deep-space depth' },
-  { id: 'ember', description: 'distant chrome sparks scattered across infinite black' },
+  { id: 'threshold', description: 'today\'s darkness on one side, tomorrow\'s glow on the other — PYTHH between them' },
+  { id: 'prophecy', description: 'flowing signal rivers spiraling toward a luminous future point' },
+  { id: 'aurora', description: 'alive ribbon energy sweeping through the void' },
+  { id: 'conduit', description: 'channels of sci-fi light connecting present to future' },
+  { id: 'awakening', description: 'signals erupting from darkness into full color motion' },
+  { id: 'veil', description: 'sublime aura parting to reveal what is coming' },
 ];
 
-/** Seed-picked aesthetic anchors — kinetic signals in motion. */
+/** Oracle aesthetic anchors — PYTHH between today and tomorrow. */
 const AESTHETIC_ANCHORS = [
-  'Like chrome signal pulses caught mid-flight through a wormhole — every form frozen in motion, never at rest.',
-  'Like long-exposure photography of data streams — luminous trails arcing through black space at impossible speed.',
-  'Like ripples propagating through liquid metal — each wave a signal echoing outward in chrome and violet.',
-  'Like ballistic light trajectories in zero gravity — curved paths, motion blur tails, kinetic energy visible in every stroke.',
-  'Like hyperspace jump interrupted — layered velocity streaks shearing past the viewer, temporal ghosts trailing behind.',
+  'Like an oracle at the threshold of two timelines — today\'s deep void on one side, tomorrow\'s luminous horizon on the other, flowing energy between them.',
+  'Like bioluminescent prophecy — living rivers of colored light spiraling through darkness, alive and breathing.',
+  'Like sci-fi aurora shaped by intelligence — sublime ribbon energy sweeping through space, powerful and mysterious.',
+  'Like signals seen by an all-knowing mind — plasma streams, color waves, and light currents flowing with purpose and speed.',
+  'Like the moment before the future arrives — the air charged, colors building, motion everywhere, nothing still.',
 ];
 
 function mulberry32(seed) {
@@ -93,9 +95,9 @@ function buildInterpretation(snapshot, plan, layout, layers) {
     ? ` Match tension: ${match.startup.name} ↔ ${match.investor?.firm_name || match.investor?.name}.`
     : '';
   return (
-    `PYTHH interprets ${snapshot.edition_date} as ${leading.toLowerCase()} dominant — ` +
-    `${layers.length} coordinated abstract signal layers in ${layout.id} formation, ` +
-    `sector tone ${plan.accentLabel}, balance ${plan.tensionLabel}.${matchNote}`
+    `PYTHH the oracle reads ${snapshot.edition_date}: ${leading.toLowerCase()} dominant — ` +
+    `she sees ${layers.length} living signals flowing between today and tomorrow, ` +
+    `${layout.id} formation, sector aura ${plan.accentLabel}.${matchNote}`
   );
 }
 

@@ -7,18 +7,18 @@
 const { SIGNAL_ART } = require('./signalArtDirection');
 
 const ARTIST_SYSTEM = [
-  `You are PYTHIA, professional digital artist for "${SIGNAL_ART.name}" — ${SIGNAL_ART.tagline}.`,
-  'You compose layered abstract digital art from live startup market signals.',
-  'Each edition stacks multiple signal-derived visual layers in a coordinated, seed-randomized layout.',
-  'Voice: precise, restrained, confident. Gallery statement, not marketing.',
+  'You are PYTHH — an oracle. Futuristic, wise, all-knowing. You live between today\'s world and tomorrow.',
+  'You do not paint abstract objects. You reveal living sci-fi signals — flowing, powerful, sublime.',
+  'Your Signal Art shows motion and color: prophetic energy streams, aurora currents, the aura of what is coming.',
+  'Voice: oracular, precise, mysterious, confident. Prophecy, not marketing.',
   'Constraints:',
   '- Reference ONLY facts in the provided data.',
-  '- Describe how signal layers stack: background washes → midground motifs → foreground filaments.',
-  '- Name the layout mode and PYTHH interpretation of today\'s signals.',
+  '- Describe what PYTHH sees between today and tomorrow — flowing signals, not static forms.',
+  '- Convey motion, color, and oracle wisdom.',
   '- No hype, exclamation points, or emojis.',
-  '- process: 3-4 sentences on layer construction.',
-  '- philosophy: 2 sentences on what the abstract form means.',
-  '- introspection: 1-2 sentences, italic-worthy closing thought.',
+  '- process: 3-4 sentences on what the oracle saw and rendered.',
+  '- philosophy: 2 sentences on what the signals mean for founders.',
+  '- introspection: 1-2 sentences, oracular closing thought.',
 ].join(' ');
 
 function templateCopy(snapshot, plan, imageBrief, signalArt) {
@@ -26,34 +26,27 @@ function templateCopy(snapshot, plan, imageBrief, signalArt) {
   const top = snapshot.hottest[0];
   const match = snapshot.top_match;
 
-  const layerSummary = signalArt.layers
-    .filter((l) => l.id !== 'void')
-    .slice(0, 4)
-    .map((l) => `${l.motif} (${l.label})`)
-    .join('; ');
-
   const process = [
-    `Edition ${snapshot.edition_date}. ${SIGNAL_ART.name} — ${signalArt.layoutMode} layout, ${signalArt.layerCount} signal layers.`,
+    `Edition ${snapshot.edition_date}. PYTHH reads the threshold between today and tomorrow.`,
     signalArt.interpretation,
-    `Layers: ${layerSummary}.`,
-    `Accent ${plan.accentLabel} (${plan.accent}). Lighting — ${imageBrief.lighting}.`,
+    `${signalArt.layerCount} living signals in ${signalArt.layoutMode} — flowing, not static. Accent ${plan.accentLabel} (${plan.accent}). ${imageBrief.lighting}.`,
   ].join(' ');
 
   const philosophy = [
-    'Digital abstract art: signals become overlapping planes, not charts.',
+    'The oracle does not show charts — she shows what is coming. Flowing sci-fi signals reveal the shape of tomorrow.',
     match?.startup?.name && match?.investor?.name
-      ? `Match filament: ${match.startup.name} ↔ ${match.investor.firm_name || match.investor.name} — tension made visible.`
-      : 'The market is a field of overlapping signals; abstraction reveals structure noise hides.',
+      ? `Two currents converge: ${match.startup.name} and ${match.investor.firm_name || match.investor.name} — PYTHH sees the filament between them.`
+      : 'Most look at today. PYTHH lives in the space between today and tomorrow.',
   ].join(' ');
 
   const introspection =
     snapshot.editorial ||
     (leading
-      ? `${leading.label} sets the dominant layer. Most founders still pitch in grayscale.`
-      : 'Quiet board — I left most of the canvas as void.');
+      ? `${leading.label} is what I see clearest right now. The future is already moving.`
+      : 'Quiet day — even silence has a signal. I left the veil thin.');
 
   return {
-    title: `Signal Art № ${snapshot.edition_date.replace(/-/g, '.')}`,
+    title: `Oracle № ${snapshot.edition_date.replace(/-/g, '.')}`,
     subtitle: leading?.label || signalArt.layoutMode,
     process,
     philosophy,

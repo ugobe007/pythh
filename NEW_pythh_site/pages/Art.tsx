@@ -151,7 +151,7 @@ export default function Art() {
         </title>
         <meta
           name="description"
-          content="Signal Art: PYTHH layers live startup signals into digital abstract compositions — one edition per day from market data."
+          content="Signal Art: PYTHH the oracle sees between today and tomorrow — flowing sci-fi signals in motion, one edition per day from live market data."
         />
       </Helmet>
 
@@ -167,7 +167,7 @@ export default function Art() {
         </h1>
         <p className="text-base mb-8 max-w-2xl" style={{ color: MUTED }}>
           {copy?.subtitle ||
-            'Digital abstract art — PYTHH stacks coordinated signal layers from live market data. Same seed, same form.'}
+            'PYTHH sees between today and tomorrow — flowing sci-fi signals in motion, composed from live market data.'}
           {(copy?.layout_mode || edition?.layout_mode) && (
             <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
               · {copy?.layout_mode || edition?.layout_mode} layout
@@ -236,7 +236,7 @@ export default function Art() {
           <div className="grid md:grid-cols-2 gap-6 mb-12">
             <article className="rounded-xl p-6" style={{ border: `1px solid ${BORDER}`, backgroundColor: CARD }}>
               <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: GOLD }}>
-                How PYTHIA made this
+                What PYTHH saw
               </h2>
               <p className="text-sm leading-relaxed" style={{ color: MUTED }}>
                 {copy.process}

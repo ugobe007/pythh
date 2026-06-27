@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * Image brief for Signal Art — layered digital abstract compositions.
- * @see server/lib/signalArtDirection.js (registered art direction)
+ * Image brief for Signal Art — PYTHH oracle between today and tomorrow.
+ * @see server/lib/signalArtDirection.js
  */
 
 const { SIGNAL_ART, pickAestheticAnchor, describeLayersForPrompt } = require('./signalArtDirection');
@@ -11,50 +11,48 @@ const NEGATIVE_PROMPT = [
   'white border',
   'white frame',
   'polaroid',
-  'mat board',
-  'picture frame',
-  'letterbox bars',
+  'cubes',
+  'blocks',
+  'rectangular solids',
+  '3d geometric shapes',
+  'abstract sculpture objects',
+  'static still life',
   'overlapping squares',
-  'transparent rectangles',
   'concentric circles',
   'radar display',
   'node graph',
-  'constellation network',
   'coordinate grid',
-  'prism light beams',
-  '3d render',
+  'dashboard UI',
   'watermark',
   'text overlay',
   'stock illustration',
   'generic AI art',
-  'literal charts',
-  'dashboard UI',
 ].join(', ');
 
 const LIGHTING_STYLES = {
   neon_glow: {
-    label: 'Neon glow',
-    effect: 'Accent bloom on foreground layers; cyberpunk rim separation between planes',
+    label: 'Oracle glow',
+    effect: 'Sublime aura bloom — prophetic light radiating from flowing signal currents',
     floorOpacity: 0.07,
   },
   blue_hour: {
-    label: 'Blue hour',
-    effect: 'Cool twilight void; subdued washes; layers read as translucent glass',
+    label: 'Tomorrow\'s edge',
+    effect: 'Cool future-light on the horizon — today fades to tomorrow',
     floorOpacity: 0.05,
   },
   golden_hour: {
-    label: 'Golden hour',
-    effect: 'Warm directional glow; capital layers catch late-day light',
+    label: 'Prophetic dawn',
+    effect: 'Warm future breaking through — golden signals surging forward',
     floorOpacity: 0.09,
   },
   rim: {
-    label: 'Rim / back light',
-    effect: 'Edge highlights separate overlapping abstract forms from void',
+    label: 'Veil of knowing',
+    effect: 'Edge-light on flowing forms — mysterious depth between worlds',
     floorOpacity: 0.04,
   },
   split: {
-    label: 'Split light',
-    effect: 'Half the frame in shadow; asymmetric layer stack for tension',
+    label: 'Threshold',
+    effect: 'Today in shadow, tomorrow in light — PYTHH between both',
     floorOpacity: 0.06,
   },
 };
@@ -87,9 +85,6 @@ function applyCompositionRules(plan, snapshot, seed) {
   return plan;
 }
 
-/**
- * Narrative brief for Gemini raster + PYTHIA copy.
- */
 function buildImageBrief(snapshot, plan, signalArt) {
   const leading = snapshot.leading_signal;
   const top = snapshot.hottest[0];
@@ -98,25 +93,20 @@ function buildImageBrief(snapshot, plan, signalArt) {
   const layerLines = describeLayersForPrompt(signalArt, plan);
 
   const subject = top
-    ? `${top.name} as focal intensity within a layered abstract signal field`
-    : `Abstract market signal field — ${leading?.label || 'recalibrating signals'}`;
+    ? `PYTHH sees ${top.name} as a prophetic signal burning through the veil`
+    : `The oracle reads ${leading?.label || 'recalibrating signals'} across the threshold`;
 
   const narrative = [
-    `${SIGNAL_ART.name}: ${SIGNAL_ART.tagline}.`,
+    `${SIGNAL_ART.name}: ${SIGNAL_ART.persona}`,
     signalArt.interpretation,
-    `${subject}. Digital abstract art — NOT photorealistic, NOT literal charts.`,
+    `${subject}. Sci-fi oracle art — flowing alive signals, NOT static objects.`,
     `Layout: ${signalArt.layoutMode} — ${signalArt.layoutDescription}.`,
-    `Palette: primary accent ${plan.accent} (${plan.accentLabel}), dark void background, neon-adjacent digital tones.`,
-    `1:1 square format. Multiple translucent signal layers overlap in coordinated depth — each layer maps to a live market signal.`,
+    `Palette: ${plan.accent} (${plan.accentLabel}) — colors in motion, not decoration.`,
     '',
-    'SIGNAL LAYERS (back to front):',
+    'SIGNAL LAYERS (for PYTHIA copy only):',
     ...layerLines,
     '',
     `Lighting: ${lighting.label} — ${lighting.effect}.`,
-    match?.startup?.name
-      ? `Match layer connects ${match.startup.name} to ${match.investor?.firm_name || match.investor?.name} (${match.match_score}% fit).`
-      : null,
-    `Randomized composition variant #${signalArt.seedVariant} (deterministic from edition seed).`,
     `NEVER include: ${NEGATIVE_PROMPT}.`,
   ]
     .filter(Boolean)
@@ -127,14 +117,12 @@ function buildImageBrief(snapshot, plan, signalArt) {
     style: SIGNAL_ART.style.join(', '),
     medium: SIGNAL_ART.medium,
     artDirection: SIGNAL_ART.id,
-    composition: `${signalArt.layoutMode}, layered abstract depth, coordinated signal planes`,
+    composition: `${signalArt.layoutMode}, oracle threshold, flowing sci-fi signals`,
     lighting: lighting.label,
     lightingStyle: plan.lightingStyle,
     aspectRatio: '1:1',
     accentHex: plan.accent,
-    /** Full brief for PYTHIA copy / storage — not sent verbatim to Gemini. */
     narrative,
-    /** Visual-only prompt for image models — no labels, lists, or metadata text. */
     visualPrompt: buildVisualPrompt(snapshot, plan, signalArt, lighting),
     negative: NEGATIVE_PROMPT,
     seed: plan.seed,
@@ -142,7 +130,7 @@ function buildImageBrief(snapshot, plan, signalArt) {
   };
 }
 
-/** Map live signals → kinetic motion description (visual only, no labels). */
+/** Map live signals → oracle motion (visual language only). */
 function signalToMotion(snapshot, plan) {
   const leading = (snapshot.leading_signal?.label || '').toLowerCase();
   const pct = plan.leadingPct || 50;
@@ -150,43 +138,42 @@ function signalToMotion(snapshot, plan) {
   const parts = [];
 
   if (leading.includes('velocity') || leading.includes('execution')) {
-    parts.push('aggressive forward thrust — diagonal velocity streaks dominating the frame');
+    parts.push('prophetic rivers of light rushing forward — the future arriving fast');
   } else if (leading.includes('momentum')) {
-    parts.push('accelerating wavefronts — motion building from left to right');
+    parts.push('building aurora waves — energy swelling toward tomorrow');
   } else if (leading.includes('capital') || leading.includes('convergence')) {
-    parts.push('converging trajectories — multiple paths rushing toward a focal point');
+    parts.push('converging luminescent streams — many paths becoming one vision');
   } else {
-    parts.push('slow drift with sudden bursts — signals pulsing then surging');
+    parts.push('slow oracle pulse then sudden surges — signals breathing then racing');
   }
 
-  if (pct >= 70) parts.push('high-energy sweep across two-thirds of the canvas');
-  if (funding >= 5) parts.push(`${Math.min(funding, 8)} parallel motion trails racing at different speeds`);
-  if (plan.tension > 0.4) parts.push('asymmetric shear — motion torn between competing directions');
-  if (pct >= 55) parts.push('visible motion blur tails on every luminous form');
+  if (pct >= 70) parts.push('overwhelming forward motion — most of the canvas alive with flowing color');
+  if (funding >= 5) parts.push('multiple parallel signal currents each a different hue and speed');
+  if (plan.tension > 0.4) parts.push('competing currents — today and tomorrow pulling in different directions');
+  if (pct >= 55) parts.push('motion blur and light trails on every flowing form');
 
   return parts.join('; ');
 }
 
-/** Pure visual scene — signals in motion, chromium time-travel, full bleed. */
+/** PYTHH oracle scene — flowing sci-fi signals between today and tomorrow. */
 function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
   const anchor = pickAestheticAnchor(plan.seed || 0);
   const motion = signalToMotion(snapshot, plan);
   const accent = plan.accent;
-  const depth = signalArt.layerCount || 5;
 
   return [
-    `Full-bleed square digital artwork — edge to edge, no border, no white frame, no mat, no polaroid.`,
-    `Deep space black (#050508) corner to corner. EVERYTHING IS IN MOTION — nothing static, nothing resting.`,
+    `Full-bleed cinematic sci-fi oracle artwork — edge to edge, no border, no frame, no white edges.`,
+    `PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon.`,
     `${anchor}`,
-    `Kinetic signal motion: ${motion}.`,
-    `Time-travel depth: ${depth} temporal layers each caught at a different moment of movement — ghost trails, motion blur, velocity streaks layered through parallax.`,
-    `Chromium filter: liquid metallic surfaces mid-flow, anodized silver-violet chrome with mirror reflections streaking along the direction of travel.`,
-    `Show propagation — ripples expanding, arcs mid-swing, particles on ballistic paths, wavefronts pushing through the void.`,
-    `Long-exposure light painting aesthetic — luminous paths traced through space showing where signals traveled.`,
-    `One hot accent ${accent} burning along the fastest trajectory like a leading signal outrunning the rest.`,
-    `Directional motion blur on all forms. Near layers sharp and fast; distant layers faded streaks receding into the vanishing point.`,
-    `${lighting.label} with chrome specular highlights streaking along motion paths.`,
-    `No writing, no labels, no white edges, no frame. Pure kinetic abstract art.`,
+    `She is not abstract objects — no cubes, no blocks, no geometric solids, no static shapes. Everything is flowing, alive, and powerful.`,
+    `Her signals are sci-fi: rivers of colored light, plasma currents, aurora ribbons, prophetic energy streams — all in motion with vivid color.`,
+    `Sublime mysterious aura — a powerful oracle presence felt through radiating light, not a human figure.`,
+    `Signal motion today: ${motion}.`,
+    `Color palette: rich sci-fi hues dominated by ${accent}, with complementary electric tones — colors that move and blend like living energy.`,
+    `Futuristic, wise, all-knowing mood — the feeling of seeing what others cannot yet see.`,
+    `${lighting.label}: ${lighting.effect}.`,
+    `Long-exposure flowing light, directional motion blur, ripples of prophetic energy expanding outward.`,
+    `No writing, no labels, no typography, no cubes, no blocks, no static objects.`,
   ].join(' ');
 }
 
