@@ -8,6 +8,7 @@ import { Link, useLocation } from 'wouter';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
+import ArtDownloadMenu from '@/components/ArtDownloadMenu';
 import SectionLabel from '@/components/design/SectionLabel';
 import StartupCTA from '@/components/design/StartupCTA';
 import { apiUrl } from '@/lib/apiConfig';
@@ -63,6 +64,10 @@ interface ArtEdition {
 
 interface ArchiveItem {
   edition_date: string;
+  title?: string | null;
+  subtitle?: string | null;
+  layout_mode?: string | null;
+  thumbnail_url?: string | null;
   copy?: { title?: string; subtitle?: string };
   generated_at: string;
 }
@@ -110,7 +115,7 @@ export default function Art() {
         const data = (await res.json()) as ArtEdition;
         if (!cancelled) setEdition(data);
 
-        const archRes = await fetch(apiUrl('/api/art/archive?limit=14'), {
+        const archRes = await fetch(apiUrl('/api/art/archive?limit=60'), {
           headers: { Accept: 'application/json' },
           signal: controller.signal,
         });
@@ -232,6 +237,15 @@ export default function Art() {
           )}
         </div>
 
+        {edition && !loading && (
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-10 -mt-4">
+            <ArtDownloadMenu editionDate={edition.edition_date} />
+            <p className="text-xs" style={{ color: DIM }}>
+              PDF, PNG, JPEG, or SVG · free account required
+            </p>
+          </div>
+        )}
+
         {copy && (
           <div className="grid md:grid-cols-2 gap-6 mb-12">
             <article className="rounded-xl p-6" style={{ border: `1px solid ${BORDER}`, backgroundColor: CARD }}>
@@ -284,24 +298,69 @@ export default function Art() {
           </section>
         ) : null}
 
-        {archive.length > 1 && (
+        {archive.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-sm font-semibold text-white mb-4">Archive</h2>
-            <div className="flex flex-wrap gap-2">
-              {archive.map((item) => (
-                <Link
-                  key={item.edition_date}
-                  href={`/art?date=${item.edition_date}`}
-                  className="text-xs font-mono px-3 py-1.5 rounded-full transition-colors"
-                  style={{
-                    border: `1px solid ${item.edition_date === edition?.edition_date ? G_BORDER : BORDER}`,
-                    color: item.edition_date === edition?.edition_date ? G : MUTED,
-                    backgroundColor: item.edition_date === edition?.edition_date ? G_SUBTLE : 'transparent',
-                  }}
-                >
-                  {item.edition_date}
-                </Link>
-              ))}
+            <h2 className="text-sm font-semibold text-white mb-2">Gallery</h2>
+            <p className="text-xs mb-5 max-w-xl" style={{ color: DIM }}>
+              Past Signal Art editions — each day&apos;s composition reflects live market signals, GOD movement,
+              matches, and sector tides.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {archive.map((item) => {
+                const isActive = item.edition_date === edition?.edition_date;
+                const thumb = item.thumbnail_url;
+                const title = item.title || item.copy?.title || item.edition_date;
+                return (
+                  <Link
+                    key={item.edition_date}
+                    href={`/art?date=${item.edition_date}`}
+                    className="group rounded-xl overflow-hidden transition-all"
+                    style={{
+                      border: `1px solid ${isActive ? G_BORDER : BORDER}`,
+                      backgroundColor: CARD,
+                      boxShadow: isActive ? `0 0 24px ${G_SUBTLE}` : undefined,
+                    }}
+                  >
+                    <div
+                      className="aspect-square w-full overflow-hidden"
+                      style={{ backgroundColor: '#050508' }}
+                    >
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt={title}
+                          className="w-full h-full object-cover transition-transform group-hover:scale-[1.03]"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center text-[10px] font-mono uppercase tracking-widest px-2 text-center"
+                          style={{ color: DIM }}
+                        >
+                          {item.edition_date}
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-3 py-2.5">
+                      <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: DIM }}>
+                        {item.edition_date}
+                      </div>
+                      <div
+                        className="text-xs font-medium truncate mt-0.5"
+                        style={{ color: isActive ? G : MUTED }}
+                      >
+                        {title}
+                      </div>
+                      {item.layout_mode && (
+                        <div className="text-[10px] font-mono mt-1 truncate" style={{ color: DIM }}>
+                          {item.layout_mode}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         )}

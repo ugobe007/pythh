@@ -212,6 +212,18 @@ function renderSignalLayerSvg(layer, accent) {
     const x2 = x + Math.cos((rot * Math.PI) / 180) * r * 1.4;
     const y2 = y + Math.sin((rot * Math.PI) / 180) * r * 0.6;
     main = `<line x1="${x}" y1="${y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-opacity="${op}" stroke-width="2.5" stroke-linecap="round"/>`;
+  } else if (layer.motif.includes('solar corona') || layer.motif.includes('magnetic loops')) {
+    const loops = [];
+    for (let i = 4; i >= 1; i--) {
+      const t = i / 4;
+      const erx = r * (0.5 + t * 1.1);
+      const ery = r * (0.3 + t * 0.55);
+      const rot2 = rot + (i % 2 ? 20 : -15);
+      loops.push(
+        `<ellipse cx="${x}" cy="${y}" rx="${erx.toFixed(1)}" ry="${ery.toFixed(1)}" fill="none" stroke="${color}" stroke-opacity="${(parseFloat(op) * (0.4 + t * 0.6)).toFixed(2)}" stroke-width="${(1 + t * 1.5).toFixed(1)}" transform="rotate(${rot2} ${x} ${y})"/>`,
+      );
+    }
+    main = loops.join('') + `<circle cx="${x}" cy="${y}" r="${Math.round(r * 0.12)}" fill="#fff" opacity="${(parseFloat(op) * 0.9).toFixed(2)}"/>`;
   } else if (layer.motif.includes('wash') || layer.motif.includes('void') || layer.motif.includes('mist')) {
     main = `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${Math.round(r * 0.4)}" fill="${color}" opacity="${(parseFloat(op) * 0.25).toFixed(2)}" transform="${transform}"/>`;
   } else {
@@ -220,9 +232,93 @@ function renderSignalLayerSvg(layer, accent) {
   return motionTail + main;
 }
 
-function renderLayoutBackdrop(layoutMode, plan, accent, W, H, horizonY, rand) {
+const SOLAR_CORONA = {
+  core: '#ffffff',
+  coreGlow: '#60a5fa',
+  inner: '#fde047',
+  mid: '#f97316',
+  outer: '#dc2626',
+};
+
+function renderStarfield(W, H, rand, count = 140) {
+  const parts = [];
+  for (let i = 0; i < count; i++) {
+    const x = rand() * W;
+    const y = rand() * H;
+    const r = rand() < 0.06 ? 1.3 : 0.4 + rand() * 0.7;
+    const op = (0.12 + rand() * 0.72).toFixed(2);
+    parts.push(
+      `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="#fff" opacity="${op}"/>`,
+    );
+  }
+  for (let i = 0; i < 3; i++) {
+    const nx = 120 + rand() * (W - 240);
+    const ny = 80 + rand() * (H - 200);
+    parts.push(
+      `<ellipse cx="${nx.toFixed(0)}" cy="${ny.toFixed(0)}" rx="${(40 + rand() * 80).toFixed(0)}" ry="${(20 + rand() * 40).toFixed(0)}" fill="#a855f7" opacity="${(0.02 + rand() * 0.03).toFixed(2)}"/>`,
+    );
+  }
+  return parts.join('\n');
+}
+
+/** Nested elliptical magnetic loops — canonical solar-rays reference (not flat radar UI). */
+function renderSolarCorona(cx, cy, scale, accent, rand) {
+  const parts = [];
+  const loopCount = 9 + Math.floor(rand() * 3);
+  const palette = [SOLAR_CORONA.outer, SOLAR_CORONA.mid, SOLAR_CORONA.inner, accent, '#fb923c', '#fbbf24', '#93c5fd', '#60a5fa'];
+
+  for (let i = loopCount; i >= 1; i--) {
+    const t = i / loopCount;
+    const rx = scale * (16 + t * 98 + rand() * 14);
+    const ry = scale * (10 + t * 44 + rand() * 10);
+    const rot = (rand() - 0.5) * 60 + (i % 2 ? 28 : -22);
+    const color = palette[Math.min(palette.length - 1, Math.floor((1 - t) * palette.length))];
+    const op = (0.1 + t * 0.55).toFixed(2);
+    const sw = (0.7 + t * 2.4).toFixed(1);
+    parts.push(
+      `<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${sw}" transform="rotate(${rot.toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})"/>`,
+    );
+  }
+
+  parts.push(
+    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(scale * 32).toFixed(1)}" fill="${SOLAR_CORONA.coreGlow}" opacity="0.32"/>`,
+  );
+  parts.push(
+    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(scale * 16).toFixed(1)}" fill="#e0f2fe" opacity="0.82"/>`,
+  );
+  parts.push(
+    `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(scale * 6.5).toFixed(1)}" fill="${SOLAR_CORONA.core}" opacity="1"/>`,
+  );
+
+  const flareLen = scale * 190;
+  parts.push(
+    `<line x1="${(cx - flareLen).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + flareLen).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#fff" stroke-opacity="0.6" stroke-width="${(scale * 1.1).toFixed(1)}" stroke-linecap="round"/>`,
+  );
+  parts.push(
+    `<line x1="${(cx - flareLen * 0.55).toFixed(1)}" y1="${cy.toFixed(1)}" x2="${(cx + flareLen * 0.55).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#93c5fd" stroke-opacity="0.38" stroke-width="${(scale * 3.2).toFixed(1)}" stroke-linecap="round"/>`,
+  );
+  return parts.join('\n');
+}
+
+function renderLayoutBackdrop(layoutMode, plan, accent, W, H, horizonY, rand, snapshot = {}) {
   const parts = [];
   switch (layoutMode) {
+    case 'solar_rays': {
+      parts.push(renderStarfield(W, H, rand));
+      if (snapshot.top_match) {
+        parts.push(renderSolarCorona(255, 375, 1.12, accent, rand));
+        parts.push(renderSolarCorona(545, 415, 0.88, accent, rand));
+        parts.push(
+          `<path d="M 310 370 Q 400 320 490 410" fill="none" stroke="${accent}" stroke-opacity="0.14" stroke-width="1.5" stroke-linecap="round"/>`,
+        );
+        parts.push(
+          `<path d="M 330 395 Q 400 360 470 425" fill="none" stroke="${NEON.amber}" stroke-opacity="0.08" stroke-width="2" stroke-linecap="round"/>`,
+        );
+      } else {
+        parts.push(renderSolarCorona(W / 2, H * 0.46, 1.25, accent, rand));
+      }
+      break;
+    }
     case 'threshold':
       parts.push(`<rect x="0" y="0" width="${W / 2}" height="${H}" fill="#000000" opacity="0.42"/>`);
       parts.push(`<rect x="${W / 2}" y="0" width="${W / 2}" height="${H}" fill="${accent}" opacity="0.07"/>`);
@@ -288,7 +384,8 @@ function generateSvg(snapshot, seed) {
   const beaconTop = horizonY - beaconH;
   const beaconW = 28 + plan.leadingPct * 0.15;
   const layoutMode = signalArt.layoutMode;
-  const useBeacon = layoutMode !== 'aurora' && layoutMode !== 'veil';
+  const isSolarRays = layoutMode === 'solar_rays';
+  const useBeacon = !isSolarRays && layoutMode !== 'aurora' && layoutMode !== 'veil';
   const beacon = [
     `${beaconX.toFixed(1)},${horizonY}`,
     `${(beaconX - beaconW).toFixed(1)},${horizonY}`,
@@ -314,18 +411,25 @@ function generateSvg(snapshot, seed) {
   parts.push('</defs>');
 
   parts.push('<g id="background">');
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#void)"/>`);
-  parts.push(renderLayoutBackdrop(signalArt.layoutMode, plan, accent, W, H, horizonY, rand));
-  if (plan.lightingStyle === 'split') {
+  if (isSolarRays) {
+    parts.push(`<rect width="${W}" height="${H}" fill="#020204"/>`);
+  } else {
+    parts.push(`<rect width="${W}" height="${H}" fill="url(#void)"/>`);
+  }
+  parts.push(renderLayoutBackdrop(signalArt.layoutMode, plan, accent, W, H, horizonY, rand, snapshot));
+  if (plan.lightingStyle === 'split' && !isSolarRays) {
     parts.push(`<rect x="0" y="0" width="${(W / 2).toFixed(0)}" height="${H}" fill="#000" opacity="0.35"/>`);
   }
-  parts.push(`<rect x="0" y="${horizonY}" width="${W}" height="${H - horizonY}" fill="url(#floorGlow)"/>`);
-  parts.push(`<line x1="48" y1="${horizonY}" x2="752" y2="${horizonY}" stroke="${MIST}" stroke-width="1"/>`);
-  parts.push(
-    `<circle cx="400" cy="${horizonY + 40}" r="${arcRadius + 60}" fill="none" stroke="${MIST_FAINT}" stroke-width="1"/>`,
-  );
+  if (!isSolarRays) {
+    parts.push(`<rect x="0" y="${horizonY}" width="${W}" height="${H - horizonY}" fill="url(#floorGlow)"/>`);
+    parts.push(`<line x1="48" y1="${horizonY}" x2="752" y2="${horizonY}" stroke="${MIST}" stroke-width="1"/>`);
+    parts.push(
+      `<circle cx="400" cy="${horizonY + 40}" r="${arcRadius + 60}" fill="none" stroke="${MIST_FAINT}" stroke-width="1"/>`,
+    );
+  }
   parts.push('</g>');
 
+  if (!isSolarRays) {
   parts.push('<g id="midground">');
   const arcStart = -90 - arcSweep / 2 + (plan.tension > 0.35 ? (rand() - 0.5) * 12 : 0);
   parts.push(
@@ -357,6 +461,7 @@ function generateSvg(snapshot, seed) {
     );
   }
   parts.push('</g>');
+  }
 
   parts.push('<g id="signal-layers" opacity="0.92">');
   for (const layer of [...signalArt.layers].sort((a, b) => a.zIndex - b.zIndex)) {
@@ -371,30 +476,32 @@ function generateSvg(snapshot, seed) {
       `<polyline points="${beacon}" fill="none" stroke="${accent}" stroke-width="2.25" stroke-linejoin="miter" stroke-linecap="square"/>`,
     );
   }
-  if (plan.lightingStyle === 'rim' || plan.lightingStyle === 'split' || plan.lightingStyle === 'neon_glow') {
+  if (useBeacon && (plan.lightingStyle === 'rim' || plan.lightingStyle === 'split' || plan.lightingStyle === 'neon_glow')) {
     parts.push(
       `<line x1="${(beaconX + beaconW * 0.35).toFixed(1)}" y1="${beaconTop.toFixed(1)}" x2="${(beaconX + beaconW * 0.35).toFixed(1)}" y2="${horizonY.toFixed(1)}" stroke="${accent}" stroke-opacity="0.5" stroke-width="1"/>`,
     );
   }
-  parts.push(
-    `<line x1="${beaconX.toFixed(1)}" y1="${horizonY}" x2="${beaconX.toFixed(1)}" y2="${(horizonY + 18).toFixed(1)}" stroke="${accent}" stroke-opacity="0.35" stroke-width="1.5"/>`,
-  );
+  if (useBeacon) {
+    parts.push(
+      `<line x1="${beaconX.toFixed(1)}" y1="${horizonY}" x2="${beaconX.toFixed(1)}" y2="${(horizonY + 18).toFixed(1)}" stroke="${accent}" stroke-opacity="0.35" stroke-width="1.5"/>`,
+    );
 
-  const tetherLen = 100 + plan.leadingPct * 0.6;
-  const rad = (tetherAngle * Math.PI) / 180;
-  const ax = beaconX - 90;
-  const ay = horizonY - 40;
-  const bx = ax + Math.cos(rad) * tetherLen;
-  const by = ay + Math.sin(rad) * tetherLen * 0.55;
-  parts.push(
-    `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="none" stroke="${accent}" stroke-width="1.5"/>`,
-  );
-  parts.push(
-    `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4" fill="none" stroke="${NEON.amber}" stroke-width="1.5" stroke-opacity="0.85"/>`,
-  );
-  parts.push(
-    `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${MIST}" stroke-width="1"/>`,
-  );
+    const tetherLen = 100 + plan.leadingPct * 0.6;
+    const rad = (tetherAngle * Math.PI) / 180;
+    const ax = beaconX - 90;
+    const ay = horizonY - 40;
+    const bx = ax + Math.cos(rad) * tetherLen;
+    const by = ay + Math.sin(rad) * tetherLen * 0.55;
+    parts.push(
+      `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="none" stroke="${accent}" stroke-width="1.5"/>`,
+    );
+    parts.push(
+      `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4" fill="none" stroke="${NEON.amber}" stroke-width="1.5" stroke-opacity="0.85"/>`,
+    );
+    parts.push(
+      `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${MIST}" stroke-width="1"/>`,
+    );
+  }
   parts.push('</g>');
 
   parts.push('</svg>');
@@ -404,9 +511,13 @@ function generateSvg(snapshot, seed) {
     artDirection: SIGNAL_ART.name,
     layout: signalArt.layoutMode,
     interpretation: signalArt.interpretation,
-    background: 'void gradient, golden-ratio horizon, chromatic wash layers',
-    midground: `${signalArt.layerCount} coordinated signal layers (${signalArt.layoutMode})`,
-    foreground: 'focal bloom + match filament overlay',
+    background: isSolarRays
+      ? 'deep starfield void, dual solar corona cores with magnetic elliptical loops'
+      : 'void gradient, golden-ratio horizon, chromatic wash layers',
+    midground: isSolarRays
+      ? `${signalArt.layerCount} signal layers orbiting solar-ray coronas`
+      : `${signalArt.layerCount} coordinated signal layers (${signalArt.layoutMode})`,
+    foreground: isSolarRays ? 'lens-flare cores + match filament bridge' : 'focal bloom + match filament overlay',
     lighting: `${lighting.label} — ${lighting.effect}`,
   };
 
@@ -512,7 +623,7 @@ async function listArtEditions({ limit = 30 } = {}) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('pythh_art_editions')
-    .select('edition_date, copy, generated_at')
+    .select('edition_date, copy, generated_at, signal_snapshot')
     .order('edition_date', { ascending: false })
     .limit(limit);
   if (error) throw error;

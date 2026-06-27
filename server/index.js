@@ -2096,10 +2096,25 @@ app.post('/api/ontology/infer', async (req, res) => {
   }
 });
 
+function toArtGalleryItem(row) {
+  const snap = row.signal_snapshot || {};
+  const signalArt = snap.signal_art || {};
+  const raster_url = snap.raster_url ?? null;
+  return {
+    edition_date: row.edition_date,
+    title: row.copy?.title || null,
+    subtitle: row.copy?.subtitle || null,
+    layout_mode: signalArt.layoutMode ?? row.copy?.layout_mode ?? null,
+    thumbnail_url: snap.thumbnail_url ?? deriveThumbnailUrl(raster_url) ?? null,
+    generated_at: row.generated_at,
+  };
+}
+
 app.get('/api/art/archive', async (req, res) => {
   try {
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 30));
-    const editions = await listArtEditions({ limit });
+    const rows = await listArtEditions({ limit });
+    const editions = rows.map(toArtGalleryItem);
     return res.set('Cache-Control', 'public, max-age=600').json({ editions });
   } catch (err) {
     console.error('[art] archive error:', err.message);
