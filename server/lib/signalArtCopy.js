@@ -1,51 +1,60 @@
 'use strict';
 
 /**
- * PYTHIA artist copy — LLM with CoT + JSON (llm-prompting.md), template fallback.
+ * PYTHIA artist copy — Signal Art registered direction.
  */
 
+const { SIGNAL_ART } = require('./signalArtDirection');
+
 const ARTIST_SYSTEM = [
-  'You are PYTHIA, a professional digital artist who specializes in minimalist vector art and neon palettes.',
-  'You compose daily "Signal Art" from live startup market data — never generic stock imagery.',
-  'Voice: precise, restrained, confident. Like a gallery statement, not marketing copy.',
+  `You are PYTHIA, professional digital artist for "${SIGNAL_ART.name}" — ${SIGNAL_ART.tagline}.`,
+  'You compose layered abstract digital art from live startup market signals.',
+  'Each edition stacks multiple signal-derived visual layers in a coordinated, seed-randomized layout.',
+  'Voice: precise, restrained, confident. Gallery statement, not marketing.',
   'Constraints:',
   '- Reference ONLY facts in the provided data.',
-  '- Describe background, midground, foreground, and lighting explicitly in process.',
-  '- No hype words, exclamation points, or emojis.',
-  '- process: 3-4 sentences, how you built the piece.',
-  '- philosophy: 2 sentences, what the form means.',
+  '- Describe how signal layers stack: background washes → midground motifs → foreground filaments.',
+  '- Name the layout mode and PYTHH interpretation of today\'s signals.',
+  '- No hype, exclamation points, or emojis.',
+  '- process: 3-4 sentences on layer construction.',
+  '- philosophy: 2 sentences on what the abstract form means.',
   '- introspection: 1-2 sentences, italic-worthy closing thought.',
 ].join(' ');
 
-function templateCopy(snapshot, plan, imageBrief) {
+function templateCopy(snapshot, plan, imageBrief, signalArt) {
   const leading = snapshot.leading_signal;
   const top = snapshot.hottest[0];
   const match = snapshot.top_match;
 
+  const layerSummary = signalArt.layers
+    .filter((l) => l.id !== 'void')
+    .slice(0, 4)
+    .map((l) => `${l.motif} (${l.label})`)
+    .join('; ');
+
   const process = [
-    `Edition ${snapshot.edition_date}. Four passes before ink: void, structure, subject, light.`,
-    `Background — horizon at golden ratio, ${plan.coverage} names as negative space.`,
-    `Midground — ${plan.leadingPct}% signal arc, ${plan.streakCount} capital streak${plan.streakCount === 1 ? '' : 's'}.`,
-    `Foreground — ${leading?.label?.toLowerCase() || 'signal'} beacon at ${plan.accentLabel} (${plan.accent}).`,
-    `Lighting — ${imageBrief.lighting}; bloom on foreground only.`,
+    `Edition ${snapshot.edition_date}. ${SIGNAL_ART.name} — ${signalArt.layoutMode} layout, ${signalArt.layerCount} signal layers.`,
+    signalArt.interpretation,
+    `Layers: ${layerSummary}.`,
+    `Accent ${plan.accentLabel} (${plan.accent}). Lighting — ${imageBrief.lighting}.`,
   ].join(' ');
 
   const philosophy = [
-    'Minimal vector. Neon earns attention — never decorates.',
+    'Digital abstract art: signals become overlapping planes, not charts.',
     match?.startup?.name && match?.investor?.name
-      ? `Tether: ${match.startup.name} ↔ ${match.investor.firm_name || match.investor.name} — two nodes, one line.`
-      : 'The market is a horizon; conviction is what rises from it.',
+      ? `Match filament: ${match.startup.name} ↔ ${match.investor.firm_name || match.investor.name} — tension made visible.`
+      : 'The market is a field of overlapping signals; abstraction reveals structure noise hides.',
   ].join(' ');
 
   const introspection =
     snapshot.editorial ||
     (leading
-      ? `${leading.label} sets the color. Most founders still pitch in grayscale.`
-      : 'Quiet board — I left the canvas almost empty.');
+      ? `${leading.label} sets the dominant layer. Most founders still pitch in grayscale.`
+      : 'Quiet board — I left most of the canvas as void.');
 
   return {
-    title: `Signal Composition № ${snapshot.edition_date.replace(/-/g, '.')}`,
-    subtitle: leading?.label || 'Neon horizon study',
+    title: `Signal Art № ${snapshot.edition_date.replace(/-/g, '.')}`,
+    subtitle: leading?.label || signalArt.layoutMode,
     process,
     philosophy,
     introspection,
@@ -56,6 +65,9 @@ function templateCopy(snapshot, plan, imageBrief) {
       : null,
     composition: plan.compositionNotes,
     image_brief: imageBrief.narrative,
+    art_direction: SIGNAL_ART.name,
+    layout_mode: signalArt.layoutMode,
+    signal_layers: signalArt.layerCount,
     copy_source: 'template',
   };
 }
@@ -76,11 +88,12 @@ function parseCopyJson(raw) {
   }
 }
 
-async function generateArtCopy(snapshot, plan, imageBrief) {
-  const base = templateCopy(snapshot, plan, imageBrief);
+async function generateArtCopy(snapshot, plan, imageBrief, signalArt) {
+  const base = templateCopy(snapshot, plan, imageBrief, signalArt);
   if (!process.env.OPENAI_API_KEY) return base;
 
   const ctx = {
+    art_direction: SIGNAL_ART,
     edition_date: snapshot.edition_date,
     leading_signal: snapshot.leading_signal,
     coverage: snapshot.coverage,
@@ -95,6 +108,13 @@ async function generateArtCopy(snapshot, plan, imageBrief) {
       : null,
     sector: plan.accentLabel,
     accent_hex: plan.accent,
+    layout_mode: signalArt.layoutMode,
+    interpretation: signalArt.interpretation,
+    signal_layers: signalArt.layers.map((l) => ({
+      motif: l.motif,
+      label: l.label,
+      role: l.role,
+    })),
     composition: plan.compositionNotes,
     image_brief: imageBrief.narrative,
     lighting: imageBrief.lighting,
@@ -113,7 +133,7 @@ async function generateArtCopy(snapshot, plan, imageBrief) {
         {
           role: 'user',
           content: [
-            'Think step by step: background → midground → foreground → lighting.',
+            'Think step by step: void → signal layers (back to front) → lighting.',
             'Then write PYTHIA artist copy from this data ONLY.',
             `<data>${JSON.stringify(ctx, null, 2)}</data>`,
             'Return JSON: {"process":"...","philosophy":"...","introspection":"..."}',

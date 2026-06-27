@@ -47,19 +47,25 @@ function tierUpgradeHint() {
   return `Upgrade this project to Tier 1 at ${TIER_UPGRADE_URL} (GCP billing alone is not enough — link billing in AI Studio Projects).`;
 }
 
-/** Nano Banana narrative prompt from image brief (paragraphs > keywords). */
+const { SIGNAL_ART } = require('./signalArtDirection');
+
+/** Gemini prompt from Signal Art image brief (layered digital abstract). */
 function buildGeminiPrompt(imageBrief) {
   const narrative = imageBrief?.narrative || '';
   const accent = imageBrief?.accentHex || '#a78bfa';
+  const layout = imageBrief?.signalArt?.layoutMode || 'layered';
 
   return [
     narrative,
     '',
     'CRITICAL REQUIREMENTS:',
-    `- Primary accent color: ${accent}`,
-    '- Style: minimalist vector neon illustration, flat strokes, synthwave, editorial',
-    '- Format: square 1:1 composition, layered depth, generous negative space',
-    '- NEVER include: text, watermarks, labels, coordinate grids, node graphs, photorealistic skin, 3D render clutter',
+    `- Art direction: ${SIGNAL_ART.name} — digital abstract art, NOT photorealistic`,
+    `- Primary accent: ${accent}`,
+    `- Layout mode: ${layout} — multiple translucent signal layers overlapping in depth`,
+    '- Style: abstract digital composition, neon-adjacent palette, editorial gallery piece',
+    '- Format: square 1:1, coordinated layer stack, generous void between forms',
+    '- Each layer should read as a distinct abstract signal motif, harmonized not chaotic',
+    `- NEVER include: ${imageBrief?.negative || 'text, watermarks, charts, UI, photorealistic clutter'}`,
   ]
     .filter(Boolean)
     .join('\n');

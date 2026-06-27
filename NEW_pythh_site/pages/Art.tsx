@@ -1,6 +1,6 @@
 /**
- * /art — Daily Signal Composition
- * PYTHIA renders today's market as deterministic geometry from live signals.
+ * /art — Pythh Signal Art
+ * Digital abstract compositions: layered signal motifs, seed-randomized layout, Gemini raster.
  */
 
 import { useEffect, useState } from 'react';
@@ -43,6 +43,9 @@ interface ArtCopy {
   featured_match?: string | null;
   copy_source?: string;
   raster_provider?: string | null;
+  art_direction?: string;
+  layout_mode?: string;
+  signal_layers?: number;
 }
 
 interface ArtEdition {
@@ -52,6 +55,9 @@ interface ArtEdition {
   copy: ArtCopy;
   raster_url?: string | null;
   raster_provider?: string | null;
+  art_direction?: string;
+  layout_mode?: string;
+  signal_layers?: number;
   generated_at: string;
 }
 
@@ -120,11 +126,11 @@ export default function Art() {
     <div className="min-h-screen" style={{ backgroundColor: PAGE, color: TEXT }}>
       <Helmet>
         <title>
-          {copy?.title ? `${copy.title} — Pythh Signal Art` : 'Pythh Signal Art — daily market composition'}
+          {copy?.title ? `${copy.title} — Pythh Signal Art` : 'Pythh Signal Art — daily abstract composition'}
         </title>
         <meta
           name="description"
-          content="Every day PYTHIA composes one piece of geometry from startup signals, funding moves, and match tension. See how the market looked today."
+          content="Signal Art: PYTHH layers live startup signals into digital abstract compositions — one edition per day from market data."
         />
       </Helmet>
 
@@ -140,7 +146,17 @@ export default function Art() {
         </h1>
         <p className="text-base mb-8 max-w-2xl" style={{ color: MUTED }}>
           {copy?.subtitle ||
-            'Deterministic geometry from live platform signals — one edition per day, same data always produces the same form.'}
+            'Digital abstract art — PYTHH stacks coordinated signal layers from live market data. Same seed, same form.'}
+          {(copy?.layout_mode || edition?.layout_mode) && (
+            <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
+              · {copy?.layout_mode || edition?.layout_mode} layout
+            </span>
+          )}
+          {(copy?.signal_layers || edition?.signal_layers) != null && (
+            <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
+              · {copy?.signal_layers ?? edition?.signal_layers} layers
+            </span>
+          )}
           {copy?.copy_source === 'pythia' && (
             <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: G }}>
               · PYTHIA artist statement

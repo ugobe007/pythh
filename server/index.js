@@ -2016,13 +2016,18 @@ async function getOrCreateArtEdition(editionDate) {
 }
 
 function toArtApiResponse(row) {
+  const snap = row.signal_snapshot || {};
+  const signalArt = snap.signal_art || {};
   return {
     edition_date: row.edition_date,
     seed: row.seed,
     svg: row.svg,
     copy: row.copy,
-    raster_url: row.raster_url ?? row.signal_snapshot?.raster_url ?? null,
-    raster_provider: row.raster_provider ?? row.signal_snapshot?.raster_provider ?? row.copy?.raster_provider ?? null,
+    raster_url: row.raster_url ?? snap.raster_url ?? null,
+    raster_provider: row.raster_provider ?? snap.raster_provider ?? row.copy?.raster_provider ?? null,
+    art_direction: snap.art_direction?.name ?? row.copy?.art_direction ?? 'Signal Art',
+    layout_mode: signalArt.layoutMode ?? row.copy?.layout_mode ?? null,
+    signal_layers: signalArt.layerCount ?? row.copy?.signal_layers ?? null,
     generated_at: row.generated_at,
   };
 }

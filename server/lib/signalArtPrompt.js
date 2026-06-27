@@ -1,9 +1,11 @@
 'use strict';
 
 /**
- * Image-style composition brief for Signal Art (vector execution).
- * Follows mcpmarket-me/skills/ai-artist/references/image-prompting.md
+ * Image brief for Signal Art — layered digital abstract compositions.
+ * @see server/lib/signalArtDirection.js (registered art direction)
  */
+
+const { SIGNAL_ART, describeLayersForPrompt } = require('./signalArtDirection');
 
 const NEGATIVE_PROMPT = [
   'coordinate grid',
@@ -18,32 +20,34 @@ const NEGATIVE_PROMPT = [
   'text overlay',
   'stock illustration',
   'generic AI art',
+  'literal charts',
+  'dashboard UI',
 ].join(', ');
 
 const LIGHTING_STYLES = {
   neon_glow: {
     label: 'Neon glow',
-    effect: 'Single accent bloom on foreground stroke; cyberpunk rim on beacon edge',
+    effect: 'Accent bloom on foreground layers; cyberpunk rim separation between planes',
     floorOpacity: 0.07,
   },
   blue_hour: {
     label: 'Blue hour',
-    effect: 'Cool twilight void; subdued floor wash; no volumetric rays',
+    effect: 'Cool twilight void; subdued washes; layers read as translucent glass',
     floorOpacity: 0.05,
   },
   golden_hour: {
     label: 'Golden hour',
-    effect: 'Warm directional floor glow; capital streaks read as late-day light',
+    effect: 'Warm directional glow; capital layers catch late-day light',
     floorOpacity: 0.09,
   },
   rim: {
     label: 'Rim / back light',
-    effect: 'Edge highlight separates beacon from void; background stays dark',
+    effect: 'Edge highlights separate overlapping abstract forms from void',
     floorOpacity: 0.04,
   },
   split: {
     label: 'Split light',
-    effect: 'Half the frame in shadow; asymmetric beacon offset for tension',
+    effect: 'Half the frame in shadow; asymmetric layer stack for tension',
     floorOpacity: 0.06,
   },
 };
@@ -59,7 +63,6 @@ function pickLightingStyle(snapshot, plan) {
   return 'neon_glow';
 }
 
-/** Rule-of-thirds anchor for focal subject (1:1 canvas). */
 function thirdsX(seed, tension) {
   const left = Math.round(800 / 3);
   const right = Math.round((800 * 2) / 3);
@@ -78,40 +81,46 @@ function applyCompositionRules(plan, snapshot, seed) {
 }
 
 /**
- * Universal image prompt structure → narrative brief for SVG + optional raster pass.
- * @see image-prompting.md — Subject, Style, Composition, Lighting, Quality, Negative
+ * Narrative brief for Gemini raster + PYTHIA copy.
  */
-function buildImageBrief(snapshot, plan) {
+function buildImageBrief(snapshot, plan, signalArt) {
   const leading = snapshot.leading_signal;
   const top = snapshot.hottest[0];
   const match = snapshot.top_match;
   const lighting = LIGHTING_STYLES[plan.lightingStyle] || LIGHTING_STYLES.neon_glow;
+  const layerLines = describeLayersForPrompt(signalArt, plan);
 
   const subject = top
-    ? `${top.name} as a minimal neon beacon (${leading?.label || 'signal'} dominant)`
-    : `Abstract market beacon — ${leading?.label || 'recalibrating signals'}`;
+    ? `${top.name} as focal intensity within a layered abstract signal field`
+    : `Abstract market signal field — ${leading?.label || 'recalibrating signals'}`;
 
   const narrative = [
-    `${subject} rises from a flat void horizon.`,
-    `Minimalist vector art, synthwave palette, primary neon ${plan.accent} on ${plan.accentLabel}.`,
-    `1:1 square format. Composition: rule of thirds focal point, layered depth, generous negative space.`,
-    `Background: ${plan.compositionNotes?.background || 'void and horizon'}.`,
-    `Midground: ${plan.compositionNotes?.midground || 'signal arc and capital streaks'}.`,
-    `Foreground: ${plan.compositionNotes?.foreground || 'beacon and match tether'}.`,
+    `${SIGNAL_ART.name}: ${SIGNAL_ART.tagline}.`,
+    signalArt.interpretation,
+    `${subject}. Digital abstract art — NOT photorealistic, NOT literal charts.`,
+    `Layout: ${signalArt.layoutMode} — ${signalArt.layoutDescription}.`,
+    `Palette: primary accent ${plan.accent} (${plan.accentLabel}), dark void background, neon-adjacent digital tones.`,
+    `1:1 square format. Multiple translucent signal layers overlap in coordinated depth — each layer maps to a live market signal.`,
+    '',
+    'SIGNAL LAYERS (back to front):',
+    ...layerLines,
+    '',
     `Lighting: ${lighting.label} — ${lighting.effect}.`,
     match?.startup?.name
-      ? `Tension line connects ${match.startup.name} to ${match.investor?.firm_name || match.investor?.name} (${match.match_score}% fit).`
+      ? `Match layer connects ${match.startup.name} to ${match.investor?.firm_name || match.investor?.name} (${match.match_score}% fit).`
       : null,
+    `Randomized composition variant #${signalArt.seedVariant} (deterministic from edition seed).`,
     `NEVER include: ${NEGATIVE_PROMPT}.`,
   ]
     .filter(Boolean)
-    .join(' ');
+    .join('\n');
 
   return {
     subject,
-    style: 'minimalist vector art, synthwave, stroke-only, neon palette',
-    medium: 'SVG vector (deterministic)',
-    composition: 'rule of thirds, golden-ratio horizon, layered depth, negative space',
+    style: SIGNAL_ART.style.join(', '),
+    medium: SIGNAL_ART.medium,
+    artDirection: SIGNAL_ART.id,
+    composition: `${signalArt.layoutMode}, layered abstract depth, coordinated signal planes`,
     lighting: lighting.label,
     lightingStyle: plan.lightingStyle,
     aspectRatio: '1:1',
@@ -119,10 +128,12 @@ function buildImageBrief(snapshot, plan) {
     narrative,
     negative: NEGATIVE_PROMPT,
     seed: plan.seed,
+    signalArt,
   };
 }
 
 module.exports = {
+  SIGNAL_ART,
   NEGATIVE_PROMPT,
   LIGHTING_STYLES,
   pickLightingStyle,

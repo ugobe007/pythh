@@ -1,12 +1,14 @@
 'use strict';
 
 /**
- * Pythh Signal Art — minimalist neon vector compositions from daily signals.
- * Skills: server/lib/signal-art/SKILL.md + mcpmarket-me/skills/ai-artist/
+ * Pythh Signal Art — digital abstract layered compositions from daily signals.
+ * Registered direction: server/lib/signalArtDirection.js
+ * Skill: server/lib/signal-art/SKILL.md
  */
 
 const { getSupabaseClient } = require('./supabaseClient');
 const { applyCompositionRules, buildImageBrief, LIGHTING_STYLES } = require('./signalArtPrompt');
+const { interpretSignalLayers, buildLayerLegend, SIGNAL_ART } = require('./signalArtDirection');
 const { generateArtCopy } = require('./signalArtCopy');
 const { generateAndPersistRaster } = require('./signalArtGemini');
 
@@ -124,15 +126,18 @@ function planComposition(snapshot, seed) {
   return applyCompositionRules(plan, snapshot, seed);
 }
 
-function buildLegend(plan) {
+function buildLegend(plan, signalArt) {
   const lighting = LIGHTING_STYLES[plan.lightingStyle];
-  return [
-    { key: 'hue', label: 'Sector neon', value: plan.accentLabel },
-    { key: 'arc', label: 'Leading signal', value: `${plan.leadingPct}% sweep` },
+  const base = [
+    { key: 'direction', label: 'Art direction', value: SIGNAL_ART.name },
+    { key: 'layout', label: 'Layout', value: signalArt.layoutMode },
+    { key: 'layers', label: 'Signal layers', value: String(signalArt.layerCount) },
+    { key: 'hue', label: 'Sector tone', value: plan.accentLabel },
     { key: 'light', label: 'Lighting', value: lighting?.label || 'Neon glow' },
-    { key: 'capital', label: 'Funding streaks', value: String(plan.fundingCount) },
     { key: 'form', label: 'Balance', value: plan.tensionLabel },
   ];
+  const layerLegend = buildLayerLegend(signalArt).slice(0, 3);
+  return [...base, ...layerLegend];
 }
 
 function floorGlowColor(plan) {
@@ -152,8 +157,32 @@ function arcPath(cx, cy, r, startDeg, sweepDeg) {
   return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 }
 
+function renderSignalLayerSvg(layer, accent) {
+  const color = layer.color || accent;
+  const op = layer.opacity.toFixed(2);
+  const r = Math.round(40 + layer.scale * 90);
+  const x = layer.x ?? 400;
+  const y = layer.y ?? 400;
+  const rot = layer.rotation || 0;
+  const transform = `rotate(${rot} ${x} ${y})`;
+
+  if (layer.motif.includes('arc') || layer.motif.includes('ring')) {
+    return `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${Math.round(r * 0.55)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="1.5" transform="${transform}"/>`;
+  }
+  if (layer.motif.includes('filament') || layer.motif.includes('ribbon') || layer.motif.includes('streak')) {
+    const x2 = x + Math.cos((rot * Math.PI) / 180) * r * 1.4;
+    const y2 = y + Math.sin((rot * Math.PI) / 180) * r * 0.6;
+    return `<line x1="${x}" y1="${y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-opacity="${op}" stroke-width="2" stroke-linecap="round"/>`;
+  }
+  if (layer.motif.includes('wash') || layer.motif.includes('void')) {
+    return `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" fill="${color}" opacity="${(parseFloat(op) * 0.35).toFixed(2)}" transform="${transform}"/>`;
+  }
+  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${(parseFloat(op) * 0.25).toFixed(2)}" transform="${transform}"/>`;
+}
+
 function generateSvg(snapshot, seed) {
   const plan = planComposition(snapshot, seed);
+  const signalArt = interpretSignalLayers(snapshot, plan, seed);
   const rand = mulberry32(seed + 1);
   const W = 800;
   const H = 800;
@@ -173,7 +202,7 @@ function generateSvg(snapshot, seed) {
 
   const parts = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Pythh signal composition — minimalist neon vector">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Pythh Signal Art — layered abstract digital composition">`,
   );
 
   parts.push('<defs>');
@@ -232,6 +261,13 @@ function generateSvg(snapshot, seed) {
   }
   parts.push('</g>');
 
+  parts.push('<g id="signal-layers" opacity="0.92">');
+  for (const layer of [...signalArt.layers].sort((a, b) => a.zIndex - b.zIndex)) {
+    if (layer.id === 'void') continue;
+    parts.push(renderSignalLayerSvg(layer, accent));
+  }
+  parts.push('</g>');
+
   parts.push('<g id="foreground" filter="url(#neonBloom)">');
   parts.push(
     `<polyline points="${beacon}" fill="none" stroke="${accent}" stroke-width="2.25" stroke-linejoin="miter" stroke-linecap="square"/>`,
@@ -264,23 +300,26 @@ function generateSvg(snapshot, seed) {
 
   parts.push('</svg>');
 
-  plan.legend = buildLegend(plan);
+  plan.legend = buildLegend(plan, signalArt);
   plan.compositionNotes = {
-    background: 'void gradient, golden-ratio horizon, faint dome',
-    midground: `${arcSweep.toFixed(0)}° signal arc, ${dims.length} ticks, ${streakCount} capital streaks`,
-    foreground: 'beacon chevron + match tether (rule of thirds)',
+    artDirection: SIGNAL_ART.name,
+    layout: signalArt.layoutMode,
+    interpretation: signalArt.interpretation,
+    background: 'void gradient, golden-ratio horizon, chromatic wash layers',
+    midground: `${signalArt.layerCount} coordinated signal layers (${signalArt.layoutMode})`,
+    foreground: 'focal bloom + match filament overlay',
     lighting: `${lighting.label} — ${lighting.effect}`,
   };
 
-  return { svg: parts.join('\n'), params: plan };
+  return { svg: parts.join('\n'), params: plan, signalArt };
 }
 
 async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRaster = true } = {}) {
   const snapshot = extractSnapshot(newsletter);
   const seed = hashSeed(`pythh-art-${snapshot.edition_date}`);
-  const { svg, params } = generateSvg(snapshot, seed);
-  const imageBrief = buildImageBrief(snapshot, params);
-  const copy = await generateArtCopy(snapshot, params, imageBrief);
+  const { svg, params, signalArt } = generateSvg(snapshot, seed);
+  const imageBrief = buildImageBrief(snapshot, params, signalArt);
+  const copy = await generateArtCopy(snapshot, params, imageBrief, signalArt);
 
   let raster = { ok: false, reason: 'skipped' };
   if (generateRaster && process.env.SIGNAL_ART_RASTER !== '0') {
@@ -305,6 +344,19 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
     raster_model: raster.ok ? raster.model : null,
     signal_snapshot: {
       ...snapshot,
+      art_direction: SIGNAL_ART,
+      signal_art: {
+        layoutMode: signalArt.layoutMode,
+        interpretation: signalArt.interpretation,
+        layerCount: signalArt.layerCount,
+        layers: signalArt.layers.map(({ id, label, motif, role, signal }) => ({
+          id,
+          label,
+          motif,
+          role,
+          signal,
+        })),
+      },
       composition: params.compositionNotes,
       image_brief: imageBrief,
       raster_url: raster.ok ? raster.raster_url : null,
@@ -314,6 +366,7 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
     },
     copy: {
       ...copy,
+      art_direction: SIGNAL_ART.name,
       raster_provider: raster.ok ? raster.provider : null,
     },
     generated_at: new Date().toISOString(),
