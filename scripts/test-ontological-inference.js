@@ -7,6 +7,8 @@
 'use strict';
 
 const { inferOntologicalFrame, inferOntologicalFrames } = require('../lib/ontologicalInferenceEngine');
+const { extractOntologicalFramesFromArticles } = require('../lib/ontologyNewsInference');
+const { scoreNarrativeRole } = require('../server/services/inferenceService');
 
 const CASES = [
   {
@@ -131,4 +133,62 @@ console.log(`   summary investors: ${passage.summary?.investors?.join(', ') || '
 if (passage.frames.length >= 2) passed++; else failed++;
 
 console.log(`\n📊 ${passed}/${passed + failed} passed`);
-process.exit(failed > 0 ? 1 : 0);
+
+// RSS noise regression cases
+console.log('\n📰 RSS noise regression\n');
+
+const RSS_CASES = [
+  {
+    title: 'Colombian fintech Addi gets banking licence and credit upsize - Latin Lawyer',
+    startup: 'Addi',
+    reject: ['Colombian fintech Addi gets banking licence and', 'Latin Lawyer Addi Secures', 'Valuation', 'ARR'],
+    expectStartup: 'Addi',
+  },
+  {
+    title: 'GetLatka Nango Revenue Nango Revenue reaches $5M ARR - GetLatka',
+    startup: 'Nango',
+    reject: ['GetLatka Nango Revenue', 'ARR'],
+    expectStartup: 'Nango',
+  },
+  {
+    title: 'Addi raises $50M Series B to expand buy-now-pay-later in Latin America',
+    startup: 'Addi',
+    reject: ['Colombian fintech'],
+    expectStartup: 'Addi',
+  },
+];
+
+let rssPassed = 0;
+let rssFailed = 0;
+
+for (const [i, c] of RSS_CASES.entries()) {
+  const result = extractOntologicalFramesFromArticles(
+    [{ title: c.title, content: c.title }],
+    c.startup,
+    { scoreNarrativeRole },
+  );
+  const names = (result?.frames || []).flatMap((f) => f.objects.map((o) => o.name).filter(Boolean));
+  const errs = [];
+
+  if (c.expectStartup && !names.some((n) => n.toLowerCase() === c.expectStartup.toLowerCase())) {
+    errs.push(`missing startup ${c.expectStartup} in [${names.join(', ')}]`);
+  }
+  for (const bad of c.reject || []) {
+    if (names.some((n) => n && n.toLowerCase().includes(bad.toLowerCase()))) {
+      errs.push(`rejected junk entity present: ${bad}`);
+    }
+  }
+
+  const ok = errs.length === 0;
+  console.log(`${i + 1}. ${ok ? '✓' : '✗'} ${c.title.slice(0, 65)}…`);
+  if (!ok) {
+    errs.forEach((e) => console.log(`   → ${e}`));
+    console.log(`   objects: ${names.join(', ') || '—'}`);
+    rssFailed++;
+  } else {
+    rssPassed++;
+  }
+}
+
+console.log(`\n📊 RSS: ${rssPassed}/${rssPassed + rssFailed} passed`);
+process.exit(failed + rssFailed > 0 ? 1 : 0);

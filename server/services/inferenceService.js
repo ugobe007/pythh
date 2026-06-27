@@ -865,9 +865,11 @@ function extractDataFromArticles(articles, currentData = {}, startupName = '') {
   });
   let ontologicalFrames = null;
   try {
-    const { extractOntologicalFramesFromText } = require('../../lib/ontologyNewsInference');
-    ontologicalFrames = extractOntologicalFramesFromText(ontologyText, {
-      maxSentences: ontologyMaxSentences,
+    const { extractOntologicalFramesFromArticles } = require('../../lib/ontologyNewsInference');
+    ontologicalFrames = extractOntologicalFramesFromArticles(articles, startupName, {
+      maxArticles: 10,
+      minNarrativeScore: 0.15,
+      scoreNarrativeRole,
     });
   } catch (e) {
     console.warn('[inference] ontological frames skipped:', e.message);
