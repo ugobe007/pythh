@@ -58,17 +58,18 @@ function buildGeminiPrompt(imageBrief) {
   const accent = imageBrief?.accentHex || '#a78bfa';
 
   return [
-    'PURE ARTWORK — NO TEXT ANYWHERE IN THE IMAGE. NO LABELS. NO LEGENDS. NO CAPTIONS. NO NUMBERS. NO LISTS.',
+    'FULL BLEED ARTWORK — NO WHITE BORDER, NO FRAME, NO MAT, NO POLAROID, NO LETTERBOX.',
+    'PURE ARTWORK — NO TEXT ANYWHERE IN THE IMAGE.',
     '',
     visual,
     '',
     'CRITICAL:',
-    `- Single accent color: ${accent} on black void`,
-    '- Sparse luminous forms, 85% empty black canvas',
-    '- Museum-quality abstract digital print',
-    '- DO NOT render any words, typography, layer lists, legends, or metadata as visible text',
-    '- DO NOT: overlapping squares, radar rings, node graphs, dashboard UI',
-    'PURE ARTWORK — NO TEXT ANYWHERE IN THE IMAGE.',
+    `- Chromium metallic filter on all luminous forms — silver, anodized violet, mirror reflections`,
+    `- Time-travel depth: ghosted temporal layers receding into deep space`,
+    `- Single accent burn-through: ${accent}`,
+    '- Edge-to-edge composition on black void — artwork touches all four edges',
+    '- DO NOT: white border, frame, mat, polaroid, letterbox, text, labels, radar UI, node graphs',
+    'FULL BLEED — NO FRAME — NO TEXT.',
   ].join('\n');
 }
 

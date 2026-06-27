@@ -203,7 +203,7 @@ export default function Art() {
           className="rounded-2xl overflow-hidden mb-10 aspect-square max-w-2xl mx-auto w-full min-h-[280px]"
           style={{
             border: `1px solid ${BORDER}`,
-            backgroundColor: '#0a0a0c',
+            backgroundColor: '#050508',
             boxShadow: `0 0 80px ${G_SUBTLE}`,
           }}
         >
@@ -215,7 +215,7 @@ export default function Art() {
             <img
               src={rasterSrc!}
               alt={copy?.title || 'Signal Art composition'}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover bg-[#050508]"
               loading="eager"
               decoding="async"
               onError={() => setRasterFailed(true)}

@@ -4,9 +4,9 @@
   "copy": {
     "title": "Signal Art № 2026.06.27",
     "subtitle": "Execution Velocity",
-    "process": "The composition begins with a deep void mist and an atmospheric color wash that establish the background, creating a gradient of depth and chromatic resonance. Midground layers of flowing velocity trails and parallel thrust ribbons emerge, symbolizing execution velocity and capital movements, while a steady vertical beacon adds a sense of conviction. In the foreground, the interplay of abstract signal fields, luminous arcs, and tension filaments converge, highlighting key connections such as the match between YipitData and Sequoia Capital, all bathed in the warm glow of golden hour lighting.",
-    "philosophy": "This layered abstraction reflects the dynamic and often chaotic nature of market signals, where each layer represents a distinct yet interconnected aspect of the economic landscape. The visual narrative unfolds as a meditation on the balance between momentum and stability, inviting viewers to contemplate the unseen currents that shape our reality.",
-    "introspection": "_In this interplay of form and light, we find a mirror to our own pursuits, where clarity often emerges from complexity._",
+    "process": "The composition begins with a deep void mist and atmospheric color wash, establishing a layered background that reflects the vastness of market signals. In the midground, two flowing velocity trails and a steady vertical beacon emerge, representing the dynamic execution velocity and founder conviction. The foreground is articulated through an abstract signal field, a luminous arc, and various filaments, culminating in the focal intensity of Alt-qq, all illuminated by a warm, golden-hour light that enhances the depth of each layer.",
+    "philosophy": "This abstract form encapsulates the fluidity and complexity of market dynamics, where each signal interconnects in a dance of potential and reality. It invites contemplation on the unseen forces that drive innovation and investment within the startup ecosystem.",
+    "introspection": "In the interplay of these layers, one finds a reflection of our own aspirations and the intricate pathways we navigate in pursuit of progress.",
     "legend": [
       {
         "key": "direction",
@@ -16,7 +16,7 @@
       {
         "key": "layout",
         "label": "Layout",
-        "value": "horizon"
+        "value": "warp"
       },
       {
         "key": "layers",
@@ -58,16 +58,16 @@
     "featured_match": "YipitData × Sequoia Capital",
     "composition": {
       "artDirection": "Signal Art",
-      "layout": "horizon",
-      "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in horizon formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
+      "layout": "warp",
+      "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in warp formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
       "background": "void gradient, golden-ratio horizon, chromatic wash layers",
-      "midground": "11 coordinated signal layers (horizon)",
+      "midground": "11 coordinated signal layers (warp)",
       "foreground": "focal bloom + match filament overlay",
       "lighting": "Golden hour — Warm directional glow; capital layers catch late-day light"
     },
-    "image_brief": "Signal Art: Digital abstract compositions from live market signals.\nPYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in horizon formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.\nAlt-qq as focal intensity within a layered abstract signal field. Digital abstract art — NOT photorealistic, NOT literal charts.\nLayout: horizon — single focal form on an infinite void horizon.\nPalette: primary accent #a78bfa (Gaming), dark void background, neon-adjacent digital tones.\n1:1 square format. Multiple translucent signal layers overlap in coordinated depth — each layer maps to a live market signal.\nSIGNAL LAYERS (back to front):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 344°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.20, scale 1.19, rotation 170°, color #a78bfa\nLayer 3 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation -19°\nLayer 4 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.67, scale 1.20, rotation -2°\nLayer 5 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.52, scale 1.07, rotation 23°\nLayer 6 (midground): \"steady vertical beacon\" from Founder Conviction — opacity 0.46, scale 0.94, rotation 3°\nLayer 7 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation 43°\nLayer 8 (foreground): \"single luminous arc\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 50°\nLayer 9 (foreground): \"soft pulse halo\" from News Momentum — opacity 0.22, scale 0.40, rotation 30°\nLayer 10 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 35.60225782357156°\nLayer 11 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation 5°\nLighting: Golden hour — Warm directional glow; capital layers catch late-day light.\nMatch layer connects YipitData to Sequoia Capital (100% fit).\nRandomized composition variant #495 (deterministic from edition seed).\nNEVER include: overlapping squares, transparent rectangles, concentric circles, radar display, node graph, constellation network, coordinate grid, spider web, prism light beams, filled blob cluster, omnidirectional glow, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art, literal charts, dashboard UI, symmetrical mandala.",
+    "image_brief": "Signal Art: Digital abstract compositions from live market signals.\nPYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in warp formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.\nAlt-qq as focal intensity within a layered abstract signal field. Digital abstract art — NOT photorealistic, NOT literal charts.\nLayout: warp — temporal layers converging toward a distant vanishing point.\nPalette: primary accent #a78bfa (Gaming), dark void background, neon-adjacent digital tones.\n1:1 square format. Multiple translucent signal layers overlap in coordinated depth — each layer maps to a live market signal.\nSIGNAL LAYERS (back to front):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 344°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.20, scale 1.19, rotation 170°, color #a78bfa\nLayer 3 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation -19°\nLayer 4 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.67, scale 1.20, rotation -2°\nLayer 5 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.52, scale 1.07, rotation 23°\nLayer 6 (midground): \"steady vertical beacon\" from Founder Conviction — opacity 0.46, scale 0.94, rotation 3°\nLayer 7 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation 43°\nLayer 8 (foreground): \"single luminous arc\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 50°\nLayer 9 (foreground): \"soft pulse halo\" from News Momentum — opacity 0.22, scale 0.40, rotation 30°\nLayer 10 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 35.60225782357156°\nLayer 11 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation 5°\nLighting: Golden hour — Warm directional glow; capital layers catch late-day light.\nMatch layer connects YipitData to Sequoia Capital (100% fit).\nRandomized composition variant #495 (deterministic from edition seed).\nNEVER include: white border, white frame, polaroid, mat board, picture frame, letterbox bars, overlapping squares, transparent rectangles, concentric circles, radar display, node graph, constellation network, coordinate grid, prism light beams, 3d render, watermark, text overlay, stock illustration, generic AI art, literal charts, dashboard UI.",
     "art_direction": "Signal Art",
-    "layout_mode": "horizon",
+    "layout_mode": "warp",
     "signal_layers": 11,
     "copy_source": "pythia",
     "raster_provider": "gemini"
@@ -385,7 +385,7 @@
         "firm_name": "Sequoia Capital"
       }
     },
-    "editorial": "Alt-qq, scoring a perfect 100 in product and traction, is emblematic of a broader trend: execution velocity is driving today's funding landscape, with 85% of startups shipping and hiring at an accelerated pace. As capital flows favor sectors like gaming, climate tech, and developer tools, investors like Sequoia Capital are doubling down on data-driven insights, indicating a strategic pivot towards scalable solutions.",
+    "editorial": "Alt-qq is leading the pack with a perfect score, driven by robust product execution and traction. The current surge in execution velocity—an 85% increase in shipping and hiring—signals a critical moment for investments in Gaming, Climate Tech, and Developer Tools. With only 10 funding rounds reported today, discerning VCs should act swiftly to capitalize on these emerging opportunities.",
     "top_sectors": [
       "Gaming",
       "Climate Tech",
@@ -399,13 +399,16 @@
         "digital art",
         "abstract",
         "layered",
-        "signal-driven",
-        "editorial",
-        "minimal"
+        "chromium",
+        "deep-space",
+        "time-travel",
+        "signal-driven"
       ],
       "medium": "Gemini raster (primary) · SVG fallback",
-      "version": "2.1",
+      "version": "2.2",
+      "theme": "chromium time-travel — layered signals drifting through deep space",
       "avoid": [
+        "white border or polaroid frame",
         "overlapping transparent squares or rectangles",
         "concentric radar circles",
         "node graphs or constellation networks",
@@ -415,8 +418,8 @@
       ]
     },
     "signal_art": {
-      "layoutMode": "horizon",
-      "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in horizon formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
+      "layoutMode": "warp",
+      "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in warp formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
       "layerCount": 11,
       "layers": [
         {
@@ -500,26 +503,26 @@
     },
     "composition": {
       "artDirection": "Signal Art",
-      "layout": "horizon",
-      "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in horizon formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
+      "layout": "warp",
+      "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in warp formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
       "background": "void gradient, golden-ratio horizon, chromatic wash layers",
-      "midground": "11 coordinated signal layers (horizon)",
+      "midground": "11 coordinated signal layers (warp)",
       "foreground": "focal bloom + match filament overlay",
       "lighting": "Golden hour — Warm directional glow; capital layers catch late-day light"
     },
     "image_brief": {
       "subject": "Alt-qq as focal intensity within a layered abstract signal field",
-      "style": "digital art, abstract, layered, signal-driven, editorial, minimal",
+      "style": "digital art, abstract, layered, chromium, deep-space, time-travel, signal-driven",
       "medium": "Gemini raster (primary) · SVG fallback",
       "artDirection": "signal-art",
-      "composition": "horizon, layered abstract depth, coordinated signal planes",
+      "composition": "warp, layered abstract depth, coordinated signal planes",
       "lighting": "Golden hour",
       "lightingStyle": "golden_hour",
       "aspectRatio": "1:1",
       "accentHex": "#a78bfa",
-      "narrative": "Signal Art: Digital abstract compositions from live market signals.\nPYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in horizon formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.\nAlt-qq as focal intensity within a layered abstract signal field. Digital abstract art — NOT photorealistic, NOT literal charts.\nLayout: horizon — single focal form on an infinite void horizon.\nPalette: primary accent #a78bfa (Gaming), dark void background, neon-adjacent digital tones.\n1:1 square format. Multiple translucent signal layers overlap in coordinated depth — each layer maps to a live market signal.\nSIGNAL LAYERS (back to front):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 344°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.20, scale 1.19, rotation 170°, color #a78bfa\nLayer 3 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation -19°\nLayer 4 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.67, scale 1.20, rotation -2°\nLayer 5 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.52, scale 1.07, rotation 23°\nLayer 6 (midground): \"steady vertical beacon\" from Founder Conviction — opacity 0.46, scale 0.94, rotation 3°\nLayer 7 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation 43°\nLayer 8 (foreground): \"single luminous arc\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 50°\nLayer 9 (foreground): \"soft pulse halo\" from News Momentum — opacity 0.22, scale 0.40, rotation 30°\nLayer 10 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 35.60225782357156°\nLayer 11 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation 5°\nLighting: Golden hour — Warm directional glow; capital layers catch late-day light.\nMatch layer connects YipitData to Sequoia Capital (100% fit).\nRandomized composition variant #495 (deterministic from edition seed).\nNEVER include: overlapping squares, transparent rectangles, concentric circles, radar display, node graph, constellation network, coordinate grid, spider web, prism light beams, filled blob cluster, omnidirectional glow, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art, literal charts, dashboard UI, symmetrical mandala.",
-      "visualPrompt": "Fine-art digital abstraction on pure black (#050508), square format. Like a James Turrell light installation on infinite black — one color, one form, vast silence. Convey speed and forward momentum through sparse luminous elements on an mostly empty canvas. Color discipline: one accent hue #a78bfa with warm amber highlights — no rainbow, no prism. Visual elements only: soft colored atmospheric mist along the lower edge, two or three elegant curved light trails crossing the frame, a subtle woven texture of thin glowing lines in the midground (decorative, not a chart), one bright ember-like glow with delicate rays extending outward from the lower-right. Golden hour lighting with gentle bloom on the glowing elements. At least eighty-five percent of the canvas is untouched black void. This is a finished museum print. The artwork contains absolutely no writing — no words, no numbers, no labels, no legends, no captions, no lists, no typography, no UI.",
-      "negative": "overlapping squares, transparent rectangles, concentric circles, radar display, node graph, constellation network, coordinate grid, spider web, prism light beams, filled blob cluster, omnidirectional glow, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art, literal charts, dashboard UI, symmetrical mandala",
+      "narrative": "Signal Art: Digital abstract compositions from live market signals.\nPYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in warp formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.\nAlt-qq as focal intensity within a layered abstract signal field. Digital abstract art — NOT photorealistic, NOT literal charts.\nLayout: warp — temporal layers converging toward a distant vanishing point.\nPalette: primary accent #a78bfa (Gaming), dark void background, neon-adjacent digital tones.\n1:1 square format. Multiple translucent signal layers overlap in coordinated depth — each layer maps to a live market signal.\nSIGNAL LAYERS (back to front):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 344°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.20, scale 1.19, rotation 170°, color #a78bfa\nLayer 3 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation -19°\nLayer 4 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.67, scale 1.20, rotation -2°\nLayer 5 (midground): \"flowing velocity trail\" from Execution Velocity — opacity 0.52, scale 1.07, rotation 23°\nLayer 6 (midground): \"steady vertical beacon\" from Founder Conviction — opacity 0.46, scale 0.94, rotation 3°\nLayer 7 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation 43°\nLayer 8 (foreground): \"single luminous arc\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 50°\nLayer 9 (foreground): \"soft pulse halo\" from News Momentum — opacity 0.22, scale 0.40, rotation 30°\nLayer 10 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 35.60225782357156°\nLayer 11 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation 5°\nLighting: Golden hour — Warm directional glow; capital layers catch late-day light.\nMatch layer connects YipitData to Sequoia Capital (100% fit).\nRandomized composition variant #495 (deterministic from edition seed).\nNEVER include: white border, white frame, polaroid, mat board, picture frame, letterbox bars, overlapping squares, transparent rectangles, concentric circles, radar display, node graph, constellation network, coordinate grid, prism light beams, 3d render, watermark, text overlay, stock illustration, generic AI art, literal charts, dashboard UI.",
+      "visualPrompt": "Full-bleed square digital artwork — edge to edge, no border, no white frame, no mat, no polaroid, no letterboxing. Deep space black background (#050508) filling the entire canvas corner to corner. Like signals passing through a chrome-plated wormhole — metallic reflections, temporal ghost layers fading into the distance. Theme: time travel — 11 translucent temporal layers at staggered depths, each a ghost echo of the last, drifting through infinite void. Chromium filter aesthetic: liquid metallic surfaces, anodized silver-violet chrome, mirror-like reflections, cool metallic sheen on every form. Convey speed and forward momentum through hyperspace motion — curved chrome light trails, temporal motion blur, forms stretched along a vanishing point into the distance. One hot accent color #a78bfa bleeding through the chrome layers like a signal burning through time. Distant starless space, faint nebula mist, parallax depth between layers — near forms sharp, far forms faded and stretched. Golden hour lighting with chrome specular highlights and soft bloom on the deepest layer. Absolutely no writing, no labels, no white edges, no frame of any kind.",
+      "negative": "white border, white frame, polaroid, mat board, picture frame, letterbox bars, overlapping squares, transparent rectangles, concentric circles, radar display, node graph, constellation network, coordinate grid, prism light beams, 3d render, watermark, text overlay, stock illustration, generic AI art, literal charts, dashboard UI",
       "seed": 2084008440,
       "signalArt": {
         "direction": {
@@ -530,13 +533,16 @@
             "digital art",
             "abstract",
             "layered",
-            "signal-driven",
-            "editorial",
-            "minimal"
+            "chromium",
+            "deep-space",
+            "time-travel",
+            "signal-driven"
           ],
           "medium": "Gemini raster (primary) · SVG fallback",
-          "version": "2.1",
+          "version": "2.2",
+          "theme": "chromium time-travel — layered signals drifting through deep space",
           "avoid": [
+            "white border or polaroid frame",
             "overlapping transparent squares or rectangles",
             "concentric radar circles",
             "node graphs or constellation networks",
@@ -545,9 +551,9 @@
             "dashboard or UI aesthetics"
           ]
         },
-        "layoutMode": "horizon",
-        "layoutDescription": "single focal form on an infinite void horizon",
-        "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in horizon formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
+        "layoutMode": "warp",
+        "layoutDescription": "temporal layers converging toward a distant vanishing point",
+        "interpretation": "PYTHH interprets 2026-06-27 as execution velocity dominant — 11 coordinated abstract signal layers in warp formation, sector tone Gaming, balance centered. Match tension: YipitData ↔ Sequoia Capital.",
         "layers": [
           {
             "id": "void",
@@ -710,5 +716,5 @@
     "raster_model": "gemini-3.1-flash-image",
     "raster_error": null
   },
-  "generated_at": "2026-06-27T05:06:28.994Z"
+  "generated_at": "2026-06-27T05:10:49.864Z"
 }

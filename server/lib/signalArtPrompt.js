@@ -8,6 +8,12 @@
 const { SIGNAL_ART, pickAestheticAnchor, describeLayersForPrompt } = require('./signalArtDirection');
 
 const NEGATIVE_PROMPT = [
+  'white border',
+  'white frame',
+  'polaroid',
+  'mat board',
+  'picture frame',
+  'letterbox bars',
   'overlapping squares',
   'transparent rectangles',
   'concentric circles',
@@ -15,19 +21,14 @@ const NEGATIVE_PROMPT = [
   'node graph',
   'constellation network',
   'coordinate grid',
-  'spider web',
   'prism light beams',
-  'filled blob cluster',
-  'omnidirectional glow',
   '3d render',
-  'photorealistic texture',
   'watermark',
   'text overlay',
   'stock illustration',
   'generic AI art',
   'literal charts',
   'dashboard UI',
-  'symmetrical mandala',
 ].join(', ');
 
 const LIGHTING_STYLES = {
@@ -151,24 +152,24 @@ function signalToMood(snapshot) {
   return 'calm recalibration';
 }
 
-/** Pure visual scene — no internal names, lists, layer counts, or metadata. */
+/** Pure visual scene — chromium time-travel in deep space, full bleed, no frame. */
 function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
   const anchor = pickAestheticAnchor(plan.seed || 0);
   const mood = signalToMood(snapshot);
   const accent = plan.accent;
-  const warm = plan.lightingStyle === 'golden_hour' || plan.lightingStyle === 'neon_glow';
+  const depth = signalArt.layerCount || 5;
 
   return [
-    `Fine-art digital abstraction on pure black (#050508), square format.`,
+    `Full-bleed square digital artwork — edge to edge, no border, no white frame, no mat, no polaroid, no letterboxing.`,
+    `Deep space black background (#050508) filling the entire canvas corner to corner.`,
     `${anchor}`,
-    `Convey ${mood} through sparse luminous elements on an mostly empty canvas.`,
-    `Color discipline: one accent hue ${accent} with ${warm ? 'warm amber highlights' : 'cool violet-cyan undertones'} — no rainbow, no prism.`,
-    `Visual elements only: soft colored atmospheric mist along the lower edge, two or three elegant curved light trails crossing the frame,`,
-    `a subtle woven texture of thin glowing lines in the midground (decorative, not a chart),`,
-    `one bright ember-like glow with delicate rays extending outward from the lower-right.`,
-    `${lighting.label} lighting with gentle bloom on the glowing elements.`,
-    `At least eighty-five percent of the canvas is untouched black void.`,
-    `This is a finished museum print. The artwork contains absolutely no writing — no words, no numbers, no labels, no legends, no captions, no lists, no typography, no UI.`,
+    `Theme: time travel — ${depth} translucent temporal layers at staggered depths, each a ghost echo of the last, drifting through infinite void.`,
+    `Chromium filter aesthetic: liquid metallic surfaces, anodized silver-violet chrome, mirror-like reflections, cool metallic sheen on every form.`,
+    `Convey ${mood} through hyperspace motion — curved chrome light trails, temporal motion blur, forms stretched along a vanishing point into the distance.`,
+    `One hot accent color ${accent} bleeding through the chrome layers like a signal burning through time.`,
+    `Distant starless space, faint nebula mist, parallax depth between layers — near forms sharp, far forms faded and stretched.`,
+    `${lighting.label} lighting with chrome specular highlights and soft bloom on the deepest layer.`,
+    `Absolutely no writing, no labels, no white edges, no frame of any kind.`,
   ].join(' ');
 }
 

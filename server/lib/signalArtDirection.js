@@ -10,11 +10,13 @@ const SIGNAL_ART = {
   id: 'signal-art',
   name: 'Signal Art',
   tagline: 'Digital abstract compositions from live market signals',
-  style: ['digital art', 'abstract', 'layered', 'signal-driven', 'editorial', 'minimal'],
+  style: ['digital art', 'abstract', 'layered', 'chromium', 'deep-space', 'time-travel', 'signal-driven'],
   medium: 'Gemini raster (primary) · SVG fallback',
-  version: '2.1',
+  version: '2.2',
+  theme: 'chromium time-travel — layered signals drifting through deep space',
   /** Anti-patterns — Gemini defaults to these; ban explicitly in every prompt. */
   avoid: [
+    'white border or polaroid frame',
     'overlapping transparent squares or rectangles',
     'concentric radar circles',
     'node graphs or constellation networks',
@@ -43,21 +45,21 @@ const MOTIF_BY_KEYWORD = [
 ];
 
 const LAYOUT_MODES = [
-  { id: 'horizon', description: 'single focal form on an infinite void horizon' },
-  { id: 'drift', description: 'sparse forms floating in depth, no symmetry' },
-  { id: 'shear', description: 'parallel curved strokes sheared across the frame' },
-  { id: 'beacon', description: 'one vertical accent against vast negative space' },
-  { id: 'tide', description: 'one sweeping arc dominates, secondary whispers at edges' },
-  { id: 'ember', description: 'clustered soft glows, no connecting lines' },
+  { id: 'warp', description: 'temporal layers converging toward a distant vanishing point' },
+  { id: 'drift', description: 'ghosted signal forms at staggered depths, floating in space' },
+  { id: 'tunnel', description: 'chrome filaments lining a receding corridor through the void' },
+  { id: 'echo', description: 'same luminous form repeated at fading opacities — time echoes' },
+  { id: 'shear', description: 'hyperspace streaks sheared across deep-space depth' },
+  { id: 'ember', description: 'distant chrome sparks scattered across infinite black' },
 ];
 
-/** Seed-picked aesthetic anchors — narrative scene types, not keyword lists. */
+/** Seed-picked aesthetic anchors — chromium + time-travel in deep space. */
 const AESTHETIC_ANCHORS = [
-  'Like a James Turrell light installation on infinite black — one color, one form, vast silence.',
-  'Like a Hiroshi Sugimoto horizon photograph translated into neon — a single line of energy dividing void from glow.',
-  'Like a minimalist album cover for an electronic composer — one curved stroke, one accent hue, nothing else.',
-  'Like bioluminescence in deep ocean darkness — soft organic glows, no geometry, no grids.',
-  'Like a long-exposure photograph of city light trails reduced to three elegant curves on black.',
+  'Like signals passing through a chrome-plated wormhole — metallic reflections, temporal ghost layers fading into the distance.',
+  'Like long-exposure hyperspace travel — silver-violet streaks layered at different depths, each echo a moment in time.',
+  'Like liquid chromium suspended in zero gravity — molten metal curves frozen mid-flight through a starless void.',
+  'Like a time-dilated corridor of light — parallel chrome filaments receding to a vanishing point in deep black space.',
+  'Like an anodized titanium nebula — cool silver base with one hot accent burning through successive temporal layers.',
 ];
 
 function mulberry32(seed) {
