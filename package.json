@@ -29,6 +29,8 @@
     "check:pythh-frontend": "node scripts/check-pythh-frontend-deploy.mjs",
     "check:deploy-cache": "node scripts/check-deploy-cache.mjs",
     "funnel:heartbeat": "node scripts/funnel-heartbeat-probe.mjs",
+    "art:generate": "node scripts/generate-pythh-art.mjs",
+    "art:migrate": "node scripts/apply-pythh-art-migration.mjs",
     "agents:daily": "node scripts/agents-daily.mjs",
     "agents:daily:full": "node scripts/agents-daily.mjs --with-agents",
     "agents:autopilot": "node scripts/agents-autopilot.mjs",

@@ -1985,6 +1985,77 @@ app.get('/api/newsletter/:date', async (req, res) => {
   return res.set('Cache-Control', 'public, max-age=86400').json(edition);
 });
 
+// ============================================================
+// Pythh Signal Art — daily generative composition
+// ============================================================
+const {
+  generatePythhArtEdition,
+  saveArtEdition,
+  loadArtEdition,
+  listArtEditions,
+} = require('./lib/pythhArtGenerator');
+
+async function getOrCreateArtEdition(editionDate) {
+  const today = new Date().toISOString().split('T')[0];
+  const target = editionDate || today;
+  let row = await loadArtEdition(target);
+  if (row) {
+    return {
+      edition_date: row.edition_date,
+      seed: row.seed,
+      svg: row.svg,
+      copy: row.copy,
+      signal_snapshot: row.signal_snapshot,
+      generated_at: row.generated_at,
+    };
+  }
+  if (target !== today) return null;
+  const newsletter = await generateNewsletter({ bust: true });
+  const edition = generatePythhArtEdition(newsletter);
+  try {
+    await saveArtEdition(edition);
+  } catch (e) {
+    console.warn('[art] save failed (serving ephemeral):', e.message);
+  }
+  return edition;
+}
+
+app.get('/api/art/today', async (req, res) => {
+  try {
+    const edition = await getOrCreateArtEdition(null);
+    return res.set('Cache-Control', 'public, max-age=1800').json(edition);
+  } catch (err) {
+    console.error('[art] today error:', err.message);
+    return res.status(500).json({ error: 'Failed to load art edition' });
+  }
+});
+
+app.get('/api/art/archive', async (req, res) => {
+  try {
+    const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 30));
+    const editions = await listArtEditions({ limit });
+    return res.set('Cache-Control', 'public, max-age=600').json({ editions });
+  } catch (err) {
+    console.error('[art] archive error:', err.message);
+    return res.status(500).json({ error: 'Failed to load archive' });
+  }
+});
+
+app.get('/api/art/:date', async (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+  }
+  try {
+    const edition = await getOrCreateArtEdition(date);
+    if (!edition) return res.status(404).json({ error: 'Edition not found' });
+    return res.set('Cache-Control', 'public, max-age=86400').json(edition);
+  } catch (err) {
+    console.error('[art] edition error:', err.message);
+    return res.status(500).json({ error: 'Failed to load art edition' });
+  }
+});
+
 // POST /api/newsletter/subscribe — save email to newsletter_subscribers
 app.post('/api/newsletter/subscribe', async (req, res) => {
   const { email } = req.body || {};

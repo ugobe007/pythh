@@ -106,6 +106,22 @@ export default function SharedNavbar({
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
               Daily Signal
             </a>
+            <a
+              href="/art"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all"
+              style={{
+                color: "oklch(0.696 0.17 162.48)",
+                border: "1px solid oklch(0.696 0.17 162.48 / 0.4)",
+                backgroundColor: activePath === "/art"
+                  ? "oklch(0.696 0.17 162.48 / 0.18)"
+                  : "oklch(0.696 0.17 162.48 / 0.08)",
+                textDecoration: "none",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "oklch(0.696 0.17 162.48 / 0.18)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = activePath === "/art" ? "oklch(0.696 0.17 162.48 / 0.18)" : "oklch(0.696 0.17 162.48 / 0.08)"; }}
+            >
+              Signal Art
+            </a>
             {isAuthenticated ? (
               <>
                 {user?.role === "admin" && (
@@ -183,6 +199,14 @@ export default function SharedNavbar({
               >
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
                 Daily Signal
+              </a>
+              <a
+                href="/art"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2 text-sm font-semibold"
+                style={{ color: "oklch(0.696 0.17 162.48)" }}
+              >
+                Signal Art
               </a>
               {NAV_LINKS.map(({ label, href }) => (
                 <a

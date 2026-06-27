@@ -1,0 +1,358 @@
+{
+  "edition_date": "2026-06-27",
+  "seed": 2084008440,
+  "copy": {
+    "title": "Signal Composition № 2026.06.27",
+    "subtitle": "Execution Velocity",
+    "process": "Edition 2026-06-27 — seeded deterministically from live platform signals. Dominant dimension: Execution Velocity (85% of cap). shipping and hiring acceleration 400 startups in the composition window; 10 funding moves encoded as diagonal tension lines. Focal gravity: Alt-qq (GOD 100) — Strongest on product 100 · traction 96 · live signal: Execution Velocity.",
+    "philosophy": "PYTHIA does not illustrate the market — it compresses it. Each ring is conviction density; each fracture is disagreement among scored names. The geometry precedes the narrative. Founders feel this shape before they can name the round. Today's sharpest tension: YipitData ↔ Sequoia Capital (100% fit) — a pairing the grid keeps returning to.",
+    "introspection": "Alt-qq stands out today with a perfect score in product and traction, signaling strong execution velocity in a market increasingly favoring rapid shipping and hiring. This trend is particularly pronounced in gaming, climate tech, and developer tools, sectors that are attracting significant investment. With 10 funding rounds reported, the capital flow underscores a growing appetite for startups that can scale quickly and effectively.",
+    "legend": [
+      {
+        "key": "hue",
+        "label": "Dominant sector heat",
+        "value": "Gaming"
+      },
+      {
+        "key": "rings",
+        "label": "Leading signal strength",
+        "value": "85% → 7 rings"
+      },
+      {
+        "key": "grid",
+        "label": "Startups scored",
+        "value": "400"
+      },
+      {
+        "key": "lines",
+        "label": "Funding moves (7d)",
+        "value": "10"
+      },
+      {
+        "key": "nodes",
+        "label": "Composition chaos",
+        "value": "coherent"
+      }
+    ],
+    "featured_startup": "Alt-qq",
+    "featured_match": "YipitData × Sequoia Capital"
+  },
+  "signal_snapshot": {
+    "edition_date": "2026-06-27",
+    "leading_signal": {
+      "key": "execution_velocity",
+      "label": "Execution Velocity",
+      "blurb": "shipping and hiring acceleration",
+      "avg": 1.7,
+      "cap": 2,
+      "pct": 85
+    },
+    "signal_dimensions": [
+      {
+        "key": "execution_velocity",
+        "label": "Execution Velocity",
+        "blurb": "shipping and hiring acceleration",
+        "avg": 1.7,
+        "cap": 2,
+        "pct": 85
+      },
+      {
+        "key": "founder_language_shift",
+        "label": "Founder Conviction",
+        "blurb": "founders changing how they talk",
+        "avg": 1.4,
+        "cap": 2,
+        "pct": 70
+      },
+      {
+        "key": "investor_receptivity",
+        "label": "Investor Receptivity",
+        "blurb": "warming sentiment from funds",
+        "avg": 0.63,
+        "cap": 2.5,
+        "pct": 25
+      },
+      {
+        "key": "capital_convergence",
+        "label": "Capital Convergence",
+        "blurb": "investors circling the same names",
+        "avg": 0.43,
+        "cap": 2,
+        "pct": 21
+      },
+      {
+        "key": "news_momentum",
+        "label": "News Momentum",
+        "blurb": "press and mention velocity",
+        "avg": 0.16,
+        "cap": 1.5,
+        "pct": 11
+      }
+    ],
+    "coverage": 400,
+    "exemplars": [
+      {
+        "startup_id": "bcea1f0d-39d7-42d1-8aeb-9b2cca04de28",
+        "name": "Cureagetx",
+        "sectors": [
+          "HealthTech",
+          "CleanTech"
+        ],
+        "total_god_score": 61,
+        "value": 2
+      },
+      {
+        "startup_id": "a216cfaf-fc09-4cbf-825f-76499de654ef",
+        "name": "Xpanner",
+        "sectors": [
+          "Robotics",
+          "AI/ML",
+          "FinTech"
+        ],
+        "total_god_score": 68,
+        "value": 2
+      },
+      {
+        "startup_id": "3221dd65-aa1f-4914-bf01-986dbf2c6682",
+        "name": "Hypercim",
+        "sectors": [
+          "FinTech",
+          "SaaS",
+          "E-Commerce"
+        ],
+        "total_god_score": 52,
+        "value": 2
+      },
+      {
+        "startup_id": "666692a0-7f08-41dc-8221-d27071ef35dd",
+        "name": "Nanoweave",
+        "sectors": [
+          "FinTech",
+          "CleanTech",
+          "Logistics"
+        ],
+        "total_god_score": 61,
+        "value": 2
+      }
+    ],
+    "hottest": [
+      {
+        "id": "e2137323-5a0a-47d0-9f33-d00c9092a62a",
+        "name": "Alt-qq",
+        "tagline": "Revolutionizing the film industry with AI-driven tools",
+        "website": "https://www.alt-qq.com/",
+        "sectors": [
+          "AI/ML",
+          "Media",
+          "SaaS"
+        ],
+        "total_god_score": 100,
+        "pillars": [
+          {
+            "label": "team",
+            "value": 80
+          },
+          {
+            "label": "traction",
+            "value": 96
+          },
+          {
+            "label": "market",
+            "value": 54
+          },
+          {
+            "label": "product",
+            "value": 100
+          },
+          {
+            "label": "vision",
+            "value": 62
+          }
+        ],
+        "signals_total": 6.4,
+        "why": "Strongest on product 100 · traction 96 · live signal: Execution Velocity"
+      },
+      {
+        "id": "927d6802-7f9b-453c-867c-f8280387241f",
+        "name": "Housetrak",
+        "tagline": "Streamline your property management effortlessly.",
+        "website": "https://housetrak.app",
+        "sectors": [
+          "PropTech",
+          "SaaS"
+        ],
+        "total_god_score": 100,
+        "pillars": [
+          {
+            "label": "team",
+            "value": 82
+          },
+          {
+            "label": "traction",
+            "value": 81
+          },
+          {
+            "label": "market",
+            "value": 54
+          },
+          {
+            "label": "product",
+            "value": 90
+          },
+          {
+            "label": "vision",
+            "value": 65
+          }
+        ],
+        "signals_total": 4.5,
+        "why": "Strongest on product 90 · team 82 · live signal: Capital Convergence"
+      },
+      {
+        "id": "43a0cb7e-3a25-4c54-86ba-7e837d8753fd",
+        "name": "Nango",
+        "tagline": "Simplifying API integrations for developers",
+        "website": "https://nango.com",
+        "sectors": [
+          "Developer Tools",
+          "SaaS"
+        ],
+        "total_god_score": 100,
+        "pillars": [
+          {
+            "label": "team",
+            "value": 82
+          },
+          {
+            "label": "traction",
+            "value": 81
+          },
+          {
+            "label": "market",
+            "value": 54
+          },
+          {
+            "label": "product",
+            "value": 96
+          },
+          {
+            "label": "vision",
+            "value": 62
+          }
+        ],
+        "signals_total": 5.7,
+        "why": "Strongest on product 96 · team 82 · live signal: Investor Receptivity"
+      },
+      {
+        "id": "b002449f-73f7-41cb-8ad7-d3c96bcbb89a",
+        "name": "Shipshared",
+        "tagline": "Traffic Marketplace for Startups",
+        "website": "https://shipshared.link",
+        "sectors": [
+          "Marketplace",
+          "SaaS"
+        ],
+        "total_god_score": 100,
+        "pillars": [
+          {
+            "label": "team",
+            "value": 82
+          },
+          {
+            "label": "traction",
+            "value": 91
+          },
+          {
+            "label": "market",
+            "value": 54
+          },
+          {
+            "label": "product",
+            "value": 96
+          },
+          {
+            "label": "vision",
+            "value": 60
+          }
+        ],
+        "signals_total": 7,
+        "why": "Strongest on product 96 · traction 91 · live signal: Execution Velocity"
+      },
+      {
+        "id": "84f2bc4d-4459-46fe-a3db-1a68edfaea89",
+        "name": "Ultra",
+        "tagline": "Revolutionizing digital experiences with cutting-edge technology",
+        "website": "https://ultra.com",
+        "sectors": [
+          "SaaS",
+          "Consumer",
+          "Developer Tools"
+        ],
+        "total_god_score": 100,
+        "pillars": [
+          {
+            "label": "team",
+            "value": 58
+          },
+          {
+            "label": "traction",
+            "value": 100
+          },
+          {
+            "label": "market",
+            "value": 54
+          },
+          {
+            "label": "product",
+            "value": 84
+          },
+          {
+            "label": "vision",
+            "value": 71
+          }
+        ],
+        "signals_total": 6.5,
+        "why": "Strongest on traction 100 · product 84 · live signal: Investor Receptivity"
+      }
+    ],
+    "funding_count": 10,
+    "top_match": {
+      "match_score": 100,
+      "reasoning": "Strong sector alignment: Stephanie Zhan (Sequoiacap) actively invests in AI/ML, Consumer, SaaS. Stage match: Stephanie Zhan (Sequoiacap) targets 1-stage companies. Established investor with relevant portfolio. Emerging market signal: positive momentum building.",
+      "why_you_match": [
+        "Sector: AI/ML, Consumer, SaaS",
+        "Stage: 1",
+        "Investor Tier: strong"
+      ],
+      "startup": {
+        "id": "00cb822e-bd3f-42ae-aa01-f012289ba343",
+        "name": "YipitData",
+        "tagline": "Transforming data into actionable insights for investors.",
+        "sectors": [
+          "AI/ML",
+          "Consumer",
+          "SaaS"
+        ],
+        "total_god_score": 90
+      },
+      "investor": {
+        "id": "1912efa3-6139-435d-8c1c-56ae18545449",
+        "name": "Stephanie Zhan (Sequoiacap)",
+        "firm": "Sequoia Capital",
+        "sectors": [
+          "AI/ML",
+          "Consumer",
+          "Fintech",
+          "SaaS"
+        ],
+        "firm_name": "Sequoia Capital"
+      }
+    },
+    "editorial": "Alt-qq stands out today with a perfect score in product and traction, signaling strong execution velocity in a market increasingly favoring rapid shipping and hiring. This trend is particularly pronounced in gaming, climate tech, and developer tools, sectors that are attracting significant investment. With 10 funding rounds reported, the capital flow underscores a growing appetite for startups that can scale quickly and effectively.",
+    "top_sectors": [
+      "Gaming",
+      "Climate Tech",
+      "Developer Tools"
+    ]
+  },
+  "generated_at": "2026-06-27T01:24:21.669Z"
+}
