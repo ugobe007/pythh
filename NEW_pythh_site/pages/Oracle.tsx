@@ -13,6 +13,7 @@ import PythiaIcon from "@/components/PythiaIcon";
 import StartupCTA from "@/components/design/StartupCTA";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
+import VideoSnippets from "@/components/VideoSnippets";
 import { G, G_BORDER, CYAN, PAGE, TEXT, MUTED } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -362,6 +363,8 @@ export default function Oracle() {
             })}
           </div>
         </section>
+
+        <VideoSnippets />
 
         {/* ── What the Oracle can see ── */}
         <section className="mb-20">
