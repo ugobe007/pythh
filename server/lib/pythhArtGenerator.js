@@ -8,6 +8,7 @@
 const { getSupabaseClient } = require('./supabaseClient');
 const { applyCompositionRules, buildImageBrief, LIGHTING_STYLES } = require('./signalArtPrompt');
 const { generateArtCopy } = require('./signalArtCopy');
+const { buildMidjourneyPrompt } = require('./signalArtMidjourney');
 
 const VOID = '#050508';
 const VOID_EDGE = '#0a0a0c';
@@ -279,18 +280,31 @@ async function generatePythhArtEdition(newsletter) {
   const seed = hashSeed(`pythh-art-${snapshot.edition_date}`);
   const { svg, params } = generateSvg(snapshot, seed);
   const imageBrief = buildImageBrief(snapshot, params);
+  const midjourney = buildMidjourneyPrompt(snapshot, params, imageBrief);
   const copy = await generateArtCopy(snapshot, params, imageBrief);
 
   return {
     edition_date: snapshot.edition_date,
     seed,
     svg,
+    midjourney,
+    raster_url: null,
     signal_snapshot: {
       ...snapshot,
       composition: params.compositionNotes,
       image_brief: imageBrief,
+      midjourney,
+      raster_url: null,
     },
-    copy,
+    copy: {
+      ...copy,
+      midjourney: {
+        imagine: midjourney.imagine,
+        profileUrl: midjourney.profileUrl,
+        username: midjourney.username,
+        seed: midjourney.seed,
+      },
+    },
     generated_at: new Date().toISOString(),
   };
 }

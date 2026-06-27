@@ -4,9 +4,9 @@
   "copy": {
     "title": "Signal Composition № 2026.06.27",
     "subtitle": "Execution Velocity",
-    "process": "The composition begins with a void gradient as the background, establishing a serene horizon defined by the golden ratio, complemented by a faint dome that evokes a sense of depth. In the midground, a 273° signal arc emerges, punctuated by five ticks and six capital streaks that create a dynamic rhythm, suggesting movement and connection. The foreground features a beacon chevron paired with a match tether, aligned according to the rule of thirds, providing a focal point that draws the viewer's eye. The lighting is reminiscent of golden hour, casting a warm directional glow that enhances the capital streaks, evoking the late-day light characteristic of transition and opportunity.",
-    "philosophy": "This piece reflects the acceleration of execution velocity within the startup ecosystem, symbolized by the beacon's prominence and the vibrant neon palette. The interplay between the serene background and the dynamic midground conveys the tension and potential inherent in innovation, particularly within the gaming sector.",
-    "introspection": "In this art, each component serves as a reminder of the continuous pulse of progress in technology and creativity, urging us to consider the intersections of ambition and execution.",
+    "process": "The piece is constructed with a void gradient background that subtly transitions into a golden-ratio horizon, creating a sense of infinite space. In the midground, a 273° signal arc is accentuated with five ticks and six capital streaks, suggesting dynamic movement and execution velocity. The foreground features a beacon chevron paired with a match tether, adhering to the rule of thirds for visual balance. Lighting is executed in a golden hour palette, casting a warm directional glow across the floor, while the capital streaks mimic the soft illumination of late-day light.",
+    "philosophy": "This composition represents the intersection of innovation and acceleration in the startup ecosystem, encapsulated by the execution velocity metric. The layering and negative space evoke a sense of potential and forward motion, inviting contemplation of growth within the digital landscape.",
+    "introspection": "The interplay of light and form serves as a reminder of the transient nature of progress, illuminating both the promise and uncertainty inherent in the pursuit of innovation.",
     "legend": [
       {
         "key": "hue",
@@ -43,7 +43,33 @@
       "lighting": "Golden hour — Warm directional floor glow; capital streaks read as late-day light"
     },
     "image_brief": "Alt-qq as a minimal neon beacon (Execution Velocity dominant) rises from a flat void horizon. Minimalist vector art, synthwave palette, primary neon #a78bfa on Gaming. 1:1 square format. Composition: rule of thirds focal point, layered depth, generous negative space. Background: void gradient, golden-ratio horizon, faint dome. Midground: 273° signal arc, 5 ticks, 6 capital streaks. Foreground: beacon chevron + match tether (rule of thirds). Lighting: Golden hour — Warm directional floor glow; capital streaks read as late-day light. Tension line connects YipitData to Sequoia Capital (100% fit). NEVER include: coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art.",
-    "copy_source": "pythia"
+    "copy_source": "pythia",
+    "midjourney": {
+      "imagine": "/imagine prompt: abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration --ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
+      "profileUrl": "https://www.midjourney.com/@u7352532762",
+      "username": "u7352532762",
+      "seed": 2084008440
+    }
+  },
+  "midjourney": {
+    "account": {
+      "username": "u7352532762",
+      "displayName": "u7352532762",
+      "profileUrl": "https://www.midjourney.com/@u7352532762",
+      "version": "6.1"
+    },
+    "imagine": "/imagine prompt: abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration --ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
+    "prompt": "abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration",
+    "parameters": "--ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
+    "profileUrl": "https://www.midjourney.com/@u7352532762",
+    "username": "u7352532762",
+    "seed": 2084008440,
+    "version": "6.1",
+    "instructions": [
+      "1. Open https://www.midjourney.com/@u7352532762",
+      "2. Paste the /imagine line into Create (or Discord /imagine if you use bot)",
+      "3. Upscale preferred variant → download → optional: npm run art:attach-raster"
+    ]
   },
   "signal_snapshot": {
     "edition_date": "2026-06-27",
@@ -355,7 +381,7 @@
         "firm_name": "Sequoia Capital"
       }
     },
-    "editorial": "Alt-qq's perfect God score underscores its dominance in product execution and traction, making it a standout in a landscape where execution velocity is paramount—85% of startups are ramping up shipping and hiring. With significant activity in Gaming, Climate Tech, and Developer Tools, today's capital flows suggest a strong preference for scalability and rapid deployment. Sequoia Capital’s complete commitment to YipitData hints at a strategic pivot towards data-driven insights in these sectors.",
+    "editorial": "Alt-qq emerges as the standout with a perfect score, highlighting its strong product and traction in a competitive landscape. The 85% execution velocity signal indicates that rapid shipping and hiring are becoming crucial for success, particularly in the Gaming, Climate Tech, and Developer Tools sectors. With 10 recent funding rounds, capital is flowing towards agile companies, signaling a market shift favoring speed over scale.",
     "top_sectors": [
       "Gaming",
       "Climate Tech",
@@ -379,7 +405,28 @@
       "narrative": "Alt-qq as a minimal neon beacon (Execution Velocity dominant) rises from a flat void horizon. Minimalist vector art, synthwave palette, primary neon #a78bfa on Gaming. 1:1 square format. Composition: rule of thirds focal point, layered depth, generous negative space. Background: void gradient, golden-ratio horizon, faint dome. Midground: 273° signal arc, 5 ticks, 6 capital streaks. Foreground: beacon chevron + match tether (rule of thirds). Lighting: Golden hour — Warm directional floor glow; capital streaks read as late-day light. Tension line connects YipitData to Sequoia Capital (100% fit). NEVER include: coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art.",
       "negative": "coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
       "seed": 2084008440
-    }
+    },
+    "midjourney": {
+      "account": {
+        "username": "u7352532762",
+        "displayName": "u7352532762",
+        "profileUrl": "https://www.midjourney.com/@u7352532762",
+        "version": "6.1"
+      },
+      "imagine": "/imagine prompt: abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration --ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
+      "prompt": "abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration",
+      "parameters": "--ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
+      "profileUrl": "https://www.midjourney.com/@u7352532762",
+      "username": "u7352532762",
+      "seed": 2084008440,
+      "version": "6.1",
+      "instructions": [
+        "1. Open https://www.midjourney.com/@u7352532762",
+        "2. Paste the /imagine line into Create (or Discord /imagine if you use bot)",
+        "3. Upscale preferred variant → download → optional: npm run art:attach-raster"
+      ]
+    },
+    "raster_url": null
   },
-  "generated_at": "2026-06-27T01:59:18.648Z"
+  "generated_at": "2026-06-27T02:14:13.148Z"
 }

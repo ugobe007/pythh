@@ -2000,14 +2000,7 @@ async function getOrCreateArtEdition(editionDate) {
   const target = editionDate || today;
   let row = await loadArtEdition(target);
   if (row) {
-    return {
-      edition_date: row.edition_date,
-      seed: row.seed,
-      svg: row.svg,
-      copy: row.copy,
-      signal_snapshot: row.signal_snapshot,
-      generated_at: row.generated_at,
-    };
+    return toArtApiResponse(row);
   }
   if (target !== today) return null;
   const newsletter = await generateNewsletter({ bust: true });
@@ -2017,7 +2010,19 @@ async function getOrCreateArtEdition(editionDate) {
   } catch (e) {
     console.warn('[art] save failed (serving ephemeral):', e.message);
   }
-  return edition;
+  return toArtApiResponse(edition);
+}
+
+function toArtApiResponse(row) {
+  return {
+    edition_date: row.edition_date,
+    seed: row.seed,
+    svg: row.svg,
+    copy: row.copy,
+    midjourney: row.midjourney || row.signal_snapshot?.midjourney || row.copy?.midjourney || null,
+    raster_url: row.raster_url ?? row.signal_snapshot?.raster_url ?? null,
+    generated_at: row.generated_at,
+  };
 }
 
 app.get('/api/art/today', async (req, res) => {

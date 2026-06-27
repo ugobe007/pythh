@@ -40,6 +40,26 @@ Implementation modules:
 | Image brief | `server/lib/signalArtPrompt.js` | Narrative prompt + lighting pick |
 | Artist copy | `server/lib/signalArtCopy.js` | LLM CoT copy with template fallback |
 
+## Midjourney account (default)
+
+| Field | Value |
+|-------|-------|
+| Profile | https://www.midjourney.com/@u7352532762 |
+| Username | `u7352532762` |
+
+Override via env: `MIDJOURNEY_USERNAME`, `MIDJOURNEY_PROFILE_URL`, `MIDJOURNEY_VERSION` (default `6.1`).
+
+Midjourney has **no official API** — the pipeline exports a daily `/imagine` prompt (v6.1 syntax: `--ar 1:1 --style raw --seed N --no …`) to:
+
+- `public/art/{date}-midjourney.md`
+- `agents/growth/outbound/queue/{date}-midjourney-art.md`
+
+After you upscale on Midjourney, attach the CDN URL:
+
+```bash
+npm run art:attach-raster -- --date=YYYY-MM-DD --url=https://...
+```
+
 ## Pipeline (prompt chaining)
 
 1. **Plan** — `planComposition()` maps signals → geometry + lighting style

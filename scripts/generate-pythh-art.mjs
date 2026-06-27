@@ -19,6 +19,7 @@ dotenv.config();
 const require = createRequire(import.meta.url);
 const { generateNewsletter } = require('../server/newsletter-generator');
 const { generatePythhArtEdition, saveArtEdition } = require('../server/lib/pythhArtGenerator');
+const { formatMidjourneyQueueMarkdown } = require('../server/lib/signalArtMidjourney');
 
 const DRY = process.argv.includes('--dry');
 const dateArg = process.argv.find((a) => a.startsWith('--date='));
@@ -26,6 +27,7 @@ const targetDate = dateArg ? dateArg.split('=')[1] : null;
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(repoRoot, 'public', 'art');
+const queueDir = path.join(repoRoot, 'agents', 'growth', 'outbound', 'queue');
 
 async function main() {
   console.log('[pythh-art] Loading market signals…');
@@ -48,6 +50,7 @@ async function main() {
         edition_date: edition.edition_date,
         seed: edition.seed,
         copy: edition.copy,
+        midjourney: edition.midjourney,
         signal_snapshot: edition.signal_snapshot,
         generated_at: edition.generated_at,
       },
@@ -56,7 +59,17 @@ async function main() {
     ),
   );
 
+  const mjPath = path.join(outDir, `${edition.edition_date}-midjourney.md`);
+  fs.writeFileSync(mjPath, formatMidjourneyQueueMarkdown(edition));
+  console.log(`[pythh-art] Midjourney queue → ${mjPath}`);
+
+  fs.mkdirSync(queueDir, { recursive: true });
+  const queuePath = path.join(queueDir, `${edition.edition_date}-midjourney-art.md`);
+  fs.writeFileSync(queuePath, formatMidjourneyQueueMarkdown(edition));
+  console.log(`[pythh-art] Outbound queue → ${queuePath}`);
+
   if (DRY) {
+    console.log('\n--- Midjourney /imagine ---\n', edition.midjourney?.imagine?.slice(0, 500));
     console.log('\n--- PYTHIA (process) ---\n', edition.copy.process.slice(0, 400));
     console.log('\n[dry] Skipped Supabase upsert.');
     return;
