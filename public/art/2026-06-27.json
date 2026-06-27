@@ -4,38 +4,44 @@
   "copy": {
     "title": "Signal Composition № 2026.06.27",
     "subtitle": "Execution Velocity",
-    "process": "Edition 2026-06-27 — seeded deterministically from live platform signals. Dominant dimension: Execution Velocity (85% of cap). shipping and hiring acceleration 400 startups in the composition window; 10 funding moves encoded as diagonal tension lines. Focal gravity: Alt-qq (GOD 100) — Strongest on product 100 · traction 96 · live signal: Execution Velocity.",
-    "philosophy": "PYTHIA does not illustrate the market — it compresses it. Each ring is conviction density; each fracture is disagreement among scored names. The geometry precedes the narrative. Founders feel this shape before they can name the round. Today's sharpest tension: YipitData ↔ Sequoia Capital (100% fit) — a pairing the grid keeps returning to.",
-    "introspection": "Alt-qq stands out today with a perfect score in product and traction, signaling strong execution velocity in a market increasingly favoring rapid shipping and hiring. This trend is particularly pronounced in gaming, climate tech, and developer tools, sectors that are attracting significant investment. With 10 funding rounds reported, the capital flow underscores a growing appetite for startups that can scale quickly and effectively.",
+    "process": "Edition 2026-06-27. I read the board in four passes before a single stroke. Background: void and horizon — 400 names held in negative space. Midground: one signal arc at 85% sweep; 6 capital streaks at the floor. Foreground: a execution velocity beacon — shipping and hiring acceleration. Light: Gaming neon on the beacon only (Alt-qq, GOD 100).",
+    "philosophy": "Minimal vector. Neon where it earns attention — never everywhere. The market is not a network diagram; it is a horizon line and what rises from it. Today's tether: YipitData ↔ Sequoia Capital (100% fit) — two points, one line, no ornament.",
+    "introspection": "Today’s spotlight is on Alt-qq, achieving a perfect score with robust product traction, underscoring the importance of execution velocity in the current landscape. With 85% of funding centered on shipping and hiring acceleration, startups in sectors like Gaming, Climate Tech, and Developer Tools are positioned for rapid growth. The alignment of YipitData and Sequoia Capital signals a strong investor appetite for innovation, suggesting that companies demonstrating swift execution will attract capital swiftly.",
     "legend": [
       {
         "key": "hue",
-        "label": "Dominant sector heat",
+        "label": "Sector neon",
         "value": "Gaming"
       },
       {
-        "key": "rings",
-        "label": "Leading signal strength",
-        "value": "85% → 7 rings"
+        "key": "arc",
+        "label": "Leading signal",
+        "value": "85% sweep"
       },
       {
-        "key": "grid",
-        "label": "Startups scored",
+        "key": "space",
+        "label": "Scored universe",
         "value": "400"
       },
       {
-        "key": "lines",
-        "label": "Funding moves (7d)",
+        "key": "capital",
+        "label": "Funding streaks",
         "value": "10"
       },
       {
-        "key": "nodes",
-        "label": "Composition chaos",
-        "value": "coherent"
+        "key": "form",
+        "label": "Composition balance",
+        "value": "centered"
       }
     ],
     "featured_startup": "Alt-qq",
-    "featured_match": "YipitData × Sequoia Capital"
+    "featured_match": "YipitData × Sequoia Capital",
+    "composition": {
+      "background": "void gradient, horizon, faint dome",
+      "midground": "273° signal arc, 5 dimension ticks, 6 capital streaks",
+      "foreground": "beacon chevron + match tether",
+      "lighting": "neonBloom on foreground group only"
+    }
   },
   "signal_snapshot": {
     "edition_date": "2026-06-27",
@@ -347,12 +353,18 @@
         "firm_name": "Sequoia Capital"
       }
     },
-    "editorial": "Alt-qq stands out today with a perfect score in product and traction, signaling strong execution velocity in a market increasingly favoring rapid shipping and hiring. This trend is particularly pronounced in gaming, climate tech, and developer tools, sectors that are attracting significant investment. With 10 funding rounds reported, the capital flow underscores a growing appetite for startups that can scale quickly and effectively.",
+    "editorial": "Today’s spotlight is on Alt-qq, achieving a perfect score with robust product traction, underscoring the importance of execution velocity in the current landscape. With 85% of funding centered on shipping and hiring acceleration, startups in sectors like Gaming, Climate Tech, and Developer Tools are positioned for rapid growth. The alignment of YipitData and Sequoia Capital signals a strong investor appetite for innovation, suggesting that companies demonstrating swift execution will attract capital swiftly.",
     "top_sectors": [
       "Gaming",
       "Climate Tech",
       "Developer Tools"
-    ]
+    ],
+    "composition": {
+      "background": "void gradient, horizon, faint dome",
+      "midground": "273° signal arc, 5 dimension ticks, 6 capital streaks",
+      "foreground": "beacon chevron + match tether",
+      "lighting": "neonBloom on foreground group only"
+    }
   },
-  "generated_at": "2026-06-27T01:24:21.669Z"
+  "generated_at": "2026-06-27T01:50:21.689Z"
 }

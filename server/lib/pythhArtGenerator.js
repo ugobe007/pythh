@@ -1,34 +1,36 @@
 'use strict';
 
 /**
- * Pythh Signal Art — deterministic generative SVG from daily market signals.
- * Hybrid MVP: algorithmic composition + template PYTHIA copy (LLM optional later).
+ * Pythh Signal Art — minimalist neon vector compositions from daily signals.
+ * Composition skill: server/lib/signal-art/SKILL.md
  */
 
 const { getSupabaseClient } = require('./supabaseClient');
 
-const PALETTE = {
-  bg: '#0a0a0c',
-  bg2: '#12121a',
+const VOID = '#050508';
+const VOID_EDGE = '#0a0a0c';
+const MIST = 'rgba(255,255,255,0.06)';
+const MIST_FAINT = 'rgba(255,255,255,0.03)';
+
+const NEON = {
   emerald: '#34d399',
-  emeraldDim: 'rgba(52,211,153,0.35)',
   amber: '#fbbf24',
-  amberDim: 'rgba(251,191,36,0.3)',
-  slate: '#64748b',
-  slateDim: 'rgba(100,116,139,0.25)',
-  white: 'rgba(255,255,255,0.08)',
-  stroke: 'rgba(255,255,255,0.12)',
+  cyan: '#22d3ee',
+  violet: '#a78bfa',
+  rose: '#f472b6',
+  lime: '#4ade80',
 };
 
-const SECTOR_HUE = {
-  fintech: PALETTE.amber,
-  ai: PALETTE.emerald,
-  'artificial intelligence': PALETTE.emerald,
-  saas: '#38bdf8',
-  healthcare: '#a78bfa',
-  climate: '#4ade80',
-  crypto: '#f472b6',
-  default: PALETTE.emerald,
+const SECTOR_NEON = {
+  fintech: NEON.amber,
+  gaming: NEON.violet,
+  ai: NEON.emerald,
+  'artificial intelligence': NEON.emerald,
+  saas: NEON.cyan,
+  healthcare: NEON.violet,
+  climate: NEON.lime,
+  crypto: NEON.rose,
+  default: NEON.emerald,
 };
 
 function hashSeed(str) {
@@ -51,21 +53,19 @@ function mulberry32(seed) {
   };
 }
 
-function pickSectorColor(sectors) {
-  const list = Array.isArray(sectors) ? sectors : [];
-  const key = (list[0] || '').toLowerCase();
-  for (const [k, c] of Object.entries(SECTOR_HUE)) {
+function pickSectorNeon(sectors) {
+  const key = (Array.isArray(sectors) ? sectors[0] : sectors || '').toLowerCase();
+  for (const [k, c] of Object.entries(SECTOR_NEON)) {
     if (key.includes(k)) return c;
   }
-  return SECTOR_HUE.default;
+  return SECTOR_NEON.default;
 }
 
 function godVariance(startups) {
   const scores = (startups || []).map((s) => s.total_god_score).filter((n) => n != null);
   if (scores.length < 2) return 0;
   const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const variance = scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length;
-  return Math.sqrt(variance);
+  return Math.sqrt(scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length);
 }
 
 function extractSnapshot(newsletter) {
@@ -84,196 +84,230 @@ function extractSnapshot(newsletter) {
   };
 }
 
-function buildLegend(params) {
-  return [
-    { key: 'hue', label: 'Dominant sector heat', value: params.accentLabel },
-    { key: 'rings', label: 'Leading signal strength', value: `${params.leadingPct}% → ${params.ringCount} rings` },
-    { key: 'grid', label: 'Startups scored', value: String(params.coverage) },
-    { key: 'lines', label: 'Funding moves (7d)', value: String(params.fundingCount) },
-    { key: 'nodes', label: 'Composition chaos', value: params.chaosLabel },
-  ];
-}
-
-function buildCopy(snapshot, params) {
-  const leading = snapshot.leading_signal;
-  const top = snapshot.hottest[0];
-  const funding = snapshot.funding_count;
-  const match = snapshot.top_match;
-
-  const process = [
-    `Edition ${snapshot.edition_date} — seeded deterministically from live platform signals.`,
-    leading
-      ? `Dominant dimension: ${leading.label} (${leading.pct}% of cap). ${leading.blurb}`
-      : 'Signals recalibrating across the board.',
-    `${params.coverage} startups in the composition window; ${funding} funding move${funding === 1 ? '' : 's'} encoded as diagonal tension lines.`,
-    top
-      ? `Focal gravity: ${top.name} (GOD ${top.total_god_score})${top.why ? ` — ${top.why.slice(0, 120)}` : ''}.`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const philosophy = [
-    'PYTHIA does not illustrate the market — it compresses it.',
-    'Each ring is conviction density; each fracture is disagreement among scored names.',
-    'The geometry precedes the narrative. Founders feel this shape before they can name the round.',
-    match?.startup?.name && match?.investor?.name
-      ? `Today's sharpest tension: ${match.startup.name} ↔ ${match.investor.firm_name || match.investor.name} (${match.match_score}% fit) — a pairing the grid keeps returning to.`
-      : 'When capital converges, the form tightens. When it disperses, the grid splinters.',
-  ].join(' ');
-
-  const introspection =
-    snapshot.editorial ||
-    (leading
-      ? `The market is leaning hard into ${leading.label.toLowerCase()}. Most founders are still pitching the old story.`
-      : 'Quiet day on the signal layer — the composition is holding its breath.');
-
-  return {
-    title: `Signal Composition № ${snapshot.edition_date.replace(/-/g, '.')}`,
-    subtitle: leading?.label || 'Daily market geometry',
-    process,
-    philosophy,
-    introspection,
-    legend: params.legend,
-    featured_startup: top?.name || null,
-    featured_match: match
-      ? `${match.startup?.name || 'Startup'} × ${match.investor?.firm_name || match.investor?.name || 'Investor'}`
-      : null,
-  };
-}
-
-function generateSvg(snapshot, seed) {
+/** Plan composition layers before drawing (see signal-art/SKILL.md). */
+function planComposition(snapshot, seed) {
   const rand = mulberry32(seed);
-  const W = 800;
-  const H = 800;
-  const cx = W / 2;
-  const cy = H / 2;
-
   const leading = snapshot.leading_signal;
   const leadingPct = leading?.pct ?? 40;
   const coverage = snapshot.coverage || 50;
   const fundingCount = snapshot.funding_count || 0;
   const variance = godVariance(snapshot.hottest);
-  const chaos = Math.min(1, variance / 25);
+  const tension = Math.min(1, variance / 25);
+  const matchScore = snapshot.top_match?.match_score ?? 50;
+  const godScore = snapshot.hottest[0]?.total_god_score ?? 70;
 
-  const accent = pickSectorColor(
+  const accent = pickSectorNeon(
     snapshot.top_sectors?.[0] ? [snapshot.top_sectors[0]] : snapshot.exemplars[0]?.sectors,
   );
   const accentLabel = snapshot.top_sectors?.[0] || snapshot.exemplars[0]?.sectors?.[0] || 'mixed';
 
-  const ringCount = Math.max(3, Math.min(9, Math.round(leadingPct / 12)));
-  const gridStep = Math.max(32, Math.min(80, Math.round(120 - coverage / 8)));
-  const nodeCount = Math.max(5, Math.min(14, Math.round(6 + chaos * 8)));
-  const lineCount = Math.min(24, fundingCount * 2 + 4);
+  const horizonY = 520 + Math.round((400 - Math.min(coverage, 400)) * 0.08);
+  const beaconX = 400 + (tension > 0.35 ? (rand() - 0.5) * 48 : 0);
+  const beaconH = 80 + leadingPct * 1.4 + (godScore - 50) * 0.35;
+  const arcSweep = 120 + leadingPct * 1.8;
+  const arcRadius = 220 + leadingPct * 0.9;
+  const streakCount = Math.min(6, Math.max(1, fundingCount));
+  const tetherAngle = -35 + (matchScore / 100) * 70 + (rand() - 0.5) * 8;
+
+  return {
+    accent,
+    accentLabel,
+    leadingPct,
+    coverage,
+    fundingCount,
+    tension,
+    tensionLabel: tension > 0.55 ? 'asymmetric' : tension > 0.25 ? 'balanced' : 'centered',
+    horizonY,
+    beaconX,
+    beaconH,
+    arcSweep,
+    arcRadius,
+    streakCount,
+    tetherAngle,
+    dimensions: snapshot.signal_dimensions.slice(0, 5),
+  };
+}
+
+function buildLegend(plan) {
+  return [
+    { key: 'hue', label: 'Sector neon', value: plan.accentLabel },
+    { key: 'arc', label: 'Leading signal', value: `${plan.leadingPct}% sweep` },
+    { key: 'space', label: 'Scored universe', value: String(plan.coverage) },
+    { key: 'capital', label: 'Funding streaks', value: String(plan.fundingCount) },
+    { key: 'form', label: 'Composition balance', value: plan.tensionLabel },
+  ];
+}
+
+function buildCopy(snapshot, plan) {
+  const leading = snapshot.leading_signal;
+  const top = snapshot.hottest[0];
+  const match = snapshot.top_match;
+
+  const process = [
+    `Edition ${snapshot.edition_date}. I read the board in four passes before a single stroke.`,
+    `Background: void and horizon — ${plan.coverage} names held in negative space.`,
+    `Midground: one signal arc at ${plan.leadingPct}% sweep; ${plan.streakCount} capital streak${plan.streakCount === 1 ? '' : 's'} at the floor.`,
+    leading
+      ? `Foreground: a ${leading.label.toLowerCase()} beacon — ${leading.blurb}.`
+      : 'Foreground: a quiet vertical mark while signals recalibrate.',
+    top ? `Light: ${plan.accentLabel} neon on the beacon only${top.name ? ` (${top.name}, GOD ${top.total_god_score})` : ''}.` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const philosophy = [
+    'Minimal vector. Neon where it earns attention — never everywhere.',
+    'The market is not a network diagram; it is a horizon line and what rises from it.',
+    match?.startup?.name && match?.investor?.name
+      ? `Today's tether: ${match.startup.name} ↔ ${match.investor.firm_name || match.investor.name} (${match.match_score}% fit) — two points, one line, no ornament.`
+      : 'When conviction concentrates, the form stands taller. When it disperses, the canvas breathes.',
+  ].join(' ');
+
+  const introspection =
+    snapshot.editorial ||
+    (leading
+      ? `${leading.label} is the color today. Most decks still look like yesterday.`
+      : 'Still air on the signal layer — I left the composition almost empty on purpose.');
+
+  return {
+    title: `Signal Composition № ${snapshot.edition_date.replace(/-/g, '.')}`,
+    subtitle: leading?.label || 'Neon horizon study',
+    process,
+    philosophy,
+    introspection,
+    legend: plan.legend,
+    featured_startup: top?.name || null,
+    featured_match: match
+      ? `${match.startup?.name || 'Startup'} × ${match.investor?.firm_name || match.investor?.name || 'Investor'}`
+      : null,
+    composition: plan.compositionNotes,
+  };
+}
+
+function arcPath(cx, cy, r, startDeg, sweepDeg) {
+  const start = (startDeg * Math.PI) / 180;
+  const end = ((startDeg + sweepDeg) * Math.PI) / 180;
+  const x1 = cx + r * Math.cos(start);
+  const y1 = cy + r * Math.sin(start);
+  const x2 = cx + r * Math.cos(end);
+  const y2 = cy + r * Math.sin(end);
+  const large = sweepDeg > 180 ? 1 : 0;
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+}
+
+function generateSvg(snapshot, seed) {
+  const plan = planComposition(snapshot, seed);
+  const rand = mulberry32(seed + 1);
+  const W = 800;
+  const H = 800;
+  const { accent, horizonY, beaconX, beaconH, arcSweep, arcRadius, streakCount, tetherAngle } = plan;
+
+  const beaconTop = horizonY - beaconH;
+  const beaconW = 28 + plan.leadingPct * 0.15;
+  const beacon = [
+    `${beaconX.toFixed(1)},${horizonY}`,
+    `${(beaconX - beaconW).toFixed(1)},${horizonY}`,
+    `${beaconX.toFixed(1)},${beaconTop.toFixed(1)}`,
+    `${(beaconX + beaconW).toFixed(1)},${horizonY}`,
+  ].join(' ');
 
   const parts = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Pythh signal composition">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" height="100%" role="img" aria-label="Pythh signal composition — minimalist neon vector">`,
   );
+
+  // --- defs / lighting ---
   parts.push('<defs>');
   parts.push(
-    `<radialGradient id="bg" cx="50%" cy="45%" r="70%"><stop offset="0%" stop-color="${PALETTE.bg2}"/><stop offset="100%" stop-color="${PALETTE.bg}"/></radialGradient>`,
+    `<linearGradient id="void" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${VOID}"/><stop offset="72%" stop-color="${VOID_EDGE}"/><stop offset="100%" stop-color="${VOID}"/></linearGradient>`,
   );
   parts.push(
-    `<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`,
+    `<linearGradient id="floorGlow" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${accent}" stop-opacity="0"/><stop offset="100%" stop-color="${accent}" stop-opacity="0.07"/></linearGradient>`,
+  );
+  parts.push(
+    `<filter id="neonBloom" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`,
   );
   parts.push('</defs>');
 
-  parts.push(`<rect width="${W}" height="${H}" fill="url(#bg)"/>`);
-
-  // Grid
-  for (let x = 0; x <= W; x += gridStep) {
-    const op = 0.04 + (x / W) * 0.06;
-    parts.push(`<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="${PALETTE.white}" stroke-opacity="${op.toFixed(3)}" stroke-width="1"/>`);
-  }
-  for (let y = 0; y <= H; y += gridStep) {
-    const op = 0.04 + (y / H) * 0.06;
-    parts.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${PALETTE.white}" stroke-opacity="${op.toFixed(3)}" stroke-width="1"/>`);
-  }
-
-  // Concentric rings
-  for (let i = ringCount; i >= 1; i--) {
-    const r = 40 + i * (28 + leadingPct * 0.35);
-    const dash = chaos > 0.5 ? '6 10' : 'none';
-    const rot = (rand() - 0.5) * 12;
-    const stroke = i === ringCount ? accent : PALETTE.stroke;
-    const op = 0.15 + (i / ringCount) * 0.45;
-    parts.push(
-      `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="none" stroke="${stroke}" stroke-opacity="${op.toFixed(2)}" stroke-width="${i === ringCount ? 2 : 1}" stroke-dasharray="${dash}" transform="rotate(${rot.toFixed(1)} ${cx} ${cy})"/>`,
-    );
-  }
-
-  // Node cluster
-  const nodes = [];
-  for (let i = 0; i < nodeCount; i++) {
-    const angle = (i / nodeCount) * Math.PI * 2 + rand() * 0.8;
-    const dist = 80 + rand() * (160 + chaos * 120);
-    const nx = cx + Math.cos(angle) * dist;
-    const ny = cy + Math.sin(angle) * dist * (0.85 + rand() * 0.3);
-    const nr = 4 + rand() * (10 + leadingPct * 0.08);
-    nodes.push({ x: nx, y: ny, r: nr });
-    const fill = i % 3 === 0 ? accent : i % 3 === 1 ? PALETTE.amberDim : PALETTE.slateDim;
-    parts.push(`<circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="${nr.toFixed(1)}" fill="${fill}"/>`);
-  }
-
-  // Connect nodes (network)
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (rand() > 0.62 - chaos * 0.15) continue;
-      parts.push(
-        `<line x1="${nodes[i].x.toFixed(1)}" y1="${nodes[i].y.toFixed(1)}" x2="${nodes[j].x.toFixed(1)}" y2="${nodes[j].y.toFixed(1)}" stroke="${PALETTE.emeraldDim}" stroke-width="1"/>`,
-      );
-    }
-  }
-
-  // Funding tension lines
-  for (let i = 0; i < lineCount; i++) {
-    const x1 = rand() * W;
-    const y1 = rand() * H;
-    const x2 = x1 + (rand() - 0.5) * 200;
-    const y2 = y1 + (rand() - 0.5) * 200;
-    parts.push(
-      `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${PALETTE.amberDim}" stroke-width="1" stroke-opacity="0.5"/>`,
-    );
-  }
-
-  // Central polygon (focal)
-  const sides = 3 + Math.floor(rand() * 5);
-  const polyR = 48 + leadingPct * 0.6;
-  const polyPoints = [];
-  for (let i = 0; i < sides; i++) {
-    const a = (i / sides) * Math.PI * 2 - Math.PI / 2 + rand() * 0.2;
-    polyPoints.push(`${(cx + Math.cos(a) * polyR).toFixed(1)},${(cy + Math.sin(a) * polyR).toFixed(1)}`);
-  }
+  // --- background ---
+  parts.push('<g id="background">');
+  parts.push(`<rect width="${W}" height="${H}" fill="url(#void)"/>`);
+  parts.push(`<rect x="0" y="${horizonY}" width="${W}" height="${H - horizonY}" fill="url(#floorGlow)"/>`);
+  parts.push(`<line x1="48" y1="${horizonY}" x2="752" y2="${horizonY}" stroke="${MIST}" stroke-width="1"/>`);
   parts.push(
-    `<polygon points="${polyPoints.join(' ')}" fill="none" stroke="${accent}" stroke-width="2" filter="url(#glow)" opacity="0.9"/>`,
+    `<circle cx="400" cy="${horizonY + 40}" r="${arcRadius + 60}" fill="none" stroke="${MIST_FAINT}" stroke-width="1"/>`,
+  );
+  parts.push('</g>');
+
+  // --- midground ---
+  parts.push('<g id="midground">');
+  const arcStart = -90 - arcSweep / 2 + (plan.tension > 0.35 ? (rand() - 0.5) * 12 : 0);
+  parts.push(
+    `<path d="${arcPath(400, horizonY + 20, arcRadius, arcStart, arcSweep)}" fill="none" stroke="${accent}" stroke-opacity="0.22" stroke-width="1.5" stroke-linecap="round"/>`,
+  );
+  if (arcSweep > 140) {
+    parts.push(
+      `<path d="${arcPath(400, horizonY + 20, arcRadius - 36, arcStart + 12, arcSweep - 24)}" fill="none" stroke="${MIST}" stroke-width="1" stroke-linecap="round"/>`,
+    );
+  }
+
+  const dims = plan.dimensions.length ? plan.dimensions : [{ pct: plan.leadingPct }];
+  dims.forEach((dim, i) => {
+    const tickH = 24 + (dim.pct || 20) * 0.55;
+    const x = 720 - i * 14;
+    parts.push(
+      `<line x1="${x}" y1="${horizonY - 8}" x2="${x}" y2="${(horizonY - 8 - tickH).toFixed(1)}" stroke="${i === 0 ? accent : MIST}" stroke-opacity="${i === 0 ? 0.45 : 0.2}" stroke-width="1.5" stroke-linecap="round"/>`,
+    );
+  });
+
+  const streakBaseX = 72;
+  const streakBaseY = horizonY + 28;
+  for (let i = 0; i < streakCount; i++) {
+    const ox = i * 10;
+    const len = 36 + (rand() * 28);
+    parts.push(
+      `<line x1="${streakBaseX + ox}" y1="${streakBaseY + i * 6}" x2="${(streakBaseX + ox + len * 0.85).toFixed(1)}" y2="${(streakBaseY + i * 6 - len * 0.32).toFixed(1)}" stroke="${NEON.amber}" stroke-opacity="0.38" stroke-width="1" stroke-linecap="round"/>`,
+    );
+  }
+  parts.push('</g>');
+
+  // --- foreground (lighting applied here only) ---
+  parts.push('<g id="foreground" filter="url(#neonBloom)">');
+  parts.push(
+    `<polyline points="${beacon}" fill="none" stroke="${accent}" stroke-width="2.25" stroke-linejoin="miter" stroke-linecap="square"/>`,
+  );
+  parts.push(
+    `<line x1="${beaconX.toFixed(1)}" y1="${horizonY}" x2="${beaconX.toFixed(1)}" y2="${(horizonY + 18).toFixed(1)}" stroke="${accent}" stroke-opacity="0.35" stroke-width="1.5"/>`,
   );
 
-  // Arc accents
-  for (let i = 0; i < 3; i++) {
-    const r = 200 + i * 45 + rand() * 30;
-    const start = rand() * 180;
-    const sweep = 40 + rand() * 80;
-    parts.push(
-      `<path d="M ${cx + r} ${cy} A ${r} ${r} 0 0 1 ${cx + r * Math.cos((start + sweep) * (Math.PI / 180))} ${cy + r * Math.sin((start + sweep) * (Math.PI / 180))}" fill="none" stroke="${accent}" stroke-opacity="0.35" stroke-width="1.5"/>`,
-    );
-  }
+  const tetherLen = 100 + plan.leadingPct * 0.6;
+  const rad = (tetherAngle * Math.PI) / 180;
+  const ax = beaconX - 90;
+  const ay = horizonY - 40;
+  const bx = ax + Math.cos(rad) * tetherLen;
+  const by = ay + Math.sin(rad) * tetherLen * 0.55;
+  parts.push(
+    `<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="4" fill="none" stroke="${accent}" stroke-width="1.5"/>`,
+  );
+  parts.push(
+    `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="4" fill="none" stroke="${NEON.amber}" stroke-width="1.5" stroke-opacity="0.85"/>`,
+  );
+  parts.push(
+    `<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${MIST}" stroke-width="1"/>`,
+  );
+  parts.push('</g>');
 
   parts.push('</svg>');
 
-  const legend = buildLegend({
-    accentLabel,
-    leadingPct,
-    ringCount,
-    coverage,
-    fundingCount,
-    chaosLabel: chaos > 0.55 ? 'fractured' : chaos > 0.25 ? 'balanced' : 'coherent',
-  });
-
-  return {
-    svg: parts.join('\n'),
-    params: { ringCount, gridStep, nodeCount, lineCount, leadingPct, coverage, fundingCount, chaos, accentLabel, legend },
+  plan.legend = buildLegend(plan);
+  plan.compositionNotes = {
+    background: 'void gradient, horizon, faint dome',
+    midground: `${arcSweep.toFixed(0)}° signal arc, ${dims.length} dimension ticks, ${streakCount} capital streaks`,
+    foreground: 'beacon chevron + match tether',
+    lighting: 'neonBloom on foreground group only',
   };
+
+  return { svg: parts.join('\n'), params: plan };
 }
 
 function generatePythhArtEdition(newsletter) {
@@ -286,7 +320,7 @@ function generatePythhArtEdition(newsletter) {
     edition_date: snapshot.edition_date,
     seed,
     svg,
-    signal_snapshot: snapshot,
+    signal_snapshot: { ...snapshot, composition: params.compositionNotes },
     copy,
     generated_at: new Date().toISOString(),
   };
@@ -338,4 +372,5 @@ module.exports = {
   loadArtEdition,
   listArtEditions,
   hashSeed,
+  planComposition,
 };
