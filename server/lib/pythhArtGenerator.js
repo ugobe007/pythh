@@ -336,6 +336,9 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
     });
     if (raster.ok) {
       console.log(`[signal-art] Raster saved (${raster.model}): ${raster.raster_url}`);
+      if (raster.thumbnail_url) {
+        console.log(`[signal-art] Thumbnail saved: ${raster.thumbnail_url}`);
+      }
     } else {
       console.warn(`[signal-art] Raster skipped: ${raster.reason} — ${raster.error || raster.hint || ''}`);
     }
@@ -346,6 +349,7 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
     seed,
     svg,
     raster_url: raster.ok ? raster.raster_url : null,
+    thumbnail_url: raster.ok ? raster.thumbnail_url : null,
     raster_provider: raster.ok ? raster.provider : null,
     raster_model: raster.ok ? raster.model : null,
     signal_snapshot: {
@@ -366,6 +370,7 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
       composition: params.compositionNotes,
       image_brief: imageBrief,
       raster_url: raster.ok ? raster.raster_url : null,
+      thumbnail_url: raster.ok ? raster.thumbnail_url : null,
       raster_provider: raster.ok ? raster.provider : null,
       raster_model: raster.ok ? raster.model : null,
       raster_error: raster.ok ? null : { reason: raster.reason, error: raster.error, hint: raster.hint },

@@ -208,10 +208,10 @@ async function generateGeminiRaster(imageBrief) {
   };
 }
 
-async function uploadRasterToStorage(editionDate, buffer, mimeType) {
+async function uploadRasterToStorage(editionDate, buffer, mimeType, suffix = '') {
   const supabase = getSupabaseClient();
   const ext = mimeType.includes('jpeg') ? 'jpg' : 'png';
-  const objectPath = `${editionDate}.${ext}`;
+  const objectPath = suffix ? `${editionDate}${suffix}.${ext}` : `${editionDate}.${ext}`;
 
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(objectPath, buffer, {
     contentType: mimeType,
@@ -226,13 +226,56 @@ async function uploadRasterToStorage(editionDate, buffer, mimeType) {
   return { ok: true, path: objectPath, publicUrl: pub?.publicUrl || null };
 }
 
-function writeLocalRaster(repoRoot, editionDate, buffer, mimeType) {
+const THUMB_SIZE = 480;
+
+async function createThumbnailBuffer(imageBuffer) {
+  const sharp = require('sharp');
+  return sharp(imageBuffer)
+    .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover', position: 'centre' })
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer();
+}
+
+function writeLocalRaster(repoRoot, editionDate, buffer, mimeType, suffix = '') {
   const ext = mimeType.includes('jpeg') ? 'jpg' : 'png';
   const outDir = path.join(repoRoot, 'public', 'art');
   fs.mkdirSync(outDir, { recursive: true });
-  const filePath = path.join(outDir, `${editionDate}.${ext}`);
+  const filePath = path.join(outDir, `${editionDate}${suffix}.${ext}`);
   fs.writeFileSync(filePath, buffer);
-  return `/art/${editionDate}.${ext}`;
+  return `/art/${editionDate}${suffix}.${ext}`;
+}
+
+/** Derive expected thumbnail URL from full raster URL. */
+function deriveThumbnailUrl(rasterUrl) {
+  if (!rasterUrl || rasterUrl.includes('-thumb.')) return rasterUrl || null;
+  return rasterUrl.replace(
+    /(\d{4}-\d{2}-\d{2})(\.(jpg|jpeg|png))(\?.*)?$/i,
+    '$1-thumb$2$4',
+  );
+}
+
+async function persistRasterThumbnail({ editionDate, sourceBuffer, repoRoot }) {
+  try {
+    const thumbBuffer = await createThumbnailBuffer(sourceBuffer);
+    let thumbnail_url = null;
+
+    const upload = await uploadRasterToStorage(editionDate, thumbBuffer, 'image/jpeg', '-thumb');
+    if (upload.ok && upload.publicUrl) {
+      thumbnail_url = upload.publicUrl;
+    } else if (upload.error) {
+      console.warn('[signal-art/gemini] Thumbnail upload failed:', upload.error);
+    }
+
+    if (repoRoot) {
+      const localPath = writeLocalRaster(repoRoot, editionDate, thumbBuffer, 'image/jpeg', '-thumb');
+      if (!thumbnail_url) thumbnail_url = localPath;
+    }
+
+    return { ok: true, thumbnail_url };
+  } catch (e) {
+    console.warn('[signal-art/gemini] Thumbnail failed:', e.message);
+    return { ok: false, error: e.message };
+  }
 }
 
 /** Generate raster via Gemini/Imagen and persist (Supabase Storage + local public/art). */
@@ -258,9 +301,16 @@ async function generateAndPersistRaster({ editionDate, imageBrief, repoRoot }) {
     if (!raster_url) raster_url = localPath;
   }
 
+  const thumb = await persistRasterThumbnail({
+    editionDate,
+    sourceBuffer: gen.buffer,
+    repoRoot,
+  });
+
   return {
     ok: true,
     raster_url,
+    thumbnail_url: thumb.ok ? thumb.thumbnail_url : deriveThumbnailUrl(raster_url),
     storage_path,
     model: gen.model,
     provider: 'gemini',
@@ -273,6 +323,8 @@ module.exports = {
   buildGeminiPrompt,
   generateGeminiRaster,
   generateAndPersistRaster,
+  persistRasterThumbnail,
+  deriveThumbnailUrl,
   GEMINI_IMAGE_MODELS,
   IMAGEN_MODELS,
   TIER_UPGRADE_URL,

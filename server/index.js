@@ -1994,6 +1994,7 @@ const {
   loadArtEdition,
   listArtEditions,
 } = require('./lib/pythhArtGenerator');
+const { deriveThumbnailUrl } = require('./lib/signalArtGemini');
 
 async function getOrCreateArtEdition(editionDate) {
   const today = new Date().toISOString().split('T')[0];
@@ -2018,17 +2019,33 @@ async function getOrCreateArtEdition(editionDate) {
 function toArtApiResponse(row) {
   const snap = row.signal_snapshot || {};
   const signalArt = snap.signal_art || {};
+  const raster_url = row.raster_url ?? snap.raster_url ?? null;
+  const thumbnail_url =
+    row.thumbnail_url ?? snap.thumbnail_url ?? deriveThumbnailUrl(raster_url) ?? null;
   return {
     edition_date: row.edition_date,
     seed: row.seed,
     svg: row.svg,
     copy: row.copy,
-    raster_url: row.raster_url ?? snap.raster_url ?? null,
+    raster_url,
+    thumbnail_url,
     raster_provider: row.raster_provider ?? snap.raster_provider ?? row.copy?.raster_provider ?? null,
     art_direction: snap.art_direction?.name ?? row.copy?.art_direction ?? 'Signal Art',
     layout_mode: signalArt.layoutMode ?? row.copy?.layout_mode ?? null,
     signal_layers: signalArt.layerCount ?? row.copy?.signal_layers ?? null,
     generated_at: row.generated_at,
+  };
+}
+
+function toArtTeaserResponse(edition) {
+  return {
+    edition_date: edition.edition_date,
+    title: edition.copy?.title || null,
+    subtitle: edition.copy?.subtitle || null,
+    layout_mode: edition.layout_mode || edition.copy?.layout_mode || null,
+    thumbnail_url: edition.thumbnail_url || deriveThumbnailUrl(edition.raster_url),
+    raster_url: edition.raster_url || null,
+    generated_at: edition.generated_at,
   };
 }
 
@@ -2039,6 +2056,16 @@ app.get('/api/art/today', async (req, res) => {
   } catch (err) {
     console.error('[art] today error:', err.message);
     return res.status(500).json({ error: 'Failed to load art edition' });
+  }
+});
+
+app.get('/api/art/teaser', async (req, res) => {
+  try {
+    const edition = await getOrCreateArtEdition(null);
+    return res.set('Cache-Control', 'public, max-age=1800').json(toArtTeaserResponse(edition));
+  } catch (err) {
+    console.error('[art] teaser error:', err.message);
+    return res.status(500).json({ error: 'Failed to load art teaser' });
   }
 });
 

@@ -56,6 +56,7 @@ async function main() {
         seed: edition.seed,
         copy: edition.copy,
         raster_url: edition.raster_url,
+        thumbnail_url: edition.thumbnail_url,
         raster_provider: edition.raster_provider,
         raster_model: edition.raster_model,
         signal_snapshot: edition.signal_snapshot,

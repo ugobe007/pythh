@@ -304,6 +304,7 @@
     "resend": "^6.6.0",
     "rss-parser": "^3.13.0",
     "sentiment": "^5.0.2",
+    "sharp": "^0.35.2",
     "sonner": "^2.0.0",
     "stagehand": "^1.0.1",
     "stripe": "^20.2.0",

@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import SharedNavbar from "@/components/SharedNavbar";
+import SignalArtTeaser from "@/components/SignalArtTeaser";
 const PythiaReveal = lazy(() => import("@/components/PythiaReveal"));
 import PythiaRadarFeed from "@/components/PythiaRadarFeed";
 import PythiaIcon from "@/components/PythiaIcon";
@@ -1523,6 +1524,7 @@ export default function Home() {
         heroCta={{ label: "Find investors", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
+      <SignalArtTeaser />
       <HowItWorksSection />
       <TermSheetSection />
       <SignalProofBar />
