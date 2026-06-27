@@ -4,9 +4,9 @@
   "copy": {
     "title": "Signal Composition № 2026.06.27",
     "subtitle": "Execution Velocity",
-    "process": "Edition 2026-06-27. I read the board in four passes before a single stroke. Background: void and horizon — 400 names held in negative space. Midground: one signal arc at 85% sweep; 6 capital streaks at the floor. Foreground: a execution velocity beacon — shipping and hiring acceleration. Light: Gaming neon on the beacon only (Alt-qq, GOD 100).",
-    "philosophy": "Minimal vector. Neon where it earns attention — never everywhere. The market is not a network diagram; it is a horizon line and what rises from it. Today's tether: YipitData ↔ Sequoia Capital (100% fit) — two points, one line, no ornament.",
-    "introspection": "Today’s spotlight is on Alt-qq, achieving a perfect score with robust product traction, underscoring the importance of execution velocity in the current landscape. With 85% of funding centered on shipping and hiring acceleration, startups in sectors like Gaming, Climate Tech, and Developer Tools are positioned for rapid growth. The alignment of YipitData and Sequoia Capital signals a strong investor appetite for innovation, suggesting that companies demonstrating swift execution will attract capital swiftly.",
+    "process": "The composition begins with a void gradient as the background, establishing a serene horizon defined by the golden ratio, complemented by a faint dome that evokes a sense of depth. In the midground, a 273° signal arc emerges, punctuated by five ticks and six capital streaks that create a dynamic rhythm, suggesting movement and connection. The foreground features a beacon chevron paired with a match tether, aligned according to the rule of thirds, providing a focal point that draws the viewer's eye. The lighting is reminiscent of golden hour, casting a warm directional glow that enhances the capital streaks, evoking the late-day light characteristic of transition and opportunity.",
+    "philosophy": "This piece reflects the acceleration of execution velocity within the startup ecosystem, symbolized by the beacon's prominence and the vibrant neon palette. The interplay between the serene background and the dynamic midground conveys the tension and potential inherent in innovation, particularly within the gaming sector.",
+    "introspection": "In this art, each component serves as a reminder of the continuous pulse of progress in technology and creativity, urging us to consider the intersections of ambition and execution.",
     "legend": [
       {
         "key": "hue",
@@ -19,9 +19,9 @@
         "value": "85% sweep"
       },
       {
-        "key": "space",
-        "label": "Scored universe",
-        "value": "400"
+        "key": "light",
+        "label": "Lighting",
+        "value": "Golden hour"
       },
       {
         "key": "capital",
@@ -30,18 +30,20 @@
       },
       {
         "key": "form",
-        "label": "Composition balance",
+        "label": "Balance",
         "value": "centered"
       }
     ],
     "featured_startup": "Alt-qq",
     "featured_match": "YipitData × Sequoia Capital",
     "composition": {
-      "background": "void gradient, horizon, faint dome",
-      "midground": "273° signal arc, 5 dimension ticks, 6 capital streaks",
-      "foreground": "beacon chevron + match tether",
-      "lighting": "neonBloom on foreground group only"
-    }
+      "background": "void gradient, golden-ratio horizon, faint dome",
+      "midground": "273° signal arc, 5 ticks, 6 capital streaks",
+      "foreground": "beacon chevron + match tether (rule of thirds)",
+      "lighting": "Golden hour — Warm directional floor glow; capital streaks read as late-day light"
+    },
+    "image_brief": "Alt-qq as a minimal neon beacon (Execution Velocity dominant) rises from a flat void horizon. Minimalist vector art, synthwave palette, primary neon #a78bfa on Gaming. 1:1 square format. Composition: rule of thirds focal point, layered depth, generous negative space. Background: void gradient, golden-ratio horizon, faint dome. Midground: 273° signal arc, 5 ticks, 6 capital streaks. Foreground: beacon chevron + match tether (rule of thirds). Lighting: Golden hour — Warm directional floor glow; capital streaks read as late-day light. Tension line connects YipitData to Sequoia Capital (100% fit). NEVER include: coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art.",
+    "copy_source": "pythia"
   },
   "signal_snapshot": {
     "edition_date": "2026-06-27",
@@ -353,18 +355,31 @@
         "firm_name": "Sequoia Capital"
       }
     },
-    "editorial": "Today’s spotlight is on Alt-qq, achieving a perfect score with robust product traction, underscoring the importance of execution velocity in the current landscape. With 85% of funding centered on shipping and hiring acceleration, startups in sectors like Gaming, Climate Tech, and Developer Tools are positioned for rapid growth. The alignment of YipitData and Sequoia Capital signals a strong investor appetite for innovation, suggesting that companies demonstrating swift execution will attract capital swiftly.",
+    "editorial": "Alt-qq's perfect God score underscores its dominance in product execution and traction, making it a standout in a landscape where execution velocity is paramount—85% of startups are ramping up shipping and hiring. With significant activity in Gaming, Climate Tech, and Developer Tools, today's capital flows suggest a strong preference for scalability and rapid deployment. Sequoia Capital’s complete commitment to YipitData hints at a strategic pivot towards data-driven insights in these sectors.",
     "top_sectors": [
       "Gaming",
       "Climate Tech",
       "Developer Tools"
     ],
     "composition": {
-      "background": "void gradient, horizon, faint dome",
-      "midground": "273° signal arc, 5 dimension ticks, 6 capital streaks",
-      "foreground": "beacon chevron + match tether",
-      "lighting": "neonBloom on foreground group only"
+      "background": "void gradient, golden-ratio horizon, faint dome",
+      "midground": "273° signal arc, 5 ticks, 6 capital streaks",
+      "foreground": "beacon chevron + match tether (rule of thirds)",
+      "lighting": "Golden hour — Warm directional floor glow; capital streaks read as late-day light"
+    },
+    "image_brief": {
+      "subject": "Alt-qq as a minimal neon beacon (Execution Velocity dominant)",
+      "style": "minimalist vector art, synthwave, stroke-only, neon palette",
+      "medium": "SVG vector (deterministic)",
+      "composition": "rule of thirds, golden-ratio horizon, layered depth, negative space",
+      "lighting": "Golden hour",
+      "lightingStyle": "golden_hour",
+      "aspectRatio": "1:1",
+      "accentHex": "#a78bfa",
+      "narrative": "Alt-qq as a minimal neon beacon (Execution Velocity dominant) rises from a flat void horizon. Minimalist vector art, synthwave palette, primary neon #a78bfa on Gaming. 1:1 square format. Composition: rule of thirds focal point, layered depth, generous negative space. Background: void gradient, golden-ratio horizon, faint dome. Midground: 273° signal arc, 5 ticks, 6 capital streaks. Foreground: beacon chevron + match tether (rule of thirds). Lighting: Golden hour — Warm directional floor glow; capital streaks read as late-day light. Tension line connects YipitData to Sequoia Capital (100% fit). NEVER include: coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art.",
+      "negative": "coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
+      "seed": 2084008440
     }
   },
-  "generated_at": "2026-06-27T01:50:21.689Z"
+  "generated_at": "2026-06-27T01:59:18.648Z"
 }

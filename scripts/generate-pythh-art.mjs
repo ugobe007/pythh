@@ -32,7 +32,7 @@ async function main() {
   const newsletter = await generateNewsletter({ bust: true });
   if (targetDate) newsletter.date = targetDate;
 
-  const edition = generatePythhArtEdition(newsletter);
+  const edition = await generatePythhArtEdition(newsletter);
   console.log(`[pythh-art] Edition ${edition.edition_date} · seed=${edition.seed}`);
 
   fs.mkdirSync(outDir, { recursive: true });

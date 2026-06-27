@@ -41,6 +41,7 @@ interface ArtCopy {
   legend: LegendItem[];
   featured_startup?: string | null;
   featured_match?: string | null;
+  copy_source?: string;
 }
 
 interface ArtEdition {
@@ -137,6 +138,11 @@ export default function Art() {
         <p className="text-base mb-8 max-w-2xl" style={{ color: MUTED }}>
           {copy?.subtitle ||
             'Deterministic geometry from live platform signals — one edition per day, same data always produces the same form.'}
+          {copy?.copy_source === 'pythia' && (
+            <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: G }}>
+              · PYTHIA artist statement
+            </span>
+          )}
         </p>
 
         {error && (

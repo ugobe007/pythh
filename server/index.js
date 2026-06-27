@@ -2011,7 +2011,7 @@ async function getOrCreateArtEdition(editionDate) {
   }
   if (target !== today) return null;
   const newsletter = await generateNewsletter({ bust: true });
-  const edition = generatePythhArtEdition(newsletter);
+  const edition = await generatePythhArtEdition(newsletter);
   try {
     await saveArtEdition(edition);
   } catch (e) {
