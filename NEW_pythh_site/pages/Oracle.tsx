@@ -13,7 +13,7 @@ import PythiaIcon from "@/components/PythiaIcon";
 import StartupCTA from "@/components/design/StartupCTA";
 import SectionLabel from "@/components/design/SectionLabel";
 import StrokeButton from "@/components/design/StrokeButton";
-import VideoSnippets from "@/components/VideoSnippets";
+import VideoSnippets, { VideoSnippetThumbnail } from "@/components/VideoSnippets";
 import { G, G_BORDER, CYAN, PAGE, TEXT, MUTED } from "@/lib/designTokens";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -280,18 +280,21 @@ export default function Oracle() {
               </div>
             </div>
 
-            {/* Right: Oracle terminal preview */}
+            {/* Right: video thumbnail → scrolls to demo below */}
             <div className="lg:pt-2">
               <p className="text-[10px] font-mono uppercase tracking-widest mb-3" style={{ color: "oklch(0.38 0.01 264)" }}>
-                what you get · live preview
+                see it first · 30 sec demo
               </p>
-              <OracleTerminal />
+              <VideoSnippetThumbnail />
               <p className="text-[11px] mt-3 text-center" style={{ color: "oklch(0.35 0.01 264)" }}>
-                Real output · based on actual PYTHIA analysis
+                URL → GOD score → investor matches
               </p>
             </div>
           </div>
         </div>
+
+        {/* ── Video demo (first — full player) ── */}
+        <VideoSnippets priority />
 
         {/* ── Traditional vs. With Oracle ── */}
         <section className="mb-20">
@@ -363,8 +366,6 @@ export default function Oracle() {
             })}
           </div>
         </section>
-
-        <VideoSnippets />
 
         {/* ── What the Oracle can see ── */}
         <section className="mb-20">

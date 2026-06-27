@@ -8,6 +8,8 @@ import { G, PAGE, TEXT, MUTED, BORDER } from "@/lib/designTokens";
 
 type SnippetId = "url" | "god" | "match" | "portfolio";
 
+export const VIDEO_SNIPPETS_ID = "pythh-video-snippets";
+
 const SNIPPETS: Array<{
   id: SnippetId;
   title: string;
@@ -175,7 +177,78 @@ function SnippetStage({ id, tick }: { id: SnippetId; tick: number }) {
   }
 }
 
-export default function VideoSnippets() {
+/** Poster + play control — scrolls to `#pythh-video-snippets`. */
+export function VideoSnippetThumbnail({ className = "" }: { className?: string }) {
+  const scrollToVideo = () => {
+    const el = document.getElementById(VIDEO_SNIPPETS_ID);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", `#${VIDEO_SNIPPETS_ID}`);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={scrollToVideo}
+      className={`group relative w-full text-left rounded-2xl overflow-hidden aspect-video max-w-[500px] ${className}`}
+      style={{
+        border: `1px solid ${G}44`,
+        boxShadow: "0 24px 48px oklch(0 0 0 / 0.4)",
+        background: "linear-gradient(145deg, oklch(0.11 0.02 264) 0%, oklch(0.08 0.01 264) 55%, oklch(0.696 0.17 162.48 / 0.12) 100%)",
+      }}
+      aria-label="Watch how PYTHH works — scroll to video"
+    >
+      {/* Static preview frame */}
+      <div className="absolute inset-0 p-5 flex flex-col pointer-events-none">
+        <div className="rounded-lg px-3 py-2 mb-3 font-mono text-[11px]" style={{ background: "oklch(0.06 0.01 264)", border: `1px solid ${BORDER}` }}>
+          <span style={{ color: MUTED }}>https://</span>
+          <span style={{ color: G }}>yourstartup.ai</span>
+        </div>
+        <div className="flex-1 space-y-2">
+          {["Reading site", "GOD score", "Investor matches"].map((label, i) => (
+            <div key={label} className="flex items-center gap-2 text-[10px] font-mono" style={{ opacity: 1 - i * 0.22 }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: i === 0 ? G : BORDER }} />
+              <span style={{ color: i === 0 ? TEXT : MUTED }}>{label}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] font-mono uppercase tracking-widest mt-2" style={{ color: G }}>
+          4 flows · ~30 sec each
+        </p>
+      </div>
+
+      {/* Play overlay */}
+      <div className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover:bg-black/35">
+        <div
+          className="flex items-center justify-center w-14 h-14 rounded-full transition-transform group-hover:scale-105"
+          style={{ background: `${G}ee`, boxShadow: `0 0 32px ${G}66` }}
+        >
+          <Play size={22} className="text-black ml-0.5" fill="currentColor" />
+        </div>
+      </div>
+
+      <span
+        className="absolute bottom-3 right-3 px-2 py-0.5 rounded text-[10px] font-mono font-semibold"
+        style={{ background: "oklch(0 0 0 / 0.65)", color: TEXT }}
+      >
+        0:30
+      </span>
+      <span
+        className="absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider"
+        style={{ background: "oklch(0 0 0 / 0.55)", color: G }}
+      >
+        Watch demo
+      </span>
+    </button>
+  );
+}
+
+type VideoSnippetsProps = {
+  /** When true, section sits at top of page with less top margin */
+  priority?: boolean;
+};
+
+export default function VideoSnippets({ priority = false }: VideoSnippetsProps) {
   const [active, setActive] = useState(0);
   const [tick, setTick] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -183,6 +256,15 @@ export default function VideoSnippets() {
   const inView = useRef(true);
 
   const snippet = SNIPPETS[active];
+
+  useEffect(() => {
+    if (window.location.hash !== `#${VIDEO_SNIPPETS_ID}`) return;
+    const t = window.setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPlaying(true);
+    }, 120);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -211,7 +293,11 @@ export default function VideoSnippets() {
   };
 
   return (
-    <section ref={ref} className="mb-20">
+    <section
+      id={VIDEO_SNIPPETS_ID}
+      ref={ref}
+      className={`scroll-mt-24 ${priority ? "mb-16" : "mb-20"}`}
+    >
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
         <div>
           <p className="text-[10px] font-mono tracking-widest uppercase mb-2" style={{ color: "oklch(0.38 0.01 264)" }}>
