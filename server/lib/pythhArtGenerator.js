@@ -8,7 +8,7 @@
 const { getSupabaseClient } = require('./supabaseClient');
 const { applyCompositionRules, buildImageBrief, LIGHTING_STYLES } = require('./signalArtPrompt');
 const { generateArtCopy } = require('./signalArtCopy');
-const { buildMidjourneyPrompt } = require('./signalArtMidjourney');
+const { generateAndPersistRaster } = require('./signalArtGemini');
 
 const VOID = '#050508';
 const VOID_EDGE = '#0a0a0c';
@@ -275,35 +275,46 @@ function generateSvg(snapshot, seed) {
   return { svg: parts.join('\n'), params: plan };
 }
 
-async function generatePythhArtEdition(newsletter) {
+async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRaster = true } = {}) {
   const snapshot = extractSnapshot(newsletter);
   const seed = hashSeed(`pythh-art-${snapshot.edition_date}`);
   const { svg, params } = generateSvg(snapshot, seed);
   const imageBrief = buildImageBrief(snapshot, params);
-  const midjourney = buildMidjourneyPrompt(snapshot, params, imageBrief);
   const copy = await generateArtCopy(snapshot, params, imageBrief);
+
+  let raster = { ok: false, reason: 'skipped' };
+  if (generateRaster && process.env.SIGNAL_ART_RASTER !== '0') {
+    raster = await generateAndPersistRaster({
+      editionDate: snapshot.edition_date,
+      imageBrief,
+      repoRoot,
+    });
+    if (raster.ok) {
+      console.log(`[signal-art] Raster saved (${raster.model}): ${raster.raster_url}`);
+    } else {
+      console.warn(`[signal-art] Raster skipped: ${raster.reason} — ${raster.error || raster.hint || ''}`);
+    }
+  }
 
   return {
     edition_date: snapshot.edition_date,
     seed,
     svg,
-    midjourney,
-    raster_url: null,
+    raster_url: raster.ok ? raster.raster_url : null,
+    raster_provider: raster.ok ? raster.provider : null,
+    raster_model: raster.ok ? raster.model : null,
     signal_snapshot: {
       ...snapshot,
       composition: params.compositionNotes,
       image_brief: imageBrief,
-      midjourney,
-      raster_url: null,
+      raster_url: raster.ok ? raster.raster_url : null,
+      raster_provider: raster.ok ? raster.provider : null,
+      raster_model: raster.ok ? raster.model : null,
+      raster_error: raster.ok ? null : { reason: raster.reason, error: raster.error, hint: raster.hint },
     },
     copy: {
       ...copy,
-      midjourney: {
-        imagine: midjourney.imagine,
-        profileUrl: midjourney.profileUrl,
-        username: midjourney.username,
-        seed: midjourney.seed,
-      },
+      raster_provider: raster.ok ? raster.provider : null,
     },
     generated_at: new Date().toISOString(),
   };

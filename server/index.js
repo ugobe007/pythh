@@ -2004,7 +2004,9 @@ async function getOrCreateArtEdition(editionDate) {
   }
   if (target !== today) return null;
   const newsletter = await generateNewsletter({ bust: true });
-  const edition = await generatePythhArtEdition(newsletter);
+  const edition = await generatePythhArtEdition(newsletter, {
+    repoRoot: path.join(__dirname, '..'),
+  });
   try {
     await saveArtEdition(edition);
   } catch (e) {
@@ -2019,8 +2021,8 @@ function toArtApiResponse(row) {
     seed: row.seed,
     svg: row.svg,
     copy: row.copy,
-    midjourney: row.midjourney || row.signal_snapshot?.midjourney || row.copy?.midjourney || null,
     raster_url: row.raster_url ?? row.signal_snapshot?.raster_url ?? null,
+    raster_provider: row.raster_provider ?? row.signal_snapshot?.raster_provider ?? row.copy?.raster_provider ?? null,
     generated_at: row.generated_at,
   };
 }

@@ -4,9 +4,9 @@
   "copy": {
     "title": "Signal Composition № 2026.06.27",
     "subtitle": "Execution Velocity",
-    "process": "The piece is constructed with a void gradient background that subtly transitions into a golden-ratio horizon, creating a sense of infinite space. In the midground, a 273° signal arc is accentuated with five ticks and six capital streaks, suggesting dynamic movement and execution velocity. The foreground features a beacon chevron paired with a match tether, adhering to the rule of thirds for visual balance. Lighting is executed in a golden hour palette, casting a warm directional glow across the floor, while the capital streaks mimic the soft illumination of late-day light.",
-    "philosophy": "This composition represents the intersection of innovation and acceleration in the startup ecosystem, encapsulated by the execution velocity metric. The layering and negative space evoke a sense of potential and forward motion, inviting contemplation of growth within the digital landscape.",
-    "introspection": "The interplay of light and form serves as a reminder of the transient nature of progress, illuminating both the promise and uncertainty inherent in the pursuit of innovation.",
+    "process": "The composition begins with a void gradient background, establishing a serene yet expansive environment, marked by a golden-ratio horizon and a faint dome, suggesting infinite potential. In the midground, a 273° signal arc is layered with five ticks and six capital streaks, representing dynamic movement and growth, while maintaining a clean minimalist aesthetic. The foreground features a beacon chevron combined with a match tether, adhering to the rule of thirds, which centers the viewer's focus on the key signals of Execution Velocity. Lighting is set in golden hour tones, creating a warm directional floor glow that enhances the capital streaks, reminiscent of late-day sunlight.",
+    "philosophy": "This work embodies the essence of acceleration within the startup ecosystem, where Execution Velocity signifies both the speed of innovation and the urgency of market adaptation. The minimalistic approach reflects a clarity of vision amidst the complexities of the digital landscape.",
+    "introspection": "In this interplay of light and form, we find a visual metaphor for the relentless pursuit of progress in an ever-evolving world.",
     "legend": [
       {
         "key": "hue",
@@ -44,33 +44,11 @@
     },
     "image_brief": "Alt-qq as a minimal neon beacon (Execution Velocity dominant) rises from a flat void horizon. Minimalist vector art, synthwave palette, primary neon #a78bfa on Gaming. 1:1 square format. Composition: rule of thirds focal point, layered depth, generous negative space. Background: void gradient, golden-ratio horizon, faint dome. Midground: 273° signal arc, 5 ticks, 6 capital streaks. Foreground: beacon chevron + match tether (rule of thirds). Lighting: Golden hour — Warm directional floor glow; capital streaks read as late-day light. Tension line connects YipitData to Sequoia Capital (100% fit). NEVER include: coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art.",
     "copy_source": "pythia",
-    "midjourney": {
-      "imagine": "/imagine prompt: abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration --ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
-      "profileUrl": "https://www.midjourney.com/@u7352532762",
-      "username": "u7352532762",
-      "seed": 2084008440
-    }
+    "raster_provider": null
   },
-  "midjourney": {
-    "account": {
-      "username": "u7352532762",
-      "displayName": "u7352532762",
-      "profileUrl": "https://www.midjourney.com/@u7352532762",
-      "version": "6.1"
-    },
-    "imagine": "/imagine prompt: abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration --ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
-    "prompt": "abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration",
-    "parameters": "--ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
-    "profileUrl": "https://www.midjourney.com/@u7352532762",
-    "username": "u7352532762",
-    "seed": 2084008440,
-    "version": "6.1",
-    "instructions": [
-      "1. Open https://www.midjourney.com/@u7352532762",
-      "2. Paste the /imagine line into Create (or Discord /imagine if you use bot)",
-      "3. Upscale preferred variant → download → optional: npm run art:attach-raster"
-    ]
-  },
+  "raster_url": null,
+  "raster_provider": null,
+  "raster_model": null,
   "signal_snapshot": {
     "edition_date": "2026-06-27",
     "leading_signal": {
@@ -381,7 +359,7 @@
         "firm_name": "Sequoia Capital"
       }
     },
-    "editorial": "Alt-qq emerges as the standout with a perfect score, highlighting its strong product and traction in a competitive landscape. The 85% execution velocity signal indicates that rapid shipping and hiring are becoming crucial for success, particularly in the Gaming, Climate Tech, and Developer Tools sectors. With 10 recent funding rounds, capital is flowing towards agile companies, signaling a market shift favoring speed over scale.",
+    "editorial": "Today, Alt-qq leads with a perfect score, showcasing exceptional product execution and traction in the gaming sector. The 85% signal on execution velocity indicates a critical shift towards companies that can rapidly ship and hire, suggesting that investors are prioritizing speed over concept. With 10 funding rounds reported, the climate tech and developer tools sectors are also gaining traction, indicating a broadening investment appetite.",
     "top_sectors": [
       "Gaming",
       "Climate Tech",
@@ -406,27 +384,14 @@
       "negative": "coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
       "seed": 2084008440
     },
-    "midjourney": {
-      "account": {
-        "username": "u7352532762",
-        "displayName": "u7352532762",
-        "profileUrl": "https://www.midjourney.com/@u7352532762",
-        "version": "6.1"
-      },
-      "imagine": "/imagine prompt: abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration --ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
-      "prompt": "abstract Gaming market beacon, execution velocity energy, minimalist vector art, flat stroke illustration, synthwave neon palette, #a78bfa, void black background, golden ratio composition, rule of thirds, generous negative space, golden hour, warm directional light, layered depth, foreground interest, editorial illustration",
-      "parameters": "--ar 1:1 --style raw --v 6.1 --seed 2084008440 --stylize 75 --chaos 0 --no coordinate grid, node graph, spider web, filled blob cluster, omnidirectional glow, over-rendered blur, 3d render, photorealistic texture, watermark, text overlay, stock illustration, generic AI art",
-      "profileUrl": "https://www.midjourney.com/@u7352532762",
-      "username": "u7352532762",
-      "seed": 2084008440,
-      "version": "6.1",
-      "instructions": [
-        "1. Open https://www.midjourney.com/@u7352532762",
-        "2. Paste the /imagine line into Create (or Discord /imagine if you use bot)",
-        "3. Upscale preferred variant → download → optional: npm run art:attach-raster"
-      ]
-    },
-    "raster_url": null
+    "raster_url": null,
+    "raster_provider": null,
+    "raster_model": null,
+    "raster_error": {
+      "reason": "quota_exceeded",
+      "error": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: gemini-3-pro-image\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-3-pro-image\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: gemini-3-pro-image\nPlease retry in 28.656762121s.",
+      "hint": "Enable billing on Google AI Studio (https://aistudio.google.com) — free tier image quota may be 0."
+    }
   },
-  "generated_at": "2026-06-27T02:14:13.148Z"
+  "generated_at": "2026-06-27T02:27:31.365Z"
 }

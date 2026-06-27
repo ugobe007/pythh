@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Helmet } from 'react-helmet-async';
-import { ArrowLeft, ArrowRight, Copy, ExternalLink, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
 import SectionLabel from '@/components/design/SectionLabel';
 import StartupCTA from '@/components/design/StartupCTA';
@@ -32,13 +32,6 @@ interface LegendItem {
   value: string;
 }
 
-interface MidjourneyMeta {
-  imagine?: string;
-  profileUrl?: string;
-  username?: string;
-  seed?: number;
-}
-
 interface ArtCopy {
   title: string;
   subtitle: string;
@@ -49,7 +42,7 @@ interface ArtCopy {
   featured_startup?: string | null;
   featured_match?: string | null;
   copy_source?: string;
-  midjourney?: MidjourneyMeta;
+  raster_provider?: string | null;
 }
 
 interface ArtEdition {
@@ -57,8 +50,8 @@ interface ArtEdition {
   seed: number;
   svg: string;
   copy: ArtCopy;
-  midjourney?: MidjourneyMeta | null;
   raster_url?: string | null;
+  raster_provider?: string | null;
   generated_at: string;
 }
 
@@ -82,18 +75,6 @@ export default function Art() {
   const [archive, setArchive] = useState<ArchiveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copiedMj, setCopiedMj] = useState(false);
-
-  const mj = edition?.midjourney || edition?.copy?.midjourney;
-  const mjProfile = mj?.profileUrl || 'https://www.midjourney.com/@u7352532762';
-
-  async function copyMidjourneyPrompt() {
-    const text = mj?.imagine || edition?.midjourney?.imagine;
-    if (!text || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(text);
-    setCopiedMj(true);
-    setTimeout(() => setCopiedMj(false), 2000);
-  }
 
   useEffect(() => {
     void trackFunnelEventOnce('pythh_art_page_view', 'page_view', {
@@ -165,6 +146,11 @@ export default function Art() {
               · PYTHIA artist statement
             </span>
           )}
+          {edition?.raster_provider && (
+            <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: GOLD }}>
+              · Google AI Studio
+            </span>
+          )}
         </p>
 
         {error && (
@@ -201,48 +187,6 @@ export default function Art() {
             />
           ) : null}
         </div>
-
-        {mj?.imagine && (
-          <section
-            className="rounded-xl p-6 mb-10 max-w-2xl mx-auto"
-            style={{ border: `1px solid ${BORDER}`, backgroundColor: CARD }}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: GOLD }}>
-                Midjourney edition
-              </h2>
-              <a
-                href={mjProfile}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-mono"
-                style={{ color: G }}
-              >
-                @{mj.username || 'u7352532762'}
-                <ExternalLink size={12} />
-              </a>
-            </div>
-            <p className="text-xs mb-3" style={{ color: DIM }}>
-              Daily prompt for your Midjourney account — same seed ({mj.seed ?? edition?.seed}) reproduces the
-              composition. Paste at midjourney.com → Create.
-            </p>
-            <pre
-              className="text-[11px] leading-relaxed p-3 rounded-lg overflow-x-auto mb-3 font-mono whitespace-pre-wrap break-all"
-              style={{ backgroundColor: PAGE, color: MUTED, border: `1px solid ${BORDER}` }}
-            >
-              {mj.imagine}
-            </pre>
-            <button
-              type="button"
-              onClick={() => void copyMidjourneyPrompt()}
-              className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
-              style={{ border: `1px solid ${G_BORDER}`, color: G, backgroundColor: G_SUBTLE }}
-            >
-              <Copy size={14} />
-              {copiedMj ? 'Copied' : 'Copy /imagine prompt'}
-            </button>
-          </section>
-        )}
 
         {copy && (
           <div className="grid md:grid-cols-2 gap-6 mb-12">

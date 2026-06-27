@@ -31,6 +31,7 @@
     "funnel:heartbeat": "node scripts/funnel-heartbeat-probe.mjs",
     "art:generate": "node scripts/generate-pythh-art.mjs",
     "art:migrate": "node scripts/apply-pythh-art-migration.mjs",
+    "art:storage": "node scripts/apply-pythh-art-storage.mjs",
     "art:attach-raster": "node scripts/art-attach-raster.mjs",
     "agents:daily": "node scripts/agents-daily.mjs",
     "agents:daily:full": "node scripts/agents-daily.mjs --with-agents",

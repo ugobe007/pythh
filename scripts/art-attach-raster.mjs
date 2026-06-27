@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Attach a Midjourney (or other) raster URL to an art edition.
+ * Attach a raster image URL to an art edition (manual override).
  *
  * Usage:
  *   node scripts/art-attach-raster.mjs --date=2026-06-27 --url=https://...
