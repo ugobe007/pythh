@@ -2076,13 +2076,18 @@ app.post('/api/ontology/infer', async (req, res) => {
   }
   try {
     const { inferOntologicalFrame, inferOntologicalFrames } = require('../lib/ontologicalInferenceEngine');
+    const startupName = (req.body?.startupName || req.body?.startup_name || '').trim() || undefined;
+    const inferOpts = {
+      source_type: req.body?.source_type || 'news_article',
+      startupName,
+    };
     const multi = req.body?.multi === true || text.length > 280;
     const result = multi
       ? inferOntologicalFrames(text, {
           maxSentences: Math.min(32, parseInt(req.body?.max_sentences, 10) || 16),
-          source_type: req.body?.source_type || 'news_article',
+          ...inferOpts,
         })
-      : inferOntologicalFrame(text, { source_type: req.body?.source_type || 'news_article' });
+      : inferOntologicalFrame(text, inferOpts);
     if (!result) return res.status(422).json({ error: 'Could not infer ontological frame from text' });
     return res.json(result);
   } catch (err) {
