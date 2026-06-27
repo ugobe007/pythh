@@ -13,7 +13,7 @@ const SIGNAL_ART = {
   style: ['digital art', 'abstract', 'layered', 'chromium', 'deep-space', 'time-travel', 'signal-driven'],
   medium: 'Gemini raster (primary) · SVG fallback',
   version: '2.2',
-  theme: 'chromium time-travel — layered signals drifting through deep space',
+  theme: 'chromium time-travel — signals in motion through deep space',
   /** Anti-patterns — Gemini defaults to these; ban explicitly in every prompt. */
   avoid: [
     'white border or polaroid frame',
@@ -53,13 +53,13 @@ const LAYOUT_MODES = [
   { id: 'ember', description: 'distant chrome sparks scattered across infinite black' },
 ];
 
-/** Seed-picked aesthetic anchors — chromium + time-travel in deep space. */
+/** Seed-picked aesthetic anchors — kinetic signals in motion. */
 const AESTHETIC_ANCHORS = [
-  'Like signals passing through a chrome-plated wormhole — metallic reflections, temporal ghost layers fading into the distance.',
-  'Like long-exposure hyperspace travel — silver-violet streaks layered at different depths, each echo a moment in time.',
-  'Like liquid chromium suspended in zero gravity — molten metal curves frozen mid-flight through a starless void.',
-  'Like a time-dilated corridor of light — parallel chrome filaments receding to a vanishing point in deep black space.',
-  'Like an anodized titanium nebula — cool silver base with one hot accent burning through successive temporal layers.',
+  'Like chrome signal pulses caught mid-flight through a wormhole — every form frozen in motion, never at rest.',
+  'Like long-exposure photography of data streams — luminous trails arcing through black space at impossible speed.',
+  'Like ripples propagating through liquid metal — each wave a signal echoing outward in chrome and violet.',
+  'Like ballistic light trajectories in zero gravity — curved paths, motion blur tails, kinetic energy visible in every stroke.',
+  'Like hyperspace jump interrupted — layered velocity streaks shearing past the viewer, temporal ghosts trailing behind.',
 ];
 
 function mulberry32(seed) {

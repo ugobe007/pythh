@@ -142,34 +142,51 @@ function buildImageBrief(snapshot, plan, signalArt) {
   };
 }
 
-/** Map signal → mood word only (never motif names — Gemini renders them as labels). */
-function signalToMood(snapshot) {
+/** Map live signals → kinetic motion description (visual only, no labels). */
+function signalToMotion(snapshot, plan) {
   const leading = (snapshot.leading_signal?.label || '').toLowerCase();
-  if (leading.includes('velocity') || leading.includes('execution')) return 'speed and forward momentum';
-  if (leading.includes('capital') || leading.includes('funding')) return 'convergence and capital flow';
-  if (leading.includes('conviction')) return 'quiet intensity and focus';
-  if (leading.includes('momentum')) return 'building energy';
-  return 'calm recalibration';
+  const pct = plan.leadingPct || 50;
+  const funding = plan.fundingCount || 0;
+  const parts = [];
+
+  if (leading.includes('velocity') || leading.includes('execution')) {
+    parts.push('aggressive forward thrust — diagonal velocity streaks dominating the frame');
+  } else if (leading.includes('momentum')) {
+    parts.push('accelerating wavefronts — motion building from left to right');
+  } else if (leading.includes('capital') || leading.includes('convergence')) {
+    parts.push('converging trajectories — multiple paths rushing toward a focal point');
+  } else {
+    parts.push('slow drift with sudden bursts — signals pulsing then surging');
+  }
+
+  if (pct >= 70) parts.push('high-energy sweep across two-thirds of the canvas');
+  if (funding >= 5) parts.push(`${Math.min(funding, 8)} parallel motion trails racing at different speeds`);
+  if (plan.tension > 0.4) parts.push('asymmetric shear — motion torn between competing directions');
+  if (pct >= 55) parts.push('visible motion blur tails on every luminous form');
+
+  return parts.join('; ');
 }
 
-/** Pure visual scene — chromium time-travel in deep space, full bleed, no frame. */
+/** Pure visual scene — signals in motion, chromium time-travel, full bleed. */
 function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
   const anchor = pickAestheticAnchor(plan.seed || 0);
-  const mood = signalToMood(snapshot);
+  const motion = signalToMotion(snapshot, plan);
   const accent = plan.accent;
   const depth = signalArt.layerCount || 5;
 
   return [
-    `Full-bleed square digital artwork — edge to edge, no border, no white frame, no mat, no polaroid, no letterboxing.`,
-    `Deep space black background (#050508) filling the entire canvas corner to corner.`,
+    `Full-bleed square digital artwork — edge to edge, no border, no white frame, no mat, no polaroid.`,
+    `Deep space black (#050508) corner to corner. EVERYTHING IS IN MOTION — nothing static, nothing resting.`,
     `${anchor}`,
-    `Theme: time travel — ${depth} translucent temporal layers at staggered depths, each a ghost echo of the last, drifting through infinite void.`,
-    `Chromium filter aesthetic: liquid metallic surfaces, anodized silver-violet chrome, mirror-like reflections, cool metallic sheen on every form.`,
-    `Convey ${mood} through hyperspace motion — curved chrome light trails, temporal motion blur, forms stretched along a vanishing point into the distance.`,
-    `One hot accent color ${accent} bleeding through the chrome layers like a signal burning through time.`,
-    `Distant starless space, faint nebula mist, parallax depth between layers — near forms sharp, far forms faded and stretched.`,
-    `${lighting.label} lighting with chrome specular highlights and soft bloom on the deepest layer.`,
-    `Absolutely no writing, no labels, no white edges, no frame of any kind.`,
+    `Kinetic signal motion: ${motion}.`,
+    `Time-travel depth: ${depth} temporal layers each caught at a different moment of movement — ghost trails, motion blur, velocity streaks layered through parallax.`,
+    `Chromium filter: liquid metallic surfaces mid-flow, anodized silver-violet chrome with mirror reflections streaking along the direction of travel.`,
+    `Show propagation — ripples expanding, arcs mid-swing, particles on ballistic paths, wavefronts pushing through the void.`,
+    `Long-exposure light painting aesthetic — luminous paths traced through space showing where signals traveled.`,
+    `One hot accent ${accent} burning along the fastest trajectory like a leading signal outrunning the rest.`,
+    `Directional motion blur on all forms. Near layers sharp and fast; distant layers faded streaks receding into the vanishing point.`,
+    `${lighting.label} with chrome specular highlights streaking along motion paths.`,
+    `No writing, no labels, no white edges, no frame. Pure kinetic abstract art.`,
   ].join(' ');
 }
 

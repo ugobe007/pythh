@@ -64,12 +64,13 @@ function buildGeminiPrompt(imageBrief) {
     visual,
     '',
     'CRITICAL:',
-    `- Chromium metallic filter on all luminous forms — silver, anodized violet, mirror reflections`,
-    `- Time-travel depth: ghosted temporal layers receding into deep space`,
-    `- Single accent burn-through: ${accent}`,
-    '- Edge-to-edge composition on black void — artwork touches all four edges',
-    '- DO NOT: white border, frame, mat, polaroid, letterbox, text, labels, radar UI, node graphs',
-    'FULL BLEED — NO FRAME — NO TEXT.',
+    `- MOTION IS MANDATORY — every form mid-movement: velocity trails, motion blur, propagation ripples, ballistic arcs`,
+    `- Signals are alive and traveling — long-exposure streaks, directional blur, kinetic energy visible`,
+    `- Chromium metallic filter — silver-violet chrome with reflections streaking along motion paths`,
+    `- Time-travel ghost layers at different moments of movement, parallax depth`,
+    `- Leading trajectory accent: ${accent}`,
+    '- Edge-to-edge black void, no frame, no text, no static composition',
+    'FULL BLEED — KINETIC MOTION — NO TEXT.',
   ].join('\n');
 }
 

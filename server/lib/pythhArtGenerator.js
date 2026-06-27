@@ -165,19 +165,25 @@ function renderSignalLayerSvg(layer, accent) {
   const y = layer.y ?? 400;
   const rot = layer.rotation || 0;
   const transform = `rotate(${rot} ${x} ${y})`;
+  const motionRad = ((rot - 90) * Math.PI) / 180;
+  const tailLen = r * 1.2;
+  const tailOp = (parseFloat(op) * 0.35).toFixed(2);
 
-  if (layer.motif.includes('arc') || layer.motif.includes('ring')) {
-    return `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${Math.round(r * 0.55)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="1.5" transform="${transform}"/>`;
-  }
-  if (layer.motif.includes('filament') || layer.motif.includes('ribbon') || layer.motif.includes('streak')) {
+  const motionTail = `<line x1="${x}" y1="${y}" x2="${(x + Math.cos(motionRad) * tailLen).toFixed(1)}" y2="${(y + Math.sin(motionRad) * tailLen).toFixed(1)}" stroke="${color}" stroke-opacity="${tailOp}" stroke-width="1.5" stroke-linecap="round"/>`;
+
+  let main;
+  if (layer.motif.includes('arc') || layer.motif.includes('ring') || layer.motif.includes('pulse')) {
+    main = `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${Math.round(r * 0.55)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="1.5" transform="${transform}"/>`;
+  } else if (layer.motif.includes('filament') || layer.motif.includes('ribbon') || layer.motif.includes('streak') || layer.motif.includes('trail')) {
     const x2 = x + Math.cos((rot * Math.PI) / 180) * r * 1.4;
     const y2 = y + Math.sin((rot * Math.PI) / 180) * r * 0.6;
-    return `<line x1="${x}" y1="${y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-opacity="${op}" stroke-width="2" stroke-linecap="round"/>`;
+    main = `<line x1="${x}" y1="${y}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-opacity="${op}" stroke-width="2.5" stroke-linecap="round"/>`;
+  } else if (layer.motif.includes('wash') || layer.motif.includes('void') || layer.motif.includes('mist')) {
+    main = `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${Math.round(r * 0.4)}" fill="${color}" opacity="${(parseFloat(op) * 0.25).toFixed(2)}" transform="${transform}"/>`;
+  } else {
+    main = `<circle cx="${x}" cy="${y}" r="${Math.round(r * 0.35)}" fill="${color}" opacity="${(parseFloat(op) * 0.5).toFixed(2)}" transform="${transform}"/>`;
   }
-  if (layer.motif.includes('wash') || layer.motif.includes('void')) {
-    return `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" fill="${color}" opacity="${(parseFloat(op) * 0.35).toFixed(2)}" transform="${transform}"/>`;
-  }
-  return `<circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${(parseFloat(op) * 0.25).toFixed(2)}" transform="${transform}"/>`;
+  return motionTail + main;
 }
 
 function generateSvg(snapshot, seed) {
