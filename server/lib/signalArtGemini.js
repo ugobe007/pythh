@@ -49,26 +49,27 @@ function tierUpgradeHint() {
 
 const { SIGNAL_ART } = require('./signalArtDirection');
 
-/** Gemini prompt — visual-only; never include layer metadata lists (they render as text). */
+/** Gemini prompt — visual scene only; NEVER pass narrative or motif names. */
 function buildGeminiPrompt(imageBrief) {
-  const visual = imageBrief?.visualPrompt || imageBrief?.narrative || '';
+  const visual = imageBrief?.visualPrompt;
+  if (!visual) {
+    throw new Error('buildGeminiPrompt requires imageBrief.visualPrompt');
+  }
   const accent = imageBrief?.accentHex || '#a78bfa';
-  const layout = imageBrief?.signalArt?.layoutMode || 'layered';
 
   return [
+    'PURE ARTWORK — NO TEXT ANYWHERE IN THE IMAGE. NO LABELS. NO LEGENDS. NO CAPTIONS. NO NUMBERS. NO LISTS.',
+    '',
     visual,
     '',
-    'CRITICAL REQUIREMENTS:',
-    `- Art direction: ${SIGNAL_ART.name} — minimal digital abstract, NOT photorealistic`,
-    `- Primary accent ONLY: ${accent} — do not introduce rainbow or multi-color prism effects`,
-    `- Composition: ${layout} — at most 3-4 forms, 90% negative space`,
-    '- Style: museum-quality minimal abstract — thin strokes, soft glows, organic curves',
-    '- Format: square 1:1',
-    '- DO NOT: overlapping squares, concentric circles, radar UI, node graphs, network dots, transparent rectangles, stock synthwave wallpaper',
-    '- ZERO TEXT: no words, letters, numbers, labels, captions, watermarks, or typography of any kind',
-  ]
-    .filter(Boolean)
-    .join('\n');
+    'CRITICAL:',
+    `- Single accent color: ${accent} on black void`,
+    '- Sparse luminous forms, 85% empty black canvas',
+    '- Museum-quality abstract digital print',
+    '- DO NOT render any words, typography, layer lists, legends, or metadata as visible text',
+    '- DO NOT: overlapping squares, radar rings, node graphs, dashboard UI',
+    'PURE ARTWORK — NO TEXT ANYWHERE IN THE IMAGE.',
+  ].join('\n');
 }
 
 function extractImageFromGenerateContent(json) {

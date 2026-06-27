@@ -141,26 +141,34 @@ function buildImageBrief(snapshot, plan, signalArt) {
   };
 }
 
-/** Narrative visual brief for Gemini — paragraph form, no metadata lists. */
+/** Map signal → mood word only (never motif names — Gemini renders them as labels). */
+function signalToMood(snapshot) {
+  const leading = (snapshot.leading_signal?.label || '').toLowerCase();
+  if (leading.includes('velocity') || leading.includes('execution')) return 'speed and forward momentum';
+  if (leading.includes('capital') || leading.includes('funding')) return 'convergence and capital flow';
+  if (leading.includes('conviction')) return 'quiet intensity and focus';
+  if (leading.includes('momentum')) return 'building energy';
+  return 'calm recalibration';
+}
+
+/** Pure visual scene — no internal names, lists, layer counts, or metadata. */
 function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
   const anchor = pickAestheticAnchor(plan.seed || 0);
-  const leading = snapshot.leading_signal?.label || 'market recalibration';
+  const mood = signalToMood(snapshot);
   const accent = plan.accent;
-  const accentName = plan.accentLabel;
-
-  const forms = [...new Set(
-    signalArt.layers.filter((l) => l.id !== 'void' && l.id !== 'sector').map((l) => l.motif),
-  )].slice(0, 4);
+  const warm = plan.lightingStyle === 'golden_hour' || plan.lightingStyle === 'neon_glow';
 
   return [
-    `A square fine-art digital composition on pure black (#050508).`,
+    `Fine-art digital abstraction on pure black (#050508), square format.`,
     `${anchor}`,
-    `PYTHH reads today's signal as "${leading.toLowerCase()}" — express that mood through ${signalArt.layoutMode} composition.`,
-    `Use exactly ONE accent color (${accentName}, ${accent}) plus black and subtle grey mist. At most 3-4 abstract forms total: ${forms.join(', ')}.`,
-    `Forms are curved, organic, or thin-stroke — NEVER rectangular panels, NEVER overlapping squares, NEVER radar rings, NEVER dot networks.`,
-    `${lighting.label} lighting: ${lighting.effect}. ${plan.tensionLabel} tension in the placement.`,
-    `90% of the canvas is empty void. Gallery-quality minimalism. Museum print aesthetic.`,
-    `ZERO text, letters, numbers, labels, watermarks, charts, or UI anywhere.`,
+    `Convey ${mood} through sparse luminous elements on an mostly empty canvas.`,
+    `Color discipline: one accent hue ${accent} with ${warm ? 'warm amber highlights' : 'cool violet-cyan undertones'} — no rainbow, no prism.`,
+    `Visual elements only: soft colored atmospheric mist along the lower edge, two or three elegant curved light trails crossing the frame,`,
+    `a subtle woven texture of thin glowing lines in the midground (decorative, not a chart),`,
+    `one bright ember-like glow with delicate rays extending outward from the lower-right.`,
+    `${lighting.label} lighting with gentle bloom on the glowing elements.`,
+    `At least eighty-five percent of the canvas is untouched black void.`,
+    `This is a finished museum print. The artwork contains absolutely no writing — no words, no numbers, no labels, no legends, no captions, no lists, no typography, no UI.`,
   ].join(' ');
 }
 
