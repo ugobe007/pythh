@@ -1,9 +1,8 @@
 'use strict';
 
 /**
- * Signal Art raster generation via Google AI Studio (Gemini image models).
+ * Signal Art raster generation via Google AI Studio (Gemini / Imagen).
  * @see https://ai.google.dev/gemini-api/docs/interactions/image-generation
- * @see mcpmarket-me/skills/ai-artist/references/nano-banana.md
  */
 
 const fs = require('fs');
@@ -12,21 +11,18 @@ const { getSupabaseClient } = require('./supabaseClient');
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const STORAGE_BUCKET = process.env.SIGNAL_ART_STORAGE_BUCKET || 'pythh-art';
+const TIER_UPGRADE_URL = 'https://ai.dev/projects';
 
-const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image';
+const GEMINI_IMAGE_MODELS = [
+  process.env.SIGNAL_ART_IMAGE_MODEL || 'gemini-3.1-flash-image',
+  'gemini-2.5-flash-image',
+  'gemini-3-pro-image',
+].filter((m) => m && !m.startsWith('imagen'));
 
-const IMAGE_MODELS = [
-  process.env.SIGNAL_ART_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-  'gemini-3.1-flash-image',
-  'gemini-3-pro-image-preview',
-]
-  .filter(Boolean)
-  .filter((m) => !m.startsWith('imagen'));
-
-function isQuotaExhausted(err) {
-  const msg = err?.message || '';
-  return err?.status === 429 && (msg.includes('limit: 0') || msg.includes('quota'));
-}
+const IMAGEN_MODELS = [
+  process.env.SIGNAL_ART_IMAGEN_MODEL || 'imagen-4.0-fast-generate-001',
+  'imagen-4.0-generate-001',
+].filter(Boolean);
 
 function getGeminiApiKey() {
   return (
@@ -35,6 +31,20 @@ function getGeminiApiKey() {
     process.env.GOOGLE_API_KEY ||
     ''
   ).trim();
+}
+
+function isPaidTierRequired(err) {
+  const msg = (err?.message || '').toLowerCase();
+  return (
+    msg.includes('paid plan') ||
+    msg.includes('ai.dev/projects') ||
+    msg.includes('limit: 0') ||
+    msg.includes('not enough quota')
+  );
+}
+
+function tierUpgradeHint() {
+  return `Upgrade this project to Tier 1 at ${TIER_UPGRADE_URL} (GCP billing alone is not enough — link billing in AI Studio Projects).`;
 }
 
 /** Nano Banana narrative prompt from image brief (paragraphs > keywords). */
@@ -55,7 +65,7 @@ function buildGeminiPrompt(imageBrief) {
     .join('\n');
 }
 
-function extractImageFromResponse(json) {
+function extractImageFromGenerateContent(json) {
   const parts = json?.candidates?.[0]?.content?.parts || [];
   for (const part of parts) {
     const inline = part.inlineData || part.inline_data;
@@ -69,86 +79,123 @@ function extractImageFromResponse(json) {
   return null;
 }
 
-async function callGeminiImageModel(model, prompt, apiKey) {
-  const url = `${API_BASE}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseModalities: ['IMAGE', 'TEXT'],
-      },
-    }),
-  });
+function extractImageFromInteraction(json) {
+  const block = json?.output_image || json?.outputs?.find((o) => o.type === 'image');
+  const data = block?.data || block?.image?.data;
+  if (!data) return null;
+  return {
+    buffer: Buffer.from(data, 'base64'),
+    mimeType: block.mimeType || block.mime_type || 'image/png',
+  };
+}
 
+function extractImageFromImagenPredict(json) {
+  const pred = json?.predictions?.[0];
+  const data = pred?.bytesBase64Encoded || pred?.bytes_base64_encoded;
+  if (!data) return null;
+  return {
+    buffer: Buffer.from(data, 'base64'),
+    mimeType: pred.mimeType || pred.mime_type || 'image/png',
+  };
+}
+
+async function geminiFetch(pathname, apiKey, body) {
+  const res = await fetch(`${API_BASE}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify(body),
+  });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(json?.error?.message || `Gemini HTTP ${res.status}`);
+    const err = new Error(json?.error?.message || json?.message || `Gemini HTTP ${res.status}`);
     err.status = res.status;
-    err.code = json?.error?.code;
-    err.details = json?.error;
+    err.code = json?.error?.code || json?.code;
+    err.details = json?.error || json;
     throw err;
   }
+  return json;
+}
 
-  const image = extractImageFromResponse(json);
-  if (!image) {
-    throw new Error('Gemini response contained no image');
-  }
+async function callInteractionsApi(model, prompt, apiKey) {
+  const json = await geminiFetch('/interactions', apiKey, {
+    model,
+    input: [{ type: 'text', text: prompt }],
+  });
+  const image = extractImageFromInteraction(json);
+  if (!image) throw new Error('Interactions response contained no image');
+  return { ...image, model: `${model} (interactions)` };
+}
+
+async function callGenerateContent(model, prompt, apiKey) {
+  const json = await geminiFetch(`/models/${model}:generateContent`, apiKey, {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+  });
+  const image = extractImageFromGenerateContent(json);
+  if (!image) throw new Error('generateContent response contained no image');
   return { ...image, model };
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+async function callImagenPredict(model, prompt, apiKey) {
+  const json = await geminiFetch(`/models/${model}:predict`, apiKey, {
+    instances: [{ prompt }],
+    parameters: { sampleCount: 1, aspectRatio: '1:1' },
+  });
+  const image = extractImageFromImagenPredict(json);
+  if (!image) throw new Error('Imagen predict response contained no image');
+  return { ...image, model };
 }
 
-async function generateGeminiRaster(imageBrief, { retries = 2 } = {}) {
+async function generateGeminiRaster(imageBrief) {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     return { ok: false, reason: 'missing_api_key', hint: 'Set GEMINI_API_KEY in environment' };
   }
 
   const prompt = buildGeminiPrompt(imageBrief);
-  const models = [...new Set(IMAGE_MODELS)];
-  let lastError = null;
+  const attempts = [
+    ...GEMINI_IMAGE_MODELS.map((model) => ({
+      label: model,
+      run: () => callInteractionsApi(model, prompt, apiKey),
+    })),
+    ...GEMINI_IMAGE_MODELS.map((model) => ({
+      label: `${model} (generateContent)`,
+      run: () => callGenerateContent(model, prompt, apiKey),
+    })),
+    ...IMAGEN_MODELS.map((model) => ({
+      label: model,
+      run: () => callImagenPredict(model, prompt, apiKey),
+    })),
+  ];
 
-  for (const model of models) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const result = await callGeminiImageModel(model, prompt, apiKey);
-        return {
-          ok: true,
-          buffer: result.buffer,
-          mimeType: result.mimeType,
-          model: result.model,
-          prompt,
-        };
-      } catch (e) {
-        lastError = e;
-        if (isQuotaExhausted(e)) {
-          console.warn(`[signal-art/gemini] ${model} quota exhausted — enable billing on AI Studio`);
-          break;
-        }
-        const retryable = e.status === 503;
-        if (retryable && attempt < retries) {
-          console.warn(`[signal-art/gemini] ${model} attempt ${attempt + 1} failed (${e.message}), retry in 5s`);
-          await sleep(5_000);
-          continue;
-        }
-        console.warn(`[signal-art/gemini] ${model} failed:`, e.message);
-        break;
-      }
+  let lastError = null;
+  let paidTierRequired = false;
+
+  for (const { label, run } of attempts) {
+    try {
+      const result = await run();
+      return {
+        ok: true,
+        buffer: result.buffer,
+        mimeType: result.mimeType,
+        model: result.model,
+        prompt,
+      };
+    } catch (e) {
+      lastError = e;
+      if (isPaidTierRequired(e)) paidTierRequired = true;
+      console.warn(`[signal-art/gemini] ${label} failed:`, e.message?.split('\n')[0] || e.message);
     }
   }
 
   return {
     ok: false,
-    reason: lastError?.status === 429 ? 'quota_exceeded' : 'generation_failed',
+    reason: paidTierRequired || lastError?.status === 429 ? 'tier_upgrade_required' : 'generation_failed',
     error: lastError?.message || 'Unknown error',
-    hint:
-      lastError?.status === 429
-        ? 'Enable billing on Google AI Studio (https://aistudio.google.com) — free tier image quota may be 0.'
-        : 'Check GEMINI_API_KEY and model access.',
+    hint: paidTierRequired ? tierUpgradeHint() : 'Check GEMINI_API_KEY and model access.',
   };
 }
 
@@ -179,9 +226,7 @@ function writeLocalRaster(repoRoot, editionDate, buffer, mimeType) {
   return `/art/${editionDate}.${ext}`;
 }
 
-/**
- * Generate raster via Gemini and persist (Supabase Storage + local public/art).
- */
+/** Generate raster via Gemini/Imagen and persist (Supabase Storage + local public/art). */
 async function generateAndPersistRaster({ editionDate, imageBrief, repoRoot }) {
   const gen = await generateGeminiRaster(imageBrief);
   if (!gen.ok) {
@@ -219,5 +264,7 @@ module.exports = {
   buildGeminiPrompt,
   generateGeminiRaster,
   generateAndPersistRaster,
-  IMAGE_MODELS,
+  GEMINI_IMAGE_MODELS,
+  IMAGEN_MODELS,
+  TIER_UPGRADE_URL,
 };
