@@ -2075,7 +2075,7 @@ app.post('/api/ontology/infer', async (req, res) => {
     return res.status(400).json({ error: 'Provide text (min 8 chars) in body.text' });
   }
   try {
-    const { inferOntologicalFrame, inferOntologicalFrames } = require('./lib/ontologicalInferenceEngine');
+    const { inferOntologicalFrame, inferOntologicalFrames } = require('../lib/ontologicalInferenceEngine');
     const multi = req.body?.multi === true || text.length > 280;
     const result = multi
       ? inferOntologicalFrames(text, {
