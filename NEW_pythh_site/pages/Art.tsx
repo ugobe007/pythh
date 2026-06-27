@@ -136,7 +136,11 @@ export default function Art() {
   }, [dateParam]);
 
   const copy = edition?.copy;
-  const showRaster = Boolean(edition?.raster_url) && !rasterFailed;
+  const rasterSrc =
+    edition?.raster_url && edition?.seed
+      ? `${edition.raster_url}${edition.raster_url.includes('?') ? '&' : '?'}v=${edition.seed}`
+      : edition?.raster_url ?? null;
+  const showRaster = Boolean(rasterSrc) && !rasterFailed;
   const showSvg = Boolean(edition?.svg) && (!showRaster || rasterFailed);
 
   return (
