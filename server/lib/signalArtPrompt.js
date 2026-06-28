@@ -174,13 +174,10 @@ function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
   return [
     `Full-bleed cinematic sci-fi oracle artwork — edge to edge, no border, no frame, no white edges.`,
     `Layout mode: ${signalArt.layoutMode} — ${signalArt.layoutDescription}. This must visibly change the composition structure, not just palette.`,
-    signalArt.layoutMode === 'solar_rays'
-      ? 'Canonical solar-rays reference: blazing white-blue hot cores in deep space, each wrapped in nested elliptical magnetic field loops (orange, gold, red corona), sharp horizontal lens-flare rays cutting through the void — living plasma geometry, NOT flat radar UI circles.'
-      : null,
-    signalArt.layoutMode === 'solar_rays'
-      ? 'Full-bleed deep starfield — no horizon line, no floor glow. Twin cores when match tension exists (startup ↔ investor), single dominant core otherwise.'
-      : `PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon.`,
+    `PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon.`,
     `${anchor}`,
+    `Free-flow design is essential — long-exposure rivers of light, aurora ribbons, plasma currents, and prophetic energy streams in continuous motion. Nothing rigid, nothing still.`,
+    `Solar warmth is allowed only as flowing color (white-blue cores bleeding into orange-gold-red) — never nested elliptical loops, twin static cores, or rigid corona geometry.`,
     `She is not abstract objects — no cubes, no blocks, no geometric solids, no static shapes. Everything is flowing, alive, and powerful.`,
     `Her signals are sci-fi: rivers of colored light, plasma currents, aurora ribbons, prophetic energy streams — all in motion with vivid color.`,
     `Sublime mysterious aura — a powerful oracle presence felt through radiating light, not a human figure.`,

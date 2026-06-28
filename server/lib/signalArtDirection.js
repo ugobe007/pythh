@@ -11,11 +11,11 @@ const SIGNAL_ART = {
   name: 'Signal Art',
   tagline: 'PYTHH sees between today and tomorrow — living sci-fi signals in motion',
   persona: 'PYTHH is an oracle: futuristic, wise, all-knowing. She lives on the threshold of present and future.',
-  style: ['sci-fi', 'oracle', 'solar-corona', 'magnetic-loops', 'flowing', 'kinetic', 'sublime', 'prophetic', 'signal-driven'],
+  style: ['sci-fi', 'oracle', 'flowing', 'kinetic', 'sublime', 'prophetic', 'signal-driven'],
   medium: 'Gemini raster (primary) · SVG fallback',
-  version: '3.1',
-  theme: 'oracle between worlds — solar corona signals, magnetic loops, living light',
-  reference: 'solar_rays — dual glowing cores with nested elliptical magnetic loops, white-blue hot centers, warm orange-gold-red outer rays, horizontal lens flares, deep starfield',
+  version: '3.2',
+  theme: 'oracle between worlds — free-flowing alive signals, rivers of light in motion',
+  paletteHint: 'warm solar corona tones (white-blue hot centers bleeding into orange-gold-red) only as flowing color — never rigid nested loops or static twin cores',
   avoid: [
     'white border or polaroid frame',
     'cubes blocks or rectangular solids',
@@ -23,6 +23,8 @@ const SIGNAL_ART = {
     'overlapping transparent squares',
     'static still-life objects',
     'concentric radar circles',
+    'nested elliptical magnetic loops or rigid solar-corona geometry',
+    'twin static glowing cores',
     'node graphs or constellation networks',
     'dashboard or UI aesthetics',
     'stock synthwave wallpaper',
@@ -45,16 +47,9 @@ const MOTIF_BY_KEYWORD = [
   ['innovation', 'fractured future-light'],
   ['traction', 'rising signal current'],
   ['conviction', 'steady pillar of light'],
-  ['receptivity', 'solar corona magnetic loops'],
-  ['investor', 'solar corona magnetic loops'],
-  ['news', 'surging aurora wave'],
 ];
 
 const LAYOUT_MODES = [
-  {
-    id: 'solar_rays',
-    description: 'dual solar cores — white-blue hot centers, nested magnetic elliptical loops in orange-gold-red, horizontal lens flares, starfield void (canonical PYTHH reference)',
-  },
   { id: 'threshold', description: 'today\'s darkness on one side, tomorrow\'s glow on the other — PYTHH between them' },
   { id: 'prophecy', description: 'flowing signal rivers spiraling toward a luminous future point' },
   { id: 'aurora', description: 'alive ribbon energy sweeping through the void' },
@@ -65,7 +60,6 @@ const LAYOUT_MODES = [
 
 /** Oracle aesthetic anchors — PYTHH between today and tomorrow. */
 const AESTHETIC_ANCHORS = [
-  'Like twin solar oracles in deep space — each a blazing white-blue core wrapped in nested magnetic field loops of orange, gold, and red, with sharp horizontal lens-flare rays cutting through the void.',
   'Like an oracle at the threshold of two timelines — today\'s deep void on one side, tomorrow\'s luminous horizon on the other, flowing energy between them.',
   'Like bioluminescent prophecy — living rivers of colored light spiraling through darkness, alive and breathing.',
   'Like sci-fi aurora shaped by intelligence — sublime ribbon energy sweeping through space, powerful and mysterious.',
@@ -100,28 +94,18 @@ function pickLayoutMode(snapshot, plan, seed) {
   const falling = movers.filter((m) => (m.delta || 0) < 0).length;
   const matchCount = (snapshot.top_matches || []).length;
 
-  const matchScore = snapshot.top_match?.match_score || 0;
-
-  // Canonical reference: dual solar-ray cores when a strong match or dominant signal profile exists
-  if (snapshot.top_match && matchScore >= 70) {
-    return LAYOUT_MODES.find((l) => l.id === 'solar_rays') || LAYOUT_MODES[0];
-  }
-  if ((plan.leadingPct || 0) >= 62 && (matchCount >= 1 || snapshot.hottest?.[0])) {
-    return LAYOUT_MODES.find((l) => l.id === 'solar_rays') || LAYOUT_MODES[0];
-  }
-
-  if (plan.fundingCount >= 10) return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[3];
-  if (netDelta >= 20 || rising >= 3) return LAYOUT_MODES.find((l) => l.id === 'awakening') || LAYOUT_MODES[5];
-  if (netDelta <= -20 || falling >= 3) return LAYOUT_MODES.find((l) => l.id === 'veil') || LAYOUT_MODES[6];
+  if (plan.fundingCount >= 10) return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[2];
+  if (netDelta >= 20 || rising >= 3) return LAYOUT_MODES.find((l) => l.id === 'awakening') || LAYOUT_MODES[4];
+  if (netDelta <= -20 || falling >= 3) return LAYOUT_MODES.find((l) => l.id === 'veil') || LAYOUT_MODES[5];
   if (matchCount >= 2 || leading.includes('capital') || leading.includes('convergence')) {
-    return LAYOUT_MODES.find((l) => l.id === 'solar_rays') || LAYOUT_MODES[0];
+    return LAYOUT_MODES.find((l) => l.id === 'prophecy') || LAYOUT_MODES[1];
   }
   if (leading.includes('velocity') || leading.includes('execution')) {
-    return LAYOUT_MODES.find((l) => l.id === 'solar_rays') || LAYOUT_MODES[0];
+    return LAYOUT_MODES.find((l) => l.id === 'conduit') || LAYOUT_MODES[3];
   }
-  if (plan.tension > 0.55) return LAYOUT_MODES.find((l) => l.id === 'threshold') || LAYOUT_MODES[1];
+  if (plan.tension > 0.55) return LAYOUT_MODES.find((l) => l.id === 'threshold') || LAYOUT_MODES[0];
   if (leading.includes('receptivity') || leading.includes('momentum')) {
-    return LAYOUT_MODES.find((l) => l.id === 'solar_rays') || LAYOUT_MODES[0];
+    return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[2];
   }
 
   const fp = [
