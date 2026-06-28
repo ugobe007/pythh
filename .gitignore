@@ -70,3 +70,4 @@ temp/
 scripts/corpus/*.txt
 .vercel
 .env*
+mcpmarket-me/
