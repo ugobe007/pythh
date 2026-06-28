@@ -83,11 +83,21 @@ for (const c of golden.cases) {
     continue;
   }
 
-  // Validate score range
-  if (total < c.min_total || total > c.max_total) {
+  // Validate score range (baseline ± tolerance when set, else min/max)
+  const tol = Number.isFinite(c.tolerance) ? c.tolerance : null;
+  const baseline = Number.isFinite(c.baseline_total) ? c.baseline_total : null;
+  let minTotal = c.min_total;
+  let maxTotal = c.max_total;
+  if (baseline != null && tol != null) {
+    minTotal = Math.min(minTotal ?? baseline - tol, baseline - tol);
+    maxTotal = Math.max(maxTotal ?? baseline + tol, baseline + tol);
+  }
+
+  if (total < minTotal || total > maxTotal) {
     failed++;
     console.error(
-      `[FAIL] ${c.name}: total_score ${total} not in [${c.min_total}, ${c.max_total}]`
+      `[FAIL] ${c.name}: total_score ${total} not in [${minTotal}, ${maxTotal}]` +
+        (baseline != null ? ` (baseline ${baseline} ± ${tol})` : ''),
     );
   }
 

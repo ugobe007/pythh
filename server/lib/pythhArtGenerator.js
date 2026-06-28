@@ -502,11 +502,17 @@ async function generatePythhArtEdition(newsletter, { repoRoot = null, generateRa
 
 async function saveArtEdition(edition) {
   const supabase = getSupabaseClient();
+  const snap = { ...(edition.signal_snapshot || {}) };
+  if (edition.raster_url) snap.raster_url = edition.raster_url;
+  if (edition.thumbnail_url) snap.thumbnail_url = edition.thumbnail_url;
+  if (edition.raster_provider) snap.raster_provider = edition.raster_provider;
+  if (edition.raster_model) snap.raster_model = edition.raster_model;
+
   const row = {
     edition_date: edition.edition_date,
     seed: edition.seed,
     svg: edition.svg,
-    signal_snapshot: edition.signal_snapshot,
+    signal_snapshot: snap,
     copy: edition.copy,
     generated_at: edition.generated_at,
     updated_at: new Date().toISOString(),

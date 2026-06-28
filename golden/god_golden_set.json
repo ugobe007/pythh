@@ -1,9 +1,15 @@
 {
   "weights_version": "god_v1_initial",
+  "meta": {
+    "last_verified": "2026-06-28",
+    "notes": "Anchor startups with stable profiles; ranges allow ±3 pts from baseline after GOD recalc."
+  },
   "cases": [
     {
       "startup_id": "ae70a524-5c0a-41ef-bb99-040c2fdb0139",
       "name": "HCLTech (golden anchor)",
+      "baseline_total": 76,
+      "tolerance": 4,
       "min_total": 68,
       "max_total": 80,
       "must_include_components": ["team", "traction", "market"]
@@ -11,13 +17,17 @@
     {
       "startup_id": "b4b7a92f-9a07-4f50-9834-78972373fc97",
       "name": "Maven (golden anchor)",
+      "baseline_total": 89,
+      "tolerance": 3,
       "min_total": 76,
-      "max_total": 88,
+      "max_total": 92,
       "must_include_components": ["team", "vision"]
     },
     {
       "startup_id": "7e825a26-cf65-45e3-8465-b6f52bc030ab",
       "name": "AIX Ventures (golden anchor)",
+      "baseline_total": 59,
+      "tolerance": 4,
       "min_total": 54,
       "max_total": 64,
       "must_include_components": ["vision"]

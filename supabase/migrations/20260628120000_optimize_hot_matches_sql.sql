@@ -1,11 +1,13 @@
--- ============================================================================
--- GET HOT MATCHES + SECTOR HEAT MAP (optimized for 3M+ rows)
--- See supabase/migrations/20260628120000_optimize_hot_matches_sql.sql
--- ============================================================================
+-- Optimize get_hot_matches / get_sector_heat_map for 3M+ row match table.
+-- Index creation is optional and may need CONCURRENTLY in Supabase SQL editor:
+--   CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sim_hot_created_score
+--     ON public.startup_investor_matches (created_at DESC, match_score DESC)
+--     WHERE match_score >= 60;
 
 DROP FUNCTION IF EXISTS get_hot_matches(INT, INT);
 DROP FUNCTION IF EXISTS get_sector_heat_map(INT);
 
+-- Hot matches: join after narrowing to recent high-score rows
 CREATE OR REPLACE FUNCTION get_hot_matches(
   limit_count INT DEFAULT 10,
   hours_ago INT DEFAULT 24
@@ -98,6 +100,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Sector heat: single-pass sector counts (skip expensive week-over-week subquery on full table)
 CREATE OR REPLACE FUNCTION get_sector_heat_map(
   days_ago INT DEFAULT 7
 )
@@ -169,59 +172,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ============================================================================
--- GET PLATFORM VELOCITY — optimized (7-day scan)
--- ============================================================================
+COMMENT ON FUNCTION get_hot_matches IS
+  'Recent high-quality matches for marketing feed (optimized for large tables).';
 
-CREATE OR REPLACE FUNCTION get_platform_velocity()
-RETURNS TABLE (
-  total_matches_today BIGINT,
-  total_matches_week BIGINT,
-  startups_discovered_today BIGINT,
-  high_quality_matches_today BIGINT,
-  avg_match_score_today NUMERIC,
-  top_tier_activity_today BIGINT
-)
-SECURITY DEFINER
-SET search_path = public
-SET statement_timeout = '45s'
-AS $$
-BEGIN
-  RETURN QUERY
-  WITH recent AS (
-    SELECT
-      m.created_at,
-      m.match_score,
-      i.tier AS investor_tier
-    FROM startup_investor_matches m
-    LEFT JOIN investors i ON m.investor_id = i.id
-    WHERE m.created_at >= CURRENT_DATE - INTERVAL '7 days'
-  ),
-  match_agg AS (
-    SELECT
-      COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)::BIGINT AS today,
-      COUNT(*)::BIGINT AS week,
-      COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE AND match_score >= 80)::BIGINT AS hq_today,
-      ROUND(AVG(match_score) FILTER (WHERE created_at >= CURRENT_DATE), 1) AS avg_today,
-      COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE AND investor_tier = '1')::BIGINT AS tier1_today
-    FROM recent
-  ),
-  disc AS (
-    SELECT COUNT(*)::BIGINT AS today
-    FROM discovered_startups
-    WHERE discovered_at >= CURRENT_DATE
-  )
-  SELECT
-    match_agg.today,
-    match_agg.week,
-    disc.today,
-    match_agg.hq_today,
-    match_agg.avg_today,
-    match_agg.tier1_today
-  FROM match_agg
-  CROSS JOIN disc;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION get_platform_velocity IS
-  'Live platform metrics for tickers — scans last 7 days of matches only (optimized).';
+COMMENT ON FUNCTION get_sector_heat_map IS
+  'Trending sectors by match activity (optimized single-pass; WoW change deferred).';

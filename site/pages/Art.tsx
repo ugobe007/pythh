@@ -308,7 +308,7 @@ export default function Art() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {archive.map((item) => {
                 const isActive = item.edition_date === edition?.edition_date;
-                const thumb = item.thumbnail_url;
+                const thumb = item.thumbnail_url || `/art/${item.edition_date}-thumb.jpg`;
                 const title = item.title || item.copy?.title || item.edition_date;
                 return (
                   <Link
@@ -332,6 +332,12 @@ export default function Art() {
                           className="w-full h-full object-cover transition-transform group-hover:scale-[1.03]"
                           loading="lazy"
                           decoding="async"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.dataset.fallback === '1') return;
+                            img.dataset.fallback = '1';
+                            img.src = `/art/${item.edition_date}-thumb.jpg`;
+                          }}
                         />
                       ) : (
                         <div

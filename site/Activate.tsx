@@ -16,6 +16,7 @@ import {
   recordMatchEngagement,
   recordMatchViewOnce,
   trackFunnelEvent,
+  trackFunnelEventOnce,
 } from "@/lib/matchEngagement";
 
 function formatStageLabel(stage: unknown): string {
@@ -794,7 +795,7 @@ function ScanningStep({
     fetch("/api/instant/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: normalized }),
+      body: JSON.stringify({ url: normalized, source: "activate" }),
       signal: controller.signal,
     })
       .then(async (r) => {
@@ -2523,6 +2524,19 @@ export default function Activate() {
     setApiResult(result);
     sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
+
+    if (result.startup_id) {
+      void trackFunnelEventOnce(`instant_matches_viewed:${result.startup_id}`, 'instant_matches_viewed', {
+        startup_id: result.startup_id,
+        url,
+        match_count: result.match_count ?? result.matches?.length ?? 0,
+        source: 'activate',
+      });
+      for (const m of result.matches.slice(0, 10)) {
+        const invId = m.investor_id || m.investor?.id;
+        if (invId) recordMatchViewOnce(result.startup_id, invId, 'activate_results');
+      }
+    }
 
     if (capturedEmail && result.startup_id) {
       void fetch(apiUrl("/api/preview/activation-nudge"), {

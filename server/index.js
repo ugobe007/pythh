@@ -1995,13 +1995,23 @@ const {
   listArtEditions,
 } = require('./lib/pythhArtGenerator');
 const { deriveThumbnailUrl } = require('./lib/signalArtGemini');
+const {
+  enrichArtRowFromFilesystem,
+  localThumbnailFallback,
+  listArtEditionsMerged,
+  repoRootFromHere,
+  readLocalArtEditionMeta,
+  localRowFromMeta,
+} = require('./lib/artEditionLocal');
+
+const ART_REPO_ROOT = repoRootFromHere();
 
 async function getOrCreateArtEdition(editionDate) {
   const today = new Date().toISOString().split('T')[0];
   const target = editionDate || today;
   let row = await loadArtEdition(target);
   if (row) {
-    return toArtApiResponse(row);
+    return toArtApiResponse(enrichArtRowFromFilesystem(row, ART_REPO_ROOT));
   }
   if (target !== today) return null;
   const newsletter = await generateNewsletter({ bust: true });
@@ -2021,7 +2031,10 @@ function toArtApiResponse(row) {
   const signalArt = snap.signal_art || {};
   const raster_url = row.raster_url ?? snap.raster_url ?? null;
   const thumbnail_url =
-    row.thumbnail_url ?? snap.thumbnail_url ?? deriveThumbnailUrl(raster_url) ?? null;
+    row.thumbnail_url ??
+    snap.thumbnail_url ??
+    deriveThumbnailUrl(raster_url) ??
+    localThumbnailFallback(row.edition_date, ART_REPO_ROOT);
   return {
     edition_date: row.edition_date,
     seed: row.seed,
@@ -2099,13 +2112,18 @@ app.post('/api/ontology/infer', async (req, res) => {
 function toArtGalleryItem(row) {
   const snap = row.signal_snapshot || {};
   const signalArt = snap.signal_art || {};
-  const raster_url = snap.raster_url ?? null;
+  const raster_url = row.raster_url ?? snap.raster_url ?? null;
+  const thumbnail_url =
+    row.thumbnail_url ??
+    snap.thumbnail_url ??
+    deriveThumbnailUrl(raster_url) ??
+    localThumbnailFallback(row.edition_date, ART_REPO_ROOT);
   return {
     edition_date: row.edition_date,
     title: row.copy?.title || null,
     subtitle: row.copy?.subtitle || null,
     layout_mode: signalArt.layoutMode ?? row.copy?.layout_mode ?? null,
-    thumbnail_url: snap.thumbnail_url ?? deriveThumbnailUrl(raster_url) ?? null,
+    thumbnail_url,
     generated_at: row.generated_at,
   };
 }
@@ -2113,7 +2131,10 @@ function toArtGalleryItem(row) {
 app.get('/api/art/archive', async (req, res) => {
   try {
     const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 30));
-    const rows = await listArtEditions({ limit });
+    const rows = await listArtEditionsMerged(listArtEditions, {
+      limit,
+      repoRoot: ART_REPO_ROOT,
+    });
     const editions = rows.map(toArtGalleryItem);
     return res.set('Cache-Control', 'public, max-age=600').json({ editions });
   } catch (err) {
@@ -2141,8 +2162,15 @@ app.get('/api/art/:date/download', async (req, res) => {
       return res.status(401).json({ error: 'Sign in required to download artwork.' });
     }
 
-    const row = await loadArtEdition(date);
+    let row = await loadArtEdition(date);
+    if (!row) {
+      const local = readLocalArtEditionMeta(date, ART_REPO_ROOT);
+      if (local) {
+        row = localRowFromMeta(date, local, ART_REPO_ROOT);
+      }
+    }
     if (!row) return res.status(404).json({ error: 'Edition not found' });
+    row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
 
     const snap = row.signal_snapshot || {};
     const edition = {

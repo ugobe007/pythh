@@ -69,14 +69,11 @@ async function checkInvestorSignals() {
 }
 
 async function checkMatches() {
-  const { count, error } = await supabase
-    .from('startup_investor_matches')
-    .select('*', { count: 'exact', head: true })
-    .gte('match_score', 60);
-
-  if (error) return { ok: false, msg: error.message };
+  const { data: v, error: ve } = await supabase.rpc('get_platform_velocity');
+  if (ve) return { ok: false, msg: ve.message };
+  const count = v?.[0]?.total_matches_week ?? 0;
   const ok = count > 5000;
-  return { ok, msg: `${count} quality matches (score >= 60)`, count };
+  return { ok, msg: `${count} matches this week`, count };
 }
 
 async function checkSqlFunctions() {

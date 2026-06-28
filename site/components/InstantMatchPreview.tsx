@@ -111,7 +111,7 @@ export default function InstantMatchPreview({ url }: Props) {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url, source: 'matches_preview' }),
         });
         const submitJson = await submitRes.json().catch(() => ({}));
         if (!submitRes.ok && submitRes.status !== 202) {
@@ -126,7 +126,7 @@ export default function InstantMatchPreview({ url }: Props) {
               method: 'POST',
               credentials: 'same-origin',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url }),
+              body: JSON.stringify({ url, source: 'matches_preview' }),
             });
             const retryJson = await retry.json().catch(() => ({}));
             startupId = retryJson.startup_id || retryJson.id;
@@ -202,10 +202,11 @@ export default function InstantMatchPreview({ url }: Props) {
           });
         }
 
-        trackFunnelEvent('instant_matches_viewed', {
+        void trackFunnelEventOnce(`instant_matches_viewed:${startupId}`, 'instant_matches_viewed', {
           startup_id: startupId,
           url,
           match_count: data.matches?.length ?? 0,
+          source: 'matches_preview',
         });
         markFirstPreviewSeen();
 

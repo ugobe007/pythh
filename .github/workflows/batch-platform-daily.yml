@@ -182,5 +182,5 @@ jobs:
     uses: ./.github/workflows/reusable-node-batch.yml
     secrets: inherit
     with:
-      run: node scripts/generate-pythh-art.mjs
+      run: node scripts/generate-pythh-art.mjs && node scripts/sync-art-editions-local.mjs
       timeout_minutes: 15

@@ -3,6 +3,7 @@ import { Download, Loader2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { apiUrl } from '@/lib/apiConfig';
+import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { G, G_BORDER, BORDER, CARD, MUTED, DIM } from '@/lib/designTokens';
 
 type ArtFormat = 'pdf' | 'png' | 'jpg' | 'svg';
@@ -44,10 +45,21 @@ export default function ArtDownloadMenu({ editionDate, disabled }: ArtDownloadMe
   const loginPath = `/login?redirect=${encodeURIComponent(`/art?date=${editionDate}`)}`;
 
   const goLogin = () => {
+    void trackFunnelEvent('art_download_login_redirect', {
+      edition_date: editionDate,
+      source: 'signal_art',
+    });
     window.location.assign(loginPath);
   };
 
   const handleDownload = async (format: ArtFormat) => {
+    void trackFunnelEvent('art_download_clicked', {
+      edition_date: editionDate,
+      format,
+      authenticated: isAuthenticated,
+      source: 'signal_art',
+    });
+
     if (!isAuthenticated) {
       goLogin();
       return;
@@ -63,6 +75,12 @@ export default function ArtDownloadMenu({ editionDate, disabled }: ArtDownloadMe
       });
 
       if (res.status === 401) {
+        void trackFunnelEvent('art_download_failed', {
+          edition_date: editionDate,
+          format,
+          reason: 'unauthorized',
+          source: 'signal_art',
+        });
         toast.error('Sign in required to download.');
         goLogin();
         return;
@@ -76,6 +94,12 @@ export default function ArtDownloadMenu({ editionDate, disabled }: ArtDownloadMe
         } catch {
           /* not json */
         }
+        void trackFunnelEvent('art_download_failed', {
+          edition_date: editionDate,
+          format,
+          reason: msg,
+          source: 'signal_art',
+        });
         toast.error(msg);
         return;
       }
@@ -86,16 +110,42 @@ export default function ArtDownloadMenu({ editionDate, disabled }: ArtDownloadMe
         `pythh-signal-art-${editionDate}.${format === 'jpg' ? 'jpg' : format}`,
       );
       triggerBlobDownload(blob, filename);
+      void trackFunnelEvent('art_download_completed', {
+        edition_date: editionDate,
+        format,
+        filename,
+        source: 'signal_art',
+      });
       toast.success(`Downloaded ${filename}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Download failed';
+      void trackFunnelEvent('art_download_failed', {
+        edition_date: editionDate,
+        format,
+        reason: msg,
+        source: 'signal_art',
+      });
       toast.error(msg);
     } finally {
       setActiveFormat(null);
     }
   };
 
-  if (!isAuthenticated && !authLoading) {
+  if (authLoading) {
+    return (
+      <div className="flex flex-col items-center gap-2 w-full max-w-md">
+        <div
+          className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider"
+          style={{ color: DIM }}
+        >
+          <Loader2 size={12} className="animate-spin" />
+          Checking account…
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
     return (
       <button
         type="button"
@@ -131,7 +181,7 @@ export default function ArtDownloadMenu({ editionDate, disabled }: ArtDownloadMe
             <button
               key={id}
               type="button"
-              disabled={disabled || authLoading || activeFormat !== null}
+              disabled={disabled || activeFormat !== null}
               onClick={() => void handleDownload(id)}
               className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
               style={{

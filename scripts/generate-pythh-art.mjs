@@ -79,7 +79,7 @@ async function main() {
 
   try {
     await saveArtEdition(edition);
-    console.log('[pythh-art] Saved to pythh_art_editions');
+    console.log('[pythh-art] Saved to pythh_art_editions (raster/thumbnail in signal_snapshot)');
   } catch (e) {
     if (/does not exist/i.test(e.message || '')) {
       console.warn('[pythh-art] Table missing — run migration 20260627000000_pythh_art_editions.sql');

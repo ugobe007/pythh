@@ -112,6 +112,7 @@ async function logPreviewLoaded(
   if (probeRunId) base.probe_run_id = probeRunId;
   if (url) base.startup_url = url;
   await recordFunnelEvent(supabase, 'preview_requested', base, { source: base.source });
+  await recordFunnelEvent(supabase, 'instant_matches_viewed', base, { source: base.source });
   void recordFounderDemandEvent(supabase, {
     eventType: 'preview_requested',
     startupId,
