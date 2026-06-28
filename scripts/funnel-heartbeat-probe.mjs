@@ -76,7 +76,7 @@ async function runProbe() {
     steps.push({ step: 'page_view', ok: res.ok, status: res.status });
   }
 
-  // 2. instant submit → server logs url_submitted + preview_requested
+  // 2. instant submit → server logs url_submitted; preview events on preview API / UI load
   let startupId = null;
   let investorId = null;
   {

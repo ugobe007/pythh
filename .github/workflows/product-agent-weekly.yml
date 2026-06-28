@@ -17,20 +17,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - run: npm ci
-
-      - name: Funnel heartbeat
-        env:
-          BASE: https://pythh.ai
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: npm run funnel:heartbeat -- --no-fail
-
-      - name: Product metrics snapshot
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: npm run product:metrics
+      - run: npm ci --legacy-peer-deps
 
       - name: Product agent loop
         env:

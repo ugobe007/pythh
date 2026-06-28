@@ -15,6 +15,10 @@ on:
           - full
           - metrics-only
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   autopilot:
     runs-on: ubuntu-latest
@@ -53,6 +57,12 @@ jobs:
           SITE_URL: https://pythh.ai
         run: npm run report:agent-daily
 
+      - name: Open PR for agent registry/spec outputs
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run agents:output-pr
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,5 +76,7 @@ jobs:
             reports/*-agent-run-*.json
             reports/*-agent-*.json
             reports/agent-daily-report-*.json
+            reports/autopilot-ship-verify-*.json
+            reports/orchestrator-brief-*.json
             agents/research/briefs/*.md
             agents/product/specs/*.md

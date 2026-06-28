@@ -1,6 +1,10 @@
 {
   "goal": "100 founder + investor signups per day; convert visitors to paying Oracle/Pantheon subscribers",
-  "updated_at": "2026-06-23",
+  "updated_at": "2026-06-28",
+  "targets": {
+    "signups_per_day": 100,
+    "paid_subscribers": 100
+  },
   "metrics": {
     "primary": "total_signups_per_day",
     "secondary": [
@@ -63,8 +67,16 @@
     "pipeline": "Keep match quality trustworthy — picky data gate (junk cleanup) enables credible skepticism"
   },
   "autopilot": {
-    "daily": ["funnel_heartbeat", "conversion_snapshot", "orchestrator_brief", "growth_metrics"],
+    "daily": ["funnel_heartbeat", "conversion_snapshot", "orchestrator_brief", "growth_metrics", "ship_verify"],
     "rotating_llm": ["research", "growth", "product"],
     "weekly_full": "All three LLM agents + pipeline dashboard"
-  }
+  },
+  "agent_priorities": [
+    "preview: close url→preview_view leak (instant_matches_viewed on UI preview load)",
+    "signup: preview_cliffhanger gate — founder_signup_started from preview viewers",
+    "use: match_explain + intro CTA — 0 intros despite match views",
+    "return: signal_delta nudge when preview_view accrues",
+    "awareness: page_view on hero + outbound_find_investors",
+    "pay: pricing bridge from preview when signup baseline exists"
+  ]
 }

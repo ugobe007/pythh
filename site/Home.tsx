@@ -26,7 +26,8 @@ import {
   fetchGrowthAssignment,
   type GrowthAssignment,
 } from "@/lib/growthExperiment";
-import { trackUrlSubmitted } from "@/lib/funnelAttribution";
+import { trackUrlSubmitted, getUtmParams, trackReturnVisitIfEligible } from "@/lib/funnelAttribution";
+import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import {
   ArrowRight,
   ExternalLink,
@@ -1515,6 +1516,15 @@ function Footer() {
 export default function Home() {
   const { stats: platformStats, ready: platformStatsReady } = usePlatformStats();
   const portfolioMetrics = usePortfolioHeadlineMetrics();
+
+  useEffect(() => {
+    void trackFunnelEventOnce('pythh_home_page_view', 'page_view', {
+      path: '/',
+      source: 'home_hero',
+      ...getUtmParams(),
+    });
+    trackReturnVisitIfEligible('/');
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>

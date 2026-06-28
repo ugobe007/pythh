@@ -56,6 +56,7 @@ runNode('Product metrics', 'scripts/product-metrics-snapshot.mjs');
 runNode('Growth metrics', 'scripts/growth-metrics-snapshot.mjs');
 runNode('Research snapshot', 'scripts/research-snapshot.mjs', [], { allowFail: true });
 run('Sync growth registry', 'npm', ['run', 'growth:sync-registry'], { allowFail: true });
+runNode('Ship verify', 'scripts/autopilot-ship-verify.mjs', [], { allowFail: true });
 
 if (METRICS_ONLY) {
   console.log('\n✅ Autopilot metrics complete (--metrics-only)\n');

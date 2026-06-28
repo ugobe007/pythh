@@ -76,6 +76,23 @@ Pipeline scripts keep match quality trustworthy — junk cleanup (900+ rows remo
 
 ---
 
+## Current agent priorities (2026-06-28)
+
+Ordered by binding funnel leak — read `reports/conversion-funnel-*.json` for live numbers:
+
+| Priority | Stage | Loop | Metric |
+|----------|-------|------|--------|
+| 1 | Preview view | `preview_cliffhanger` | `instant_matches_viewed` / `preview_view_per_url` |
+| 2 | Signup | `preview_cliffhanger` | `founder_signup_started` / `signup_per_preview` |
+| 3 | Activation | `match_explain` | `match_intro_requested` / `intro_per_match_view` |
+| 4 | Return | `signal_delta` | `return_visit_7d` / `return_visit_per_preview` |
+| 5 | Awareness | `outbound_find_investors` | `page_view` + UTM-attributed `url_submitted` |
+| 6 | Pay | `pricing_oracle_bridge` | `pricing_viewed` → `checkout_started` |
+
+**Metrics rule:** Growth and conversion snapshots both use `getFunnelCounts` (probe events excluded). Do not optimize against probe-inflated counts.
+
+---
+
 ## Decision filter
 
 Before proposing anything, ask:

@@ -17,13 +17,7 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - run: npm ci
-
-      - name: Growth metrics snapshot
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: npm run growth:metrics
+      - run: npm ci --legacy-peer-deps
 
       - name: Growth agent loop
         env:

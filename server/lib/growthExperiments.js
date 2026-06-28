@@ -138,34 +138,31 @@ async function recordEvent(supabase, event) {
 }
 
 const {
-  FUNNEL_OPERATIONS,
   GROWTH_FUNNEL_EVENTS,
+  getFunnelCounts,
 } = require('./funnelTelemetry');
 
-async function getMetricsSnapshot(supabase, { days = 7 } = {}) {
+function isProbeGrowthEvent(event) {
+  return Boolean(event?.payload?.probe_run_id);
+}
+
+async function getMetricsSnapshot(supabase, { days = 7, excludeProbes = true } = {}) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
   const { data: events, error: evErr } = await supabase
     .from('growth_experiment_events')
-    .select('experiment_id, variant_key, audience, event_name, created_at')
+    .select('experiment_id, variant_key, audience, event_name, created_at, payload')
     .gte('created_at', since);
   if (evErr) throw evErr;
 
-  const { data: aiLogs, error: logErr } = await supabase
-    .from('ai_logs')
-    .select('operation, output, created_at')
-    .gte('created_at', since)
-    .in('operation', FUNNEL_OPERATIONS)
-    .limit(5000);
-  if (logErr && logErr.code !== 'PGRST205') throw logErr;
+  const filteredEvents = excludeProbes
+    ? (events || []).filter((e) => !isProbeGrowthEvent(e))
+    : events || [];
 
-  const funnel = {};
-  for (const row of aiLogs || []) {
-    funnel[row.operation] = (funnel[row.operation] || 0) + 1;
-  }
+  const funnelCounts = await getFunnelCounts(supabase, { days, excludeProbes });
 
   const byVariant = {};
-  for (const e of events || []) {
+  for (const e of filteredEvents) {
     const k = `${e.experiment_id}:${e.variant_key}`;
     if (!byVariant[k]) {
       byVariant[k] = {
@@ -181,13 +178,14 @@ async function getMetricsSnapshot(supabase, { days = 7 } = {}) {
   return {
     generated_at: new Date().toISOString(),
     window_days: days,
-    funnel_from_ai_logs: funnel,
+    exclude_probes: excludeProbes,
+    funnel_from_ai_logs: funnelCounts.ai_logs,
     growth_funnel_events: GROWTH_FUNNEL_EVENTS.reduce((acc, name) => {
-      acc[name] = (events || []).filter((e) => e.event_name === name).length;
+      acc[name] = funnelCounts.growth_events[name] ?? 0;
       return acc;
     }, {}),
     experiment_variants: Object.values(byVariant),
-    growth_event_count: (events || []).length,
+    growth_event_count: filteredEvents.length,
   };
 }
 

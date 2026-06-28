@@ -61,6 +61,33 @@ async function recordFunnelEvent(supabase, operation, output = {}, options = {})
   }
 }
 
+/** Sources where instant/submit is followed by a user-visible preview (not API-only traffic). */
+const UI_PREVIEW_SOURCES = new Set([
+  'matches_preview',
+  'activate',
+  'find_investors_landing',
+  'awareness_landing',
+  'home_hero',
+  'share_preview',
+  'hero',
+  'funnel_probe',
+]);
+
+async function hasRecentFunnelEvent(supabase, operation, startupId, { windowMinutes = 60 } = {}) {
+  if (!supabase || !startupId || !operation) return false;
+  const since = new Date(Date.now() - windowMinutes * 60_000).toISOString();
+  const { count, error } = await supabase
+    .from('ai_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('operation', operation)
+    .eq('output->>startup_id', String(startupId))
+    .gte('created_at', since)
+    .not('output->>source', 'eq', 'funnel_probe')
+    .is('output->probe_run_id', null);
+  if (error) return false;
+  return (count ?? 0) > 0;
+}
+
 async function logInstantSubmitFunnel(
   supabase,
   { startupId, url, matchCount, source, probeRunId, startupName, sectors, stage, godScore, utm = {} },
@@ -74,7 +101,6 @@ async function logInstantSubmitFunnel(
   };
   if (probeRunId) base.probe_run_id = probeRunId;
   await recordFunnelEvent(supabase, 'url_submitted', base, { source: base.source });
-  await recordFunnelEvent(supabase, 'preview_requested', base, { source: base.source });
   void recordFounderDemandEvent(supabase, {
     eventType: 'url_submitted',
     startupId,
@@ -88,6 +114,23 @@ async function logInstantSubmitFunnel(
     probeRunId,
     payload: base,
   });
+
+  const src = base.source;
+  const isUiPreview =
+    UI_PREVIEW_SOURCES.has(src) || (src === 'instant_submit' && Boolean(probeRunId));
+  if (isUiPreview && (matchCount ?? 0) > 0) {
+    void logPreviewLoaded(supabase, {
+      startupId,
+      source: src,
+      probeRunId,
+      matchCount,
+      url,
+      startupName,
+      sectors,
+      stage,
+      godScore,
+    });
+  }
 }
 
 async function logPreviewLoaded(
@@ -111,6 +154,12 @@ async function logPreviewLoaded(
   };
   if (probeRunId) base.probe_run_id = probeRunId;
   if (url) base.startup_url = url;
+
+  const dupPreview =
+    startupId &&
+    (await hasRecentFunnelEvent(supabase, 'instant_matches_viewed', startupId));
+  if (dupPreview) return;
+
   await recordFunnelEvent(supabase, 'preview_requested', base, { source: base.source });
   await recordFunnelEvent(supabase, 'instant_matches_viewed', base, { source: base.source });
   void recordFounderDemandEvent(supabase, {
@@ -300,11 +349,23 @@ function latestHeartbeatReport(reportsDir) {
     if (!fs.existsSync(reportsDir)) return null;
     const files = fs
       .readdirSync(reportsDir)
-      .filter((f) => f.startsWith('funnel-heartbeat-') && f.endsWith('.json'))
-      .sort()
-      .reverse();
-    if (!files[0]) return null;
-    return JSON.parse(fs.readFileSync(path.join(reportsDir, files[0]), 'utf8'));
+      .filter((f) => f.startsWith('funnel-heartbeat-') && f.endsWith('.json'));
+    const reports = files
+      .map((f) => {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(reportsDir, f), 'utf8'));
+          return { file: f, data };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const ta = a.data.generated_at || a.data.timestamp || a.file;
+        const tb = b.data.generated_at || b.data.timestamp || b.file;
+        return String(tb).localeCompare(String(ta));
+      });
+    return reports[0]?.data ?? null;
   } catch {
     return null;
   }

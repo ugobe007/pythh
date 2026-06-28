@@ -78,6 +78,9 @@ async function main() {
     (f.login_completed || 0);
   const investorSignups = g.investor_signup_completed || 0;
   const investorStarted = g.investor_signup_started || 0;
+  const previewViews = f.instant_matches_viewed || 0;
+  const previewDenom = previewViews || f.preview_requested || 0;
+  const totalSignups = founderSignups + investorSignups;
 
   const { data: oracleGapEvents } = await sb
     .from('growth_experiment_events')
@@ -153,23 +156,24 @@ async function main() {
     },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
-      founder_preview_to_started: rate(g.founder_signup_started || 0, f.instant_matches_viewed || 0),
+      founder_preview_to_started: rate(g.founder_signup_started || 0, previewViews),
       founder_started_to_completed: rate(
         (g.founder_signup_completed || 0) + (f.lookup_signup_completed || 0),
         g.founder_signup_started || 0,
       ),
-      signup_per_preview: rate(founderSignups + investorSignups, f.preview_requested || 0),
+      signup_per_preview: rate(totalSignups, previewDenom),
       intro_per_match_view: rate(f.match_intro_requested || 0, f.match_viewed || 0),
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),
-      preview_view_per_url: rate(f.instant_matches_viewed || 0, f.url_submitted || 0),
-      email_capture_per_preview: rate(f.preview_email_captured || 0, f.instant_matches_viewed || 0),
-      oracle_gap_teaser_per_preview: rate(f.preview_oracle_gap_teaser_viewed || 0, f.instant_matches_viewed || 0),
+      preview_view_per_url: rate(previewViews, f.url_submitted || 0),
+      url_submitted_per_page_view: rate(f.url_submitted || 0, f.page_view || 0),
+      email_capture_per_preview: rate(f.preview_email_captured || 0, previewViews),
+      oracle_gap_teaser_per_preview: rate(f.preview_oracle_gap_teaser_viewed || 0, previewViews),
       oracle_gap_signup_per_teaser: rate(oracleGapStarted, f.preview_oracle_gap_teaser_viewed || 0),
       investor_started_to_completed: rate(investorSignups, investorStarted),
       investor_email_to_profile: rate(investorProfileCompleted, investorEmailCaptured || investorSignups),
       investor_resume_to_profile: rate(investorProfileCompleted, investorProfileResumeStarted),
       complete_per_checkout: rate(f.checkout_completed || 0, f.checkout_started || 0),
-      return_visit_per_preview: rate(f.return_visit_7d || 0, f.instant_matches_viewed || 0),
+      return_visit_per_preview: rate(f.return_visit_7d || 0, previewViews),
       wizard_per_founder_signup: rate(
         f.wizard_outreach_preview_viewed || 0,
         (g.founder_signup_completed || 0) + (f.lookup_signup_completed || 0),
@@ -196,23 +200,43 @@ async function main() {
       },
     },
     totals: {
-      signups_7d: founderSignups + investorSignups,
-      signups_per_day: Math.round(((founderSignups + investorSignups) / days) * 100) / 100,
+      signups_7d: totalSignups,
+      signups_per_day: Math.round((totalSignups / days) * 100) / 100,
       paid_subscribers: subs.active_or_trialing,
       paid_subscribers_source: subs.table,
+    },
+    north_star_gap: {
+      signups_per_day: Math.max(0, (northStar?.targets?.signups_per_day ?? 100) - Math.round((totalSignups / days) * 100) / 100),
+      target_signups_per_day: northStar?.targets?.signups_per_day ?? 100,
     },
     funnel_healthy: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? null,
     heartbeat_ok: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? null,
     heartbeat_diagnosis: heartbeat?.verification?.diagnosis ?? heartbeat?.diagnosis ?? null,
     agent_focus: [],
+    agent_priorities: [],
   };
 
-  if ((f.url_submitted || 0) > 15 && (f.instant_matches_viewed || 0) < (f.url_submitted || 0) * 0.15) {
+  report.conversion_rates = {
+    url_submitted_per_page_view: report.rates.url_submitted_per_page_view,
+    preview_per_url_submitted: report.rates.preview_view_per_url,
+    signup_per_preview: report.rates.signup_per_preview,
+    first_match_per_signup: rate(f.match_viewed || 0, totalSignups),
+    return_7d: report.rates.return_visit_per_preview,
+    checkout_per_pricing_view: report.rates.checkout_per_pricing,
+  };
+
+  if ((f.page_view || 0) < 20 && (f.url_submitted || 0) > 50) {
+    report.agent_focus.push(
+      'Awareness blind spot: page_view << url_submitted — instrument hero + /find-investors; filter API-only submits from conversion rates',
+    );
+    report.agent_priorities.push('awareness: instrument page_view on hero and acquisition landings');
+  }
+  if ((f.url_submitted || 0) > 15 && previewViews < (f.url_submitted || 0) * 0.15) {
     report.agent_focus.push(
       'Funnel leak: url_submitted >> instant_matches_viewed — route more traffic through /find-investors and matches_preview (now 70%)',
     );
   }
-  if ((f.pricing_viewed || 0) < 10 && (f.instant_matches_viewed || 0) > 5) {
+  if ((f.pricing_viewed || 0) < 10 && previewViews > 5) {
     report.agent_focus.push('Monetization: preview→Oracle bridge live — drive pricing_viewed from match preview sticky bar');
   }
   if ((report.totals.signups_per_day || 0) < 1) {
@@ -226,8 +250,22 @@ async function main() {
       'Founder demand corpus empty — run npm run pipeline:apply-founder-demand after deploy',
     );
   }
-  if ((f.instant_matches_viewed || 0) > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
+  if (previewViews > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
     report.agent_focus.push('Activation: intro/email capture on preview — watch match_intro_requested and preview_email_captured');
+    report.agent_priorities.push('use: match_explain + intro CTA on preview strip');
+  }
+  if (previewViews > 0 && (f.return_visit_7d || 0) < previewViews * 0.1) {
+    report.agent_focus.push('Retention: return_visit_7d low — ship signal-delta or match-movement nudge');
+    report.agent_priorities.push('return: signal_delta email + preview cliffhanger save gate');
+  }
+  if ((f.match_viewed || 0) > 10 && (f.match_intro_requested || 0) === 0) {
+    report.agent_priorities.push('use: match_explain blocks — 0 intros despite match views');
+  }
+  if ((f.pricing_viewed || 0) === 0 && previewViews > 20) {
+    report.agent_priorities.push('pay: pricing bridge from preview sticky bar — 0 pricing_viewed');
+  }
+  if ((f.page_view || 0) < 50) {
+    report.agent_priorities.push('awareness: outbound_find_investors + share cards — page_view near zero');
   }
   if (investorStarted > 0 && investorSignups / investorStarted < 0.2) {
     report.agent_focus.push(
