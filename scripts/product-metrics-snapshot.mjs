@@ -197,7 +197,9 @@ async function main() {
           `   Founder preview→started: ${funnel.rates.founder_preview_to_started}% · started→completed: ${funnel.rates.founder_started_to_completed ?? '—'}%`,
         );
       }
-      if (funnel.latest_heartbeat?.diagnosis) {
+      if (funnel.latest_heartbeat?.verification?.required_stages_ok != null) {
+        console.log(`   Last heartbeat: ${funnel.latest_heartbeat.verification.required_stages_ok ? 'healthy' : 'gaps'} (${funnel.latest_heartbeat.verification.diagnosis ?? funnel.latest_heartbeat.diagnosis ?? '—'})`);
+      } else if (funnel.latest_heartbeat?.diagnosis) {
         console.log(`   Last heartbeat: ${funnel.latest_heartbeat.diagnosis}`);
       }
     }

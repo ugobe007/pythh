@@ -187,7 +187,9 @@ async function countAiLogOperation(supabase, operation, since, { excludeProbes =
     .eq('operation', operation)
     .gte('created_at', since);
   if (excludeProbes) {
-    query = query.not('output->>source', 'eq', 'funnel_probe');
+    // Include rows with missing source (legacy client events) — .neq alone drops NULL in PostgREST.
+    query = query.or('output->>source.is.null,output->>source.neq.funnel_probe');
+    query = query.is('output->probe_run_id', null);
   }
   const { count, error } = await query;
   if (error) return 0;

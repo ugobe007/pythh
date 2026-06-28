@@ -121,14 +121,31 @@ async function main() {
     .select('output')
     .eq('operation', 'url_submitted')
     .gte('created_at', since)
-    .not('output->>source', 'eq', 'funnel_probe')
+    .or('output->>source.is.null,output->>source.neq.funnel_probe')
+    .is('output->probe_run_id', null)
     .limit(5000);
 
   const utmAttribution = {};
+  let legacyPreviewRequested = 0;
   for (const row of urlSubmitRows || []) {
     const src = row.output?.utm_source || row.output?.source || 'direct';
     utmAttribution[src] = (utmAttribution[src] || 0) + 1;
   }
+
+  const { data: previewRows } = await sb
+    .from('ai_logs')
+    .select('output')
+    .eq('operation', 'preview_requested')
+    .gte('created_at', since)
+    .or('output->>source.is.null,output->>source.neq.funnel_probe')
+    .is('output->probe_run_id', null)
+    .limit(5000);
+
+  for (const row of previewRows || []) {
+    if (row.output?.source === 'instant_submit') legacyPreviewRequested += 1;
+  }
+
+  const uiPreviewRequested = Math.max(0, (f.preview_requested || 0) - legacyPreviewRequested);
 
   const report = {
     generated_at: new Date().toISOString(),
@@ -171,6 +188,11 @@ async function main() {
       events_7d: founderDemandCount,
     },
     utm_attribution: utmAttribution,
+    preview_attribution: {
+      legacy_instant_submit: legacyPreviewRequested,
+      ui_preview_requested: uiPreviewRequested,
+      note: 'Before 2026-06-28, preview_requested fired on API submit — use instant_matches_viewed for real preview views.',
+    },
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
       founder_preview_to_started: rate(g.founder_signup_started || 0, previewViews),
@@ -182,6 +204,7 @@ async function main() {
       intro_per_match_view: rate(f.match_intro_requested || 0, f.match_viewed || 0),
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),
       preview_view_per_url: rate(previewViews, f.url_submitted || 0),
+      preview_view_per_ui_url: rate(previewViews, Math.max(f.page_view || 0, uiPreviewRequested || 0)),
       url_submitted_per_page_view: rate(f.url_submitted || 0, f.page_view || 0),
       email_capture_per_preview: rate(f.preview_email_captured || 0, previewViews),
       oracle_gap_teaser_per_preview: rate(f.preview_oracle_gap_teaser_viewed || 0, previewViews),
@@ -259,7 +282,7 @@ async function main() {
   if ((report.totals.signups_per_day || 0) < 1) {
     report.agent_focus.push('Acquisition: SEO /find-investors + paid/community tests for first-time founders (F-12)');
   }
-  if (report.funnel_healthy === false && heartbeat?.diagnosis === 'probe_failed') {
+  if (report.funnel_healthy === false && heartbeat?.verification?.required_stages_ok === false) {
     report.agent_focus.push('Fix funnel instrumentation gaps (run npm run funnel:heartbeat)');
   }
   if (founderDemandCount === 0 && (f.preview_requested || 0) > 5) {

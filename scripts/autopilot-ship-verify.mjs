@@ -31,7 +31,7 @@ async function countRecentNonProbe(supabase, operation, hours = 24) {
     .select('*', { count: 'exact', head: true })
     .eq('operation', operation)
     .gte('created_at', since)
-    .not('output->>source', 'eq', 'funnel_probe')
+    .or('output->>source.is.null,output->>source.neq.funnel_probe')
     .is('output->probe_run_id', null);
   return count ?? 0;
 }
@@ -51,7 +51,10 @@ async function main() {
     {
       id: 'heartbeat_required_stages',
       ok: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? null,
-      detail: heartbeat?.verification?.diagnosis ?? heartbeat?.diagnosis ?? 'no heartbeat report in reports/',
+      detail:
+        heartbeat?.verification?.diagnosis ??
+        heartbeat?.diagnosis ??
+        (heartbeat ? 'unknown' : 'no heartbeat report in reports/ — run npm run funnel:heartbeat'),
     },
     {
       id: 'instant_matches_viewed_24h',
