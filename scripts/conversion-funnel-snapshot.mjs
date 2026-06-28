@@ -116,6 +116,20 @@ async function main() {
     .then((r) => (r.error ? { count: null } : r))
     .catch(() => ({ count: null }));
 
+  const { data: urlSubmitRows } = await sb
+    .from('ai_logs')
+    .select('output')
+    .eq('operation', 'url_submitted')
+    .gte('created_at', since)
+    .not('output->>source', 'eq', 'funnel_probe')
+    .limit(5000);
+
+  const utmAttribution = {};
+  for (const row of urlSubmitRows || []) {
+    const src = row.output?.utm_source || row.output?.source || 'direct';
+    utmAttribution[src] = (utmAttribution[src] || 0) + 1;
+  }
+
   const report = {
     generated_at: new Date().toISOString(),
     window_days: days,
@@ -149,11 +163,14 @@ async function main() {
       investor_email_captured: f.investor_email_captured || 0,
       investor_profile_completed: f.investor_profile_completed || 0,
       preview_evidence_strip_viewed: f.preview_evidence_strip_viewed || 0,
+      match_explain_viewed: f.match_explain_viewed || 0,
+      pricing_strip_viewed: f.pricing_strip_viewed || 0,
       return_visit_7d: f.return_visit_7d || 0,
     },
     founder_demand: {
       events_7d: founderDemandCount,
     },
+    utm_attribution: utmAttribution,
     rates: {
       preview_per_url: rate(f.preview_requested || 0, f.url_submitted || 0),
       founder_preview_to_started: rate(g.founder_signup_started || 0, previewViews),
@@ -266,6 +283,13 @@ async function main() {
   }
   if ((f.page_view || 0) < 50) {
     report.agent_priorities.push('awareness: outbound_find_investors + share cards — page_view near zero');
+  }
+  if ((f.pricing_viewed || 0) === 0 && (f.pricing_strip_viewed || 0) > 0) {
+    report.agent_focus.push('Pay bridge: pricing strip seen but no pricing page view — tighten trial CTA copy/link');
+    report.agent_priorities.push('pay: pricing strip impressions without click — A/B trial CTA');
+  }
+  if ((f.match_viewed || 0) > 5 && (f.match_explain_viewed || 0) === 0) {
+    report.agent_priorities.push('use: match explain blocks not expanding — test default-open top match');
   }
   if (investorStarted > 0 && investorSignups / investorStarted < 0.2) {
     report.agent_focus.push(

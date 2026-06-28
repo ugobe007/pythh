@@ -72,11 +72,11 @@
     "weekly_full": "All three LLM agents + pipeline dashboard"
   },
   "agent_priorities": [
-    "preview: close url→preview_view leak (instant_matches_viewed on UI preview load)",
+    "preview: monitor instant_matches_viewed post-deploy (ship-verify daily)",
     "signup: preview_cliffhanger gate — founder_signup_started from preview viewers",
-    "use: match_explain + intro CTA — 0 intros despite match views",
-    "return: signal_delta nudge when preview_view accrues",
-    "awareness: page_view on hero + outbound_find_investors",
-    "pay: pricing bridge from preview when signup baseline exists"
+    "use: match_explain_viewed → match_intro_requested conversion",
+    "return: signal_delta teaser + preview email capture → return_visit_7d",
+    "awareness: utm_attribution in conversion:funnel + outbound_find_investors",
+    "pay: pricing_strip_viewed → pricing_viewed click-through on preview sticky bar"
   ]
 }

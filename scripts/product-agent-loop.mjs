@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
+import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
 
 dotenv.config();
 
@@ -99,7 +100,7 @@ async function runAgent() {
   console.log(`   maxTurns=${MAX_TURNS} maxBudget=$${MAX_BUDGET}\n`);
 
   for await (const message of query({
-    prompt: PROMPT,
+    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot),
     options: {
       cwd: repoRoot,
       allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'],

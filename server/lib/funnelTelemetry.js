@@ -22,6 +22,8 @@ const FUNNEL_OPERATIONS = [
   'preview_delta_teaser_viewed',
   'preview_oracle_gap_teaser_viewed',
   'preview_evidence_strip_viewed',
+  'match_explain_viewed',
+  'pricing_strip_viewed',
   'founder_activation_email_sent',
   'wizard_outreach_preview_viewed',
   'investor_portfolio_delta_sent',

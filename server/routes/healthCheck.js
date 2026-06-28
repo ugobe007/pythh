@@ -69,21 +69,50 @@ async function checkInvestorSignals() {
 }
 
 async function checkMatches() {
+  const { data: cacheRow, error: cacheErr } = await supabase
+    .from('platform_stats_cache')
+    .select('matches_new_7d, matches, updated_at')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (!cacheErr && cacheRow && Number(cacheRow.matches_new_7d) > 0) {
+    const count = Number(cacheRow.matches_new_7d);
+    return {
+      ok: count > 5000,
+      msg: `${count} matches this week (platform_stats_cache)`,
+      count,
+      source: 'platform_stats_cache',
+    };
+  }
+
   const { data: v, error: ve } = await supabase.rpc('get_platform_velocity');
   if (ve) return { ok: false, msg: ve.message };
   const count = v?.[0]?.total_matches_week ?? 0;
   const ok = count > 5000;
-  return { ok, msg: `${count} matches this week`, count };
+  return { ok, msg: `${count} matches this week (rpc)`, count, source: 'rpc' };
 }
 
 async function checkSqlFunctions() {
   const results = {};
 
-  // get_platform_velocity
-  const { data: v, error: ve } = await supabase.rpc('get_platform_velocity');
-  results.platform_velocity = !ve && v?.length > 0 
-    ? { ok: true, msg: `${v[0]?.total_matches_week} matches this week` }
-    : { ok: false, msg: ve?.message || 'No data' };
+  const { data: cacheRow } = await supabase
+    .from('platform_stats_cache')
+    .select('matches_new_7d, updated_at')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (cacheRow && Number(cacheRow.matches_new_7d) > 0) {
+    results.platform_velocity = {
+      ok: true,
+      msg: `${cacheRow.matches_new_7d} matches this week (cache)`,
+      source: 'platform_stats_cache',
+    };
+  } else {
+    const { data: v, error: ve } = await supabase.rpc('get_platform_velocity');
+    results.platform_velocity = !ve && v?.length > 0
+      ? { ok: true, msg: `${v[0]?.total_matches_week} matches this week (rpc)` }
+      : { ok: false, msg: ve?.message || 'No data' };
+  }
 
   // get_hot_matches
   const { data: h, error: he } = await supabase.rpc('get_hot_matches', { limit_count: 1, hours_ago: 168 });

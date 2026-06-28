@@ -14,6 +14,8 @@ import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
 import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
+import PreviewEmailCapture from '@/components/PreviewEmailCapture';
+import MatchExplainBlock from '@/components/MatchExplainBlock';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 
@@ -55,6 +57,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const deltaTeaserTrackedRef = useRef(false);
   const oracleGapTeaserTrackedRef = useRef(false);
   const evidenceStripTrackedRef = useRef(false);
+  const pricingStripRef = useRef<HTMLDivElement | null>(null);
+  const pricingStripTrackedRef = useRef(false);
   const [deltaAssignment, setDeltaAssignment] = useState<GrowthAssignment | null>(null);
   const [oracleGapAssignment, setOracleGapAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
@@ -182,7 +186,6 @@ export default function InstantMatchPreview({ url }: Props) {
 
         if (
           data.match_movement &&
-          resolvedDelta?.variant_key === 'delta_cliffhanger' &&
           !deltaTeaserTrackedRef.current
         ) {
           deltaTeaserTrackedRef.current = true;
@@ -236,6 +239,27 @@ export default function InstantMatchPreview({ url }: Props) {
       cancelled = true;
     };
   }, [url]);
+
+  useEffect(() => {
+    const el = pricingStripRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (pricingStripTrackedRef.current) return;
+        const visible = entries.some((e) => e.isIntersecting);
+        if (!visible) return;
+        pricingStripTrackedRef.current = true;
+        void trackFunnelEventOnce('pythh_preview_pricing_strip', 'pricing_strip_viewed', {
+          path: '/matches',
+          source: 'preview_sticky',
+          startup_id: preview?.startup?.id,
+        });
+      },
+      { threshold: 0.35 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [preview?.startup?.id]);
 
   const handlePricingFromPreview = (source = 'preview_sticky') => {
     void trackFunnelEventOnce(`pythh_preview_pricing_click_${source}`, 'pricing_viewed', {
@@ -317,9 +341,7 @@ export default function InstantMatchPreview({ url }: Props) {
   const oracleGapCopy = preview.oracle_gap
     ? buildOracleGapCopy(preview.oracle_gap, oracleGapAssignment)
     : null;
-  const showDeltaTeaser =
-    Boolean(preview.match_movement) &&
-    deltaAssignment?.variant_key === 'delta_cliffhanger';
+  const showDeltaTeaser = Boolean(preview.match_movement);
   const deltaCopy = preview.match_movement
     ? buildDeltaCopy(preview.match_movement, deltaAssignment)
     : null;
@@ -370,7 +392,18 @@ export default function InstantMatchPreview({ url }: Props) {
                   </span>
                 </div>
                 {m.why_you_match && (
-                  <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{m.why_you_match}</p>
+                  <p className="text-xs text-zinc-400 mt-1 line-clamp-2 sm:hidden">{m.why_you_match}</p>
+                )}
+                {preview.startup?.id && (
+                  <MatchExplainBlock
+                    startupId={preview.startup.id}
+                    investorId={inv?.id || m.investor_id}
+                    investorName={inv?.name}
+                    whyYouMatch={m.why_you_match}
+                    matchScore={m.match_score}
+                    rank={i}
+                    source="instant_match_preview"
+                  />
                 )}
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -476,7 +509,10 @@ export default function InstantMatchPreview({ url }: Props) {
         </div>
       )}
 
-      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3">
+      <div
+        ref={pricingStripRef}
+        className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3"
+      >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left">
             {total.toLocaleString()} ranked investors ·{' '}

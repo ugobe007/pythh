@@ -121,14 +121,14 @@
       "id": "match_explain_service",
       "domain": "services",
       "priority": "P1",
-      "status": "building",
-      "title": "Why this investor? — match explain API",
-      "problem": "31 match views, 0 intros — founders see scores but not reasoning.",
-      "hypothesis": "Structured explain blocks increase intro requests >=25%.",
-      "metric": "intro_per_match_view",
-      "baseline": "0%",
-      "target": "+25% intro rate when explain shown",
-      "next_step": "Extend get_match_insights MCP tool; wire explain on preview evidence strip.",
+      "status": "shipped",
+      "title": "Why this investor? — match explain blocks on preview",
+      "problem": "31 match views, 0 intros — founders see scores but not structured evidence.",
+      "hypothesis": "Expandable 3-bullet explain blocks increase intro requests >=25%.",
+      "metric": "match_explain_viewed",
+      "baseline": "0 match_explain_viewed",
+      "target": "40% of preview viewers expand ≥1 explain; intro_per_match_view > 0",
+      "next_step": "MatchExplainBlock shipped on instant preview (top match default-open). Monitor match_explain_viewed → match_intro_requested.",
       "related_experiments": []
     },
     {
@@ -142,7 +142,7 @@
       "metric": "return_visit_7d",
       "baseline": "4 return_visit_7d; 0% return_visit_per_preview",
       "target": "20% return within 7d of first preview; match_intro_rate > 0",
-      "next_step": "Unblock preview_view first; then monitor return_visit_per_preview in conversion:funnel.",
+      "next_step": "Signal delta teaser always shown when movement data exists; email capture + return_visit_7d hook live. Monitor return_visit_per_preview.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
@@ -184,7 +184,7 @@
       "metric": "checkout_completion_rate",
       "baseline": "0 pricing_viewed; 0.14 signups/day",
       "target": "Measurable preview→signup→checkout funnel; first pricing A/B winner",
-      "next_step": "After preview_view > 0: drive pricing_viewed from preview sticky bar; growth:cycle Fri reports variants.",
+      "next_step": "pricing_strip_viewed + pricing_viewed on click shipped on preview sticky bar. Monitor strip→click rate in conversion:funnel.",
       "related_experiments": ["founder_hero_entry", "pricing_oracle_cta"]
     }
   ]
