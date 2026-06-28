@@ -2122,6 +2122,49 @@ app.get('/api/art/archive', async (req, res) => {
   }
 });
 
+const { getAuthedUserFromRequest } = require('./lib/pythhSession');
+const { buildArtDownload } = require('./lib/signalArtExport');
+
+app.get('/api/art/:date/download', async (req, res) => {
+  const { date } = req.params;
+  const format = String(req.query.format || 'pdf').toLowerCase();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+  }
+  if (!['pdf', 'png', 'jpg', 'jpeg', 'svg'].includes(format)) {
+    return res.status(400).json({ error: 'Invalid format. Use pdf, png, jpg, or svg.' });
+  }
+
+  try {
+    const user = await getAuthedUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Sign in required to download artwork.' });
+    }
+
+    const row = await loadArtEdition(date);
+    if (!row) return res.status(404).json({ error: 'Edition not found' });
+
+    const snap = row.signal_snapshot || {};
+    const edition = {
+      edition_date: row.edition_date,
+      seed: row.seed,
+      svg: row.svg,
+      copy: row.copy,
+      raster_url: row.raster_url ?? snap.raster_url ?? null,
+      generated_at: row.generated_at,
+    };
+
+    const result = await buildArtDownload(edition, format === 'jpeg' ? 'jpg' : format);
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.send(result.buffer);
+  } catch (err) {
+    console.error('[art] download error:', err.message);
+    return res.status(400).json({ error: err.message || 'Download failed' });
+  }
+});
+
 app.get('/api/art/:date', async (req, res) => {
   const { date } = req.params;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {

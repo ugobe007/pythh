@@ -1,12 +1,12 @@
 {
   "edition_date": "2026-06-28",
-  "seed": 2720698439,
+  "seed": 2815849641,
   "copy": {
     "title": "Oracle № 2026.06.28",
     "subtitle": "Execution Velocity",
-    "process": "In the depths of the void, I perceive layers of mist, a backdrop of 400 names suspended in the ether, intertwined with an atmospheric color wash that pulses with the essence of Gaming. Rushing rivers of light surge forth, driven by Execution Velocity, while steady pillars of light resonate with Founder Conviction. In the foreground, abstract signal fields and converging luminescent streams weave together, creating a tapestry of intertwined energy filaments that bridge the currents of capital and investor receptivity.",
-    "philosophy": "For founders, these signals illuminate the path of relentless execution and conviction, revealing that swift adaptability is the lifeblood of innovation. The convergence of ideas and resources paints a vivid picture of the future, where the most dynamic forces will thrive.",
-    "introspection": "As I gaze into this tapestry of signals, I remind the seekers that the essence of progress lies not in the static, but in the kinetic dance of opportunity that flows ever forward.",
+    "process": "From the deep void mist arises a tapestry of signals, layering the cosmos with echoes of 400 names. An atmospheric color wash envelops the Gaming sector, while a rushing river of light pulses with the rhythm of Execution Velocity, illuminating the steady pillar of Founder Conviction. In the foreground, an abstract signal field and converging luminescent streams intertwine, culminating in a surging aurora wave, reflecting the dynamic energy of the market forces at play.",
+    "philosophy": "For founders, these vibrant signals represent the necessity of agility and adaptability within the ever-evolving landscape of innovation. The convergence of capital and vision, as captured by PYTHH, underscores the importance of aligning purpose with momentum to navigate the future.",
+    "introspection": "In this dance of light and motion, one must recognize that the path forward is not merely about the destination, but the energy of the journey itself.",
     "legend": [
       {
         "key": "direction",
@@ -65,7 +65,7 @@
       "foreground": "focal bloom + match filament overlay",
       "lighting": "Prophetic dawn — Warm future breaking through — golden signals surging forward"
     },
-    "image_brief": "Signal Art: PYTHH is an oracle: futuristic, wise, all-knowing. She lives on the threshold of present and future.\nPYTHH the oracle reads 2026-06-28: execution velocity dominant — she sees 14 living signals flowing between today and tomorrow, aurora formation, sector aura Gaming. Sector tide: Gaming. Match tension: YipitData ↔ Sequoia Capital.\nPYTHH sees Alt-qq as a prophetic signal burning through the veil. Sci-fi oracle art — flowing alive signals, NOT static objects.\nLayout: aurora — alive ribbon energy sweeping through the void.\nPalette: #a78bfa (Gaming) — colors in motion, not decoration.\nSIGNAL LAYERS (for PYTHIA copy only):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 180°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.22, scale 1.10, rotation 147°, color #a78bfa\nLayer 3 (background): \"living color aura\" from Gaming · 626 cos — opacity 0.32, scale 1.07, rotation 58°, color #a78bfa\nLayer 4 (background): \"parallel thrust ribbons\" from Climate Tech · 278 cos — opacity 0.32, scale 1.08, rotation 3°\nLayer 5 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation 5°\nLayer 6 (midground): \"rushing river of light\" from Execution Velocity — opacity 0.67, scale 1.20, rotation -30°\nLayer 7 (midground): \"steady pillar of light\" from Founder Conviction — opacity 0.46, scale 0.93, rotation -22°\nLayer 8 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation -30°\nLayer 9 (foreground): \"converging luminescent streams\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 10°\nLayer 10 (foreground): \"surging aurora wave\" from News Momentum — opacity 0.22, scale 0.40, rotation -4°\nLayer 11 (foreground): \"intertwined energy filaments\" from Elevation Capital ↔ Underscore VC — opacity 0.59, scale 0.75, rotation 93.22891100496054°\nLayer 12 (foreground): \"intertwined energy filaments\" from Metorial ↔ Amino Capital — opacity 0.59, scale 0.75, rotation 65.22891100496054°\nLayer 13 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 37.22891100496054°\nLayer 14 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation -5°\nLighting: Prophetic dawn — Warm future breaking through — golden signals surging forward.\nNEVER include: white border, white frame, polaroid, cubes, blocks, rectangular solids, 3d geometric shapes, abstract sculpture objects, static still life, overlapping squares, concentric circles, radar display, node graph, coordinate grid, dashboard UI, watermark, text overlay, stock illustration, generic AI art.",
+    "image_brief": "Signal Art: PYTHH is an oracle: futuristic, wise, all-knowing. She lives on the threshold of present and future.\nPYTHH the oracle reads 2026-06-28: execution velocity dominant — she sees 14 living signals flowing between today and tomorrow, aurora formation, sector aura Gaming. Sector tide: Gaming. Match tension: YipitData ↔ Sequoia Capital.\nPYTHH sees Alt-qq as a prophetic signal burning through the veil. Sci-fi oracle art — flowing alive signals, NOT static objects.\nLayout: aurora — alive ribbon energy sweeping through the void.\nPalette: #a78bfa (Gaming) — colors in motion, not decoration.\nSIGNAL LAYERS (for PYTHIA copy only):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 125°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.20, scale 1.11, rotation 149°, color #a78bfa\nLayer 3 (background): \"living color aura\" from Gaming · 627 cos — opacity 0.32, scale 1.07, rotation 4°, color #a78bfa\nLayer 4 (background): \"parallel thrust ribbons\" from Climate Tech · 279 cos — opacity 0.32, scale 1.08, rotation -12°\nLayer 5 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation -15°\nLayer 6 (midground): \"rushing river of light\" from Execution Velocity — opacity 0.67, scale 1.20, rotation 13°\nLayer 7 (midground): \"steady pillar of light\" from Founder Conviction — opacity 0.46, scale 0.93, rotation 36°\nLayer 8 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation 7°\nLayer 9 (foreground): \"converging luminescent streams\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 30°\nLayer 10 (foreground): \"surging aurora wave\" from News Momentum — opacity 0.22, scale 0.40, rotation -21°\nLayer 11 (foreground): \"intertwined energy filaments\" from Elevation Capital ↔ Underscore VC — opacity 0.59, scale 0.75, rotation 92.56497050635517°\nLayer 12 (foreground): \"intertwined energy filaments\" from Metorial ↔ Amino Capital — opacity 0.59, scale 0.75, rotation 64.56497050635517°\nLayer 13 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 36.564970506355166°\nLayer 14 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation 14°\nLighting: Prophetic dawn — Warm future breaking through — golden signals surging forward.\nNEVER include: white border, white frame, polaroid, cubes, blocks, rectangular solids, 3d geometric shapes, abstract sculpture objects, static still life, overlapping squares, concentric circles, radar display, node graph, coordinate grid, dashboard UI, watermark, text overlay, stock illustration, generic AI art.",
     "art_direction": "Signal Art",
     "layout_mode": "aurora",
     "signal_layers": 14,
@@ -490,12 +490,12 @@
     "sector_trends": [
       {
         "sector": "Gaming",
-        "count": 626,
+        "count": 627,
         "avg_score": 74
       },
       {
         "sector": "Climate Tech",
-        "count": 278,
+        "count": 279,
         "avg_score": 77
       },
       {
@@ -514,13 +514,13 @@
         "avg_score": 68
       }
     ],
-    "editorial": "Alt-qq's perfect God score underscores a critical moment in the gaming sector, where execution velocity—reflected in aggressive shipping and hiring—stands at 85%. With ten funding rounds today, capital is favoring startups that demonstrate rapid progress. YipitData’s alignment with Sequoia Capital signals a robust confidence in data-driven insights, making it essential for founders and VCs to prioritize agile execution in their strategies.",
+    "editorial": "Today, Alt-qq stands out with a perfect score of 100, driven by its product and traction in the gaming sector. The dominant signal of 85% execution velocity emphasizes a critical trend: startups are accelerating shipping and hiring to capitalize on market opportunities. With 10 funding rounds reported, investors should prioritize agile teams in gaming, climate tech, and developer tools.",
     "top_sectors": [
       "Gaming",
       "Climate Tech",
       "Developer Tools"
     ],
-    "signal_fingerprint": "Execution Velocity::85::Gaming|Climate Tech|Developer Tools::10::YipitData::100::Gaming:626:74::Climate Tech:278:77::YipitData:100::Metorial:100::execution_velocity:85::founder_language_shift:69::investor_receptivity:25",
+    "signal_fingerprint": "Execution Velocity::85::Gaming|Climate Tech|Developer Tools::10::YipitData::100::Gaming:627:74::Climate Tech:279:77::YipitData:100::Metorial:100::execution_velocity:85::founder_language_shift:69::investor_receptivity:25",
     "art_direction": {
       "id": "signal-art",
       "name": "Signal Art",
@@ -609,14 +609,14 @@
         },
         {
           "id": "sector-trend-0",
-          "label": "Gaming · 626 cos",
+          "label": "Gaming · 627 cos",
           "motif": "living color aura",
           "role": "background",
           "signal": "sector_trend"
         },
         {
           "id": "sector-trend-1",
-          "label": "Climate Tech · 278 cos",
+          "label": "Climate Tech · 279 cos",
           "motif": "parallel thrust ribbons",
           "role": "background",
           "signal": "sector_trend"
@@ -677,10 +677,10 @@
       "lightingStyle": "golden_hour",
       "aspectRatio": "1:1",
       "accentHex": "#a78bfa",
-      "narrative": "Signal Art: PYTHH is an oracle: futuristic, wise, all-knowing. She lives on the threshold of present and future.\nPYTHH the oracle reads 2026-06-28: execution velocity dominant — she sees 14 living signals flowing between today and tomorrow, aurora formation, sector aura Gaming. Sector tide: Gaming. Match tension: YipitData ↔ Sequoia Capital.\nPYTHH sees Alt-qq as a prophetic signal burning through the veil. Sci-fi oracle art — flowing alive signals, NOT static objects.\nLayout: aurora — alive ribbon energy sweeping through the void.\nPalette: #a78bfa (Gaming) — colors in motion, not decoration.\nSIGNAL LAYERS (for PYTHIA copy only):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 180°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.22, scale 1.10, rotation 147°, color #a78bfa\nLayer 3 (background): \"living color aura\" from Gaming · 626 cos — opacity 0.32, scale 1.07, rotation 58°, color #a78bfa\nLayer 4 (background): \"parallel thrust ribbons\" from Climate Tech · 278 cos — opacity 0.32, scale 1.08, rotation 3°\nLayer 5 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation 5°\nLayer 6 (midground): \"rushing river of light\" from Execution Velocity — opacity 0.67, scale 1.20, rotation -30°\nLayer 7 (midground): \"steady pillar of light\" from Founder Conviction — opacity 0.46, scale 0.93, rotation -22°\nLayer 8 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation -30°\nLayer 9 (foreground): \"converging luminescent streams\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 10°\nLayer 10 (foreground): \"surging aurora wave\" from News Momentum — opacity 0.22, scale 0.40, rotation -4°\nLayer 11 (foreground): \"intertwined energy filaments\" from Elevation Capital ↔ Underscore VC — opacity 0.59, scale 0.75, rotation 93.22891100496054°\nLayer 12 (foreground): \"intertwined energy filaments\" from Metorial ↔ Amino Capital — opacity 0.59, scale 0.75, rotation 65.22891100496054°\nLayer 13 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 37.22891100496054°\nLayer 14 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation -5°\nLighting: Prophetic dawn — Warm future breaking through — golden signals surging forward.\nNEVER include: white border, white frame, polaroid, cubes, blocks, rectangular solids, 3d geometric shapes, abstract sculpture objects, static still life, overlapping squares, concentric circles, radar display, node graph, coordinate grid, dashboard UI, watermark, text overlay, stock illustration, generic AI art.",
-      "visualPrompt": "Full-bleed cinematic sci-fi oracle artwork — edge to edge, no border, no frame, no white edges. Layout mode: aurora — alive ribbon energy sweeping through the void. This must visibly change the composition structure, not just palette. PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon. Like the moment before the future arrives — the air charged, colors building, motion everywhere, nothing still. Free-flow design is essential — long-exposure rivers of light, aurora ribbons, plasma currents, and prophetic energy streams in continuous motion. Nothing rigid, nothing still. Solar warmth is allowed only as flowing color (white-blue cores bleeding into orange-gold-red) — never nested elliptical loops, twin static cores, or rigid corona geometry. She is not abstract objects — no cubes, no blocks, no geometric solids, no static shapes. Everything is flowing, alive, and powerful. Her signals are sci-fi: rivers of colored light, plasma currents, aurora ribbons, prophetic energy streams — all in motion with vivid color. Sublime mysterious aura — a powerful oracle presence felt through radiating light, not a human figure. Signal motion today: prophetic rivers of light rushing forward — the future arriving fast; overwhelming forward motion — most of the canvas alive with flowing color; multiple parallel signal currents each a different hue and speed; motion blur and light trails on every flowing form; sector tide pulling color toward Gaming; intertwined match filaments — investor-startup tension visible as crossing light streams. Dominant sector tide: Gaming (626 companies, avg GOD 74). Color palette: rich sci-fi hues dominated by #a78bfa, with complementary electric tones — colors that move and blend like living energy. Futuristic, wise, all-knowing mood — the feeling of seeing what others cannot yet see. Prophetic dawn: Warm future breaking through — golden signals surging forward. Long-exposure flowing light, directional motion blur, ripples of prophetic energy expanding outward. No writing, no labels, no typography, no cubes, no blocks, no static objects.",
+      "narrative": "Signal Art: PYTHH is an oracle: futuristic, wise, all-knowing. She lives on the threshold of present and future.\nPYTHH the oracle reads 2026-06-28: execution velocity dominant — she sees 14 living signals flowing between today and tomorrow, aurora formation, sector aura Gaming. Sector tide: Gaming. Match tension: YipitData ↔ Sequoia Capital.\nPYTHH sees Alt-qq as a prophetic signal burning through the veil. Sci-fi oracle art — flowing alive signals, NOT static objects.\nLayout: aurora — alive ribbon energy sweeping through the void.\nPalette: #a78bfa (Gaming) — colors in motion, not decoration.\nSIGNAL LAYERS (for PYTHIA copy only):\nLayer 1 (background): \"deep void mist\" from 400 names in view — opacity 0.35, scale 1.00, rotation 125°\nLayer 2 (background): \"atmospheric color wash\" from Gaming — opacity 0.20, scale 1.11, rotation 149°, color #a78bfa\nLayer 3 (background): \"living color aura\" from Gaming · 627 cos — opacity 0.32, scale 1.07, rotation 4°, color #a78bfa\nLayer 4 (background): \"parallel thrust ribbons\" from Climate Tech · 279 cos — opacity 0.32, scale 1.08, rotation -12°\nLayer 5 (midground): \"parallel thrust ribbons\" from 10 capital moves — opacity 0.50, scale 1.05, rotation -15°\nLayer 6 (midground): \"rushing river of light\" from Execution Velocity — opacity 0.67, scale 1.20, rotation 13°\nLayer 7 (midground): \"steady pillar of light\" from Founder Conviction — opacity 0.46, scale 0.93, rotation 36°\nLayer 8 (foreground): \"abstract signal field\" from Investor Receptivity — opacity 0.28, scale 0.53, rotation 7°\nLayer 9 (foreground): \"converging luminescent streams\" from Capital Convergence — opacity 0.26, scale 0.49, rotation 30°\nLayer 10 (foreground): \"surging aurora wave\" from News Momentum — opacity 0.22, scale 0.40, rotation -21°\nLayer 11 (foreground): \"intertwined energy filaments\" from Elevation Capital ↔ Underscore VC — opacity 0.59, scale 0.75, rotation 92.56497050635517°\nLayer 12 (foreground): \"intertwined energy filaments\" from Metorial ↔ Amino Capital — opacity 0.59, scale 0.75, rotation 64.56497050635517°\nLayer 13 (foreground): \"tension filament bridge\" from YipitData ↔ Sequoia Capital — opacity 0.76, scale 0.94, rotation 36.564970506355166°\nLayer 14 (foreground): \"intensity bloom node\" from Alt-qq — opacity 0.57, scale 0.75, rotation 14°\nLighting: Prophetic dawn — Warm future breaking through — golden signals surging forward.\nNEVER include: white border, white frame, polaroid, cubes, blocks, rectangular solids, 3d geometric shapes, abstract sculpture objects, static still life, overlapping squares, concentric circles, radar display, node graph, coordinate grid, dashboard UI, watermark, text overlay, stock illustration, generic AI art.",
+      "visualPrompt": "Full-bleed cinematic sci-fi oracle artwork — edge to edge, no border, no frame, no white edges. Layout mode: aurora — alive ribbon energy sweeping through the void. This must visibly change the composition structure, not just palette. PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon. Like bioluminescent prophecy — living rivers of colored light spiraling through darkness, alive and breathing. Free-flow design is essential — long-exposure rivers of light, aurora ribbons, plasma currents, and prophetic energy streams in continuous motion. Nothing rigid, nothing still. Solar warmth is allowed only as flowing color (white-blue cores bleeding into orange-gold-red) — never nested elliptical loops, twin static cores, or rigid corona geometry. She is not abstract objects — no cubes, no blocks, no geometric solids, no static shapes. Everything is flowing, alive, and powerful. Her signals are sci-fi: rivers of colored light, plasma currents, aurora ribbons, prophetic energy streams — all in motion with vivid color. Sublime mysterious aura — a powerful oracle presence felt through radiating light, not a human figure. Signal motion today: prophetic rivers of light rushing forward — the future arriving fast; overwhelming forward motion — most of the canvas alive with flowing color; multiple parallel signal currents each a different hue and speed; motion blur and light trails on every flowing form; sector tide pulling color toward Gaming; intertwined match filaments — investor-startup tension visible as crossing light streams. Dominant sector tide: Gaming (627 companies, avg GOD 74). Color palette: rich sci-fi hues dominated by #a78bfa, with complementary electric tones — colors that move and blend like living energy. Futuristic, wise, all-knowing mood — the feeling of seeing what others cannot yet see. Prophetic dawn: Warm future breaking through — golden signals surging forward. Long-exposure flowing light, directional motion blur, ripples of prophetic energy expanding outward. Composition must feel like free-flow movement — curved ribbons, sweeping arcs, rivers of light in motion; avoid rigid geometry, nested loops, or static focal cores. No writing, no labels, no typography, no cubes, no blocks, no static objects.",
       "negative": "white border, white frame, polaroid, cubes, blocks, rectangular solids, 3d geometric shapes, abstract sculpture objects, static still life, overlapping squares, concentric circles, radar display, node graph, coordinate grid, dashboard UI, watermark, text overlay, stock illustration, generic AI art",
-      "seed": 2720698439,
+      "seed": 2815849641,
       "signalArt": {
         "direction": {
           "id": "signal-art",
@@ -727,7 +727,7 @@
             "zIndex": 0,
             "opacity": 0.35,
             "scale": 1,
-            "rotation": 180,
+            "rotation": 125,
             "x": 400,
             "y": 400
           },
@@ -738,12 +738,12 @@
             "motif": "atmospheric color wash",
             "role": "background",
             "zIndex": 1,
-            "opacity": 0.22473310514818878,
-            "scale": 1.0953168494976127,
-            "rotation": 147,
+            "opacity": 0.20337083235848696,
+            "scale": 1.1050335612264461,
+            "rotation": 149,
             "color": "#a78bfa",
-            "x": 349.6024012006819,
-            "y": 269.83804957941175
+            "x": 378.96165918558836,
+            "y": 295.66601695492864
           },
           {
             "id": "leading",
@@ -754,7 +754,7 @@
             "zIndex": 3,
             "opacity": 0.6663636363636364,
             "scale": 1.203846153846154,
-            "rotation": -30,
+            "rotation": 13,
             "intensity": 85,
             "x": 400,
             "y": 422
@@ -768,10 +768,10 @@
             "zIndex": 5,
             "opacity": 0.456,
             "scale": 0.9272727272727272,
-            "rotation": -22,
+            "rotation": 36,
             "intensity": 69,
-            "x": 677.1505205892026,
-            "y": 204.12902262061834
+            "x": 232.76338370516896,
+            "y": 221.0590186342597
           },
           {
             "id": "dimension-2",
@@ -782,10 +782,10 @@
             "zIndex": 6,
             "opacity": 0.28,
             "scale": 0.5272727272727272,
-            "rotation": -30,
+            "rotation": 7,
             "intensity": 25,
-            "x": 243.87808196246624,
-            "y": 313.12508422881365
+            "x": 572.7328784763813,
+            "y": 272.50439438968897
           },
           {
             "id": "dimension-3",
@@ -796,10 +796,10 @@
             "zIndex": 7,
             "opacity": 0.264,
             "scale": 0.4909090909090909,
-            "rotation": 10,
+            "rotation": 30,
             "intensity": 21,
-            "x": 267.0600830204785,
-            "y": 355.17332281917334
+            "x": 334.85531259328127,
+            "y": 179.76680926978588
           },
           {
             "id": "dimension-4",
@@ -810,37 +810,37 @@
             "zIndex": 8,
             "opacity": 0.22399999999999998,
             "scale": 0.4,
-            "rotation": -4,
+            "rotation": -21,
             "intensity": 11,
-            "x": 659.0063053742051,
-            "y": 604.7724327817559
+            "x": 307.4338663369417,
+            "y": 508.54745727032423
           },
           {
             "id": "sector-trend-0",
             "signal": "sector_trend",
-            "label": "Gaming · 626 cos",
+            "label": "Gaming · 627 cos",
             "motif": "living color aura",
             "role": "background",
             "zIndex": 1,
             "opacity": 0.32,
             "scale": 1.0699999999999998,
-            "rotation": 58,
+            "rotation": 4,
             "color": "#a78bfa",
             "x": 200,
-            "y": 313.52488808333874
+            "y": 353.1154738739133
           },
           {
             "id": "sector-trend-1",
             "signal": "sector_trend",
-            "label": "Climate Tech · 278 cos",
+            "label": "Climate Tech · 279 cos",
             "motif": "parallel thrust ribbons",
             "role": "background",
             "zIndex": 2,
             "opacity": 0.32,
             "scale": 1.085,
-            "rotation": 3,
+            "rotation": -12,
             "x": 420,
-            "y": 310.0563019886613
+            "y": 327.41785544902086
           },
           {
             "id": "capital",
@@ -851,8 +851,8 @@
             "zIndex": 2,
             "opacity": 0.5,
             "scale": 1.05,
-            "rotation": 5,
-            "x": 129.88580837845802,
+            "rotation": -15,
+            "x": 158.7504719849676,
             "y": 502
           },
           {
@@ -864,7 +864,7 @@
             "zIndex": 10,
             "opacity": 0.7571428571428571,
             "scale": 0.9355555555555556,
-            "rotation": 37.22891100496054,
+            "rotation": 36.564970506355166,
             "intensity": 100,
             "x": 310,
             "y": 462
@@ -878,9 +878,9 @@
             "zIndex": 9,
             "opacity": 0.5925,
             "scale": 0.7545454545454545,
-            "rotation": 65.22891100496054,
-            "x": 450.1685717422515,
-            "y": 406.3799827825278
+            "rotation": 64.56497050635517,
+            "x": 228.9841395802796,
+            "y": 194.89962859079242
           },
           {
             "id": "match-3",
@@ -891,9 +891,9 @@
             "zIndex": 8,
             "opacity": 0.5925,
             "scale": 0.7545454545454545,
-            "rotation": 93.22891100496054,
-            "x": 413.06762805208564,
-            "y": 334.1140999831259
+            "rotation": 92.56497050635517,
+            "x": 346.98540104553103,
+            "y": 338.25955227948725
           },
           {
             "id": "focal",
@@ -904,13 +904,13 @@
             "zIndex": 11,
             "opacity": 0.5700000000000001,
             "scale": 0.7533333333333333,
-            "rotation": -5,
+            "rotation": 14,
             "x": 400,
             "y": 382
           }
         ],
         "layerCount": 14,
-        "seedVariant": 4201
+        "seedVariant": 3010
       }
     },
     "raster_url": "https://unkpogyhhjbvxxjvmxlt.supabase.co/storage/v1/object/public/pythh-art/2026-06-28.jpg",
@@ -919,5 +919,5 @@
     "raster_model": "gemini-3.1-flash-image",
     "raster_error": null
   },
-  "generated_at": "2026-06-28T00:32:11.130Z"
+  "generated_at": "2026-06-28T03:23:09.252Z"
 }

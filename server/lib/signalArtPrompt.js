@@ -192,6 +192,7 @@ function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
     `Futuristic, wise, all-knowing mood — the feeling of seeing what others cannot yet see.`,
     `${lighting.label}: ${lighting.effect}.`,
     `Long-exposure flowing light, directional motion blur, ripples of prophetic energy expanding outward.`,
+    `Composition must feel like free-flow movement — curved ribbons, sweeping arcs, rivers of light in motion; avoid rigid geometry, nested loops, or static focal cores.`,
     `No writing, no labels, no typography, no cubes, no blocks, no static objects.`,
   ].filter(Boolean).join(' ');
 }

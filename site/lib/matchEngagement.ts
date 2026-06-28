@@ -16,7 +16,7 @@ export async function recordMatchEngagement(
   try {
     const res = await fetch(apiUrl('/api/matches/engage'), {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({
         startup_id: startupId,
@@ -72,7 +72,7 @@ export function trackFunnelEvent(
 
   return fetch(url, {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body,
     keepalive: true,
