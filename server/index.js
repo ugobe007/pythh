@@ -338,7 +338,7 @@ console.log('[pythh] /api/auth/supabase/callback + POST /api/auth/sync-supabase 
 // In production the TypeScript is pre-compiled, so we try both paths.
 (function mountPythhTrpcApi() {
   const hasTsxExtension = !!require.extensions['.ts'];
-  const tsEntry = path.join(__dirname, '..', 'NEW_pythh_site', 'trpcExpressMount.ts');
+  const tsEntry = path.join(__dirname, '..', 'site', 'trpcExpressMount.ts');
   const jsEntry = path.join(__dirname, '..', 'dist', 'trpcExpressMount.js');
   const entry = hasTsxExtension ? tsEntry : (require('fs').existsSync(jsEntry) ? jsEntry : null);
 
@@ -354,7 +354,7 @@ console.log('[pythh] /api/auth/supabase/callback + POST /api/auth/sync-supabase 
     const { mountPythhTrpc } = require(entry);
     mountPythhTrpc(app);
     pythhTrpcMounted = true;
-    console.log('[pythh] /api/trpc mounted (NEW_pythh_site)');
+    console.log('[pythh] /api/trpc mounted (site/)');
   } catch (err) {
     console.error('[pythh] Failed to mount /api/trpc:', err.message);
     app.use('/api/trpc', (_req, res) => {

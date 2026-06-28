@@ -75,7 +75,7 @@ description: Registered Pythh art direction — digital abstract layered composi
 | Gemini raster | `server/lib/signalArtGemini.js` |
 | Artist copy | `server/lib/signalArtCopy.js` |
 | CLI | `scripts/generate-pythh-art.mjs` |
-| Page | `NEW_pythh_site/pages/Art.tsx` |
+| Page | `site/pages/Art.tsx` |
 
 ## Negative prompt (always apply)
 

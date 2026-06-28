@@ -1,7 +1,8 @@
 # Pythh.ai — Cursor Copilot Handoff
 
-> **Scope:** This file describes the **`NEW_pythh_site/` prototype stack** (tRPC, Drizzle, etc.) — not the live hot-honey monolith.  
-> **Production pythh.ai (Vite + `server/index.js` + Fly + Vercel):** use repo root **`../PYTHH_AI_CURSOR_COPILOT_HANDOFF.md`**.
+> **Scope:** Product/stack notes for the **`site/`** frontend (pythh.ai).  
+> **Repo overview + deploy:** repo root **`../PYTHH_AI_CURSOR_COPILOT_HANDOFF.md`**.  
+> **Legacy frontend:** `../src/` (not built for production).
 
 ---
 

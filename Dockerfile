@@ -58,12 +58,12 @@ COPY --from=builder /app/lib ./lib
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/ecosystem.prod.config.js ./ecosystem.prod.config.js
 COPY --from=builder /app/run-ml-training.js ./run-ml-training.js
-# NEW_pythh_site TypeScript source — needed so /api/trpc mounts at runtime via tsx
-COPY --from=builder /app/NEW_pythh_site ./NEW_pythh_site
+# site/ TypeScript source — needed so /api/trpc mounts at runtime via tsx
+COPY --from=builder /app/site ./site
 # Growth experiment registry — assignVariant reads this at runtime (also synced to Supabase)
 COPY --from=builder /app/agents/growth ./agents/growth
 # Remove the nested node_modules and dist (use root node_modules; frontend already in /app/dist)
-RUN rm -rf /app/NEW_pythh_site/node_modules /app/NEW_pythh_site/dist
+RUN rm -rf /app/site/node_modules /app/site/dist
 
 # Set production environment (FLY_APP_NAME so app uses 8080 when on Fly)
 ENV NODE_ENV=production

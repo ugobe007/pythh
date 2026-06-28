@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
-/** Production UI: NEW_pythh_site (pythh.ai redesign). Legacy app remains under src/ (not built here). */
-const newSiteRoot = path.resolve(__dirname, 'NEW_pythh_site');
+/** Production UI: site/ (pythh.ai). Legacy frontend remains under src/ (not built). */
+const siteRoot = path.resolve(__dirname, 'site');
 const repoPublic = path.resolve(__dirname, 'public');
 
 /** Injected into dist/index.html so View Source shows which Git commit Vercel built (debug stale deploys). */
@@ -26,7 +26,7 @@ function pythhBuildMetaPlugin(): Plugin {
 }
 
 export default defineConfig({
-  root: newSiteRoot,
+  root: siteRoot,
   publicDir: repoPublic,
   plugins: [
     react(),
@@ -41,8 +41,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': newSiteRoot,
-      '@shared': path.join(newSiteRoot, 'shared'),
+      '@': siteRoot,
+      '@shared': path.join(siteRoot, 'shared'),
     },
   },
   server: {
@@ -63,7 +63,7 @@ export default defineConfig({
     },
   },
   build: {
-    // Default `dist` is relative to `root`, which would be NEW_pythh_site/dist — Vercel + Fly expect repo-root dist/.
+    // Default `dist` is relative to `root`, which would be site/dist — Vercel + Fly expect repo-root dist/.
     outDir: path.resolve(__dirname, 'dist'),
     cssCodeSplit: false,
     modulePreload: { polyfill: false },

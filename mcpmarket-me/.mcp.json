@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "mcpmarket-me": {
+      "url": "https://link.mcpmarket.com/ugobe07/toolkits/me/mcp",
+      "headers": {
+        "Authorization": "Bearer sk_user_y-nTmfytRJyq7yStUPfH9PH8StFyUfu3"
+      }
+    }
+  }
+}

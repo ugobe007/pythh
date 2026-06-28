@@ -76,7 +76,7 @@ modes in 48h and (b) populate the match-engine inventory the investor digest dep
 
 - `scripts/product-metrics-snapshot.mjs` — add `funnel` heartbeat block.
 - Preview route handlers (`/matches?url=`, `/matches/preview/:id`) — emit `preview_requested` to `startup_events`.
-- Preview + match UI surfaces (NEW_pythh_site) — confirm `engage` view/intro fire.
+- Preview + match UI surfaces (`site/`) — confirm `engage` view/intro fire.
 - `server/lib/growthExperiments` — verify event write path is reached.
 
 ## Rollout & measurement

@@ -1,5 +1,5 @@
 /**
- * Growth experiment assignment (NEW_pythh_site).
+ * Growth experiment assignment (site/).
  */
 
 export type GrowthAudience = 'founder' | 'investor';

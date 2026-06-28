@@ -78,7 +78,7 @@ function supabaseConfig() {
 }
 
 async function upsertUser(row) {
-  const { upsertUser: fn } = require('../../NEW_pythh_site/db.ts');
+  const { upsertUser: fn } = require('../../site/db.ts');
   return fn(row);
 }
 

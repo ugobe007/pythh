@@ -1,6 +1,6 @@
 /**
  * Seed script — populates pythh_investors with curated signal records.
- * Run from repo root: npx tsx NEW_pythh_site/seed-investors.mjs
+ * Run from repo root: npx tsx site/seed-investors.mjs
  *
  * Signal fields are stored as integers × 10 (e.g. 86 → 8.6 displayed).
  */

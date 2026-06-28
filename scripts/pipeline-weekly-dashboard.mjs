@@ -198,7 +198,7 @@ async function main() {
       id: 'engagement_blind',
       severity: mt.viewed === 0 && mt.total > 0 ? 'critical' : 'info',
       observation: `Match engagement: ${mt.viewed} viewed, ${mt.intro_requested} intros, ${mt.contacted} contacted, ${mt.feedback_true} with feedback.`,
-      action: 'Engagement API live at POST /api/matches/engage — wire view/intro in NEW_pythh_site preview + match surfaces.',
+      action: 'Engagement API live at POST /api/matches/engage — wire view/intro in site/ preview + match surfaces.',
     },
     {
       id: 'god_component_gap',

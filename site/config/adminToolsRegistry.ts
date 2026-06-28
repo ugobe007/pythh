@@ -1,4 +1,4 @@
-/** Admin tools for pythh.ai (NEW_pythh_site production build). */
+/** Admin tools for pythh.ai (site/ production build). */
 
 export type AdminToolCategory = "scoring" | "matching" | "data" | "pipeline" | "outreach" | "system";
 

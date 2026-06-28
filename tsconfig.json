@@ -13,11 +13,11 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["NEW_pythh_site/*"],
-      "@shared/*": ["NEW_pythh_site/shared/*"]
+      "@/*": ["site/*"],
+      "@shared/*": ["site/shared/*"]
     },
     "types": ["vite/client"]
   },
-  "include": ["NEW_pythh_site/**/*"],
-  "exclude": ["node_modules", "server", "src", "NEW_pythh_site/**/*.test.ts", "NEW_pythh_site/**/*.test.tsx"]
+  "include": ["site/**/*"],
+  "exclude": ["node_modules", "server", "src", "site/**/*.test.ts", "site/**/*.test.tsx"]
 }

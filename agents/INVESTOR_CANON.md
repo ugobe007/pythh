@@ -63,7 +63,7 @@ Investor portfolios are **user-owned books** via `/api/investor-lookup/portfolio
 ### Next (backlog — do not over-promise in copy)
 
 - Enforced **10-pick cap** + pick counter UI
-- **Portfolio dashboard** in `NEW_pythh_site` (port from `src/pages/InvestorPortfolioPage.tsx`)
+- **Portfolio dashboard** in `site/` (port from `src/pages/InvestorPortfolioPage.tsx`)
 - **Weekly portfolio delta** email (“3 of your 10 moved this week”)
 - **Compare** investor picks vs Oracle fund / sector benchmark
 

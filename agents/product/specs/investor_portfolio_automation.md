@@ -21,7 +21,7 @@ Investors sign up but lack a sticky, differentiated reason to stay. Founders get
 |------|--------|
 | Cap | **10 startups** per investor (`investor_portfolio_picks` or enforce on `investor_lookup_list_items`) |
 | API | Extend `POST /api/investor-lookup/portfolio/items` — 409 at cap, return `{ picks_used, picks_max }` |
-| UI | Portfolio page in `NEW_pythh_site` — pick list, GOD delta since entry, link to `/portfolio/:id` detail |
+| UI | Portfolio page in `site/` — pick list, GOD delta since entry, link to `/portfolio/:id` detail |
 | Signup complete | CTA: “Pick your first 3 from explore” |
 | Events | `investor_portfolio_pick_added`, `investor_portfolio_cap_reached` |
 
@@ -29,7 +29,7 @@ Existing infra:
 
 - `server/routes/investorLookup.js` — virtual portfolio list
 - `server/services/investorLookupService.js` — `getOrCreateVirtualPortfolioListId`
-- `src/pages/InvestorPortfolioPage.tsx` — reference UI (port to NEW_pythh_site)
+- `src/pages/InvestorPortfolioPage.tsx` — reference UI (ported to site/)
 - Public Oracle fund: `/portfolio`, `virtual_portfolio` table (separate from investor picks)
 
 ### Phase 2 — Portfolio delta loop (≤2 weeks)

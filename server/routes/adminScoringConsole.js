@@ -1,6 +1,6 @@
 /**
  * Admin scoring console — GOD manager + signal summary (REST for main app).
- * Mirrors NEW_pythh_site tRPC admin procedures.
+ * Mirrors site/ tRPC admin procedures.
  */
 
 const express = require("express");

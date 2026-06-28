@@ -1,5 +1,5 @@
 /**
- * API base for NEW_pythh_site on pythh.ai (Vercel).
+ * API base for site/ on pythh.ai (Vercel).
  * Prefer same-origin `/api/...` so vercel.json proxies to Fly — avoids CORS and keeps URLs on pythh.ai.
  */
 
