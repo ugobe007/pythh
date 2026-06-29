@@ -1,7 +1,23 @@
 {
   "version": 1,
-  "updated_at": "2026-06-28T00:00:00Z",
+  "updated_at": "2026-06-29T00:00:00Z",
   "opportunities": [
+    {
+      "id": "funnel_truth_weakest_stage",
+      "domain": "growth",
+      "priority": "P0",
+      "status": "building",
+      "title": "Funnel truth — stop mis-diagnosing the binding leak (awareness scored as healthiest while dead)",
+      "problem": "weakestStage() ranks awareness HEALTHIEST at url_submitted_per_page_view=54800% (3288 human-sourced urls / 6 page_views) and blames 'Visit->preview 0%'. Preview is downstream noise of a dead top-of-funnel (6 human page_views/7d). Four preview loops shipped this month all fire ~0x because ~6 humans reach them.",
+      "hypothesis": "Scoring awareness as BLIND when page_view<20/7d or url:pv>100%, surfacing funnel_blind_flags, and requiring session-correlated page_view before counting human url_submitted will flip weakest_stage to awareness and stop steering build effort at a phantom leak.",
+      "metric": "weakest_stage_correctly_identified",
+      "baseline": "weakest_stage=preview (artifact); awareness ranked healthiest at 54800%; 6 page_views/7d; ~99.9% synthetic url_submitted",
+      "target": "weakest_stage flips to awareness; funnel_blind_flags.awareness_blind=true; page_view_7d > 20 within 14d OR awareness confirmed dead -> Growth outbound becomes P0",
+      "next_step": "Ship Changes 1+2 (orchestrator-brief weakestStage + funnel_blind_flags) day one; Change 3 (session-correlated human url_submitted in funnelTelemetry.js) within the week. See spec.",
+      "spec": "agents/product/specs/funnel_truth_weakest_stage.md",
+      "finding_id": null,
+      "related_experiments": []
+    },
     {
       "id": "preview_to_signup_conversion",
       "domain": "growth",
@@ -142,7 +158,7 @@
       "metric": "return_visit_7d",
       "baseline": "4 return_visit_7d; 0% return_visit_per_preview",
       "target": "20% return within 7d of first preview; match_intro_rate > 0",
-      "next_step": "Signal delta teaser always shown when movement data exists; email capture + return_visit_7d hook live. Monitor return_visit_per_preview.",
+      "next_step": "HALT new preview loops — funnel_truth_weakest_stage shows ~6 human page_views/7d, so shipped loops (evidence_strip=0, match_explain=0, delta=1, oracle_gap=1) are traffic-starved, not broken. Re-evaluate after awareness is instrumented + fed.",
       "related_experiments": ["founder_hero_entry"]
     },
     {
@@ -156,7 +172,7 @@
       "metric": "url_submitted_per_day",
       "baseline": "~469 url_submitted/day (mostly API); 6 page_view/7d",
       "target": "2x outbound-attributed url_submitted; page_view > 100/week",
-      "next_step": "Home page_view shipped 2026-06-28; outbound Wed 9:30 UTC; filter utm_source in conversion:funnel.",
+      "next_step": "ESCALATING: page_view shipped on Home/FindInvestors/Matches/Art yet only 6 fire/7d — awareness is the TRUE binding constraint (see funnel_truth_weakest_stage). Audit why page_view under-fires + Growth outbound to /find-investors becomes P0 once the diagnostic flips.",
       "related_experiments": ["founder_hero_entry"]
     },
     {

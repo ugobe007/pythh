@@ -18,22 +18,15 @@ dotenv.config();
 
 const require = createRequire(import.meta.url);
 const { createClient } = require('@supabase/supabase-js');
-const { getFunnelCounts, latestHeartbeatReport } = require('../server/lib/funnelTelemetry.js');
+const { getFunnelCounts, latestHeartbeatReport, countUiInstantMatchesViewed } = require('../server/lib/funnelTelemetry.js');
 
 const JSON_OUT = process.argv.includes('--json');
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const reportsDir = path.join(repoRoot, 'reports');
 
-async function countRecentNonProbe(supabase, operation, hours = 24) {
+async function countRecentUiPreview(supabase, hours = 24) {
   const since = new Date(Date.now() - hours * 3_600_000).toISOString();
-  const { count } = await supabase
-    .from('ai_logs')
-    .select('*', { count: 'exact', head: true })
-    .eq('operation', operation)
-    .gte('created_at', since)
-    .or('output->>source.is.null,output->>source.neq.funnel_probe')
-    .is('output->probe_run_id', null);
-  return count ?? 0;
+  return countUiInstantMatchesViewed(supabase, since, { excludeProbes: true });
 }
 
 async function main() {
@@ -43,8 +36,19 @@ async function main() {
   );
 
   const funnel7 = await getFunnelCounts(sb, { days: 7, excludeProbes: true });
-  const preview24h = await countRecentNonProbe(sb, 'instant_matches_viewed', 24);
-  const pageView24h = await countRecentNonProbe(sb, 'page_view', 24);
+  const hf = funnel7.human_funnel || {};
+  const preview24h = await countRecentUiPreview(sb, 24);
+  const pageView24h = await (async () => {
+    const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+    const { count } = await sb
+      .from('ai_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('operation', 'page_view')
+      .gte('created_at', since)
+      .or('output->>source.is.null,output->>source.neq.funnel_probe')
+      .is('output->probe_run_id', null);
+    return count ?? 0;
+  })();
   const heartbeat = latestHeartbeatReport(reportsDir);
 
   const checks = [
@@ -60,7 +64,7 @@ async function main() {
       id: 'instant_matches_viewed_24h',
       ok: preview24h > 0,
       count: preview24h,
-      detail: preview24h > 0 ? `${preview24h} real preview views in 24h` : 'No non-probe instant_matches_viewed in 24h',
+      detail: preview24h > 0 ? `${preview24h} UI preview views in 24h` : 'No UI instant_matches_viewed (matches_preview) in 24h',
     },
     {
       id: 'page_view_24h',
@@ -71,9 +75,9 @@ async function main() {
     {
       id: 'preview_view_rate_7d',
       ok:
-        (funnel7.ai_logs.url_submitted || 0) < 20 ||
-        (funnel7.ai_logs.instant_matches_viewed || 0) / (funnel7.ai_logs.url_submitted || 1) >= 0.05,
-      detail: `7d preview_view_per_url: ${funnel7.ai_logs.instant_matches_viewed || 0}/${funnel7.ai_logs.url_submitted || 0}`,
+        (hf.url_submitted || 0) < 5 ||
+        (hf.instant_matches_viewed || 0) / Math.max(hf.url_submitted || 1, 1) >= 0.3,
+      detail: `7d human preview/human url: ${hf.instant_matches_viewed || 0}/${hf.url_submitted || 0} (raw: ${funnel7.ai_logs.instant_matches_viewed || 0}/${funnel7.ai_logs.url_submitted || 0})`,
     },
   ];
 

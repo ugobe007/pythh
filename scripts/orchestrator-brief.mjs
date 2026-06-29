@@ -46,16 +46,20 @@ function rate(num, denom) {
 function buildOrchestratorRates(funnel) {
   const rates = funnel?.rates || {};
   const s = funnel?.stages || {};
+  const hf = funnel?.human_funnel || {};
   const signups =
     (s.founder_signup_completed_all ?? s.founder_signup_completed ?? 0) +
     (s.investor_signup_completed ?? 0);
-  const previewViews = s.instant_matches_viewed || 0;
+  const previewViews = (s.instant_matches_viewed_ui ?? hf.instant_matches_viewed ?? s.instant_matches_viewed) || 0;
+  const humanUrlSubmitted = s.url_submitted_human ?? hf.url_submitted ?? s.url_submitted ?? 0;
+  const humanPageViews = hf.page_view ?? s.page_view ?? 0;
   const previewDenom = previewViews || s.preview_requested || 0;
 
   return {
     ...rates,
-    url_submitted_per_page_view: rate(s.url_submitted, s.page_view),
-    preview_per_url_submitted: rates.preview_view_per_url ?? rate(previewViews, s.url_submitted),
+    url_submitted_per_page_view: rates.url_submitted_per_page_view ?? rate(humanUrlSubmitted, humanPageViews),
+    preview_per_url_submitted: rates.preview_view_per_human_url ?? rates.preview_per_url_submitted ?? rate(previewViews, humanUrlSubmitted),
+    preview_per_page_view: rates.preview_view_per_page_view ?? rate(previewViews, humanPageViews),
     signup_per_preview: rates.signup_per_preview ?? rate(signups, previewDenom),
     first_match_per_signup: rate(s.match_viewed, signups),
     return_7d: rates.return_visit_per_preview ?? rate(s.return_visit_7d, previewViews),
@@ -63,11 +67,61 @@ function buildOrchestratorRates(funnel) {
   };
 }
 
+const PAGE_VIEW_FLOOR_7D = 20;
+
+function buildFunnelBlindFlags(funnel, rates) {
+  const s = funnel?.stages || {};
+  const hf = funnel?.human_funnel || {};
+  const humanPageViews = hf.page_view ?? s.page_view ?? 0;
+  const urlPerPv = rates.url_submitted_per_page_view;
+  const previewViews = (s.instant_matches_viewed_ui ?? hf.instant_matches_viewed ?? s.instant_matches_viewed) || 0;
+
+  const awarenessBlind =
+    humanPageViews < PAGE_VIEW_FLOOR_7D || (urlPerPv != null && urlPerPv > 100);
+  const previewBlind = humanPageViews < PAGE_VIEW_FLOOR_7D && previewViews < 5;
+
+  return {
+    awareness: awarenessBlind,
+    preview: previewBlind,
+    human_page_views_7d: humanPageViews,
+    url_submitted_per_page_view: urlPerPv,
+    note: 'BLIND stages are uncomputable — do not ship UI loops targeting them until instrumented.',
+  };
+}
+
 function weakestStage(funnel) {
   const rates = buildOrchestratorRates(funnel);
+  const s = funnel?.stages || {};
+  const hf = funnel?.human_funnel || {};
+  const humanPageViews = hf.page_view ?? s.page_view ?? 0;
+  const urlPerPv = rates.url_submitted_per_page_view;
+  const blind = buildFunnelBlindFlags(funnel, rates);
+
+  const awarenessBlind = blind.awareness;
+  const awarenessScore = awarenessBlind ? 0 : 100;
+
+  const previewRate = rates.preview_per_page_view ?? rates.preview_per_url_submitted;
+  const previewScore = blind.preview ? 0 : previewRate == null ? -1 : previewRate;
+
   const stages = [
-    { id: 'awareness', label: 'Awareness / traffic', rate: rates.url_submitted_per_page_view, problem: 'Almost no one discovers Pythh — outbound and SEO are underpowered.' },
-    { id: 'preview', label: 'Visit → preview', rate: rates.preview_per_url_submitted, problem: 'URLs submitted but preview not viewed — hero/preview path is leaking.' },
+    {
+      id: 'awareness',
+      label: 'Awareness / traffic',
+      rate: awarenessScore,
+      blind: awarenessBlind,
+      problem: awarenessBlind
+        ? `Human top-of-funnel dead/uninstrumented: ${humanPageViews} page_views/7d, url:pv=${urlPerPv ?? '—'}%. Fix awareness BEFORE preview/signup loops — downstream rates uncomputable.`
+        : 'Awareness healthy — optimize conversion downstream.',
+    },
+    {
+      id: 'preview',
+      label: 'Visit → preview',
+      rate: previewScore,
+      blind: blind.preview,
+      problem: blind.preview
+        ? `Preview stage uncomputable — only ${humanPageViews} human page views/7d. Drive outbound to /find-investors first.`
+        : 'Human visitors submit URL but UI preview does not render — hero must route to /matches?url=.',
+    },
     { id: 'signup', label: 'Preview → signup', rate: rates.signup_per_preview, problem: 'Founders see value then leave — gate, CTA, or trust gap.' },
     { id: 'use', label: 'Signup → first use', rate: rates.first_match_per_signup, problem: 'Accounts created but no match engagement — activation failure.' },
     { id: 'return', label: 'Return visit', rate: rates.return_7d, problem: 'No addiction loop — one-and-done visits.' },
@@ -75,14 +129,14 @@ function weakestStage(funnel) {
   ];
 
   const scored = stages
-    .map((s) => ({
-      ...s,
-      score: s.rate == null ? -1 : s.rate,
+    .map((st) => ({
+      ...st,
+      score: st.rate == null ? -1 : st.rate,
     }))
     .sort((a, b) => a.score - b.score);
 
-  const worst = scored.find((s) => s.score >= 0) || scored[0];
-  return worst;
+  const worst = scored.find((st) => st.score >= 0) || scored[0];
+  return { stage: worst, blind };
 }
 
 function pickLoopsForStage(stageId) {
@@ -111,7 +165,7 @@ function main() {
   });
 
   const funnel = latestFunnelReport();
-  const weak = weakestStage(funnel);
+  const { stage: weak, blind: funnelBlindFlags } = weakestStage(funnel);
   const northStar = readJson(path.join(repoRoot, 'agents/north-star.json'));
 
   const brief = {
@@ -132,8 +186,10 @@ function main() {
     funnel_snapshot: {
       window_days: funnel?.window_days ?? 7,
       stages: funnel?.stages ?? {},
+      human_funnel: funnel?.human_funnel ?? {},
       conversion_rates: buildOrchestratorRates(funnel),
     },
+    funnel_blind_flags: funnelBlindFlags,
     weakest_stage: weak,
     todays_focus: {
       primary: weak?.problem || 'Close preview→signup leak and instrument every stage.',
@@ -158,7 +214,7 @@ function main() {
     console.log(JSON.stringify(brief, null, 2));
   } else {
     console.log('\n🎯 Orchestrator brief');
-    console.log(`   Weakest stage: ${weak?.label} (${weak?.score ?? 'unknown'}%)`);
+    console.log(`   Weakest stage: ${weak?.label} (${weak?.score ?? 'unknown'}${weak?.blind ? ', BLIND' : ''})`);
     console.log(`   Focus: ${brief.todays_focus.primary}`);
     console.log(`   Written: ${outFile}\n`);
   }

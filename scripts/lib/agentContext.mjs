@@ -55,7 +55,16 @@ export function buildAgentPrioritiesBlock(repoRoot) {
     lines.push('- Agent priorities (from live funnel):');
     for (const p of priorities) lines.push(`  · ${p}`);
   }
-  if (funnel?.stages) {
+  if (funnel?.human_funnel || funnel?.stages) {
+    const s = funnel.stages || {};
+    const hf = funnel.human_funnel || {};
+    lines.push(
+      `- Human funnel (7d): page_view=${hf.page_view ?? s.page_view ?? 0}, url_submitted=${hf.url_submitted ?? s.url_submitted_human ?? 0}, ui_preview=${hf.instant_matches_viewed ?? s.instant_matches_viewed_ui ?? 0}`,
+    );
+    lines.push(
+      `- Raw (noisy): url_submitted=${s.url_submitted ?? 0}, instant_matches_viewed=${s.instant_matches_viewed ?? 0}, preview_api_served=${hf.preview_api_served ?? s.preview_api_served ?? 0}`,
+    );
+  } else if (funnel?.stages) {
     const s = funnel.stages;
     lines.push(
       `- 7d snapshot: page_view=${s.page_view ?? 0}, url_submitted=${s.url_submitted ?? 0}, instant_matches_viewed=${s.instant_matches_viewed ?? 0}, match_intro=${s.match_intro_requested ?? 0}, return_7d=${s.return_visit_7d ?? 0}, pricing_viewed=${s.pricing_viewed ?? 0}`,

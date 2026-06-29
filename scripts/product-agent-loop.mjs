@@ -17,12 +17,17 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
+import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
 
 dotenv.config();
 
 const require = createRequire(import.meta.url);
 const root = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(root, '..');
+
+const { SHIP, PUSH } = parseAgentShipFlags();
+const shipBlock = buildShipPolicyBlock({ SHIP, PUSH });
+const funnelBlock = buildFunnelMandateBlock();
 
 const DRY_RUN = process.argv.includes('--dry-run') || process.argv.includes('--plan');
 const maxTurnsArg = process.argv.find((a) => a.startsWith('--max-turns='));
@@ -33,24 +38,28 @@ const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 4;
 const date = new Date().toISOString().slice(0, 10);
 
 const PROMPT = `You are the Pythh Product Agent. Follow agents/ORCHESTRATOR.md and agents/product/CLAUDE.md.
+${funnelBlock}
+${shipBlock}
 
 Read reports/orchestrator-brief-${date}.json (or latest orchestrator-brief-*.json) FIRST.
 
 Run this product improvement cycle now:
 0. Read latest reports/research-agent-*.json and agents/research/briefs/ if present
-1. node scripts/product-metrics-snapshot.mjs --json
-2. Read agents/product/opportunity-registry.json and agents/product/domains.json
-3. Read agents/growth/experiment-registry.json
-4. Pick the single highest-leverage gap — prioritize weakest orchestrator funnel stage + habit loops + analytics blind spots
-5. Produce ONE deliverable: feature spec (with engagement loop + voice example), service design, experiment proposal, pipeline action, or analytics fix
-   - If spec: write agents/product/specs/<opportunity-id>.md
-6. Update opportunity-registry.json statuses/next_step (max one new opportunity)
-7. Write reports/product-agent-${date}.json with summary, decision, deliverable, backlog_changes, active_engagement
-8. npm run test:wizard-smoke (skip if network fails — note in report)
+1. node scripts/conversion-funnel-snapshot.mjs --json  (use human_funnel, not raw url_submitted)
+2. node scripts/product-metrics-snapshot.mjs --json
+3. Read agents/product/opportunity-registry.json and agents/product/domains.json
+4. Read agents/growth/experiment-registry.json
+5. Pick the single highest-leverage gap — prioritize weakest orchestrator funnel stage (usually Visit→preview or Preview→signup)
+6. IMPLEMENT one shippable fix in site/ or server/ when the gap is instrumentation or UX (not just a spec)
+   - Examples: hero→/matches routing, source-tagged events, preview gate CTA, human funnel filters
+   - If spec still needed: write agents/product/specs/<opportunity-id>.md
+7. Update opportunity-registry.json statuses/next_step (max one new opportunity)
+8. Write reports/product-agent-${date}.json with summary, decision, deliverable, code_changes, backlog_changes, active_engagement
+9. npm run test:wizard-smoke && npm run conversion:funnel (note results in report)
 
-Voice: picky + skeptical + motivating. No passive specs.
+Voice: picky + skeptical + motivating. No passive specs when code can fix the leak.
 
-Do not git commit or deploy. End with executive summary in the report JSON.`;
+End with executive summary in the report JSON.`;
 
 async function preflight() {
   console.log('💓 Preflight: funnel heartbeat…');

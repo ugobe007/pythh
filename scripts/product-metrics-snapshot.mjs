@@ -184,13 +184,15 @@ async function main() {
     console.log(`   P0 backlog open: ${p0Open.length}`);
     console.log(`   Growth experiments: ${report.summary.growth_experiments_running}`);
     if (funnel && !funnel.error) {
+      const hf = funnel.human_funnel || {};
       const p = funnel.ai_logs?.preview_requested ?? 0;
       const u = funnel.ai_logs?.url_submitted ?? 0;
       const g = funnel.growth_events || {};
-      const imv = funnel.ai_logs?.instant_matches_viewed ?? 0;
-      console.log(`   Funnel (7d): url_submitted=${u} preview_requested=${p}`);
+      const imvUi = hf.instant_matches_viewed ?? funnel.ai_logs?.instant_matches_viewed ?? 0;
+      console.log(`   Funnel (7d human): page_view=${hf.page_view ?? 0} url=${hf.url_submitted ?? 0} ui_preview=${imvUi}`);
+      console.log(`   Funnel (7d raw/noisy): url_submitted=${u} preview_requested=${p}`);
       console.log(
-        `   Founder: instant_matches_viewed=${imv} signup_started=${g.founder_signup_started ?? 0} completed=${g.founder_signup_completed ?? 0}`,
+        `   Founder: ui_preview=${imvUi} signup_started=${g.founder_signup_started ?? 0} completed=${g.founder_signup_completed ?? 0}`,
       );
       if (funnel.rates?.founder_preview_to_started != null) {
         console.log(

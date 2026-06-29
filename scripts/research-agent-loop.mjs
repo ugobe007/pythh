@@ -14,12 +14,17 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
+import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
 
 dotenv.config();
 
 const require = createRequire(import.meta.url);
 const root = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(root, '..');
+
+const { SHIP, PUSH } = parseAgentShipFlags();
+const shipBlock = buildShipPolicyBlock({ SHIP, PUSH });
+const funnelBlock = buildFunnelMandateBlock();
 
 const DRY_RUN = process.argv.includes('--dry-run') || process.argv.includes('--plan');
 const maxTurnsArg = process.argv.find((a) => a.startsWith('--max-turns='));
@@ -30,23 +35,25 @@ const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 3;
 const date = new Date().toISOString().slice(0, 10);
 
 const PROMPT = `You are the Pythh Research Sub-Agent. Follow agents/ORCHESTRATOR.md and agents/research/CLAUDE.md.
+${funnelBlock}
+${shipBlock}
 
 Read reports/orchestrator-brief-${date}.json (or latest orchestrator-brief-*.json) FIRST.
 
 Survey the market and funding workflow for signals that inform Pythh product strategy.
-North star: 100 signups/day (see agents/north-star.json). Focus on distrust, preview bounce, and competitor retention loops.
+North star: 100 signups/day (see agents/north-star.json). Focus on synthetic-traffic mirage, human awareness collapse, preview bounce.
 
 Run this research cycle now:
-1. node scripts/research-snapshot.mjs --json
+1. node scripts/research-snapshot.mjs --json && node scripts/conversion-funnel-snapshot.mjs --json
 2. Read agents/research/friction-taxonomy.json and agents/research/signal-sources.json
 3. Read agents/research/findings-registry.json
 4. Analyze RSS + internal startup_events for workflow friction, missing data, funding pain, skepticism patterns
 5. Consider 3–5 product/service ideas that create habit loops (not one-shot landing pages)
 6. Update agents/research/findings-registry.json with ranked findings (max 5 new)
 7. Write agents/research/briefs/${date}-market-brief.md (1-page human brief)
-8. Write reports/research-agent-${date}.json with signup_velocity, top problems, market_opportunities, recommended_for_product_backlog, active_engagement_ideas
+8. Write reports/research-agent-${date}.json with signup_velocity, human_funnel_summary, top problems, market_opportunities, recommended_for_product_backlog, active_engagement_ideas
 
-Do not git commit or deploy. Hand off high-confidence items to Product Agent via handoff block in findings.`;
+Hand off high-confidence items to Product Agent via handoff block in findings.`;
 
 async function preflight() {
   console.log('💓 Preflight: funnel heartbeat…');

@@ -82,7 +82,8 @@ const agentsToRun = FULL
 console.log(`\n🤖 LLM agents: ${agentsToRun.map((a) => a.agent).join(', ')} (UTC day ${utcDay})\n`);
 
 for (const a of agentsToRun) {
-  runNode(`${a.agent} agent`, a.script, a.args, { allowFail: true });
+  const shipArgs = process.env.AGENT_ALLOW_SHIP === '1' ? ['--ship'] : [];
+  runNode(`${a.agent} agent`, a.script, [...a.args, ...shipArgs], { allowFail: true });
 }
 
 console.log('\n✅ Pythh autopilot complete\n');

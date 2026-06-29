@@ -17,12 +17,17 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
+import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
 
 dotenv.config();
 
 const require = createRequire(import.meta.url);
 const root = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(root, '..');
+
+const { SHIP, PUSH } = parseAgentShipFlags();
+const shipBlock = buildShipPolicyBlock({ SHIP, PUSH });
+const funnelBlock = buildFunnelMandateBlock();
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const maxTurnsArg = process.argv.find((a) => a.startsWith('--max-turns='));
@@ -31,21 +36,24 @@ const MAX_TURNS = maxTurnsArg ? parseInt(maxTurnsArg.split('=')[1], 10) : 30;
 const MAX_BUDGET = maxBudgetArg ? parseFloat(maxBudgetArg.split('=')[1]) : 3;
 
 const PROMPT = `You are the Pythh Growth Agent. Follow agents/ORCHESTRATOR.md and agents/growth/CLAUDE.md.
+${funnelBlock}
+${shipBlock}
 
 Read reports/orchestrator-brief-${new Date().toISOString().slice(0, 10)}.json (or latest orchestrator-brief-*.json) FIRST.
 
 Run this growth optimization cycle now:
-1. node scripts/conversion-funnel-snapshot.mjs --json
+1. node scripts/conversion-funnel-snapshot.mjs --json  (human_funnel metrics)
 2. node scripts/growth-metrics-snapshot.mjs --json
 3. Read agents/growth/experiment-registry.json
-4. Analyze founder + investor signup AND pricing→checkout experiments; compare variant performance
+4. Analyze founder + investor signup AND pricing→checkout experiments; compare variant performance on HUMAN preview views only
 5. Run npm run funnel:heartbeat -- --no-fail and npm run test:wizard-smoke (note failures in report)
-6. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, ONE concrete proposal for the weakest funnel stage, and active_engagement (outbound | loop | instrumentation — not passive)
-7. If a registry change is warranted, edit agents/growth/experiment-registry.json (new variants as draft only)
+6. Implement ONE funnel fix when warranted (hero routing, experiment allocation, CTA copy in site/)
+7. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, ONE concrete proposal, code_changes, active_engagement
+8. If a registry change is warranted, edit agents/growth/experiment-registry.json (new variants as draft only)
 
 Voice: picky + skeptical + motivating (40/60 critique-to-action). Propose habit loops, not brochure tweaks.
 
-Do not git commit or deploy. End with a 5-bullet executive summary in the report JSON.`;
+End with a 5-bullet executive summary in the report JSON.`;
 
 async function preflight() {
   console.log('📊 Preflight: metrics snapshot…');

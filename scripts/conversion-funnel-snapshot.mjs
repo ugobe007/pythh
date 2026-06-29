@@ -71,6 +71,7 @@ async function main() {
 
   const f = funnel.ai_logs || {};
   const g = funnel.growth_events || {};
+  const hf = funnel.human_funnel || {};
 
   const founderSignups =
     (g.founder_signup_completed || 0) +
@@ -78,7 +79,10 @@ async function main() {
     (f.login_completed || 0);
   const investorSignups = g.investor_signup_completed || 0;
   const investorStarted = g.investor_signup_started || 0;
-  const previewViews = f.instant_matches_viewed || 0;
+  const previewViewsRaw = f.instant_matches_viewed || 0;
+  const previewViews = hf.instant_matches_viewed ?? previewViewsRaw;
+  const humanUrlSubmitted = hf.url_submitted ?? 0;
+  const humanPageViews = hf.page_view ?? f.page_view ?? 0;
   const previewDenom = previewViews || f.preview_requested || 0;
   const totalSignups = founderSignups + investorSignups;
 
@@ -154,8 +158,11 @@ async function main() {
     stages: {
       page_view: f.page_view || 0,
       url_submitted: f.url_submitted || 0,
+      url_submitted_human: humanUrlSubmitted,
       preview_requested: f.preview_requested || 0,
-      instant_matches_viewed: f.instant_matches_viewed || 0,
+      instant_matches_viewed: previewViewsRaw,
+      instant_matches_viewed_ui: previewViews,
+      preview_api_served: hf.preview_api_served ?? f.preview_api_served ?? 0,
       match_viewed: f.match_viewed || 0,
       match_intro_requested: f.match_intro_requested || 0,
       founder_signup_started: g.founder_signup_started || 0,
@@ -188,6 +195,14 @@ async function main() {
       events_7d: founderDemandCount,
     },
     utm_attribution: utmAttribution,
+    human_funnel: {
+      page_view: humanPageViews,
+      url_submitted: humanUrlSubmitted,
+      instant_matches_viewed: previewViews,
+      preview_api_served: hf.preview_api_served ?? 0,
+      synthetic_url_submitted: hf.synthetic_url_submitted ?? Math.max(0, (f.url_submitted || 0) - humanUrlSubmitted),
+      note: 'Human-only funnel — excludes instant_submit/preview_api programmatic traffic. Use for conversion rates.',
+    },
     preview_attribution: {
       legacy_instant_submit: legacyPreviewRequested,
       ui_preview_requested: uiPreviewRequested,
@@ -203,9 +218,11 @@ async function main() {
       signup_per_preview: rate(totalSignups, previewDenom),
       intro_per_match_view: rate(f.match_intro_requested || 0, f.match_viewed || 0),
       checkout_per_pricing: rate(f.checkout_started || 0, f.pricing_viewed || 0),
-      preview_view_per_url: rate(previewViews, f.url_submitted || 0),
-      preview_view_per_ui_url: rate(previewViews, Math.max(f.page_view || 0, uiPreviewRequested || 0)),
-      url_submitted_per_page_view: rate(f.url_submitted || 0, f.page_view || 0),
+      preview_view_per_url: rate(previewViewsRaw, f.url_submitted || 0),
+      preview_view_per_human_url: rate(previewViews, humanUrlSubmitted),
+      preview_view_per_page_view: rate(previewViews, humanPageViews),
+      preview_view_per_ui_url: rate(previewViews, Math.max(humanPageViews, uiPreviewRequested || 0)),
+      url_submitted_per_page_view: rate(humanUrlSubmitted, humanPageViews),
       email_capture_per_preview: rate(f.preview_email_captured || 0, previewViews),
       oracle_gap_teaser_per_preview: rate(f.preview_oracle_gap_teaser_viewed || 0, previewViews),
       oracle_gap_signup_per_teaser: rate(oracleGapStarted, f.preview_oracle_gap_teaser_viewed || 0),
@@ -258,22 +275,44 @@ async function main() {
 
   report.conversion_rates = {
     url_submitted_per_page_view: report.rates.url_submitted_per_page_view,
-    preview_per_url_submitted: report.rates.preview_view_per_url,
+    preview_per_url_submitted: report.rates.preview_view_per_human_url,
+    preview_per_page_view: report.rates.preview_view_per_page_view,
     signup_per_preview: report.rates.signup_per_preview,
     first_match_per_signup: rate(f.match_viewed || 0, totalSignups),
     return_7d: report.rates.return_visit_per_preview,
     checkout_per_pricing_view: report.rates.checkout_per_pricing,
   };
 
+  const humanPv = humanPageViews;
+  const urlPv = report.rates.url_submitted_per_page_view;
+  report.funnel_blind_flags = {
+    awareness: humanPv < 20 || (urlPv != null && urlPv > 100),
+    preview: humanPv < 20 && previewViews < 5,
+    human_page_views_7d: humanPv,
+    url_submitted_per_page_view: urlPv,
+    note: 'BLIND stages are uncomputable — do not target with UI loops until instrumented.',
+  };
+
+  if ((f.url_submitted || 0) > 100 && humanUrlSubmitted < 20) {
+    report.agent_focus.push(
+      'Synthetic traffic mirage: raw url_submitted dominated by instant_submit — use human_funnel.url_submitted for decisions',
+    );
+    report.agent_priorities.push('instrumentation: segment human vs API funnel in all agent reports');
+  }
   if ((f.page_view || 0) < 20 && (f.url_submitted || 0) > 50) {
     report.agent_focus.push(
       'Awareness blind spot: page_view << url_submitted — instrument hero + /find-investors; filter API-only submits from conversion rates',
     );
     report.agent_priorities.push('awareness: instrument page_view on hero and acquisition landings');
   }
-  if ((f.url_submitted || 0) > 15 && previewViews < (f.url_submitted || 0) * 0.15) {
+  if (humanUrlSubmitted > 0 && previewViews < humanUrlSubmitted * 0.5) {
     report.agent_focus.push(
-      'Funnel leak: url_submitted >> instant_matches_viewed — route more traffic through /find-investors and matches_preview (now 70%)',
+      'Funnel leak: human URL submits not reaching UI preview — default hero to /matches?url= and verify InstantMatchPreview render',
+    );
+    report.agent_priorities.push('preview: hero + /find-investors must land on matches_preview path');
+  } else if ((f.url_submitted || 0) > 15 && previewViews < (f.url_submitted || 0) * 0.15) {
+    report.agent_focus.push(
+      'Funnel leak: url_submitted >> instant_matches_viewed — route more traffic through /find-investors and matches_preview (now 90%)',
     );
   }
   if ((f.pricing_viewed || 0) < 10 && previewViews > 5) {
@@ -335,7 +374,10 @@ async function main() {
   } else {
     console.log(`\n📈 Conversion funnel (${days}d)`);
     console.log(`   Signups: ${report.totals.signups_7d} (${report.totals.signups_per_day}/day)`);
-    console.log(`   URL → preview view: ${report.rates.preview_view_per_url ?? '—'}%`);
+    console.log(`   Human funnel: page_view=${humanPageViews} url_submitted=${humanUrlSubmitted} ui_preview=${previewViews}`);
+    console.log(`   Visit → preview (human): ${report.rates.preview_view_per_page_view ?? '—'}%`);
+    console.log(`   URL → preview (human): ${report.rates.preview_view_per_human_url ?? '—'}%`);
+    console.log(`   URL → preview (raw/all): ${report.rates.preview_view_per_url ?? '—'}%`);
     console.log(`   Preview → signup rate: ${report.rates.signup_per_preview ?? '—'}%`);
     console.log(`   Oracle gap teaser → signup: ${report.experiments.founder_preview_oracle_gap_gate.teaser_to_signup_pct ?? '—'}%`);
     console.log(`   Investor started → completed: ${report.rates.investor_started_to_completed ?? '—'}%`);

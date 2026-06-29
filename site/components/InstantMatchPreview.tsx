@@ -139,7 +139,7 @@ export default function InstantMatchPreview({ url }: Props) {
         }
         if (!startupId) throw new Error('Still analyzing — try again in a moment');
 
-        const previewRes = await fetch(apiUrl(`/api/preview/${startupId}`));
+        const previewRes = await fetch(apiUrl(`/api/preview/${startupId}?source=matches_preview`));
         if (!previewRes.ok) throw new Error('Match preview not ready yet');
         const data = (await previewRes.json()) as PreviewPayload;
         if (cancelled) return;

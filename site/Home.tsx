@@ -312,11 +312,11 @@ function HeroSection({
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     const entry = founderExperiment?.schema?.entry as string | undefined;
-    if (entry === "url_with_preview") {
-      navigate(`/matches?url=${encodeURIComponent(normalized)}`);
+    if (entry === "url") {
+      navigate("/activate");
       return;
     }
-    navigate("/activate");
+    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
   const matchCount = platformStats?.matches ?? 0;

@@ -35,6 +35,8 @@ const FUNNEL_OPERATIONS = [
   'investor_email_captured',
   'investor_profile_completed',
   'return_visit_7d',
+  /** Server-side preview API response — not a human UI render (see logPreviewLoaded). */
+  'preview_api_served',
 ];
 
 const GROWTH_FUNNEL_EVENTS = [
@@ -74,6 +76,25 @@ const UI_PREVIEW_SOURCES = new Set([
   'hero',
   'funnel_probe',
 ]);
+
+/** Browser / landing-page URL submits — exclude programmatic instant_submit noise. */
+const HUMAN_URL_SOURCES = new Set([
+  'home_hero',
+  'find_investors_landing',
+  'matches_preview',
+  'matches_landing',
+  'awareness_landing',
+  'share_preview',
+  'hero',
+  'activate',
+  'url_first',
+  'wizard',
+]);
+
+const SYNTHETIC_URL_SOURCES = new Set(['instant_submit', 'preview_api', 'funnel_probe', 'server']);
+
+/** UI-only instant_matches_viewed (exclude server preview_api emissions). */
+const UI_INSTANT_MATCHES_SOURCES = [...UI_PREVIEW_SOURCES].filter((s) => s !== 'funnel_probe');
 
 async function hasRecentFunnelEvent(supabase, operation, startupId, { windowMinutes = 60 } = {}) {
   if (!supabase || !startupId || !operation) return false;
@@ -163,7 +184,12 @@ async function logPreviewLoaded(
   if (dupPreview) return;
 
   await recordFunnelEvent(supabase, 'preview_requested', base, { source: base.source });
-  await recordFunnelEvent(supabase, 'instant_matches_viewed', base, { source: base.source });
+  const uiPreviewSource = UI_PREVIEW_SOURCES.has(base.source) && base.source !== 'funnel_probe';
+  if (uiPreviewSource) {
+    await recordFunnelEvent(supabase, 'instant_matches_viewed', base, { source: base.source });
+  } else if (!probeRunId) {
+    await recordFunnelEvent(supabase, 'preview_api_served', base, { source: base.source || 'preview_api' });
+  }
   void recordFounderDemandEvent(supabase, {
     eventType: 'preview_requested',
     startupId,
@@ -194,6 +220,51 @@ async function countAiLogOperation(supabase, operation, since, { excludeProbes =
   const { count, error } = await query;
   if (error) return 0;
   return count ?? 0;
+}
+
+async function countAiLogBySources(supabase, operation, since, sources, { excludeProbes = true } = {}) {
+  if (!supabase || !operation || !sources?.length) return 0;
+  let query = supabase
+    .from('ai_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('operation', operation)
+    .gte('created_at', since)
+    .in('output->>source', sources);
+  if (excludeProbes) {
+    query = query.is('output->probe_run_id', null);
+  }
+  const { count, error } = await query;
+  if (error) return 0;
+  return count ?? 0;
+}
+
+async function countHumanUrlSubmitted(supabase, since, { excludeProbes = true } = {}) {
+  return countAiLogBySources(supabase, 'url_submitted', since, [...HUMAN_URL_SOURCES], { excludeProbes });
+}
+
+async function countUiInstantMatchesViewed(supabase, since, { excludeProbes = true } = {}) {
+  const uiCount = await countAiLogBySources(
+    supabase,
+    'instant_matches_viewed',
+    since,
+    UI_INSTANT_MATCHES_SOURCES,
+    { excludeProbes },
+  );
+  if (uiCount > 0) return uiCount;
+  // Legacy rows may lack source — count only if not preview_api
+  if (!supabase) return 0;
+  let query = supabase
+    .from('ai_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('operation', 'instant_matches_viewed')
+    .gte('created_at', since)
+    .is('output->>source', null);
+  if (excludeProbes) {
+    query = query.is('output->probe_run_id', null);
+  }
+  const { count, error } = await query;
+  if (error) return uiCount;
+  return uiCount + (count ?? 0);
 }
 
 async function countGrowthFunnelEvent(supabase, eventName, since, { excludeProbes = true } = {}) {
@@ -241,24 +312,45 @@ async function getFunnelCounts(supabase, { days = 7, excludeProbes = true } = {}
   ai_logs.founder_demand_url_submitted = demandUrlCount;
   ai_logs.url_submitted = Math.max(demandUrlCount, aiUrlOnly + founderUrlGrowth);
 
-  const aiTotal = Object.values(ai_logs).reduce((s, n) => s + n, 0);
+  const humanUrlSubmitted = await countHumanUrlSubmitted(supabase, since, { excludeProbes });
+  const uiInstantMatchesViewed = await countUiInstantMatchesViewed(supabase, since, { excludeProbes });
+  const previewApiServed = ai_logs.preview_api_served || 0;
+
+  const aiTotal = Object.values(ai_logs).reduce((s, n) => s + (typeof n === 'number' ? n : 0), 0);
   const growthTotal = Object.values(growth_events).reduce((s, n) => s + n, 0);
+
+  const human_funnel = {
+    page_view: ai_logs.page_view || 0,
+    url_submitted: humanUrlSubmitted,
+    instant_matches_viewed: uiInstantMatchesViewed,
+    preview_api_served: previewApiServed,
+    synthetic_url_submitted: Math.max(0, (ai_logs.url_submitted_ai_logs_only || 0) - humanUrlSubmitted),
+  };
 
   return {
     window_days: days,
     since,
     ai_logs,
     growth_events,
+    human_funnel,
     totals: { ai_logs: aiTotal, growth_events: growthTotal },
     funnel_blind: aiTotal === 0 && growthTotal === 0,
     rates: {
       founder_preview_to_started:
-        ai_logs.instant_matches_viewed > 0
-          ? Math.round((growth_events.founder_signup_started / ai_logs.instant_matches_viewed) * 1000) / 10
+        uiInstantMatchesViewed > 0
+          ? Math.round((growth_events.founder_signup_started / uiInstantMatchesViewed) * 1000) / 10
           : null,
       founder_started_to_completed:
         growth_events.founder_signup_started > 0
           ? Math.round((growth_events.founder_signup_completed / growth_events.founder_signup_started) * 1000) / 10
+          : null,
+      human_preview_per_page_view:
+        human_funnel.page_view > 0
+          ? Math.round((uiInstantMatchesViewed / human_funnel.page_view) * 1000) / 10
+          : null,
+      human_preview_per_url:
+        humanUrlSubmitted > 0
+          ? Math.round((uiInstantMatchesViewed / humanUrlSubmitted) * 1000) / 10
           : null,
     },
   };
@@ -382,10 +474,15 @@ function latestHeartbeatReport(reportsDir) {
 module.exports = {
   FUNNEL_OPERATIONS,
   GROWTH_FUNNEL_EVENTS,
+  UI_PREVIEW_SOURCES,
+  HUMAN_URL_SOURCES,
+  SYNTHETIC_URL_SOURCES,
   recordFunnelEvent,
   logInstantSubmitFunnel,
   logPreviewLoaded,
   getFunnelCounts,
+  countUiInstantMatchesViewed,
+  countHumanUrlSubmitted,
   verifyProbeRun,
   latestHeartbeatReport,
 };
