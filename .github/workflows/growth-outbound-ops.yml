@@ -1,8 +1,9 @@
-# Growth outbound + cycle ops — oracle scoreboard copy, find-investors posts, weekly reallocation report.
+# Growth outbound + cycle ops — oracle scoreboard copy, find-investors posts, weekly thesis report, weekly reallocation report.
 name: Growth Outbound Ops
 
 on:
   schedule:
+    - cron: '0 9 * * 1'     # Mon — weekly thesis fit report + outbound queue
     - cron: '30 9 * * 1,4'  # Mon + Thu — refresh oracle scoreboard copy for replies
     - cron: '30 9 * * 3'    # Wed — find-investors campaign (X/LinkedIn if creds set)
     - cron: '0 10 * * 5'    # Fri — 7-day growth cycle decision report
@@ -13,6 +14,7 @@ on:
         required: true
         type: choice
         options:
+          - weekly-thesis-report
           - oracle-scoreboard
           - find-investors-outbound
           - growth-cycle
@@ -23,6 +25,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  weekly-thesis-report:
+    if: >-
+      github.event.schedule == '0 9 * * 1'
+      || github.event.inputs.job == 'weekly-thesis-report'
+      || github.event.inputs.job == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Weekly thesis fit report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SITE_URL: https://pythh.ai
+        run: npm run report:weekly-thesis
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-thesis-${{ github.run_id }}
+          path: |
+            reports/weekly-thesis-*.json
+            agents/growth/outbound/queue/*-weekly-thesis.md
+
   oracle-scoreboard:
     if: >-
       github.event.schedule == '30 9 * * 1,4'

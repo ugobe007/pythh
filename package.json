@@ -196,6 +196,8 @@
     "digest:investor:dry": "node scripts/investor-dealflow-digest.mjs --dry-run --to signed-up",
     "digest:investor:all": "node scripts/investor-dealflow-digest.mjs --to all",
     "digest:investor-portfolio": "node scripts/investor-portfolio-delta-digest.mjs --to signed-up",
+    "report:weekly-thesis": "node scripts/weekly-thesis-report.mjs",
+    "report:weekly-thesis:json": "node scripts/weekly-thesis-report.mjs --json",
     "digest:investor-portfolio:dry": "node scripts/investor-portfolio-delta-digest.mjs --dry-run --to signed-up",
     "outbound:oracle-scoreboard": "node scripts/oracle-outbound-post.mjs",
     "outbound:oracle-scoreboard:linkedin": "node scripts/oracle-outbound-post.mjs --format=linkedin",
