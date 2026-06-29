@@ -19,7 +19,8 @@ dotenv.config();
 
 const require = createRequire(import.meta.url);
 const { generateNewsletter } = require('../server/newsletter-generator');
-const { generatePythhArtEdition, saveArtEdition } = require('../server/lib/pythhArtGenerator');
+const { generatePythhArtEdition, saveArtEdition, loadArtEdition, ensureArtEditionRaster } = require('../server/lib/pythhArtGenerator');
+const { enrichArtRowFromFilesystem } = require('../server/lib/artEditionLocal');
 
 const DRY = process.argv.includes('--dry');
 const FORCE = process.argv.includes('--force');
@@ -31,6 +32,26 @@ const outDir = path.join(repoRoot, 'public', 'art');
 
 async function main() {
   console.log('[pythh-art] Loading market signals…');
+
+  const today = targetDate || new Date().toISOString().slice(0, 10);
+  const existing = await loadArtEdition(today);
+  if (existing && !FORCE) {
+    const enriched = enrichArtRowFromFilesystem(existing, repoRoot);
+    const hasRaster = enriched.raster_url ?? enriched.signal_snapshot?.raster_url;
+    if (hasRaster) {
+      console.log(`[pythh-art] ${today} already has raster — use --force to regenerate`);
+      return;
+    }
+    console.log(`[pythh-art] ${today} exists without raster — backfilling…`);
+    const backfilled = await ensureArtEditionRaster(enriched, { repoRoot });
+    const raster = backfilled.raster_url ?? backfilled.signal_snapshot?.raster_url;
+    if (raster) {
+      console.log(`[pythh-art] Backfill OK: ${raster}`);
+      return;
+    }
+    console.warn('[pythh-art] Backfill failed — generating fresh edition');
+  }
+
   const newsletter = await generateNewsletter({ bust: true });
   if (targetDate) newsletter.date = targetDate;
 

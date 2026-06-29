@@ -10,7 +10,7 @@ const { getSupabaseClient } = require('./supabaseClient');
 const { applyCompositionRules, buildImageBrief, LIGHTING_STYLES } = require('./signalArtPrompt');
 const { interpretSignalLayers, buildLayerLegend, SIGNAL_ART } = require('./signalArtDirection');
 const { generateArtCopy } = require('./signalArtCopy');
-const { generateAndPersistRaster } = require('./signalArtGemini');
+const { generateAndPersistRaster, getGeminiApiKey, deriveThumbnailUrl } = require('./signalArtGemini');
 
 const VOID = '#050508';
 const VOID_EDGE = '#0a0a0c';
@@ -524,6 +524,84 @@ async function saveArtEdition(edition) {
   return row;
 }
 
+async function ensureArtEditionRaster(row, { repoRoot = null } = {}) {
+  if (!row?.edition_date) return row;
+
+  const snap = { ...(row.signal_snapshot || {}) };
+  let raster_url = row.raster_url ?? snap.raster_url ?? null;
+  let thumbnail_url = row.thumbnail_url ?? snap.thumbnail_url ?? null;
+
+  if (raster_url && thumbnail_url) {
+    return {
+      ...row,
+      raster_url,
+      thumbnail_url,
+      signal_snapshot: snap,
+    };
+  }
+
+  if (process.env.SIGNAL_ART_RASTER === '0') return row;
+
+  const priorError = snap.raster_error;
+  if (
+    priorError &&
+    ['missing_api_key', 'tier_upgrade_required'].includes(priorError.reason) &&
+    !getGeminiApiKey()
+  ) {
+    return row;
+  }
+
+  const imageBrief = snap.image_brief;
+  if (!imageBrief?.visualPrompt) {
+    return row;
+  }
+
+  const raster = await generateAndPersistRaster({
+    editionDate: row.edition_date,
+    imageBrief,
+    repoRoot,
+  });
+
+  if (!raster.ok) {
+    snap.raster_error = {
+      reason: raster.reason,
+      error: raster.error,
+      hint: raster.hint,
+      attempted_at: new Date().toISOString(),
+    };
+    return { ...row, signal_snapshot: snap };
+  }
+
+  raster_url = raster.raster_url;
+  thumbnail_url = raster.thumbnail_url ?? deriveThumbnailUrl(raster_url);
+  snap.raster_url = raster_url;
+  snap.thumbnail_url = thumbnail_url;
+  snap.raster_provider = raster.provider;
+  snap.raster_model = raster.model;
+  snap.raster_error = null;
+
+  const updated = {
+    ...row,
+    raster_url,
+    thumbnail_url,
+    raster_provider: raster.provider,
+    raster_model: raster.model,
+    signal_snapshot: snap,
+    copy: {
+      ...(row.copy || {}),
+      raster_provider: raster.provider,
+    },
+  };
+
+  try {
+    await saveArtEdition(updated);
+  } catch (e) {
+    console.warn('[signal-art] raster backfill save failed:', e.message);
+  }
+
+  return updated;
+}
+
 async function loadArtEdition(editionDate) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -551,6 +629,7 @@ module.exports = {
   saveArtEdition,
   loadArtEdition,
   listArtEditions,
+  ensureArtEditionRaster,
   hashSeed,
   deriveArtSeed,
   buildSignalFingerprint,

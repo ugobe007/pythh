@@ -1993,6 +1993,7 @@ const {
   saveArtEdition,
   loadArtEdition,
   listArtEditions,
+  ensureArtEditionRaster,
 } = require('./lib/pythhArtGenerator');
 const { deriveThumbnailUrl } = require('./lib/signalArtGemini');
 const {
@@ -2011,7 +2012,13 @@ async function getOrCreateArtEdition(editionDate) {
   const target = editionDate || today;
   let row = await loadArtEdition(target);
   if (row) {
-    return toArtApiResponse(enrichArtRowFromFilesystem(row, ART_REPO_ROOT));
+    row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
+    const snap = row.signal_snapshot || {};
+    if (!(row.raster_url ?? snap.raster_url)) {
+      row = await ensureArtEditionRaster(row, { repoRoot: ART_REPO_ROOT });
+      row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
+    }
+    return toArtApiResponse(row);
   }
   if (target !== today) return null;
   const newsletter = await generateNewsletter({ bust: true });
@@ -2056,7 +2063,10 @@ function toArtTeaserResponse(edition) {
     title: edition.copy?.title || null,
     subtitle: edition.copy?.subtitle || null,
     layout_mode: edition.layout_mode || edition.copy?.layout_mode || null,
-    thumbnail_url: edition.thumbnail_url || deriveThumbnailUrl(edition.raster_url),
+    thumbnail_url:
+      edition.thumbnail_url ||
+      deriveThumbnailUrl(edition.raster_url) ||
+      localThumbnailFallback(edition.edition_date, ART_REPO_ROOT),
     raster_url: edition.raster_url || null,
     generated_at: edition.generated_at,
   };

@@ -56,8 +56,7 @@ export default function SignalArtTeaser() {
     ? `${teaser.raster_url}${teaser.raster_url.includes("?") ? "&" : "?"}v=${cacheBust}`
     : null;
   const imageSrc = thumbSrc && !thumbFailed ? thumbSrc : rasterSrc && !rasterFailed ? rasterSrc : null;
-
-  if (!imageSrc) return null;
+  const staticThumb = `/art/${teaser.edition_date}-thumb.jpg?v=${cacheBust}`;
 
   return (
     <section className="border-y" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
@@ -78,17 +77,38 @@ export default function SignalArtTeaser() {
               backgroundColor: "#050508",
             }}
           >
-            <img
-              src={imageSrc}
-              alt={teaser.title || "Today's Signal Art"}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-              loading="lazy"
-              decoding="async"
-              onError={() => {
-                if (thumbSrc && !thumbFailed) setThumbFailed(true);
-                else setRasterFailed(true);
-              }}
-            />
+            {imageSrc ? (
+              <img
+                src={imageSrc}
+                alt={teaser.title || "Today's Signal Art"}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                loading="lazy"
+                decoding="async"
+                onError={() => {
+                  if (thumbSrc && !thumbFailed) setThumbFailed(true);
+                  else setRasterFailed(true);
+                }}
+              />
+            ) : (
+              <img
+                src={staticThumb}
+                alt={teaser.title || "Today's Signal Art"}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                loading="lazy"
+                decoding="async"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            )}
+            {!imageSrc && (
+              <div
+                className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                style={{ color: DIM }}
+              >
+                <Sparkles size={28} style={{ color: G, opacity: 0.5 }} />
+              </div>
+            )}
             <div
               className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
               style={{
