@@ -353,7 +353,11 @@ function latestHeartbeatReport(reportsDir) {
     if (!fs.existsSync(reportsDir)) return null;
     const files = fs
       .readdirSync(reportsDir)
-      .filter((f) => f.startsWith('funnel-heartbeat-') && f.endsWith('.json'));
+      .filter(
+        (f) =>
+          /^funnel-heartbeat-\d{4}-\d{2}-\d{2}\.json$/.test(f) ||
+          (f.startsWith('funnel-heartbeat-') && f.endsWith('.json') && f !== 'funnel-heartbeat-run.json'),
+      );
     const reports = files
       .map((f) => {
         try {
@@ -363,10 +367,10 @@ function latestHeartbeatReport(reportsDir) {
           return null;
         }
       })
-      .filter(Boolean)
+      .filter((r) => r?.data?.generated_at || r?.data?.timestamp)
       .sort((a, b) => {
-        const ta = a.data.generated_at || a.data.timestamp || a.file;
-        const tb = b.data.generated_at || b.data.timestamp || b.file;
+        const ta = a.data.generated_at || a.data.timestamp;
+        const tb = b.data.generated_at || b.data.timestamp;
         return String(tb).localeCompare(String(ta));
       });
     return reports[0]?.data ?? null;
