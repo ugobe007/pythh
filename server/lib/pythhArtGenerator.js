@@ -602,6 +602,52 @@ async function ensureArtEditionRaster(row, { repoRoot = null } = {}) {
   return updated;
 }
 
+function previousEditionDate(isoDate) {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * When live signals are unchanged day-over-day, regenerate today's edition so layout/prompt vary by date.
+ */
+async function refreshStaleTodayEdition(row, { repoRoot, generateNewsletter, today }) {
+  if (!row || row.edition_date !== today || !generateNewsletter) return row;
+
+  const yesterday = previousEditionDate(today);
+  const prev = await loadArtEdition(yesterday);
+  if (!prev) return row;
+
+  const fp = row.signal_snapshot?.signal_fingerprint;
+  const prevFp = prev.signal_snapshot?.signal_fingerprint;
+  if (!fp || fp !== prevFp) return row;
+
+  const prevLayout =
+    prev.signal_snapshot?.signal_art?.layoutMode ?? prev.copy?.layout_mode;
+  const todayLayout =
+    row.signal_snapshot?.signal_art?.layoutMode ?? row.copy?.layout_mode;
+  if (prevLayout !== todayLayout) return row;
+
+  if (row.signal_snapshot?.art_daily_refresh === yesterday) return row;
+
+  console.log(
+    `[signal-art] Regenerating ${today} — same market fingerprint as ${yesterday} (${todayLayout})`,
+  );
+  const newsletter = await generateNewsletter({ bust: true });
+  const edition = await generatePythhArtEdition(newsletter, { repoRoot, generateRaster: true });
+  edition.signal_snapshot = {
+    ...edition.signal_snapshot,
+    art_daily_refresh: yesterday,
+  };
+  try {
+    await saveArtEdition(edition);
+  } catch (e) {
+    console.warn('[signal-art] daily refresh save failed:', e.message);
+    return row;
+  }
+  return edition;
+}
+
 async function loadArtEdition(editionDate) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -630,6 +676,8 @@ module.exports = {
   loadArtEdition,
   listArtEditions,
   ensureArtEditionRaster,
+  refreshStaleTodayEdition,
+  previousEditionDate,
   hashSeed,
   deriveArtSeed,
   buildSignalFingerprint,

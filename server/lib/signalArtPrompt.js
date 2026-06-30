@@ -57,15 +57,16 @@ const LIGHTING_STYLES = {
   },
 };
 
-function pickLightingStyle(snapshot, plan) {
+function pickLightingStyle(snapshot, plan, seed = 0) {
   const leadingPct = plan.leadingPct || 40;
   const funding = plan.fundingCount || 0;
+  const styles = ['split', 'golden_hour', 'neon_glow', 'blue_hour', 'rim'];
   if (plan.tension > 0.55) return 'split';
   if (funding >= 8) return 'golden_hour';
   if (leadingPct >= 75) return 'neon_glow';
   if (leadingPct <= 45 && funding <= 3) return 'blue_hour';
   if (plan.tension > 0.3) return 'rim';
-  return 'neon_glow';
+  return styles[(seed + (plan.horizonY || 0)) % styles.length];
 }
 
 function thirdsX(seed, tension) {
@@ -80,7 +81,7 @@ function applyCompositionRules(plan, snapshot, seed) {
   plan.horizonY = goldenHorizon + Math.round((plan.coverage - 200) * 0.04);
   plan.horizonY = Math.max(480, Math.min(560, plan.horizonY));
   plan.beaconX = thirdsX(seed, plan.tension);
-  plan.lightingStyle = pickLightingStyle(snapshot, plan);
+  plan.lightingStyle = pickLightingStyle(snapshot, plan, seed);
   plan.seed = seed;
   return plan;
 }
@@ -173,6 +174,7 @@ function buildVisualPrompt(snapshot, plan, signalArt, lighting) {
 
   return [
     `Full-bleed cinematic sci-fi oracle artwork — edge to edge, no border, no frame, no white edges.`,
+    `Daily oracle edition ${snapshot.edition_date} — must be structurally distinct from every prior calendar day; variation index ${(plan.seed % 997) + 1}.`,
     `Layout mode: ${signalArt.layoutMode} — ${signalArt.layoutDescription}. This must visibly change the composition structure, not just palette.`,
     `PYTHH lives between today and tomorrow. Show that threshold: deep present-darkness (#050508) transitioning into a luminous future horizon.`,
     `${anchor}`,

@@ -87,6 +87,7 @@ function labelToMotif(label) {
 }
 
 function pickLayoutMode(snapshot, plan, seed) {
+  const rand = mulberry32(seed);
   const leading = (snapshot.leading_signal?.label || '').toLowerCase();
   const movers = snapshot.god_movers || [];
   const netDelta = movers.reduce((s, m) => s + (m.delta || 0), 0);
@@ -94,32 +95,44 @@ function pickLayoutMode(snapshot, plan, seed) {
   const falling = movers.filter((m) => (m.delta || 0) < 0).length;
   const matchCount = (snapshot.top_matches || []).length;
 
-  if (plan.fundingCount >= 10) return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[2];
-  if (netDelta >= 20 || rising >= 3) return LAYOUT_MODES.find((l) => l.id === 'awakening') || LAYOUT_MODES[4];
-  if (netDelta <= -20 || falling >= 3) return LAYOUT_MODES.find((l) => l.id === 'veil') || LAYOUT_MODES[5];
+  const scores = new Map(LAYOUT_MODES.map((l) => [l.id, 1]));
+  const boost = (id, n) => scores.set(id, (scores.get(id) || 0) + n);
+
+  if (plan.fundingCount >= 10) {
+    boost('aurora', 2);
+    boost('prophecy', 1);
+    boost('awakening', 1);
+  }
+  if (netDelta >= 20 || rising >= 3) boost('awakening', 3);
+  if (netDelta <= -20 || falling >= 3) boost('veil', 3);
   if (matchCount >= 2 || leading.includes('capital') || leading.includes('convergence')) {
-    return LAYOUT_MODES.find((l) => l.id === 'prophecy') || LAYOUT_MODES[1];
+    boost('prophecy', 3);
   }
   if (leading.includes('velocity') || leading.includes('execution')) {
-    return LAYOUT_MODES.find((l) => l.id === 'conduit') || LAYOUT_MODES[3];
+    boost('conduit', 3);
+    boost('prophecy', 1);
   }
-  if (plan.tension > 0.55) return LAYOUT_MODES.find((l) => l.id === 'threshold') || LAYOUT_MODES[0];
-  if (leading.includes('receptivity') || leading.includes('momentum')) {
-    return LAYOUT_MODES.find((l) => l.id === 'aurora') || LAYOUT_MODES[2];
-  }
+  if (plan.tension > 0.55) boost('threshold', 2);
+  if (leading.includes('receptivity') || leading.includes('momentum')) boost('aurora', 2);
 
-  const fp = [
-    snapshot.edition_date,
-    leading,
-    plan.accentLabel,
-    plan.fundingCount,
-    netDelta,
-    matchCount,
-  ].join('|');
-  let h = 0;
-  for (let i = 0; i < fp.length; i++) h = (Math.imul(31, h) + fp.charCodeAt(i)) | 0;
-  const idx = (Math.abs(h) + seed) % LAYOUT_MODES.length;
-  return LAYOUT_MODES[idx];
+  // Calendar + seed rotation — distinct layout even when live signals are unchanged day-over-day
+  const daySlot =
+    (Math.abs(
+      [...`${snapshot.edition_date}:${seed}`].reduce(
+        (h, c) => (Math.imul(31, h) + c.charCodeAt(0)) | 0,
+        0,
+      ),
+    ) +
+      seed) %
+    LAYOUT_MODES.length;
+  boost(LAYOUT_MODES[daySlot].id, 4);
+
+  const pool = [];
+  for (const mode of LAYOUT_MODES) {
+    const weight = scores.get(mode.id) || 1;
+    for (let i = 0; i < weight; i++) pool.push(mode);
+  }
+  return pool[Math.floor(rand() * pool.length)] || LAYOUT_MODES[daySlot];
 }
 
 function buildInterpretation(snapshot, plan, layout, layers) {

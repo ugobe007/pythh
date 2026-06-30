@@ -1994,6 +1994,7 @@ const {
   loadArtEdition,
   listArtEditions,
   ensureArtEditionRaster,
+  refreshStaleTodayEdition,
 } = require('./lib/pythhArtGenerator');
 const { deriveThumbnailUrl } = require('./lib/signalArtGemini');
 const {
@@ -2013,6 +2014,14 @@ async function getOrCreateArtEdition(editionDate) {
   let row = await loadArtEdition(target);
   if (row) {
     row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
+    if (target === today) {
+      row = await refreshStaleTodayEdition(row, {
+        repoRoot: ART_REPO_ROOT,
+        generateNewsletter,
+        today,
+      });
+      row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
+    }
     const snap = row.signal_snapshot || {};
     if (!(row.raster_url ?? snap.raster_url)) {
       row = await ensureArtEditionRaster(row, { repoRoot: ART_REPO_ROOT });
