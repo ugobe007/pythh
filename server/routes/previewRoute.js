@@ -22,7 +22,7 @@ const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry'
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
 const { getPreviewOracleProof } = require('../lib/previewOracleProof');
-const { sendFounderActivationNudge } = require('../lib/founderActivationEmail');
+const { sendFounderActivationNudge, sendFounderSignupInvite } = require('../lib/founderActivationEmail');
 
 const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh <notifications@pythh.ai>';
 
@@ -190,6 +190,30 @@ router.post('/activation-nudge', async (req, res) => {
     return res.json(result);
   } catch (err) {
     console.error('[preview/activation-nudge]', err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// POST /api/preview/signup-invite — welcome email when account created without startup scan
+router.post('/signup-invite', async (req, res) => {
+  try {
+    const { email, source } = req.body || {};
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'invalid_email' });
+    }
+
+    const result = await sendFounderSignupInvite(supabase, {
+      email,
+      source: source || 'founder_signup_page',
+    });
+
+    if (!result.success && !result.deduped) {
+      return res.status(502).json(result);
+    }
+
+    return res.json(result);
+  } catch (err) {
+    console.error('[preview/signup-invite]', err);
     return res.status(500).json({ error: 'server_error' });
   }
 });

@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useLocation } from 'wouter';
-import { ArrowRight, CheckCircle2, Users, Zap, Target } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Users, Zap, Target, TrendingUp } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
 import { fetchGrowthAssignment } from '@/lib/growthExperiment';
@@ -18,10 +18,20 @@ function normalizeUrl(raw: string): string | null {
   return trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
 }
 
+type ThesisSpotlight = {
+  report_date?: string;
+  featured_sector?: string;
+  god70_plus?: number;
+  investors_early_stage?: number;
+  new_this_week?: number;
+  top_names?: Array<{ name: string; score: number }>;
+};
+
 export default function FindInvestors() {
   const [, navigate] = useLocation();
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
+  const [spotlight, setSpotlight] = useState<ThesisSpotlight | null>(null);
 
   useEffect(() => {
     void trackFunnelEventOnce('pythh_find_investors_view', 'page_view', {
@@ -30,6 +40,13 @@ export default function FindInvestors() {
       ...getUtmParams(),
     });
     trackReturnVisitIfEligible('/find-investors');
+  }, []);
+
+  useEffect(() => {
+    fetch('/thesis-spotlight.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setSpotlight(data as ThesisSpotlight | null))
+      .catch(() => {});
   }, []);
 
   const submit = async (e: React.FormEvent) => {
@@ -75,8 +92,33 @@ export default function FindInvestors() {
           Find investors that match your signals.
         </h1>
         <p className="text-lg text-zinc-400 mb-8 max-w-2xl leading-relaxed">
-          Paste your URL. Get a ranked shortlist in ~20 seconds — free preview, no signup required.
+          Paste your URL. Get a ranked shortlist in ~20 seconds — free preview, then track investors with a free account.
         </p>
+
+        {spotlight?.featured_sector && typeof spotlight.god70_plus === 'number' && (
+          <div
+            className="mb-8 p-5 rounded-xl border border-violet-500/25 bg-gradient-to-br from-violet-600/10 to-zinc-900/50"
+          >
+            <p className="text-[10px] uppercase tracking-[2px] text-violet-400 mb-2 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" />
+              Pythh Weekly · {spotlight.featured_sector}
+            </p>
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              <strong className="text-white">{spotlight.god70_plus.toLocaleString()}</strong> startups scored 70+ this week
+              {typeof spotlight.investors_early_stage === 'number' && (
+                <> · <strong className="text-white">{spotlight.investors_early_stage}</strong> pre-seed/seed investors actively covering the sector</>
+              )}
+              {typeof spotlight.new_this_week === 'number' && (
+                <> · <strong className="text-emerald-400">+{spotlight.new_this_week.toLocaleString()}</strong> new names</>
+              )}
+            </p>
+            {spotlight.top_names?.[0] && (
+              <p className="text-xs text-zinc-500 mt-2">
+                Top scored: {spotlight.top_names.slice(0, 3).map((t) => `${t.name} (${t.score})`).join(', ')}
+              </p>
+            )}
+          </div>
+        )}
 
         <form
           onSubmit={(e) => void submit(e)}
@@ -131,8 +173,8 @@ export default function FindInvestors() {
 
         <ul className="space-y-2 text-sm text-zinc-400">
           {[
-            'Full shortlist reveal — no account required',
-            'Request intros or save your list with a free account',
+            'Full shortlist reveal — free preview, no card',
+            'Sign up free to track investor movement and save your list',
             'Upgrade to Oracle for automated outreach and meeting prep',
           ].map((line) => (
             <li key={line} className="flex items-center gap-2">

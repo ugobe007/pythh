@@ -35,6 +35,25 @@ export function sendFounderWelcomeEmail(opts: {
   }).catch(() => {});
 }
 
+/** Invite email when account exists but no startup scan yet. */
+export function sendFounderSignupInviteEmail(opts: {
+  email: string;
+  source?: string;
+}): void {
+  const email = opts.email.trim().toLowerCase();
+  if (!email.includes('@')) return;
+
+  void fetch(apiUrl('/api/preview/signup-invite'), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      email,
+      source: opts.source || 'founder_signup_page',
+    }),
+  }).catch(() => {});
+}
+
 export async function createFounderAccount(
   email: string,
   name?: string,

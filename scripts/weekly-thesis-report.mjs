@@ -56,6 +56,29 @@ async function main() {
   const jsonPath = path.join(reportDir, `weekly-thesis-${report.report_date}.json`);
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
 
+  const spotlightPath = path.join(repoRoot, 'public', 'thesis-spotlight.json');
+  const s = report.sector;
+  fs.writeFileSync(
+    spotlightPath,
+    JSON.stringify(
+      {
+        report_date: report.report_date,
+        featured_sector: report.featured_sector,
+        god70_plus: s.god70_plus,
+        god70_pct: s.god70_pct,
+        investors_early_stage: s.investors.active_early_stage || s.investors.early_stage,
+        new_this_week: s.new_7d,
+        top_names: (s.top_startups || []).slice(0, 3).map((row) => ({
+          name: row.name,
+          score: row.score,
+        })),
+        updated_at: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
+
   let queuePath = null;
   if (!NO_QUEUE) {
     fs.mkdirSync(queueDir, { recursive: true });

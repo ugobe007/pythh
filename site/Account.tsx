@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
+import FounderOnboardingHub from "@/components/FounderOnboardingHub";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import {
@@ -382,37 +383,15 @@ function AdminAccountPanel({ userName }: { userName: string | null }) {
 
 // ─── No-subscription state ────────────────────────────────────────────────────
 
-function NoSubscription({ userName }: { userName: string | null }) {
+function NoSubscription({ userName, welcome }: { userName: string | null; welcome?: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="max-w-lg mx-auto text-center py-20"
+      className="py-12"
     >
-      <div
-        className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
-        style={{ backgroundColor: "oklch(0.769 0.188 70.08 / 0.1)", border: "1px solid oklch(0.769 0.188 70.08 / 0.25)" }}
-      >
-        <Zap size={28} style={{ color: "oklch(0.769 0.188 70.08)" }} />
-      </div>
-      <h2 className="font-display font-bold text-2xl mb-3" style={{ color: "oklch(0.97 0.005 264)" }}>
-        No active plan{userName ? `, ${userName.split(" ")[0]}` : ""}
-      </h2>
-      <p className="text-sm leading-relaxed mb-8" style={{ color: "oklch(0.55 0.01 264)" }}>
-        You don't have an Oracle plan yet. Activate PYTHIA to start automating your fundraising pipeline — investor matching, outreach, follow-ups, and meeting booking on autopilot.
-      </p>
-      <Link href="/pricing">
-        <button
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all"
-          style={{ backgroundColor: "oklch(0.769 0.188 70.08)", color: "oklch(0.1 0.01 70)" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 0 24px oklch(0.769 0.188 70.08 / 0.4)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-        >
-          View Plans
-          <ArrowRight size={15} />
-        </button>
-      </Link>
+      <FounderOnboardingHub userName={userName} welcome={welcome} />
     </motion.div>
   );
 }
@@ -421,6 +400,9 @@ function NoSubscription({ userName }: { userName: string | null }) {
 
 export default function Account() {
   const [, navigate] = useLocation();
+  const [showWelcome] = useState(
+    () => new URLSearchParams(window.location.search).get("welcome") === "1",
+  );
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [oauthBusy, setOauthBusy] = useState(
     () =>
@@ -687,10 +669,12 @@ export default function Account() {
             </span>
           </div>
           <h1 className="font-display font-bold text-3xl md:text-4xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-            Your Plan
+            {subscription ? "Your Plan" : "Your fundraising hub"}
           </h1>
           <p className="text-sm mt-2" style={{ color: "oklch(0.5 0.01 264)" }}>
-            Manage your Oracle subscription and billing details.
+            {subscription
+              ? "Manage your Oracle subscription and billing details."
+              : "Track investor matches, save your shortlist, and open your intro pipeline."}
           </p>
         </motion.div>
 
@@ -699,7 +683,7 @@ export default function Account() {
           <AdminAccountPanel userName={user?.name ?? null} />
         )}
         {!subscription && user?.role !== "admin" && (
-          <NoSubscription userName={user?.name ?? null} />
+          <NoSubscription userName={user?.name ?? null} welcome={showWelcome} />
         )}
 
         {/* Active subscription dashboard */}

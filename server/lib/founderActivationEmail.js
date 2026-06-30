@@ -164,7 +164,76 @@ async function sendFounderActivationNudge(supabase, { email, startupId, startupN
   return { success: true, message_id: sendResult.id, wizard_url: wizardUrl };
 }
 
+/** Welcome for new accounts without a startup scan yet — drives back to find-investors. */
+async function sendFounderSignupInvite(supabase, { email, source }) {
+  if (!isValidEmail(email)) {
+    return { success: false, error: 'invalid_email' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: recent } = await supabase
+    .from('ai_logs')
+    .select('id')
+    .eq('operation', 'founder_signup_invite_sent')
+    .gte('created_at', since)
+    .contains('output', { email: normalizedEmail })
+    .limit(1);
+  if (recent?.length) return { success: true, deduped: true };
+
+  const findUrl = `${APP_BASE}/find-investors?utm_source=email&utm_medium=nurture&utm_campaign=founder_signup_invite`;
+  const subject = 'Your Pythh account is ready — paste your URL to see investor matches';
+  const text = [
+    'Hi —',
+    '',
+    'Your free Pythh founder account is active.',
+    '',
+    'Next step: paste your startup URL to get a ranked investor shortlist in ~20 seconds.',
+    '',
+    findUrl,
+    '',
+    'You can track fit scores, save your shortlist, and queue intros — all free to start.',
+    '',
+    '— Pythh Oracle',
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Inter,Arial,sans-serif;font-size:15px;line-height:1.6;color:#111;max-width:560px;">
+      <p>Your free Pythh account is active.</p>
+      <p>Paste your startup URL to get a ranked investor shortlist in ~20 seconds — then track matches, movement alerts, and intro requests.</p>
+      <p><a href="${findUrl}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">See my investor matches</a></p>
+    </div>`;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { success: false, error: 'RESEND_API_KEY not configured' };
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [normalizedEmail], subject, html, text }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, error: data.message || 'Resend error' };
+
+    await recordFunnelEvent(supabase, 'founder_signup_invite_sent', {
+      email: normalizedEmail,
+      source: source || 'founder_signup_page',
+      email_sent: true,
+      resend_message_id: data.id || null,
+    });
+
+    return { success: true, message_id: data.id };
+  } catch (err) {
+    return { success: false, error: err.message || 'send failed' };
+  }
+}
+
 module.exports = {
   sendFounderActivationNudge,
+  sendFounderSignupInvite,
   isValidEmail,
 };

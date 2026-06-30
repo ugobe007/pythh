@@ -18,7 +18,7 @@ import {
   FOUNDER_GATE_ACTION_LABELS,
   type FounderGatedAction,
 } from '@/lib/founderSignupGate';
-import { sendFounderWelcomeEmail } from '@/lib/founderAccount';
+import { sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
@@ -60,7 +60,7 @@ export default function FounderSignup() {
       navigate(`/wizard/${startupId}?welcome=1`);
       return;
     }
-    navigate('/account');
+    navigate('/account?welcome=1');
   }, [authLoading, isAuthenticated, navigate, startupId]);
 
   const trackDirectSignup = async () => {
@@ -119,6 +119,11 @@ export default function FounderSignup() {
             startupId,
             source: 'founder_signup_gate',
           });
+        } else {
+          sendFounderSignupInviteEmail({
+            email: trimmed,
+            source: 'founder_signup_gate',
+          });
         }
       } else {
         const assignment =
@@ -141,6 +146,11 @@ export default function FounderSignup() {
             startupId,
             source: 'founder_signup_page',
           });
+        } else {
+          sendFounderSignupInviteEmail({
+            email: trimmed,
+            source: 'founder_signup_page',
+          });
         }
       }
 
@@ -157,7 +167,7 @@ export default function FounderSignup() {
         navigate(`/matches?url=${encodeURIComponent(url)}`);
         return;
       }
-      navigate('/account');
+      navigate('/account?welcome=1');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create account. Try again.');
     } finally {
