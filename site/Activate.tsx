@@ -11,6 +11,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
+import { createFounderAccount, fetchInstantResults } from "@/lib/founderAccount";
 import { consumeFounderGatePending, consumePostSignupPath, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
@@ -640,9 +641,9 @@ function EntryStep({
         </h1>
         <p className="text-base mb-8 leading-relaxed" style={{ color: "oklch(0.6 0.01 264)" }}>
           {fromGate && gateAction === 'intro' && investorLabel
-            ? `You're one step from a warm intro to ${investorLabel}. Enter your email — we'll unlock your full shortlist and route the intro request.`
+            ? `You're one step from tracking intros to ${investorLabel}. Enter your email — we'll save your shortlist and open your investor pipeline.`
             : fromGate && gateLabel
-            ? `You're one step away — enter your email to ${gateLabel}. We'll unlock your full shortlist and keep your matches saved.`
+            ? `You're one step away — enter your email to ${gateLabel}. We'll save your matches and turn on investor tracking.`
             : "Give me your startup URL. I'll read everything — your product, team, traction, and market — then find the investors most likely to write you a check right now."}
         </p>
 
@@ -656,7 +657,7 @@ function EntryStep({
             }}
           >
             {gateAction === 'intro' && investorLabel
-              ? `Intro queued for ${investorLabel}. Free account required to send.`
+              ? `Intro queued for ${investorLabel}. Free account required to track and send.`
               : `Your matches are ready. Free account required to ${gateLabel}.`}
           </div>
         )}
@@ -717,7 +718,7 @@ function EntryStep({
             {fromGate
               ? gateAction === 'intro' && investorLabel
                 ? `Request intro to ${gatedInvestor?.name?.split(' ')[0] || 'investor'}`
-                : 'Unlock my shortlist'
+                : 'Start tracking investors'
               : 'Find my investors'}
             <ArrowRight size={16} />
           </button>
@@ -2507,15 +2508,65 @@ export default function Activate() {
     sessionStorage.setItem("pythia_url", submittedUrl);
     sessionStorage.setItem("pythia_email", submittedEmail);
     trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate" });
+
+    const existingStartupId = sessionStorage.getItem("pythia_startup_id");
     const { action: gatedAction } = consumeFounderGatePending();
-    if (gatedAction) {
-      await trackFounderGateCompleted({
-        url: submittedUrl,
-        email: submittedEmail,
-        startupId: sessionStorage.getItem("pythia_startup_id"),
-        gatedAction,
-      });
+    const gateEmail = submittedEmail.trim().includes("@") ? submittedEmail.trim() : "";
+
+    // Preview gate: account + existing matches — skip re-scan
+    if (gatedAction && existingStartupId && gateEmail) {
+      const account = await createFounderAccount(gateEmail);
+      if (account.ok) {
+        await trackFounderGateCompleted({
+          url: submittedUrl,
+          email: gateEmail,
+          startupId: existingStartupId,
+          gatedAction,
+        });
+
+        const data = await fetchInstantResults(existingStartupId);
+        if (data?.startup_id) {
+          setApiResult({
+            startup: (data.startup as ApiResult["startup"]) ?? null,
+            matches: Array.isArray(data.matches) ? (data.matches as ApiResult["matches"]) : [],
+            startup_id: data.startup_id,
+            match_count: typeof data.match_count === "number" ? data.match_count : undefined,
+            is_new: false,
+            gen_in_progress: false,
+          });
+          sessionStorage.removeItem("pythia_url");
+          sessionStorage.removeItem("pythia_email");
+
+          void trackFunnelEventOnce(`instant_matches_viewed:${data.startup_id}`, "instant_matches_viewed", {
+            startup_id: data.startup_id,
+            url: submittedUrl,
+            match_count: data.match_count ?? 0,
+            source: "activate_gate_skip_scan",
+          });
+
+          const postSignupPath = consumePostSignupPath();
+          if (postSignupPath) {
+            navigate(postSignupPath.includes("?") ? `${postSignupPath}&welcome=1` : `${postSignupPath}?welcome=1`);
+            return;
+          }
+          setStep("results");
+          return;
+        }
+      }
     }
+
+    if (gatedAction && gateEmail) {
+      const account = await createFounderAccount(gateEmail);
+      if (account.ok) {
+        await trackFounderGateCompleted({
+          url: submittedUrl,
+          email: gateEmail,
+          startupId: existingStartupId,
+          gatedAction,
+        });
+      }
+    }
+
     setStep("scanning");
   };
 

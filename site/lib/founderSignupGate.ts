@@ -64,12 +64,22 @@ export function peekFounderGatePending(): {
 }
 
 export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
-  save: 'save your investor shortlist',
-  intro: 'request intros to top matches',
-  export: 'export your match list',
+  save: 'track your investor shortlist',
+  intro: 'track intros to your top matches',
+  export: 'export and track your match list',
   delta: 'see which investors moved toward you',
   oracle_gap: 'see your Oracle gap map and unlock outreach',
 };
+
+export function postSignupPathForAction(
+  action: FounderGatedAction | null,
+  startupId: string,
+): string {
+  if (action === 'intro' || action === 'export') {
+    return `/wizard/${startupId}?tab=round`;
+  }
+  return `/wizard/${startupId}`;
+}
 
 export function persistFounderGateContext(
   url: string,
@@ -170,10 +180,10 @@ export async function trackFounderGateCompleted(
   const gatedAction = ctx.gatedAction ?? (sessionStorage.getItem(GATED_ACTION_KEY) as FounderGatedAction | null);
   const startupId = ctx.startupId ?? sessionStorage.getItem('pythia_startup_id');
 
-  if (gatedAction === 'oracle_gap' || gatedAction === 'delta') {
-    if (startupId) {
-      sessionStorage.setItem(POST_SIGNUP_PATH_KEY, `/wizard/${startupId}`);
-    }
+  if (startupId && gatedAction) {
+    sessionStorage.setItem(POST_SIGNUP_PATH_KEY, postSignupPathForAction(gatedAction, startupId));
+  } else if (startupId) {
+    sessionStorage.setItem(POST_SIGNUP_PATH_KEY, `/wizard/${startupId}`);
   }
 
   trackFunnelEvent('lookup_signup_completed', {

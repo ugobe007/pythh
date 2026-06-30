@@ -34,6 +34,7 @@ import Matches from "./pages/Matches";
 import FindInvestors from "./pages/FindInvestors";
 import MatchPreview from "./pages/MatchPreview";
 import InvestorSignup from "./pages/InvestorSignup";
+import FounderSignup from "./pages/FounderSignup";
 import InvestorSignupComplete from "./pages/InvestorSignupComplete";
 import InvestorPortfolio from "./pages/InvestorPortfolio";
 import InvestorLogin from "./pages/InvestorLogin";
@@ -84,6 +85,7 @@ function Router() {
       <Route path={"/find-investors"} component={FindInvestors} />
       <Route path={"/matches/preview/:startupId"} component={MatchPreview} />
       <Route path={"/matches"} component={Matches} />
+      <Route path={"/signup/founder"} component={FounderSignup} />
       <Route path={"/signup/investor"} component={InvestorSignup} />
       <Route path={"/signup/investor/complete"} component={InvestorSignupComplete} />
       <Route path={"/investor/portfolio"} component={InvestorPortfolio} />

@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Loader2, ArrowRight, Download, Bookmark, Send } from 'lucide-react';
+import { Loader2, ArrowRight, Download, Bookmark, Send, Activity, Bell, Target } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
@@ -62,10 +62,10 @@ export default function InstantMatchPreview({ url }: Props) {
   const [deltaAssignment, setDeltaAssignment] = useState<GrowthAssignment | null>(null);
   const [oracleGapAssignment, setOracleGapAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
-    save: 'Save shortlist',
-    intro: 'Request intro',
-    export: 'Export list',
-    footer: 'Create a free account to save, request intros, or export — your shortlist stays unlocked.',
+    save: 'Track shortlist',
+    intro: 'Track & request intro',
+    export: 'Export & track',
+    footer: 'Free account — track investor movement, save your shortlist, and unlock intro requests.',
   });
 
   useEffect(() => {
@@ -296,7 +296,7 @@ export default function InstantMatchPreview({ url }: Props) {
       gateCtaRef.current,
       previewGateAssignment,
     );
-    navigate('/activate');
+    navigate('/signup/founder');
   };
 
   const investorFromMatch = (m: PreviewMatch): GatedInvestorContext | null => {
@@ -354,8 +354,50 @@ export default function InstantMatchPreview({ url }: Props) {
           {startupName} — your investor shortlist
         </h1>
         <p className="text-sm text-zinc-400">
-          {total.toLocaleString()} matches in network · showing top {visible.length} — free, no account required
+          {total.toLocaleString()} matches in network · showing top {visible.length} ·{' '}
+          <button
+            type="button"
+            onClick={() => void handleGate('save')}
+            className="text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
+          >
+            Sign up free to track them
+          </button>
         </p>
+      </div>
+
+      <div className="mb-8 rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-zinc-900/60 p-5">
+        <p className="text-[10px] uppercase tracking-[2px] text-emerald-400 mb-3">Why founders sign up</p>
+        <div className="grid sm:grid-cols-3 gap-4 mb-5">
+          <div className="flex gap-3">
+            <Target className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-white">Track your shortlist</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Save top matches and watch fit scores update as signals move.</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Bell className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-white">Investor movement alerts</p>
+              <p className="text-xs text-zinc-500 mt-0.5">See when investors shift toward your sector or stage.</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Activity className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-white">Intro & outreach pipeline</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Queue warm intros and preview PYTHIA outreach drafts.</p>
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleGate('intro', investorFromMatch(visible[0] ?? {}))}
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
+        >
+          Start tracking investors — free
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
       <PreviewOracleProofStrip />
@@ -511,27 +553,20 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <div
         ref={pricingStripRef}
-        className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3"
+        className="fixed bottom-0 inset-x-0 z-40 border-t border-emerald-500/20 bg-zinc-950/95 backdrop-blur-md px-4 py-3"
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-zinc-400 text-center sm:text-left">
-            {total.toLocaleString()} ranked investors ·{' '}
-            <Link
-              href={`/pricing?trial=1&startup_id=${preview.startup?.id || ''}&source=preview_sticky`}
-              onClick={() => handlePricingFromPreview('preview_sticky')}
-              className="text-amber-400/90 hover:text-amber-300 underline-offset-2 hover:underline"
-            >
-              Start 7-day Oracle trial — outreach for your top 3 matches
-            </Link>
+          <p className="text-xs text-zinc-300 text-center sm:text-left font-medium">
+            {visible.length} investors ready to track · free account, no card
           </p>
           <div className="flex gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => void handleGate('intro', investorFromMatch(visible[0] ?? {}))}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
             >
-              <Send className="w-4 h-4" />
-              {gateCopy.intro}
+              <Activity className="w-4 h-4" />
+              Track my investors
             </button>
             <button
               type="button"
@@ -539,7 +574,7 @@ export default function InstantMatchPreview({ url }: Props) {
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-zinc-600 text-zinc-200 text-sm font-medium hover:border-zinc-400"
             >
               <Bookmark className="w-4 h-4" />
-              Save
+              Save shortlist
             </button>
           </div>
         </div>

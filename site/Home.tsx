@@ -411,7 +411,10 @@ function HeroSection({
         <p className="text-xs mt-3" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
       )}
       <p className="text-[10px] mt-3 text-center" style={{ color: DIM }}>
-        No credit card · No signup required
+        No credit card · Preview free ·{' '}
+        <Link href="/signup/founder" className="underline hover:no-underline" style={{ color: G }}>
+          Sign up free
+        </Link>
       </p>
     </form>
   );

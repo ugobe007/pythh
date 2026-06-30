@@ -268,6 +268,22 @@ export default function Wizard() {
           <Link href="/" className="text-xs font-bold" style={{ color: "oklch(0.696 0.17 162.48)" }}>← pythh.ai</Link>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-lg mx-auto w-full text-center">
+          {showWelcome && (
+            <div
+              className="w-full mb-6 px-4 py-3 rounded-xl text-left"
+              style={{
+                backgroundColor: 'oklch(0.696 0.17 162.48 / 0.1)',
+                border: '1px solid oklch(0.696 0.17 162.48 / 0.25)',
+              }}
+            >
+              <p className="text-xs font-semibold mb-1" style={{ color: 'oklch(0.696 0.17 162.48)' }}>
+                ✓ Account created — investor tracking is on
+              </p>
+              <p className="text-xs" style={{ color: 'oklch(0.55 0.01 264)' }}>
+                Your shortlist is saved. Complete unlocks below to raise your GOD score and open intro requests.
+              </p>
+            </div>
+          )}
           <p className="text-[10px] font-semibold tracking-widest mb-4" style={{ color: "#22d3ee" }}>ACT 2 · CHOOSE YOUR UNLOCKS</p>
           <h1 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: "oklch(0.94 0.005 264)", letterSpacing: "-0.03em" }}>
             {unlockSummary.headline}
