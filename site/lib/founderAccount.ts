@@ -3,7 +3,37 @@
  * No password — same path as /login email sign-in.
  */
 
+import { apiUrl } from '@/lib/apiConfig';
 import { trpcVanilla } from '@/lib/trpcVanilla';
+
+export type FounderWelcomeEmailSource =
+  | 'founder_signup_page'
+  | 'founder_signup_gate'
+  | 'activate_gate_skip_scan'
+  | 'activate_scan_complete';
+
+/** Day-0 Oracle welcome — gap map, wizard link, trial CTA (fire-and-forget). */
+export function sendFounderWelcomeEmail(opts: {
+  email: string;
+  startupId: string;
+  startupName?: string;
+  source?: FounderWelcomeEmailSource;
+}): void {
+  const email = opts.email.trim().toLowerCase();
+  if (!email.includes('@') || !opts.startupId) return;
+
+  void fetch(apiUrl('/api/preview/activation-nudge'), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      email,
+      startup_id: opts.startupId,
+      startup_name: opts.startupName,
+      source: opts.source || 'founder_signup_page',
+    }),
+  }).catch(() => {});
+}
 
 export async function createFounderAccount(
   email: string,

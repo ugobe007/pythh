@@ -11,7 +11,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
-import { createFounderAccount, fetchInstantResults } from "@/lib/founderAccount";
+import { createFounderAccount, fetchInstantResults, sendFounderWelcomeEmail } from "@/lib/founderAccount";
 import { consumeFounderGatePending, consumePostSignupPath, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
@@ -2523,6 +2523,11 @@ export default function Activate() {
           startupId: existingStartupId,
           gatedAction,
         });
+        sendFounderWelcomeEmail({
+          email: gateEmail,
+          startupId: existingStartupId,
+          source: 'activate_gate_skip_scan',
+        });
 
         const data = await fetchInstantResults(existingStartupId);
         if (data?.startup_id) {
@@ -2564,6 +2569,13 @@ export default function Activate() {
           startupId: existingStartupId,
           gatedAction,
         });
+        if (existingStartupId) {
+          sendFounderWelcomeEmail({
+            email: gateEmail,
+            startupId: existingStartupId,
+            source: 'founder_signup_gate',
+          });
+        }
       }
     }
 
@@ -2590,17 +2602,12 @@ export default function Activate() {
     }
 
     if (capturedEmail && result.startup_id) {
-      void fetch(apiUrl("/api/preview/activation-nudge"), {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          email: capturedEmail,
-          startup_id: result.startup_id,
-          startup_name: result.startup?.name,
-          source: "activate_scan_complete",
-        }),
-      }).catch(() => {});
+      sendFounderWelcomeEmail({
+        email: capturedEmail,
+        startupId: result.startup_id,
+        startupName: result.startup?.name,
+        source: 'activate_scan_complete',
+      });
     }
 
     const postSignupPath = consumePostSignupPath();

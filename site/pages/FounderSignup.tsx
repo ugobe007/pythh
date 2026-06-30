@@ -18,6 +18,7 @@ import {
   FOUNDER_GATE_ACTION_LABELS,
   type FounderGatedAction,
 } from '@/lib/founderSignupGate';
+import { sendFounderWelcomeEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
@@ -112,6 +113,13 @@ export default function FounderSignup() {
           gated_action: resolvedAction,
           startup_id: startupId,
         });
+        if (startupId) {
+          sendFounderWelcomeEmail({
+            email: trimmed,
+            startupId,
+            source: 'founder_signup_gate',
+          });
+        }
       } else {
         const assignment =
           (await fetchGrowthAssignment('founder')) ?? {
@@ -127,6 +135,13 @@ export default function FounderSignup() {
           startup_id: startupId || undefined,
           email_provided: true,
         });
+        if (startupId) {
+          sendFounderWelcomeEmail({
+            email: trimmed,
+            startupId,
+            source: 'founder_signup_page',
+          });
+        }
       }
 
       const postPath = consumePostSignupPath();
@@ -266,6 +281,11 @@ export default function FounderSignup() {
             <span className="flex items-center gap-1.5">
               <CheckCircle2 size={11} style={{ color: 'oklch(0.696 0.17 162.48)' }} /> No password
             </span>
+            {(fromGate || startupId) && (
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 size={11} style={{ color: 'oklch(0.696 0.17 162.48)' }} /> Oracle read emailed to you
+              </span>
+            )}
           </div>
 
           <p className="text-center text-xs mt-8" style={{ color: 'oklch(0.45 0.01 264)' }}>
