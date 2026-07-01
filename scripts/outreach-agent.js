@@ -41,7 +41,11 @@ const {
   vcEmailSignoff,
 } = require("../lib/pythiaVoice.js");
 const { normalizeFirmKey, pickOnePerFirm } = require("../lib/outreachFirmDedup.js");
-const { getOutreachFromAddress } = require("../lib/outreachFrom.js");
+const {
+  getOutreachFromAddress,
+  isResendSandboxError,
+  isSandboxFromAddress,
+} = require("../lib/outreachFrom.js");
 const { pickMarketObservation } = require("../lib/outreachMarketIntel.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
@@ -83,6 +87,13 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 if (!RESEND_KEY && !DRY_RUN && !DRAFT_ONLY) {
   console.error("[outreach-agent] ✗ Missing RESEND_API_KEY. Use --dry-run or --draft-only to preview without sending.");
+  process.exit(1);
+}
+if (!DRY_RUN && !DRAFT_ONLY && !TEST_TO && isSandboxFromAddress(FROM_ADDRESS)) {
+  console.error("\n[outreach-agent] ✗ Sender is Resend sandbox (onboarding@resend.dev).");
+  console.error("  Real recipients will 403. Fix one of:");
+  console.error("  • Add OUTREACH_USE_PYTHH_DOMAIN=true to .env  →  pythia@pythh.ai");
+  console.error("  • Or preview with --test-to ugobe07@gmail.com\n");
   process.exit(1);
 }
 
@@ -154,6 +165,9 @@ async function sendEmail({ to, subject, html, text, meta = {} }) {
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     console.error(`  [outreach-agent] Resend error for ${recipient}:`, data);
+    if (isResendSandboxError(data)) {
+      console.error("  → Resend sandbox: set OUTREACH_USE_PYTHH_DOMAIN=true or use --test-to for previews.");
+    }
     return { ok: false, error: data, recipient, subject: finalSubject, html, text };
   }
   return { ok: true, id: data.id ?? "", recipient, subject: finalSubject, html, text };
@@ -1042,6 +1056,7 @@ console.log(`│  dry run:  ${String(DRY_RUN).padEnd(38)}│`);
 console.log(`│  drafts:   ${String(DRAFT_ONLY).padEnd(38)}│`);
 console.log(`│  regen:    ${String(REGENERATE_IDS.length || "—").padEnd(38)}│`);
 console.log(`│  test to:  ${(TEST_TO ?? "—").padEnd(38)}│`);
+console.log(`│  from:     ${FROM_ADDRESS.padEnd(38)}│`);
 console.log("└─────────────────────────────────────────────────┘");
 
 if (REGENERATE_IDS.length > 0) {
