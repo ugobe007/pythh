@@ -11,6 +11,7 @@ import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import { getUtmParams, trackReturnVisitIfEligible } from '@/lib/funnelAttribution';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
+import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
 interface Investor {
   id: string;
@@ -51,6 +52,8 @@ export default function MatchPreview() {
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [peterPanelOpen, setPeterPanelOpen] = useState(false);
+  const [peterInvestor, setPeterInvestor] = useState<GatedInvestorContext | null>(null);
 
   useEffect(() => {
     if (!startupId) return;
@@ -118,9 +121,19 @@ export default function MatchPreview() {
     action: 'save' | 'intro' | 'export',
     investor?: GatedInvestorContext | null,
   ) => {
+    if (action === 'intro') {
+      setPeterInvestor(investor ?? null);
+      setPeterPanelOpen(true);
+      return;
+    }
     if (startupUrl) sessionStorage.setItem('pythia_url', startupUrl);
     await trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id, investor });
-    navigate('/activate');
+    navigate('/signup/founder');
+  };
+
+  const openPeterPanel = (investor?: GatedInvestorContext | null) => {
+    setPeterInvestor(investor ?? null);
+    setPeterPanelOpen(true);
   };
 
   return (
@@ -136,10 +149,10 @@ export default function MatchPreview() {
           </Link>
           <button
             type="button"
-            onClick={() => void handleGate('intro')}
+            onClick={() => openPeterPanel()}
             className="px-4 py-1.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
           >
-            Request intro
+            Ask Peter
           </button>
         </div>
       </nav>
@@ -159,6 +172,12 @@ export default function MatchPreview() {
             </span>
           </div>
         </div>
+
+        <PeterIntroStrip onAskPeter={() => openPeterPanel(visible[0] ? {
+          id: visible[0].investor.id,
+          name: visible[0].investor.name,
+          firm: visible[0].investor.firm,
+        } : null)} />
 
         <div className="space-y-3 pb-24">
           {visible.map((m, i) => {
@@ -192,7 +211,7 @@ export default function MatchPreview() {
                   onClick={() => void handleGate('intro', investor)}
                   className="px-3 py-1.5 rounded-lg bg-emerald-500 text-black text-xs font-semibold whitespace-nowrap"
                 >
-                  Intro
+                  Intro help
                 </button>
               </div>
             </div>
@@ -221,7 +240,7 @@ export default function MatchPreview() {
                 onClick={() => void handleGate('intro')}
                 className="px-5 py-2 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
               >
-                Request intro
+                Request intro help
               </button>
               <button
                 type="button"
@@ -250,21 +269,31 @@ export default function MatchPreview() {
       <div className="fixed bottom-0 inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-4 py-3">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400">
-            {total_matches.toLocaleString()} matches · free account to request intros
+            {total_matches.toLocaleString()} matches · Peter helps with thesis framing
           </p>
           <button
             type="button"
-            onClick={() => void handleGate('intro', visible[0] ? {
+            onClick={() => openPeterPanel(visible[0] ? {
               id: visible[0].investor.id,
               name: visible[0].investor.name,
               firm: visible[0].investor.firm,
             } : null)}
             className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-emerald-500 text-black text-sm font-semibold"
           >
-            Request intro to top match
+            Ask Peter for intro help
           </button>
         </div>
       </div>
+
+      <PeterIntroPanel
+        open={peterPanelOpen}
+        onClose={() => setPeterPanelOpen(false)}
+        startupId={startup.id}
+        startupName={startup.name}
+        startupUrl={startupUrl}
+        investor={peterInvestor}
+        source="share_preview"
+      />
     </div>
   );
 }

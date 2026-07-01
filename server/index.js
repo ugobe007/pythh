@@ -6660,6 +6660,8 @@ const matchesRouter = require('./routes/matches');
 const scanRouter = require('./routes/scan');
 const growthRouter = require('./routes/growth')(getSupabaseClient);
 app.use('/api/matches', matchesRouter);
+const introConciergeRouter = require('./routes/introConcierge');
+app.use('/api/intro', introConciergeRouter);
 app.use('/api/growth', growthRouter);
 app.use('/api', scanRouter);
 

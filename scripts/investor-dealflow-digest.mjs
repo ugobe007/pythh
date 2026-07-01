@@ -37,7 +37,7 @@ const DRY_RUN = hasFlag('--dry-run');
 const SKIP_RECENT = !hasFlag('--force');
 
 const SITE_BASE = (process.env.SITE_URL || 'https://pythh.ai').replace(/\/$/, '');
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Pythh Dealflow <notifications@pythh.ai>';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'Peter at Pythh <pythia@pythh.ai>';
 const RESEND_KEY = process.env.RESEND_API_KEY || '';
 
 const sb = createClient(
@@ -260,14 +260,14 @@ function buildEmail(matches, recipientName = 'Investor', prefs = {}) {
         <table cellpadding="0" cellspacing="0" width="100%">
           <tr>
             <td>
-              <span style="font-size:22px;font-weight:800;color:#f59e0b;">[pyth]</span>
-              <span style="font-size:18px;font-weight:700;color:#ffffff;"> Dealflow Digest</span>
+              <span style="font-size:22px;font-weight:800;color:#f59e0b;">Peter</span>
+              <span style="font-size:18px;font-weight:700;color:#ffffff;"> · Dealflow Digest</span>
             </td>
             <td align="right" style="font-size:11px;color:#444;">${week}</td>
           </tr>
         </table>
         <p style="margin:8px 0 0;font-size:13px;color:#555;">
-          Hi ${recipientName}, here are ${matches.length} thesis-matched startups raising this week.
+          Hi ${recipientName} — Peter here. ${matches.length} thesis-matched startups deploying in spaces aligned with your portfolio this week.
         </p>
         ${prefsLine ? `<p style="margin:4px 0 0;font-size:11px;color:#3a3a3a;">${prefsLine}</p>` : ''}
       </td></tr>

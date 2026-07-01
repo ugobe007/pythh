@@ -30,6 +30,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  investor-digest:
+    if: >-
+      github.event.schedule == '0 13 * * 1'
+      || (github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'vc' || github.event.inputs.mode == 'both'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Peter dealflow digest (signed-up investors)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          OUTREACH_USE_PYTHH_DOMAIN: 'true'
+          EMAIL_FROM: 'Peter at Pythh <pythia@pythh.ai>'
+          SITE_URL: https://pythh.ai
+        run: npm run digest:investor
+
   outreach:
     runs-on: ubuntu-latest
     timeout-minutes: 45

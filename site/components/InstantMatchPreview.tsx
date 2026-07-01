@@ -18,6 +18,7 @@ import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 import MatchExplainBlock from '@/components/MatchExplainBlock';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
+import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
 const PREVIEW_LIMIT = 10;
 
@@ -63,10 +64,12 @@ export default function InstantMatchPreview({ url }: Props) {
   const [oracleGapAssignment, setOracleGapAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
     save: 'Track shortlist',
-    intro: 'Track & request intro',
+    intro: 'Ask Peter',
     export: 'Export & track',
-    footer: 'Free account — track investor movement, save your shortlist, and unlock intro requests.',
+    footer: 'Free account — or ask Peter for thesis framing before you reach out.',
   });
+  const [peterPanelOpen, setPeterPanelOpen] = useState(false);
+  const [peterInvestor, setPeterInvestor] = useState<GatedInvestorContext | null>(null);
 
   useEffect(() => {
     fetchGrowthAssignment('founder', 'founder_hero_entry')
@@ -271,16 +274,10 @@ export default function InstantMatchPreview({ url }: Props) {
 
   const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
-    if (action === 'intro' && investor?.id) {
-      void trackFunnelEvent('match_intro_requested', {
-        startup_id: preview.startup.id,
-        investor_id: investor.id,
-        investor_name: investor.name,
-        url,
-        source: 'instant_preview_gate',
-        gated_action: action,
-      });
-      void recordMatchEngagement(preview.startup.id, investor.id, 'intro', 'instant_preview_gate');
+    if (action === 'intro') {
+      setPeterInvestor(investor ?? null);
+      setPeterPanelOpen(true);
+      return;
     }
     const previewGateAssignment =
       action === 'oracle_gap'
@@ -406,6 +403,14 @@ export default function InstantMatchPreview({ url }: Props) {
         totalInNetwork={total}
         shownCount={visible.length}
         startupName={startupName}
+      />
+
+      <PeterIntroStrip
+        className="mb-6"
+        onAskPeter={() => {
+          setPeterInvestor(investorFromMatch(visible[0] ?? {}));
+          setPeterPanelOpen(true);
+        }}
       />
 
       <div className="space-y-3 mb-8">
@@ -565,8 +570,8 @@ export default function InstantMatchPreview({ url }: Props) {
               onClick={() => void handleGate('intro', investorFromMatch(visible[0] ?? {}))}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
             >
-              <Activity className="w-4 h-4" />
-              Track my investors
+              <Send className="w-4 h-4" />
+              Ask Peter · intro help
             </button>
             <button
               type="button"
@@ -579,6 +584,18 @@ export default function InstantMatchPreview({ url }: Props) {
           </div>
         </div>
       </div>
+
+      {preview.startup?.id && (
+        <PeterIntroPanel
+          open={peterPanelOpen}
+          onClose={() => setPeterPanelOpen(false)}
+          startupId={preview.startup.id}
+          startupName={startupName}
+          startupUrl={url}
+          investor={peterInvestor}
+          source="instant_match_preview"
+        />
+      )}
     </div>
   );
 }
