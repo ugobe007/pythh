@@ -34,6 +34,8 @@ https://pythh.ai/find-investors?utm_source=x&utm_medium=social&utm_campaign=thes
 
 ## Reddit — r/startups
 
+> **Skipped** — use LinkedIn + X for professional outbound (`npm run outbound:professional`). Reddit removed from automated channels.
+
 **Title:** [Data] AI/ML: 2085 startups scored 70+ this week — 289 investors actually deploying pre-seed/seed
 
 **Body:**

@@ -234,7 +234,7 @@ async function runChannel(key) {
 async function main() {
   const channels =
     CHANNEL === 'all'
-      ? ['reddit_startups', 'linkedin']
+      ? ['linkedin', 'x']
       : CHANNEL.split(',').map((s) => s.trim()).filter(Boolean);
 
   console.log('═══════════════════════════════════════════════════════════════');
