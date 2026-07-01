@@ -15,6 +15,21 @@ Each email:
 - Has a dedup guard (same campaign slug = no re-send)
 - Logs every send to `pythh_prospecting_log` for analytics
 
+### Contact resolution (startups + VCs)
+
+Same playbook on both sides:
+
+| Address type | Examples | Greeting |
+|--------------|----------|----------|
+| **Intake / team** | `info@`, `team@`, `support@`, `inquiries@`, `pitch@`, `deals@` | "Hi team at {Company}," |
+| **Personal** | `marc@`, `sarah.chen@`, first-name local parts | "Hi {First}," |
+
+**Startups:** uses `submitted_email` when present (excluding scraper placeholders like `bulk@import.com`). Otherwise infers `info@{domain}` when the website has MX records.
+
+**VCs:** uses `email_best_guess` from the email inference script (`npm run enrich:emails`) — personal partner permutations first, then intake slugs.
+
+Only truly junk addresses are blocked (`noreply@`, test inboxes, bulk import rows).
+
 ---
 
 ## Prerequisites

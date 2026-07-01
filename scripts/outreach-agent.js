@@ -26,7 +26,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const require = createRequire(import.meta.url);
 const { rankStartupsForInvestor, rankInvestorsForStartup } = require("../lib/outreachMatch.js");
-const { classifyOutreachEmail, outreachGreeting } = require("../lib/investorEmailInfer.js");
+const { classifyOutreachEmail, outreachGreeting, contactOutreachGreeting, resolveStartupContactEmail, isBlockedOutreachEmail } = require("../lib/investorEmailInfer.js");
 const {
   vcSubject,
   vcHeadline,
@@ -284,21 +284,34 @@ function buildVcEmailBundle(inv, startupPool, usedObservationCompanies, campaign
   return { email, subject, html, text, displayName, emailType, leadCount: leads.length };
 }
 
-function buildStartupEmailBundle(startup, investorPool) {
-  const email = startup.submitted_email;
+function buildStartupEmailBundle(startup, investorPool, contact) {
+  const email = contact?.email;
   if (!email) return null;
 
   const ranked = rankInvestorsForStartup(startup, investorPool ?? [], { limit: 5, minScore: 35 });
   if (ranked.length === 0) return null;
 
-  const founderName = email.split("@")[0].replace(/[._+-]/g, " ");
-  const user = { name: founderName, email };
   const startupLabel = (startup.name ?? startup.website ?? "your startup").trim();
+  const greeting = contactOutreachGreeting({
+    email,
+    entityName: startupLabel,
+    personName: startup.founder_name ?? startup.extracted_data?.founders?.[0]?.name,
+  });
   const subject = `Who recognizes ${startupLabel} now — ${ranked.length} investors aligned`;
-  const html = startupEmail({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
-  const text = startupEmailText({ user, startup: { ...startup, name: startupLabel }, matches: ranked });
+  const html = startupEmail({ startup: { ...startup, name: startupLabel }, matches: ranked, greeting });
+  const text = startupEmailText({ startup: { ...startup, name: startupLabel }, matches: ranked, greeting });
 
-  return { email, subject, html, text, displayName: startupLabel, matchCount: ranked.length };
+  return {
+    email,
+    subject,
+    html,
+    text,
+    displayName: startupLabel,
+    matchCount: ranked.length,
+    emailType: contact.emailType,
+    contactSource: contact.source,
+    greeting,
+  };
 }
 
 const INVESTOR_SELECT =
@@ -306,7 +319,7 @@ const INVESTOR_SELECT =
 const STARTUP_POOL_SELECT =
   "id, name, website, sectors, total_god_score, stage, tagline, latest_funding_amount, raise_amount, extracted_data";
 const STARTUP_CONTACT_SELECT =
-  "id, name, website, sectors, total_god_score, stage, tagline, submitted_email";
+  "id, name, website, company_website, sectors, total_god_score, stage, tagline, submitted_email, extracted_data";
 
 async function loadStartupPool() {
   const { data, error } = await db
@@ -424,7 +437,8 @@ async function runRegenerateMode() {
         continue;
       }
 
-      const bundle = buildStartupEmailBundle(startup, investorPool);
+      const contact = await resolveStartupContactEmail(startup);
+      const bundle = buildStartupEmailBundle(startup, investorPool, contact);
       if (!bundle) {
         console.log("✗ no matches");
         continue;
@@ -560,19 +574,17 @@ async function runVcMode() {
 async function runStartupMode() {
   console.log("\n[Startup mode] Fetching startups with contact emails…");
 
-  const BLOCKED_EMAILS = ["bulk@import.com", "auto@test.com", "test@test.com", "noreply@", "admin@hotmoneyhoney.com"];
-
   const { data: startups, error } = await db
     .from("startup_uploads")
-    .select("id, name, website, sectors, total_god_score, stage, tagline, submitted_email")
-    .not("submitted_email", "is", null)
+    .select(STARTUP_CONTACT_SELECT)
     .eq("status", "approved")
     .gte("total_god_score", 40)
+    .or("submitted_email.not.is.null,website.not.is.null")
     .order("total_god_score", { ascending: false })
-    .limit(LIMIT * 5);
+    .limit(LIMIT * 8);
 
   if (error) { console.error("[Startup mode] DB error:", error); return; }
-  console.log(`[Startup mode] Found ${startups?.length ?? 0} startups with emails`);
+  console.log(`[Startup mode] Found ${startups?.length ?? 0} candidate startups`);
 
   const investorPool = await loadInvestorPool();
   console.log(`[Startup mode] Scoring against ${investorPool.length} investors\n`);
@@ -582,10 +594,14 @@ async function runStartupMode() {
   for (const startup of startups ?? []) {
     if (sent >= LIMIT) break;
 
-    const email = startup.submitted_email;
-    if (!email) continue;
+    const contact = await resolveStartupContactEmail(startup);
+    if (!contact?.email) {
+      console.log(`  [skip] ${startup.name ?? startup.website} — no resolvable contact`);
+      continue;
+    }
 
-    if (BLOCKED_EMAILS.some((b) => email.toLowerCase().includes(b.toLowerCase()))) {
+    const email = contact.email;
+    if (isBlockedOutreachEmail(email)) {
       console.log(`  [skip] ${email} is a blocked/placeholder address`);
       continue;
     }
@@ -595,15 +611,17 @@ async function runStartupMode() {
       continue;
     }
 
-    const bundle = buildStartupEmailBundle(startup, investorPool);
+    const bundle = buildStartupEmailBundle(startup, investorPool, contact);
     if (!bundle) {
       console.log(`  [skip] No scored matches for ${startup.name ?? startup.website}`);
       continue;
     }
 
-    const { subject, html, text, displayName: startupLabel, matchCount } = bundle;
+    const { subject, html, text, displayName: startupLabel, matchCount, emailType, contactSource } = bundle;
 
-    process.stdout.write(`  Sending to ${email} (${startupLabel}, ${matchCount} matches)… `);
+    process.stdout.write(
+      `  Sending to ${email} (${startupLabel}, ${matchCount} matches, ${emailType}/${contactSource})… `,
+    );
     const result = await sendEmail({
       to: email,
       subject,
@@ -835,9 +853,9 @@ Unsubscribe: https://pythh.ai/support
 
 // ── Startup matches email (HTML) ──────────────────────────────────────────────
 
-function startupEmail({ user, startup, matches }) {
-  const firstName = (user.name ?? "Founder").split(" ")[0];
+function startupEmail({ startup, matches, greeting }) {
   const startupName = startup.name ?? startup.website ?? "your startup";
+  const salutation = greeting ?? "Hi there,";
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
   const scoreLabel = godScore >= 70 ? "Strong · Investment-grade"
@@ -900,7 +918,7 @@ function startupEmail({ user, startup, matches }) {
       ${matches.length} investors aligned with<br>${startupName}.
     </h1>
     <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0;">
-      Hi ${firstName}, PYTHIA scored <strong style="color:#94a3b8;">${startupName}</strong> against 6,000+ investors
+      ${salutation} PYTHIA scored <strong style="color:#94a3b8;">${startupName}</strong> against 6,000+ investors
       using sector fit, stage fit, conviction themes, and market momentum — the same model that powers
       instant matching on pythh.ai. These are your strongest alignment signals right now.
     </p>
@@ -974,8 +992,8 @@ function startupEmail({ user, startup, matches }) {
 </html>`;
 }
 
-function startupEmailText({ user, startup, matches }) {
-  const firstName = (user.name ?? "Founder").split(" ")[0];
+function startupEmailText({ startup, matches, greeting }) {
+  const salutation = greeting ?? "Hi there,";
   const startupName = startup.name ?? startup.website ?? "your startup";
 
   const matchesText = matches
@@ -987,7 +1005,7 @@ function startupEmailText({ user, startup, matches }) {
 
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
 
-  return `Hi ${firstName},
+  return `${salutation}
 
 Who recognizes you now. Who will recognize you next.
 
