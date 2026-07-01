@@ -14,8 +14,10 @@
  * Env:
  *   OUTREACH_VC_SCHEDULE       — cron expression (default: 0 8 * * 1  = Monday 8am)
  *   OUTREACH_STARTUP_SCHEDULE  — cron expression (default: 0 8 * * 2  = Tuesday 8am)
- *   OUTREACH_LIMIT             — emails per run (default: 50)
+ *   OUTREACH_LIMIT             — emails per run (default: 20)
  *   OUTREACH_TZ                — timezone (default: America/New_York)
+ *   OUTREACH_DRAFT_ONLY        — set to "true" to queue drafts instead of sending (default: live send)
+ *   OUTREACH_USE_PYTHH_DOMAIN  — must be "true" for production sends (pythia@pythh.ai)
  *   SUPABASE_URL               — required
  *   SUPABASE_SERVICE_ROLE_KEY  — required
  *   RESEND_API_KEY             — required
@@ -25,25 +27,26 @@ const path    = require("path");
 const { spawn } = require("child_process");
 
 const DAEMON = process.argv.includes("--daemon");
+const DRAFT_ONLY = process.argv.includes("--draft-only") || process.env.OUTREACH_DRAFT_ONLY === "true";
 const ROOT   = path.join(__dirname, "..", "..");
 const AGENT  = path.join(ROOT, "scripts", "outreach-agent.js");
 
 const VC_SCHEDULE      = process.env.OUTREACH_VC_SCHEDULE      ?? "0 8 * * 1";  // Monday
 const STARTUP_SCHEDULE = process.env.OUTREACH_STARTUP_SCHEDULE ?? "0 8 * * 2";  // Tuesday
-const LIMIT            = process.env.OUTREACH_LIMIT            ?? "50";
+const LIMIT            = process.env.OUTREACH_LIMIT            ?? "20";
 const TZ               = process.env.OUTREACH_TZ               ?? "America/New_York";
 
 // ── Spawn helper ──────────────────────────────────────────────────────────────
 
 function runMode(mode) {
   const now = new Date().toISOString();
-  console.log(`\n[outreach-scheduler] ${now}  starting mode=${mode} limit=${LIMIT}`);
+  const sendMode = DRAFT_ONLY ? "draft-only" : "live";
+  console.log(`\n[outreach-scheduler] ${now}  starting mode=${mode} limit=${LIMIT} send=${sendMode}`);
 
-  const child = spawn(
-    process.execPath,
-    [AGENT, "--mode", mode, "--limit", LIMIT, "--draft-only"],
-    { stdio: "inherit", env: process.env }
-  );
+  const args = [AGENT, "--mode", mode, "--limit", LIMIT];
+  if (DRAFT_ONLY) args.push("--draft-only");
+
+  const child = spawn(process.execPath, args, { stdio: "inherit", env: process.env });
 
   child.on("close", (code) => {
     const status = code === 0 ? "✓ completed" : `✗ exited with code ${code}`;
@@ -87,7 +90,8 @@ try {
 console.log(`[outreach-scheduler] Daemon started.`);
 console.log(`  VC mode:      ${VC_SCHEDULE} (${TZ})`);
 console.log(`  Startup mode: ${STARTUP_SCHEDULE} (${TZ})`);
-console.log(`  Limit:        ${LIMIT} emails per run\n`);
+console.log(`  Limit:        ${LIMIT} emails per run`);
+console.log(`  Send mode:    ${DRAFT_ONLY ? "draft-only" : "live"}\n`);
 
 cron.schedule(VC_SCHEDULE, () => runMode("vc"), {
   timezone: TZ,

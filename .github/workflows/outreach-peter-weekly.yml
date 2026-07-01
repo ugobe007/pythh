@@ -1,0 +1,92 @@
+# Peter outreach — automated weekly email to founders (Tue) and VCs (Mon).
+name: Peter Outreach Weekly
+
+on:
+  schedule:
+    - cron: '0 13 * * 1'   # Mon 13:00 UTC ≈ 8am ET — VC dealflow
+    - cron: '0 13 * * 2'   # Tue 13:00 UTC ≈ 8am ET — founder matches
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Outreach mode'
+        required: true
+        type: choice
+        options:
+          - startup
+          - vc
+          - both
+      limit:
+        description: 'Emails per mode'
+        required: false
+        default: '20'
+      draft_only:
+        description: 'Queue drafts only (no send)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: outreach-peter-${{ github.event.schedule || github.event.inputs.mode }}
+  cancel-in-progress: false
+
+jobs:
+  outreach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resolve mode
+        id: mode
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+        run: |
+          if [ -n "$INPUT_MODE" ]; then
+            echo "value=$INPUT_MODE" >> "$GITHUB_OUTPUT"
+          elif [ "$SCHEDULE" = "0 13 * * 1" ]; then
+            echo "value=vc" >> "$GITHUB_OUTPUT"
+          elif [ "$SCHEDULE" = "0 13 * * 2" ]; then
+            echo "value=startup" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=startup" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Peter outreach (founders)
+        if: steps.mode.outputs.value == 'startup' || steps.mode.outputs.value == 'both'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          OUTREACH_USE_PYTHH_DOMAIN: 'true'
+          OUTREACH_FROM: pythia@pythh.ai
+          OUTREACH_LIMIT: ${{ github.event.inputs.limit || '20' }}
+          OUTREACH_DRAFT_ONLY: ${{ github.event.inputs.draft_only && 'true' || 'false' }}
+        run: |
+          ARGS="--mode startup --limit ${OUTREACH_LIMIT}"
+          if [ "$OUTREACH_DRAFT_ONLY" = "true" ]; then ARGS="$ARGS --draft-only"; fi
+          node scripts/outreach-agent.js $ARGS
+
+      - name: Peter outreach (VCs)
+        if: steps.mode.outputs.value == 'vc' || steps.mode.outputs.value == 'both'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          OUTREACH_USE_PYTHH_DOMAIN: 'true'
+          OUTREACH_FROM: pythia@pythh.ai
+          OUTREACH_LIMIT: ${{ github.event.inputs.limit || '20' }}
+          OUTREACH_DRAFT_ONLY: ${{ github.event.inputs.draft_only && 'true' || 'false' }}
+        run: |
+          ARGS="--mode vc --limit ${OUTREACH_LIMIT}"
+          if [ "$OUTREACH_DRAFT_ONLY" = "true" ]; then ARGS="$ARGS --draft-only"; fi
+          node scripts/outreach-agent.js $ARGS

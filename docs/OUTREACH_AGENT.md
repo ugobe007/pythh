@@ -85,23 +85,35 @@ node scripts/outreach-agent.js --mode startup --test-to you@yourmail.com --dry-r
 
 ### Scheduled (weekly cron)
 
+**GitHub Actions (recommended):** `.github/workflows/outreach-peter-weekly.yml`
+- **Monday 08:00 ET** — VC mode (Peter · curated startups)
+- **Tuesday 08:00 ET** — Startup mode (Peter · thesis-fit investors)
+
+Manual dispatch: Actions → *Peter Outreach Weekly* → choose mode, limit, draft-only.
+
+**Local scheduler:**
+
 ```bash
-# Run once (both modes)
+# Run once (both modes, live send)
 npm run outreach:cron
+
+# Draft queue only
+OUTREACH_DRAFT_ONLY=true npm run outreach:cron
+
+# Single mode
+node scripts/cron/outreach-scheduler.js --mode startup
 
 # Daemon — Monday/Tuesday 8am ET by default
 npm run outreach:cron:daemon
 ```
 
-Default schedule:
-- **Monday 08:00 ET** — VC mode
-- **Tuesday 08:00 ET** — Startup mode
+Required for live sends: `OUTREACH_USE_PYTHH_DOMAIN=true`, `RESEND_API_KEY`, `OUTREACH_FROM=pythia@pythh.ai`.
 
 Override via env:
 ```bash
 OUTREACH_VC_SCHEDULE="0 9 * * 1"      # Monday 9am
 OUTREACH_STARTUP_SCHEDULE="0 9 * * 3"  # Wednesday 9am
-OUTREACH_LIMIT=100
+OUTREACH_LIMIT=20
 ```
 
 ---
