@@ -169,11 +169,15 @@ npm run outreach:audit
 
 ---
 
-## Copy positioning (Observatory / Oracle)
+## Copy positioning (Peter · Match Desk)
 
-**VC emails** frame Pythh as observatory-grade intelligence — patterns forming before the market notices. Not a pitch inbox. CTA: connect MCP observatory.
+**Peter** is the outbound persona — a calm Silicon Valley insider who helps founders and investors connect the *right* way: thesis fit, messaging, and timing. He is **not** PYTHIA (the in-product scoring engine). Never use "oracle" or "AI agent" in founder outreach emails.
 
-**Startup emails** use the oracle frame: *"Who recognizes you now. Who will recognize you next."* Match reasons come from the real scoring model.
+**Founder emails** — Peter explains why most passes are thesis misalignment, ranks thesis-fit investors, and gives framing notes per row. CTA: full shortlist on pythh.ai/activate.
+
+**VC emails** — Peter curates startups ranked against firm thesis. CTA: browse rankings or connect MCP.
+
+Voice lives in `lib/pythiaVoice.js` (founder + VC helpers).
 
 ---
 
@@ -215,6 +219,6 @@ Production sends use `pythia@pythh.ai` (requires verified domain in Resend).
 
 ## Sender configuration
 
-All emails send from: `PYTHIA at Pythh <pythia@pythh.ai>`
+All emails send from: **Peter at Pythh** (`Peter at Pythh <pythia@pythh.ai>` or `peter@pythh.ai` when configured).
 
 Make sure `pythia@pythh.ai` is verified in Resend and has a valid DKIM/DMARC record on `pythh.ai`.

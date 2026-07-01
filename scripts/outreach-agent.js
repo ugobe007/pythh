@@ -28,6 +28,7 @@ const require = createRequire(import.meta.url);
 const { rankStartupsForInvestor, rankInvestorsForStartup } = require("../lib/outreachMatch.js");
 const { classifyOutreachEmail, outreachGreeting, contactOutreachGreeting, resolveStartupContactEmail, isBlockedOutreachEmail } = require("../lib/investorEmailInfer.js");
 const {
+  defaultMatchReason,
   vcSubject,
   vcHeadline,
   vcOpening,
@@ -39,6 +40,21 @@ const {
   vcEmailKicker,
   vcFromName,
   vcEmailSignoff,
+  founderSubject,
+  founderHeadline,
+  founderOpening,
+  founderOpeningText,
+  founderAlignmentTagline,
+  founderTableLabel,
+  founderScoreLabel,
+  founderScoreCaption,
+  founderFootnote,
+  founderCtaTitle,
+  founderCtaBody,
+  founderCtaPrimaryUrl,
+  founderCtaText,
+  founderEmailKicker,
+  founderEmailSignoff,
 } = require("../lib/pythiaVoice.js");
 const { normalizeFirmKey, pickOnePerFirm } = require("../lib/outreachFirmDedup.js");
 const {
@@ -311,7 +327,7 @@ function buildStartupEmailBundle(startup, investorPool, contact) {
     entityName: startupLabel,
     personName: startup.founder_name ?? startup.extracted_data?.founders?.[0]?.name,
   });
-  const subject = `Who recognizes ${startupLabel} now — ${ranked.length} investors aligned`;
+  const subject = founderSubject({ startupName: startupLabel, count: ranked.length });
   const html = startupEmail({ startup: { ...startup, name: startupLabel }, matches: ranked, greeting });
   const text = startupEmailText({ startup: { ...startup, name: startupLabel }, matches: ranked, greeting });
 
@@ -872,9 +888,11 @@ function startupEmail({ startup, matches, greeting }) {
   const salutation = greeting ?? "Hi there,";
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
-  const scoreLabel = godScore >= 70 ? "Strong · Investment-grade"
-    : godScore >= 55 ? "Solid · Signal-building"
-    : "Emerging · Keep building";
+  const scoreLabel = founderScoreLabel(godScore);
+  const opening = founderOpening({ greeting: salutation, startupName, count: matches.length });
+  const headline = founderHeadline({ startupName, count: matches.length });
+  const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
+  const activateUrl = founderCtaPrimaryUrl(encodedUrl);
 
   const rows = matches.map((m, i) => {
     const score = m.match_score ?? 0;
@@ -904,7 +922,7 @@ function startupEmail({ startup, matches, greeting }) {
               ${m.firm ?? ""}${m.stage ? " · " + m.stage : ""}${checkRange}
             </div>
             <div style="font-size:12px;color:#475569;margin-top:4px;line-height:1.5;">
-              ${m.match_reason ?? "Thesis and sector alignment confirmed by Pythh signal engine."}
+              ${m.match_reason ?? defaultMatchReason()}
             </div>
           </td>
         </tr></table>
@@ -912,29 +930,25 @@ function startupEmail({ startup, matches, greeting }) {
     </tr>`;
   }).join("");
 
-  const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Who recognizes ${startupName} — Pythh</title></head>
+<title>${headline} — Peter · Pythh</title></head>
 <body style="margin:0;padding:0;background:#0b0f1a;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
 
   <div style="margin-bottom:32px;">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;
-                color:#22c55e;font-family:monospace;margin-bottom:6px;">PYTHIA · Cause–Effect Oracle</div>
+                color:#22c55e;font-family:monospace;margin-bottom:6px;">${founderEmailKicker()}</div>
     <div style="width:28px;height:2px;background:#22c55e;margin-bottom:24px;"></div>
     <p style="color:#94a3b8;font-size:13px;font-style:italic;margin:0 0 16px;">
-      Who recognizes you now. Who will recognize you next.
+      ${founderAlignmentTagline()}
     </p>
     <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
-      ${matches.length} investors aligned with<br>${startupName}.
+      ${headline} for ${startupName}.
     </h1>
     <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0;">
-      ${salutation} PYTHIA scored <strong style="color:#94a3b8;">${startupName}</strong> against 6,000+ investors
-      using sector fit, stage fit, conviction themes, and market momentum — the same model that powers
-      instant matching on pythh.ai. These are your strongest alignment signals right now.
+      ${opening.replace(/\n\n/g, "<br><br>")}
     </p>
   </div>
 
@@ -949,42 +963,39 @@ function startupEmail({ startup, matches, greeting }) {
       </td>
       <td style="border-left:1px solid #1e293b;padding-left:16px;vertical-align:middle;">
         <div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:3px;">${startupName}</div>
-        <div style="font-size:12px;color:#475569;">Grit &middot; Opportunity &middot; Determination</div>
+        <div style="font-size:12px;color:#475569;">${founderScoreCaption()}</div>
         <div style="font-size:12px;color:${color};margin-top:4px;font-weight:600;">${scoreLabel}</div>
       </td>
     </tr></table>
   </div>` : ""}
 
-  <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;overflow:hidden;margin-bottom:24px;">
+  <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;overflow:hidden;margin-bottom:16px;">
     <div style="padding:10px 16px;border-bottom:1px solid #1e293b;background:#0d1424;">
       <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
-                  color:#334155;font-family:monospace;">MATCH · INVESTOR · WHY YOU ALIGN</div>
+                  color:#334155;font-family:monospace;">${founderTableLabel()}</div>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
   </div>
 
+  <p style="color:#475569;font-size:12px;line-height:1.55;margin:0 0 24px;">
+    ${founderFootnote()}
+  </p>
+
   <div style="background:linear-gradient(135deg,#051a0c,#0f172a);border:1px solid #14532d;
               border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
     <div style="font-size:13px;font-weight:700;color:#4ade80;margin-bottom:8px;">
-      See who recognizes you next
+      ${founderCtaTitle()}
     </div>
     <p style="color:#64748b;font-size:13px;line-height:1.55;margin:0 0 22px;">
-      Unlock your full match list, refine your GOD score, and generate personalized outreach —
-      or connect Pythh to your AI agent for continuous investor intelligence.
+      ${founderCtaBody()}
     </p>
     <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
       <tr>
-        <td style="padding-right:12px;">
-          <a href="https://pythh.ai/activate${encodedUrl ? "?startup=" + encodedUrl : ""}"
+        <td>
+          <a href="${activateUrl}"
              style="display:inline-block;padding:12px 22px;border:1px solid #16a34a;color:#22c55e;
                     text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;
-                    background:transparent;">See all my matches &rarr;</a>
-        </td>
-        <td>
-          <a href="https://pythh.ai/developers"
-             style="display:inline-block;padding:12px 22px;border:1px solid #1e293b;color:#64748b;
-                    text-decoration:none;border-radius:8px;font-size:13px;background:transparent;">
-            Connect AI agent</a>
+                    background:transparent;">See my full shortlist &rarr;</a>
         </td>
       </tr>
     </table>
@@ -992,7 +1003,7 @@ function startupEmail({ startup, matches, greeting }) {
 
   <div style="text-align:center;padding-top:16px;border-top:1px solid #1e293b;">
     <p style="color:#334155;font-size:11px;margin:0 0 4px;font-family:monospace;">
-      Pythh Capital &middot; pythh.ai &middot; ai@pythh.ai
+      ${founderEmailSignoff()}
     </p>
     <p style="font-size:11px;margin:0;">
       <a href="https://pythh.ai/support" style="color:#334155;text-decoration:none;">Unsubscribe</a>
@@ -1009,35 +1020,32 @@ function startupEmail({ startup, matches, greeting }) {
 function startupEmailText({ startup, matches, greeting }) {
   const salutation = greeting ?? "Hi there,";
   const startupName = startup.name ?? startup.website ?? "your startup";
+  const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
 
   const matchesText = matches
     .map((m, i) => [
       `  ${i + 1}. ${m.name ?? "Investor"} at ${m.firm ?? "Unknown Firm"}  |  Match: ${m.match_score ?? "—"}${m.is_super_match ? "  ★ SUPER" : ""}`,
-      `     ${m.match_reason ?? "Thesis and sector alignment confirmed."}`,
+      `     ${m.match_reason ?? defaultMatchReason()}`,
     ].join("\n"))
     .join("\n\n");
 
-  const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
+  return `${founderOpeningText({ greeting: salutation, startupName, count: matches.length })}
 
-  return `${salutation}
-
-Who recognizes you now. Who will recognize you next.
-
-PYTHIA scored ${startupName} against 6,000+ investors. These ${matches.length} show the strongest alignment signals right now:
+${founderAlignmentTagline()}
 
 ${matchesText}
 
-${startup.total_god_score ? `Your GOD Score: ${startup.total_god_score}/100\n` : ""}
-─────────────────────────────────────────────────
-
-See your full match list:
-→ https://pythh.ai/activate${encodedUrl ? "?startup=" + encodedUrl : ""}
-
-Connect Pythh to your AI agent for continuous investor intelligence:
-→ https://pythh.ai/developers
+${startup.total_god_score ? `GOD Score: ${startup.total_god_score}/100 — ${founderScoreCaption()}\n` : ""}
+${founderFootnote()}
 
 ─────────────────────────────────────────────────
-Pythh Capital · pythh.ai · ai@pythh.ai
+${founderCtaTitle()}
+${founderCtaBody()}
+
+${founderCtaText({ encodedUrl })}
+
+─────────────────────────────────────────────────
+${founderEmailSignoff()}
 Unsubscribe: https://pythh.ai/support
 `;
 }
