@@ -6,9 +6,10 @@ import { useEffect, useState } from 'react';
 import { Link, useRoute, useLocation } from 'wouter';
 import { Helmet } from 'react-helmet-async';
 import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
-import { recordMatchViewOnce, trackFunnelEvent } from '@/lib/matchEngagement';
+import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
+import { getUtmParams, trackReturnVisitIfEligible } from '@/lib/funnelAttribution';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 
 interface Investor {
@@ -50,6 +51,17 @@ export default function MatchPreview() {
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!startupId) return;
+    void trackFunnelEventOnce(`pythh_share_preview_view:${startupId}`, 'page_view', {
+      path: `/matches/preview/${startupId}`,
+      startup_id: startupId,
+      source: 'share_preview',
+      ...getUtmParams(),
+    });
+    trackReturnVisitIfEligible(`/matches/preview/${startupId}`);
+  }, [startupId]);
 
   useEffect(() => {
     if (!startupId) return;
