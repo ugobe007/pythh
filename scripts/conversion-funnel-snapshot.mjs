@@ -284,11 +284,15 @@ async function main() {
   };
 
   const humanPv = humanPageViews;
+  const humanUrl = humanUrlSubmitted;
   const urlPv = report.rates.url_submitted_per_page_view;
   report.funnel_blind_flags = {
-    awareness: humanPv < 20 || (urlPv != null && urlPv > 100),
-    preview: humanPv < 20 && previewViews < 5,
+    awareness: humanPv <= 20 || humanUrl < 1 || (urlPv != null && urlPv > 100),
+    preview: humanPv <= 20 || humanUrl < 1 || previewViews < 5,
+    signup: previewViews < 5,
     human_page_views_7d: humanPv,
+    human_url_submitted_7d: humanUrl,
+    preview_views_7d: previewViews,
     url_submitted_per_page_view: urlPv,
     note: 'BLIND stages are uncomputable — do not target with UI loops until instrumented.',
   };
@@ -329,7 +333,7 @@ async function main() {
       'Founder demand corpus empty — run npm run pipeline:apply-founder-demand after deploy',
     );
   }
-  if (previewViews > 0 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
+  if (previewViews >= 5 && (f.match_intro_requested || 0) === 0 && (g.founder_signup_started || 0) < 5) {
     report.agent_focus.push('Activation: intro/email capture on preview — watch match_intro_requested and preview_email_captured');
     report.agent_priorities.push('use: match_explain + intro CTA on preview strip');
   }
@@ -358,7 +362,7 @@ async function main() {
       `Investor signup leak: ${investorSignups}/${investorStarted} email captured (${report.rates.investor_started_to_completed ?? '—'}%) — ${investorProfileCompleted} profiles completed; email-first now skips to resume form`,
     );
   }
-  if ((f.preview_oracle_gap_teaser_viewed || 0) > 0 && oracleGapStarted === 0) {
+  if ((f.preview_oracle_gap_teaser_viewed || 0) > 0 && oracleGapStarted === 0 && previewViews >= 5) {
     report.agent_focus.push('Oracle gap experiment: teaser views but no oracle_gap signups — review CTA copy');
   }
   if (investorSignups > 0 && (f.investor_dealflow_digest_sent || 0) === 0) {

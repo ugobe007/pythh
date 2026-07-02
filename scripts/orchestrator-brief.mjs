@@ -73,17 +73,24 @@ function buildFunnelBlindFlags(funnel, rates) {
   const s = funnel?.stages || {};
   const hf = funnel?.human_funnel || {};
   const humanPageViews = hf.page_view ?? s.page_view ?? 0;
+  const humanUrlSubmitted = s.url_submitted_human ?? hf.url_submitted ?? 0;
   const urlPerPv = rates.url_submitted_per_page_view;
   const previewViews = (s.instant_matches_viewed_ui ?? hf.instant_matches_viewed ?? s.instant_matches_viewed) || 0;
 
   const awarenessBlind =
-    humanPageViews < PAGE_VIEW_FLOOR_7D || (urlPerPv != null && urlPerPv > 100);
-  const previewBlind = humanPageViews < PAGE_VIEW_FLOOR_7D && previewViews < 5;
+    humanPageViews <= PAGE_VIEW_FLOOR_7D ||
+    humanUrlSubmitted < 1 ||
+    (urlPerPv != null && urlPerPv > 100);
+  const previewBlind = awarenessBlind || previewViews < 5;
+  const signupBlind = previewBlind || previewViews < 5;
 
   return {
     awareness: awarenessBlind,
     preview: previewBlind,
+    signup: signupBlind,
     human_page_views_7d: humanPageViews,
+    human_url_submitted_7d: humanUrlSubmitted,
+    preview_views_7d: previewViews,
     url_submitted_per_page_view: urlPerPv,
     note: 'BLIND stages are uncomputable — do not ship UI loops targeting them until instrumented.',
   };
@@ -95,6 +102,7 @@ function weakestStage(funnel) {
   const hf = funnel?.human_funnel || {};
   const humanPageViews = hf.page_view ?? s.page_view ?? 0;
   const urlPerPv = rates.url_submitted_per_page_view;
+  const previewViews = (s.instant_matches_viewed_ui ?? hf.instant_matches_viewed ?? s.instant_matches_viewed) || 0;
   const blind = buildFunnelBlindFlags(funnel, rates);
 
   const awarenessBlind = blind.awareness;
@@ -103,6 +111,9 @@ function weakestStage(funnel) {
   const previewRate = rates.preview_per_page_view ?? rates.preview_per_url_submitted;
   const previewScore = blind.preview ? 0 : previewRate == null ? -1 : previewRate;
 
+  const signupRate = rates.signup_per_preview;
+  const signupScore = blind.signup ? 0 : signupRate == null ? -1 : signupRate;
+
   const stages = [
     {
       id: 'awareness',
@@ -110,7 +121,7 @@ function weakestStage(funnel) {
       rate: awarenessScore,
       blind: awarenessBlind,
       problem: awarenessBlind
-        ? `Human top-of-funnel dead/uninstrumented: ${humanPageViews} page_views/7d, url:pv=${urlPerPv ?? '—'}%. Fix awareness BEFORE preview/signup loops — downstream rates uncomputable.`
+        ? `Human top-of-funnel dead: ${humanPageViews} page_views/7d, ${hf.url_submitted ?? 0} human url_submitted/7d. Manufacture traffic (outbound, SEO /find-investors, share cards) BEFORE preview/signup loops.`
         : 'Awareness healthy — optimize conversion downstream.',
     },
     {
@@ -119,10 +130,18 @@ function weakestStage(funnel) {
       rate: previewScore,
       blind: blind.preview,
       problem: blind.preview
-        ? `Preview stage uncomputable — only ${humanPageViews} human page views/7d. Drive outbound to /find-investors first.`
+        ? `Preview uncomputable — ${previewViews} UI preview views/7d (need ≥5). Drive humans to /find-investors first.`
         : 'Human visitors submit URL but UI preview does not render — hero must route to /matches?url=.',
     },
-    { id: 'signup', label: 'Preview → signup', rate: rates.signup_per_preview, problem: 'Founders see value then leave — gate, CTA, or trust gap.' },
+    {
+      id: 'signup',
+      label: 'Preview → signup',
+      rate: signupScore,
+      blind: blind.signup,
+      problem: blind.signup
+        ? `Signup rate uncomputable — only ${previewViews} preview views/7d. Not a gate problem; not enough humans reached preview.`
+        : 'Founders see value then leave — gate, CTA, or trust gap.',
+    },
     { id: 'use', label: 'Signup → first use', rate: rates.first_match_per_signup, problem: 'Accounts created but no match engagement — activation failure.' },
     { id: 'return', label: 'Return visit', rate: rates.return_7d, problem: 'No addiction loop — one-and-done visits.' },
     { id: 'pay', label: 'Use → paid', rate: rates.checkout_per_pricing_view, problem: 'Pricing/checkout path unproven or uninstrumented.' },
