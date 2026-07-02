@@ -45,6 +45,7 @@ Optional: `OPENAI_API_KEY`, `RESEND_API_KEY`, `PORTFOLIO_DIGEST_EMAIL`, `LINKEDI
 | [batch-match-engine.yml](../.github/workflows/batch-match-engine.yml) | Every 15 min | Match run worker (queued runs) |
 | | Every 2 days 03:00 | Delta match regen |
 | [batch-social-poster.yml](../.github/workflows/batch-social-poster.yml) | Mon/Wed/Fri 09:00 | LinkedIn/X/Threads poster |
+| [signal-art-daily.yml](../.github/workflows/signal-art-daily.yml) | Daily 00:05 + 06:00 UTC | Signal Art edition (Gemini raster + Supabase) |
 | [cleanup.yml](../.github/workflows/cleanup.yml) | Monthly | DB cleanup |
 
 ## Manual runs

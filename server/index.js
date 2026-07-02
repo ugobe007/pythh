@@ -1994,13 +1994,14 @@ const {
   loadArtEdition,
   listArtEditions,
   ensureArtEditionRaster,
-  refreshStaleTodayEdition,
 } = require('./lib/pythhArtGenerator');
 const { deriveThumbnailUrl } = require('./lib/signalArtGemini');
 const {
   enrichArtRowFromFilesystem,
   localThumbnailFallback,
   listArtEditionsMerged,
+  loadArtEditionResolved,
+  loadLatestArtEditionResolved,
   repoRootFromHere,
   readLocalArtEditionMeta,
   localRowFromMeta,
@@ -2008,38 +2009,61 @@ const {
 
 const ART_REPO_ROOT = repoRootFromHere();
 
-async function getOrCreateArtEdition(editionDate) {
+async function getOrCreateArtEdition(editionDate, { allowGenerate = true, allowRasterBackfill = true } = {}) {
   const today = new Date().toISOString().split('T')[0];
   const target = editionDate || today;
-  let row = await loadArtEdition(target);
+
+  let row = await loadArtEditionResolved(target, {
+    loadArtEdition,
+    repoRoot: ART_REPO_ROOT,
+  });
+
   if (row) {
-    row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
-    if (target === today) {
-      row = await refreshStaleTodayEdition(row, {
-        repoRoot: ART_REPO_ROOT,
-        generateNewsletter,
-        today,
-      });
-      row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
-    }
-    const snap = row.signal_snapshot || {};
-    if (!(row.raster_url ?? snap.raster_url)) {
-      row = await ensureArtEditionRaster(row, { repoRoot: ART_REPO_ROOT });
-      row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
+    if (allowRasterBackfill) {
+      const snap = row.signal_snapshot || {};
+      if (!(row.raster_url ?? snap.raster_url)) {
+        try {
+          row = await ensureArtEditionRaster(row, { repoRoot: ART_REPO_ROOT });
+          row = enrichArtRowFromFilesystem(row, ART_REPO_ROOT);
+        } catch (e) {
+          console.warn('[art] raster backfill skipped:', e.message);
+        }
+      }
     }
     return toArtApiResponse(row);
   }
+
   if (target !== today) return null;
-  const newsletter = await generateNewsletter({ bust: true });
-  const edition = await generatePythhArtEdition(newsletter, {
-    repoRoot: path.join(__dirname, '..'),
-  });
-  try {
-    await saveArtEdition(edition);
-  } catch (e) {
-    console.warn('[art] save failed (serving ephemeral):', e.message);
+
+  if (allowGenerate) {
+    try {
+      const newsletter = await generateNewsletter({ bust: true });
+      const edition = await generatePythhArtEdition(newsletter, {
+        repoRoot: path.join(__dirname, '..'),
+      });
+      try {
+        await saveArtEdition(edition);
+      } catch (e) {
+        console.warn('[art] save failed (serving ephemeral):', e.message);
+      }
+      return toArtApiResponse(edition);
+    } catch (e) {
+      console.error('[art] on-demand generation failed:', e.message);
+    }
   }
-  return toArtApiResponse(edition);
+
+  const latest = await loadLatestArtEditionResolved({
+    loadArtEditions: listArtEditions,
+    repoRoot: ART_REPO_ROOT,
+  });
+  if (latest) {
+    const resp = toArtApiResponse(latest);
+    resp.stale = true;
+    resp.fallback_reason = 'today_unavailable';
+    return resp;
+  }
+
+  throw new Error('No art edition available');
 }
 
 function toArtApiResponse(row) {
@@ -2069,8 +2093,8 @@ function toArtApiResponse(row) {
 function toArtTeaserResponse(edition) {
   return {
     edition_date: edition.edition_date,
-    title: edition.copy?.title || null,
-    subtitle: edition.copy?.subtitle || null,
+    title: edition.copy?.title || edition.title || null,
+    subtitle: edition.copy?.subtitle || edition.subtitle || null,
     layout_mode: edition.layout_mode || edition.copy?.layout_mode || null,
     thumbnail_url:
       edition.thumbnail_url ||
@@ -2081,20 +2105,65 @@ function toArtTeaserResponse(edition) {
   };
 }
 
+async function getArtTeaserEdition() {
+  const today = new Date().toISOString().split('T')[0];
+
+  let row = await loadArtEditionResolved(today, {
+    loadArtEdition,
+    repoRoot: ART_REPO_ROOT,
+  });
+
+  let stale = false;
+  if (!row?.svg) {
+    row = await loadLatestArtEditionResolved({
+      loadArtEditions: listArtEditions,
+      repoRoot: ART_REPO_ROOT,
+    });
+    stale = true;
+  }
+
+  if (!row?.svg) {
+    throw new Error('No art edition available');
+  }
+
+  const edition = toArtApiResponse(row);
+  const resp = toArtTeaserResponse(edition);
+  resp.is_today = row.edition_date === today && !stale;
+  resp.stale = stale || row.edition_date !== today;
+  return resp;
+}
+
 app.get('/api/art/today', async (req, res) => {
   try {
-    const edition = await getOrCreateArtEdition(null);
+    const edition = await getOrCreateArtEdition(null, {
+      allowGenerate: true,
+      allowRasterBackfill: false,
+    });
     return res.set('Cache-Control', 'public, max-age=1800').json(edition);
   } catch (err) {
     console.error('[art] today error:', err.message);
+    try {
+      const latest = await loadLatestArtEditionResolved({
+        loadArtEditions: listArtEditions,
+        repoRoot: ART_REPO_ROOT,
+      });
+      if (latest) {
+        const resp = toArtApiResponse(latest);
+        resp.stale = true;
+        resp.fallback_reason = 'today_error';
+        return res.set('Cache-Control', 'public, max-age=300').json(resp);
+      }
+    } catch (fallbackErr) {
+      console.error('[art] today fallback error:', fallbackErr.message);
+    }
     return res.status(500).json({ error: 'Failed to load art edition' });
   }
 });
 
 app.get('/api/art/teaser', async (req, res) => {
   try {
-    const edition = await getOrCreateArtEdition(null);
-    return res.set('Cache-Control', 'public, max-age=1800').json(toArtTeaserResponse(edition));
+    const teaser = await getArtTeaserEdition();
+    return res.set('Cache-Control', 'public, max-age=600').json(teaser);
   } catch (err) {
     console.error('[art] teaser error:', err.message);
     return res.status(500).json({ error: 'Failed to load art teaser' });

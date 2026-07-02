@@ -67,11 +67,44 @@ async function probeInstantSubmit() {
   }
 }
 
+async function probeArtTeaser() {
+  const started = Date.now();
+  const url = `${base}/api/art/teaser`;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(url, { method: 'GET', signal: controller.signal, headers: { Accept: 'application/json' } });
+    const elapsed = Date.now() - started;
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    const ok = res.ok && Boolean(body?.edition_date);
+    return {
+      path: '/api/art/teaser',
+      status: res.status,
+      ok,
+      elapsed,
+      edition_date: body?.edition_date || null,
+      stale: body?.stale === true,
+    };
+  } catch (err) {
+    const elapsed = Date.now() - started;
+    const name = err && err.name === 'AbortError' ? 'timeout' : err.message || String(err);
+    return { path: '/api/art/teaser', status: 0, ok: false, elapsed, error: name };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function main() {
   console.log(`Running post-deploy checks against ${base}`);
   const results = await Promise.all([
     ...targets.map(probe),
     probeInstantSubmit(),
+    probeArtTeaser(),
   ]);
   let failed = 0;
   for (const r of results) {

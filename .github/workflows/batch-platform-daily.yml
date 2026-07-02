@@ -14,7 +14,6 @@ on:
     - cron: '0 8 * * *'    # portfolio-signals (daily M&A/funding/partnership/customer/hire/IP scan)
     - cron: '30 8 * * *'   # followon-fund (double down on winners' later-stage rounds, forward-only)
     - cron: '45 8 * * *'   # portfolio-exits (book verified M&A/IPO exits, target-only, honest entries)
-    - cron: '45 7 * * *'   # pythh-art (daily signal composition — before daily brief)
     - cron: '0 13 * * *'   # daily-brief (newsletter email — 6am PT / 9am ET)
   workflow_dispatch:
     inputs:
@@ -36,7 +35,6 @@ on:
           - portfolio-exits
           - portfolio-score-validate
           - daily-brief
-          - pythh-art
 
 concurrency:
   group: platform-daily-${{ github.event.schedule || github.event.inputs.job }}
@@ -176,11 +174,3 @@ jobs:
     with:
       run: node scripts/send-daily-brief.js
       timeout_minutes: 20
-
-  pythh-art:
-    if: github.event.schedule == '45 7 * * *' || github.event.inputs.job == 'pythh-art'
-    uses: ./.github/workflows/reusable-node-batch.yml
-    secrets: inherit
-    with:
-      run: node scripts/generate-pythh-art.mjs && node scripts/sync-art-editions-local.mjs
-      timeout_minutes: 15

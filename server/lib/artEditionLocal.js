@@ -108,6 +108,34 @@ async function listArtEditionsMerged(listArtEditions, { limit = 30, repoRoot = r
     .slice(0, limit);
 }
 
+/** DB row, else public/art/{date}.json — never throws. */
+async function loadArtEditionResolved(editionDate, { loadArtEdition, repoRoot = repoRootFromHere() } = {}) {
+  if (!DATE_RE.test(editionDate)) return null;
+
+  let row = null;
+  if (loadArtEdition) {
+    try {
+      row = await loadArtEdition(editionDate);
+    } catch {
+      row = null;
+    }
+  }
+
+  if (row) return enrichArtRowFromFilesystem(row, repoRoot);
+
+  const local = readLocalArtEditionMeta(editionDate, repoRoot);
+  if (!local) return null;
+  return enrichArtRowFromFilesystem(localRowFromMeta(editionDate, local, repoRoot), repoRoot);
+}
+
+/** Most recent edition from DB + local JSON merge. */
+async function loadLatestArtEditionResolved({ loadArtEditions, repoRoot = repoRootFromHere(), limit = 1 } = {}) {
+  if (!loadArtEditions) return null;
+  const rows = await listArtEditionsMerged(loadArtEditions, { limit: Math.max(limit, 5), repoRoot });
+  const first = rows[0];
+  return first ? enrichArtRowFromFilesystem(first, repoRoot) : null;
+}
+
 module.exports = {
   readLocalArtEditionMeta,
   listLocalArtEditionDates,
@@ -115,5 +143,7 @@ module.exports = {
   localThumbnailFallback,
   localRowFromMeta,
   listArtEditionsMerged,
+  loadArtEditionResolved,
+  loadLatestArtEditionResolved,
   repoRootFromHere,
 };

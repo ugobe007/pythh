@@ -35,6 +35,7 @@
     "db:platform-velocity-optimize": "node scripts/apply-platform-velocity-optimize.mjs",
     "funnel:heartbeat": "node scripts/funnel-heartbeat-probe.mjs",
     "art:generate": "node scripts/generate-pythh-art.mjs",
+    "art:probe": "node scripts/art-teaser-probe.mjs",
     "art:sync-local": "node scripts/sync-art-editions-local.mjs",
     "art:migrate": "node scripts/apply-pythh-art-migration.mjs",
     "art:storage": "node scripts/apply-pythh-art-storage.mjs",

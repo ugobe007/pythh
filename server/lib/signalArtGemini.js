@@ -245,12 +245,14 @@ function writeLocalRaster(repoRoot, editionDate, buffer, mimeType, suffix = '') 
   return `/art/${editionDate}${suffix}.${ext}`;
 }
 
-/** Derive expected thumbnail URL from full raster URL. */
+/** Derive expected thumbnail URL from full raster URL (thumbnails are always JPEG). */
 function deriveThumbnailUrl(rasterUrl) {
   if (!rasterUrl || rasterUrl.includes('-thumb.')) return rasterUrl || null;
+  const local = rasterUrl.match(/(\/art\/\d{4}-\d{2}-\d{2})(\.(jpg|jpeg|png))?(\?.*)?$/i);
+  if (local) return `${local[1]}-thumb.jpg${local[4] || ''}`;
   return rasterUrl.replace(
-    /(\d{4}-\d{2}-\d{2})(\.(jpg|jpeg|png))(\?.*)?$/i,
-    '$1-thumb$2$4',
+    /(\d{4}-\d{2}-\d{2})(\.(jpg|jpeg|png))?(\?.*)?$/i,
+    '$1-thumb.jpg$4',
   );
 }
 

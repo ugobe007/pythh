@@ -59,6 +59,18 @@ async function runProbe() {
   const steps = [];
   const url = TEST_URL.startsWith('http') ? TEST_URL : `https://${TEST_URL}`;
 
+  // 0. Signal Art teaser — homepage daily composition (must not 500 or blank)
+  {
+    const { res, body } = await fetchJson('/api/art/teaser');
+    steps.push({
+      step: 'signal_art_teaser',
+      ok: res.ok && Boolean(body?.edition_date),
+      status: res.status,
+      edition_date: body?.edition_date || null,
+      stale: body?.stale === true,
+    });
+  }
+
   // 1. page_view (client-style analytics)
   {
     const { res } = await fetchJson('/api/analytics/flush', {

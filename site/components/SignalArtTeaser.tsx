@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, Sparkles } from "lucide-react";
-import { apiUrl } from "@/lib/apiConfig";
+import { apiUrl, fetchTimeoutSignal } from "@/lib/apiConfig";
 import {
   G,
   GOLD,
@@ -26,6 +26,57 @@ interface ArtTeaser {
   thumbnail_url: string | null;
   raster_url: string | null;
   generated_at: string;
+  stale?: boolean;
+  is_today?: boolean;
+}
+
+async function fetchArtTeaser(): Promise<ArtTeaser | null> {
+  const headers = { Accept: "application/json" };
+
+  try {
+    const res = await fetch(apiUrl("/api/art/teaser"), {
+      headers,
+      signal: fetchTimeoutSignal(12_000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as ArtTeaser;
+      if (data?.edition_date) return data;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  try {
+    const archRes = await fetch(apiUrl("/api/art/archive?limit=1"), {
+      headers,
+      signal: fetchTimeoutSignal(12_000),
+    });
+    if (!archRes.ok) return null;
+    const arch = (await archRes.json()) as {
+      editions?: Array<{
+        edition_date: string;
+        title?: string | null;
+        subtitle?: string | null;
+        layout_mode?: string | null;
+        thumbnail_url?: string | null;
+        generated_at: string;
+      }>;
+    };
+    const latest = arch.editions?.[0];
+    if (!latest?.edition_date) return null;
+    return {
+      edition_date: latest.edition_date,
+      title: latest.title ?? null,
+      subtitle: latest.subtitle ?? null,
+      layout_mode: latest.layout_mode ?? null,
+      thumbnail_url: latest.thumbnail_url ?? null,
+      raster_url: null,
+      generated_at: latest.generated_at,
+      stale: true,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export default function SignalArtTeaser() {
@@ -35,12 +86,9 @@ export default function SignalArtTeaser() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(apiUrl("/api/art/teaser"), { headers: { Accept: "application/json" } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d?.edition_date) setTeaser(d as ArtTeaser);
-      })
-      .catch(() => {});
+    void fetchArtTeaser().then((d) => {
+      if (!cancelled && d?.edition_date) setTeaser(d);
+    });
     return () => {
       cancelled = true;
     };
@@ -124,6 +172,11 @@ export default function SignalArtTeaser() {
             >
               <Sparkles size={11} />
               Signal Art
+              {teaser.stale && (
+                <span className="normal-case tracking-normal font-normal" style={{ color: DIM }}>
+                  · latest edition
+                </span>
+              )}
             </p>
             <h2 className="font-display font-bold text-lg md:text-xl text-white mb-1 truncate">
               {teaser.title || "Today's oracle composition"}
@@ -134,7 +187,7 @@ export default function SignalArtTeaser() {
                 : "PYTHH sees between today and tomorrow — one living composition per day from live market signals."}
             </p>
             <p className="inline-flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider transition-colors" style={{ color: GOLD }}>
-              View today's composition
+              {teaser.stale ? "View composition" : "View today's composition"}
               <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
             </p>
             {teaser.layout_mode && (

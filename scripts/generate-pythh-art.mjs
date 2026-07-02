@@ -19,7 +19,13 @@ dotenv.config();
 
 const require = createRequire(import.meta.url);
 const { generateNewsletter } = require('../server/newsletter-generator');
-const { generatePythhArtEdition, saveArtEdition, loadArtEdition, ensureArtEditionRaster } = require('../server/lib/pythhArtGenerator');
+const {
+  generatePythhArtEdition,
+  saveArtEdition,
+  loadArtEdition,
+  ensureArtEditionRaster,
+  refreshStaleTodayEdition,
+} = require('../server/lib/pythhArtGenerator');
 const { enrichArtRowFromFilesystem } = require('../server/lib/artEditionLocal');
 
 const DRY = process.argv.includes('--dry');
@@ -30,44 +36,10 @@ const targetDate = dateArg ? dateArg.split('=')[1] : null;
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(repoRoot, 'public', 'art');
 
-async function main() {
-  console.log('[pythh-art] Loading market signals…');
-
-  const today = targetDate || new Date().toISOString().slice(0, 10);
-  const existing = await loadArtEdition(today);
-  if (existing && !FORCE) {
-    const enriched = enrichArtRowFromFilesystem(existing, repoRoot);
-    const hasRaster = enriched.raster_url ?? enriched.signal_snapshot?.raster_url;
-    if (hasRaster) {
-      console.log(`[pythh-art] ${today} already has raster — use --force to regenerate`);
-      return;
-    }
-    console.log(`[pythh-art] ${today} exists without raster — backfilling…`);
-    const backfilled = await ensureArtEditionRaster(enriched, { repoRoot });
-    const raster = backfilled.raster_url ?? backfilled.signal_snapshot?.raster_url;
-    if (raster) {
-      console.log(`[pythh-art] Backfill OK: ${raster}`);
-      return;
-    }
-    console.warn('[pythh-art] Backfill failed — generating fresh edition');
-  }
-
-  const newsletter = await generateNewsletter({ bust: true });
-  if (targetDate) newsletter.date = targetDate;
-
-  const edition = await generatePythhArtEdition(newsletter, {
-    repoRoot,
-    generateRaster: !DRY,
-  });
-  console.log(`[pythh-art] Edition ${edition.edition_date} · seed=${edition.seed}`);
-  if (edition.raster_url) {
-    console.log(`[pythh-art] Raster (${edition.raster_provider || 'gemini'}): ${edition.raster_url}`);
-  }
-
+async function persistLocalEdition(edition) {
   fs.mkdirSync(outDir, { recursive: true });
   const svgPath = path.join(outDir, `${edition.edition_date}.svg`);
-  fs.writeFileSync(svgPath, edition.svg);
-  console.log(`[pythh-art] SVG → ${svgPath}`);
+  if (edition.svg) fs.writeFileSync(svgPath, edition.svg);
 
   const metaPath = path.join(outDir, `${edition.edition_date}.json`);
   fs.writeFileSync(
@@ -88,6 +60,92 @@ async function main() {
       2,
     ),
   );
+  console.log(`[pythh-art] Local meta → ${metaPath}`);
+}
+
+async function main() {
+  console.log('[pythh-art] Loading market signals…');
+
+  if (process.env.SIGNAL_ART_RASTER !== '0') {
+    const { getGeminiApiKey } = require('../server/lib/signalArtGemini');
+    if (!getGeminiApiKey()) {
+      console.error('[pythh-art] GEMINI_API_KEY missing — set repo secret or export locally');
+      process.exit(1);
+    }
+  }
+
+  const today = targetDate || new Date().toISOString().slice(0, 10);
+  let existing = await loadArtEdition(today);
+
+  if (existing && !FORCE) {
+    const enriched = enrichArtRowFromFilesystem(existing, repoRoot);
+    const hasRaster = enriched.raster_url ?? enriched.signal_snapshot?.raster_url;
+
+    if (hasRaster) {
+      if (process.env.PYTHH_ART_REFRESH_STALE === '1') {
+        const refreshed = await refreshStaleTodayEdition(enriched, {
+          repoRoot,
+          generateNewsletter,
+          today,
+        });
+        if (refreshed && refreshed !== enriched) {
+          await persistLocalEdition(refreshed);
+          try {
+            await saveArtEdition(refreshed);
+            console.log(`[pythh-art] Refreshed stale ${today} (new layout for same signal fingerprint)`);
+          } catch (e) {
+            console.warn('[pythh-art] Refresh save failed (local copy kept):', e.message);
+          }
+          return;
+        }
+      }
+      console.log(`[pythh-art] ${today} already has raster — use --force to regenerate`);
+      return;
+    }
+
+    console.log(`[pythh-art] ${today} exists without raster — backfilling…`);
+    const backfilled = await ensureArtEditionRaster(enriched, { repoRoot });
+    const raster = backfilled.raster_url ?? backfilled.signal_snapshot?.raster_url;
+    if (raster) {
+      await persistLocalEdition(backfilled);
+      try {
+        await saveArtEdition(backfilled);
+      } catch (e) {
+        console.warn('[pythh-art] Backfill save failed (local copy kept):', e.message);
+      }
+      console.log(`[pythh-art] Backfill OK: ${raster}`);
+      return;
+    }
+    console.warn('[pythh-art] Backfill failed — generating fresh edition');
+  }
+
+  let edition;
+  try {
+    const newsletter = await generateNewsletter({ bust: true });
+    if (targetDate) newsletter.date = targetDate;
+
+    edition = await generatePythhArtEdition(newsletter, {
+      repoRoot,
+      generateRaster: !DRY,
+    });
+  } catch (e) {
+    console.error('[pythh-art] Generation failed:', e.message || e);
+    if (existing) {
+      console.warn('[pythh-art] Keeping previous edition for today');
+      process.exitCode = 0;
+      return;
+    }
+    throw e;
+  }
+
+  console.log(`[pythh-art] Edition ${edition.edition_date} · seed=${edition.seed}`);
+  if (edition.raster_url) {
+    console.log(`[pythh-art] Raster (${edition.raster_provider || 'gemini'}): ${edition.raster_url}`);
+  }
+
+  await persistLocalEdition(edition);
+  const svgPath = path.join(outDir, `${edition.edition_date}.svg`);
+  console.log(`[pythh-art] SVG → ${svgPath}`);
 
   if (DRY) {
     console.log('\n--- PYTHIA (process) ---\n', edition.copy.process.slice(0, 400));
@@ -104,11 +162,9 @@ async function main() {
   } catch (e) {
     if (/does not exist/i.test(e.message || '')) {
       console.warn('[pythh-art] Table missing — run migration 20260627000000_pythh_art_editions.sql');
-      console.warn(e.message);
-      process.exitCode = 1;
-    } else {
-      throw e;
     }
+    console.warn('[pythh-art] Supabase save failed (local edition kept):', e.message || e);
+    process.exitCode = 0;
   }
 }
 
