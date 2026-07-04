@@ -418,7 +418,7 @@ async function identifyGarbageInvestors() {
   
   const { data: investors, error } = await supabase
     .from('investors')
-    .select('id, name, firm, url, linkedin_url, bio, sectors, stage')
+    .select('id, name, firm, url, linkedin_url, bio, sectors, stage, status, entity_gate, investor_score')
     .order('name', { ascending: true });
   
   if (error) {
@@ -448,14 +448,19 @@ async function identifyGarbageInvestors() {
       !investor.stage || (Array.isArray(investor.stage) && investor.stage.length === 0),
     ].filter(Boolean).length;
     
-    // Quarantine criteria
+    // Quarantine criteria — only hard junk; skip qualified firm rows with score
+    const firmLike = /\b(Capital|Ventures?|Partners?|Group|Fund|Investments?)\s*$/i.test(investor.name || '');
+    const hasScore = (Number(investor.investor_score) || 0) >= 25;
     const shouldQuarantine = 
-      !validation.valid ||
-      (missingCount >= 7 && !investor.url && !investor.linkedin_url && (
-        startsWithStopword(investor.name) ||
-        isArticleMetadata(investor.name) ||
-        isSentenceFragment(investor.name)
-      ));
+      !validation.valid &&
+      !(firmLike && hasScore && investor.name === investor.firm) &&
+      (
+        validation.reason === 'name_heuristic_junk' ||
+        validation.reason === 'sentence_fragment' ||
+        validation.reason === 'article_metadata' ||
+        validation.reason === 'role_hallucination' ||
+        (missingCount >= 5 && !investor.url && !investor.linkedin_url)
+      );
     
     if (shouldQuarantine) {
       garbage.push({
@@ -485,7 +490,8 @@ async function identifyGarbageInvestors() {
 }
 
 /**
- * Quarantine garbage records
+ * Quarantine garbage records (soft — entity_gate=junk, status=inactive).
+ * Does NOT delete rows; preserves FK integrity and audit trail.
  */
 async function quarantineGarbageInvestors(dryRun = true) {
   const { garbage } = await identifyGarbageInvestors();
@@ -494,41 +500,33 @@ async function quarantineGarbageInvestors(dryRun = true) {
     console.log('✅ No garbage records found');
     return;
   }
+
+  // Skip already quarantined
+  const candidates = garbage.filter((r) => !(r.status === 'inactive' && r.entity_gate === 'junk'));
   
-  console.log(`\n${dryRun ? '🔍 DRY RUN' : '🚨 QUARANTINING'} ${garbage.length} garbage records...\n`);
+  console.log(`\n${dryRun ? '🔍 DRY RUN' : '🚨 QUARANTINING'} ${candidates.length} garbage records...\n`);
   
-  // Create quarantine table if it doesn't exist
-  if (!dryRun) {
-    const { error: createError } = await supabase.rpc('exec_sql', {
-      sql: `
-        CREATE TABLE IF NOT EXISTS investor_mentions_raw (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          original_investor_id UUID REFERENCES investors(id),
-          mention_text TEXT NOT NULL,
-          firm TEXT,
-          source_url TEXT,
-          validation_reason TEXT,
-          validation_confidence NUMERIC,
-          missing_count INTEGER,
-          quarantined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          original_data JSONB
-        );
-      `
-    }).catch(() => {
-      // Table might already exist, that's okay
-    });
-  }
-  
-  // Move to quarantine
+  const now = new Date().toISOString();
   let moved = 0;
-  for (const record of garbage) {
+
+  for (const record of candidates) {
     if (dryRun) {
-      console.log(`   Would quarantine: ${record.name} (${record.id})`);
+      console.log(`   Would quarantine: ${record.name} (${record.id}) — ${record.validation.reason}`);
     } else {
-      // Insert into quarantine
-      const { error: insertError } = await supabase
-        .from('investor_mentions_raw')
-        .insert({
+      const { error: updateError } = await supabase
+        .from('investors')
+        .update({
+          status: 'inactive',
+          entity_gate: 'junk',
+          entity_gate_reason: `quality_gate: ${record.validation.reason}`.slice(0, 300),
+          entity_gate_at: now,
+          updated_at: now,
+        })
+        .eq('id', record.id);
+
+      if (!updateError) {
+        // Archive mention for re-derivation pipeline
+        await supabase.from('investor_mentions_raw').insert({
           original_investor_id: record.id,
           mention_text: record.name,
           firm: record.firm,
@@ -536,26 +534,16 @@ async function quarantineGarbageInvestors(dryRun = true) {
           validation_confidence: record.validation.confidence,
           missing_count: record.missingCount,
           original_data: record,
-        });
-      
-      if (!insertError) {
-        // Delete from investors table
-        const { error: deleteError } = await supabase
-          .from('investors')
-          .delete()
-          .eq('id', record.id);
-        
-        if (!deleteError) {
-          moved++;
-        }
+        }).then(() => {}).catch(() => {});
+        moved++;
       }
     }
   }
   
   if (!dryRun) {
-    console.log(`\n✅ Quarantined ${moved} records`);
+    console.log(`\n✅ Quarantined ${moved} records (status=inactive, entity_gate=junk)`);
   } else {
-    console.log(`\n💡 Run with --execute to actually quarantine these records`);
+    console.log(`\n💡 Run with --execute to quarantine these records`);
   }
 }
 

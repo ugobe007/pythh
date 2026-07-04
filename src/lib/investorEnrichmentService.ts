@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import {
+  VC_WEBSITES,
+  VC_NAME_ALIASES,
+  resolveVcWebsiteKey as resolveTopVcKey,
+} from '../../lib/topVcFirms.mjs';
 
 interface Partner {
   name: string;
@@ -50,91 +55,7 @@ interface NewsArticle {
   tags?: string[];
 }
 
-// VC Website URLs for scraping
-const VC_WEBSITES: Record<string, { 
-  website: string;
-  teamPage?: string;
-  portfolioPage?: string;
-  blogUrl?: string;
-  rssUrl?: string;
-}> = {
-  'Y Combinator': {
-    website: 'https://www.ycombinator.com',
-    teamPage: 'https://www.ycombinator.com/people',
-    portfolioPage: 'https://www.ycombinator.com/companies',
-    blogUrl: 'https://blog.ycombinator.com',
-    rssUrl: 'https://blog.ycombinator.com/feed/'
-  },
-  'Sequoia Capital': {
-    website: 'https://www.sequoiacap.com',
-    teamPage: 'https://www.sequoiacap.com/people/',
-    portfolioPage: 'https://www.sequoiacap.com/companies/',
-    blogUrl: 'https://www.sequoiacap.com/article/',
-    rssUrl: 'https://www.sequoiacap.com/feed/'
-  },
-  'Andreessen Horowitz': {
-    website: 'https://a16z.com',
-    teamPage: 'https://a16z.com/team/',
-    portfolioPage: 'https://a16z.com/portfolio/',
-    blogUrl: 'https://a16z.com/posts/',
-    rssUrl: 'https://a16z.com/feed/'
-  },
-  'Accel': {
-    website: 'https://www.accel.com',
-    teamPage: 'https://www.accel.com/people',
-    portfolioPage: 'https://www.accel.com/companies',
-    blogUrl: 'https://www.accel.com/noteworthy'
-  },
-  'Benchmark': {
-    website: 'https://www.benchmark.com',
-    teamPage: 'https://www.benchmark.com/team/',
-    portfolioPage: 'https://www.benchmark.com/portfolio/'
-  },
-  'Founders Fund': {
-    website: 'https://foundersfund.com',
-    teamPage: 'https://foundersfund.com/team/',
-    portfolioPage: 'https://foundersfund.com/companies/'
-  },
-  'Greylock Partners': {
-    website: 'https://greylock.com',
-    teamPage: 'https://greylock.com/team/',
-    portfolioPage: 'https://greylock.com/portfolio/',
-    blogUrl: 'https://greylock.com/greymatter/'
-  },
-  'Lightspeed Venture Partners': {
-    website: 'https://lsvp.com',
-    teamPage: 'https://lsvp.com/team/',
-    portfolioPage: 'https://lsvp.com/portfolio/'
-  },
-  'NEA': {
-    website: 'https://www.nea.com',
-    teamPage: 'https://www.nea.com/team',
-    portfolioPage: 'https://www.nea.com/portfolio'
-  },
-  'Kleiner Perkins': {
-    website: 'https://www.kleinerperkins.com',
-    teamPage: 'https://www.kleinerperkins.com/team/',
-    portfolioPage: 'https://www.kleinerperkins.com/portfolio/'
-  }
-}
-
-/** DB names / aliases → key in VC_WEBSITES (scrapers use exact config keys). */
-const VC_NAME_ALIASES: Record<string, string> = {
-  a16z: 'Andreessen Horowitz',
-  'andreessen horowitz (a16z)': 'Andreessen Horowitz',
-  greylock: 'Greylock Partners',
-  nea: 'NEA',
-  'new enterprise associates': 'NEA',
-  kp: 'Kleiner Perkins',
-  'kleiner perkins caufield & byers': 'Kleiner Perkins',
-  lsvp: 'Lightspeed Venture Partners',
-  lightspeed: 'Lightspeed Venture Partners',
-  yc: 'Y Combinator',
-  sequoia: 'Sequoia Capital',
-  benchmark: 'Benchmark',
-  'founders fund': 'Founders Fund',
-  accel: 'Accel',
-};
+// VC website URLs imported from lib/topVcFirms.mjs (shared registry ~100 firms)
 
 /**
  * Scrape and enrich investor data from multiple sources
@@ -142,18 +63,7 @@ const VC_NAME_ALIASES: Record<string, string> = {
 export class InvestorEnrichmentService {
   /** Resolve `investors.name` from DB to a VC_WEBSITES key (fuzzy / aliases). */
   private static resolveVcWebsiteKey(investorName: string): string | null {
-    const raw = investorName.trim();
-    if (VC_WEBSITES[raw]) return raw;
-    const lower = raw.toLowerCase();
-    if (VC_NAME_ALIASES[lower]) return VC_NAME_ALIASES[lower];
-    for (const key of Object.keys(VC_WEBSITES)) {
-      if (key.toLowerCase() === lower) return key;
-    }
-    for (const key of Object.keys(VC_WEBSITES)) {
-      const kl = key.toLowerCase();
-      if (lower.includes(kl) || kl.includes(lower)) return key;
-    }
-    return null;
+    return resolveTopVcKey(investorName);
   }
 
   private static getVcConfig(investorName: string) {
@@ -461,26 +371,91 @@ export class InvestorEnrichmentService {
         news.push(...rssNews);
       }
       
-      // 2. Search TechCrunch (via their site search or RSS)
+      // 2. Google News RSS (reliable; TechCrunch/VentureBeat HTML search often blocks bots)
+      const googleNews = await this.scrapeGoogleNewsRss(investorName);
+      news.push(...googleNews);
+
+      // 3. Fallback: TechCrunch + VentureBeat site search
       const techCrunchNews = await this.scrapeTechCrunchSearch(investorName);
       news.push(...techCrunchNews);
-      
-      // 3. Search VentureBeat
       const ventureBeatNews = await this.scrapeVentureBeatSearch(investorName);
       news.push(...ventureBeatNews);
       
+      const deduped = this.dedupeNewsArticles(news);
+      
       // Save news to database
-      if (news.length > 0) {
-        await this.saveNews(investorId, news);
+      if (deduped.length > 0) {
+        await this.saveNews(investorId, deduped);
+        await supabase
+          .from('investors')
+          .update({ last_news_update: new Date().toISOString() })
+          .eq('id', investorId);
       }
       
-      console.log(`✅ Found ${news.length} news articles for ${investorName}`);
+      console.log(`✅ Found ${deduped.length} news articles for ${investorName}`);
+      return deduped;
       
     } catch (error) {
       console.error(`❌ Error scraping news for ${investorName}:`, error instanceof Error ? error.message : error);
     }
     
     return news;
+  }
+
+  private static dedupeNewsArticles(articles: NewsArticle[]): NewsArticle[] {
+    const seen = new Set<string>();
+    const out: NewsArticle[] = [];
+    for (const a of articles) {
+      const url = this.normalizeNewsUrl(a.url);
+      if (!url || url.length < 12) continue;
+      const key = url.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...a, url });
+    }
+    return out;
+  }
+
+  private static normalizeNewsUrl(url: string | undefined): string {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (trimmed.startsWith('//')) return `https:${trimmed}`;
+    return '';
+  }
+
+  private static async scrapeGoogleNewsRss(investorName: string): Promise<NewsArticle[]> {
+    const articles: NewsArticle[] = [];
+    try {
+      const q = encodeURIComponent(`"${investorName}" investment OR portfolio OR thesis OR fund`);
+      const rssUrl = `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`;
+      const { data: rssXml } = await axios.get(rssUrl, {
+        headers: { 'User-Agent': 'Pythh-IntelBot/1.0 (research; contact: research@pythh.ai)' },
+        timeout: 12000,
+      });
+      const $ = cheerio.load(rssXml, { xmlMode: true });
+      $('item').slice(0, 8).each((i, el) => {
+        const title = $(el).find('title').text().trim();
+        const description = $(el).find('description').text().trim();
+        const link = $(el).find('link').text().trim();
+        const pubDate = $(el).find('pubDate').text().trim();
+        const url = this.normalizeNewsUrl(link);
+        if (title && url) {
+          articles.push({
+            title,
+            summary: this.stripHtml(description).substring(0, 300),
+            url,
+            published_date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+            source: 'Google News',
+            sentiment: 'neutral',
+          });
+        }
+      });
+    } catch (error) {
+      console.error(`Error scraping Google News:`, error instanceof Error ? error.message : error);
+    }
+    return articles;
   }
   
   // Helper methods
@@ -531,14 +506,16 @@ export class InvestorEnrichmentService {
       $('item').slice(0, 5).each((i, el) => {
         const title = $(el).find('title').text().trim();
         const description = $(el).find('description').text().trim();
-        const url = $(el).find('link').text().trim();
+        const link = $(el).find('link').text().trim();
         const pubDate = $(el).find('pubDate').text().trim();
         
         if (title) {
+          const articleUrl = this.normalizeNewsUrl(link);
+          if (!articleUrl) return;
           articles.push({
             title,
             summary: this.stripHtml(description).substring(0, 300),
-            url,
+            url: articleUrl,
             published_date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
             source: investorName,
             tags: this.extractTags(title + ' ' + description)
@@ -620,25 +597,31 @@ export class InvestorEnrichmentService {
   }
   
   private static async saveNews(investorId: string, news: NewsArticle[]) {
+    const rows = news
+      .map(article => ({
+        investor_id: investorId,
+        title: article.title,
+        summary: article.summary,
+        url: article.url,
+        published_date: article.published_date,
+        source: article.source,
+        source_type: 'rss',
+        sentiment: article.sentiment || 'neutral',
+        topics: article.tags?.length ? article.tags : null,
+        is_published: true,
+        scraped_date: new Date().toISOString(),
+      }))
+      .filter(r => r.url && r.title);
+
+    if (!rows.length) return;
+
     const { error } = await supabase
       .from('investor_news')
-      .upsert(
-        news.map(article => ({
-          investor_id: investorId,
-          title: article.title,
-          summary: article.summary,
-          url: article.url,
-          published_date: article.published_date,
-          source: article.source,
-          sentiment: article.sentiment || 'neutral',
-          tags: article.tags,
-          is_published: true
-        })),
-        { onConflict: 'investor_id,url' }
-      );
+      .upsert(rows, { onConflict: 'investor_id,url' });
     
     if (error) {
-      console.error('Error saving news:', error);
+      console.error('Error saving news:', error.message, error.details || '');
+      throw new Error(`investor_news upsert failed: ${error.message}`);
     }
   }
   

@@ -1,0 +1,59 @@
+name: Investor Intelligence Daily
+
+on:
+  schedule:
+    # 04:00 UTC — after VC enrichment (03:00) and before platform daily batch
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      full_pipeline:
+        description: 'Run full pipeline (vs enrich-only)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  investor-intelligence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Verify secrets
+        run: |
+          URL="${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}"
+          SVC="${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          if [ -z "$URL" ] || [ -z "$SVC" ]; then
+            echo "❌ Missing Supabase URL or service key"
+            exit 1
+          fi
+          echo "✅ Supabase credentials present"
+
+      - name: VC enrichment (daily batch)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/enrich-vcs.ts --batch-size=10
+
+      - name: Full intelligence pipeline
+        if: github.event.inputs.full_pipeline != 'false'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node scripts/pipeline-investor-intelligence.mjs --apply --limit=100 --batch-size=10 --skip-enrich
