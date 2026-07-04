@@ -235,6 +235,9 @@ function isSentenceFragment(text) {
   
   // Known firm names are never fragments
   if (isKnownFirmName(cleaned)) return false;
+
+  // Align with shared heuristics — digit-prefixed VCs, alphanumeric brands, etc.
+  if (!isGarbageInvestorName(cleaned)) return false;
   
   // Too short
   if (cleaned.length < 3) return true;
@@ -448,19 +451,19 @@ async function identifyGarbageInvestors() {
       !investor.stage || (Array.isArray(investor.stage) && investor.stage.length === 0),
     ].filter(Boolean).length;
     
-    // Quarantine criteria — only hard junk; skip qualified firm rows with score
-    const firmLike = /\b(Capital|Ventures?|Partners?|Group|Fund|Investments?)\s*$/i.test(investor.name || '');
-    const hasScore = (Number(investor.investor_score) || 0) >= 25;
-    const shouldQuarantine = 
-      !validation.valid &&
-      !(firmLike && hasScore && investor.name === investor.firm) &&
-      (
-        validation.reason === 'name_heuristic_junk' ||
-        validation.reason === 'sentence_fragment' ||
-        validation.reason === 'article_metadata' ||
-        validation.reason === 'role_hallucination' ||
-        (missingCount >= 5 && !investor.url && !investor.linkedin_url)
-      );
+    // Quarantine: scraper junk only — never firm_echo (flags real partners) or sentence_fragment
+    const hardJunk =
+      validation.reason === 'name_heuristic_junk' ||
+      validation.reason === 'article_metadata' ||
+      validation.reason === 'role_hallucination' ||
+      looksLikePublisherConcat(investor.name);
+
+    const protectedRow =
+      looksLikePartnerRecord(investor.name) ||
+      (investor.name === investor.firm && (Number(investor.investor_score) || 0) >= 20);
+
+    const shouldQuarantine =
+      hardJunk && !protectedRow && investor.entity_gate !== 'junk';
     
     if (shouldQuarantine) {
       garbage.push({
@@ -487,6 +490,22 @@ async function identifyGarbageInvestors() {
   });
   
   return { garbage, valid };
+}
+
+/**
+ * Individual partner rows: "First Last (Firm)" — keep out of quarantine.
+ */
+function looksLikePartnerRecord(name) {
+  const t = (name || '').trim();
+  return /^[A-Z][a-z]+(?:\s+[A-Z][a-z'.-]+){1,3}\s*\([^)]{2,40}\)\s*$/.test(t);
+}
+
+/**
+ * Headline / RSS concatenation junk: firm name glued to publisher.
+ */
+function looksLikePublisherConcat(name) {
+  const t = name || '';
+  return /[\s\u00a0]{2,}/.test(t) || /\b(TechCrunch|YourStory|Economic Times|GlobeNewswire|outlookbusiness|entARABI|markets|Indiatimes|Entrackr|TNGlobal|Techloy)\b/i.test(t);
 }
 
 /**

@@ -628,26 +628,45 @@ export class InvestorEnrichmentService {
   /**
    * Save partners to database
    */
+  private static dedupePartners(partners: Partner[]): Partner[] {
+    const seen = new Set<string>();
+    const out: Partner[] = [];
+    for (const p of partners) {
+      const name = (p.name || '').trim().replace(/\s+/g, ' ');
+      if (!name || name.length < 2 || name.length > 80) continue;
+      if (/^(read more|view profile|learn more|our team)$/i.test(name)) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...p, name });
+    }
+    return out.slice(0, 120);
+  }
+
   private static async savePartners(investorId: string, partners: Partner[]) {
-    const { error } = await supabase
-      .from('investor_partners')
-      .upsert(
-        partners.map(p => ({
-          investor_id: investorId,
-          name: p.name,
-          title: p.title,
-          bio: p.bio,
-          linkedin_url: p.linkedin_url,
-          twitter_handle: p.twitter_handle,
-          focus_areas: p.focus_areas,
-          stage_preference: p.stage_preference,
-          geography_focus: p.geography_focus,
-          is_active: true
-        })),
-        { onConflict: 'investor_id,name' }
-      );
-    
-    if (error) throw error;
+    const rows = this.dedupePartners(partners).map(p => ({
+      investor_id: investorId,
+      name: p.name,
+      title: p.title,
+      bio: p.bio,
+      linkedin_url: p.linkedin_url,
+      twitter_handle: p.twitter_handle,
+      focus_areas: p.focus_areas,
+      stage_preference: p.stage_preference,
+      geography_focus: p.geography_focus,
+      is_active: true,
+    }));
+
+    if (!rows.length) return;
+
+    // Batch upserts — Postgres rejects duplicate keys within a single upsert command
+    for (let i = 0; i < rows.length; i += 40) {
+      const batch = rows.slice(i, i + 40);
+      const { error } = await supabase
+        .from('investor_partners')
+        .upsert(batch, { onConflict: 'investor_id,name' });
+      if (error) throw error;
+    }
   }
   
   /**

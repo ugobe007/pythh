@@ -25,6 +25,7 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { isGarbageInvestorName } = require('../lib/investorNameHeuristics');
 const { searchInvestorNews, extractInvestorDataFromArticles, buildOracleSignals } = require('../server/services/investorInferenceService');
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -74,8 +75,10 @@ async function main() {
   // By default, skip investors that already have signals populated (unless --force)
   let query = supabase
     .from('investors')
-    .select('id, name, firm, sectors, stage, check_size_min, check_size_max, portfolio_companies, investment_thesis, bio, geography_focus, deployment_velocity_index, capital_power_score, signals, focus_areas')
-    .order('created_at', { ascending: true });
+    .select('id, name, firm, sectors, stage, check_size_min, check_size_max, portfolio_companies, investment_thesis, bio, geography_focus, deployment_velocity_index, capital_power_score, signals, focus_areas, entity_gate, status, investor_score')
+    .neq('status', 'inactive')
+    .neq('entity_gate', 'junk')
+    .order('investor_score', { ascending: false, nullsFirst: false });
 
   if (!FORCE) {
     // Only process investors with empty signals array
@@ -93,12 +96,20 @@ async function main() {
     process.exit(1);
   }
 
-  if (!investors || investors.length === 0) {
+  const pool = (investors || []).filter((inv) => {
+    const name = inv.name || '';
+    if (isGarbageInvestorName(name)) return false;
+    if (name.length > 60) return false;
+    if (/\s{2,}/.test(name)) return false;
+    return true;
+  });
+
+  if (!pool.length) {
     console.log('No investors to process. All done!');
     return;
   }
 
-  console.log(`Processing ${investors.length} investors…\n`);
+  console.log(`Processing ${pool.length} investors (${(investors?.length || 0) - pool.length} junk skipped)…\n`);
 
   // ── Counters ────────────────────────────────────────────────────────────────
   let processed = 0;
@@ -108,8 +119,8 @@ async function main() {
   let totalSignals = 0;
 
   // ── Process each investor ───────────────────────────────────────────────────
-  for (let i = 0; i < investors.length; i++) {
-    const investor = investors[i];
+  for (let i = 0; i < pool.length; i++) {
+    const investor = pool[i];
     const name = investor.name || 'Unknown';
     const firm = investor.firm || '';
 
@@ -118,7 +129,7 @@ async function main() {
       const articles = await searchInvestorNews(name, firm);
 
       if (articles.length === 0) {
-        logProgress(i + 1, investors.length, name, firm, 0, 'no news');
+        logProgress(i + 1, pool.length, name, firm, 0, 'no news');
         skipped++;
         await sleep(DELAY_MS);
         continue;
@@ -134,7 +145,7 @@ async function main() {
       const { signals, focus_areas, last_investment_date } = buildOracleSignals(mergedInvestor, articles);
 
       totalSignals += signals.length;
-      logProgress(i + 1, investors.length, name, firm, signals.length, `${articles.length} articles`);
+      logProgress(i + 1, pool.length, name, firm, signals.length, `${articles.length} articles`);
 
       // 4. Write to DB
       if (!DRY_RUN && signals.length > 0) {

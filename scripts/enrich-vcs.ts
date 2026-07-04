@@ -39,27 +39,56 @@ function parseArgs() {
   };
 }
 
+function nameScore(candidate: string, canonical: string): number {
+  const c = candidate.trim().toLowerCase();
+  const t = canonical.trim().toLowerCase();
+  if (c === t) return 100;
+  if (c.startsWith(t) && c.length <= t.length + 4) return 80;
+  if (c.includes(t) && c.length < t.length + 20) return 60;
+  if (/\s{2,}/.test(candidate) || candidate.length > canonical.length + 25) return 10;
+  return 30;
+}
+
 async function resolveInvestor(vcName: string) {
+  const { data: exact, error: exactErr } = await supabase
+    .from('investors')
+    .select('id, name, investor_score, status, entity_gate')
+    .ilike('name', vcName)
+    .neq('status', 'inactive')
+    .neq('entity_gate', 'junk')
+    .limit(5);
+
+  if (exactErr) throw new Error(`${vcName} query error: ${exactErr.message}`);
+
+  const exactMatch = (exact || []).find((m) => m.name.trim().toLowerCase() === vcName.trim().toLowerCase());
+  if (exactMatch) return exactMatch;
+
   const { data: matches, error } = await supabase
     .from('investors')
     .select('id, name, investor_score, status, entity_gate')
     .ilike('name', `%${vcName}%`)
     .neq('status', 'inactive')
+    .neq('entity_gate', 'junk')
     .order('investor_score', { ascending: false, nullsFirst: false })
-    .limit(8);
+    .limit(12);
 
   if (error) throw new Error(`${vcName} query error: ${error.message}`);
   if (!matches?.length) return null;
 
-  const qualified = matches.filter((m) => m.entity_gate !== 'junk');
-  const pool = qualified.length ? qualified : matches;
-
-  if (pool.length > 1) {
+  const ranked = [...matches].sort(
+    (a, b) => nameScore(b.name, vcName) - nameScore(a.name, vcName) || (b.investor_score || 0) - (a.investor_score || 0)
+  );
+  const best = ranked[0];
+  if (nameScore(best.name, vcName) < 40) {
+    console.log(`⚠️  No strong match for "${vcName}" (best: "${best.name}") — skipping`);
+    return null;
+  }
+  if (ranked.length > 1) {
     console.log(
-      `⚠️  Multiple investors match "%${vcName}%": ${pool.map((m) => m.name).join(' | ')} — using "${pool[0].name}"`
+      `⚠️  Multiple investors match "%${vcName}%": ${ranked.slice(0, 4).map((m) => m.name).join(' | ')} — using "${best.name}"`
     );
   }
-  return pool[0];
+  return best;
 }
 
 async function enrichFirm(vcName: string) {

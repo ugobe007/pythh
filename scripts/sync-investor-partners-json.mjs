@@ -25,6 +25,13 @@ async function main() {
   console.log(`\n👥 Sync investor_partners → investors.partners JSON`);
   console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · limit ${LIMIT}\n`);
 
+  const { data: goodInvestors } = await sb
+    .from('investors')
+    .select('id, name')
+    .neq('status', 'inactive')
+    .neq('entity_gate', 'junk');
+  const goodIds = new Set((goodInvestors || []).map((i) => i.id));
+
   const { data: partnerRows } = await sb
     .from('investor_partners')
     .select('investor_id, name, title, bio, linkedin_url, twitter_handle, focus_areas, stage_preference, is_active')
@@ -33,6 +40,7 @@ async function main() {
 
   const byInvestor = new Map();
   for (const p of partnerRows || []) {
+    if (!goodIds.has(p.investor_id)) continue;
     if (!byInvestor.has(p.investor_id)) byInvestor.set(p.investor_id, []);
     byInvestor.get(p.investor_id).push({
       name: p.name,
