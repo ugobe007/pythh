@@ -9,12 +9,13 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
+import { parseLimitArg, parseCohortArg } from '../lib/investorUniverse.mjs';
 
 dotenv.config();
 
 const APPLY = process.argv.includes('--apply');
-const limArg = process.argv.find((a) => a.startsWith('--limit='));
-const LIMIT = limArg ? parseInt(limArg.split('=')[1], 10) : 150;
+const LIMIT = parseLimitArg(process.argv.slice(2), { defaultZero: true });
+const COHORT = parseCohortArg(process.argv.slice(2));
 
 const sb = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -23,7 +24,7 @@ const sb = createClient(
 
 async function main() {
   console.log(`\n👥 Sync investor_partners → investors.partners JSON`);
-  console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · limit ${LIMIT}\n`);
+  console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · cohort ${COHORT} · limit ${LIMIT > 0 ? LIMIT : 'ALL'}\n`);
 
   const { data: goodInvestors } = await sb
     .from('investors')
@@ -53,7 +54,7 @@ async function main() {
     });
   }
 
-  const investorIds = [...byInvestor.keys()].slice(0, LIMIT);
+  const investorIds = [...byInvestor.keys()].slice(0, LIMIT > 0 ? LIMIT : undefined);
   let synced = 0;
 
   for (const id of investorIds) {

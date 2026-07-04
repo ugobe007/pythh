@@ -45,7 +45,7 @@ jobs:
           fi
           echo "✅ Supabase URL, anon key, and service key are set."
 
-      - name: Run VC enrichment
+      - name: Run investor signal enrichment (venture + angel chunk)
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
@@ -54,8 +54,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           mkdir -p logs
-          echo "🚀 Starting VC enrichment..."
-          npx tsx scripts/enrich-vcs.ts
+          DAY=$(date -u +%j)
+          OFFSET=$(( (DAY * 400) % 4000 ))
+          echo "🚀 Investor signal enrichment offset=$OFFSET limit=400"
+          npx tsx scripts/enrich-investor-signals.ts --limit=400 --offset=$OFFSET --delay=1500
           echo "✅ Enrichment complete!"
 
       - name: Upload logs (optional)

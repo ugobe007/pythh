@@ -25,7 +25,12 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const { isGarbageInvestorName } = require('../lib/investorNameHeuristics');
+const {
+  fetchInvestorUniverse,
+  parseLimitArg,
+  parseOffsetArg,
+  parseCohortArg,
+} = require('../lib/investorUniverse.mjs');
 const { searchInvestorNews, extractInvestorDataFromArticles, buildOracleSignals } = require('../server/services/investorInferenceService');
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -41,10 +46,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
-const LIMIT = (() => {
-  const a = args.find(x => x.startsWith('--limit='));
-  return a ? parseInt(a.split('=')[1], 10) : null;
-})();
+const LIMIT = parseLimitArg(args, { defaultZero: true });
+const OFFSET = parseOffsetArg(args);
+const COHORT = parseCohortArg(args);
 const DRY_RUN = args.includes('--dry-run');
 const FORCE = args.includes('--force');  // Re-process investors that already have signals
 
@@ -67,49 +71,37 @@ async function main() {
   console.log('='.repeat(60));
   console.log('Oracle Signal Backfill');
   if (DRY_RUN) console.log('DRY RUN MODE — no DB writes');
-  if (LIMIT)   console.log(`Limit: ${LIMIT} investors`);
+  if (LIMIT > 0) console.log(`Limit: ${LIMIT} investors`);
+  else console.log('Limit: ALL venture + angel investors');
+  if (OFFSET) console.log(`Offset: ${OFFSET}`);
+  console.log(`Cohort: ${COHORT}`);
   if (FORCE)   console.log('FORCE mode — re-processing investors with existing signals');
   console.log('='.repeat(60));
 
-  // ── Load investors ──────────────────────────────────────────────────────────
-  // By default, skip investors that already have signals populated (unless --force)
-  let query = supabase
-    .from('investors')
-    .select('id, name, firm, sectors, stage, check_size_min, check_size_max, portfolio_companies, investment_thesis, bio, geography_focus, deployment_velocity_index, capital_power_score, signals, focus_areas, entity_gate, status, investor_score')
-    .neq('status', 'inactive')
-    .neq('entity_gate', 'junk')
-    .order('investor_score', { ascending: false, nullsFirst: false });
-
-  if (!FORCE) {
-    // Only process investors with empty signals array
-    query = query.eq('signals', '[]');
-  }
-
-  if (LIMIT) {
-    query = query.limit(LIMIT);
-  }
-
-  const { data: investors, error } = await query;
-
-  if (error) {
-    console.error('Failed to fetch investors:', error.message);
-    process.exit(1);
-  }
-
-  const pool = (investors || []).filter((inv) => {
-    const name = inv.name || '';
-    if (isGarbageInvestorName(name)) return false;
-    if (name.length > 60) return false;
-    if (/\s{2,}/.test(name)) return false;
-    return true;
+  // ── Load venture + angel universe ───────────────────────────────────────────
+  let pool = await fetchInvestorUniverse(supabase, {
+    limit: LIMIT,
+    offset: OFFSET,
+    cohort: COHORT,
+    needsSignals: !FORCE,
   });
+
+  if (FORCE) {
+    // Re-fetch without signals filter when forcing
+    pool = await fetchInvestorUniverse(supabase, {
+      limit: LIMIT,
+      offset: OFFSET,
+      cohort: COHORT,
+      needsSignals: false,
+    });
+  }
 
   if (!pool.length) {
     console.log('No investors to process. All done!');
     return;
   }
 
-  console.log(`Processing ${pool.length} investors (${(investors?.length || 0) - pool.length} junk skipped)…\n`);
+  console.log(`Processing ${pool.length} investors…\n`);
 
   // ── Counters ────────────────────────────────────────────────────────────────
   let processed = 0;

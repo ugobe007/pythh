@@ -27,11 +27,19 @@ const https   = require('https');
 const http    = require('http');
 const { URL } = require('url');
 const { createClient } = require('@supabase/supabase-js');
+const {
+  fetchInvestorUniverse,
+  parseLimitArg,
+  parseOffsetArg,
+  parseCohortArg,
+} = require('../lib/investorUniverse.mjs');
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = process.argv.includes('--dry-run');
-const LIMIT   = parseInt((process.argv.find(a => a.startsWith('--limit=')) || '--limit=0').split('=')[1]) || null;
+const LIMIT   = parseLimitArg(process.argv.slice(2), { defaultZero: true });
+const OFFSET  = parseOffsetArg(process.argv.slice(2));
+const COHORT  = parseCohortArg(process.argv.slice(2));
 const FIRM_FILTER = (process.argv.find(a => a.startsWith('--firm=')) || '').replace('--firm=', '').toLowerCase();
 const CONCURRENCY = 4;
 const TIMEOUT_MS  = 12_000;
@@ -271,20 +279,21 @@ async function main() {
   console.log('');
 
   const client = sb();
-  let query = client.from('investors')
-    .select('id, name, firm, url, email_domain')
-    .not('url', 'is', null)
-    .neq('url', '');
+  let investors = await fetchInvestorUniverse(client, {
+    limit: LIMIT,
+    offset: OFFSET,
+    cohort: COHORT,
+    requireUrl: true,
+    staleFirst: true,
+  });
 
-  if (FIRM_FILTER) query = query.ilike('name', `%${FIRM_FILTER}%`);
-  if (LIMIT) query = query.limit(LIMIT);
-  else query = query.limit(500);
+  if (FIRM_FILTER) {
+    investors = investors.filter((inv) => inv.name.toLowerCase().includes(FIRM_FILTER));
+  }
 
-  const { data: investors, error } = await query;
-  if (error) { console.error('DB error:', error.message); process.exit(1); }
   if (!investors?.length) { console.log('No investors found.'); process.exit(0); }
 
-  console.log(`Scraping ${investors.length} investors...\n`);
+  console.log(`Scraping ${investors.length} investors (cohort ${COHORT})...\n`);
 
   let done = 0;
   await runBatch(investors, CONCURRENCY, async (inv) => {

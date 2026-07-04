@@ -10,12 +10,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
+import { parseLimitArg } from '../lib/investorUniverse.mjs';
 
 dotenv.config();
 
 const APPLY = process.argv.includes('--apply');
-const limArg = process.argv.find((a) => a.startsWith('--limit='));
-const LIMIT = limArg ? parseInt(limArg.split('=')[1], 10) : 100;
+const LIMIT = parseLimitArg(process.argv.slice(2), { defaultZero: true });
 
 const sb = createClient(
   process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
@@ -32,14 +32,17 @@ function shouldOverwrite(investor, intel) {
 
 async function main() {
   console.log(`\n🔗 Sync vc_intelligence → investors`);
-  console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · limit ${LIMIT}\n`);
+  console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · limit ${LIMIT > 0 ? LIMIT : 'ALL'}\n`);
 
-  const { data: intelRows, error } = await sb
+  let query = sb
     .from('vc_intelligence')
     .select('investor_id, firm_name, thesis_summary, sector_preferences, stage_preferences, confidence, profiled_at')
     .not('thesis_summary', 'is', null)
-    .order('confidence', { ascending: false })
-    .limit(LIMIT);
+    .order('confidence', { ascending: false });
+
+  if (LIMIT > 0) query = query.limit(LIMIT);
+
+  const { data: intelRows, error } = await query;
 
   if (error) throw new Error(error.message);
   if (!intelRows?.length) {

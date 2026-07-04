@@ -10,13 +10,18 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
+import {
+  fetchInvestorUniverse,
+  parseLimitArg,
+  parseCohortArg,
+} from '../lib/investorUniverse.mjs';
 
 dotenv.config();
 
 const APPLY = process.argv.includes('--apply');
-const limArg = process.argv.find((a) => a.startsWith('--limit='));
+const LIMIT = parseLimitArg(process.argv.slice(2), { defaultZero: true });
+const COHORT = parseCohortArg(process.argv.slice(2));
 const daysArg = process.argv.find((a) => a.startsWith('--days='));
-const LIMIT = limArg ? parseInt(limArg.split('=')[1], 10) : 150;
 const DAYS = daysArg ? parseInt(daysArg.split('=')[1], 10) : 90;
 
 const sb = createClient(
@@ -81,19 +86,12 @@ function buildThesis(investor, deals) {
 
 async function main() {
   const cutoff = new Date(Date.now() - DAYS * 86400000).toISOString().slice(0, 10);
-  console.log(`\n📊 Rolling firm thesis refresh (${DAYS}d, limit ${LIMIT})`);
-  console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · cutoff ${cutoff}\n`);
+  console.log(`\n📊 Rolling firm thesis refresh (${DAYS}d)`);
+  console.log(`   mode: ${APPLY ? 'APPLY' : 'dry-run'} · cohort ${COHORT} · limit ${LIMIT > 0 ? LIMIT : 'ALL'} · cutoff ${cutoff}\n`);
 
-  const { data: investors, error } = await sb
-    .from('investors')
-    .select('id, name, firm, rolling_thesis_updated_at')
-    .neq('status', 'inactive')
-    .neq('entity_gate', 'junk')
-    .order('investor_score', { ascending: false, nullsFirst: false })
-    .limit(LIMIT);
+  const investors = await fetchInvestorUniverse(sb, { limit: LIMIT, cohort: COHORT });
 
-  if (error) throw new Error(error.message);
-  if (!investors?.length) {
+  if (!investors.length) {
     console.log('No investors to process.');
     return;
   }

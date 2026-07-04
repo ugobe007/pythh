@@ -40,13 +40,16 @@ jobs:
           fi
           echo "✅ Supabase credentials present"
 
-      - name: VC enrichment (daily batch)
+      - name: Signal enrichment (daily chunk)
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npx tsx scripts/enrich-vcs.ts --batch-size=10
+        run: |
+          DAY=$(date -u +%j)
+          OFFSET=$(( (DAY * 400) % 4000 ))
+          npx tsx scripts/enrich-investor-signals.ts --limit=400 --offset=$OFFSET --delay=1500
 
       - name: Full intelligence pipeline
         if: github.event.inputs.full_pipeline != 'false'
@@ -56,4 +59,7 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: node scripts/pipeline-investor-intelligence.mjs --apply --limit=100 --batch-size=10 --skip-enrich
+        run: |
+          DAY=$(date -u +%j)
+          OFFSET=$(( (DAY * 500) % 4000 ))
+          node scripts/pipeline-investor-intelligence.mjs --apply --limit=500 --offset=$OFFSET --skip-enrich

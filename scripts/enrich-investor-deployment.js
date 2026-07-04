@@ -22,10 +22,17 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const {
+  fetchInvestorUniverse,
+  parseLimitArg,
+  parseOffsetArg,
+  parseCohortArg,
+} = require('../lib/investorUniverse.mjs');
 
 const DRY_RUN = process.argv.includes('--dry-run');
-const limitArg = process.argv.find(a => a.startsWith('--limit='));
-const LIMIT = limitArg ? parseInt(limitArg.split('=')[1]) : null;
+const LIMIT = parseLimitArg(process.argv.slice(2), { defaultZero: true });
+const OFFSET = parseOffsetArg(process.argv.slice(2));
+const COHORT = parseCohortArg(process.argv.slice(2));
 
 const sb = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -101,21 +108,21 @@ function computeDryPowder(investor) {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`\n=== Investor Deployment Enrichment${DRY_RUN ? ' [DRY RUN]' : ''} ===\n`);
+  console.log(`\n=== Investor Deployment Enrichment${DRY_RUN ? ' [DRY RUN]' : ''} ===`);
+  console.log(`Cohort: ${COHORT} · limit: ${LIMIT > 0 ? LIMIT : 'ALL'} · offset: ${OFFSET}\n`);
 
-  // Fetch all investors — we need to compute for everyone
-  let query = sb.from('investors').select(
-    'id, name, last_investment_date, fund_size_estimate_usd, check_size_min, check_size_max, ' +
-    'capital_power_score, investor_score, stage, dry_powder_estimate, deployment_velocity_index'
-  );
+  const investors = await fetchInvestorUniverse(sb, {
+    limit: LIMIT,
+    offset: OFFSET,
+    cohort: COHORT,
+  });
 
-  if (LIMIT) query = query.limit(LIMIT);
-  else query = query.limit(10000); // fetch all
+  if (!investors.length) {
+    console.log('No investors in universe.');
+    return;
+  }
 
-  const { data: investors, error } = await query;
-  if (error) { console.error('Fetch error:', error.message); process.exit(1); }
-
-  console.log(`Fetched ${investors.length} investors`);
+  console.log(`Fetched ${investors.length} venture + angel investors`);
 
   let updates = 0;
   let skipped = 0;
