@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { Helmet } from "react-helmet-async";
 import {
   ArrowLeft, ExternalLink, TrendingUp, Users, Target,
@@ -187,6 +187,7 @@ const SIGNAL_LABELS: Record<string, string> = {
 export default function PortfolioDetail() {
   const params = useParams<{ startupId: string }>();
   const startupId = params?.startupId;
+  const [, navigate] = useLocation();
 
   const [entry, setEntry]       = useState<PortfolioEntry | null>(null);
   const [events, setEvents]     = useState<PortfolioEvent[]>([]);
@@ -200,24 +201,34 @@ export default function PortfolioDetail() {
     if (!startupId) return;
     setLoading(true);
     setError(null);
-    Promise.all([
-      fetchJson<{ entry: PortfolioEntry | null; events?: PortfolioEvent[]; recent_news?: RecentNews[] }>(
-        `/api/portfolio/${startupId}`
-      ),
-      fetchJson<{ positioning?: DealPositioning[] }>(
-        `/api/intelligence/positioning/${startupId}`,
-        { retries: 1 }
-      ).catch(() => ({ positioning: [] })),
-    ])
-      .then(([detail, pos]) => {
+    (async () => {
+      try {
+        const portfolioRes = await fetch(`/api/portfolio/${startupId}`);
+        if (portfolioRes.status === 404) {
+          navigate(`/startup/${startupId}`);
+          return;
+        }
+        if (!portfolioRes.ok) throw new Error("portfolio_fetch_failed");
+        const detail = await portfolioRes.json() as {
+          entry: PortfolioEntry | null;
+          events?: PortfolioEvent[];
+          recent_news?: RecentNews[];
+        };
+        const pos = await fetchJson<{ positioning?: DealPositioning[] }>(
+          `/api/intelligence/positioning/${startupId}`,
+          { retries: 1 }
+        ).catch(() => ({ positioning: [] }));
         setEntry(detail.entry || null);
         setEvents(detail.events || []);
         setNews(detail.recent_news || []);
         setPos(pos.positioning || []);
-      })
-      .catch(() => setError("Couldn't load this company right now. Please try again."))
-      .finally(() => setLoading(false));
-  }, [startupId]);
+      } catch {
+        setError("Couldn't load this company right now. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [startupId, navigate]);
 
   if (loading) {
     return (

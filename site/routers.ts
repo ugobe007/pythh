@@ -189,12 +189,13 @@ export const appRouter = router({
         const sbClient = createClient(sbUrl, sbKey);
         const limit = input.limit ?? 100;
 
-        const [{ count: total }, { data, error }] = await Promise.all([
+        const [{ count: total }, { data: portfolioRows }, { data, error }] = await Promise.all([
           sbClient
             .from("startup_uploads")
             .select("*", { count: "exact", head: true })
             .eq("status", "approved")
             .not("total_god_score", "is", null),
+          sbClient.from("portfolio_health").select("startup_id"),
           sbClient
             .from("startup_uploads")
             .select(
@@ -206,6 +207,8 @@ export const appRouter = router({
             .order("total_god_score", { ascending: false })
             .limit(limit),
         ]);
+
+        const portfolioIds = new Set((portfolioRows ?? []).map((r: { startup_id: string }) => r.startup_id));
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
@@ -232,13 +235,14 @@ export const appRouter = router({
             : [];
           const { startup_signal_scores: _omit, ...rest } = row;
           void _omit;
-          return { ...rest, signals };
+          return { ...rest, signals, in_portfolio: portfolioIds.has(String(row.id)) };
         });
 
         return {
           startups: startups as Array<{
             id: string;
             name: string;
+            in_portfolio: boolean;
             sectors: string | string[] | null;
             total_god_score: number | null;
             team_score: number | null;

@@ -28,6 +28,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Explore from "./pages/Explore";
 import Portfolio from "./pages/Portfolio";
+import StartupDetail from "./pages/StartupDetail";
 import PortfolioDetail from "./pages/PortfolioDetail";
 import Oracle from "./pages/Oracle";
 import Matches from "./pages/Matches";
@@ -99,6 +100,7 @@ function Router() {
       <Route path={"/admin/calendar"} component={Calendar} />
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
+      <Route path={"/startup/:startupId"} component={StartupDetail} />
       <Route path={"/platform"} component={Platform} />
       <Route path={"/methodology"} component={Methodology} />
       <Route path={"/newsletter"} component={Newsletter} />

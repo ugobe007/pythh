@@ -69,6 +69,7 @@ interface StartupRaw {
   is_repeat_founder?: boolean | null;
   has_cofounder_exit?: boolean | null;
   psychological_multiplier?: number | null;
+  in_portfolio?: boolean;
 }
 
 interface StartupRanked {
@@ -85,6 +86,7 @@ interface StartupRanked {
   hotScoreTier: boolean;
   warmingScoreTier: boolean;
   psychBoost: boolean;
+  inPortfolio: boolean;
 }
 
 interface SignalFlags {
@@ -238,6 +240,7 @@ function rankStartupsForLens(
       hotScoreTier: god >= 85,
       warmingScoreTier: god >= 70 && god < 85,
       psychBoost: typeof psych === "number" && psych >= 1.08,
+      inPortfolio: !!s.raw.in_portfolio,
     };
   });
 }
@@ -833,7 +836,7 @@ export default function SignalTrends() {
                 return (
                 <Link
                   key={s.id}
-                  href={`/portfolio/${s.id}`}
+                  href={s.inPortfolio ? `/portfolio/${s.id}` : `/startup/${s.id}`}
                   className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.03] cursor-pointer no-underline"
                   style={{
                     gridTemplateColumns: "52px 1fr 140px 90px 60px 52px",
