@@ -836,7 +836,7 @@ export default function SignalTrends() {
                 return (
                 <Link
                   key={s.id}
-                  href={s.inPortfolio ? `/portfolio/${s.id}` : `/startup/${s.id}`}
+                  href={`/startup/${s.id}`}
                   className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.03] cursor-pointer no-underline"
                   style={{
                     gridTemplateColumns: "52px 1fr 140px 90px 60px 52px",

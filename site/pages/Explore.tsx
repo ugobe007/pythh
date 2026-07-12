@@ -276,7 +276,13 @@ export default function Explore() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate">{s.name}</span>
+                        <Link
+                          href={`/startup/${s.id}`}
+                          className="text-sm font-medium truncate transition-colors hover:underline"
+                          style={{ color: "inherit" }}
+                        >
+                          {s.name}
+                        </Link>
                         {s.website && (
                           <a
                             href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
