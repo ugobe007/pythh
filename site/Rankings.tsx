@@ -4,8 +4,8 @@
  * Live investor signal table with search, sector filters, column sort, and Oracle gate.
  */
 import { Helmet } from "react-helmet-async";
-import { useState } from "react";
-import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -138,12 +138,24 @@ function LockedRow({ rank }: { rank: number }) {
 
 export default function Rankings() {
   const { user, isAuthenticated } = useAuth();
+  const [, navigate] = useLocation();
+  const [, investorRouteParams] = useRoute("/investors/:investorId");
 
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("All");
   const [sortBy, setSortBy] = useState<SortField>("signal");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const raw = investorRouteParams?.investorId;
+    if (!raw) {
+      setSelectedInvestorId(null);
+      return;
+    }
+    const id = parseInt(raw, 10);
+    setSelectedInvestorId(Number.isFinite(id) ? id : null);
+  }, [investorRouteParams?.investorId]);
 
   // Debounce search to avoid hammering the server
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -401,7 +413,7 @@ export default function Rankings() {
                         key={inv.id}
                         style={{ borderBottom: "1px solid oklch(0.15 0.01 264)", cursor: "pointer" }}
                         className="transition-colors"
-                        onClick={() => setSelectedInvestorId(inv.id)}
+                        onClick={() => navigate(`/investors/${inv.id}`)}
                         onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "oklch(0.13 0.01 264)")}
                         onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = "transparent")}
                       >
@@ -551,7 +563,7 @@ export default function Rankings() {
       {/* Investor detail slide-over modal */}
       <InvestorDetailModal
         investorId={selectedInvestorId}
-        onClose={() => setSelectedInvestorId(null)}
+        onClose={() => navigate("/investors")}
         isOracle={isOracle}
       />
     </div>

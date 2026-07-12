@@ -42,10 +42,14 @@ const DELAY_MS = parseInt((argv.find((a) => a.startsWith('--delay=')) || '--dela
 const idArg = argv.find((a) => a.startsWith('--id='));
 const TARGET_ID = idArg ? idArg.split('=')[1] : null;
 
-async function enrichOne(investor: { id: string; name: string }) {
+async function enrichOne(investor: { id: string; name: string; url?: string | null; blog_url?: string | null; linkedin_url?: string | null }) {
   console.log(`\n${'─'.repeat(50)}`);
   console.log(`📊 ${investor.name}`);
-  return InvestorEnrichmentService.enrichInvestor(investor.id, investor.name);
+  return InvestorEnrichmentService.enrichInvestor(investor.id, investor.name, {
+    url: investor.url,
+    blog_url: investor.blog_url,
+    linkedin_url: investor.linkedin_url,
+  });
 }
 
 async function main() {

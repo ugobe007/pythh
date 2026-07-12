@@ -134,17 +134,33 @@ async function runHealthCheck() {
     }
   }
   
-  // 3. Check OpenAI API key
+  // 3. Check OpenAI API key (live probe — format alone is not enough)
   console.log('\n🤖 OpenAI API:');
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const openaiKey = (process.env.OPENAI_API_KEY || '').trim();
   if (!openaiKey || openaiKey.includes('your-')) {
     errors.push('Invalid OpenAI API key');
     console.log('  ❌ Invalid or placeholder API key');
-  } else if (openaiKey.startsWith('sk-proj-') || openaiKey.startsWith('sk-')) {
-    console.log('  ✅ API key format valid');
   } else {
-    warnings.push('OpenAI key may be invalid format');
-    console.log('  ⚠️  Unusual key format');
+    try {
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${openaiKey}` },
+      });
+      if (res.ok) {
+        console.log('  ✅ API key accepted by OpenAI');
+      } else if (res.status === 401) {
+        errors.push('OpenAI API key rejected (401) — create a new key at platform.openai.com/api-keys');
+        console.log('  ❌ Key rejected (401) — billing can be fine; rotate the key in .env');
+      } else if (res.status === 429) {
+        warnings.push('OpenAI quota/rate limit (429)');
+        console.log('  ⚠️  Quota/rate limit (429) — check billing');
+      } else {
+        warnings.push(`OpenAI probe returned ${res.status}`);
+        console.log(`  ⚠️  Unexpected status ${res.status}`);
+      }
+    } catch (e) {
+      errors.push(`OpenAI probe failed: ${e.message}`);
+      console.log(`  ❌ Probe failed: ${e.message}`);
+    }
   }
   
   // Summary

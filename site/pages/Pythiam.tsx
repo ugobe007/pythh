@@ -665,6 +665,7 @@ export default function PythiamPage() {
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-mono" style={{ color: DIM }}>
                   <span>Exited {oracle.successful_exits ?? 0}</span>
                   <span>Median raise {oracle.median_days_to_funding ?? "—"}d</span>
+                  <span>Avg MOIC {oracle.avg_moic ? `${oracle.avg_moic}×` : "—"}</span>
                   <span>Verified MOIC {oracle.verified_avg_moic ? `${oracle.verified_avg_moic}×` : "—"}</span>
                 </div>
               </>

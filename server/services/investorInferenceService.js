@@ -173,11 +173,11 @@ function extractInvestorDataFromArticles(articles, currentInvestor) {
     const amounts = [];
     for (const match of allText.matchAll(/\$(\d+(?:\.\d+)?)\s*(k|m|b|million|billion|thousand)/gi)) {
       const usd = parseUSD(match[1], match[2]);
-      if (usd >= 50000 && usd <= 500000000) amounts.push(usd); // $50K to $500M range
+      if (usd >= 50000 && usd <= 500000000) amounts.push(Math.round(usd)); // $50K to $500M range
     }
     if (amounts.length >= 2) {
-      enrichedData.check_size_min = Math.min(...amounts);
-      enrichedData.check_size_max = Math.max(...amounts);
+      enrichedData.check_size_min = Math.round(Math.min(...amounts));
+      enrichedData.check_size_max = Math.round(Math.max(...amounts));
       enrichmentCount++;
     } else if (amounts.length === 1) {
       // Single mention — use as midpoint estimate

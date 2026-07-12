@@ -18,6 +18,14 @@
  *   node scripts/intelligence/scrape-vc-intelligence.js --limit=20   # first N
  *   node scripts/intelligence/scrape-vc-intelligence.js --firm="a16z" # single firm
  *   node scripts/intelligence/scrape-vc-intelligence.js --dry-run
+ *   node scripts/intelligence/scrape-vc-intelligence.js --no-dedup   # scrape every row (legacy)
+ *   node scripts/intelligence/scrape-vc-intelligence.js --stale-days=7  # skip firms scraped within 7d
+ *   node scripts/intelligence/scrape-vc-intelligence.js --stale-days=0   # force full refresh
+ *   node scripts/intelligence/scrape-vc-intelligence.js --resume         # continue after interrupt
+ *   node scripts/intelligence/scrape-vc-intelligence.js --firm-offset=24 # skip first N firms
+ *
+ * Firm dedup: person-at-firm rows sharing the same domain are scraped once and
+ * fan-out saved to all matching investor_ids (see lib/investorFirmDedup.mjs).
  */
 
 'use strict';
@@ -32,7 +40,9 @@ const {
   parseLimitArg,
   parseOffsetArg,
   parseCohortArg,
-} = require('../lib/investorUniverse.mjs');
+} = require('../../lib/investorUniverse.mjs');
+const { groupInvestorsByFirm } = require('../../lib/investorFirmDedup.mjs');
+const { isGarbageInvestorName } = require('../../lib/investorNameHeuristics.js');
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -41,8 +51,50 @@ const LIMIT   = parseLimitArg(process.argv.slice(2), { defaultZero: true });
 const OFFSET  = parseOffsetArg(process.argv.slice(2));
 const COHORT  = parseCohortArg(process.argv.slice(2));
 const FIRM_FILTER = (process.argv.find(a => a.startsWith('--firm=')) || '').replace('--firm=', '').toLowerCase();
+const NO_DEDUP = process.argv.includes('--no-dedup');
+const STALE_DAYS = (() => {
+  const a = process.argv.find((x) => x.startsWith('--stale-days='));
+  if (!a) return 7; // default: skip firms scraped in the last week
+  const n = parseInt(a.split('=')[1], 10);
+  return Number.isFinite(n) && n >= 0 ? n : 7;
+})();
+const fs = require('fs');
+
+const CHECKPOINT_PATH = process.env.VC_SCRAPE_CHECKPOINT || '/tmp/vc-scrape-checkpoint.json';
+const RESUME = process.argv.includes('--resume');
+const FIRM_OFFSET = (() => {
+  const a = process.argv.find((x) => x.startsWith('--firm-offset='));
+  return a ? Math.max(0, parseInt(a.split('=')[1], 10) || 0) : 0;
+})();
+const FIRM_TIMEOUT_MS = 45_000;
 const CONCURRENCY = 4;
-const TIMEOUT_MS  = 12_000;
+const TIMEOUT_MS = 12_000;
+
+function loadCheckpoint() {
+  try {
+    if (!fs.existsSync(CHECKPOINT_PATH)) return null;
+    return JSON.parse(fs.readFileSync(CHECKPOINT_PATH, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function saveCheckpoint(state) {
+  try {
+    fs.writeFileSync(CHECKPOINT_PATH, JSON.stringify(state, null, 2));
+  } catch (e) {
+    console.warn(`  ⚠ checkpoint write failed: ${e.message}`);
+  }
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout after ${ms}ms (${label})`)), ms)
+    ),
+  ]);
+}
 
 // ── Known VC blog/RSS endpoints ─────────────────────────────────────────────
 // These are the primary intelligence sources we care about most.
@@ -101,7 +153,10 @@ function fetchRaw(url, timeoutMs = TIMEOUT_MS) {
       }
     );
     req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      reject(new Error('timeout'));
+    });
   });
 }
 
@@ -192,15 +247,8 @@ async function scrapeBlogHomepage(blogUrl) {
     .slice(0, 8_000);
 }
 
-// ── Main scrape routine for one investor ─────────────────────────────────────
-async function scrapeInvestor(investor) {
-  const { id: investor_id, name, url: firm_url, firm } = investor;
-  const firmName = firm || name || '';
-  const domain = firm_url ? (() => { try { return new URL(firm_url.startsWith('http') ? firm_url : `https://${firm_url}`).hostname.replace(/^www\./, ''); } catch { return null; } })() : null;
-
-  console.log(`  → ${firmName} (${domain || 'no domain'})`);
-
-  // ── Scrape RSS feed ──────────────────────────────────────────────────────
+// ── Scrape firm content once (shared across investor rows) ───────────────────
+async function scrapeFirmContent({ firmName, domain, firmUrl }) {
   let rss_articles = [];
   if (domain) {
     const rssUrl = await discoverRssFeed(domain);
@@ -211,15 +259,12 @@ async function scrapeInvestor(investor) {
     }
   }
 
-  // ── Scrape Google News ───────────────────────────────────────────────────
   const newsArticles = await scrapeGoogleNews(firmName);
   console.log(`    News: ${newsArticles.length} articles`);
 
-  // ── Scrape blog homepage for thesis text ─────────────────────────────────
   const registry = domain ? VC_BLOG_REGISTRY[domain] : null;
   const blogText = await scrapeBlogHomepage(registry?.blog || (domain ? `https://${domain}/blog` : null));
 
-  // ── Extract signals ──────────────────────────────────────────────────────
   const allText = [
     ...rss_articles.map(a => `${a.title} ${a.excerpt}`),
     ...newsArticles.map(a => `${a.title} ${a.excerpt}`),
@@ -228,7 +273,6 @@ async function scrapeInvestor(investor) {
 
   const signals = extractSignals(allText);
 
-  // ── Language patterns (top recurring phrases) ────────────────────────────
   const words = allText.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
   const freq = {};
   for (const w of words) freq[w] = (freq[w] || 0) + 1;
@@ -239,10 +283,7 @@ async function scrapeInvestor(investor) {
     .slice(0, 30)
     .map(([phrase, frequency]) => ({ phrase, frequency }));
 
-  const result = {
-    investor_id,
-    firm_name: firmName,
-    firm_url: firm_url || null,
+  return {
     rss_articles,
     blog_posts: newsArticles,
     portfolio_signals: [{ signals, source: 'text_analysis' }],
@@ -250,24 +291,120 @@ async function scrapeInvestor(investor) {
     source_count: rss_articles.length + newsArticles.length,
     scraped_at: new Date().toISOString(),
     confidence: Math.min(1, (rss_articles.length * 0.08 + newsArticles.length * 0.04 + (blogText.length > 1000 ? 0.2 : 0))),
+    firm_url: firmUrl || null,
+    firm_name: firmName,
+    _signals: signals,
   };
-
-  if (!DRY_RUN) {
-    const client = sb();
-    const { error } = await client.from('vc_intelligence').upsert(result, { onConflict: 'investor_id', ignoreDuplicates: false });
-    if (error) console.error(`    ✗ DB error: ${error.message}`);
-    else console.log(`    ✅ Saved (${signals.length} signals, confidence ${result.confidence.toFixed(2)})`);
-  } else {
-    console.log(`    [dry-run] signals: ${signals.join(', ')}`);
-  }
-
-  return result;
 }
 
-async function runBatch(items, concurrency, fn) {
-  for (let i = 0; i < items.length; i += concurrency) {
-    await Promise.allSettled(items.slice(i, i + concurrency).map(fn));
+async function saveFirmScrapeForInvestors(group, content) {
+  const rows = group.investors.map((inv) => ({
+    investor_id: inv.id,
+    firm_name: content.firm_name,
+    firm_url: content.firm_url,
+    rss_articles: content.rss_articles,
+    blog_posts: content.blog_posts,
+    portfolio_signals: content.portfolio_signals,
+    language_patterns: content.language_patterns,
+    source_count: content.source_count,
+    scraped_at: content.scraped_at,
+    confidence: content.confidence,
+  }));
+
+  if (DRY_RUN) {
+    console.log(`    [dry-run] signals: ${content._signals.join(', ')}`);
+    return rows;
   }
+
+  const client = sb();
+  const { error } = await client.from('vc_intelligence').upsert(rows, { onConflict: 'investor_id', ignoreDuplicates: false });
+  if (error) {
+    console.error(`    ✗ DB error: ${error.message}`);
+  } else {
+    const n = group.investors.length;
+    const label = n > 1 ? ` → ${n} investors` : '';
+    console.log(`    ✅ Saved${label} (${content._signals.length} signals, confidence ${content.confidence.toFixed(2)})`);
+  }
+  return rows;
+}
+
+async function scrapeFirmGroup(group) {
+  const aliasNote = group.investors.length > 1 ? ` [${group.investors.length} rows]` : '';
+  console.log(`  → ${group.firmName} (${group.domain || 'no domain'})${aliasNote}`);
+
+  const content = await scrapeFirmContent({
+    firmName: group.firmName,
+    domain: group.domain,
+    firmUrl: group.firmUrl,
+  });
+
+  await saveFirmScrapeForInvestors(group, content);
+  return content;
+}
+
+async function scrapeFirmGroupSafe(group) {
+  try {
+    return await withTimeout(scrapeFirmGroup(group), FIRM_TIMEOUT_MS, group.firmName);
+  } catch (e) {
+    console.error(`  ✗ ${group.firmName}: ${e.message}`);
+    return null;
+  }
+}
+
+async function runBatch(items, concurrency, fn, { onBatchDone } = {}) {
+  const total = items.length;
+  const batches = Math.ceil(total / concurrency);
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batchNum = Math.floor(i / concurrency) + 1;
+    const slice = items.slice(i, i + concurrency);
+    const started = Date.now();
+    console.log(`\n  [batch ${batchNum}/${batches}] ${slice.map((g) => g.firmName).join(' · ')}`);
+    await Promise.allSettled(slice.map(fn));
+    const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+    console.log(`  [batch ${batchNum}/${batches} done in ${elapsed}s]`);
+    if (onBatchDone) onBatchDone({ batchNum, batches, slice, elapsed: Number(elapsed) });
+  }
+}
+
+/** @param {ReturnType<typeof sb>} client @param {string[]} investorIds */
+async function loadFreshInvestorIds(client, investorIds, staleDays) {
+  if (!staleDays || !investorIds.length) return new Set();
+  const cutoff = new Date(Date.now() - staleDays * 86400000).toISOString();
+  const fresh = new Set();
+  const chunkSize = 200;
+
+  for (let i = 0; i < investorIds.length; i += chunkSize) {
+    const chunk = investorIds.slice(i, i + chunkSize);
+    let data = null;
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const res = await client
+        .from('vc_intelligence')
+        .select('investor_id')
+        .in('investor_id', chunk)
+        .gte('scraped_at', cutoff);
+      if (!res.error) {
+        data = res.data;
+        lastErr = null;
+        break;
+      }
+      lastErr = res.error;
+      const delay = attempt * 1500;
+      console.warn(`  ⚠ stale lookup attempt ${attempt}/3 failed: ${res.error.message} — retry in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    if (lastErr) {
+      console.warn(
+        `  ⚠ stale lookup unavailable (${lastErr.message}) — skipping scrape this run (assume firms are fresh)`
+      );
+      return new Set(investorIds);
+    }
+
+    for (const row of data || []) fresh.add(row.investor_id);
+  }
+  return fresh;
 }
 
 async function main() {
@@ -276,6 +413,10 @@ async function main() {
   console.log('Run at:', new Date().toISOString());
   if (DRY_RUN) console.log('⚠️  DRY-RUN mode — no DB writes');
   if (FIRM_FILTER) console.log('Filter:', FIRM_FILTER);
+  if (STALE_DAYS > 0) console.log(`Stale skip: firms scraped within ${STALE_DAYS}d`);
+  else console.log('Stale skip: off (full refresh)');
+  if (RESUME) console.log(`Resume: ${CHECKPOINT_PATH}`);
+  if (FIRM_OFFSET > 0) console.log(`Firm offset: ${FIRM_OFFSET}`);
   console.log('');
 
   const client = sb();
@@ -291,21 +432,88 @@ async function main() {
     investors = investors.filter((inv) => inv.name.toLowerCase().includes(FIRM_FILTER));
   }
 
+  const junkSkipped = investors.filter((inv) => isGarbageInvestorName(inv.name)).length;
+  investors = investors.filter((inv) => !isGarbageInvestorName(inv.name));
+
   if (!investors?.length) { console.log('No investors found.'); process.exit(0); }
 
-  console.log(`Scraping ${investors.length} investors (cohort ${COHORT})...\n`);
+  const firmGroups = NO_DEDUP
+    ? investors.map((inv) => ({
+        dedupKey: `investor:${inv.id}`,
+        firmName: inv.firm || inv.name || '',
+        firmUrl: inv.url || null,
+        domain: null,
+        registryKey: null,
+        investors: [inv],
+      }))
+    : groupInvestorsByFirm(investors);
+
+  let groupsToScrape = firmGroups;
+  let freshSkipped = 0;
+  if (STALE_DAYS > 0) {
+    const allIds = firmGroups.flatMap((g) => g.investors.map((i) => i.id));
+    const freshIds = await loadFreshInvestorIds(client, allIds, STALE_DAYS);
+    groupsToScrape = firmGroups.filter(
+      (g) => !g.investors.some((inv) => freshIds.has(inv.id))
+    );
+    freshSkipped = firmGroups.length - groupsToScrape.length;
+  }
+
+  const aliasRows = investors.length - firmGroups.length;
+  console.log(`Scraping ${investors.length} investor rows → ${firmGroups.length} unique firms (cohort ${COHORT})...`);
+  if (junkSkipped > 0) console.log(`   junk names skipped: ${junkSkipped} rows (not yet quarantined in DB)`);
+  if (aliasRows > 0 && !NO_DEDUP) console.log(`   firm dedup: ${aliasRows} duplicate domain rows collapsed`);
+  if (freshSkipped > 0) console.log(`   stale skip: ${freshSkipped} firms scraped within ${STALE_DAYS}d`);
+  console.log(`   will scrape: ${groupsToScrape.length} firms\n`);
+
+  if (!groupsToScrape.length) {
+    console.log('Nothing stale to scrape.');
+    process.exit(0);
+  }
+
+  let startOffset = FIRM_OFFSET;
+  if (RESUME) {
+    const cp = loadCheckpoint();
+    if (cp?.nextFirmOffset != null) {
+      startOffset = Math.max(startOffset, cp.nextFirmOffset);
+      console.log(`   resuming from firm ${startOffset + 1}/${groupsToScrape.length} (${cp.firmName || 'checkpoint'})\n`);
+    }
+  }
+  if (startOffset > 0) {
+    groupsToScrape = groupsToScrape.slice(startOffset);
+  }
+
+  if (!groupsToScrape.length) {
+    console.log('Nothing left to scrape at this offset.');
+    process.exit(0);
+  }
 
   let done = 0;
-  await runBatch(investors, CONCURRENCY, async (inv) => {
-    try {
-      await scrapeInvestor(inv);
-      done++;
-    } catch (e) {
-      console.error(`  ✗ Error on ${inv.name}:`, e.message);
-    }
+  await runBatch(groupsToScrape, CONCURRENCY, scrapeFirmGroupSafe, {
+    onBatchDone: ({ batchNum, batches, slice, elapsed }) => {
+      const last = slice[slice.length - 1];
+      saveCheckpoint({
+        nextFirmOffset: Math.min(startOffset + batchNum * CONCURRENCY, startOffset + groupsToScrape.length),
+        firmName: last?.firmName || null,
+        batch: batchNum,
+        batches,
+        elapsed_s: elapsed,
+        updated_at: new Date().toISOString(),
+      });
+    },
   });
 
-  console.log(`\n✅ Done — ${done}/${investors.length} investors scraped`);
+  for (const group of groupsToScrape) {
+    done += group.investors.length;
+  }
+
+  try {
+    if (fs.existsSync(CHECKPOINT_PATH)) fs.unlinkSync(CHECKPOINT_PATH);
+  } catch { /* ignore */ }
+
+  console.log(
+    `\n✅ Done — ${done}/${investors.length} investor rows scraped (${groupsToScrape.length} firms this run, offset ${startOffset})`
+  );
   process.exit(0);
 }
 

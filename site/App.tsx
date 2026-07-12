@@ -79,6 +79,7 @@ function Router() {
         <Redirect to="/rankings" />
       </Route>
       {/* /investors = investor intelligence table */}
+      <Route path={"/investors/:investorId"} component={InvestorRankings} />
       <Route path={"/investors"} component={InvestorRankings} />
       <Route path={"/explore"} component={Explore} />
       <Route path={"/oracle"} component={Oracle} />

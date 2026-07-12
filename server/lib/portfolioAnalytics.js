@@ -190,7 +190,7 @@ async function computePortfolioValue(supabase) {
   const [picksRes, eventsRes] = await Promise.all([
     supabase
       .from('virtual_portfolio')
-      .select('id, startup_id, status, virtual_check_usd, moic, entry_valuation_usd, current_valuation_usd, exit_valuation_usd, entry_date, exit_date'),
+      .select('id, startup_id, status, virtual_check_usd, moic, entry_valuation_usd, current_valuation_usd, exit_valuation_usd, entry_date, exit_date, entity_quarantined, entered_late'),
     supabase
       .from('portfolio_events')
       .select('portfolio_id, startup_id, event_type, verified, post_money_usd, event_date')
@@ -246,15 +246,35 @@ async function computePortfolioValue(supabase) {
     if (check <= 0) continue;
     costBasis += check;
 
+    if (p.entity_quarantined) {
+      quarantinedPositions += 1;
+      currentValue += check;
+      flat += 1;
+      contributions.push({
+        startup_id: p.startup_id,
+        gain_usd: 0,
+        moic_capped: 1,
+        moic_raw: Number.isFinite(Number(p.moic)) ? round(Number(p.moic), 2) : null,
+        basis: 'quarantined',
+        status: p.status,
+        entered_late: false,
+      });
+      continue;
+    }
+
     const verifiedRounds = roundsByPortfolio.get(p.id) || roundsByStartup.get(p.startup_id) || [];
     const signalEvents = signalsByStartup.get(p.startup_id) || [];
-    const { moic: verifiedMoic, basis, quarantined, enteredLate } = computeVerifiedMoic({
+    const entryLateFlag =
+      p.entered_late === true ||
+      (Number(p.entry_valuation_usd) || 0) >= MATURE_AT_ENTRY_THRESHOLD_USD;
+    const { moic: verifiedMoic, basis, quarantined, enteredLate: computedLate } = computeVerifiedMoic({
       status: p.status,
       entryValuation: p.entry_valuation_usd,
       exitValuation: p.exit_valuation_usd,
       verifiedRounds,
       signalEvents,
     });
+    const enteredLate = entryLateFlag || computedLate;
 
     const value = check * verifiedMoic;
     currentValue += value;
@@ -367,6 +387,11 @@ async function computePortfolioValue(supabase) {
   const irrMeaningful =
     irr != null && fundAgeDays != null && fundAgeDays >= 365 && Math.abs(irr) < 3;
 
+  // Headline avg MOIC: portfolio_metrics view (synced per-position marks, early clean cohort).
+  const { data: metricsRow } = await supabase.from('portfolio_metrics').select('avg_moic').maybeSingle();
+  const headlineAvgMoic =
+    metricsRow?.avg_moic != null ? Number(metricsRow.avg_moic) : avgMoicEarly;
+
   return {
     positions,
     early_positions: earlyPositions, // genuinely-early picks (headline basis)
@@ -381,9 +406,10 @@ async function computePortfolioValue(supabase) {
     gain_usd: round(gain),
     gain_pct: costBasis ? round((gain / costBasis) * 100, 1) : 0,
     tvpi: costBasis ? round(currentValue / costBasis, 2) : null,
-    avg_moic: avgMoicCapped, // HEADLINE: blended across all positions (every entry now honest)
-    avg_moic_capped: avgMoicCapped, // all positions
-    avg_moic_early: avgMoicEarly, // early-only (reference)
+    avg_moic: headlineAvgMoic,
+    avg_moic_blended: avgMoicCapped,
+    avg_moic_capped: avgMoicCapped, // all positions incl. entered-late
+    avg_moic_early: avgMoicEarly, // early-only (same basis as portfolio_metrics)
     avg_moic_industry_avg: VC_BENCHMARKS.avg_moic_industry, // industry reference shown in brackets next to Avg MOIC
     fund_locked: FUND_LOCKED, // fixed-vintage cohort; no new positions added once locked
     fund_lock_date: FUND_LOCK_DATE,
@@ -646,6 +672,98 @@ async function describeStrategyAndTrend(supabase, metrics, trackRecord) {
   return { strategy, trend };
 }
 
+/**
+ * Write analytics-computed MOIC back to virtual_portfolio (SSOT for portfolio_metrics view).
+ * Quarantined → 1× at entry; others → computeVerifiedMoic from verified rounds + signals.
+ */
+async function syncPortfolioMoicToDb(supabase, { apply = true } = {}) {
+  const [picksRes, eventsRes] = await Promise.all([
+    supabase
+      .from('virtual_portfolio')
+      .select('id, startup_id, status, entry_valuation_usd, exit_valuation_usd, entity_quarantined, entered_late'),
+    supabase
+      .from('portfolio_events')
+      .select('portfolio_id, startup_id, event_type, verified, post_money_usd')
+      .in('event_type', ['funding_round', ...Object.keys(SIGNAL_VALUATION_WEIGHTS)]),
+  ]);
+  if (picksRes.error) throw new Error(picksRes.error.message);
+  if (eventsRes.error) throw new Error(eventsRes.error.message);
+
+  const roundsByPortfolio = new Map();
+  const roundsByStartup = new Map();
+  const signalsByStartup = new Map();
+  for (const ev of eventsRes.data || []) {
+    if (ev.event_type === 'funding_round') {
+      if (!ev.verified || !Number(ev.post_money_usd)) continue;
+      if (ev.portfolio_id) {
+        if (!roundsByPortfolio.has(ev.portfolio_id)) roundsByPortfolio.set(ev.portfolio_id, []);
+        roundsByPortfolio.get(ev.portfolio_id).push(ev);
+      }
+      if (ev.startup_id) {
+        if (!roundsByStartup.has(ev.startup_id)) roundsByStartup.set(ev.startup_id, []);
+        roundsByStartup.get(ev.startup_id).push(ev);
+      }
+    } else if (SIGNAL_VALUATION_WEIGHTS[ev.event_type] && ev.startup_id) {
+      if (!signalsByStartup.has(ev.startup_id)) signalsByStartup.set(ev.startup_id, []);
+      signalsByStartup.get(ev.startup_id).push(ev);
+    }
+  }
+
+  let updated = 0;
+  const changes = [];
+
+  for (const p of picksRes.data || []) {
+    const entry = Number(p.entry_valuation_usd) || 0;
+    let moic = 1;
+    let currentVal = entry || null;
+    let basis = 'cost';
+    let enteredLate = Boolean(p.entered_late);
+
+    if (p.entity_quarantined) {
+      basis = 'quarantined';
+      enteredLate = false;
+    } else {
+      const verifiedRounds = roundsByPortfolio.get(p.id) || roundsByStartup.get(p.startup_id) || [];
+      const signalEvents = signalsByStartup.get(p.startup_id) || [];
+      const entryLateFlag = (Number(p.entry_valuation_usd) || 0) >= MATURE_AT_ENTRY_THRESHOLD_USD;
+      const result = computeVerifiedMoic({
+        status: p.status,
+        entryValuation: p.entry_valuation_usd,
+        exitValuation: p.exit_valuation_usd,
+        verifiedRounds,
+        signalEvents,
+      });
+      moic = result.moic;
+      basis = result.basis;
+      enteredLate = entryLateFlag || result.enteredLate;
+      if (result.value > 0) currentVal = result.value;
+      else if (entry > 0) currentVal = Math.round(entry * moic);
+    }
+
+    const patch = {
+      moic: round(moic, 2),
+      current_valuation_usd: currentVal,
+      entered_late: enteredLate,
+    };
+
+    if (apply) {
+      const { error } = await supabase.from('virtual_portfolio').update(patch).eq('id', p.id);
+      if (!error) updated += 1;
+    }
+    changes.push({ id: p.id, moic: patch.moic, basis });
+  }
+
+  const { data: metrics } = await supabase.from('portfolio_metrics').select('avg_moic, best_moic').maybeSingle();
+
+  return {
+    updated: apply ? updated : 0,
+    would_update: changes.length,
+    headline_avg_moic: metrics?.avg_moic ?? null,
+    best_moic: metrics?.best_moic ?? null,
+    apply,
+  };
+}
+
 module.exports = {
   PER_POSITION_MOIC_CAP,
   MAX_PLAUSIBLE_VALUATION_USD,
@@ -659,6 +777,7 @@ module.exports = {
   isGenericRationale,
   computeVerifiedMoic,
   computePortfolioValue,
+  syncPortfolioMoicToDb,
   compareToBenchmarks,
   describeStrategyAndTrend,
 };

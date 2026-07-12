@@ -32,17 +32,30 @@ async function handleOpened(event, client) {
   const msgId = event.data?.email_id || event.data?.message_id;
   if (!msgId) return;
 
-  const { error } = await client
-    .from('investor_outreach')
-    .update({
-      status:    'opened',
-      opened_at: new Date(event.created_at || Date.now()).toISOString(),
-    })
-    .eq('resend_message_id', msgId)
-    .eq('status', 'sent');   // only advance if currently 'sent'
+  const openedAt = new Date(event.created_at || Date.now()).toISOString();
 
-  if (error) console.warn('[webhook] opened update error:', error.message);
+  const { error: outreachErr } = await client
+    .from('investor_outreach')
+    .update({ status: 'opened', opened_at: openedAt })
+    .eq('resend_message_id', msgId)
+    .eq('status', 'sent');
+
+  if (outreachErr) console.warn('[webhook] investor_outreach opened:', outreachErr.message);
+
+  const { error: logErr } = await client
+    .from('pythh_prospecting_log')
+    .update({ opened_at: openedAt })
+    .eq('resend_message_id', msgId);
+
+  if (logErr) console.warn('[webhook] prospecting_log opened:', logErr.message);
   else console.log('[webhook] opened:', msgId);
+}
+
+async function handleClicked(event, client) {
+  const msgId = event.data?.email_id || event.data?.message_id;
+  if (!msgId) return;
+  const clickedAt = new Date(event.created_at || Date.now()).toISOString();
+  await client.from('pythh_prospecting_log').update({ clicked_at: clickedAt }).eq('resend_message_id', msgId);
 }
 
 async function handleBounced(event, client) {
@@ -50,14 +63,20 @@ async function handleBounced(event, client) {
   const bouncedTo  = event.data?.to?.[0];
   if (!msgId) return;
 
-  // Mark outreach bounced
+  const bouncedAt = new Date(event.created_at || Date.now()).toISOString();
+
   await client
     .from('investor_outreach')
     .update({
       status:     'bounced',
-      bounced_at: new Date(event.created_at || Date.now()).toISOString(),
+      bounced_at: bouncedAt,
       notes:      `Bounced: ${event.data?.bounce_type || 'unknown'} — ${event.data?.bounce_message || ''}`.slice(0, 200),
     })
+    .eq('resend_message_id', msgId);
+
+  await client
+    .from('pythh_prospecting_log')
+    .update({ bounced_at: bouncedAt, status: 'bounced' })
     .eq('resend_message_id', msgId);
 
   // Downgrade investor email_status to 'bounced' so future inference skips it
@@ -101,6 +120,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   try {
     if (type === 'email.opened')    await handleOpened(event, client);
+    if (type === 'email.clicked')   await handleClicked(event, client);
     if (type === 'email.bounced')   await handleBounced(event, client);
     if (type === 'email.complained') await handleComplained(event, client);
     // email.clicked → no-op for now (could log to metadata)

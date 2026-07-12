@@ -62,6 +62,8 @@ interface PortfolioMetrics {
   verified_funded_rate_pct?: number;
   signal_funded_picks?: number;
   avg_moic: number | null;
+  headline_avg_moic?: number | null;
+  verified_avg_moic?: number | null;
   total_virtual_deployed_usd: number;
 }
 
@@ -524,19 +526,19 @@ export default function Portfolio() {
         },
         {
           value:
-            analytics?.value.avg_moic != null
-              ? `${analytics.value.avg_moic}×`
-              : analytics?.value.avg_moic_capped != null
-              ? `${analytics.value.avg_moic_capped}×`
+            metrics.headline_avg_moic != null
+              ? `${metrics.headline_avg_moic}×`
+              : metrics.avg_moic != null
+              ? `${metrics.avg_moic}×`
               : "—",
           benchmark: analytics?.value.avg_moic_industry_avg
             ? `${analytics.value.avg_moic_industry_avg}×`
             : undefined,
           label: "Avg MOIC",
-          valueColor: G, // seed fund = green
-          sub: analytics
-            ? `seed · blended · capped ${analytics.value?.per_position_moic_cap ?? 50}× · [ ] = industry avg`
-            : "loading fund analytics…",
+          valueColor: G,
+          sub: metrics.verified_avg_moic
+            ? `verified ${metrics.verified_avg_moic}× · early seed picks · capped ${analytics?.value?.per_position_moic_cap ?? 50}×`
+            : "early seed picks · press-verified rounds",
         },
         {
           value:

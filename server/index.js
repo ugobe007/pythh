@@ -9832,14 +9832,17 @@ const { enrichPortfolioMetrics, computeTrackRecord } = require('./lib/portfolioT
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const [metricsRes, totalEv, fundingEv, productEv] = await Promise.all([
+    const [metricsRes, trackRecord, totalEv, fundingEv, productEv] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
+      computeTrackRecord(supabase),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
     const metrics = enrichPortfolioMetrics(metricsRes.data || {});
+    metrics.verified_avg_moic = trackRecord?.oracle?.verified_avg_moic ?? null;
+    metrics.headline_avg_moic = metrics.avg_moic;
     metrics.total_events = totalEv.count ?? 0;
     metrics.funding_event_count = fundingEv.count ?? 0;
     metrics.product_event_count = productEv.count ?? 0;

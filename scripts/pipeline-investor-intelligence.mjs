@@ -4,6 +4,7 @@
  *
  * Stages (pass --skip-* to omit):
  *   1. quality-gate audit (dry-run quarantine preview)
+ *   1b. URL discovery (Gemini Google Search → investors.url)
  *   2. Signal enrichment (news, partners, investments) — full DB universe
  *   3. deployment velocity backfill
  *   4. vc_intelligence scrape + profile
@@ -31,6 +32,7 @@ import {
   parseOffsetArg,
   parseCohortArg,
 } from '../lib/investorUniverse.mjs';
+import { hasGeminiSearch } from '../lib/geminiInvestorSearch.mjs';
 
 dotenv.config();
 
@@ -81,7 +83,15 @@ async function metrics() {
   const partners = (await sb.from('investor_partners').select('id', { count: 'exact', head: true })).count ?? 0;
   const intel = (await sb.from('vc_intelligence').select('id', { count: 'exact', head: true })).count ?? 0;
   const faith = (await sb.from('vc_faith_signals').select('id', { count: 'exact', head: true })).count ?? 0;
-  const noSignals = (await sb.from('investors').select('id', { count: 'exact', head: true }).eq('signals', '[]').neq('entity_gate', 'junk').neq('status', 'inactive')).count ?? 0;
+  const noSignals = (
+    await sb
+      .from('investors')
+      .select('id', { count: 'exact', head: true })
+      .eq('signals', '[]')
+      .is('last_enrichment_date', null)
+      .neq('entity_gate', 'junk')
+      .neq('status', 'inactive')
+  ).count ?? 0;
   const noVel = (await sb.from('investors').select('id', { count: 'exact', head: true }).is('deployment_velocity_index', null)).count ?? 0;
   return { universe, news, partners, intel, faith, noSignals, noVel };
 }
@@ -99,6 +109,7 @@ async function main() {
     console.log('(dry-run — pass --apply to write)\n');
     console.log('Stages that would run:');
     console.log('  1. quality-gate audit');
+    console.log('  1b. discover-investor-urls (Gemini Google Search)');
     console.log(`  2. enrich-investor-signals (${limitLabel} investors)`);
     console.log(`  3. oracle-signal-backfill + deployment velocity (${limitLabel})`);
     console.log(`  4. vc_intelligence scrape + profile (${limitLabel})`);
@@ -109,6 +120,21 @@ async function main() {
   if (!skip('--skip-quality')) {
     console.log('\n── Stage 1: Quality gate audit ──');
     await run(process.execPath, [path.join(root, 'investor-data-quality-gate.js')]);
+  }
+
+  if (!skip('--skip-url-discovery')) {
+    const gemini = hasGeminiSearch();
+    const urlBatch = parseInt(process.env.URL_DISCOVERY_BATCH || (gemini ? '200' : '100'), 10);
+    const urlLimit = LIMIT > 0 ? String(Math.min(LIMIT, urlBatch)) : String(urlBatch);
+    console.log(`\n── Stage 1b: Investor URL discovery (${gemini ? 'Gemini Google Search' : 'Custom Search'}) ──`);
+    await run(process.execPath, [
+      path.join(root, 'discover-investor-urls.mjs'),
+      '--apply',
+      `--limit=${urlLimit}`,
+      '--delay=1500',
+      ...offsetFlag(),
+      ...cohortFlag(),
+    ]);
   }
 
   if (!skip('--skip-enrich')) {
@@ -151,10 +177,16 @@ async function main() {
     await run(process.execPath, [
       path.join(root, 'intelligence/scrape-vc-intelligence.js'),
       limitFlag(),
+      '--stale-days=7',
       ...offsetFlag(),
       ...cohortFlag(),
     ]);
-    await run(process.execPath, [path.join(root, 'intelligence/build-vc-profiles.js')]);
+    await run(process.execPath, [
+      path.join(root, 'intelligence/build-vc-profiles.js'),
+      '--limit=50',
+      '--provider=gemini',
+      '--delay=2000',
+    ]);
   }
 
   if (!skip('--skip-sync')) {
@@ -166,12 +198,14 @@ async function main() {
     ]);
   }
 
-  if (!skip('--skip-faith')) {
+  if (!skip('--skip-faith') && process.env.SKIP_FAITH !== '1') {
     console.log('\n── Stage 6: Faith signals backfill ──');
     const faithLimit = LIMIT > 0 ? String(Math.min(LIMIT, 500)) : '500';
     await run('npx', ['tsx', path.join(root, 'backfill-faith-signals.ts'), '--limit', faithLimit, '--url-only'], {
       shell: true,
     });
+  } else if (!skip('--skip-faith')) {
+    console.log('\n── Stage 6: Faith signals — skipped (SKIP_FAITH=1, OpenAI quota) ──');
   }
 
   if (!skip('--skip-thesis')) {

@@ -160,6 +160,8 @@ async function computeTrackRecord(supabase) {
   const { data: topRows, error: topErr } = await supabase
     .from('virtual_portfolio')
     .select(PERFORMER_SELECT)
+    .eq('entity_quarantined', false)
+    .eq('entered_late', false)
     .not('moic', 'is', null)
     .gt('moic', 1)
     .lte('moic', 50)

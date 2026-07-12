@@ -831,10 +831,10 @@ export default function SignalTrends() {
               ranked.map((s) => {
                 const isSelected = s.id === selectedId;
                 return (
-                <div
+                <Link
                   key={s.id}
-                  onClick={() => { pauseUntilRef.current = Date.now() + 15000; setSelectedId(s.id); }}
-                  className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.03] cursor-pointer"
+                  href={`/portfolio/${s.id}`}
+                  className="grid gap-4 px-4 py-3 border-b transition-colors hover:bg-white/[0.03] cursor-pointer no-underline"
                   style={{
                     gridTemplateColumns: "52px 1fr 140px 90px 60px 52px",
                     borderColor: "oklch(0.16 0.01 264)",
@@ -904,7 +904,7 @@ export default function SignalTrends() {
                   <div className="text-center font-mono text-sm self-center">
                     <VelocityIndicator velocity={s.velocity} accent={activeLens.accent} />
                   </div>
-                </div>
+                </Link>
                 );
               })
             )}

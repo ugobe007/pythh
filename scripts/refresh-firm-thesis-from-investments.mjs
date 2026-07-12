@@ -98,18 +98,24 @@ async function main() {
 
   let updated = 0;
   for (const inv of investors) {
+    // investment_date is often null; scraped_date / created_at carry recency instead
     const { data: deals } = await sb
       .from('investor_investments')
-      .select('company_name, round_type, industries, investment_date')
+      .select('company_name, round_type, industries, investment_date, scraped_date, created_at')
       .eq('investor_id', inv.id)
-      .gte('investment_date', cutoff)
-      .order('investment_date', { ascending: false })
+      .or(`investment_date.gte.${cutoff},scraped_date.gte.${cutoff},created_at.gte.${new Date(cutoff).toISOString()}`)
+      .order('scraped_date', { ascending: false, nullsFirst: false })
       .limit(40);
 
-    if (!deals?.length) continue;
+    const recentDeals = (deals || []).filter((d) => {
+      const when = d.investment_date || d.scraped_date || d.created_at?.slice(0, 10);
+      return when && when >= cutoff;
+    });
 
-    const thesis = buildThesis(inv, deals);
-    console.log(`  ${inv.name}: ${deals.length} deals → ${thesis.sectors.join(', ') || '—'}`);
+    if (!recentDeals.length) continue;
+
+    const thesis = buildThesis(inv, recentDeals);
+    console.log(`  ${inv.name}: ${recentDeals.length} deals → ${thesis.sectors.join(', ') || '—'}`);
 
     if (APPLY) {
       const { error: upErr } = await sb

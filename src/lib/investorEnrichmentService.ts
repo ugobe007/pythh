@@ -6,6 +6,13 @@ import {
   VC_NAME_ALIASES,
   resolveVcWebsiteKey as resolveTopVcKey,
 } from '../../lib/topVcFirms.mjs';
+import { resolveInvestorUrls } from '../../lib/investorUrlResolver.mjs';
+
+type InvestorUrlRow = {
+  url?: string | null;
+  blog_url?: string | null;
+  linkedin_url?: string | null;
+};
 
 interface Partner {
   name: string;
@@ -66,60 +73,73 @@ export class InvestorEnrichmentService {
     return resolveTopVcKey(investorName);
   }
 
-  private static getVcConfig(investorName: string) {
-    const key = this.resolveVcWebsiteKey(investorName);
-    const config = key ? VC_WEBSITES[key] : undefined;
-    return { key, config };
+  private static getVcConfig(investorName: string, investorRow?: InvestorUrlRow) {
+    const resolved = resolveInvestorUrls({
+      name: investorName,
+      url: investorRow?.url,
+      blog_url: investorRow?.blog_url,
+    });
+    return { key: resolved.key, config: resolved.config, source: resolved.source };
   }
 
   /**
    * Enrich an investor with partners, investments, and advice
    */
-  static async enrichInvestor(investorId: string, investorName: string) {
-    const { key: vcKey, config: vcResolved } = this.getVcConfig(investorName);
+  static async enrichInvestor(investorId: string, investorName: string, investorRow?: InvestorUrlRow) {
+    const { key: vcKey, config: vcResolved, source: urlSource } = this.getVcConfig(investorName, investorRow);
     if (!vcResolved) {
       console.warn(
-        `⚠️ No VC_WEBSITES entry for "${investorName}" (resolved key=${vcKey ?? 'null'}) — scraping will be limited to news search / RSS if any.`
+        `⚠️ No website URLs for "${investorName}" (registry=${vcKey ?? 'null'}, db url=${investorRow?.url ? 'yes' : 'no'}) — news search only.`
       );
+    } else if (urlSource === 'database' || urlSource === 'blog_url') {
+      console.log(`🔗 URLs from ${urlSource}${vcResolved.website ? `: ${vcResolved.website}` : ''}`);
     }
 
     console.log(`🔍 Starting enrichment for ${investorName}...`);
     
     try {
       // 1. Scrape news articles first (highest value)
-      const news = await this.scrapeNews(investorId, investorName);
+      const news = await this.scrapeNews(investorId, investorName, investorRow);
       console.log(`✅ Found ${news.length} news articles`);
       
       // 2. Scrape partner data from VC website
-      const partners = await this.scrapePartners(investorName);
+      const partners = await this.scrapePartners(investorName, investorRow);
       if (partners.length > 0) {
         await this.savePartners(investorId, partners);
         console.log(`✅ Saved ${partners.length} partners`);
       }
       
       // 3. Scrape investment portfolio
-      const investments = await this.scrapeInvestments(investorName);
+      const investments = await this.scrapeInvestments(investorName, investorRow);
       if (investments.length > 0) {
         await this.saveInvestments(investorId, investments);
         console.log(`✅ Saved ${investments.length} investments`);
       }
       
       // 4. Scrape startup advice from blogs
-      const advice = await this.scrapeAdvice(investorName);
+      const advice = await this.scrapeAdvice(investorName, investorRow);
       if (advice.length > 0) {
         await this.saveAdvice(investorId, advice);
         console.log(`✅ Saved ${advice.length} advice items`);
       }
       
-      // 5. Update last enrichment date
-      const { error: invUpdErr } = await supabase
-        .from('investors')
-        .update({ 
-          last_enrichment_date: new Date().toISOString(),
-          news_feed_url: vcResolved?.rssUrl ?? null,
-          linkedin_url: `https://www.linkedin.com/company/${investorName.toLowerCase().replace(/\s+/g, '-')}`
-        })
-        .eq('id', investorId);
+      // 5. Update last enrichment date + discovered URLs
+      const investorUpdate: Record<string, string | null> = {
+        last_enrichment_date: new Date().toISOString(),
+        news_feed_url: vcResolved?.rssUrl ?? null,
+      };
+      if (vcResolved?.website && !investorRow?.url) {
+        investorUpdate.url = vcResolved.website;
+      }
+      if (vcResolved?.blogUrl && !investorRow?.blog_url) {
+        investorUpdate.blog_url = vcResolved.blogUrl;
+      }
+      if (!investorRow?.linkedin_url) {
+        const slug = investorName.toLowerCase().replace(/\s+/g, '-');
+        investorUpdate.linkedin_url = `https://www.linkedin.com/company/${slug}`;
+      }
+
+      const { error: invUpdErr } = await supabase.from('investors').update(investorUpdate).eq('id', investorId);
       if (invUpdErr) {
         console.warn(`⚠️ investors row update failed (RLS or schema?): ${invUpdErr.message}`);
       }
@@ -146,11 +166,11 @@ export class InvestorEnrichmentService {
   /**
    * Scrape partner information from VC website team pages
    */
-  private static async scrapePartners(investorName: string): Promise<Partner[]> {
+  private static async scrapePartners(investorName: string, investorRow?: InvestorUrlRow): Promise<Partner[]> {
     const partners: Partner[] = [];
     
     try {
-      const { config: vcInfo } = this.getVcConfig(investorName);
+      const { config: vcInfo } = this.getVcConfig(investorName, investorRow);
       if (!vcInfo?.teamPage) {
         console.log(`⚠️ No team page URL for ${investorName}`);
         return partners;
@@ -211,11 +231,11 @@ export class InvestorEnrichmentService {
   /**
    * Scrape investment portfolio from VC website portfolio pages
    */
-  private static async scrapeInvestments(investorName: string): Promise<Investment[]> {
+  private static async scrapeInvestments(investorName: string, investorRow?: InvestorUrlRow): Promise<Investment[]> {
     const investments: Investment[] = [];
     
     try {
-      const { config: vcInfo } = this.getVcConfig(investorName);
+      const { config: vcInfo } = this.getVcConfig(investorName, investorRow);
       if (!vcInfo?.portfolioPage) {
         console.log(`⚠️ No portfolio page URL for ${investorName}`);
         return investments;
@@ -271,11 +291,11 @@ export class InvestorEnrichmentService {
   /**
    * Scrape startup advice from VC blog RSS feeds
    */
-  private static async scrapeAdvice(investorName: string): Promise<Advice[]> {
+  private static async scrapeAdvice(investorName: string, investorRow?: InvestorUrlRow): Promise<Advice[]> {
     const advice: Advice[] = [];
     
     try {
-      const { config: vcInfo } = this.getVcConfig(investorName);
+      const { config: vcInfo } = this.getVcConfig(investorName, investorRow);
       if (!vcInfo?.rssUrl && !vcInfo?.blogUrl) {
         console.log(`⚠️ No blog/RSS URL for ${investorName}`);
         return advice;
@@ -360,12 +380,12 @@ export class InvestorEnrichmentService {
   /**
    * Scrape news articles about the VC firm from multiple sources
    */
-  private static async scrapeNews(investorId: string, investorName: string): Promise<NewsArticle[]> {
+  private static async scrapeNews(investorId: string, investorName: string, investorRow?: InvestorUrlRow): Promise<NewsArticle[]> {
     const news: NewsArticle[] = [];
     
     try {
       // 1. Check VC's own RSS feed
-      const { config: vcInfo } = this.getVcConfig(investorName);
+      const { config: vcInfo } = this.getVcConfig(investorName, investorRow);
       if (vcInfo?.rssUrl) {
         const rssNews = await this.scrapeRSSFeed(vcInfo.rssUrl, investorName);
         news.push(...rssNews);

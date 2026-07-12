@@ -15,11 +15,11 @@
 
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
-const { isGarbageInvestorName } = require('../lib/investorNameHeuristics');
+const { isGarbageInvestorName, isPublisherConcatName } = require('../lib/investorNameHeuristics');
 
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // ============================================================================
@@ -418,15 +418,25 @@ async function identifyGarbageInvestors() {
   console.log('\n' + '='.repeat(80));
   console.log('🔍 IDENTIFYING GARBAGE INVESTOR RECORDS');
   console.log('='.repeat(80) + '\n');
-  
-  const { data: investors, error } = await supabase
-    .from('investors')
-    .select('id, name, firm, url, linkedin_url, bio, sectors, stage, status, entity_gate, investor_score')
-    .order('name', { ascending: true });
-  
-  if (error) {
-    console.error('❌ Error fetching investors:', error);
-    return;
+
+  const investors = [];
+  const pageSize = 1000;
+  let page = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('investors')
+      .select('id, name, firm, url, linkedin_url, bio, sectors, stage, status, entity_gate, investor_score')
+      .order('name', { ascending: true })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) {
+      console.error('❌ Error fetching investors:', error);
+      return;
+    }
+    if (!data?.length) break;
+    investors.push(...data);
+    if (data.length < pageSize) break;
+    page++;
   }
   
   console.log(`📊 Analyzing ${investors.length} investors...\n`);
@@ -504,8 +514,7 @@ function looksLikePartnerRecord(name) {
  * Headline / RSS concatenation junk: firm name glued to publisher.
  */
 function looksLikePublisherConcat(name) {
-  const t = name || '';
-  return /[\s\u00a0]{2,}/.test(t) || /\b(TechCrunch|YourStory|Economic Times|GlobeNewswire|outlookbusiness|entARABI|markets|Indiatimes|Entrackr|TNGlobal|Techloy)\b/i.test(t);
+  return isPublisherConcatName(name);
 }
 
 /**

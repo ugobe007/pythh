@@ -29,6 +29,26 @@ test('accepts simple person names', () => {
 test('accepts firm-style names', () => {
   assert.strictEqual(isGarbageInvestorName('Sequoia Capital'), false);
   assert.strictEqual(isGarbageInvestorName('Acme Ventures'), false);
+  assert.strictEqual(isGarbageInvestorName('a16z Scout Fund'), false);
+  assert.strictEqual(isGarbageInvestorName('8VC Fund'), false);
+});
+
+test('rejects scraped lowercase VC suffix fragments', () => {
+  assert.strictEqual(isGarbageInvestorName('million growth capital'), true);
+  assert.strictEqual(isGarbageInvestorName('ed ventures'), true);
+});
+
+test('rejects publisher headline concat junk', () => {
+  assert.strictEqual(isGarbageInvestorName('Journal Eka Ventures'), true);
+  assert.strictEqual(isGarbageInvestorName('Ventureburn Haun Ventures'), true);
+  assert.strictEqual(isGarbageInvestorName('Bloomberg Blockchain Capital'), true);
+  assert.strictEqual(isGarbageInvestorName('existing investor Singular'), true);
+  assert.strictEqual(isGarbageInvestorName('Times Physis Capital'), true);
+  assert.strictEqual(isGarbageInvestorName('Global Mouro Capital'), true);
+  assert.strictEqual(isGarbageInvestorName('Bloomberg Beta'), false);
+  assert.strictEqual(isGarbageInvestorName('Global Founders Capital'), false);
+  assert.strictEqual(isGarbageInvestorName('Day One Capital'), false);
+  assert.strictEqual(isGarbageInvestorName('Black Diamond Ventures'), false);
 });
 
 test('rejects scraper concat and program tags (user examples)', () => {

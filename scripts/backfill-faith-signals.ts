@@ -17,9 +17,14 @@
  *   npx tsx scripts/backfill-faith-signals.ts --all          # process all
  *   npx tsx scripts/backfill-faith-signals.ts --dry-run      # preview without API calls
  *   npx tsx scripts/backfill-faith-signals.ts --url-only     # include url-only investors (no blog_url)
+ *   npx tsx scripts/backfill-faith-signals.ts --offset 50    # skip first 50 eligible candidates
+ *   npx tsx scripts/backfill-faith-signals.ts --skip-failed  # persist dead URLs and skip on future runs (default)
+ *   npx tsx scripts/backfill-faith-signals.ts --no-skip-failed
  */
 
 import { config } from 'dotenv';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
 // Try .env first, fall back to .env.bak for API keys
 config();
 const envBak = config({ path: '.env.bak', override: false });
@@ -47,32 +52,73 @@ if (!openaiKey) {
   process.exit(1);
 }
 
+/** Fail fast: 401 = bad/revoked key (billing OK). 429 = quota/billing. */
+async function verifyOpenAIKey(): Promise<void> {
+  const res = await fetch('https://api.openai.com/v1/models', {
+    headers: { Authorization: `Bearer ${openaiKey.trim()}` },
+  });
+  if (res.ok) return;
+  const body = await res.json().catch(() => ({}));
+  const msg = body?.error?.message || res.statusText;
+  if (res.status === 401) {
+    console.error('\n❌ OpenAI rejected your API key (401 Unauthorized).');
+    console.error('   Billing/credits can be fine — this means the key in .env is revoked, wrong, or truncated.');
+    console.error('   Fix: https://platform.openai.com/api-keys → Create new secret key');
+    console.error('   Update OPENAI_API_KEY (and VITE_OPENAI_API_KEY if set) in .env, then re-run.\n');
+    console.error(`   API says: ${msg}\n`);
+    process.exit(1);
+  }
+  if (res.status === 429) {
+    console.error('\n❌ OpenAI quota/rate limit (429). Check billing & usage limits.\n');
+    console.error(`   API says: ${msg}\n`);
+    process.exit(1);
+  }
+  console.error(`\n❌ OpenAI probe failed (${res.status}): ${msg}\n`);
+  process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
+const SKIP_FILE = join(process.cwd(), 'data/faith-backfill-skips.json');
 
 // ─── Config ──────────────────────────────────────────────
 interface CLIArgs {
   limit: number;
+  offset: number;
   dryRun: boolean;
   includeUrlOnly: boolean;
+  skipFailed: boolean;
   minNameLength: number;
   delayMs: number;
+}
+
+interface SkipRecord {
+  name: string;
+  error: string;
+  skipped_at: string;
 }
 
 function parseArgs(): CLIArgs {
   const args = process.argv.slice(2);
   const result: CLIArgs = {
     limit: 50,
+    offset: 0,
     dryRun: false,
     includeUrlOnly: false,
+    skipFailed: true,
     minNameLength: 3,
     delayMs: 1500,
   };
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit' && args[i + 1]) { result.limit = parseInt(args[i + 1], 10); i++; }
+    else if (args[i]?.startsWith('--limit=')) result.limit = parseInt(args[i].split('=')[1], 10);
+    else if (args[i] === '--offset' && args[i + 1]) { result.offset = parseInt(args[i + 1], 10); i++; }
+    else if (args[i]?.startsWith('--offset=')) result.offset = parseInt(args[i].split('=')[1], 10);
     else if (args[i] === '--all') result.limit = 999999;
     else if (args[i] === '--dry-run') result.dryRun = true;
     else if (args[i] === '--url-only') result.includeUrlOnly = true;
+    else if (args[i] === '--skip-failed') result.skipFailed = true;
+    else if (args[i] === '--no-skip-failed') result.skipFailed = false;
     else if (args[i] === '--delay' && args[i + 1]) { result.delayMs = parseInt(args[i + 1], 10); i++; }
   }
 
@@ -97,40 +143,89 @@ interface ExtractedSignal {
   confidence: number;
 }
 
+function hasContentSource(inv: Investor, includeUrlOnly: boolean): boolean {
+  if (inv.blog_url && inv.blog_url.length > 5) return true;
+  if (includeUrlOnly && inv.url && inv.url.length > 5) return true;
+  if (inv.investment_thesis && inv.investment_thesis.length > 200) return true;
+  return false;
+}
+
+async function loadExistingFaithInvestorIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('vc_faith_signals')
+      .select('investor_id')
+      .eq('is_active', true)
+      .range(offset, offset + PAGE - 1);
+    if (!data?.length) break;
+    data.forEach((r) => ids.add(r.investor_id));
+    if (data.length < PAGE) break;
+  }
+  return ids;
+}
+
+function loadSkippedInvestors(): Record<string, SkipRecord> {
+  if (!existsSync(SKIP_FILE)) return {};
+  try {
+    return JSON.parse(readFileSync(SKIP_FILE, 'utf8')) as Record<string, SkipRecord>;
+  } catch {
+    return {};
+  }
+}
+
+function persistSkippedInvestor(investorId: string, name: string, error: string) {
+  const skips = loadSkippedInvestors();
+  skips[investorId] = {
+    name,
+    error,
+    skipped_at: new Date().toISOString(),
+  };
+  mkdirSync(dirname(SKIP_FILE), { recursive: true });
+  writeFileSync(SKIP_FILE, JSON.stringify(skips, null, 2));
+}
+
 // ─── Fetch investors needing backfill ────────────────────
 async function fetchBackfillCandidates(args: CLIArgs): Promise<Investor[]> {
-  // Get investor IDs that already have signals
-  const { data: existing } = await supabase
-    .from('vc_faith_signals')
-    .select('investor_id')
-    .eq('is_active', true);
+  const existingIds = await loadExistingFaithInvestorIds();
+  const skipped = args.skipFailed ? loadSkippedInvestors() : {};
+  const skippedIds = new Set(Object.keys(skipped));
 
-  const existingIds = new Set((existing || []).map(r => r.investor_id));
+  const candidates: Investor[] = [];
+  const need = args.offset + args.limit;
+  const PAGE = 500;
+  let dbOffset = 0;
 
-  // Fetch investors with blog_url (primary) or url (secondary)
-  let query = supabase
-    .from('investors')
-    .select('id, name, firm, blog_url, url, investment_thesis')
-    .order('name');
+  while (candidates.length < need) {
+    let query = supabase
+      .from('investors')
+      .select('id, name, firm, blog_url, url, investment_thesis')
+      .order('name')
+      .range(dbOffset, dbOffset + PAGE - 1);
 
-  if (!args.includeUrlOnly) {
-    query = query.not('blog_url', 'is', null);
+    if (!args.includeUrlOnly) {
+      query = query.not('blog_url', 'is', null);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) break;
+
+    for (const inv of data) {
+      if (!inv.name || inv.name.length < args.minNameLength) continue;
+      if (existingIds.has(inv.id)) continue;
+      if (skippedIds.has(inv.id)) continue;
+      if (!hasContentSource(inv, args.includeUrlOnly)) continue;
+      candidates.push(inv);
+      if (candidates.length >= need) break;
+    }
+
+    if (data.length < PAGE) break;
+    dbOffset += PAGE;
   }
 
-  const { data, error } = await query.limit(args.limit + existingIds.size + 100);
-  if (error) throw error;
-
-  return (data || [])
-    .filter(inv => !existingIds.has(inv.id))
-    .filter(inv => inv.name && inv.name.length >= args.minNameLength)
-    .filter(inv => {
-      // Must have at least one source
-      if (inv.blog_url && inv.blog_url.length > 5) return true;
-      if (args.includeUrlOnly && inv.url && inv.url.length > 5) return true;
-      if (inv.investment_thesis && inv.investment_thesis.length > 200) return true;
-      return false;
-    })
-    .slice(0, args.limit);
+  return candidates.slice(args.offset, args.offset + args.limit);
 }
 
 // ─── Fetch URL content ──────────────────────────────────
@@ -349,10 +444,19 @@ async function main() {
 
   console.log('\n🔮 VC Faith Signals Backfill v2');
   console.log('═══════════════════════════════════\n');
+  const skippedCount = args.skipFailed ? Object.keys(loadSkippedInvestors()).length : 0;
   console.log(`  limit: ${args.limit === 999999 ? 'ALL' : args.limit}`);
+  console.log(`  offset: ${args.offset}`);
   console.log(`  dry-run: ${args.dryRun}`);
   console.log(`  include-url-only: ${args.includeUrlOnly}`);
+  console.log(`  skip-failed: ${args.skipFailed}${skippedCount ? ` (${skippedCount} on disk)` : ''}`);
   console.log(`  delay: ${args.delayMs}ms\n`);
+
+  if (!args.dryRun) {
+    process.stdout.write('🔑 Verifying OpenAI API key... ');
+    await verifyOpenAIKey();
+    console.log('OK\n');
+  }
 
   // Fetch candidates
   console.log('📥 Fetching backfill candidates...');
@@ -401,6 +505,9 @@ async function main() {
       console.log(`❌ ${result.error}`);
       failCount++;
       errors.push({ name: inv.name, error: result.error || 'unknown' });
+      if (args.skipFailed && !args.dryRun) {
+        persistSkippedInvestor(inv.id, inv.name, result.error || 'unknown');
+      }
     }
 
     // Rate limit between API calls
@@ -445,8 +552,23 @@ async function main() {
   }
 
   console.log(`\n💡 Total vc_faith_signals after backfill:`);
-  const { count } = await supabase.from('vc_faith_signals').select('*', { count: 'exact', head: true });
-  console.log(`   ${count} signals across ${successCount + 86} investors\n`);
+  const { count } = await supabase
+    .from('vc_faith_signals')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', true);
+  const investorIds = new Set<string>();
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data: invRows } = await supabase
+      .from('vc_faith_signals')
+      .select('investor_id')
+      .eq('is_active', true)
+      .range(offset, offset + PAGE - 1);
+    if (!invRows?.length) break;
+    invRows.forEach((r) => investorIds.add(r.investor_id));
+    if (invRows.length < PAGE) break;
+  }
+  console.log(`   ${count} signals across ${investorIds.size} investors\n`);
 }
 
 main().catch(err => {
