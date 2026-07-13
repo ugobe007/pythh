@@ -11,31 +11,49 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 const { extractInferenceData } = require('../lib/inference-extractor');
+const { fetchAll } = require('../lib/supabaseUtils');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
+const argv = process.argv.slice(2);
+const LIMIT = (() => {
+  const m = argv.find((a) => a.startsWith('--limit='));
+  return m ? parseInt(m.split('=')[1], 10) : null;
+})();
+const OFFSET = (() => {
+  const m = argv.find((a) => a.startsWith('--offset='));
+  return m ? parseInt(m.split('=')[1], 10) : 0;
+})();
+
 console.log('🧠 BACKFILLING PSYCHOLOGICAL SIGNALS');
 console.log('═══════════════════════════════════════════════════════════════\n');
 
 (async () => {
   // Get all approved startups with text content
-  console.log('📊 Fetching startups from startup_uploads...');
-  
-  const { data: startups, error: fetchError } = await supabase
-    .from('startup_uploads')
-    .select('id, name, description, pitch, tagline, extracted_data, latest_funding_amount, latest_funding_round, lead_investor')
-    .eq('status', 'approved')
-    .order('created_at', { ascending: false });
-  
+  console.log('📊 Fetching startups from startup_uploads…');
+
+  const { data: allStartups, error: fetchError } = await fetchAll((from, to) =>
+    supabase
+      .from('startup_uploads')
+      .select('id, name, description, pitch, tagline, extracted_data, latest_funding_amount, latest_funding_round, lead_investor')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+      .range(from, to)
+  );
+
   if (fetchError) {
     console.error('❌ Error fetching startups:', fetchError);
     process.exit(1);
   }
-  
-  console.log(`✅ Found ${startups.length} approved startups\n`);
+
+  let startups = allStartups || [];
+  if (OFFSET > 0) startups = startups.slice(OFFSET);
+  if (LIMIT != null && LIMIT > 0) startups = startups.slice(0, LIMIT);
+
+  console.log(`✅ Loaded ${startups.length} approved startups (offset=${OFFSET}${LIMIT != null ? `, limit=${LIMIT}` : ''})\n`);
   console.log('─'.repeat(80));
   
   let processedCount = 0;
@@ -58,7 +76,8 @@ console.log('══════════════════════�
       extractedData.solution || '',
       extractedData.value_proposition || '',
       startup.lead_investor || '',
-      JSON.stringify(extractedData)
+      extractedData.funding_mentions || '',
+      extractedData.investors || '',
     ].join(' ');
     
     if (textContent.length < 50) {
