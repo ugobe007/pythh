@@ -167,6 +167,9 @@ async function logSent({ email, startup, subject, html, text, resendId, contact 
       contact_source: contact.source,
       hunter_confidence: contact.hunterConfidence,
       position: contact.position,
+      utm_campaign: CAMPAIGN,
+      utm_source: 'peter',
+      utm_medium: 'email',
     }).slice(0, 500),
   });
 }
@@ -207,18 +210,19 @@ function buildEmail(startup, matches, contact) {
     personName: contact.personName || startup.extracted_data?.founders?.[0]?.name,
   });
   const subject = founderSubject({ startupName, count: matches.length });
-  const html = buildStartupHtml({ startup, matches, greeting, startupName });
-  const text = buildStartupText({ startup, matches, greeting, startupName });
+  const utm = { source: 'peter', medium: 'email', campaign: CAMPAIGN };
+  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm });
+  const text = buildStartupText({ startup, matches, greeting, startupName, utm });
   return { subject, html, text, startupName };
 }
 
-function buildStartupHtml({ startup, matches, greeting, startupName }) {
+function buildStartupHtml({ startup, matches, greeting, startupName, utm }) {
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
   const opening = founderOpening({ greeting, startupName, count: matches.length });
   const headline = founderHeadline({ startupName, count: matches.length });
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : '';
-  const activateUrl = founderCtaPrimaryUrl(encodedUrl);
+  const activateUrl = founderCtaPrimaryUrl(encodedUrl, utm);
 
   const rows = matches.map((m, i) => {
     const score = m.match_score ?? 0;
@@ -271,13 +275,13 @@ function buildStartupHtml({ startup, matches, greeting, startupName }) {
 </div></body></html>`;
 }
 
-function buildStartupText({ startup, matches, greeting, startupName }) {
+function buildStartupText({ startup, matches, greeting, startupName, utm }) {
   const opening = founderOpeningText({ greeting, startupName, count: matches.length });
   const rows = matches.map((m, i) => {
     const reason = m.match_reason ? m.match_reason.split('.')[0] : defaultMatchReason();
     return `  ${i + 1}. ${m.name} (${m.firm}) — match ${m.match_score}\n     ${reason}`;
   }).join('\n');
-  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\n${founderCtaText()}\n\n${founderEmailSignoff()}`;
+  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\n${founderCtaText({ encodedUrl: startup.website ? encodeURIComponent(startup.website) : '', utm })}\n\n${founderEmailSignoff()}`;
 }
 
 async function main() {

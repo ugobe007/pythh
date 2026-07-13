@@ -61,7 +61,7 @@ async function sendPeterIntroConcierge({
     note ? `Your note: "${note}"` : '',
     note ? `` : '',
     `Expect a reply within 2 business days with specific framing notes. In the meantime, your ranked shortlist is here:`,
-    `${APP_BASE}/activate${startupUrl ? `?startup=${encodeURIComponent(startupUrl)}` : ''}`,
+    `${APP_BASE}/activate${startupUrl ? `?startup=${encodeURIComponent(startupUrl)}&utm_source=peter&utm_medium=email&utm_campaign=intro_concierge` : '?utm_source=peter&utm_medium=email&utm_campaign=intro_concierge'}`,
     ``,
     `— ${OUTREACH_AGENT_NAME}`,
     `Match Advisor · Pythh`,

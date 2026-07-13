@@ -115,6 +115,8 @@ jobs:
           OUTREACH_FROM: pythia@pythh.ai
           OUTREACH_LIMIT: ${{ github.event.inputs.limit || '20' }}
           OUTREACH_DRAFT_ONLY: ${{ github.event.inputs.draft_only && 'true' || 'false' }}
+          # Skip pitch@/deals@ — partner emails only until Hunter VC path ships
+          OUTREACH_VC_REQUIRE_PERSONAL: 'true'
         run: |
           ARGS="--mode vc --limit ${OUTREACH_LIMIT}"
           if [ "$OUTREACH_DRAFT_ONLY" = "true" ]; then ARGS="$ARGS --draft-only"; fi

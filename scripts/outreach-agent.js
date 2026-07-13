@@ -26,7 +26,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const require = createRequire(import.meta.url);
 const { rankStartupsForInvestor, rankInvestorsForStartup } = require("../lib/outreachMatch.js");
-const { classifyOutreachEmail, outreachGreeting, contactOutreachGreeting, resolveStartupContactEmail, isBlockedOutreachEmail } = require("../lib/investorEmailInfer.js");
+const {
+  classifyOutreachEmail, outreachGreeting, contactOutreachGreeting, resolveStartupContactEmail, isBlockedOutreachEmail,
+} = require("../lib/investorEmailInfer.js");
+const { isCleanInvestorNameForFeed } = require("../server/lib/feedNameGuards.js");
 const {
   defaultMatchReason,
   vcSubject,
@@ -88,6 +91,8 @@ const REGENERATE_IDS = (flag("--regenerate-ids") ?? "")
   .map((s) => s.trim())
   .filter(Boolean);
 const NOTIFY_TO  = process.env.OUTREACH_NOTIFY_EMAIL || "ugobe07@gmail.com";
+/** VC mode: only send to partner-level emails (skip pitch@/deals@). Set false to allow intake. */
+const VC_REQUIRE_PERSONAL = process.env.OUTREACH_VC_REQUIRE_PERSONAL !== "false";
 
 const SUPABASE_URL  = process.env.SUPABASE_URL;
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
@@ -505,6 +510,9 @@ async function runRegenerateMode() {
 
 async function runVcMode() {
   console.log("\n[VC mode] Fetching investors with inferred emails…");
+  if (VC_REQUIRE_PERSONAL) {
+    console.log("[VC mode] Personal-only mode ON — skipping pitch@/deals@/generic inboxes");
+  }
 
   const { data: investors, error } = await db
     .from("investors")
@@ -528,6 +536,8 @@ async function runVcMode() {
   console.log(`[VC mode] Scoring against ${startupPool.length} approved startups\n`);
 
   let sent = 0;
+  let skippedIntake = 0;
+  let skippedJunk = 0;
   const usedObservationCompanies = new Set();
 
   for (const inv of deduped) {
@@ -536,9 +546,26 @@ async function runVcMode() {
     const email = inv.email_best_guess;
     if (!email) continue;
 
+    const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
+    if (!isCleanInvestorNameForFeed(inv.name, firmLabel)) {
+      skippedJunk++;
+      console.log(`  [skip] junk investor name: ${(inv.name ?? email).slice(0, 48)}`);
+      continue;
+    }
+
+    const outreachEmailType = classifyOutreachEmail(email, inv.name);
+    if (VC_REQUIRE_PERSONAL && outreachEmailType !== "personal") {
+      skippedIntake++;
+      console.log(`  [skip] ${inv.name ?? email} — ${outreachEmailType} inbox (${email})`);
+      continue;
+    }
+    if (isBlockedOutreachEmail(email)) {
+      console.log(`  [skip] blocked email ${email}`);
+      continue;
+    }
+
     const firmKey = normalizeFirmKey(inv);
     if (seenFirms.has(firmKey)) {
-      const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? email;
       console.log(`  [skip] ${inv.name ?? email} — firm already covered (${firmLabel})`);
       continue;
     }
@@ -556,7 +583,6 @@ async function runVcMode() {
     }
 
     const { subject, html, text, displayName, emailType, leadCount } = bundle;
-    const firmLabel = inv.firm && inv.firm !== "null" ? inv.firm : inv.name ?? "your firm";
 
     process.stdout.write(`  Sending to ${inv.name} <${email}> [${emailType}] (${leadCount} signals)… `);
     const result = await sendEmail({
@@ -594,7 +620,10 @@ async function runVcMode() {
     await sleep(500);
   }
 
-  console.log(`\n[VC mode] Done. Sent ${sent} emails in campaign "${CAMPAIGN}".`);
+  console.log(
+    `\n[VC mode] Done. Sent ${sent} emails in campaign "${CAMPAIGN}".` +
+    (VC_REQUIRE_PERSONAL ? ` Skipped ${skippedIntake} intake/generic · ${skippedJunk} junk names.` : ""),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -892,7 +921,8 @@ function startupEmail({ startup, matches, greeting }) {
   const opening = founderOpening({ greeting: salutation, startupName, count: matches.length });
   const headline = founderHeadline({ startupName, count: matches.length });
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
-  const activateUrl = founderCtaPrimaryUrl(encodedUrl);
+  const utm = { source: "peter", medium: "email", campaign: CAMPAIGN };
+  const activateUrl = founderCtaPrimaryUrl(encodedUrl, utm);
 
   const rows = matches.map((m, i) => {
     const score = m.match_score ?? 0;
@@ -1042,7 +1072,7 @@ ${founderFootnote()}
 ${founderCtaTitle()}
 ${founderCtaBody()}
 
-${founderCtaText({ encodedUrl })}
+${founderCtaText({ encodedUrl, utm: { source: "peter", medium: "email", campaign: CAMPAIGN } })}
 
 ─────────────────────────────────────────────────
 ${founderEmailSignoff()}

@@ -93,6 +93,10 @@ Manual dispatch: Actions → *Peter Outreach Weekly* → choose mode, limit, sca
 
 **GitHub secrets required for founder runs:** `HUNTER_API_KEY`, `ZEROBOUNCE_API_KEY` (plus existing `SUPABASE_*`, `RESEND_API_KEY`).
 
+**VC mode (Monday):** `OUTREACH_VC_REQUIRE_PERSONAL=true` (default in workflow) — skips `pitch@`, `info@`, and other non-personal inboxes; junk investor names (e.g. `teamView all…`) are filtered via `feedNameGuards`.
+
+**UTM attribution:** Peter emails append `utm_source=peter&utm_medium=email&utm_campaign=<slug>` on Activate CTAs. The site captures UTMs in sessionStorage (`pythh_utm`) and includes them in funnel events (`url_submitted`, `instant_matches_viewed`, signup gate payloads).
+
 **Local scheduler:**
 
 ```bash

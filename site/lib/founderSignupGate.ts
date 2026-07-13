@@ -4,6 +4,7 @@
 
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
+import { getUtmParams } from '@/lib/funnelAttribution';
 
 export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle_gap';
 
@@ -147,6 +148,7 @@ export async function trackFounderGateStarted(
     gated_action: action,
     investor_id: ctx.investor?.id,
     investor_name: ctx.investor?.name,
+    ...getUtmParams(),
   };
 
   const assignment = await resolveAssignment(assignmentRef ?? null);
@@ -192,6 +194,7 @@ export async function trackFounderGateCompleted(
     gated_action: gatedAction,
     email_provided: Boolean(ctx.email),
     startup_id: startupId,
+    ...getUtmParams(),
   });
 
   const completedPayload = {
@@ -199,6 +202,7 @@ export async function trackFounderGateCompleted(
     startup_id: startupId,
     gated_action: gatedAction,
     email_provided: Boolean(ctx.email),
+    ...getUtmParams(),
   };
 
   const assignment = await resolveFounderAssignment();

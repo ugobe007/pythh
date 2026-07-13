@@ -19,6 +19,7 @@ import {
   trackFunnelEvent,
   trackFunnelEventOnce,
 } from "@/lib/matchEngagement";
+import { captureUtmFromUrl, getUtmParams } from "@/lib/funnelAttribution";
 
 function formatStageLabel(stage: unknown): string {
   const n = typeof stage === "number" ? stage : Number.parseInt(String(stage ?? ""), 10);
@@ -2452,6 +2453,10 @@ export default function Activate() {
   const [sharedLoadError, setSharedLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    captureUtmFromUrl();
+  }, []);
+
+  useEffect(() => {
     if (!shareStartupId) return;
 
     let cancelled = false;
@@ -2507,7 +2512,7 @@ export default function Activate() {
     setUrl(submittedUrl);
     sessionStorage.setItem("pythia_url", submittedUrl);
     sessionStorage.setItem("pythia_email", submittedEmail);
-    trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate" });
+    trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate", ...getUtmParams() });
 
     const existingStartupId = sessionStorage.getItem("pythia_startup_id");
     const { action: gatedAction } = consumeFounderGatePending();
@@ -2594,6 +2599,7 @@ export default function Activate() {
         url,
         match_count: result.match_count ?? result.matches?.length ?? 0,
         source: 'activate',
+        ...getUtmParams(),
       });
       for (const m of result.matches.slice(0, 10)) {
         const invId = m.investor_id || m.investor?.id;

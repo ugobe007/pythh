@@ -5,15 +5,38 @@
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 
-export function getUtmParams(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const params = new URLSearchParams(window.location.search);
+const UTM_STORAGE_KEY = 'pythh_utm';
+
+function getUtmParamsFromSearch(search: string): Record<string, string> {
+  const params = new URLSearchParams(search);
   const out: Record<string, string> = {};
   for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
     const v = params.get(key);
     if (v) out[key] = v;
   }
   return out;
+}
+
+/** Persist UTMs from landing URL for later funnel events (e.g. Peter email → /activate). */
+export function captureUtmFromUrl(): void {
+  if (typeof window === 'undefined') return;
+  const utm = getUtmParamsFromSearch(window.location.search);
+  if (Object.keys(utm).length) {
+    sessionStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(utm));
+  }
+}
+
+export function getUtmParams(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const fromUrl = getUtmParamsFromSearch(window.location.search);
+  if (Object.keys(fromUrl).length) return fromUrl;
+  try {
+    const raw = sessionStorage.getItem(UTM_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    /* ignore */
+  }
+  return {};
 }
 
 /** Fire ai_logs url_submitted + optional growth founder_url_submitted with UTM attribution. */

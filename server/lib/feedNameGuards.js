@@ -40,6 +40,8 @@ function isCleanInvestorNameForFeed(name, firm) {
   if (f && n === f && (/[a-z][A-Z][a-z]/.test(n) || n.split(/\s+/).length > 5)) return false;
   // Scraped partner pages: "Bio Carol Suh (Archventure)" — 3+ name tokens then firm slug
   if (/^([A-Z][a-z]+\s+){2,}[A-Z][a-z]+\s+\([A-Za-z]+\)\s*$/.test(n)) return false;
+  if (/^teamview/i.test(n)) return false;
+  if (/\bview\s*all\b/i.test(n)) return false;
   return true;
 }
 
