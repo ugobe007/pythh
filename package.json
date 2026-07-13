@@ -80,6 +80,7 @@
     "peter:outreach:cron:daemon": "node scripts/cron/outreach-scheduler.js --daemon",
     "portfolio:quarantine": "node scripts/quarantine-portfolio-entities.mjs --apply",
     "portfolio:sync-moic": "node scripts/sync-portfolio-moic.mjs --apply",
+    "portfolio:recalc-growth": "node scripts/recalculate-valuation-growth.mjs --apply",
     "gallery:product-hunt": "node scripts/capture-product-hunt-gallery.mjs --base=https://pythh.ai",
     "enrich:investor-signals": "npx tsx scripts/enrich-investor-signals.ts --limit=0",
     "pipeline:god-audit": "node scripts/god-score-audit.js",

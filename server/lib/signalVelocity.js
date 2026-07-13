@@ -60,7 +60,7 @@ async function computeSignalVelocity(supabase) {
   const [posRes, evRes, ssRes] = await Promise.all([
     supabase
       .from('virtual_portfolio')
-      .select('id, startup_id, status, virtual_check_usd, entry_valuation_usd, exit_valuation_usd'),
+      .select('id, startup_id, status, virtual_check_usd, entry_valuation_usd, exit_valuation_usd, entry_date'),
     supabase
       .from('portfolio_events')
       .select('startup_id, portfolio_id, event_type, verified, post_money_usd, event_date')
@@ -117,6 +117,7 @@ async function computeSignalVelocity(supabase) {
       exitValuation: p.exit_valuation_usd,
       verifiedRounds,
       signalEvents,
+      entryDate: p.entry_date,
     });
     const honestValue = check * moic;
 

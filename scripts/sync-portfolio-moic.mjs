@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Sync virtual_portfolio.moic from analytics engine (computeVerifiedMoic).
- * Aligns portfolio_metrics.avg_moic with the live fund analytics SSOT.
+ * Sync virtual_portfolio.moic + current_valuation from frozen-entry growth model.
+ * Never writes entry_valuation_usd. See recalculate-valuation-growth.mjs.
  *
  *   node scripts/sync-portfolio-moic.mjs
  *   node scripts/sync-portfolio-moic.mjs --apply

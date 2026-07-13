@@ -9997,6 +9997,7 @@ app.get('/api/portfolio/:startupId', async (req, res) => {
       entryValuation: merged.entry_valuation_usd,
       exitValuation: merged.exit_valuation_usd,
       verifiedRounds,
+      entryDate: merged.entry_date,
     });
     merged.position_cost_usd = check || null;
     merged.position_value_usd = check ? Math.round(check * verifiedMoic) : null;

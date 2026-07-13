@@ -83,18 +83,48 @@ function clampMoic(moic) {
   return Math.min(m, PER_POSITION_MOIC_CAP);
 }
 
+/** Portfolio pick instant (ms). Entry valuation is frozen at this timestamp. */
+function toEntryMs(entryDate) {
+  if (!entryDate) return null;
+  const ms = new Date(entryDate).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Growth evidence only — strictly after the virtual check (no entry drift, no pre-pick rounds). */
+function eventsAfterEntry(events, entryDate) {
+  const cutoff = toEntryMs(entryDate);
+  if (!cutoff) return events || [];
+  return (events || []).filter((ev) => {
+    const ms = ev.event_date ? new Date(ev.event_date).getTime() : null;
+    return ms != null && ms > cutoff;
+  });
+}
+
 /**
- * Signal-accretion MOIC for a single position. A position is entered at an assumed
- * seed valuation and marks UP on hard round evidence and/or accumulated material
- * signals (see SIGNAL_VALUATION_WEIGHTS). Final value = max(real round, entry ×
- * signal multiplier). Exits realize at exit valuation; write-offs go to 0×.
+ * Signal-accretion MOIC for a single position.
+ *
+ * Entry valuation is FROZEN at the virtual investment (pick) instant — never rewritten
+ * on sync. Marks grow only from evidence strictly AFTER pick date:
+ *   • press-verified funding rounds (latest post-money after pick)
+ *   • accumulated material signals after pick (SIGNAL_VALUATION_WEIGHTS)
+ * Final value = max(frozen entry, post-pick round, entry × post-pick signal multiplier).
+ * Exits realize at exit valuation; write-offs go to 0×.
  *
  * @returns { moic, basis } basis ∈ 'exit' | 'verified_round' | 'signal_accretion' | 'cost' | 'written_off'
  */
-function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRounds, signalEvents }) {
+function computeVerifiedMoic({
+  status,
+  entryValuation,
+  exitValuation,
+  verifiedRounds,
+  signalEvents,
+  entryDate,
+}) {
   const entry = Number(entryValuation);
   const exitVal = Number(exitValuation);
   let sawImplausible = false;
+  const growthRounds = entryDate ? eventsAfterEntry(verifiedRounds, entryDate) : verifiedRounds || [];
+  const growthSignals = entryDate ? eventsAfterEntry(signalEvents, entryDate) : signalEvents || [];
 
   // A written-off / dead position is a total loss (0×), not a held-at-cost (1×).
   if (WRITEOFF_STATUSES.has(status)) {
@@ -117,10 +147,10 @@ function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRo
     sawImplausible = true; // exit valuation is impossible → don't mark up
   }
 
-  // Hard evidence: latest plausible press-verified round post-money.
+  // Hard evidence: latest plausible press-verified round post-money AFTER pick.
   let roundVal = 0;
-  if (Array.isArray(verifiedRounds) && verifiedRounds.length) {
-    const priced = verifiedRounds.filter((r) => Number(r.post_money_usd) > 0);
+  if (growthRounds.length) {
+    const priced = growthRounds.filter((r) => Number(r.post_money_usd) > 0);
     const plausible = priced.filter((r) => Number(r.post_money_usd) <= MAX_PLAUSIBLE_VALUATION_USD);
     if (priced.length && !plausible.length) sawImplausible = true; // had rounds, all impossible
     const latest = plausible
@@ -128,19 +158,17 @@ function computeVerifiedMoic({ status, entryValuation, exitValuation, verifiedRo
     if (latest) roundVal = Number(latest.post_money_usd);
   }
 
-  // Soft evidence: accumulated material signals compound the entry valuation (capped).
-  const signalVal = entry * signalMultiplier(signalEvents);
+  // Soft evidence: post-pick material signals compound the frozen entry (capped).
+  const signalVal = entry * signalMultiplier(growthSignals);
 
-  // The position is worth the strongest evidence available.
+  // Mark never below frozen entry — growth only ratchets up from pick instant.
   const current = Math.max(roundVal, signalVal, entry);
   let basis = 'cost';
   if (roundVal >= signalVal && roundVal > entry) basis = 'verified_round';
   else if (signalVal > entry) basis = 'signal_accretion';
 
-  // "Entered-late": the markup rests on a real round/exit valuation that was already
-  // mid/late stage at pick time. Signal-accreted picks earned their uplift during the
-  // hold, so they are NOT entered-late even if large.
-  const enteredLate = basis === 'verified_round' && current >= MATURE_AT_ENTRY_THRESHOLD_USD;
+  // Entered-late = frozen entry at pick was already mid/late stage (not post-hold markup).
+  const enteredLate = entry >= MATURE_AT_ENTRY_THRESHOLD_USD;
 
   return {
     moic: clampMoic(current / entry),
@@ -267,14 +295,15 @@ async function computePortfolioValue(supabase) {
     const entryLateFlag =
       p.entered_late === true ||
       (Number(p.entry_valuation_usd) || 0) >= MATURE_AT_ENTRY_THRESHOLD_USD;
-    const { moic: verifiedMoic, basis, quarantined, enteredLate: computedLate } = computeVerifiedMoic({
+    const { moic: verifiedMoic, basis, quarantined } = computeVerifiedMoic({
       status: p.status,
       entryValuation: p.entry_valuation_usd,
       exitValuation: p.exit_valuation_usd,
       verifiedRounds,
       signalEvents,
+      entryDate: p.entry_date,
     });
-    const enteredLate = entryLateFlag || computedLate;
+    const enteredLate = entryLateFlag;
 
     const value = check * verifiedMoic;
     currentValue += value;
@@ -432,7 +461,7 @@ async function computePortfolioValue(supabase) {
     top_contributors: topContributors,
     note:
       (FUND_LOCKED ? `Fund locked (vintage ${FUND_LOCK_DATE}) — fixed cohort of ${positions} positions, no new entries; performance is tracked over time. ` : '') +
-      `Every position uses an honest entry: genuinely-early picks enter at an assumed seed valuation (~$10–15M); picks already mid/late stage when flagged enter at their real pick-date post-money (so MOIC reflects only appreciation since the pick, never a counterfactual seed basis). Positions mark up via the strongest of a press-verified funding round or the entry compounded by accumulated material signals (partnerships, customer wins, key hires, product/IP, revenue), with signal uplift capped at ${SIGNAL_MAX_MULTIPLIER}×. Exits realize at exit value; write-offs go to 0×. ` +
+      `Entry valuation is frozen at the virtual investment instant (pick date) and never rewritten on sync. Marks grow only from press-verified funding rounds and material signals strictly after pick. Signal uplift capped at ${SIGNAL_MAX_MULTIPLIER}×. Exits realize at exit value; write-offs go to 0×. ` +
       `Avg MOIC is the equal-weighted blended multiple across all ${positions} positions. ${markedPositions} are above cost; per-position MOIC capped at ${PER_POSITION_MOIC_CAP}×. ` +
       (quarantinedPositions ? `${quarantinedPositions} position(s) held at cost pending valuation re-sourcing (implausible >$${round(MAX_PLAUSIBLE_VALUATION_USD / 1e9)}B figure quarantined). ` : '') +
       `Signal-implied value (looser, signal-inferred valuations) is ${costBasis ? round(signalImpliedValue / costBasis, 2) : '—'}× cost.`,
@@ -673,17 +702,18 @@ async function describeStrategyAndTrend(supabase, metrics, trackRecord) {
 }
 
 /**
- * Write analytics-computed MOIC back to virtual_portfolio (SSOT for portfolio_metrics view).
- * Quarantined → 1× at entry; others → computeVerifiedMoic from verified rounds + signals.
+ * Recalculate valuation growth from frozen entry → moic + current_valuation_usd.
+ * Never writes entry_valuation_usd (frozen at virtual investment instant).
+ * Quarantined → 1× at entry; others → post-pick verified rounds + signals only.
  */
 async function syncPortfolioMoicToDb(supabase, { apply = true } = {}) {
   const [picksRes, eventsRes] = await Promise.all([
     supabase
       .from('virtual_portfolio')
-      .select('id, startup_id, status, entry_valuation_usd, exit_valuation_usd, entity_quarantined, entered_late'),
+      .select('id, startup_id, status, entry_valuation_usd, exit_valuation_usd, entry_date, entity_quarantined, entered_late, moic, startup_uploads(name)'),
     supabase
       .from('portfolio_events')
-      .select('portfolio_id, startup_id, event_type, verified, post_money_usd')
+      .select('portfolio_id, startup_id, event_type, verified, post_money_usd, event_date')
       .in('event_type', ['funding_round', ...Object.keys(SIGNAL_VALUATION_WEIGHTS)]),
   ]);
   if (picksRes.error) throw new Error(picksRes.error.message);
@@ -732,10 +762,11 @@ async function syncPortfolioMoicToDb(supabase, { apply = true } = {}) {
         exitValuation: p.exit_valuation_usd,
         verifiedRounds,
         signalEvents,
+        entryDate: p.entry_date,
       });
       moic = result.moic;
       basis = result.basis;
-      enteredLate = entryLateFlag || result.enteredLate;
+      enteredLate = entryLateFlag;
       if (result.value > 0) currentVal = result.value;
       else if (entry > 0) currentVal = Math.round(entry * moic);
     }
@@ -746,11 +777,20 @@ async function syncPortfolioMoicToDb(supabase, { apply = true } = {}) {
       entered_late: enteredLate,
     };
 
+    const su = Array.isArray(p.startup_uploads) ? p.startup_uploads[0] : p.startup_uploads;
+    const priorMoic = Number(p.moic) || 1;
     if (apply) {
       const { error } = await supabase.from('virtual_portfolio').update(patch).eq('id', p.id);
       if (!error) updated += 1;
     }
-    changes.push({ id: p.id, moic: patch.moic, basis });
+    changes.push({
+      id: p.id,
+      name: su?.name || null,
+      prior_moic: round(priorMoic, 2),
+      moic: patch.moic,
+      delta: round(patch.moic - priorMoic, 2),
+      basis,
+    });
   }
 
   const { data: metrics } = await supabase.from('portfolio_metrics').select('avg_moic, best_moic').maybeSingle();
@@ -758,6 +798,7 @@ async function syncPortfolioMoicToDb(supabase, { apply = true } = {}) {
   return {
     updated: apply ? updated : 0,
     would_update: changes.length,
+    changes,
     headline_avg_moic: metrics?.avg_moic ?? null,
     best_moic: metrics?.best_moic ?? null,
     apply,
@@ -772,6 +813,8 @@ module.exports = {
   VC_BENCHMARKS,
   round,
   clampMoic,
+  toEntryMs,
+  eventsAfterEntry,
   signalMultiplier,
   buildEntryRationale,
   isGenericRationale,
