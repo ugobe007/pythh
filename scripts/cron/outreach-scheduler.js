@@ -5,7 +5,7 @@
  * Schedules the outreach agent to run automatically on a weekly cadence.
  * By default:
  *   - Monday  08:00 ET — VC mode   (10 startup leads per investor firm)
- *   - Tuesday 08:00 ET — Startup mode (5 investor matches per founder)
+ *   - Tuesday 08:00 ET — Founder mode (peter-founder-outreach.mjs — Hunter + ZeroBounce)
  *
  * Usage:
  *   node scripts/cron/outreach-scheduler.js              # run once (based on --mode flag or both)
@@ -14,6 +14,7 @@
  * Env:
  *   OUTREACH_VC_SCHEDULE       — cron expression (default: 0 8 * * 1  = Monday 8am)
  *   OUTREACH_STARTUP_SCHEDULE  — cron expression (default: 0 8 * * 2  = Tuesday 8am)
+ *   OUTREACH_SCAN              — startups to scan per founder run (default: 300)
  *   OUTREACH_LIMIT             — emails per run (default: 20)
  *   OUTREACH_TZ                — timezone (default: America/New_York)
  *   OUTREACH_DRAFT_ONLY        — set to "true" to queue drafts instead of sending (default: live send)
@@ -21,6 +22,8 @@
  *   SUPABASE_URL               — required
  *   SUPABASE_SERVICE_ROLE_KEY  — required
  *   RESEND_API_KEY             — required
+ *   HUNTER_API_KEY             — required for founder runs
+ *   ZEROBOUNCE_API_KEY         — required for founder runs
  */
 
 const path    = require("path");
@@ -30,10 +33,12 @@ const DAEMON = process.argv.includes("--daemon");
 const DRAFT_ONLY = process.argv.includes("--draft-only") || process.env.OUTREACH_DRAFT_ONLY === "true";
 const ROOT   = path.join(__dirname, "..", "..");
 const AGENT  = path.join(ROOT, "scripts", "outreach-agent.js");
+const FOUNDER_AGENT = path.join(ROOT, "scripts", "peter-founder-outreach.mjs");
 
 const VC_SCHEDULE      = process.env.OUTREACH_VC_SCHEDULE      ?? "0 8 * * 1";  // Monday
 const STARTUP_SCHEDULE = process.env.OUTREACH_STARTUP_SCHEDULE ?? "0 8 * * 2";  // Tuesday
 const LIMIT            = process.env.OUTREACH_LIMIT            ?? "20";
+const SCAN             = process.env.OUTREACH_SCAN             ?? "300";
 const TZ               = process.env.OUTREACH_TZ               ?? "America/New_York";
 
 // ── Spawn helper ──────────────────────────────────────────────────────────────
@@ -41,10 +46,13 @@ const TZ               = process.env.OUTREACH_TZ               ?? "America/New_Y
 function runMode(mode) {
   const now = new Date().toISOString();
   const sendMode = DRAFT_ONLY ? "draft-only" : "live";
-  console.log(`\n[outreach-scheduler] ${now}  starting mode=${mode} limit=${LIMIT} send=${sendMode}`);
-
-  const args = [AGENT, "--mode", mode, "--limit", LIMIT];
+  const script = mode === "startup" ? FOUNDER_AGENT : AGENT;
+  const args = mode === "startup"
+    ? [script, "--limit", LIMIT, "--scan", SCAN]
+    : [AGENT, "--mode", mode, "--limit", LIMIT];
   if (DRAFT_ONLY) args.push("--draft-only");
+
+  console.log(`\n[outreach-scheduler] ${now}  starting mode=${mode} limit=${LIMIT}${mode === "startup" ? ` scan=${SCAN}` : ""} send=${sendMode}`);
 
   const child = spawn(process.execPath, args, { stdio: "inherit", env: process.env });
 
@@ -89,8 +97,9 @@ try {
 
 console.log(`[outreach-scheduler] Daemon started.`);
 console.log(`  VC mode:      ${VC_SCHEDULE} (${TZ})`);
-console.log(`  Startup mode: ${STARTUP_SCHEDULE} (${TZ})`);
+console.log(`  Startup mode: ${STARTUP_SCHEDULE} (${TZ}) — peter-founder-outreach.mjs`);
 console.log(`  Limit:        ${LIMIT} emails per run`);
+console.log(`  Scan depth:   ${SCAN} startups (founder runs)`);
 console.log(`  Send mode:    ${DRAFT_ONLY ? "draft-only" : "live"}\n`);
 
 cron.schedule(VC_SCHEDULE, () => runMode("vc"), {

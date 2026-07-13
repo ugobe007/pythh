@@ -19,6 +19,10 @@ on:
         description: 'Emails per mode'
         required: false
         default: '20'
+      scan:
+        description: 'Startups to scan (founder mode only)'
+        required: false
+        default: '300'
       draft_only:
         description: 'Queue drafts only (no send)'
         required: false
@@ -82,21 +86,23 @@ jobs:
             echo "value=startup" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Peter outreach (founders)
+      - name: Peter founder outreach (Hunter + ZeroBounce)
         if: steps.mode.outputs.value == 'startup' || steps.mode.outputs.value == 'both'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
+          ZEROBOUNCE_API_KEY: ${{ secrets.ZEROBOUNCE_API_KEY }}
           OUTREACH_USE_PYTHH_DOMAIN: 'true'
           OUTREACH_FROM: pythia@pythh.ai
-          OUTREACH_LIMIT: ${{ github.event.inputs.limit || '20' }}
-          OUTREACH_DRAFT_ONLY: ${{ github.event.inputs.draft_only && 'true' || 'false' }}
         run: |
-          ARGS="--mode startup --limit ${OUTREACH_LIMIT}"
-          if [ "$OUTREACH_DRAFT_ONLY" = "true" ]; then ARGS="$ARGS --draft-only"; fi
-          node scripts/outreach-agent.js $ARGS
+          LIMIT="${{ github.event.inputs.limit || '20' }}"
+          SCAN="${{ github.event.inputs.scan || '300' }}"
+          ARGS="--limit ${LIMIT} --scan ${SCAN}"
+          if [ "${{ github.event.inputs.draft_only }}" = "true" ]; then ARGS="$ARGS --draft-only"; fi
+          node scripts/peter-founder-outreach.mjs $ARGS
 
       - name: Peter outreach (VCs)
         if: steps.mode.outputs.value == 'vc' || steps.mode.outputs.value == 'both'

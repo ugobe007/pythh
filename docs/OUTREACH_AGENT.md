@@ -86,12 +86,27 @@ node scripts/outreach-agent.js --mode startup --test-to you@yourmail.com --dry-r
 ### Scheduled (weekly cron)
 
 **GitHub Actions (recommended):** `.github/workflows/outreach-peter-weekly.yml`
-- **Monday 08:00 ET** — VC mode (Peter · curated startups)
-- **Tuesday 08:00 ET** — Startup mode (Peter · thesis-fit investors)
+- **Monday 08:00 ET** — VC mode (Peter · curated startups via `outreach-agent.js`)
+- **Tuesday 08:00 ET** — Founder mode (Peter · thesis-fit investors via `peter-founder-outreach.mjs` — Hunter + ZeroBounce)
 
-Manual dispatch: Actions → *Peter Outreach Weekly* → choose mode, limit, draft-only.
+Manual dispatch: Actions → *Peter Outreach Weekly* → choose mode, limit, scan depth, draft-only.
+
+**GitHub secrets required for founder runs:** `HUNTER_API_KEY`, `ZEROBOUNCE_API_KEY` (plus existing `SUPABASE_*`, `RESEND_API_KEY`).
 
 **Local scheduler:**
+
+```bash
+# Run founder outreach once (live send, scan 300)
+npm run peter:outreach:cron
+
+# Daemon — Tuesday 8am ET founder runs (+ Monday VC if both modes)
+npm run peter:outreach:cron:daemon
+
+# Draft queue only
+OUTREACH_DRAFT_ONLY=true npm run peter:outreach:cron
+```
+
+Legacy combined scheduler (VC + founder):
 
 ```bash
 # Run once (both modes, live send)
@@ -114,6 +129,7 @@ Override via env:
 OUTREACH_VC_SCHEDULE="0 9 * * 1"      # Monday 9am
 OUTREACH_STARTUP_SCHEDULE="0 9 * * 3"  # Wednesday 9am
 OUTREACH_LIMIT=20
+OUTREACH_SCAN=400                      # founder run scan depth
 ```
 
 ---

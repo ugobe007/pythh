@@ -4,11 +4,13 @@
  *
  * 1. Score startups against investor universe (same 6-component model as outreach-agent)
  * 2. Find founder email via Hunter.io (personal only — no info@)
- * 3. Send detailed match dossier via Resend (Peter / pythia@pythh.ai)
+ * 3. Validate deliverability via ZeroBounce (when ZEROBOUNCE_API_KEY is set)
+ * 4. Send detailed match dossier via Resend (Peter / pythia@pythh.ai)
  *
  * Usage:
  *   node scripts/peter-founder-outreach.mjs --dry-run --limit=5
  *   node scripts/peter-founder-outreach.mjs --limit=20
+ *   node scripts/peter-founder-outreach.mjs --limit=20 --scan=400
  *   node scripts/peter-founder-outreach.mjs --min-god=65 --min-match=45
  *   node scripts/peter-founder-outreach.mjs --startup-id=<uuid> --dry-run
  */
@@ -18,6 +20,7 @@ import { createRequire } from 'module';
 import { createClient } from '@supabase/supabase-js';
 import { resolveFounderContact } from '../lib/resolveFounderContact.mjs';
 import { hasHunterIo } from '../lib/hunterIo.mjs';
+import { hasZeroBounce } from '../lib/zeroBounce.mjs';
 import { getOutreachFromAddress } from '../lib/outreachFrom.js';
 import { loadOutreachBlockedStartups, isOutreachBlocked } from '../lib/portfolioOutreachGate.mjs';
 
@@ -59,6 +62,7 @@ const flag = (name) => {
 const has = (name) => argv.some((a) => a === name || a.startsWith(`${name}=`));
 
 const LIMIT = parseInt(flag('--limit') ?? '20', 10);
+const SCAN = parseInt(flag('--scan') ?? String(Math.max(LIMIT * 15, 200)), 10);
 const MIN_GOD = parseInt(flag('--min-god') ?? '55', 10);
 const MIN_MATCH = parseInt(flag('--min-match') ?? '40', 10);
 const DRY_RUN = has('--dry-run');
@@ -124,6 +128,19 @@ async function alreadyContacted(email) {
     .from('pythh_prospecting_log')
     .select('id')
     .eq('email', email)
+    .eq('email_type', 'startup_matches')
+    .eq('campaign_slug', CAMPAIGN)
+    .in('status', ['sent', 'draft'])
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+async function alreadyContactedStartup(startupId) {
+  if (DRY_RUN) return false;
+  const { data } = await db
+    .from('pythh_prospecting_log')
+    .select('id')
+    .eq('target_id', String(startupId))
     .eq('email_type', 'startup_matches')
     .eq('campaign_slug', CAMPAIGN)
     .in('status', ['sent', 'draft'])
@@ -264,9 +281,10 @@ function buildStartupText({ startup, matches, greeting, startupName }) {
 }
 
 async function main() {
-  console.log('\n📬 Peter — founder match outreach (Hunter.io)');
-  console.log(`   campaign: ${CAMPAIGN} · limit ${LIMIT} · min GOD ${MIN_GOD} · min match ${MIN_MATCH}`);
+  console.log('\n📬 Peter — founder match outreach (Hunter.io + ZeroBounce)');
+  console.log(`   campaign: ${CAMPAIGN} · limit ${LIMIT} · scan ${SCAN} · min GOD ${MIN_GOD} · min match ${MIN_MATCH}`);
   console.log(`   mode: ${DRY_RUN ? 'dry-run' : DRAFT_ONLY ? 'draft-only' : 'SEND'} · from ${FROM}`);
+  console.log(`   validation: ${hasZeroBounce() ? 'ZeroBounce on (valid only)' : 'ZeroBounce off — set ZEROBOUNCE_API_KEY'}`);
   if (TEST_TO) console.log(`   ⚠️  TEST MODE — all mail → ${TEST_TO}\n`);
   else console.log('');
 
@@ -288,7 +306,7 @@ async function main() {
     .order('total_god_score', { ascending: false });
 
   if (STARTUP_ID) query = query.eq('id', STARTUP_ID);
-  else query = query.limit(LIMIT * 6);
+  else query = query.limit(SCAN);
 
   const { data: startups, error } = await query;
   if (error) {
@@ -317,7 +335,20 @@ async function main() {
       continue;
     }
 
+    if (!TEST_TO && await alreadyContactedStartup(startup.id)) {
+      console.log(`⏭ startup already contacted`);
+      skipped++;
+      continue;
+    }
+
     const contact = await resolveFounderContact(startup, { useHunter: true });
+    if (contact?.rejected) {
+      const who = contact.email ? ` (${contact.email})` : '';
+      console.log(`⏭ ${contact.reason}${who}`);
+      skipped++;
+      await sleep(300);
+      continue;
+    }
     if (!contact?.email || contact.emailType !== 'personal') {
       console.log(`⏭ no personal email (Hunter/submitted)`);
       skipped++;
@@ -346,7 +377,8 @@ async function main() {
     }
 
     const { subject, html, text, startupName } = buildEmail(startup, ranked, contact);
-    console.log(`\n   ${contact.email} (${contact.source}, ${ranked.length} matches)`);
+    const zbTag = contact.zeroBounceStatus ? `, zb:${contact.zeroBounceStatus}` : '';
+    console.log(`\n   ${contact.email} (${contact.source}${zbTag}, ${ranked.length} matches)`);
     if (DRY_RUN) {
       console.log(`   subject: ${subject}`);
       sent++;
