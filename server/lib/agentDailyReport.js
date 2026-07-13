@@ -72,6 +72,173 @@ function signupsFromFunnel(funnel) {
   return { founder, investor, total: founder + investor };
 }
 
+/** Peter email UTMs: utm_source=peter or known Peter campaign slugs. */
+function isPeterAttributed(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  if (payload.utm_source === 'peter') return true;
+  const camp = String(payload.utm_campaign || '');
+  return /^peter-founder/i.test(camp) || camp === 'intro_concierge';
+}
+
+async function countAiLogPeterUtm(supabase, operation, since) {
+  if (!supabase || !operation) return 0;
+  const { count, error } = await supabase
+    .from('ai_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('operation', operation)
+    .eq('output->>utm_source', 'peter')
+    .gte('created_at', since)
+    .is('output->probe_run_id', null);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+async function countGrowthPeterUtm(supabase, eventName, since) {
+  if (!supabase || !eventName) return 0;
+  const { data, error } = await supabase
+    .from('growth_experiment_events')
+    .select('payload')
+    .eq('event_name', eventName)
+    .gte('created_at', since)
+    .is('payload->probe_run_id', null)
+    .limit(5000);
+  if (error) return 0;
+  return (data || []).filter((r) => isPeterAttributed(r.payload)).length;
+}
+
+async function peterCampaignBreakdown(supabase, since) {
+  const buckets = {};
+  const bump = (campaign, field) => {
+    const key = campaign || 'peter-unknown';
+    buckets[key] = buckets[key] || { url_submitted: 0, signups: 0 };
+    buckets[key][field] += 1;
+  };
+
+  const { data: urlRows } = await supabase
+    .from('ai_logs')
+    .select('output')
+    .eq('operation', 'url_submitted')
+    .eq('output->>utm_source', 'peter')
+    .gte('created_at', since)
+    .is('output->probe_run_id', null)
+    .limit(5000);
+
+  for (const row of urlRows || []) {
+    bump(row.output?.utm_campaign, 'url_submitted');
+  }
+
+  const { data: signupRows } = await supabase
+    .from('growth_experiment_events')
+    .select('payload')
+    .eq('event_name', 'founder_signup_completed')
+    .gte('created_at', since)
+    .is('payload->probe_run_id', null)
+    .limit(5000);
+
+  for (const row of signupRows || []) {
+    if (isPeterAttributed(row.payload)) bump(row.payload?.utm_campaign, 'signups');
+  }
+
+  const { data: lookupRows } = await supabase
+    .from('ai_logs')
+    .select('output')
+    .eq('operation', 'lookup_signup_completed')
+    .eq('output->>utm_source', 'peter')
+    .gte('created_at', since)
+    .is('output->probe_run_id', null)
+    .limit(5000);
+
+  for (const row of lookupRows || []) {
+    bump(row.output?.utm_campaign, 'signups');
+  }
+
+  return Object.entries(buckets)
+    .map(([campaign, counts]) => ({ campaign, ...counts }))
+    .sort((a, b) => b.url_submitted + b.signups - (a.url_submitted + a.signups));
+}
+
+async function fetchPeterOutreachSends(supabase, since) {
+  const empty = {
+    total_sent: 0,
+    founder_sent: 0,
+    vc_sent: 0,
+    opened: 0,
+    clicked: 0,
+    campaigns: [],
+  };
+  if (!supabase) return empty;
+
+  const { data, error } = await supabase
+    .from('pythh_prospecting_log')
+    .select('campaign_slug, email_type, opened_at, clicked_at')
+    .eq('status', 'sent')
+    .gte('sent_at', since)
+    .limit(5000);
+
+  if (error) return empty;
+
+  const peterRows = (data || []).filter((r) => {
+    const slug = String(r.campaign_slug || '');
+    return /^peter-founder/i.test(slug) || /^vc-/i.test(slug);
+  });
+
+  const byCampaign = {};
+  for (const row of peterRows) {
+    const slug = row.campaign_slug || 'unknown';
+    byCampaign[slug] = byCampaign[slug] || { sent: 0, opened: 0, clicked: 0, email_type: row.email_type };
+    byCampaign[slug].sent += 1;
+    if (row.opened_at) byCampaign[slug].opened += 1;
+    if (row.clicked_at) byCampaign[slug].clicked += 1;
+  }
+
+  return {
+    total_sent: peterRows.length,
+    founder_sent: peterRows.filter((r) => r.email_type === 'startup_matches').length,
+    vc_sent: peterRows.filter((r) => r.email_type === 'vc_leads').length,
+    opened: peterRows.filter((r) => r.opened_at).length,
+    clicked: peterRows.filter((r) => r.clicked_at).length,
+    campaigns: Object.entries(byCampaign)
+      .map(([slug, c]) => ({ slug, ...c }))
+      .sort((a, b) => b.sent - a.sent),
+  };
+}
+
+async function fetchPeterUtmFunnel(supabase, days) {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const [
+    urlSubmitted,
+    previews,
+    signupStarted,
+    signupCompleted,
+    lookupCompleted,
+    byCampaign,
+    outreach,
+  ] = await Promise.all([
+    countAiLogPeterUtm(supabase, 'url_submitted', since),
+    countAiLogPeterUtm(supabase, 'instant_matches_viewed', since),
+    countGrowthPeterUtm(supabase, 'founder_signup_started', since),
+    countGrowthPeterUtm(supabase, 'founder_signup_completed', since),
+    countAiLogPeterUtm(supabase, 'lookup_signup_completed', since),
+    peterCampaignBreakdown(supabase, since),
+    fetchPeterOutreachSends(supabase, since),
+  ]);
+
+  const signups = signupCompleted + lookupCompleted;
+  const urlToSignupPct = urlSubmitted > 0 ? Math.round((signups / urlSubmitted) * 1000) / 10 : null;
+
+  return {
+    window_days: days,
+    since,
+    outreach,
+    url_submitted: urlSubmitted,
+    previews,
+    founder_signup_started: signupStarted,
+    founder_signup_completed: signups,
+    url_to_signup_pct: urlToSignupPct,
+    by_campaign: byCampaign,
+  };
+}
+
 async function fetchRecentAgentRuns(sb, hours = 48) {
   const since = new Date(Date.now() - hours * 3600000).toISOString();
   const agents = [
@@ -193,6 +360,11 @@ async function gatherAgentDailyReportData(opts = {}) {
   const dbRuns = await fetchRecentAgentRuns(sb);
   const agentRuns = mergeLocalAgentRuns(reportsDir, dbRuns);
 
+  const [peterOutreach7d, peterOutreach1d] = await Promise.all([
+    fetchPeterUtmFunnel(sb, 7),
+    fetchPeterUtmFunnel(sb, 1),
+  ]);
+
   const s7 = signupsFromFunnel(funnel7d);
   const s1 = signupsFromFunnel(funnel1d);
   const f7 = funnel7d.ai_logs || {};
@@ -288,6 +460,10 @@ async function gatherAgentDailyReportData(opts = {}) {
       : null,
     pipeline_grade: productMetrics?.health_grade || productMetrics?.summary?.pipeline_grade,
     url_attribution: conversion?.url_attribution || null,
+    peter_outreach: {
+      today: peterOutreach1d,
+      window_7d: peterOutreach7d,
+    },
   };
 }
 
@@ -363,6 +539,42 @@ function buildAgentDailyReportHtml(data) {
         .join('')
     : '<li>No running experiments.</li>';
 
+  const p7 = data.peter_outreach?.window_7d;
+  const p1 = data.peter_outreach?.today;
+  const peterCampaignHtml = (p7?.by_campaign || []).length
+    ? (p7.by_campaign || [])
+        .slice(0, 5)
+        .map(
+          (c) =>
+            `<li><strong>${esc(c.campaign)}</strong> — ${c.url_submitted} URLs · ${c.signups} signups</li>`,
+        )
+        .join('')
+    : '<li>No Peter UTM events yet in this window.</li>';
+  const peterOutreachHtml = p7
+    ? `<h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Peter outreach (UTM)</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:12px;">
+        <thead><tr style="background:#f8f9fb;">
+          <th style="padding:8px 12px;text-align:left;color:#666;font-weight:500;">Metric</th>
+          <th style="padding:8px 12px;text-align:right;color:#666;font-weight:500;">Today</th>
+          <th style="padding:8px 12px;text-align:right;color:#666;font-weight:500;">7 days</th>
+        </tr></thead>
+        <tbody>
+          ${metricRow('Emails sent', p1?.outreach?.total_sent ?? 0, p7?.outreach?.total_sent ?? 0)}
+          ${metricRow('Founder emails', p1?.outreach?.founder_sent ?? 0, p7?.outreach?.founder_sent ?? 0)}
+          ${metricRow('VC emails', p1?.outreach?.vc_sent ?? 0, p7?.outreach?.vc_sent ?? 0)}
+          ${metricRow('URLs submitted (utm_source=peter)', p1?.url_submitted ?? 0, p7?.url_submitted ?? 0)}
+          ${metricRow('Previews', p1?.previews ?? 0, p7?.previews ?? 0)}
+          ${metricRow('Founder signups', p1?.founder_signup_completed ?? 0, p7?.founder_signup_completed ?? 0)}
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:#666;margin:0 0 8px;">
+        Opens (7d): ${p7?.outreach?.opened ?? 0} · Clicks (7d): ${p7?.outreach?.clicked ?? 0}
+        ${p7?.url_to_signup_pct != null ? ` · URL→signup: ${p7.url_to_signup_pct}%` : ''}
+      </p>
+      <p style="font-size:13px;color:#444;margin:0 0 4px;font-weight:600;">By campaign (7d)</p>
+      <ul style="font-size:13px;color:#333;padding-left:20px;margin:0;">${peterCampaignHtml}</ul>`
+    : '';
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;margin:0;padding:24px;">
@@ -397,6 +609,8 @@ function buildAgentDailyReportHtml(data) {
         </tbody>
       </table>
       <p style="font-size:13px;color:#666;margin:12px 0 0;">${esc(rateLine)}${m.paid_subscribers != null ? ` · Paid subs: ${m.paid_subscribers}` : ''}${m.founder_demand_events_7d != null ? ` · Founder demand events (7d): ${m.founder_demand_events_7d}` : ''}${data.url_attribution?.founder_demand != null ? ` · URL SSOT (demand): ${data.url_attribution.founder_demand}` : ''}</p>
+
+      ${peterOutreachHtml}
 
       <h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Funnel focus</h2>
       <p style="font-size:14px;color:#333;margin:0 0 8px;"><strong>Weakest stage:</strong> ${esc(data.funnel_health.weakest_stage || '—')} (${esc(data.funnel_health.weakest_rate ?? '—')}%)</p>
@@ -433,6 +647,8 @@ function buildAgentDailyReportHtml(data) {
 
 function buildAgentDailyReportText(data) {
   const m = data.metrics;
+  const p7 = data.peter_outreach?.window_7d;
+  const p1 = data.peter_outreach?.today;
   const lines = [
     `PYTHH AGENT DAILY REPORT — ${data.date}`,
     '',
@@ -446,6 +662,15 @@ function buildAgentDailyReportText(data) {
     `  Signups: ${m.today.signups} / ${m.window_7d.signups} (${m.window_7d.signups_per_day}/day avg)`,
     `  Founder: ${m.today.founder_signups} / ${m.window_7d.founder_signups}`,
     `  Investor: ${m.today.investor_signups} / ${m.window_7d.investor_signups}`,
+    '',
+    'PETER OUTREACH (UTM)',
+    `  Emails sent: ${p1?.outreach?.total_sent ?? 0} today / ${p7?.outreach?.total_sent ?? 0} (7d)`,
+    `  Founder emails: ${p1?.outreach?.founder_sent ?? 0} / ${p7?.outreach?.founder_sent ?? 0}`,
+    `  URLs (utm_source=peter): ${p1?.url_submitted ?? 0} / ${p7?.url_submitted ?? 0}`,
+    `  Founder signups: ${p1?.founder_signup_completed ?? 0} / ${p7?.founder_signup_completed ?? 0}`,
+    ...(p7?.by_campaign?.length
+      ? ['  By campaign (7d):', ...p7.by_campaign.slice(0, 5).map((c) => `    · ${c.campaign}: ${c.url_submitted} URLs, ${c.signups} signups`)]
+      : ['  By campaign (7d): none yet']),
     '',
     'FUNNEL FOCUS',
     `  Weakest: ${data.funnel_health.weakest_stage} (${data.funnel_health.weakest_rate}%)`,
