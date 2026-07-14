@@ -43,6 +43,7 @@
     "agents:daily": "node scripts/agents-daily.mjs",
     "agents:daily:full": "node scripts/agents-daily.mjs --with-agents",
     "agents:autopilot": "node scripts/agents-autopilot.mjs",
+    "agents:status": "node scripts/agent-status.mjs",
   "agents:ship-verify": "node scripts/autopilot-ship-verify.mjs",
   "agents:autopilot-ship": "node scripts/agent-autopilot-ship.mjs",
   "agents:output-pr": "node scripts/agent-autopilot-ship.mjs",

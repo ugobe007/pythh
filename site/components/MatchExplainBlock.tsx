@@ -2,7 +2,7 @@
  * Expandable "why this investor" evidence block — picky explain loop (match_explain).
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
 
@@ -35,25 +35,33 @@ export default function MatchExplainBlock({
 }: Props) {
   const [open, setOpen] = useState(rank === 0);
   const bullets = parseExplainBullets(whyYouMatch);
+  const viewedRef = useRef(false);
+
+  const trackExplainViewed = () => {
+    if (!investorId || viewedRef.current) return;
+    if (!bullets.length && !whyYouMatch?.trim()) return;
+    viewedRef.current = true;
+    void trackFunnelEventOnce(
+      `match_explain:${startupId}:${investorId}`,
+      'match_explain_viewed',
+      {
+        startup_id: startupId,
+        investor_id: investorId,
+        investor_name: investorName,
+        rank,
+        match_score: matchScore,
+        source,
+        bullet_count: bullets.length,
+      },
+    );
+  };
+
+  useEffect(() => {
+    if (open) trackExplainViewed();
+  }, [open, investorId, startupId]);
 
   const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    if (next && investorId) {
-      void trackFunnelEventOnce(
-        `match_explain:${startupId}:${investorId}`,
-        'match_explain_viewed',
-        {
-          startup_id: startupId,
-          investor_id: investorId,
-          investor_name: investorName,
-          rank,
-          match_score: matchScore,
-          source,
-          bullet_count: bullets.length,
-        },
-      );
-    }
+    setOpen((prev) => !prev);
   };
 
   if (!bullets.length && !whyYouMatch) return null;
