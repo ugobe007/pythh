@@ -77,14 +77,14 @@ export default function PeterIntroPanel({
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-zinc-800">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-emerald-500 font-mono mb-1">
-              Peter · Match Desk
+              Peter · Pythh
             </p>
             <h2 id="peter-intro-title" className="text-lg font-semibold text-white leading-snug">
-              Intro help — thesis, messaging, timing
+              Why did this investor surface?
             </h2>
             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Warm intros fail when the story doesn&apos;t match the firm&apos;s thesis. Peter reviews your fit and
-              replies with framing notes — the Silicon Valley coaching loop, without needing a Bay Area network.
+              Peter interprets conviction signals — thesis fit, timing, and framing. Not a warm intro broker.
+              Reply with context and he&apos;ll walk through why this match appeared and whether it&apos;s worth a conversation.
             </p>
           </div>
           <button
@@ -102,8 +102,8 @@ export default function PeterIntroPanel({
             <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
             <p className="text-white font-medium">Request received</p>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Peter will email you within <strong className="text-zinc-300">2 business days</strong> with how to
-              frame {investorLine} — thesis angle, timing, and what to lead with.
+              Peter will email you within <strong className="text-zinc-300">2 business days</strong> with why{' '}
+              {investorLine} surfaced — thesis angle, timing, and what to lead with.
             </p>
             <Link href="/signup/founder">
               <a className="inline-block text-sm text-emerald-400 hover:underline">
@@ -190,9 +190,9 @@ export function PeterIntroStrip({
       className={`rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 ${className}`}
     >
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-mono text-emerald-500/90 uppercase tracking-wide mb-0.5">Peter · Match Desk</p>
+        <p className="text-xs font-mono text-emerald-500/90 uppercase tracking-wide mb-0.5">Peter · Pythh</p>
         <p className="text-sm text-zinc-300 leading-snug">
-          Need help framing for a specific investor? Peter reviews thesis fit and replies with what to say — and when.
+          Curious why a specific investor surfaced? Peter explains conviction signals — thesis, timing, framing.
         </p>
       </div>
       <button

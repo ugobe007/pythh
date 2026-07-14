@@ -55,32 +55,33 @@ async function sendPeterIntroConcierge({
     `This is ${OUTREACH_AGENT_NAME} at Pythh. I received your intro request for ${startupName}.`,
     ``,
     investor?.name
-      ? `Target: ${invLabel}. I'll review thesis fit, messaging, and timing — the three things that decide whether a meeting lands or gets a polite pass.`
-      : `I'll review your top thesis-fit investors and suggest who to prioritize and how to frame the conversation.`,
+      ? `Target: ${invLabel}. I'll review why they surfaced — thesis fit, timing, and how to frame the conversation. Three things usually decide whether a meeting is worth having.`
+      : `I'll review your top matches and explain why each surfaced — who to prioritize and how to frame it.`,
     ``,
     note ? `Your note: "${note}"` : '',
     note ? `` : '',
-    `Expect a reply within 2 business days with specific framing notes. In the meantime, your ranked shortlist is here:`,
+    `Expect a reply within 2 business days. I could be wrong on the fit — tell me if something looks off.`,
+    `In the meantime, your ranked shortlist is here:`,
     `${APP_BASE}/activate${startupUrl ? `?startup=${encodeURIComponent(startupUrl)}&utm_source=peter&utm_medium=email&utm_campaign=intro_concierge` : '?utm_source=peter&utm_medium=email&utm_campaign=intro_concierge'}`,
     ``,
     `— ${OUTREACH_AGENT_NAME}`,
-    `Match Advisor · Pythh`,
+    `Venture Analyst · Pythh`,
   ].filter(Boolean).join('\n');
 
   const founderHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;color:#334155;line-height:1.6;">
-      <p style="color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;">${OUTREACH_AGENT_NAME} · Pythh Match Desk</p>
+      <p style="color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;">${OUTREACH_AGENT_NAME} · Pythh</p>
       <p>Hi —</p>
       <p>I received your intro request for <strong>${startupName}</strong>.</p>
       <p>${
         investor?.name
-          ? `Target: <strong>${invLabel}</strong>. I'll review thesis fit, messaging, and timing — the three things that decide whether a meeting lands or gets a polite pass.`
-          : `I'll review your top thesis-fit investors and suggest who to prioritize and how to frame the conversation.`
+          ? `Target: <strong>${invLabel}</strong>. I'll review why they surfaced — thesis fit, timing, and how to frame the conversation.`
+          : `I'll review your top matches and explain why each surfaced — who to prioritize and how to frame it.`
       }</p>
       ${note ? `<p style="color:#64748b;font-size:14px;"><em>Your note:</em> ${note.replace(/</g, '&lt;')}</p>` : ''}
-      <p>Expect a reply within <strong>2 business days</strong> with specific framing notes.</p>
-      <p><a href="${APP_BASE}/activate${startupUrl ? `?startup=${encodeURIComponent(startupUrl)}` : ''}" style="color:#16a34a;">View your ranked shortlist →</a></p>
-      <p style="color:#94a3b8;font-size:13px;">— ${OUTREACH_AGENT_NAME}<br>Match Advisor · Pythh</p>
+      <p>Expect a reply within <strong>2 business days</strong>. Tell me if we're missing something.</p>
+      <p><a href="${APP_BASE}/activate${startupUrl ? `?startup=${encodeURIComponent(startupUrl)}` : ''}" style="color:#16a34a;">Take a look at your shortlist →</a></p>
+      <p style="color:#94a3b8;font-size:13px;">— ${OUTREACH_AGENT_NAME}<br>Venture Analyst · Pythh</p>
     </div>`;
 
   async function resendSend(payload) {

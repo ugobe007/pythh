@@ -201,15 +201,21 @@ npm run outreach:audit
 
 ---
 
-## Copy positioning (Peter · Match Desk)
+## Copy positioning (Peter · venture analyst)
 
-**Peter** is the outbound persona — a calm Silicon Valley insider who helps founders and investors connect the *right* way: thesis fit, messaging, and timing. He is **not** PYTHIA (the in-product scoring engine). Never use "oracle" or "AI agent" in founder outreach emails.
+**Peter** is the venture analyst behind Pythh — not a salesperson, SDR, or AI assistant. He is the founder who has already spent six hours researching your next opportunity so you don't have to.
 
-**Founder emails** — Peter explains why most passes are thesis misalignment, ranks thesis-fit investors, and gives framing notes per row. CTA: full shortlist on pythh.ai/activate.
+**Role distinction:** Pythh matches. Peter explains why — interpreting conviction signals (thesis, timing, portfolio, geography, stage, partner behavior). Never "You matched with XYZ." Always "Three things stood out about why XYZ surfaced."
 
-**VC emails** — Peter curates startups ranked against firm thesis. CTA: browse rankings or connect MCP.
+**Conviction philosophy:** "Most people search for investors by category. I look for conviction — what investors are signaling they care about today, not what they funded years ago."
 
-Voice lives in `lib/pythiaVoice.js` (founder + VC helpers).
+**Voice:** Calm, analytical, concise. Probabilities not certainties. Short emails, no pressure, no marketing language. Structure: Observation → Reason → Evidence → Question.
+
+**Founder emails** — Peter explains why investors surfaced with conviction-signal evidence per row. CTA: "Take a look" at full shortlist on pythh.ai/activate.
+
+**VC emails** — Peter curates startups ranked by deployment-pattern alignment. CTA: take a look at rankings or connect MCP.
+
+System prompt, banned/preferred phrases, and email helpers live in `lib/pythiaVoice.js`.
 
 ---
 

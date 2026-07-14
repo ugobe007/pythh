@@ -60,7 +60,7 @@ router.post('/concierge', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Peter will reply within 2 business days with framing notes.',
+      message: 'Peter will reply within 2 business days with why this match surfaced and how to frame it.',
     });
   } catch (err) {
     console.error('[intro/concierge]', err);
