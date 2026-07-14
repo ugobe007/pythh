@@ -256,10 +256,10 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm }) {
 <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
   <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#22c55e;font-family:monospace;margin-bottom:6px;">${founderEmailKicker()}</div>
   <p style="color:#94a3b8;font-size:13px;font-style:italic;">${founderAlignmentTagline()}</p>
-  <h1 style="color:#f1f5f9;font-size:22px;">${headline} for ${startupName}.</h1>
+  <h1 style="color:#f1f5f9;font-size:22px;">${headline}.</h1>
   <p style="color:#64748b;font-size:14px;line-height:1.65;">${opening}</p>
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:12px 16px;margin:20px 0;">
-    <span style="font-size:11px;color:#475569;">${founderScoreLabel()}</span>
+    <span style="font-size:11px;color:#475569;">${founderScoreLabel(godScore)}</span>
     <span style="color:${color};font-weight:700;font-size:20px;font-family:monospace;margin-left:8px;">${godScore}</span>
     <span style="font-size:11px;color:#334155;margin-left:8px;">${founderScoreCaption(godScore)}</span>
   </div>

@@ -975,7 +975,7 @@ function startupEmail({ startup, matches, greeting }) {
       ${founderAlignmentTagline()}
     </p>
     <h1 style="color:#f1f5f9;font-size:22px;font-weight:700;line-height:1.35;margin:0 0 14px;">
-      ${headline} for ${startupName}.
+      ${headline}.
     </h1>
     <p style="color:#64748b;font-size:14px;line-height:1.65;margin:0;">
       ${opening.replace(/\n\n/g, "<br><br>")}
