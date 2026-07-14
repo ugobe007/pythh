@@ -84,9 +84,13 @@ Findings with `confidence: high` and clear Pythh fit should include:
 
 Product Agent reads your latest report and may add items to `agents/product/opportunity-registry.json`.
 
+## Ship policy (daily autopilot)
+
+When `AGENT_ALLOW_SHIP=1`: hand off **actionable** findings to Product/Growth with file paths. If you fix instrumentation in `server/` or `scripts/`, commit after tests. Research may edit funnel telemetry / orchestrator when human_funnel is misread.
+
 ## Constraints
 
-- Do not git commit, push, or deploy.
+- Do not deploy Fly/Vercel from the agent.
 - Do not scrape paywalled content aggressively; use public RSS and internal DB.
 - Max 2 web searches per run; prefer RSS + `startup_events` samples.
 - Cite evidence (headline, date, source id) for every finding.

@@ -39,11 +39,19 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           BASE: https://pythh.ai
+          AGENT_ALLOW_SHIP: '1'
+          AGENT_ALLOW_PUSH: '1'
         run: |
           ARGS=""
           if [ "${{ github.event.inputs.mode }}" = "full" ]; then ARGS="--full"; fi
           if [ "${{ github.event.inputs.mode }}" = "metrics-only" ]; then ARGS="--metrics-only"; fi
           npm run agents:autopilot -- $ARGS
+
+      - name: Ship agent improvements (PR)
+        if: success() && github.event.inputs.mode != 'metrics-only'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/agent-autopilot-ship.mjs
 
       - name: Send owner daily agent report
         if: always()
@@ -56,12 +64,6 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           SITE_URL: https://pythh.ai
         run: npm run report:agent-daily
-
-      - name: Open PR for agent registry/spec outputs
-        if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: npm run agents:output-pr
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -77,6 +79,7 @@ jobs:
             reports/*-agent-*.json
             reports/agent-daily-report-*.json
             reports/autopilot-ship-verify-*.json
+            reports/agent-autopilot-ship-*.json
             reports/orchestrator-brief-*.json
             agents/research/briefs/*.md
             agents/product/specs/*.md

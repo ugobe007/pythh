@@ -32,6 +32,17 @@ function latestReport(reportsDir, prefix) {
   return files[0] ? readJson(path.join(reportsDir, files[0])) : null;
 }
 
+function detectUnshippedAgentNotes(agentRuns) {
+  const patterns = [/not commit/i, /not pushed/i, /no `--ship`/i, /no --ship/i, /report-only/i];
+  return (agentRuns || [])
+    .filter((r) => patterns.some((p) => p.test(String(r.summary || ''))))
+    .map((r) => ({
+      agent: r.agent,
+      status: r.status,
+      note: String(r.summary || '').slice(0, 220),
+    }));
+}
+
 function latestBrief(repoRoot) {
   const dir = path.join(repoRoot, 'agents', 'research', 'briefs');
   if (!fs.existsSync(dir)) return null;
@@ -321,6 +332,7 @@ async function gatherAgentDailyReportData(opts = {}) {
   const conversion = latestReport(reportsDir, 'conversion-funnel-');
   const orchestrator = latestReport(reportsDir, 'orchestrator-brief-');
   const heartbeat = latestHeartbeatReport(reportsDir);
+  const shipReport = latestReport(reportsDir, 'agent-autopilot-ship-');
   const productMetrics = latestReport(reportsDir, 'product-metrics-');
   const growthMetrics = latestReport(reportsDir, 'growth-metrics-');
   const researchSnapshot = latestReport(reportsDir, 'research-snapshot-');
@@ -359,6 +371,7 @@ async function gatherAgentDailyReportData(opts = {}) {
 
   const dbRuns = await fetchRecentAgentRuns(sb);
   const agentRuns = mergeLocalAgentRuns(reportsDir, dbRuns);
+  const unshippedNotes = detectUnshippedAgentNotes(agentRuns);
 
   const [peterOutreach7d, peterOutreach1d] = await Promise.all([
     fetchPeterUtmFunnel(sb, 7),
@@ -463,6 +476,19 @@ async function gatherAgentDailyReportData(opts = {}) {
     peter_outreach: {
       today: peterOutreach1d,
       window_7d: peterOutreach7d,
+    },
+    agent_ship: {
+      enabled: process.env.AGENT_ALLOW_SHIP === '1' || process.env.GITHUB_ACTIONS === 'true',
+      last_ship: shipReport
+        ? {
+            shipped: shipReport.shipped ?? false,
+            reason: shipReport.reason ?? null,
+            pr_url: shipReport.pr_url ?? null,
+            files: shipReport.files?.length ?? 0,
+            failed_check: shipReport.failed_check ?? null,
+          }
+        : null,
+      unshipped_notes: unshippedNotes,
     },
   };
 }
@@ -575,6 +601,30 @@ function buildAgentDailyReportHtml(data) {
       <ul style="font-size:13px;color:#333;padding-left:20px;margin:0;">${peterCampaignHtml}</ul>`
     : '';
 
+  const ship = data.agent_ship || {};
+  const lastShip = ship.last_ship;
+  const shipHtml = `<h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Agent ship loop</h2>
+    <p style="font-size:14px;color:#333;margin:0 0 8px;">
+      Ship policy: <strong>${ship.enabled ? 'ON — agents must commit fixes' : 'report-only'}</strong>
+    </p>
+    ${
+      lastShip
+        ? `<p style="font-size:13px;color:#666;margin:0 0 8px;">
+            Last autopilot ship: ${lastShip.shipped ? '✅ PR opened' : `⚠️ ${esc(lastShip.reason || 'no ship')}`}
+            ${lastShip.pr_url ? ` · <a href="${esc(lastShip.pr_url)}" style="color:#6366f1;">${esc(lastShip.pr_url)}</a>` : ''}
+            ${lastShip.files ? ` · ${lastShip.files} file(s)` : ''}
+          </p>`
+        : '<p style="font-size:13px;color:#666;margin:0 0 8px;">No autopilot ship report yet today.</p>'
+    }
+    ${
+      (ship.unshipped_notes || []).length
+        ? `<p style="font-size:13px;color:#b45309;margin:0 0 4px;font-weight:600;">Unshipped agent notes</p>
+           <ul style="font-size:13px;color:#333;padding-left:20px;margin:0;">${ship.unshipped_notes
+             .map((n) => `<li><strong>${esc(n.agent)}</strong> — ${esc(n.note)}</li>`)
+             .join('')}</ul>`
+        : ''
+    }`;
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;margin:0;padding:24px;">
@@ -611,6 +661,8 @@ function buildAgentDailyReportHtml(data) {
       <p style="font-size:13px;color:#666;margin:12px 0 0;">${esc(rateLine)}${m.paid_subscribers != null ? ` · Paid subs: ${m.paid_subscribers}` : ''}${m.founder_demand_events_7d != null ? ` · Founder demand events (7d): ${m.founder_demand_events_7d}` : ''}${data.url_attribution?.founder_demand != null ? ` · URL SSOT (demand): ${data.url_attribution.founder_demand}` : ''}</p>
 
       ${peterOutreachHtml}
+
+      ${shipHtml}
 
       <h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Funnel focus</h2>
       <p style="font-size:14px;color:#333;margin:0 0 8px;"><strong>Weakest stage:</strong> ${esc(data.funnel_health.weakest_stage || '—')} (${esc(data.funnel_health.weakest_rate ?? '—')}%)</p>
@@ -671,6 +723,15 @@ function buildAgentDailyReportText(data) {
     ...(p7?.by_campaign?.length
       ? ['  By campaign (7d):', ...p7.by_campaign.slice(0, 5).map((c) => `    · ${c.campaign}: ${c.url_submitted} URLs, ${c.signups} signups`)]
       : ['  By campaign (7d): none yet']),
+    '',
+    'AGENT SHIP LOOP',
+    `  Policy: ${data.agent_ship?.enabled ? 'ON' : 'report-only'}`,
+    data.agent_ship?.last_ship
+      ? `  Last ship: ${data.agent_ship.last_ship.shipped ? 'PR opened' : data.agent_ship.last_ship.reason || 'none'}${data.agent_ship.last_ship.pr_url ? ` — ${data.agent_ship.last_ship.pr_url}` : ''}`
+      : '  Last ship: no report today',
+    ...(data.agent_ship?.unshipped_notes?.length
+      ? ['  Unshipped notes:', ...data.agent_ship.unshipped_notes.map((n) => `    · ${n.agent}: ${n.note.slice(0, 120)}`)]
+      : []),
     '',
     'FUNNEL FOCUS',
     `  Weakest: ${data.funnel_health.weakest_stage} (${data.funnel_health.weakest_rate}%)`,

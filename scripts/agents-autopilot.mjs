@@ -10,6 +10,7 @@
  *   npm run agents:autopilot          # metrics + today's LLM agent
  *   npm run agents:autopilot -- --full  # metrics + all LLM agents
  *   npm run agents:autopilot -- --metrics-only
+ *   npm run agents:autopilot -- --no-ship   # LLM agents report-only (local)
  */
 
 import { spawnSync } from 'node:child_process';
@@ -22,6 +23,19 @@ dotenv.config();
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const METRICS_ONLY = process.argv.includes('--metrics-only');
 const FULL = process.argv.includes('--full');
+const NO_SHIP = process.argv.includes('--no-ship');
+
+function shipArgsForAutopilot() {
+  if (NO_SHIP) return [];
+  if (process.env.AGENT_ALLOW_SHIP === '0') return [];
+  const ship =
+    process.env.AGENT_ALLOW_SHIP === '1' ||
+    process.env.GITHUB_ACTIONS === 'true';
+  if (!ship) return [];
+  const args = ['--ship'];
+  if (process.env.AGENT_ALLOW_PUSH === '1') args.push('--push');
+  return args;
+}
 
 const ROTATION = {
   1: { agent: 'research', script: 'scripts/research-agent-loop.mjs', args: ['--max-turns=22', '--max-budget-usd=2'] },
@@ -82,7 +96,10 @@ const agentsToRun = FULL
 console.log(`\n🤖 LLM agents: ${agentsToRun.map((a) => a.agent).join(', ')} (UTC day ${utcDay})\n`);
 
 for (const a of agentsToRun) {
-  const shipArgs = process.env.AGENT_ALLOW_SHIP === '1' ? ['--ship'] : [];
+  const shipArgs = shipArgsForAutopilot();
+  if (shipArgs.length) {
+    console.log(`   ship: ${shipArgs.join(' ')}`);
+  }
   runNode(`${a.agent} agent`, a.script, [...a.args, ...shipArgs], { allowFail: true });
 }
 

@@ -69,9 +69,14 @@ When proposing **new services**, prefer things Pythh already has data for:
 
 Each proposal must name: **target user**, **success metric**, **MVP scope (≤1 week)**, **dependencies**.
 
+## Ship policy (daily autopilot)
+
+When `AGENT_ALLOW_SHIP=1`: implement instrumentation/UX fixes in `site/` or `server/` when the gap is measurable — not spec-only. Commit after `test:wizard-smoke` + `check:server`. "Not committed" is a failed run.
+
 ## Constraints
 
-- Do not git commit, push, or deploy without explicit user approval.
+- Max one new opportunity status change to `building` per run unless P0.
+- Do not deploy Fly/Vercel from the agent — commit/PR only.
 - Do not delete production data.
 - Max one shippable decision per run; max one new backlog item.
 - Prefer measurable changes tied to `ai_logs`, `growth_experiment_events`, or match engagement tables.

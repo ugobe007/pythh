@@ -35,11 +35,15 @@ Target ratio: ~40% critique/filter, ~60% actionable opportunity.
 8. Weekly reallocation: `npm run growth:cycle` (hold unless organic thresholds met); `npm run growth:cycle:apply` to commit registry changes.
 9. New variants stay `"status": "draft"` until human approves.
 
+## Ship policy (daily autopilot)
+
+When `AGENT_ALLOW_SHIP=1` (GitHub Actions daily): **you must commit** code fixes after tests pass. Ending with "not committed" or "not pushed" is a failed run. CI also runs `agent-autopilot-ship.mjs` to PR any leftover diffs.
+
 ## Constraints
 
-- Do not deploy or push without explicit user approval.
 - Max one new running variant per audience per week.
 - Prefer measurable changes tied to `growth_experiment_events` or `ai_logs` funnel ops.
+- Do not deploy Fly/Vercel from the agent — commit/PR only.
 
 ## Summary instructions (compaction)
 
