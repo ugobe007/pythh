@@ -215,6 +215,18 @@ npm run outreach:audit
 
 **VC emails** — Peter curates startups ranked by deployment-pattern alignment. CTA: take a look at rankings or connect MCP.
 
+**Peter lexicon** (canonical in `lib/pythiaVoice.js` → `PETER_LEXICON`):
+
+| Term | Means | Use |
+|------|--------|-----|
+| **signal synthesis** | Why signals match — thesis, deals, writing, stage | Match table header; "each row is the signal synthesis" |
+| **frequency gaps** | The delta — how much attention shifted toward a theme | Footnote; investor movement context |
+| **signal flow** | Direction — up, down, or flat | Tagline; timing ("signal flow is up") |
+
+**First email:** "Hi [name], my name is Peter. I report on investor signals that align with startups like [company]. I found [N] investors that fit."
+
+**Follow-up:** Skip intro; lead with count + synthesis.
+
 System prompt, banned/preferred phrases, and email helpers live in `lib/pythiaVoice.js`.
 
 ---

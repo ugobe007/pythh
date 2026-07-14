@@ -28,6 +28,7 @@ config();
 
 const require = createRequire(import.meta.url);
 const { rankInvestorsForStartup } = require('../lib/outreachMatch.js');
+const { isFirstPeterFounderContact } = require('../lib/peterOutreachHelpers.js');
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const {
   defaultMatchReason,
@@ -202,7 +203,7 @@ async function sendResend({ to, subject, html, text }) {
   return { ok: true, id: data.id, recipient };
 }
 
-function buildEmail(startup, matches, contact) {
+function buildEmail(startup, matches, contact, { isFirstContact = true } = {}) {
   const startupName = (startup.name || startup.website || 'your startup').trim();
   const greeting = contactOutreachGreeting({
     email: contact.email,
@@ -211,15 +212,15 @@ function buildEmail(startup, matches, contact) {
   });
   const subject = founderSubject({ startupName, count: matches.length });
   const utm = { source: 'peter', medium: 'email', campaign: CAMPAIGN };
-  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm });
-  const text = buildStartupText({ startup, matches, greeting, startupName, utm });
+  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact });
+  const text = buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact });
   return { subject, html, text, startupName };
 }
 
-function buildStartupHtml({ startup, matches, greeting, startupName, utm }) {
+function buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact = true }) {
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
-  const opening = founderOpening({ greeting, startupName, count: matches.length });
+  const opening = founderOpening({ greeting, startupName, count: matches.length, isFirstContact });
   const headline = founderHeadline({ startupName, count: matches.length });
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : '';
   const activateUrl = founderCtaPrimaryUrl(encodedUrl, utm);
@@ -275,8 +276,8 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm }) {
 </div></body></html>`;
 }
 
-function buildStartupText({ startup, matches, greeting, startupName, utm }) {
-  const opening = founderOpeningText({ greeting, startupName, count: matches.length });
+function buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact = true }) {
+  const opening = founderOpeningText({ greeting, startupName, count: matches.length, isFirstContact });
   const rows = matches.map((m, i) => {
     const reason = m.match_reason ? m.match_reason.split('.')[0] : defaultMatchReason();
     return `  ${i + 1}. ${m.name} (${m.firm}) — match ${m.match_score}\n     ${reason}`;
@@ -380,7 +381,8 @@ async function main() {
       continue;
     }
 
-    const { subject, html, text, startupName } = buildEmail(startup, ranked, contact);
+    const isFirstContact = TEST_TO || (await isFirstPeterFounderContact(db, contact.email));
+    const { subject, html, text, startupName } = buildEmail(startup, ranked, contact, { isFirstContact });
     const zbTag = contact.zeroBounceStatus ? `, zb:${contact.zeroBounceStatus}` : '';
     console.log(`\n   ${contact.email} (${contact.source}${zbTag}, ${ranked.length} matches)`);
     if (DRY_RUN) {

@@ -66,6 +66,7 @@ const {
   isSandboxFromAddress,
 } = require("../lib/outreachFrom.js");
 const { pickMarketObservation } = require("../lib/outreachMarketIntel.js");
+const { isFirstPeterFounderContact } = require("../lib/peterOutreachHelpers.js");
 
 // Load .env from repo root (script lives at scripts/outreach-agent.js → one level up)
 const envPath = new URL("../.env", import.meta.url).pathname;
@@ -319,7 +320,7 @@ function buildVcEmailBundle(inv, startupPool, usedObservationCompanies, campaign
   return { email, subject, html, text, displayName, emailType, leadCount: leads.length };
 }
 
-function buildStartupEmailBundle(startup, investorPool, contact) {
+function buildStartupEmailBundle(startup, investorPool, contact, { isFirstContact = true } = {}) {
   const email = contact?.email;
   if (!email) return null;
 
@@ -333,8 +334,18 @@ function buildStartupEmailBundle(startup, investorPool, contact) {
     personName: startup.founder_name ?? startup.extracted_data?.founders?.[0]?.name,
   });
   const subject = founderSubject({ startupName: startupLabel, count: ranked.length });
-  const html = startupEmail({ startup: { ...startup, name: startupLabel }, matches: ranked, greeting });
-  const text = startupEmailText({ startup: { ...startup, name: startupLabel }, matches: ranked, greeting });
+  const html = startupEmail({
+    startup: { ...startup, name: startupLabel },
+    matches: ranked,
+    greeting,
+    isFirstContact,
+  });
+  const text = startupEmailText({
+    startup: { ...startup, name: startupLabel },
+    matches: ranked,
+    greeting,
+    isFirstContact,
+  });
 
   return {
     email,
@@ -473,7 +484,8 @@ async function runRegenerateMode() {
       }
 
       const contact = await resolveStartupContactEmail(startup);
-      const bundle = buildStartupEmailBundle(startup, investorPool, contact);
+      const isFirstContact = await isFirstPeterFounderContact(db, draft.email);
+      const bundle = buildStartupEmailBundle(startup, investorPool, contact, { isFirstContact });
       if (!bundle) {
         console.log("✗ no matches");
         continue;
@@ -670,7 +682,8 @@ async function runStartupMode() {
       continue;
     }
 
-    const bundle = buildStartupEmailBundle(startup, investorPool, contact);
+    const isFirstContact = TEST_TO || (await isFirstPeterFounderContact(db, email));
+    const bundle = buildStartupEmailBundle(startup, investorPool, contact, { isFirstContact });
     if (!bundle) {
       console.log(`  [skip] No scored matches for ${startup.name ?? startup.website}`);
       continue;
@@ -912,13 +925,18 @@ Unsubscribe: https://pythh.ai/support
 
 // ── Startup matches email (HTML) ──────────────────────────────────────────────
 
-function startupEmail({ startup, matches, greeting }) {
+function startupEmail({ startup, matches, greeting, isFirstContact = true }) {
   const startupName = startup.name ?? startup.website ?? "your startup";
   const salutation = greeting ?? "Hi there,";
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
   const scoreLabel = founderScoreLabel(godScore);
-  const opening = founderOpening({ greeting: salutation, startupName, count: matches.length });
+  const opening = founderOpening({
+    greeting: salutation,
+    startupName,
+    count: matches.length,
+    isFirstContact,
+  });
   const headline = founderHeadline({ startupName, count: matches.length });
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
   const utm = { source: "peter", medium: "email", campaign: CAMPAIGN };
@@ -1047,7 +1065,7 @@ function startupEmail({ startup, matches, greeting }) {
 </html>`;
 }
 
-function startupEmailText({ startup, matches, greeting }) {
+function startupEmailText({ startup, matches, greeting, isFirstContact = true }) {
   const salutation = greeting ?? "Hi there,";
   const startupName = startup.name ?? startup.website ?? "your startup";
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : "";
@@ -1059,7 +1077,7 @@ function startupEmailText({ startup, matches, greeting }) {
     ].join("\n"))
     .join("\n\n");
 
-  return `${founderOpeningText({ greeting: salutation, startupName, count: matches.length })}
+  return `${founderOpeningText({ greeting: salutation, startupName, count: matches.length, isFirstContact })}
 
 ${founderAlignmentTagline()}
 
