@@ -57,9 +57,9 @@
       "problem": "31 match_viewed in 7d but 0 match_intro_requested — post-preview activation is dead.",
       "hypothesis": "Instrumenting view → intro → contact will reveal where founders drop off and unlock engagement experiments.",
       "metric": "match_intro_rate",
-      "baseline": "0% intro_per_match_view (31 views, 0 intros)",
-      "target": "5% intro rate on viewed matches within 30d",
-      "next_step": "Ship match_explain blocks on preview strip; monitor match_intro_requested after preview_view > 0.",
+      "baseline": "0% intro_per_match_view (39 views, 0 intros) — dominant preview intro CTA opened Peter panel with ZERO funnel events, so match_intro_requested was structurally blind, not truly zero.",
+      "target": "5% intro rate on viewed matches within 30d; match_intro_requested > 0 within 7d",
+      "next_step": "SHIPPED 2026-07-15: instrument intro INTENT on Peter-panel open in InstantMatchPreview.handleGate (fires match_intro_requested + recordMatchEngagement('intro'), deduped per investor, source=instant_preview_intro_intent). Verify match_intro_requested fires in conversion:funnel within 48h; then optimize panel→concierge_submit copy.",
       "related_experiments": ["founder_hero_entry"]
     },
     {

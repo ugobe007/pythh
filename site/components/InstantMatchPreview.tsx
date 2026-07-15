@@ -70,6 +70,7 @@ export default function InstantMatchPreview({ url }: Props) {
   });
   const [peterPanelOpen, setPeterPanelOpen] = useState(false);
   const [peterInvestor, setPeterInvestor] = useState<GatedInvestorContext | null>(null);
+  const introIntentTrackedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     fetchGrowthAssignment('founder', 'founder_hero_entry')
@@ -275,6 +276,26 @@ export default function InstantMatchPreview({ url }: Props) {
   const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
     if (action === 'intro') {
+      // Instrument intro INTENT on panel open. The dominant preview CTA ("Ask Peter"/per-match
+      // "Intro") opened this panel with zero funnel events, leaving match_intro_requested and
+      // intro_per_match_view structurally 0 despite live match views. Fire once per investor.
+      const startupId = preview.startup.id;
+      const investorId = investor?.id;
+      const intentKey = investorId ? `intro:${startupId}:${investorId}` : `intro:${startupId}:top`;
+      if (!introIntentTrackedRef.current.has(intentKey)) {
+        introIntentTrackedRef.current.add(intentKey);
+        void trackFunnelEvent('match_intro_requested', {
+          startup_id: startupId,
+          investor_id: investorId,
+          investor_name: investor?.name,
+          url,
+          source: 'instant_preview_intro_intent',
+          gated_action: 'intro',
+        });
+        if (investorId) {
+          void recordMatchEngagement(startupId, investorId, 'intro', 'instant_match_preview');
+        }
+      }
       setPeterInvestor(investor ?? null);
       setPeterPanelOpen(true);
       return;
