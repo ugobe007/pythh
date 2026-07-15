@@ -2091,16 +2091,23 @@ function toArtApiResponse(row) {
 }
 
 function toArtTeaserResponse(edition) {
+  const thumb =
+    edition.thumbnail_url ||
+    deriveThumbnailUrl(edition.raster_url) ||
+    localThumbnailFallback(edition.edition_date, ART_REPO_ROOT);
+  const preview_url =
+    thumb ||
+    edition.raster_url ||
+    (edition.edition_date ? `/api/art/${edition.edition_date}/svg` : null);
   return {
     edition_date: edition.edition_date,
     title: edition.copy?.title || edition.title || null,
     subtitle: edition.copy?.subtitle || edition.subtitle || null,
     layout_mode: edition.layout_mode || edition.copy?.layout_mode || null,
-    thumbnail_url:
-      edition.thumbnail_url ||
-      deriveThumbnailUrl(edition.raster_url) ||
-      localThumbnailFallback(edition.edition_date, ART_REPO_ROOT),
+    thumbnail_url: thumb,
     raster_url: edition.raster_url || null,
+    preview_url,
+    svg_url: edition.edition_date ? `/api/art/${edition.edition_date}/svg` : null,
     generated_at: edition.generated_at,
   };
 }
@@ -2233,6 +2240,23 @@ app.get('/api/art/archive', async (req, res) => {
 
 const { getAuthedUserFromRequest } = require('./lib/pythhSession');
 const { buildArtDownload } = require('./lib/signalArtExport');
+
+app.get('/api/art/:date/svg', async (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+  }
+  try {
+    let row = await loadArtEditionResolved(date, { loadArtEdition, repoRoot: ART_REPO_ROOT });
+    if (!row?.svg) return res.status(404).json({ error: 'SVG not found' });
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
+    return res.send(row.svg);
+  } catch (err) {
+    console.error('[art] svg error:', err.message);
+    return res.status(500).json({ error: 'Failed to load SVG' });
+  }
+});
 
 app.get('/api/art/:date/download', async (req, res) => {
   const { date } = req.params;

@@ -25,6 +25,8 @@ interface ArtTeaser {
   layout_mode: string | null;
   thumbnail_url: string | null;
   raster_url: string | null;
+  preview_url?: string | null;
+  svg_url?: string | null;
   generated_at: string;
   stale?: boolean;
   is_today?: boolean;
@@ -97,13 +99,22 @@ export default function SignalArtTeaser() {
   if (!teaser) return null;
 
   const cacheBust = encodeURIComponent(teaser.generated_at || teaser.edition_date);
-  const thumbSrc = teaser.thumbnail_url
-    ? `${teaser.thumbnail_url}${teaser.thumbnail_url.includes("?") ? "&" : "?"}v=${cacheBust}`
-    : null;
-  const rasterSrc = teaser.raster_url
-    ? `${teaser.raster_url}${teaser.raster_url.includes("?") ? "&" : "?"}v=${cacheBust}`
-    : null;
-  const imageSrc = thumbSrc && !thumbFailed ? thumbSrc : rasterSrc && !rasterFailed ? rasterSrc : null;
+  const withBust = (url: string) => `${url}${url.includes("?") ? "&" : "?"}v=${cacheBust}`;
+  const thumbSrc = teaser.thumbnail_url ? withBust(teaser.thumbnail_url) : null;
+  const rasterSrc = teaser.raster_url ? withBust(teaser.raster_url) : null;
+  const previewSrc = teaser.preview_url
+    ? withBust(teaser.preview_url.startsWith("/api/") ? apiUrl(teaser.preview_url) : teaser.preview_url)
+    : teaser.svg_url
+      ? withBust(apiUrl(teaser.svg_url))
+      : null;
+  const imageSrc =
+    thumbSrc && !thumbFailed
+      ? thumbSrc
+      : rasterSrc && !rasterFailed
+        ? rasterSrc
+        : previewSrc && !rasterFailed
+          ? previewSrc
+          : null;
   const staticThumb = `/art/${teaser.edition_date}-thumb.jpg?v=${cacheBust}`;
 
   return (

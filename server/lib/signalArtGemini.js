@@ -327,6 +327,8 @@ module.exports = {
   generateAndPersistRaster,
   persistRasterThumbnail,
   deriveThumbnailUrl,
+  uploadRasterToStorage,
+  writeLocalRaster,
   GEMINI_IMAGE_MODELS,
   IMAGEN_MODELS,
   TIER_UPGRADE_URL,
