@@ -83,29 +83,43 @@ async function fetchArtTeaser(): Promise<ArtTeaser | null> {
 
 export default function SignalArtTeaser() {
   const [teaser, setTeaser] = useState<ArtTeaser | null>(null);
+  const [loading, setLoading] = useState(true);
   const [thumbFailed, setThumbFailed] = useState(false);
   const [rasterFailed, setRasterFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void fetchArtTeaser().then((d) => {
-      if (!cancelled && d?.edition_date) setTeaser(d);
+      if (!cancelled) {
+        if (d?.edition_date) setTeaser(d);
+        setLoading(false);
+      }
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (!teaser) return null;
+  if (!loading && !teaser) return null;
 
-  const cacheBust = encodeURIComponent(teaser.generated_at || teaser.edition_date);
+  const display = teaser ?? {
+    edition_date: new Date().toISOString().slice(0, 10),
+    title: "Today's oracle composition",
+    subtitle: null,
+    layout_mode: null,
+    thumbnail_url: null,
+    raster_url: null,
+    generated_at: "",
+    stale: true,
+  };
+  const cacheBust = encodeURIComponent(display.generated_at || display.edition_date);
   const withBust = (url: string) => `${url}${url.includes("?") ? "&" : "?"}v=${cacheBust}`;
-  const thumbSrc = teaser.thumbnail_url ? withBust(teaser.thumbnail_url) : null;
-  const rasterSrc = teaser.raster_url ? withBust(teaser.raster_url) : null;
-  const previewSrc = teaser.preview_url
-    ? withBust(teaser.preview_url.startsWith("/api/") ? apiUrl(teaser.preview_url) : teaser.preview_url)
-    : teaser.svg_url
-      ? withBust(apiUrl(teaser.svg_url))
+  const thumbSrc = display.thumbnail_url ? withBust(display.thumbnail_url) : null;
+  const rasterSrc = display.raster_url ? withBust(display.raster_url) : null;
+  const previewSrc = display.preview_url
+    ? withBust(display.preview_url.startsWith("/api/") ? apiUrl(display.preview_url) : display.preview_url)
+    : display.svg_url
+      ? withBust(apiUrl(display.svg_url))
       : null;
   const imageSrc =
     thumbSrc && !thumbFailed
@@ -115,7 +129,7 @@ export default function SignalArtTeaser() {
         : previewSrc && !rasterFailed
           ? previewSrc
           : null;
-  const staticThumb = `/art/${teaser.edition_date}-thumb.jpg?v=${cacheBust}`;
+  const staticThumb = `/art/${display.edition_date}-thumb.jpg?v=${cacheBust}`;
 
   return (
     <section className="border-y" style={{ borderColor: BORDER, backgroundColor: PAGE }}>
@@ -136,10 +150,15 @@ export default function SignalArtTeaser() {
               backgroundColor: "#050508",
             }}
           >
-            {imageSrc ? (
+            {loading && !imageSrc ? (
+              <div
+                className="w-full h-full animate-pulse"
+                style={{ background: `linear-gradient(135deg, #050508 0%, ${G_SUBTLE} 50%, #050508 100%)` }}
+              />
+            ) : imageSrc ? (
               <img
                 src={imageSrc}
-                alt={teaser.title || "Today's Signal Art"}
+                alt={display.title || "Today's Signal Art"}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                 loading="lazy"
                 decoding="async"
@@ -151,7 +170,7 @@ export default function SignalArtTeaser() {
             ) : (
               <img
                 src={staticThumb}
-                alt={teaser.title || "Today's Signal Art"}
+                alt={display.title || "Today's Signal Art"}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                 loading="lazy"
                 decoding="async"
@@ -183,27 +202,27 @@ export default function SignalArtTeaser() {
             >
               <Sparkles size={11} />
               Signal Art
-              {teaser.stale && (
+              {display.stale && (
                 <span className="normal-case tracking-normal font-normal" style={{ color: DIM }}>
                   · latest edition
                 </span>
               )}
             </p>
             <h2 className="font-display font-bold text-lg md:text-xl text-white mb-1 truncate">
-              {teaser.title || "Today's oracle composition"}
+              {display.title || "Today's oracle composition"}
             </h2>
             <p className="text-sm mb-3 line-clamp-2" style={{ color: MUTED }}>
-              {teaser.subtitle
-                ? `PYTHH saw ${teaser.subtitle.toLowerCase()} — flowing sci-fi signals between today and tomorrow.`
+              {display.subtitle
+                ? `PYTHH saw ${display.subtitle.toLowerCase()} — flowing sci-fi signals between today and tomorrow.`
                 : "PYTHH sees between today and tomorrow — one living composition per day from live market signals."}
             </p>
             <p className="inline-flex items-center gap-2 text-xs font-mono font-semibold uppercase tracking-wider transition-colors" style={{ color: GOLD }}>
-              {teaser.stale ? "View composition" : "View today's composition"}
+              {display.stale ? "View composition" : "View today's composition"}
               <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
             </p>
-            {teaser.layout_mode && (
+            {display.layout_mode && (
               <p className="text-[10px] font-mono mt-2 uppercase tracking-widest" style={{ color: DIM }}>
-                {teaser.layout_mode} layout · {teaser.edition_date}
+                {display.layout_mode} layout · {display.edition_date}
               </p>
             )}
           </div>
