@@ -25,12 +25,31 @@ function pythhBuildMetaPlugin(): Plugin {
   };
 }
 
+/** Embed public Supabase anon config at build time so boot never blocks on /api/public-config. */
+function pythhRuntimeInjectPlugin(): Plugin {
+  return {
+    name: 'pythh-runtime-inject',
+    transformIndexHtml(html) {
+      if (html.includes('__PYTHH_RUNTIME__')) return html;
+      const url = String(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+      const anon = String(
+        process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+      ).trim();
+      if (!url || !anon) return html;
+      const payload = JSON.stringify({ supabaseUrl: url, supabaseAnonKey: anon });
+      const inject = `<script>window.__PYTHH_RUNTIME__=${payload};<\/script>`;
+      return html.replace(/<head>/i, `<head>\n    ${inject}`);
+    },
+  };
+}
+
 export default defineConfig({
   root: siteRoot,
   publicDir: repoPublic,
   plugins: [
     react(),
     pythhBuildMetaPlugin(),
+    pythhRuntimeInjectPlugin(),
     nodePolyfills({
       protocolImports: true,
     }),

@@ -58,6 +58,36 @@ export function hasValidSupabaseCredentials(): boolean {
 
 let bootstrapPromise: Promise<boolean> | null = null;
 
+const PUBLIC_CONFIG_TIMEOUT_MS = 5000;
+
+async function fetchPublicConfig(): Promise<{ url: string; key: string } | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), PUBLIC_CONFIG_TIMEOUT_MS);
+  try {
+    const res = await fetch("/api/public-config", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      console.warn("[auth] /api/public-config unavailable:", res.status);
+      return null;
+    }
+    const data = (await res.json()) as {
+      supabaseUrl?: string;
+      supabaseAnonKey?: string;
+    };
+    const url = String(data.supabaseUrl || "").trim();
+    const key = String(data.supabaseAnonKey || "").trim();
+    return url && key ? { url, key } : null;
+  } catch (err) {
+    console.warn("[auth] /api/public-config fetch failed:", err);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Load Supabase anon config when Vercel static build lacks VITE_SUPABASE_*.
  * Fly serves HTML with __PYTHH_RUNTIME__; Vercel uses /api/public-config proxy.
@@ -80,24 +110,11 @@ export function bootstrapSupabase(): Promise<boolean> {
     }
 
     try {
-      const res = await fetch("/api/public-config", {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        console.warn("[auth] /api/public-config unavailable:", res.status);
-        return false;
-      }
-      const data = (await res.json()) as {
-        supabaseUrl?: string;
-        supabaseAnonKey?: string;
-      };
-      const url = String(data.supabaseUrl || "").trim();
-      const key = String(data.supabaseAnonKey || "").trim();
-      if (!url || !key) return false;
+      const creds = await fetchPublicConfig();
+      if (!creds) return false;
 
-      window.__PYTHH_RUNTIME__ = { supabaseUrl: url, supabaseAnonKey: key };
-      supabase = createSupabaseClient(url, key);
+      window.__PYTHH_RUNTIME__ = { supabaseUrl: creds.url, supabaseAnonKey: creds.key };
+      supabase = createSupabaseClient(creds.url, creds.key);
       return true;
     } catch (err) {
       console.warn("[auth] bootstrapSupabase failed:", err);
