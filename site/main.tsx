@@ -7,11 +7,9 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
-import { bootstrapSupabase, hasValidSupabaseCredentials } from "./lib/supabase";
+import { bootstrapSupabase } from "./lib/supabase";
 import { bootstrapOAuthFromHash } from "./lib/supabaseOAuth";
 import "./index.css";
-
-const BOOT_TIMEOUT_MS = 5000;
 
 const queryClient = new QueryClient();
 
@@ -61,20 +59,8 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-async function mountApp() {
-  const boot = Promise.all([
-    bootstrapSupabase(),
-    bootstrapOAuthFromHash(),
-  ]);
-
-  if (!hasValidSupabaseCredentials()) {
-    await Promise.race([
-      boot,
-      new Promise<void>((resolve) => setTimeout(resolve, BOOT_TIMEOUT_MS)),
-    ]);
-  } else {
-    void boot;
-  }
+function mountApp() {
+  void Promise.all([bootstrapSupabase(), bootstrapOAuthFromHash()]);
 
   createRoot(document.getElementById("root")!).render(
     <HelmetProvider>

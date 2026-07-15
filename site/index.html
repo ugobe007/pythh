@@ -61,6 +61,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        if (window.__PYTHH_RUNTIME__ && window.__PYTHH_RUNTIME__.supabaseUrl) return;
+        window.__PYTHH_PUBLIC_CONFIG_PROMISE__ = fetch("/api/public-config", {
+          cache: "no-store",
+          credentials: "same-origin",
+        })
+          .then(function (res) {
+            return res.ok ? res.json() : null;
+          })
+          .then(function (data) {
+            if (!data || !data.supabaseUrl || !data.supabaseAnonKey) return;
+            window.__PYTHH_RUNTIME__ = {
+              supabaseUrl: data.supabaseUrl,
+              supabaseAnonKey: data.supabaseAnonKey,
+            };
+          })
+          .catch(function () {});
+      })();
+    </script>
   </head>
   <body>
     <div id="root">

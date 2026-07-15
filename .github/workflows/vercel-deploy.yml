@@ -68,10 +68,19 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
         run: |
           deploy_cli() {
             echo "Deploying via vercel CLI --prod --force…"
-            npx vercel@54.15.0 deploy --prod --force --yes --logs --token "$VERCEL_TOKEN"
+            args=(deploy --prod --force --yes --logs --token "$VERCEL_TOKEN")
+            if [ -n "$VITE_SUPABASE_URL" ]; then
+              args+=(--build-env "VITE_SUPABASE_URL=$VITE_SUPABASE_URL")
+            fi
+            if [ -n "$VITE_SUPABASE_ANON_KEY" ]; then
+              args+=(--build-env "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY")
+            fi
+            npx vercel@54.15.0 "${args[@]}"
           }
 
           if deploy_cli; then

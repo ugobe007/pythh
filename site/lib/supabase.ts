@@ -6,6 +6,7 @@ declare global {
       supabaseUrl?: string;
       supabaseAnonKey?: string;
     };
+    __PYTHH_PUBLIC_CONFIG_PROMISE__?: Promise<void>;
   }
 }
 
@@ -110,6 +111,15 @@ export function bootstrapSupabase(): Promise<boolean> {
     }
 
     try {
+      if (window.__PYTHH_PUBLIC_CONFIG_PROMISE__) {
+        await window.__PYTHH_PUBLIC_CONFIG_PROMISE__;
+        const warmed = getSyncCredentials();
+        if (warmed) {
+          supabase = createSupabaseClient(warmed.url, warmed.key);
+          return true;
+        }
+      }
+
       const creds = await fetchPublicConfig();
       if (!creds) return false;
 
