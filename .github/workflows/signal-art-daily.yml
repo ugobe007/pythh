@@ -22,20 +22,14 @@ jobs:
           echo "::error::GEMINI_API_KEY repository secret is required for Signal Art raster generation."
           exit 1
         fi
-        set +e
+        export SIGNAL_ART_REQUIRE_GEMINI=1
+        node scripts/art-gemini-probe.mjs
         PYTHH_ART_REFRESH_STALE=1 node scripts/generate-pythh-art.mjs
         gen=$?
-        node scripts/sync-art-editions-local.mjs
-        sync=$?
-        node scripts/art-teaser-probe.mjs --base https://pythh.ai
-        probe=$?
         if [ "$gen" -ne 0 ]; then
-          echo "::warning::generate-pythh-art exited $gen"
-        fi
-        if [ "$gen" -ne 0 ] && [ "$sync" -ne 0 ]; then
+          echo "::error::generate-pythh-art failed — Gemini raster required (check AI Studio billing)"
           exit 1
         fi
-        if [ "$probe" -ne 0 ]; then
-          echo "::warning::art teaser probe failed after generation"
-        fi
+        node scripts/sync-art-editions-local.mjs
+        node scripts/art-teaser-probe.mjs --base https://pythh.ai
       timeout_minutes: 25

@@ -13,6 +13,10 @@ const { generateArtCopy } = require('./signalArtCopy');
 const { generateAndPersistRaster, getGeminiApiKey, deriveThumbnailUrl } = require('./signalArtGemini');
 const { persistSvgAsRaster } = require('./signalArtSvgFallback');
 
+function svgFallbackEnabled() {
+  return process.env.SIGNAL_ART_SVG_FALLBACK === '1';
+}
+
 const VOID = '#050508';
 const VOID_EDGE = '#0a0a0c';
 const MIST = 'rgba(255,255,255,0.06)';
@@ -435,18 +439,22 @@ function generateSvg(snapshot, seed) {
   return { svg: parts.join('\n'), params: plan, signalArt };
 }
 
-async function tryRasterWithSvgFallback({ editionDate, imageBrief, svg, repoRoot, preferSvgOnly = false }) {
+async function tryRasterWithSvgFallback({ editionDate, imageBrief, svg, repoRoot }) {
   if (process.env.SIGNAL_ART_RASTER === '0') {
     return { ok: false, reason: 'skipped' };
   }
 
-  if (!preferSvgOnly && imageBrief?.visualPrompt) {
+  if (imageBrief?.visualPrompt) {
     const gemini = await generateAndPersistRaster({ editionDate, imageBrief, repoRoot });
     if (gemini.ok) return gemini;
     console.warn(
-      `[signal-art] Gemini raster failed (${gemini.reason}) — trying SVG fallback`,
+      `[signal-art] Gemini raster failed (${gemini.reason})`,
       gemini.error || gemini.hint || '',
     );
+    if (!svgFallbackEnabled()) {
+      return { ok: false, ...gemini };
+    }
+    console.warn('[signal-art] SIGNAL_ART_SVG_FALLBACK=1 — using SVG composition fallback');
   }
 
   if (!svg?.trim()) {
@@ -550,7 +558,11 @@ async function ensureArtEditionRaster(row, { repoRoot = null } = {}) {
   let raster_url = row.raster_url ?? snap.raster_url ?? null;
   let thumbnail_url = row.thumbnail_url ?? snap.thumbnail_url ?? null;
 
-  if (raster_url && thumbnail_url) {
+  const provider = row.raster_provider ?? snap.raster_provider ?? null;
+  const hasSvgFallbackOnly =
+    provider === 'svg_fallback' && raster_url && thumbnail_url && !svgFallbackEnabled();
+
+  if (raster_url && thumbnail_url && !hasSvgFallbackOnly) {
     return {
       ...row,
       raster_url,
@@ -562,26 +574,16 @@ async function ensureArtEditionRaster(row, { repoRoot = null } = {}) {
   if (process.env.SIGNAL_ART_RASTER === '0') return row;
 
   const imageBrief = snap.image_brief;
-  const priorError = snap.raster_error;
-  const priorReason = priorError?.reason;
-  const skipGemini =
-    priorReason === 'tier_upgrade_required' ||
-    (priorReason === 'missing_api_key' && !getGeminiApiKey());
-
-  let raster;
-  if (skipGemini && row.svg) {
-    raster = await persistSvgAsRaster({ editionDate: row.edition_date, svg: row.svg, repoRoot });
-  } else if (imageBrief?.visualPrompt || row.svg) {
-    raster = await tryRasterWithSvgFallback({
-      editionDate: row.edition_date,
-      imageBrief,
-      svg: row.svg,
-      repoRoot,
-      preferSvgOnly: skipGemini,
-    });
-  } else {
+  if (!imageBrief?.visualPrompt && !row.svg) {
     return row;
   }
+
+  const raster = await tryRasterWithSvgFallback({
+    editionDate: row.edition_date,
+    imageBrief,
+    svg: row.svg,
+    repoRoot,
+  });
 
   if (!raster.ok) {
     snap.raster_error = {

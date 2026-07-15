@@ -188,9 +188,14 @@ export default function Art() {
               · PYTHIA artist statement
             </span>
           )}
-          {edition?.raster_provider && (
+          {edition?.raster_provider === 'gemini' && (
             <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: GOLD }}>
               · Google AI Studio
+            </span>
+          )}
+          {edition?.raster_provider === 'svg_fallback' && (
+            <span className="ml-2 text-[10px] font-mono uppercase tracking-widest" style={{ color: DIM }}>
+              · SVG composition (Gemini unavailable)
             </span>
           )}
         </p>

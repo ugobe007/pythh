@@ -79,9 +79,12 @@ async function main() {
 
   if (existing && !FORCE) {
     const enriched = enrichArtRowFromFilesystem(existing, repoRoot);
-    const hasRaster = enriched.raster_url ?? enriched.signal_snapshot?.raster_url;
+    const snap = enriched.signal_snapshot || {};
+    const provider = enriched.raster_provider ?? snap.raster_provider;
+    const hasRaster = enriched.raster_url ?? snap.raster_url;
+    const needsGeminiRegen = hasRaster && provider === 'svg_fallback' && !process.env.SIGNAL_ART_SVG_FALLBACK;
 
-    if (hasRaster) {
+    if (hasRaster && !needsGeminiRegen) {
       if (process.env.PYTHH_ART_REFRESH_STALE === '1') {
         const refreshed = await refreshStaleTodayEdition(enriched, {
           repoRoot,
@@ -103,20 +106,24 @@ async function main() {
       return;
     }
 
-    console.log(`[pythh-art] ${today} exists without raster — backfilling…`);
-    const backfilled = await ensureArtEditionRaster(enriched, { repoRoot });
-    const raster = backfilled.raster_url ?? backfilled.signal_snapshot?.raster_url;
-    if (raster) {
-      await persistLocalEdition(backfilled);
-      try {
-        await saveArtEdition(backfilled);
-      } catch (e) {
-        console.warn('[pythh-art] Backfill save failed (local copy kept):', e.message);
+    if (needsGeminiRegen) {
+      console.log(`[pythh-art] ${today} has svg_fallback raster — regenerating via Gemini…`);
+    } else if (!hasRaster) {
+      console.log(`[pythh-art] ${today} exists without raster — backfilling…`);
+      const backfilled = await ensureArtEditionRaster(enriched, { repoRoot });
+      const raster = backfilled.raster_url ?? backfilled.signal_snapshot?.raster_url;
+      if (raster) {
+        await persistLocalEdition(backfilled);
+        try {
+          await saveArtEdition(backfilled);
+        } catch (e) {
+          console.warn('[pythh-art] Backfill save failed (local copy kept):', e.message);
+        }
+        console.log(`[pythh-art] Backfill OK: ${raster}`);
+        return;
       }
-      console.log(`[pythh-art] Backfill OK: ${raster}`);
-      return;
+      console.warn('[pythh-art] Backfill failed — generating fresh edition');
     }
-    console.warn('[pythh-art] Backfill failed — generating fresh edition');
   }
 
   let edition;
@@ -132,7 +139,9 @@ async function main() {
     console.error('[pythh-art] Generation failed:', e.message || e);
     if (existing) {
       console.warn('[pythh-art] Keeping previous edition for today');
-      process.exitCode = 0;
+      if (process.env.GITHUB_ACTIONS === 'true' || process.env.SIGNAL_ART_REQUIRE_GEMINI === '1') {
+        process.exitCode = 1;
+      }
       return;
     }
     throw e;
@@ -141,6 +150,15 @@ async function main() {
   console.log(`[pythh-art] Edition ${edition.edition_date} · seed=${edition.seed}`);
   if (edition.raster_url) {
     console.log(`[pythh-art] Raster (${edition.raster_provider || 'gemini'}): ${edition.raster_url}`);
+  } else if (edition.signal_snapshot?.raster_error) {
+    const err = edition.signal_snapshot.raster_error;
+    console.error(`[pythh-art] Raster missing: ${err.reason} — ${err.error || err.hint || ''}`);
+    if (process.env.GITHUB_ACTIONS === 'true' || process.env.SIGNAL_ART_REQUIRE_GEMINI === '1') {
+      process.exitCode = 1;
+    }
+  } else if (process.env.GITHUB_ACTIONS === 'true' || process.env.SIGNAL_ART_REQUIRE_GEMINI === '1') {
+    console.error('[pythh-art] Raster missing — Gemini required in CI');
+    process.exitCode = 1;
   }
 
   await persistLocalEdition(edition);

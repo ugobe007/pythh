@@ -14,10 +14,11 @@ const STORAGE_BUCKET = process.env.SIGNAL_ART_STORAGE_BUCKET || 'pythh-art';
 const TIER_UPGRADE_URL = 'https://ai.dev/projects';
 
 const GEMINI_IMAGE_MODELS = [
-  process.env.SIGNAL_ART_IMAGE_MODEL || 'gemini-3.1-flash-image',
+  process.env.SIGNAL_ART_IMAGE_MODEL || 'gemini-2.5-flash-image',
+  'gemini-3.1-flash-image',
   'gemini-2.5-flash-image',
   'gemini-3-pro-image',
-].filter((m) => m && !m.startsWith('imagen'));
+].filter((m, i, arr) => m && !m.startsWith('imagen') && arr.indexOf(m) === i);
 
 const IMAGEN_MODELS = [
   process.env.SIGNAL_ART_IMAGEN_MODEL || 'imagen-4.0-fast-generate-001',
@@ -38,13 +39,23 @@ function isPaidTierRequired(err) {
   return (
     msg.includes('paid plan') ||
     msg.includes('ai.dev/projects') ||
+    msg.includes('ai.studio/projects') ||
+    msg.includes('prepayment credits are depleted') ||
+    msg.includes('billing') && msg.includes('depleted') ||
     msg.includes('limit: 0') ||
     msg.includes('not enough quota')
   );
 }
 
-function tierUpgradeHint() {
-  return `Upgrade this project to Tier 1 at ${TIER_UPGRADE_URL} (GCP billing alone is not enough — link billing in AI Studio Projects).`;
+function billingBlockedHint(err) {
+  const msg = (err?.message || '').toLowerCase();
+  if (msg.includes('prepayment credits are depleted')) {
+    return 'Add prepay credits at https://ai.studio/projects (Gemini API billing). SVG fallback is disabled in production.';
+  }
+  if (isPaidTierRequired(err)) {
+    return tierUpgradeHint();
+  }
+  return 'Check GEMINI_API_KEY and image model access in AI Studio.';
 }
 
 const { SIGNAL_ART } = require('./signalArtDirection');
@@ -138,10 +149,17 @@ async function callInteractionsApi(model, prompt, apiKey) {
   return { ...image, model: `${model} (interactions)` };
 }
 
+function tierUpgradeHint() {
+  return `Upgrade this project to Tier 1 at ${TIER_UPGRADE_URL} (GCP billing alone is not enough — link billing in AI Studio Projects).`;
+}
+
 async function callGenerateContent(model, prompt, apiKey) {
   const json = await geminiFetch(`/models/${model}:generateContent`, apiKey, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig: { aspectRatio: '1:1' },
+    },
   });
   const image = extractImageFromGenerateContent(json);
   if (!image) throw new Error('generateContent response contained no image');
@@ -165,13 +183,10 @@ async function generateGeminiRaster(imageBrief) {
   }
 
   const prompt = buildGeminiPrompt(imageBrief);
+  // Prefer generateContent (production Nano Banana API). Interactions endpoint is legacy/experimental.
   const attempts = [
     ...GEMINI_IMAGE_MODELS.map((model) => ({
       label: model,
-      run: () => callInteractionsApi(model, prompt, apiKey),
-    })),
-    ...GEMINI_IMAGE_MODELS.map((model) => ({
-      label: `${model} (generateContent)`,
       run: () => callGenerateContent(model, prompt, apiKey),
     })),
     ...IMAGEN_MODELS.map((model) => ({
@@ -181,7 +196,7 @@ async function generateGeminiRaster(imageBrief) {
   ];
 
   let lastError = null;
-  let paidTierRequired = false;
+  let billingBlocked = false;
 
   for (const { label, run } of attempts) {
     try {
@@ -195,16 +210,21 @@ async function generateGeminiRaster(imageBrief) {
       };
     } catch (e) {
       lastError = e;
-      if (isPaidTierRequired(e)) paidTierRequired = true;
+      if (isPaidTierRequired(e)) billingBlocked = true;
       console.warn(`[signal-art/gemini] ${label} failed:`, e.message?.split('\n')[0] || e.message);
     }
   }
 
+  const depleted = (lastError?.message || '').toLowerCase().includes('prepayment credits are depleted');
   return {
     ok: false,
-    reason: paidTierRequired || lastError?.status === 429 ? 'tier_upgrade_required' : 'generation_failed',
+    reason: depleted
+      ? 'billing_credits_depleted'
+      : billingBlocked || lastError?.status === 429
+        ? 'tier_upgrade_required'
+        : 'generation_failed',
     error: lastError?.message || 'Unknown error',
-    hint: paidTierRequired ? tierUpgradeHint() : 'Check GEMINI_API_KEY and model access.',
+    hint: billingBlockedHint(lastError),
   };
 }
 

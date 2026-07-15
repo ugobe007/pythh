@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Backfill SVG→JPEG previews for editions missing raster (e.g. Gemini tier limit).
+ * Backfill raster previews for editions missing raster (Gemini first; SVG only when SIGNAL_ART_SVG_FALLBACK=1).
  *
  * Usage:
  *   node scripts/backfill-art-svg-preview.mjs
@@ -54,7 +54,10 @@ async function main() {
     row = enrichArtRowFromFilesystem(row, repoRoot);
     const hasThumb = row.thumbnail_url ?? row.signal_snapshot?.thumbnail_url;
     const hasRaster = row.raster_url ?? row.signal_snapshot?.raster_url;
-    if (hasThumb && hasRaster) {
+    const provider = row.raster_provider ?? row.signal_snapshot?.raster_provider;
+    const svgOnly =
+      provider === 'svg_fallback' && hasThumb && hasRaster && process.env.SIGNAL_ART_SVG_FALLBACK !== '1';
+    if (hasThumb && hasRaster && !svgOnly) {
       console.log(`[art-svg-backfill] ${date} already has preview`);
       skip++;
       continue;
