@@ -170,6 +170,8 @@ async function main() {
           'scripts/enrich-sparse-startups.js',
           '--gate-needs-url-only',
           '--html-only',
+          '--no-require-signal',
+          '--god-score-below=100',
           `--limit=${opts.urlResolveLimit}`,
         ],
         'enrich-sparse-url-before-junk',

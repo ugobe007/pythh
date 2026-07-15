@@ -1,4 +1,4 @@
-# Sparse startup enrichment (formerly PM2 startup-enrichment-worker every 2h).
+# Startup enrichment: entity gate → URL resolve → qualified enrich (replaces no-url-only cron).
 name: Startup Enrichment Batch
 
 on:
@@ -15,5 +15,15 @@ jobs:
     uses: ./.github/workflows/reusable-node-batch.yml
     secrets: inherit
     with:
-      run: node scripts/enrich-sparse-startups.js --limit=200 --no-url-only
-      timeout_minutes: 45
+      run: >-
+        node scripts/cron/startup-data-tightening.js
+        --run-entity-gate
+        --sparse-limit=200
+        --sparse-html-only
+        --sparse-god-score-below=100
+        --url-resolve-limit=200
+        --skip-rss
+        --skip-garbage
+        --skip-exit-propensity
+        --skip-dq-report
+      timeout_minutes: 120
