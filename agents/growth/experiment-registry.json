@@ -218,6 +218,40 @@
       "promotion_note": "Reallocated 2026-06-25: email_first 70%, short_form 20%, thesis_deep 10% holdout — fix 1/34 completion leak."
     },
     {
+      "id": "founder_explain_intro_cta",
+      "audience": "founder",
+      "name": "Inline intro CTA inside match-explain evidence",
+      "status": "draft",
+      "parent_experiment": "founder_hero_entry",
+      "applies_when": "variant_key=matches_preview",
+      "hypothesis": "Placing the intro CTA at the END of the 'Why this investor' evidence bullets — the moment of peak conviction — converts more explain-readers to intro intent than the separate right-column intro button, which drew 9 explain reads and 0 intros over 7d.",
+      "loops": ["match_explain", "preview_cliffhanger"],
+      "variants": [
+        {
+          "key": "inline_explain_intro",
+          "traffic_pct": 100,
+          "schema": {
+            "cta_placement": "end_of_evidence_bullets",
+            "fires": "match_explain_intro_clicked",
+            "then": "handleGate('intro')"
+          },
+          "copy": {
+            "cta": "Ask for a warm intro to {first_name} →",
+            "footer": "Free — Peter drafts it from the evidence above."
+          },
+          "guardrails": {
+            "no_fabricated_evidence": true,
+            "source": "why_you_match"
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "match_explain_intro_clicked",
+        "secondary": ["match_intro_requested", "founder_signup_started"]
+      },
+      "promotion_note": "DRAFT 2026-07-16 — shipped in site/ (report-only). Promote to running once match_explain_intro_clicked / match_explain_viewed > 8% over 7d and match_intro_requested moves off 0."
+    },
+    {
       "id": "pricing_oracle_cta",
       "audience": "founder",
       "name": "Oracle pricing page CTA",

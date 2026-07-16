@@ -471,6 +471,8 @@ export default function InstantMatchPreview({ url }: Props) {
                     matchScore={m.match_score}
                     rank={i}
                     source="instant_match_preview"
+                    onIntro={gatedInvestor ? () => void handleGate('intro', gatedInvestor) : undefined}
+                    introLabel={i === 0 ? `Ask for a warm intro to ${inv?.name?.split(' ')[0] || 'this partner'} →` : undefined}
                   />
                 )}
               </div>

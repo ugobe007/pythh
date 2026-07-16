@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Send } from 'lucide-react';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
 
 type Props = {
@@ -14,6 +14,9 @@ type Props = {
   matchScore?: number;
   rank: number;
   source?: string;
+  /** When provided, an intro CTA renders at the end of the evidence — the match_explain loop's next action. */
+  onIntro?: () => void;
+  introLabel?: string;
 };
 
 export function parseExplainBullets(text: string | null | undefined): string[] {
@@ -32,10 +35,29 @@ export default function MatchExplainBlock({
   matchScore,
   rank,
   source = 'instant_match_preview',
+  onIntro,
+  introLabel,
 }: Props) {
   const [open, setOpen] = useState(rank === 0);
   const bullets = parseExplainBullets(whyYouMatch);
   const viewedRef = useRef(false);
+
+  const handleExplainIntro = () => {
+    if (!onIntro) return;
+    void trackFunnelEventOnce(
+      `match_explain_intro:${startupId}:${investorId ?? 'top'}`,
+      'match_explain_intro_clicked',
+      {
+        startup_id: startupId,
+        investor_id: investorId,
+        investor_name: investorName,
+        rank,
+        match_score: matchScore,
+        source,
+      },
+    );
+    onIntro();
+  };
 
   const trackExplainViewed = () => {
     if (!investorId || viewedRef.current) return;
@@ -84,6 +106,19 @@ export default function MatchExplainBlock({
             </li>
           ))}
         </ul>
+      )}
+      {open && onIntro && (
+        <div className="mt-2 pl-3">
+          <button
+            type="button"
+            onClick={handleExplainIntro}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300"
+          >
+            <Send className="w-3 h-3" />
+            {introLabel || 'Ask for a warm intro →'}
+          </button>
+          <p className="mt-1 text-[10px] text-zinc-500">Free — Peter drafts it from the evidence above.</p>
+        </div>
       )}
     </div>
   );
