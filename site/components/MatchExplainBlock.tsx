@@ -10,7 +10,7 @@ type Props = {
   startupId: string;
   investorId?: string;
   investorName?: string;
-  whyYouMatch?: string | null;
+  whyYouMatch?: string | string[] | null;
   matchScore?: number;
   rank: number;
   source?: string;
@@ -19,11 +19,21 @@ type Props = {
   introLabel?: string;
 };
 
-export function parseExplainBullets(text: string | null | undefined): string[] {
-  if (!text?.trim()) return [];
-  const byBullet = text.split(/\s*[·•]\s*|\n+/).map((s) => s.trim()).filter(Boolean);
+/** DB stores why_you_match as string[]; preview/API may return string or array. */
+export function normalizeWhyYouMatch(raw: string | string[] | null | undefined): string {
+  if (raw == null) return '';
+  if (Array.isArray(raw)) {
+    return raw.map((s) => String(s).trim()).filter(Boolean).join(' · ');
+  }
+  return String(raw).trim();
+}
+
+export function parseExplainBullets(text: string | string[] | null | undefined): string[] {
+  const normalized = normalizeWhyYouMatch(text);
+  if (!normalized) return [];
+  const byBullet = normalized.split(/\s*[·•]\s*|\n+/).map((s) => s.trim()).filter(Boolean);
   if (byBullet.length >= 2) return byBullet.slice(0, 3);
-  const sentences = text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  const sentences = normalized.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
   return sentences.slice(0, 3);
 }
 
@@ -39,6 +49,7 @@ export default function MatchExplainBlock({
   introLabel,
 }: Props) {
   const [open, setOpen] = useState(rank === 0);
+  const whyText = normalizeWhyYouMatch(whyYouMatch);
   const bullets = parseExplainBullets(whyYouMatch);
   const viewedRef = useRef(false);
 
@@ -61,7 +72,7 @@ export default function MatchExplainBlock({
 
   const trackExplainViewed = () => {
     if (!investorId || viewedRef.current) return;
-    if (!bullets.length && !whyYouMatch?.trim()) return;
+    if (!bullets.length && !whyText) return;
     viewedRef.current = true;
     void trackFunnelEventOnce(
       `match_explain:${startupId}:${investorId}`,
@@ -86,7 +97,7 @@ export default function MatchExplainBlock({
     setOpen((prev) => !prev);
   };
 
-  if (!bullets.length && !whyYouMatch) return null;
+  if (!bullets.length && !whyText) return null;
 
   return (
     <div className="mt-2">
@@ -100,7 +111,7 @@ export default function MatchExplainBlock({
       </button>
       {open && (
         <ul className="mt-2 space-y-1 pl-3 border-l border-zinc-700/80">
-          {(bullets.length ? bullets : [whyYouMatch!]).map((line, i) => (
+          {(bullets.length ? bullets : [whyText]).map((line, i) => (
             <li key={i} className="text-xs text-zinc-400 leading-relaxed">
               {line}
             </li>

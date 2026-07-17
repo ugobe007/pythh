@@ -15,7 +15,7 @@ import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorCon
 import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
 import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
-import MatchExplainBlock from '@/components/MatchExplainBlock';
+import MatchExplainBlock, { normalizeWhyYouMatch } from '@/components/MatchExplainBlock';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
@@ -37,7 +37,7 @@ function primarySignupLabel(shownCount: number): string {
 type PreviewMatch = {
   investor_id?: string;
   match_score?: number;
-  why_you_match?: string;
+  why_you_match?: string | string[];
   investor_class?: 'angel' | 'vc';
   investor?: {
     id?: string;
@@ -550,7 +550,9 @@ export default function InstantMatchPreview({ url }: Props) {
                   </span>
                 </div>
                 {m.why_you_match && (
-                  <p className="text-xs text-zinc-400 mt-1 line-clamp-2 sm:hidden">{m.why_you_match}</p>
+                  <p className="text-xs text-zinc-400 mt-1 line-clamp-2 sm:hidden">
+                    {normalizeWhyYouMatch(m.why_you_match)}
+                  </p>
                 )}
                 {preview.startup?.id && (
                   <MatchExplainBlock
