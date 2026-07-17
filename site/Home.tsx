@@ -22,11 +22,14 @@ import {
   G_BORDER, G_SUBTLE, G_HOVER, BAR_GREY,
   deltaColor, godScoreColor,
 } from "@/lib/designTokens";
-import {
-  fetchGrowthAssignment,
-  type GrowthAssignment,
-} from "@/lib/growthExperiment";
+import { type GrowthAssignment } from "@/lib/growthExperiment";
 import { trackUrlSubmitted, getUtmParams, trackReturnVisitIfEligible } from "@/lib/funnelAttribution";
+import {
+  loadHeroExperiments,
+  mergeHeroHeadlineCopy,
+  trackHeroHeadlineExposure,
+  trackHeroUrlSubmitted,
+} from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import {
   ArrowRight,
@@ -289,10 +292,17 @@ function HeroSection({
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
+  const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    fetchGrowthAssignment("founder").then(setFounderExperiment).catch(() => {});
+    loadHeroExperiments()
+      .then(({ entry, headline }) => {
+        setFounderExperiment(entry);
+        setHeadlineExperiment(headline);
+        trackHeroHeadlineExposure(headline, '/');
+      })
+      .catch(() => {});
   }, []);
 
   // Clear any stale session so returning visitors don't get auto-sent to scanning
@@ -311,6 +321,7 @@ function HeroSection({
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
+    trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
     const entry = founderExperiment?.schema?.entry as string | undefined;
     if (entry === "url") {
       navigate("/activate");
@@ -325,19 +336,11 @@ function HeroSection({
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
   const entry = founderExperiment?.schema?.entry as string | undefined;
-  const heroCopy = (founderExperiment?.copy ?? {}) as {
-    headline?: string;
-    cta?: string;
-    subline?: string;
-  };
   const previewFirst = entry === 'url_with_preview';
-  const heroHeadline = heroCopy.headline || (previewFirst ? 'Find investors that match your signals.' : 'Find investors that match your thesis.');
-  const heroSubline =
-    heroCopy.subline ||
-    (previewFirst
-      ? 'Paste your URL — ranked shortlist in ~20 seconds. Free preview.'
-      : 'Submit your URL. Pythh reads your signals, matches you to top investors and automates your funding round.');
-  const heroCta = heroCopy.cta || (previewFirst ? 'See my matches' : 'Find my investors');
+  const { headline: heroHeadline, subline: heroSubline, cta: heroCta } = mergeHeroHeadlineCopy(
+    founderExperiment,
+    headlineExperiment,
+  );
   const formLabel = previewFirst ? 'Your startup URL' : 'Submit your startup URL';
   const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
   const latestMatch = recentMatches[0] ?? null;

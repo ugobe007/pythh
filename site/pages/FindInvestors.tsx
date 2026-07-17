@@ -9,8 +9,14 @@ import { useLocation } from 'wouter';
 import { ArrowRight, CheckCircle2, Users, Zap, Target, TrendingUp } from 'lucide-react';
 import SharedNavbar from '@/components/SharedNavbar';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
-import { fetchGrowthAssignment } from '@/lib/growthExperiment';
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from '@/lib/funnelAttribution';
+import {
+  loadHeroExperiments,
+  mergeHeroHeadlineCopy,
+  trackHeroHeadlineExposure,
+  trackHeroUrlSubmitted,
+} from '@/lib/heroHeadlineExperiment';
+import type { GrowthAssignment } from '@/lib/growthExperiment';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -32,6 +38,20 @@ export default function FindInvestors() {
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [spotlight, setSpotlight] = useState<ThesisSpotlight | null>(null);
+  const [entryExperiment, setEntryExperiment] = useState<GrowthAssignment | null>(null);
+  const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
+
+  useEffect(() => {
+    loadHeroExperiments()
+      .then(({ entry, headline }) => {
+        setEntryExperiment(entry);
+        setHeadlineExperiment(headline);
+        trackHeroHeadlineExposure(headline, '/find-investors');
+      })
+      .catch(() => {});
+  }, []);
+
+  const heroCopy = mergeHeroHeadlineCopy(entryExperiment, headlineExperiment);
 
   useEffect(() => {
     void trackFunnelEventOnce('pythh_find_investors_view', 'page_view', {
@@ -57,8 +77,8 @@ export default function FindInvestors() {
       return;
     }
     setError(false);
-    const assignment = await fetchGrowthAssignment('founder').catch(() => null);
-    trackUrlSubmitted(normalized, 'find_investors_landing', assignment);
+    trackUrlSubmitted(normalized, 'find_investors_landing', entryExperiment);
+    trackHeroUrlSubmitted(normalized, 'find_investors_landing', headlineExperiment);
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
@@ -89,10 +109,10 @@ export default function FindInvestors() {
           No warm intro required
         </p>
         <h1 className="text-3xl sm:text-5xl font-bold text-white leading-tight mb-4">
-          Find investors that match your signals.
+          {heroCopy.headline}
         </h1>
         <p className="text-lg text-zinc-400 mb-8 max-w-2xl leading-relaxed">
-          Paste your URL. Get a ranked shortlist in ~20 seconds — free preview, then track investors with a free account.
+          {heroCopy.subline}
         </p>
 
         {spotlight?.featured_sector && typeof spotlight.god70_plus === 'number' && (
@@ -147,7 +167,7 @@ export default function FindInvestors() {
               type="submit"
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
             >
-              See my matches
+              {heroCopy.cta}
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

@@ -187,6 +187,54 @@
       }
     },
     {
+      "id": "founder_hero_headline_speed",
+      "audience": "founder",
+      "name": "Hero headline speed vs signal-fit (Startups.com benchmark)",
+      "status": "running",
+      "parent_experiment": "founder_hero_entry",
+      "benchmark": "startups_com",
+      "applies_when": "home_hero or find_investors_landing",
+      "hypothesis": "Startups.com wins with outcome speed framing ('Raise Capital 10x Faster'). Pythh variants that combine speed + signal-fit specificity will lift url_submitted and instant_matches_viewed vs generic thesis headline — without volume hype.",
+      "loops": ["outbound_find_investors", "preview_cliffhanger"],
+      "variants": [
+        {
+          "key": "control_signals",
+          "traffic_pct": 34,
+          "schema": { "framing": "control", "benchmark_arm": "pythh_baseline" },
+          "copy": {
+            "headline": "Find investors that match your signals.",
+            "subline": "Paste your URL — ranked shortlist in ~20 seconds. Free preview.",
+            "cta": "See my matches"
+          }
+        },
+        {
+          "key": "speed_signal_fit",
+          "traffic_pct": 33,
+          "schema": { "framing": "speed", "benchmark_arm": "startups_com_10x_mirror" },
+          "copy": {
+            "headline": "Raise capital faster with signal-fit investors.",
+            "subline": "Paste your URL — see who matches your signals in ~20 seconds, not a generic investor dump.",
+            "cta": "See my matches"
+          }
+        },
+        {
+          "key": "sixty_second_shortlist",
+          "traffic_pct": 33,
+          "schema": { "framing": "immediate_outcome", "benchmark_arm": "see_my_matches_parity" },
+          "copy": {
+            "headline": "See your signal-fit investors in 60 seconds.",
+            "subline": "Top ranked matches plus thesis evidence — free preview before you create an account.",
+            "cta": "See my matches"
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_url_submitted",
+        "secondary": ["hero_headline_viewed", "instant_matches_viewed", "founder_signup_started"]
+      },
+      "promotion_note": "Running 2026-07-17 — Home + /find-investors; CTA held constant to isolate headline."
+    },
+    {
       "id": "founder_preview_gate_cta",
       "audience": "founder",
       "name": "Preview gate CTA copy",
