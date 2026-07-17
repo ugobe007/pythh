@@ -15,7 +15,8 @@ import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorCon
 import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
 import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
-import MatchExplainBlock, { normalizeWhyYouMatch } from '@/components/MatchExplainBlock';
+import MatchExplainBlock from '@/components/MatchExplainBlock';
+import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
@@ -37,7 +38,7 @@ function primarySignupLabel(shownCount: number): string {
 type PreviewMatch = {
   investor_id?: string;
   match_score?: number;
-  why_you_match?: string | string[];
+  why_you_match?: string | null;
   investor_class?: 'angel' | 'vc';
   investor?: {
     id?: string;

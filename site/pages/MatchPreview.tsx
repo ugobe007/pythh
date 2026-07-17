@@ -8,6 +8,7 @@ import { Helmet } from 'react-helmet-async';
 import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
 import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
+import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
 import { getUtmParams, trackReturnVisitIfEligible } from '@/lib/funnelAttribution';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
@@ -199,7 +200,9 @@ export default function MatchPreview() {
                   {formatInvestorDisplayLabel(m.investor.name, m.investor.firm)}
                 </span>
                 {m.why_you_match && (
-                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{m.why_you_match}</p>
+                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
+                    {normalizeWhyYouMatch(m.why_you_match)}
+                  </p>
                 )}
               </div>
               <div className="flex items-center gap-3 shrink-0">

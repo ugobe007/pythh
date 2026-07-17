@@ -3,6 +3,7 @@
  * ═══════════════════════════════════════════════════════════════
  * Public, no-auth endpoint for the shareable match preview page.
  * Returns startup info + top investor matches (unique firm; up to 10 for preview UI).
+ * Match rows are shaped via lib/canonicalMatchApi.js (string why_you_match, stable investor fields).
  * Serves startups that are visible to the product (approved, pending, etc.).
  * Rejected rows are excluded so share links cannot revive spam.
  * ═══════════════════════════════════════════════════════════════
@@ -18,11 +19,11 @@ const supabase = createClient(
 );
 
 const {
-  buildMixedInvestorShortlist,
-  defaultPreviewMixOptions,
-  normalizeMixParam,
-  annotateMatchesWithInvestorClass,
-} = require('../../lib/mixedInvestorShortlist');
+  shapeMatchForApi,
+  buildPreviewMatchList,
+  resolvePreviewMixOptions,
+  summarizeShortlistMix,
+} = require('../../lib/canonicalMatchApi');
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
@@ -459,11 +460,17 @@ router.get('/:startupId/investor/:investorId', async (req, res) => {
       return res.status(404).json({ error: 'Match not found' });
     }
 
+    const shaped = shapeMatchForApi({ ...row, investor_id: investorId });
+    if (!shaped) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
     return res.json({
-      match_score: row.match_score,
-      why_you_match: row.why_you_match,
-      reasoning: row.reasoning,
-      fit_analysis: row.fit_analysis ?? null,
+      match_score: shaped.match_score,
+      why_you_match: shaped.why_you_match,
+      reasoning: shaped.reasoning,
+      fit_analysis: shaped.fit_analysis ?? null,
+      investor_class: shaped.investor_class,
     });
   } catch (err) {
     console.error('[preview] investor match error:', err);
@@ -510,14 +517,11 @@ router.get('/:startupId', async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .eq('startup_id', startupId);
 
-    const mixParam = normalizeMixParam(req.query.investor_class || req.query.investor_mix);
-    const previewMix = defaultPreviewMixOptions(startup, 10);
-    const mixOptions = {
-      total: previewMix.total,
-      mix: mixParam === 'balanced' ? previewMix.mix : mixParam,
-      vcSlots: previewMix.vcSlots,
-      angelSlots: previewMix.angelSlots,
-    };
+    const mixOptions = resolvePreviewMixOptions(
+      startup,
+      req.query.investor_class || req.query.investor_mix,
+      10
+    );
 
     // 3. Fetch a wide slice, then mix angels + VCs (one partner per firm), keep top 10 for preview UI
     const { data: matchRows, error: mErr } = await supabase
@@ -569,28 +573,16 @@ router.get('/:startupId', async (req, res) => {
       ? Math.round(100 - ((higherCount / approvedTotal) * 100))
       : 50;
 
-    const mapped = (matchRows || [])
-      .map((row) => {
-        const raw = row.investors;
-        const investor = Array.isArray(raw) ? raw[0] : raw;
-        return {
-          investor_id: row.investor_id,
-          match_score: row.match_score,
-          why_you_match: row.why_you_match,
-          investor,
-        };
-      })
-      .filter((m) => m.investor && (m.investor.id || m.investor_id));
+    const eligibleRows = (matchRows || []).filter((row) => {
+      const inv = Array.isArray(row.investors) ? row.investors[0] : row.investors;
+      return inv && (inv.id || row.investor_id);
+    });
 
-    let matches = annotateMatchesWithInvestorClass(
-      buildMixedInvestorShortlist(mapped, mixOptions)
-    );
+    let matches = buildPreviewMatchList(eligibleRows, mixOptions);
     let suggestedInvestorFallback = false;
     if (matches.length === 0) {
       const suggested = await buildSuggestedInvestorMatches(startup);
-      matches = annotateMatchesWithInvestorClass(
-        buildMixedInvestorShortlist(suggested, { ...mixOptions, total: 5 })
-      );
+      matches = buildPreviewMatchList(suggested, { ...mixOptions, total: 5 });
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
 
@@ -648,13 +640,7 @@ router.get('/:startupId', async (req, res) => {
       },
       total_matches: totalMatches || 0,
       matches,
-      shortlist_mix: {
-        mode: mixOptions.mix,
-        vc_slots: mixOptions.vcSlots,
-        angel_slots: mixOptions.angelSlots,
-        vc_count: matches.filter((m) => m.investor_class === 'vc').length,
-        angel_count: matches.filter((m) => m.investor_class === 'angel').length,
-      },
+      shortlist_mix: summarizeShortlistMix(matches, mixOptions),
       match_movement: matchMovement,
       oracle_gap: oracleGap,
       suggested_investor_fallback: suggestedInvestorFallback,

@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Send } from 'lucide-react';
 import { trackFunnelEventOnce } from '@/lib/matchEngagement';
+import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 
 type Props = {
   startupId: string;
@@ -18,15 +19,6 @@ type Props = {
   onIntro?: () => void;
   introLabel?: string;
 };
-
-/** DB stores why_you_match as string[]; preview/API may return string or array. */
-export function normalizeWhyYouMatch(raw: string | string[] | null | undefined): string {
-  if (raw == null) return '';
-  if (Array.isArray(raw)) {
-    return raw.map((s) => String(s).trim()).filter(Boolean).join(' · ');
-  }
-  return String(raw).trim();
-}
 
 export function parseExplainBullets(text: string | string[] | null | undefined): string[] {
   const normalized = normalizeWhyYouMatch(text);

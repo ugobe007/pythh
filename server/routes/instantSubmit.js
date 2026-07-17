@@ -65,6 +65,7 @@ const {
 } = require('../../lib/proprietaryTechAssessment');
 const { applyStageInvestorFitAdjustment } = require('../../lib/stageInvestorFit');
 const { applyInvestorRecencyAdjustment } = require('../../lib/matchInvestorRecency');
+const { shapeMatchListForApi } = require('../../lib/canonicalMatchApi');
 const intel = require('../services/submitUrlIntelligence');
 const { isJunkUrl } = require('../../lib/junk-url-config');
 const { enrichSocialScore } = require('../services/newsSignalService');
@@ -2832,7 +2833,7 @@ router.get('/results', async (req, res) => {
     return res.status(200).json({
       startup_id: startupId,
       startup: startupForClient,
-      matches: matches || [],
+      matches: shapeMatchListForApi(matches || []),
       match_count: matchCount || 0,
       shared: true,
     });
