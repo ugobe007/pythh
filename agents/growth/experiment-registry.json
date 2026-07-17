@@ -35,7 +35,40 @@
         "primary": "founder_signup_started",
         "secondary": ["founder_signup_completed", "match_intro_requested"]
       },
-      "promotion_note": "DRAFT 2026-07-17 — shipped in site/InstantMatchPreview.tsx (bug-fix routing + cliffhanger subline). Promote to running once founder_signup_started moves off 0 over 7d without match_intro_requested collapsing (intro still reachable via 5 other CTAs)."
+      "promotion_note": "Shipped 2026-07-17 — hero routes to signup. Superseded by founder_preview_primary_cta for unified outcome copy."
+    },
+    {
+      "id": "founder_preview_primary_cta",
+      "audience": "founder",
+      "name": "Single primary outcome CTA on preview",
+      "status": "running",
+      "parent_experiment": "founder_hero_entry",
+      "applies_when": "variant_key=matches_preview",
+      "hypothesis": "Preview had 6+ competing green CTAs (hero signup, Peter sticky primary, intro row, save/export row). Collapsing to ONE outcome-first primary ('See your top N signal-fit investors — free') with Peter/export as text links should lift founder_signup_started without killing match_intro_requested (intro demoted, not removed).",
+      "loops": ["preview_cliffhanger", "founder_gate_cta"],
+      "variants": [
+        {
+          "key": "outcome_primary",
+          "traffic_pct": 100,
+          "schema": {
+            "primary_action": "save",
+            "primary_framing": "outcome_count",
+            "secondary_style": "text_link",
+            "sticky_primary": "signup_only"
+          },
+          "copy": {
+            "primary": "See your top {shown} signal-fit investors — free",
+            "value_line": "Activate Pythh to build your investor pipeline",
+            "secondary_intro": "Ask Peter for intro help",
+            "secondary_export": "Export list"
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_signup_started",
+        "secondary": ["founder_signup_completed", "match_intro_requested", "instant_matches_viewed"]
+      },
+      "promotion_note": "Shipped 2026-07-17 — site/InstantMatchPreview.tsx + PeterIntroStrip secondary variant."
     },
     {
       "id": "founder_preview_oracle_gap_gate",

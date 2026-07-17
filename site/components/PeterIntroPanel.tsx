@@ -181,26 +181,41 @@ export default function PeterIntroPanel({
 export function PeterIntroStrip({
   onAskPeter,
   className = '',
+  variant = 'default',
 }: {
   onAskPeter: () => void;
   className?: string;
+  variant?: 'default' | 'secondary';
 }) {
+  const secondary = variant === 'secondary';
   return (
     <div
-      className={`rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 ${className}`}
+      className={`rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 ${
+        secondary ? 'border-zinc-800 bg-zinc-900/40' : 'border-emerald-500/25 bg-emerald-500/5'
+      } ${className}`}
     >
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-mono text-emerald-500/90 uppercase tracking-wide mb-0.5">Peter · Pythh</p>
-        <p className="text-sm text-zinc-300 leading-snug">
-          Curious why a specific investor surfaced? Peter explains conviction signals — thesis, timing, framing.
+        <p
+          className={`text-xs font-mono uppercase tracking-wide mb-0.5 ${
+            secondary ? 'text-zinc-500' : 'text-emerald-500/90'
+          }`}
+        >
+          Peter · optional
+        </p>
+        <p className="text-sm text-zinc-400 leading-snug">
+          Need thesis framing before you reach out? Peter explains why each investor surfaced.
         </p>
       </div>
       <button
         type="button"
         onClick={onAskPeter}
-        className="shrink-0 px-4 py-2 rounded-lg border border-emerald-500/40 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/10 whitespace-nowrap"
+        className={
+          secondary
+            ? 'shrink-0 text-sm text-zinc-400 hover:text-emerald-400 underline-offset-2 hover:underline whitespace-nowrap py-1'
+            : 'shrink-0 px-4 py-2 rounded-lg border border-emerald-500/40 text-emerald-400 text-sm font-semibold hover:bg-emerald-500/10 whitespace-nowrap'
+        }
       >
-        Ask Peter
+        Ask Peter for intro help
       </button>
     </div>
   );
