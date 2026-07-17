@@ -2794,16 +2794,17 @@ router.get('/results', async (req, res) => {
         .from('startup_uploads')
         .select('id, name, website, sectors, stage, total_god_score, status, description, tagline, extracted_data')
         .eq('id', startupId)
-        .eq('status', 'approved')
-        .single(),
+        .maybeSingle(),
       supabase
         .from('startup_investor_matches')
         .select('*', { count: 'exact', head: true })
-        .eq('startup_id', startupId)
-        .eq('status', 'suggested'),
+        .eq('startup_id', startupId),
     ]);
 
     if (startupErr || !startup) {
+      return res.status(404).json({ error: 'Results not found' });
+    }
+    if (String(startup.status || '').toLowerCase() === 'rejected') {
       return res.status(404).json({ error: 'Results not found' });
     }
 
@@ -2820,7 +2821,6 @@ router.get('/results', async (req, res) => {
         )
       `)
       .eq('startup_id', startupId)
-      .eq('status', 'suggested')
       .order('match_score', { ascending: false })
       .limit(50);
 

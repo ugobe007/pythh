@@ -375,7 +375,7 @@ export default function InstantMatchPreview({ url }: Props) {
       gateCtaRef.current,
       previewGateAssignment,
     );
-    navigate('/signup/founder');
+    navigate(`/signup/founder?startup_id=${encodeURIComponent(preview.startup.id)}`);
   };
 
   const investorFromMatch = (m: PreviewMatch): GatedInvestorContext | null => {

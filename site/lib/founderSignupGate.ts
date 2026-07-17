@@ -65,21 +65,30 @@ export function peekFounderGatePending(): {
 }
 
 export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
-  save: 'track your investor shortlist',
+  save: 'save and track your investor shortlist',
   intro: 'track intros to your top matches',
   export: 'export and track your match list',
   delta: 'see which investors moved toward you',
-  oracle_gap: 'see your Oracle gap map and unlock outreach',
+  oracle_gap: 'see your full match list and investor movement',
 };
 
+/** Where founders land immediately after preview-gate signup — matches first, wizard optional. */
 export function postSignupPathForAction(
   action: FounderGatedAction | null,
   startupId: string,
 ): string {
+  if (!startupId) return '/account';
+  const base = `/activate?startup_id=${encodeURIComponent(startupId)}`;
   if (action === 'intro' || action === 'export') {
-    return `/wizard/${startupId}?tab=round`;
+    return `${base}&pipeline=1`;
   }
-  return `/wizard/${startupId}`;
+  return base;
+}
+
+export function clearFounderGatePending() {
+  sessionStorage.removeItem(GATE_PENDING_KEY);
+  sessionStorage.removeItem(GATED_ACTION_KEY);
+  sessionStorage.removeItem(GATED_INVESTOR_KEY);
 }
 
 export function persistFounderGateContext(
@@ -185,7 +194,7 @@ export async function trackFounderGateCompleted(
   if (startupId && gatedAction) {
     sessionStorage.setItem(POST_SIGNUP_PATH_KEY, postSignupPathForAction(gatedAction, startupId));
   } else if (startupId) {
-    sessionStorage.setItem(POST_SIGNUP_PATH_KEY, `/wizard/${startupId}`);
+    sessionStorage.setItem(POST_SIGNUP_PATH_KEY, postSignupPathForAction('save', startupId));
   }
 
   trackFunnelEvent('lookup_signup_completed', {

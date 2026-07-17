@@ -119,6 +119,12 @@ export default function Wizard() {
   const loadGaps = useCallback(async () => {
     if (!startupId) return;
     try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const skipUnlockFlow =
+        searchParams.get("skip_unlocks") === "1" ||
+        searchParams.get("welcome") === "1" ||
+        searchParams.get("tab") === "round";
+
       const res = await fetch(`${API_BASE}/${startupId}/gaps`);
       if (!res.ok) throw new Error("Failed to load gaps");
       const data = await res.json();
@@ -146,6 +152,14 @@ export default function Wizard() {
 
       setGapTasks(pending);
       setCurrentGapIndex(0);
+
+      if (skipUnlockFlow) {
+        await loadDbTasks();
+        if (searchParams.get("tab") === "round") setActiveTab("round");
+        setPhase("tabs");
+        return;
+      }
+
       setPhase("unlock_intro");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
@@ -313,11 +327,31 @@ export default function Wizard() {
           </p>
           <button
             type="button"
-            onClick={() => setPhase("gap_cards")}
-            className="w-full py-3.5 rounded-xl text-sm font-semibold text-black"
+            onClick={async () => {
+              await loadDbTasks();
+              setActiveTab("round");
+              setPhase("tabs");
+            }}
+            className="w-full py-3.5 rounded-xl text-sm font-semibold text-black mb-3"
             style={{ background: "#22c55e" }}
           >
-            Choose my unlocks →
+            View my investor pipeline →
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/activate?startup_id=${encodeURIComponent(startupId || "")}`)}
+            className="w-full py-3 rounded-xl text-sm font-medium mb-3"
+            style={{ color: "oklch(0.55 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}
+          >
+            Back to my full match list
+          </button>
+          <button
+            type="button"
+            onClick={() => setPhase("gap_cards")}
+            className="w-full py-2.5 rounded-xl text-xs font-medium"
+            style={{ color: "oklch(0.45 0.01 264)" }}
+          >
+            Improve GOD score with readiness unlocks (optional)
           </button>
           <p className="text-[10px] mt-4" style={{ color: "oklch(0.35 0.01 264)" }}>
             Skip any unlock — only commit to what you&apos;ll actually prove

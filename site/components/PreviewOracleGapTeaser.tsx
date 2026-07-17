@@ -69,8 +69,8 @@ function defaultCopy(gap: OracleGapPayload) {
     picky: top.partner_objection
       ? `Partners screening you: ${top.partner_objection}`
       : `Oracle flagged a ${gap.weakest_component_label || 'signal'} gap — ${top.title}.`,
-    cta: 'See your gap map — free account',
-    footer: `Fix this unlock → GOD ${gap.projected_god_if_top_fix ?? gap.projected_god_score}. ${gap.total_gaps && gap.total_gaps > 1 ? `${gap.total_gaps} gaps total` : ''} · outreach unlocks in the wizard.`,
+    cta: 'Create free account — see all matches',
+    footer: 'Free account · full shortlist saved · readiness unlocks optional in wizard.',
     trial_cta: 'Start 7-day Oracle trial',
   };
 }

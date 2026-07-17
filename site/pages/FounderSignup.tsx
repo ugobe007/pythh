@@ -14,6 +14,7 @@ import {
   consumeFounderGatePending,
   consumePostSignupPath,
   peekFounderGatePending,
+  postSignupPathForAction,
   trackFounderGateCompleted,
   FOUNDER_GATE_ACTION_LABELS,
   type FounderGatedAction,
@@ -38,7 +39,10 @@ export default function FounderSignup() {
     () => sessionStorage.getItem('pythia_url') || readQueryParam('url'),
   );
   const [startupId] = useState(
-    () => sessionStorage.getItem('pythia_startup_id') || readQueryParam('startup_id'),
+    () =>
+      sessionStorage.getItem('pythia_startup_id') ||
+      readQueryParam('startup_id') ||
+      readQueryParam('startupId'),
   );
   const fromGate = gate.pending && Boolean(gate.action);
   const gateAction = gate.action as FounderGatedAction | null;
@@ -51,13 +55,23 @@ export default function FounderSignup() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) return;
+
+    const pendingGate = peekFounderGatePending();
+    if (pendingGate.pending && startupId) {
+      const { action: consumedAction } = consumeFounderGatePending();
+      const resolvedAction = consumedAction ?? pendingGate.action ?? 'save';
+      const post = postSignupPathForAction(resolvedAction, startupId);
+      navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
+      return;
+    }
+
     const post = consumePostSignupPath();
     if (post) {
       navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
       return;
     }
     if (startupId) {
-      navigate(`/wizard/${startupId}?welcome=1`);
+      navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
       return;
     }
     navigate('/account?welcome=1');

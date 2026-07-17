@@ -84,10 +84,24 @@ export type InstantResultsPayload = {
 /** Load existing preview/scan results without re-running the pipeline. */
 export async function fetchInstantResults(startupId: string): Promise<InstantResultsPayload | null> {
   try {
-    const res = await fetch(`/api/instant/results?startup_id=${encodeURIComponent(startupId)}`);
+    const res = await fetch(apiUrl(`/api/instant/results?startup_id=${encodeURIComponent(startupId)}`));
     const data = (await res.json().catch(() => ({}))) as InstantResultsPayload & { error?: string };
-    if (!res.ok || !data.startup_id) return null;
-    return data;
+    if (res.ok && data.startup_id) return data;
+
+    const previewRes = await fetch(apiUrl(`/api/preview/${encodeURIComponent(startupId)}?source=post_signup`));
+    if (!previewRes.ok) return null;
+    const preview = (await previewRes.json()) as {
+      startup?: Record<string, unknown>;
+      matches?: unknown[];
+      total_matches?: number;
+    };
+    if (!preview.startup) return null;
+    return {
+      startup_id: startupId,
+      startup: preview.startup,
+      matches: preview.matches ?? [],
+      match_count: preview.total_matches ?? preview.matches?.length ?? 0,
+    };
   } catch {
     return null;
   }
