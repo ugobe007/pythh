@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
 import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
+import { buildOrchestratorSystemPrompt } from './lib/orchestratorPersona.mjs';
 
 dotenv.config();
 
@@ -109,7 +110,7 @@ async function runAgent() {
   console.log(`   maxTurns=${MAX_TURNS} maxBudget=$${MAX_BUDGET}\n`);
 
   for await (const message of query({
-    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot),
+    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot, 'product'),
     options: {
       cwd: repoRoot,
       allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'],
@@ -117,8 +118,7 @@ async function runAgent() {
       settingSources: ['project'],
       maxTurns: MAX_TURNS,
       maxBudgetUsd: MAX_BUDGET,
-      systemPrompt:
-        'You are the chief product agent for pythh.ai. Be data-driven. One shippable decision per run. Prefer instrumentation before new features when metrics are blind.',
+      systemPrompt: buildOrchestratorSystemPrompt(repoRoot, 'product'),
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {

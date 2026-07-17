@@ -45,15 +45,41 @@ function detectUnshippedAgentNotes(agentRuns) {
 
 function latestBrief(repoRoot) {
   const dir = path.join(repoRoot, 'agents', 'research', 'briefs');
-  if (!fs.existsSync(dir)) return null;
-  const files = fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('-market-brief.md') && !f.startsWith('_'))
-    .sort()
-    .reverse();
-  if (!files.length) return null;
-  const file = path.join(dir, files[0]);
-  return { file: files[0], content: fs.readFileSync(file, 'utf8') };
+  if (fs.existsSync(dir)) {
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('-market-brief.md') && !f.startsWith('_'))
+      .sort()
+      .reverse();
+    if (files.length) {
+      const file = path.join(dir, files[0]);
+      return { file: files[0], content: fs.readFileSync(file, 'utf8'), source: 'briefs' };
+    }
+  }
+
+  const reportsDir = path.join(repoRoot, 'reports');
+  const snapshot = latestReport(reportsDir, 'research-snapshot-');
+  if (snapshot?.headline || snapshot?.top_finding) {
+    return {
+      file: 'research-snapshot (latest)',
+      content: snapshot.headline || snapshot.top_finding,
+      source: 'snapshot',
+    };
+  }
+
+  const agentRun = latestReport(reportsDir, 'research-agent-run-') || latestReport(reportsDir, 'research-agent-');
+  if (agentRun?.result) {
+    const text = typeof agentRun.result === 'string' ? agentRun.result : agentRun.result.summary;
+    if (text) {
+      return {
+        file: 'research-agent-run (latest)',
+        content: text,
+        source: 'agent_run',
+      };
+    }
+  }
+
+  return null;
 }
 
 function extractBriefHighlight(content) {
@@ -429,6 +455,8 @@ async function gatherAgentDailyReportData(opts = {}) {
       weakest_stage: orchestrator?.weakest_stage?.label,
       weakest_rate: orchestrator?.weakest_stage?.score,
       todays_focus: orchestrator?.todays_focus?.primary,
+      scout_order: orchestrator?.persona?.order,
+      rotating_agent: orchestrator?.persona?.rotating_agent,
       agent_focus: conversion?.agent_focus || [],
     },
     key_findings: openFindings.map((f) => ({
@@ -483,6 +511,7 @@ async function gatherAgentDailyReportData(opts = {}) {
         ? {
             shipped: shipReport.shipped ?? false,
             reason: shipReport.reason ?? null,
+            mode: shipReport.mode ?? null,
             pr_url: shipReport.pr_url ?? null,
             files: shipReport.files?.length ?? 0,
             failed_check: shipReport.failed_check ?? null,
@@ -603,14 +632,25 @@ function buildAgentDailyReportHtml(data) {
 
   const ship = data.agent_ship || {};
   const lastShip = ship.last_ship;
+  const shipLabel = (lastShip) => {
+    if (!lastShip) return '';
+    if (lastShip.shipped) {
+      if (lastShip.mode === 'push_main' || lastShip.reason === 'agent_direct_push' || lastShip.reason === 'leftovers_pushed' || lastShip.reason === 'already_shipped') {
+        return '✅ pushed to main';
+      }
+      if (lastShip.pr_url) return '✅ PR opened';
+      return '✅ shipped';
+    }
+    return `⚠️ ${esc(lastShip.reason || 'no ship')}`;
+  };
   const shipHtml = `<h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Agent ship loop</h2>
     <p style="font-size:14px;color:#333;margin:0 0 8px;">
-      Ship policy: <strong>${ship.enabled ? 'ON — agents must commit fixes' : 'report-only'}</strong>
+      Ship policy: <strong>${ship.enabled ? 'ON — agents commit + push to main' : 'report-only'}</strong>
     </p>
     ${
       lastShip
         ? `<p style="font-size:13px;color:#666;margin:0 0 8px;">
-            Last autopilot ship: ${lastShip.shipped ? '✅ PR opened' : `⚠️ ${esc(lastShip.reason || 'no ship')}`}
+            Last autopilot ship: ${shipLabel(lastShip)}
             ${lastShip.pr_url ? ` · <a href="${esc(lastShip.pr_url)}" style="color:#6366f1;">${esc(lastShip.pr_url)}</a>` : ''}
             ${lastShip.files ? ` · ${lastShip.files} file(s)` : ''}
           </p>`
@@ -666,6 +706,7 @@ function buildAgentDailyReportHtml(data) {
 
       <h2 style="font-size:16px;color:#111;margin:28px 0 12px;">Funnel focus</h2>
       <p style="font-size:14px;color:#333;margin:0 0 8px;"><strong>Weakest stage:</strong> ${esc(data.funnel_health.weakest_stage || '—')} (${esc(data.funnel_health.weakest_rate ?? '—')}%)</p>
+      ${data.funnel_health.scout_order ? `<p style="font-size:13px;color:#4338ca;margin:0 0 8px;"><strong>Scout's order (${esc(data.funnel_health.rotating_agent || 'agent')}):</strong> ${esc(data.funnel_health.scout_order)}</p>` : ''}
       <p style="font-size:14px;color:#333;margin:0 0 12px;">${esc(data.funnel_health.todays_focus || '')}</p>
       <p style="font-size:13px;color:#666;margin:0;">Heartbeat: ${data.funnel_health.ok ? '✅ OK' : data.funnel_health.diagnosis === 'healthy' ? '✅ OK (optional stages pending)' : '⚠️ Needs attention'} — ${esc(data.funnel_health.diagnosis || 'unknown')}</p>
       ${focusHtml ? `<ul style="font-size:13px;color:#444;padding-left:20px;margin:12px 0 0;">${focusHtml}</ul>` : ''}
@@ -727,7 +768,14 @@ function buildAgentDailyReportText(data) {
     'AGENT SHIP LOOP',
     `  Policy: ${data.agent_ship?.enabled ? 'ON' : 'report-only'}`,
     data.agent_ship?.last_ship
-      ? `  Last ship: ${data.agent_ship.last_ship.shipped ? 'PR opened' : data.agent_ship.last_ship.reason || 'none'}${data.agent_ship.last_ship.pr_url ? ` — ${data.agent_ship.last_ship.pr_url}` : ''}`
+      ? `  Last ship: ${
+          data.agent_ship.last_ship.shipped
+            ? data.agent_ship.last_ship.mode === 'push_main' ||
+              ['agent_direct_push', 'leftovers_pushed', 'already_shipped'].includes(data.agent_ship.last_ship.reason)
+              ? 'pushed to main'
+              : 'PR opened'
+            : data.agent_ship.last_ship.reason || 'none'
+        }${data.agent_ship.last_ship.pr_url ? ` — ${data.agent_ship.last_ship.pr_url}` : ''}`
       : '  Last ship: no report today',
     ...(data.agent_ship?.unshipped_notes?.length
       ? ['  Unshipped notes:', ...data.agent_ship.unshipped_notes.map((n) => `    · ${n.agent}: ${n.note.slice(0, 120)}`)]
@@ -735,6 +783,9 @@ function buildAgentDailyReportText(data) {
     '',
     'FUNNEL FOCUS',
     `  Weakest: ${data.funnel_health.weakest_stage} (${data.funnel_health.weakest_rate}%)`,
+    ...(data.funnel_health.scout_order
+      ? [`  Scout order (${data.funnel_health.rotating_agent}): ${data.funnel_health.scout_order}`]
+      : []),
     `  ${data.funnel_health.todays_focus || ''}`,
     '',
     'KEY FINDINGS',

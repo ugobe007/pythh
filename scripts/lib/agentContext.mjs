@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildPersonaBlock } from './orchestratorPersona.mjs';
 
 export function readJson(p) {
   try {
@@ -33,7 +34,7 @@ export function latestReportIn(dir, prefix) {
   return files[0]?.data ?? null;
 }
 
-export function buildAgentPrioritiesBlock(repoRoot) {
+export function buildAgentPrioritiesBlock(repoRoot, agentRole) {
   const reportsDir = path.join(repoRoot, 'reports');
   const brief = latestReportIn(reportsDir, 'orchestrator-brief-');
   const funnel = latestReportIn(reportsDir, 'conversion-funnel-');
@@ -44,6 +45,12 @@ export function buildAgentPrioritiesBlock(repoRoot) {
     lines.push(
       `- Weakest funnel stage: ${brief.weakest_stage.label} (${brief.weakest_stage.score ?? '?'}%) — ${brief.weakest_stage.problem}`,
     );
+  }
+  if (brief?.persona?.name) {
+    lines.push(`- Orchestrator: ${brief.persona.name} (${brief.persona.title})`);
+  }
+  if (brief?.persona?.order) {
+    lines.push(`- Scout's order: ${brief.persona.order}`);
   }
   if (brief?.todays_focus?.loops_to_consider?.length) {
     lines.push(`- Loops to consider: ${brief.todays_focus.loops_to_consider.join(', ')}`);
@@ -70,5 +77,8 @@ export function buildAgentPrioritiesBlock(repoRoot) {
       `- 7d snapshot: page_view=${s.page_view ?? 0}, url_submitted=${s.url_submitted ?? 0}, instant_matches_viewed=${s.instant_matches_viewed ?? 0}, match_intro=${s.match_intro_requested ?? 0}, return_7d=${s.return_visit_7d ?? 0}, pricing_viewed=${s.pricing_viewed ?? 0}`,
     );
   }
-  return lines.length ? `\n\n## Live agent context (auto-injected)\n${lines.join('\n')}\n` : '';
+  return (
+    (lines.length ? `\n\n## Live agent context (auto-injected)\n${lines.join('\n')}\n` : '') +
+    buildPersonaBlock(repoRoot, { agentRole, brief })
+  );
 }

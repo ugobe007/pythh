@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
 import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
+import { buildOrchestratorSystemPrompt } from './lib/orchestratorPersona.mjs';
 
 dotenv.config();
 
@@ -92,7 +93,7 @@ async function runAgent() {
   console.log(`   maxTurns=${MAX_TURNS} maxBudget=$${MAX_BUDGET}\n`);
 
   for await (const message of query({
-    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot),
+    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot, 'growth'),
     options: {
       cwd: repoRoot,
       allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'],
@@ -100,8 +101,7 @@ async function runAgent() {
       settingSources: ['project'],
       maxTurns: MAX_TURNS,
       maxBudgetUsd: MAX_BUDGET,
-      systemPrompt:
-        'You optimize pythh.ai growth with ACTIVE engagement — outbound, habit loops, instrumentation. Read agents/ORCHESTRATOR.md. Voice: picky, skeptical, motivating. Never propose passive monitoring alone.',
+      systemPrompt: buildOrchestratorSystemPrompt(repoRoot, 'growth'),
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {

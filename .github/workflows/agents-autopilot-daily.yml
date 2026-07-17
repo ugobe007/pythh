@@ -47,12 +47,6 @@ jobs:
           if [ "${{ github.event.inputs.mode }}" = "metrics-only" ]; then ARGS="--metrics-only"; fi
           npm run agents:autopilot -- $ARGS
 
-      - name: Ship agent improvements (PR)
-        if: success() && github.event.inputs.mode != 'metrics-only'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/agent-autopilot-ship.mjs
-
       - name: Send owner daily agent report
         if: always()
         env:

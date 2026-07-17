@@ -15,6 +15,7 @@ import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
 import { buildAgentPrioritiesBlock } from './lib/agentContext.mjs';
 import { parseAgentShipFlags, buildShipPolicyBlock, buildFunnelMandateBlock } from './lib/agentShipPolicy.mjs';
+import { buildOrchestratorSystemPrompt } from './lib/orchestratorPersona.mjs';
 
 dotenv.config();
 
@@ -50,7 +51,7 @@ Run this research cycle now:
 4. Analyze RSS + internal startup_events for workflow friction, missing data, funding pain, skepticism patterns
 5. Consider 3–5 product/service ideas that create habit loops (not one-shot landing pages)
 6. Update agents/research/findings-registry.json with ranked findings (max 5 new)
-7. Write agents/research/briefs/${date}-market-brief.md (1-page human brief)
+7. REQUIRED: Write agents/research/briefs/${date}-market-brief.md (1-page human brief — do not skip; daily report reads this file)
 8. Write reports/research-agent-${date}.json with signup_velocity, human_funnel_summary, top problems, market_opportunities, recommended_for_product_backlog, active_engagement_ideas
 
 Hand off high-confidence items to Product Agent via handoff block in findings.`;
@@ -103,7 +104,7 @@ async function runAgent() {
   console.log(`   maxTurns=${MAX_TURNS} maxBudget=$${MAX_BUDGET}\n`);
 
   for await (const message of query({
-    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot),
+    prompt: PROMPT + buildAgentPrioritiesBlock(repoRoot, 'research'),
     options: {
       cwd: repoRoot,
       allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash', 'WebSearch'],
@@ -111,8 +112,7 @@ async function runAgent() {
       settingSources: ['project'],
       maxTurns: MAX_TURNS,
       maxBudgetUsd: MAX_BUDGET,
-      systemPrompt:
-        'You survey the fundraising market for founder and investor pain. Connect every finding to Pythh signup growth toward 100/day. Cite evidence.',
+      systemPrompt: buildOrchestratorSystemPrompt(repoRoot, 'research'),
     },
   })) {
     if (message.type === 'assistant' && message.message?.content) {

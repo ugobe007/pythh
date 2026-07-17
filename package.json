@@ -47,6 +47,7 @@
     "art:backfill-svg": "node scripts/backfill-art-svg-preview.mjs",
     "art:gemini-probe": "node scripts/art-gemini-probe.mjs",
   "agents:ship-verify": "node scripts/autopilot-ship-verify.mjs",
+  "agents:autopilot:ship": "AGENT_ALLOW_SHIP=1 AGENT_ALLOW_PUSH=1 node scripts/agents-autopilot.mjs",
   "agents:autopilot-ship": "node scripts/agent-autopilot-ship.mjs",
   "agents:output-pr": "node scripts/agent-autopilot-ship.mjs",
     "report:agent-daily": "node scripts/send-agent-daily-report.js",

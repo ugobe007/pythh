@@ -2,6 +2,10 @@
 
 **Read this before every agent run.** All Research, Growth, and Product agents report to this mandate.
 
+**Persona:** **Scout** — Pythh AI Ops Orchestrator. Full charter, decision rules, and hard stops live in `agents/orchestrator-persona.json`. Scout sets daily focus from human-only funnel data, names the binding constraint, and issues one shippable order per agent run.
+
+---
+
 ## The problem we are solving
 
 Pythh has a **unique engine** (GOD + signal intelligence + thesis-fit matching) but:
@@ -67,8 +71,8 @@ Daily autopilot runs with **ship enabled**. Agents must **implement and commit**
 | 1 | Read `reports/orchestrator-brief-*.json` — fix the **weakest human funnel stage** first |
 | 2 | Implement in `site/`, `server/`, `lib/`, or `scripts/` when possible (not spec-only) |
 | 3 | Run `npm run test:wizard-smoke` + `npm run check:server` after code edits |
-| 4 | `git commit` (and `git push` when `--push`) — list files in report `code_changes` |
-| 5 | CI opens PR via `scripts/agent-autopilot-ship.mjs` for any remaining diffs |
+| 4 | `git commit` + `git push` when `--push` / `AGENT_ALLOW_PUSH=1` — list files in report `code_changes` |
+| 5 | Autopilot finalizes any leftover registry/spec diffs via `agent-autopilot-ship.mjs --push-main` |
 
 **Never optimize on raw `url_submitted`** — 99%+ is `instant_submit` API noise. Use `human_funnel` only.
 

@@ -95,12 +95,18 @@ const agentsToRun = FULL
 
 console.log(`\n🤖 LLM agents: ${agentsToRun.map((a) => a.agent).join(', ')} (UTC day ${utcDay})\n`);
 
+const shipArgs = shipArgsForAutopilot();
+
 for (const a of agentsToRun) {
-  const shipArgs = shipArgsForAutopilot();
   if (shipArgs.length) {
     console.log(`   ship: ${shipArgs.join(' ')}`);
   }
   runNode(`${a.agent} agent`, a.script, [...a.args, ...shipArgs], { allowFail: true });
+}
+
+if (shipArgs.length && process.env.GITHUB_ACTIONS === 'true') {
+  const finalizeArgs = shipArgs.includes('--push') ? ['--push-main'] : [];
+  runNode('Finalize agent ship', 'scripts/agent-autopilot-ship.mjs', finalizeArgs, { allowFail: true });
 }
 
 console.log('\n✅ Pythh autopilot complete\n');

@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import * as dotenv from 'dotenv';
+import { loadOrchestratorPersona } from './lib/orchestratorPersona.mjs';
 
 dotenv.config();
 
@@ -68,6 +69,14 @@ function buildOrchestratorRates(funnel) {
 }
 
 const PAGE_VIEW_FLOOR_7D = 20;
+/** Conservative daily human page views needed to support ~1 signup/day at early funnel conversion. */
+const TRAFFIC_TARGET_PER_DAY = 50;
+
+function awarenessTrafficScore(humanPageViews, windowDays) {
+  const perDay = humanPageViews / Math.max(windowDays || 7, 1);
+  if (perDay <= 0) return 0;
+  return Math.min(99, Math.round((perDay / TRAFFIC_TARGET_PER_DAY) * 100));
+}
 
 function buildFunnelBlindFlags(funnel, rates) {
   const s = funnel?.stages || {};
@@ -96,17 +105,20 @@ function buildFunnelBlindFlags(funnel, rates) {
   };
 }
 
-function weakestStage(funnel) {
+function weakestStage(funnel, northStar) {
   const rates = buildOrchestratorRates(funnel);
   const s = funnel?.stages || {};
   const hf = funnel?.human_funnel || {};
+  const windowDays = funnel?.window_days ?? 7;
   const humanPageViews = hf.page_view ?? s.page_view ?? 0;
+  const humanPageViewsPerDay = Math.round((humanPageViews / windowDays) * 10) / 10;
   const urlPerPv = rates.url_submitted_per_page_view;
   const previewViews = (s.instant_matches_viewed_ui ?? hf.instant_matches_viewed ?? s.instant_matches_viewed) || 0;
   const blind = buildFunnelBlindFlags(funnel, rates);
+  const signupsTarget = northStar?.targets?.signups_per_day ?? 100;
 
   const awarenessBlind = blind.awareness;
-  const awarenessScore = awarenessBlind ? 0 : 100;
+  const awarenessScore = awarenessBlind ? 0 : awarenessTrafficScore(humanPageViews, windowDays);
 
   const previewRate = rates.preview_per_page_view ?? rates.preview_per_url_submitted;
   const previewScore = blind.preview ? 0 : previewRate == null ? -1 : previewRate;
@@ -122,7 +134,9 @@ function weakestStage(funnel) {
       blind: awarenessBlind,
       problem: awarenessBlind
         ? `Human top-of-funnel dead: ${humanPageViews} page_views/7d, ${hf.url_submitted ?? 0} human url_submitted/7d. Manufacture traffic (outbound, SEO /find-investors, share cards) BEFORE preview/signup loops.`
-        : 'Awareness healthy — optimize conversion downstream.',
+        : awarenessScore < 30
+          ? `Traffic far below north star (${humanPageViewsPerDay} human page_views/day vs ~${TRAFFIC_TARGET_PER_DAY}/day needed for validate milestone; target ${signupsTarget} signups/day). Outbound + SEO before downstream loops.`
+          : 'Awareness adequate for current volume — optimize conversion downstream.',
     },
     {
       id: 'preview',
@@ -184,11 +198,37 @@ function main() {
   });
 
   const funnel = latestFunnelReport();
-  const { stage: weak, blind: funnelBlindFlags } = weakestStage(funnel);
   const northStar = readJson(path.join(repoRoot, 'agents/north-star.json'));
+  const personaConfig = loadOrchestratorPersona(repoRoot);
+  const { stage: weak, blind: funnelBlindFlags } = weakestStage(funnel, northStar);
+
+  const utcDay = new Date().getUTCDay();
+  const rotationAgent =
+    { 1: 'research', 2: 'growth', 3: 'product', 4: 'research', 5: 'growth', 0: 'product', 6: 'product' }[
+      utcDay
+    ] || 'product';
+  const delegation = personaConfig?.delegation?.[rotationAgent];
+  const scoutOrder =
+    delegation && weak
+      ? delegation.order_template
+          .replace('{stage}', weak.label || weak.id)
+          .replace('{weakest_stage}', weak.label || weak.id)
+      : null;
 
   const brief = {
     date,
+    persona: personaConfig
+      ? {
+          name: personaConfig.name,
+          title: personaConfig.title,
+          codename: personaConfig.codename,
+          voice: personaConfig.voice?.summary,
+          order: scoutOrder,
+          rotating_agent: rotationAgent,
+          decision_rules: personaConfig.decision_rules,
+          forbidden_actions: personaConfig.forbidden_actions,
+        }
+      : null,
     mandate: 'active_not_passive',
     voice: {
       ratio: '40% picky/skeptical critique, 60% motivating actionable logic',
@@ -221,7 +261,7 @@ function main() {
       'Generic copy advice without variant + file path',
       'Pipeline polish with no user-facing engagement',
     ],
-    read_first: ['agents/ORCHESTRATOR.md', 'agents/north-star.json'],
+    read_first: ['agents/ORCHESTRATOR.md', 'agents/orchestrator-persona.json', 'agents/north-star.json'],
   };
 
   const outDir = path.join(repoRoot, 'reports');
