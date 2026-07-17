@@ -1,7 +1,42 @@
 {
   "version": 1,
-  "updated_at": "2026-06-25T18:00:00Z",
+  "updated_at": "2026-07-17T00:00:00Z",
   "experiments": [
+    {
+      "id": "founder_hero_signup_cta",
+      "audience": "founder",
+      "name": "Preview hero CTA routes to signup (not chat)",
+      "status": "draft",
+      "parent_experiment": "founder_hero_entry",
+      "applies_when": "variant_key=matches_preview",
+      "hypothesis": "The primary 'Start tracking investors — free' hero CTA on the preview previously opened the Peter intro chat panel via handleGate('intro') — firing match_intro_requested but never founder_signup_started and never routing to /signup/founder. With 27 previews and 0 founder_signup_started over 7d, the most prominent benefit-CTA was a label→destination mismatch. Repointing it to handleGate('save') (routes to /signup/founder, fires founder_signup_started) plus a locked-count cliffhanger subline should move preview→signup off 0%. Peter/intro stays reachable via per-match, explain-inline, and sticky 'Ask Peter' buttons.",
+      "loops": ["preview_cliffhanger", "founder_gate_cta"],
+      "variants": [
+        {
+          "key": "hero_cta_to_signup",
+          "traffic_pct": 100,
+          "schema": {
+            "cta_action": "save",
+            "routes_to": "/signup/founder",
+            "fires": "founder_signup_started",
+            "cliffhanger_subline": "top N unlocked + M more open up"
+          },
+          "copy": {
+            "cta": "Start tracking investors — free",
+            "subline": "Free account · your top {shown} stay unlocked and {locked} more open up."
+          },
+          "guardrails": {
+            "intro_path_preserved": true,
+            "no_fabricated_counts": true
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "founder_signup_started",
+        "secondary": ["founder_signup_completed", "match_intro_requested"]
+      },
+      "promotion_note": "DRAFT 2026-07-17 — shipped in site/InstantMatchPreview.tsx (bug-fix routing + cliffhanger subline). Promote to running once founder_signup_started moves off 0 over 7d without match_intro_requested collapsing (intro still reachable via 5 other CTAs)."
+    },
     {
       "id": "founder_preview_oracle_gap_gate",
       "audience": "founder",

@@ -410,12 +410,15 @@ export default function InstantMatchPreview({ url }: Props) {
         </div>
         <button
           type="button"
-          onClick={() => void handleGate('intro', investorFromMatch(visible[0] ?? {}))}
+          onClick={() => void handleGate('save')}
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
         >
           Start tracking investors — free
           <ArrowRight className="w-4 h-4" />
         </button>
+        <p className="mt-2 text-[11px] text-zinc-500">
+          Free account · your top {visible.length} stay unlocked and {Math.max(total - visible.length, 0).toLocaleString()} more open up.
+        </p>
       </div>
 
       <PreviewOracleProofStrip />
