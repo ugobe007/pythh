@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import OutreachPackage from "@/components/wizard/OutreachPackage";
+import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
 
 const API = "/api/wizard";
 
@@ -221,7 +222,10 @@ export default function RoundAutomation({ startupId, startupName }: RoundAutomat
           )}
           <button
             type="button"
-            onClick={() => navigate(`/wizard/${startupId}`)}
+            onClick={() => {
+              allowWizardUnlockFlow();
+              navigate(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
+            }}
             className="w-full mt-4 py-2.5 rounded-lg text-xs font-semibold border"
             style={{ color: "#22c55e", borderColor: "#22c55e40" }}
           >

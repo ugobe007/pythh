@@ -132,11 +132,14 @@ export default function Wizard() {
     if (!startupId) return;
     try {
       const searchParams = new URLSearchParams(window.location.search);
+      const forceWizard = searchParams.get("force_wizard") === "1";
+      const startUnlocks = searchParams.get("start_unlocks") === "1";
       const skipUnlockFlow =
-        sessionStorage.getItem("pythia_skip_wizard_unlocks") === "1" ||
-        searchParams.get("skip_unlocks") === "1" ||
-        searchParams.get("welcome") === "1" ||
-        searchParams.get("tab") === "round";
+        !forceWizard &&
+        (sessionStorage.getItem("pythia_skip_wizard_unlocks") === "1" ||
+          searchParams.get("skip_unlocks") === "1" ||
+          searchParams.get("welcome") === "1" ||
+          searchParams.get("tab") === "round");
 
       const res = await fetch(`${API_BASE}/${startupId}/gaps`);
       if (!res.ok) throw new Error("Failed to load gaps");
@@ -170,6 +173,11 @@ export default function Wizard() {
         await loadDbTasks();
         if (searchParams.get("tab") === "round") setActiveTab("round");
         setPhase("tabs");
+        return;
+      }
+
+      if (forceWizard && startUnlocks) {
+        setPhase("gap_cards");
         return;
       }
 

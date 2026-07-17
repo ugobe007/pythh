@@ -112,6 +112,11 @@ export function shouldSkipWizardUnlocks(): boolean {
   return sessionStorage.getItem(SKIP_WIZARD_UNLOCKS_KEY) === '1';
 }
 
+/** User opted into readiness unlocks (e.g. Start outreach → complete unlocks). */
+export function allowWizardUnlockFlow() {
+  sessionStorage.removeItem(SKIP_WIZARD_UNLOCKS_KEY);
+}
+
 export function persistFounderGateContext(
   url: string,
   startupId: string,

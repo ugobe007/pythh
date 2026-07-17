@@ -14,7 +14,16 @@ import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
 import { createFounderAccount, fetchInstantResults, sendFounderWelcomeEmail } from "@/lib/founderAccount";
 import { normalizeWhyYouMatch } from "@/lib/normalizeWhyYouMatch";
-import { consumeFounderGatePending, consumePostSignupPath, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
+import {
+  consumeFounderGatePending,
+  consumePostSignupPath,
+  peekFounderGatePending,
+  trackFounderGateCompleted,
+  allowWizardUnlockFlow,
+  FOUNDER_GATE_ACTION_LABELS,
+  type FounderGatedAction,
+  type GatedInvestorContext,
+} from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
   recordMatchViewOnce,
@@ -2743,7 +2752,8 @@ export default function Activate() {
   const handleActivatePipeline = () => {
     const sid = apiResult?.startup_id;
     if (sid) {
-      navigate(`/wizard/${sid}?tab=round`);
+      allowWizardUnlockFlow();
+      navigate(`/wizard/${sid}?tab=round&force_wizard=1`);
       return;
     }
     const hasActivePlan =
