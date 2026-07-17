@@ -116,11 +116,24 @@ export default function Wizard() {
     }
   };
 
+  useEffect(() => {
+    if (!startupId) return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const explicitWizard =
+      searchParams.get('tab') === 'round' ||
+      searchParams.get('force_wizard') === '1' ||
+      searchParams.get('skip_unlocks') === '0';
+    if (sessionStorage.getItem('pythia_skip_wizard_unlocks') === '1' && !explicitWizard) {
+      navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
+    }
+  }, [startupId, navigate]);
+
   const loadGaps = useCallback(async () => {
     if (!startupId) return;
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const skipUnlockFlow =
+        sessionStorage.getItem("pythia_skip_wizard_unlocks") === "1" ||
         searchParams.get("skip_unlocks") === "1" ||
         searchParams.get("welcome") === "1" ||
         searchParams.get("tab") === "round";

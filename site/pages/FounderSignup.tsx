@@ -174,7 +174,7 @@ export default function FounderSignup() {
         return;
       }
       if (startupId) {
-        navigate(`/wizard/${startupId}?welcome=1`);
+        navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
         return;
       }
       if (url) {
@@ -317,6 +317,19 @@ export default function FounderSignup() {
             <Link href="/login" className="underline hover:no-underline" style={{ color: 'oklch(0.696 0.17 162.48)' }}>
               Sign in
             </Link>
+            {startupId && (
+              <>
+                {' '}
+                ·{' '}
+                <Link
+                  href={`/matches?url=${encodeURIComponent(url || '')}`}
+                  className="underline hover:no-underline"
+                  style={{ color: 'oklch(0.696 0.17 162.48)' }}
+                >
+                  Back to match preview
+                </Link>
+              </>
+            )}
           </p>
         </div>
       </div>

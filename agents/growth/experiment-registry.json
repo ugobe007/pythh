@@ -77,7 +77,7 @@
       "status": "running",
       "parent_experiment": "founder_hero_entry",
       "applies_when": "variant_key=matches_preview",
-      "hypothesis": "Surfacing a locked Oracle GOD-gap (+N pts unlocks M investors) on the preview converts more signups than utility-only gates, and routes to /wizard after account creation.",
+      "hypothesis": "Oracle read on preview is informational; one signup CTA lands on full match list (not wizard unlock loop).",
       "loops": ["preview_cliffhanger", "oracle_activation"],
       "variants": [
         {
@@ -90,9 +90,9 @@
           "copy": {
             "headline": "GOD {god_score} — +{god_points} unlocks ~{investors_unlocked} investors",
             "picky": "Partners screening you: {component} signal is the top gap Oracle flagged.",
-            "cta": "See your gap map — free account",
-            "footer": "Free account unlocks the full gap map and locked outreach preview in the wizard.",
-            "trial_cta": "Start 7-day Oracle trial"
+            "cta": "Create free account — see all matches",
+            "footer": "Free account saves your shortlist and opens your full ranked investor list.",
+            "trial_cta": ""
           },
           "guardrails": {
             "no_fabricated_gaps": true,

@@ -66,7 +66,9 @@ async function sendPreviewShortlistEmail({
   const trialUrl = startupId
     ? `${APP_BASE}/pricing?trial=1&startup_id=${startupId}&source=preview_email`
     : `${APP_BASE}/pricing?trial=1&source=preview_email`;
-  const wizardUrl = startupId ? `${APP_BASE}/wizard/${startupId}` : previewUrl;
+  const wizardUrl = startupId
+    ? `${APP_BASE}/activate?startup_id=${startupId}`
+    : previewUrl;
 
   const gap = oracleGap || null;
   const godLine =
@@ -86,7 +88,7 @@ async function sendPreviewShortlistEmail({
           `${gap.top_gap.title}`,
           gap.top_gap.partner_objection ? `Partner concern: ${gap.top_gap.partner_objection}` : '',
           ``,
-          `See your full gap map: ${wizardUrl}`,
+          `See your full match list: ${wizardUrl}`,
         ]
           .filter(Boolean)
           .join('\n')

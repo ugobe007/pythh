@@ -10,6 +10,7 @@ export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle
 
 const POST_SIGNUP_PATH_KEY = 'pythia_post_signup_path';
 const GATE_PENDING_KEY = 'pythia_founder_gate_pending';
+const SKIP_WIZARD_UNLOCKS_KEY = 'pythia_skip_wizard_unlocks';
 const GATED_ACTION_KEY = 'pythia_gated_action';
 const GATED_INVESTOR_KEY = 'pythia_gated_investor';
 const STORAGE_KEY = 'pyth_growth_assignment';
@@ -73,13 +74,19 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
 };
 
 /** Where founders land immediately after preview-gate signup — matches first, wizard optional. */
+export function normalizePreviewGateAction(action: FounderGatedAction | null): FounderGatedAction {
+  if (action === 'oracle_gap' || action === 'delta') return 'save';
+  return action ?? 'save';
+}
+
 export function postSignupPathForAction(
   action: FounderGatedAction | null,
   startupId: string,
 ): string {
   if (!startupId) return '/account';
+  const normalized = normalizePreviewGateAction(action);
   const base = `/activate?startup_id=${encodeURIComponent(startupId)}`;
-  if (action === 'intro' || action === 'export') {
+  if (normalized === 'intro' || normalized === 'export') {
     return `${base}&pipeline=1`;
   }
   return base;
@@ -89,6 +96,20 @@ export function clearFounderGatePending() {
   sessionStorage.removeItem(GATE_PENDING_KEY);
   sessionStorage.removeItem(GATED_ACTION_KEY);
   sessionStorage.removeItem(GATED_INVESTOR_KEY);
+  sessionStorage.removeItem(SKIP_WIZARD_UNLOCKS_KEY);
+}
+
+/** Set post-signup destination immediately so nothing can route to wizard unlock loop. */
+export function primePreviewSignupDestination(startupId: string, action: FounderGatedAction | null) {
+  sessionStorage.setItem(SKIP_WIZARD_UNLOCKS_KEY, '1');
+  sessionStorage.setItem(
+    POST_SIGNUP_PATH_KEY,
+    postSignupPathForAction(action, startupId),
+  );
+}
+
+export function shouldSkipWizardUnlocks(): boolean {
+  return sessionStorage.getItem(SKIP_WIZARD_UNLOCKS_KEY) === '1';
 }
 
 export function persistFounderGateContext(
@@ -101,6 +122,7 @@ export function persistFounderGateContext(
   sessionStorage.setItem('pythia_startup_id', startupId);
   sessionStorage.setItem(GATED_ACTION_KEY, action);
   sessionStorage.setItem(GATE_PENDING_KEY, '1');
+  primePreviewSignupDestination(startupId, action);
   if (investor?.id) {
     sessionStorage.setItem(GATED_INVESTOR_KEY, JSON.stringify(investor));
   } else {
@@ -192,7 +214,10 @@ export async function trackFounderGateCompleted(
   const startupId = ctx.startupId ?? sessionStorage.getItem('pythia_startup_id');
 
   if (startupId && gatedAction) {
-    sessionStorage.setItem(POST_SIGNUP_PATH_KEY, postSignupPathForAction(gatedAction, startupId));
+    sessionStorage.setItem(
+      POST_SIGNUP_PATH_KEY,
+      postSignupPathForAction(normalizePreviewGateAction(gatedAction), startupId),
+    );
   } else if (startupId) {
     sessionStorage.setItem(POST_SIGNUP_PATH_KEY, postSignupPathForAction('save', startupId));
   }

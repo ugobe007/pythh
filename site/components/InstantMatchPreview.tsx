@@ -5,20 +5,26 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Loader2, ArrowRight, Download } from 'lucide-react';
+import { Loader2, ArrowRight } from 'lucide-react';
+import { useAuth } from '@/_core/hooks/useAuth';
 import { apiUrl } from '@/lib/apiConfig';
 import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '@/lib/growthExperiment';
 import { markFirstPreviewSeen } from '@/lib/funnelAttribution';
 import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatchEngagement } from '@/lib/matchEngagement';
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
-import { trackFounderGateStarted, type FounderGatedAction, type GatedInvestorContext } from '@/lib/founderSignupGate';
+import {
+  postSignupPathForAction,
+  primePreviewSignupDestination,
+  trackFounderGateStarted,
+  type FounderGatedAction,
+  type GatedInvestorContext,
+} from '@/lib/founderSignupGate';
 import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
 import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
-import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 import MatchExplainBlock from '@/components/MatchExplainBlock';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
-import PreviewSignalDeltaTeaser, { buildDeltaCopy, type MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
+import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
 const PREVIEW_LIMIT = 10;
@@ -31,8 +37,12 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
   { id: 'angel', label: 'Angels only' },
 ];
 
-function primarySignupLabel(shownCount: number): string {
-  return `See your top ${shownCount} signal-fit investors — free`;
+function primarySignupLabel(total: number, shownCount: number): string {
+  const hidden = Math.max(total - shownCount, 0);
+  if (hidden > 0) {
+    return `Create free account — see all ${total.toLocaleString()} matches`;
+  }
+  return 'Create free account — save your shortlist';
 }
 
 type PreviewMatch = {
@@ -69,6 +79,7 @@ interface Props {
 
 export default function InstantMatchPreview({ url }: Props) {
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -326,12 +337,31 @@ export default function InstantMatchPreview({ url }: Props) {
     return () => observer.disconnect();
   }, [preview?.startup?.id]);
 
-  const handlePricingFromPreview = (source = 'preview_sticky') => {
-    void trackFunnelEventOnce(`pythh_preview_pricing_click_${source}`, 'pricing_viewed', {
-      path: '/pricing',
-      source,
-      startup_id: preview?.startup?.id,
-    });
+  const handleSignup = async (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
+    if (!preview?.startup?.id) return;
+
+    if (isAuthenticated) {
+      primePreviewSignupDestination(preview.startup.id, action);
+      const post = postSignupPathForAction(action, preview.startup.id);
+      navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
+      return;
+    }
+
+    const previewGateAssignment =
+      action === 'oracle_gap'
+        ? oracleGapExpRef.current
+        : action === 'delta'
+          ? deltaExpRef.current
+          : null;
+
+    await trackFounderGateStarted(
+      action,
+      { url, startupId: preview.startup.id, investor },
+      founderExpRef.current,
+      gateCtaRef.current,
+      previewGateAssignment,
+    );
+    navigate(`/signup/founder?startup_id=${encodeURIComponent(preview.startup.id)}`);
   };
 
   const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
@@ -361,21 +391,7 @@ export default function InstantMatchPreview({ url }: Props) {
       setPeterPanelOpen(true);
       return;
     }
-    const previewGateAssignment =
-      action === 'oracle_gap'
-        ? oracleGapExpRef.current
-        : action === 'delta'
-          ? deltaExpRef.current
-          : null;
-
-    await trackFounderGateStarted(
-      action,
-      { url, startupId: preview.startup.id, investor },
-      founderExpRef.current,
-      gateCtaRef.current,
-      previewGateAssignment,
-    );
-    navigate(`/signup/founder?startup_id=${encodeURIComponent(preview.startup.id)}`);
+    await handleSignup(action, investor);
   };
 
   const investorFromMatch = (m: PreviewMatch): GatedInvestorContext | null => {
@@ -420,12 +436,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const oracleGapCopy = preview.oracle_gap
     ? buildOracleGapCopy(preview.oracle_gap, oracleGapAssignment)
     : null;
-  const showDeltaTeaser = Boolean(preview.match_movement);
-  const deltaCopy = preview.match_movement
-    ? buildDeltaCopy(preview.match_movement, deltaAssignment)
-    : null;
 
-  const primaryCta = primarySignupLabel(visible.length);
+  const primaryCta = primarySignupLabel(total, visible.length);
   const topInvestor = investorFromMatch(visible[0] ?? {});
 
   return (
@@ -479,21 +491,17 @@ export default function InstantMatchPreview({ url }: Props) {
         {mixLoading && <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
       </div>
 
-      <div className="mb-8 rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-zinc-900/60 p-5 text-center sm:text-left">
-        <p className="text-sm text-zinc-300 mb-4 leading-relaxed max-w-2xl mx-auto sm:mx-0">
-          Activate Pythh to build your investor pipeline — save this shortlist, get movement alerts when
-          thesis-fit investors shift, and queue warm intros.
-        </p>
-        <button
-          type="button"
-          onClick={() => void handleGate('save')}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
-        >
-          {primaryCta}
-          <ArrowRight className="w-4 h-4" />
-        </button>
-        <p className="mt-2 text-[11px] text-zinc-500">
-          Free account · {Math.max(total - visible.length, 0).toLocaleString()} more investors unlock after signup
+      <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-center sm:text-left">
+        <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl mx-auto sm:mx-0">
+          One free account saves this shortlist and opens your full ranked investor list.
+          {Math.max(total - visible.length, 0) > 0 && (
+            <>
+              {' '}
+              <span className="text-zinc-500">
+                +{Math.max(total - visible.length, 0).toLocaleString()} more matches unlock after signup.
+              </span>
+            </>
+          )}
         </p>
       </div>
 
@@ -595,72 +603,8 @@ export default function InstantMatchPreview({ url }: Props) {
       )}
 
       {showOracleGapTeaser && preview.oracle_gap && oracleGapCopy && (
-        <PreviewOracleGapTeaser
-          gap={preview.oracle_gap}
-          copy={oracleGapCopy}
-          onUnlock={() => void handleGate('oracle_gap')}
-          onTrial={() => {
-            handlePricingFromPreview('preview_oracle_gap_teaser');
-            navigate(`/pricing?trial=1&startup_id=${preview.startup?.id || ''}&source=preview_oracle_gap`);
-          }}
-        />
+        <PreviewOracleGapTeaser gap={preview.oracle_gap} copy={oracleGapCopy} />
       )}
-
-      {preview.startup?.id && (
-        <PreviewEmailCapture
-          startupId={preview.startup.id}
-          startupUrl={url}
-          startupName={startupName}
-          totalMatches={total}
-          topInvestors={visible.map((m) => ({
-            name: m.investor?.name || 'Investor',
-            firm: m.investor?.firm,
-          }))}
-          source="instant_match_preview"
-        />
-      )}
-
-      {showDeltaTeaser && preview.match_movement && deltaCopy && (
-        <PreviewSignalDeltaTeaser
-          movement={preview.match_movement}
-          copy={deltaCopy}
-          onUnlock={() => void handleGate('delta')}
-        />
-      )}
-
-      <div className="flex flex-col items-center gap-3 mb-6">
-        <button
-          type="button"
-          onClick={() => void handleGate('save')}
-          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-900/30"
-        >
-          {primaryCta}
-          <ArrowRight className="w-4 h-4" />
-        </button>
-        <p className="text-center text-xs text-zinc-500 max-w-md">
-          Free account · no card · unlock save, movement alerts, and intro queue
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-          <button
-            type="button"
-            onClick={() => void handleGate('intro', topInvestor)}
-            className="text-zinc-400 hover:text-emerald-400 underline-offset-2 hover:underline"
-          >
-            Ask Peter for intro help
-          </button>
-          <span className="text-zinc-700" aria-hidden>
-            ·
-          </span>
-          <button
-            type="button"
-            onClick={() => void handleGate('export')}
-            className="text-zinc-400 hover:text-emerald-400 underline-offset-2 hover:underline inline-flex items-center gap-1"
-          >
-            <Download className="w-3 h-3" />
-            Export list
-          </button>
-        </div>
-      </div>
 
       {preview.startup?.id && (
         <div className="flex justify-center">
@@ -679,26 +623,17 @@ export default function InstantMatchPreview({ url }: Props) {
         className="fixed bottom-0 inset-x-0 z-40 border-t border-emerald-500/20 bg-zinc-950/95 backdrop-blur-md px-4 py-3"
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-zinc-400 text-center sm:text-left hidden sm:block max-w-xs">
-            {visible.length} signal-fit investors ranked · activate your pipeline free
+          <p className="text-xs text-zinc-400 text-center sm:text-left max-w-md">
+            {visible.length} of {total.toLocaleString()} matches shown · free account opens your full list
           </p>
-          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto sm:ml-auto">
-            <button
-              type="button"
-              onClick={() => void handleGate('save')}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
-            >
-              {primaryCta}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleGate('intro', topInvestor)}
-              className="text-xs text-zinc-500 hover:text-emerald-400 underline-offset-2 hover:underline py-1"
-            >
-              Ask Peter for intro help
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => void handleSignup('save')}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
+          >
+            {primaryCta}
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

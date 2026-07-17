@@ -38,7 +38,9 @@ type Props = {
     footer?: string;
     trial_cta?: string;
   };
-  onUnlock: () => void;
+  /** When false, show Oracle insight only — no competing signup button. */
+  showActions?: boolean;
+  onUnlock?: () => void;
   onTrial?: () => void;
 };
 
@@ -70,8 +72,8 @@ function defaultCopy(gap: OracleGapPayload) {
       ? `Partners screening you: ${top.partner_objection}`
       : `Oracle flagged a ${gap.weakest_component_label || 'signal'} gap — ${top.title}.`,
     cta: 'Create free account — see all matches',
-    footer: 'Free account · full shortlist saved · readiness unlocks optional in wizard.',
-    trial_cta: 'Start 7-day Oracle trial',
+    footer: 'Free account · full shortlist saved · readiness unlocks optional later.',
+    trial_cta: '',
   };
 }
 
@@ -88,7 +90,13 @@ export function buildOracleGapCopy(gap: OracleGapPayload, assignment?: GrowthAss
   };
 }
 
-export default function PreviewOracleGapTeaser({ gap, copy, onUnlock, onTrial }: Props) {
+export default function PreviewOracleGapTeaser({
+  gap,
+  copy,
+  showActions = false,
+  onUnlock,
+  onTrial,
+}: Props) {
   const text = copy?.headline
     ? {
         ...defaultCopy(gap),
@@ -140,26 +148,34 @@ export default function PreviewOracleGapTeaser({ gap, copy, onUnlock, onTrial }:
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <button
-          type="button"
-          onClick={onUnlock}
-          className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm shadow-lg shadow-violet-900/30"
-        >
-          {text.cta}
-          <ArrowRight className="w-4 h-4" />
-        </button>
-        {onTrial && (
+      {showActions && onUnlock ? (
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
-            onClick={onTrial}
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-sm font-semibold whitespace-nowrap"
+            onClick={onUnlock}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm shadow-lg shadow-violet-900/30"
           >
-            {text.trial_cta}
+            {text.cta}
+            <ArrowRight className="w-4 h-4" />
           </button>
-        )}
-      </div>
-      <p className="text-[11px] text-zinc-500 mt-3">{text.footer}</p>
+          {onTrial && text.trial_cta ? (
+            <button
+              type="button"
+              onClick={onTrial}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-sm font-semibold whitespace-nowrap"
+            >
+              {text.trial_cta}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-[11px] text-zinc-500">
+          {text.footer || 'Use the green button below to create your free account and see your full match list.'}
+        </p>
+      )}
+      {showActions && text.footer ? (
+        <p className="text-[11px] text-zinc-500 mt-3">{text.footer}</p>
+      ) : null}
     </div>
   );
 }

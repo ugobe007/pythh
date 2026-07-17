@@ -135,7 +135,7 @@ async function sendFounderActivationNudge(supabase, { email, startupId, startupN
 
   const oracleGap = buildPreviewOracleGap(startup, matchCount || 0);
   const name = startupName || startup.name || 'your startup';
-  const wizardUrl = `${APP_BASE}/wizard/${startupId}?welcome=1`;
+  const wizardUrl = `${APP_BASE}/activate?startup_id=${startupId}&welcome=1`;
   const trialUrl = `${APP_BASE}/pricing?trial=1&startup_id=${startupId}&source=activation_email`;
 
   const sendResult = await sendFounderActivationEmail({
