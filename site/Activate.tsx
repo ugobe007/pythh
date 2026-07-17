@@ -13,6 +13,7 @@ import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type Investor
 import InvestorReadStep from "@/components/InvestorReadStep";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
 import { createFounderAccount, fetchInstantResults, sendFounderWelcomeEmail } from "@/lib/founderAccount";
+import { normalizeWhyYouMatch } from "@/lib/normalizeWhyYouMatch";
 import { consumeFounderGatePending, consumePostSignupPath, peekFounderGatePending, trackFounderGateCompleted, FOUNDER_GATE_ACTION_LABELS, type FounderGatedAction, type GatedInvestorContext } from "@/lib/founderSignupGate";
 import {
   recordMatchEngagement,
@@ -124,23 +125,62 @@ interface Milestone {
 // ─── API types (from /api/instant/submit) ─────────────────────────────────────
 
 interface ApiInvestor {
-  id: string;
-  name: string;
-  firm: string;
-  stage: string[];
-  sectors: string[];
+  id?: string;
+  name?: string;
+  firm?: string;
+  stage?: string | string[];
+  sectors?: string[];
   email?: string;
   email_best_guess?: string;
   investment_thesis?: string;
 }
 
 interface ApiMatch {
-  id: string;
+  id?: string;
+  investor_id?: string;
   match_score: number;
-  reasoning: string;
-  confidence_level: string;
-  why_you_match: string[];
-  investors: ApiInvestor;
+  reasoning?: string;
+  confidence_level?: string;
+  /** Canonical API returns string; legacy rows may be string[] */
+  why_you_match?: string | string[] | null;
+  investor?: ApiInvestor;
+  /** @deprecated legacy join key — prefer investor */
+  investors?: ApiInvestor;
+}
+
+function getApiMatchInvestor(match: ApiMatch | null | undefined): ApiInvestor | null {
+  if (!match) return null;
+  const raw = match.investor ?? match.investors;
+  if (!raw || typeof raw !== "object") return null;
+  return raw;
+}
+
+function whyYouMatchTags(match: Pick<ApiMatch, "why_you_match" | "reasoning">): string[] {
+  const raw = match.why_you_match;
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  if (typeof raw === "string" && raw.trim()) {
+    const text = raw.trim();
+    if (text.includes(" · ")) return text.split(" · ").map((s) => s.trim()).filter(Boolean);
+    if (text.includes(";")) return text.split(";").map((s) => s.trim()).filter(Boolean);
+    return [text];
+  }
+  if (match.reasoning?.trim()) {
+    return match.reasoning.split(/[.;]\s+/).map((s) => s.trim()).filter(Boolean).slice(0, 4);
+  }
+  return [];
+}
+
+function investorStageLabel(stage: ApiInvestor["stage"] | undefined): string {
+  const list = Array.isArray(stage)
+    ? stage
+    : stage != null && String(stage).trim()
+      ? [String(stage)]
+      : [];
+  return (
+    list
+      .map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
+      .join(", ") || "All Stages"
+  );
 }
 
 interface ApiStartup {
@@ -201,8 +241,8 @@ function buildPitchEmail(
   const sectors = (startup.sectors || []).join(", ") || "technology";
   const stage = startup.stage ? `Stage ${startup.stage}` : "early-stage";
   const thesis = (investor.investment_thesis || "").slice(0, 120).replace(/\.$/, "");
-  const topReason = (match.why_you_match || []).find((t) => t.includes("SUPER")) ||
-    match.why_you_match?.[0] || match.reasoning?.split(".")[0] || "your investment thesis";
+  const topReason = whyYouMatchTags(match).find((t) => t.includes("SUPER")) ||
+    whyYouMatchTags(match)[0] || match.reasoning?.split(".")[0] || "your investment thesis";
 
   const subject = investor.investment_thesis
     ? `${co} — fits your thesis on ${thesis.split(" ").slice(0, 6).join(" ")}...`
@@ -246,13 +286,14 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
 
   // Pitch prep for top 2
   matches.slice(0, 2).forEach((m) => {
-    const inv = m.investors;
+    const inv = getApiMatchInvestor(m);
+    if (!inv) return;
     milestones.push({
       type: "pitch",
       investor: inv.name,
       firm: inv.firm,
       text: `Pitch materials prepared for ${inv.name}`,
-      detail: `Tailored narrative using ${inv.firm} thesis alignment — ${(m.why_you_match || []).filter(t => !t.includes("SUPER")).slice(0, 2).join(", ")}`,
+      detail: `Tailored narrative using ${inv.firm} thesis alignment — ${whyYouMatchTags(m).filter(t => !t.includes("SUPER")).slice(0, 2).join(", ")}`,
       time: `${12 + milestones.length * 8}s ago`,
       done: true,
     });
@@ -260,7 +301,8 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
 
   // Outreach for all 5
   matches.forEach((m, i) => {
-    const inv = m.investors;
+    const inv = getApiMatchInvestor(m);
+    if (!inv) return;
     const nameParts = (inv.name || "investor").split(" ");
     const firstName = nameParts[0].toLowerCase().replace(/[^a-z]/g, "");
     const lastName = (nameParts[1] || "").toLowerCase().replace(/[^a-z]/g, "");
@@ -288,7 +330,7 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
   });
 
   // Response simulation for top investor
-  const top = matches[0]?.investors;
+  const top = getApiMatchInvestor(matches[0]);
   if (top) {
     milestones.push({
       type: "response",
@@ -302,7 +344,7 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
   }
 
   // Response + meeting for #2
-  const second = matches[1]?.investors;
+  const second = getApiMatchInvestor(matches[1]);
   if (second) {
     milestones.push({
       type: "response",
@@ -331,7 +373,7 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
         duration: "30 min",
         format: "Video call (Zoom)",
         investorBackground: second.investment_thesis || `${second.firm} focuses on ${(second.sectors || []).join(", ")}`,
-        recentActivity: (matches[1].why_you_match || []).join(" · ") || "Active in your sector",
+        recentActivity: whyYouMatchTags(matches[1]).join(" · ") || "Active in your sector",
         talkingPoints: [
           `Lead with your strongest differentiator — ${(startup.sectors || []).join(" + ")} angle`,
           second.investment_thesis ? `Reference their thesis: "${second.investment_thesis.slice(0, 80)}..."` : "Reference their portfolio alignment",
@@ -344,11 +386,15 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
           { q: "What's your unfair advantage?", a: "Our data flywheel — every customer interaction makes the product smarter for all users. Incumbents can't replicate this without starting from scratch." },
           { q: "How does this reach $100M ARR?", a: "Current wedge + two natural expansion vectors. Happy to walk through the model." },
         ],
-        coInvestors: matches.filter((_, i) => i !== 1).slice(0, 2).map((m) => ({
-          name: m.investors.name,
-          firm: m.investors.firm,
-          overlap: `Also in conversations — strong thesis alignment with ${m.investors.firm}`,
-        })),
+        coInvestors: matches.filter((_, i) => i !== 1).slice(0, 2).flatMap((m) => {
+          const inv = getApiMatchInvestor(m);
+          if (!inv?.name || !inv.firm) return [];
+          return [{
+            name: inv.name,
+            firm: inv.firm,
+            overlap: `Also in conversations — strong thesis alignment with ${inv.firm}`,
+          }];
+        }),
         prepChecklist: [
           { item: `Review ${second.firm}'s recent portfolio and thesis`, done: false },
           { item: "Prepare 3-slide deck: problem → solution → traction", done: false },
@@ -379,7 +425,7 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
         duration: "45 min",
         format: "Video call (Google Meet)",
         investorBackground: top.investment_thesis || `${top.firm} is an active investor in ${(top.sectors || []).join(", ")}`,
-        recentActivity: (matches[0].why_you_match || []).join(" · ") || "Active investor in your sector",
+        recentActivity: whyYouMatchTags(matches[0]).join(" · ") || "Active investor in your sector",
         talkingPoints: [
           `Lead with the technical insight that makes ${startup.name || "your product"} defensible`,
           top.investment_thesis ? `Reference their thesis: "${top.investment_thesis.slice(0, 80)}..."` : "Lead with the market opportunity",
@@ -392,11 +438,15 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
           { q: "What's your wedge?", a: `[Your specific beachhead] — we win here because of [specific advantage]. From there, expansion is natural.` },
           { q: "Who else are you talking to?", a: `We're in conversations with a few funds. We'd prioritize ${top.firm} given your thesis alignment. We're not running a process — we're looking for the right partner.` },
         ],
-        coInvestors: matches.filter((_, i) => i !== 0).slice(0, 2).map((m) => ({
-          name: m.investors.name,
-          firm: m.investors.firm,
-          overlap: `Also in conversations — creates positive signal for ${top.firm}`,
-        })),
+        coInvestors: matches.filter((_, i) => i !== 0).slice(0, 2).flatMap((m) => {
+          const inv = getApiMatchInvestor(m);
+          if (!inv?.name || !inv.firm) return [];
+          return [{
+            name: inv.name,
+            firm: inv.firm,
+            overlap: `Also in conversations — creates positive signal for ${top.firm}`,
+          }];
+        }),
         prepChecklist: [
           { item: `Research ${top.firm}'s portfolio and recent investments`, done: false },
           { item: "Prepare 1-slide architecture diagram", done: false },
@@ -412,32 +462,31 @@ function buildMilestonesFromApiResult(apiResult: ApiResult, domain: string): Omi
 }
 
 function mapApiToMatchedInvestors(matches: ApiMatch[]): MatchedInvestor[] {
-  return matches.slice(0, 5).map((m, i) => {
-    const inv = m.investors;
-    const stageLabel = (inv.stage || [])
-      .map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
-      .join(", ");
-    const tags = m.why_you_match || [];
+  return matches.slice(0, 5).flatMap((m, i) => {
+    const inv = getApiMatchInvestor(m);
+    if (!inv) return [];
+    const stageLabel = investorStageLabel(inv.stage);
+    const tags = whyYouMatchTags(m);
     const isSuperMatch = tags.some((t) => t.includes("SUPER MATCH"));
-    return {
+    return [{
       id: i + 1,
       investorUuid: inv.id,
       name: inv.name || "Unknown",
       firm: inv.firm || "Unknown Firm",
       role: "Partner",
       sector: inv.sectors?.slice(0, 3) || [],
-      stage: stageLabel || "All Stages",
+      stage: stageLabel,
       checkSize: "N/A",
       matchScore: Math.round(m.match_score),
       signalScore: Math.round(m.match_score * 0.9),
-      reason: m.reasoning || tags.join(". ") || "",
+      reason: m.reasoning || normalizeWhyYouMatch(m.why_you_match) || tags.join(". ") || "",
       recentActivity: tags.filter((t) => !t.includes("SUPER MATCH")).join(" · ") || "",
       whyYouMatchTags: tags,
       investmentThesis: inv.investment_thesis || "",
       isSuperMatch,
       status: "matched" as const,
       emailProfile: inferInvestorEmails(inv.name || "Unknown", inv.firm || "Unknown Firm"),
-    };
+    }];
   });
 }
 
@@ -1093,7 +1142,7 @@ function ResultsStep({
         investmentThesis: inv.investmentThesis,
         recentActivity: inv.recentActivity,
         emailProfile: inv.emailProfile ?? inferInvestorEmails(inv.name, inv.firm),
-        knownEmail: apiMatches[i]?.investors?.email || apiMatches[i]?.investors?.email_best_guess,
+        knownEmail: getApiMatchInvestor(apiMatches[i])?.email || getApiMatchInvestor(apiMatches[i])?.email_best_guess,
       })),
     });
   };
@@ -1147,8 +1196,9 @@ function ResultsStep({
   const primarySector = (apiResult?.startup?.sectors as string[] | undefined)?.[0] ?? "tech";
   const topFirm = (() => {
     for (const m of apiResult?.matches ?? []) {
-      const sectors = m.investors?.sectors ?? [];
-      if (sectors.includes(primarySector)) return m.investors?.firm;
+      const inv = getApiMatchInvestor(m);
+      const sectors = inv?.sectors ?? [];
+      if (sectors.includes(primarySector)) return inv?.firm;
     }
     return investors[0]?.firm;
   })();
