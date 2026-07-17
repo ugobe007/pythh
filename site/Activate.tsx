@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { apiUrl } from "@/lib/apiConfig";
+import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
