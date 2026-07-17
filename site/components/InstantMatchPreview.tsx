@@ -22,6 +22,14 @@ import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
 const PREVIEW_LIMIT = 10;
 
+type InvestorMix = 'balanced' | 'vc' | 'angel';
+
+const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
+  { id: 'balanced', label: 'Angels + VCs' },
+  { id: 'vc', label: 'VCs only' },
+  { id: 'angel', label: 'Angels only' },
+];
+
 function primarySignupLabel(shownCount: number): string {
   return `See your top ${shownCount} signal-fit investors — free`;
 }
@@ -30,6 +38,7 @@ type PreviewMatch = {
   investor_id?: string;
   match_score?: number;
   why_you_match?: string;
+  investor_class?: 'angel' | 'vc';
   investor?: {
     id?: string;
     name?: string;
@@ -38,10 +47,17 @@ type PreviewMatch = {
   };
 };
 
+type ShortlistMix = {
+  mode?: string;
+  vc_count?: number;
+  angel_count?: number;
+};
+
 type PreviewPayload = {
   startup?: { id?: string; name?: string; god_score?: number };
   total_matches?: number;
   matches?: PreviewMatch[];
+  shortlist_mix?: ShortlistMix | null;
   match_movement?: MatchMovement | null;
   oracle_gap?: OracleGapPayload | null;
 };
@@ -55,6 +71,9 @@ export default function InstantMatchPreview({ url }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [startupId, setStartupId] = useState<string | null>(null);
+  const [investorMix, setInvestorMix] = useState<InvestorMix>('balanced');
+  const [mixLoading, setMixLoading] = useState(false);
   const founderExpRef = useRef<GrowthAssignment | null>(null);
   const gateCtaRef = useRef<GrowthAssignment | null>(null);
   const deltaExpRef = useRef<GrowthAssignment | null>(null);
@@ -111,14 +130,17 @@ export default function InstantMatchPreview({ url }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setStartupId(null);
+    setPreview(null);
+    setInvestorMix('balanced');
+    deltaTeaserTrackedRef.current = false;
+    oracleGapTeaserTrackedRef.current = false;
+    evidenceStripTrackedRef.current = false;
 
-    async function run() {
+    async function submitUrl() {
       setLoading(true);
       setError(null);
       try {
-        const assignment = await fetchGrowthAssignment('founder', 'founder_hero_entry');
-        if (assignment) founderExpRef.current = assignment;
-
         const submitRes = await fetch(apiUrl('/api/instant/submit'), {
           method: 'POST',
           credentials: 'same-origin',
@@ -130,8 +152,8 @@ export default function InstantMatchPreview({ url }: Props) {
           throw new Error(submitJson.message || submitJson.error || 'Could not analyze startup URL');
         }
 
-        let startupId = submitJson.startup_id || submitJson.id;
-        if (!startupId && submitJson.status === 'queued') {
+        let id = submitJson.startup_id || submitJson.id;
+        if (!id && submitJson.status === 'queued') {
           for (let i = 0; i < 8 && !cancelled; i++) {
             await new Promise((r) => setTimeout(r, 2000));
             const retry = await fetch(apiUrl('/api/instant/submit'), {
@@ -141,94 +163,123 @@ export default function InstantMatchPreview({ url }: Props) {
               body: JSON.stringify({ url, source: 'matches_preview' }),
             });
             const retryJson = await retry.json().catch(() => ({}));
-            startupId = retryJson.startup_id || retryJson.id;
-            if (startupId) break;
+            id = retryJson.startup_id || retryJson.id;
+            if (id) break;
           }
         }
-        if (!startupId) throw new Error('Still analyzing — try again in a moment');
+        if (!id) throw new Error('Still analyzing — try again in a moment');
+        if (!cancelled) setStartupId(id);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Preview failed');
+          setLoading(false);
+        }
+      }
+    }
 
-        const previewRes = await fetch(apiUrl(`/api/preview/${startupId}?source=matches_preview`));
+    void submitUrl();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  useEffect(() => {
+    if (!startupId) return;
+    let cancelled = false;
+
+    async function loadPreview() {
+      const isMixRefetch = preview != null;
+      if (isMixRefetch) setMixLoading(true);
+      else setLoading(true);
+
+      try {
+        const assignment = await fetchGrowthAssignment('founder', 'founder_hero_entry');
+        if (assignment) founderExpRef.current = assignment;
+
+        const previewRes = await fetch(
+          apiUrl(`/api/preview/${startupId}?source=matches_preview&investor_class=${investorMix}`),
+        );
         if (!previewRes.ok) throw new Error('Match preview not ready yet');
         const data = (await previewRes.json()) as PreviewPayload;
         if (cancelled) return;
 
         setPreview(data);
 
-        const resolvedDelta =
-          deltaExpRef.current ??
-          (await fetchGrowthAssignment('founder', 'founder_preview_signal_delta_gate').catch(() => null));
-        if (resolvedDelta) {
-          deltaExpRef.current = resolvedDelta;
-          setDeltaAssignment(resolvedDelta);
-        }
+        if (!isMixRefetch) {
+          const resolvedDelta =
+            deltaExpRef.current ??
+            (await fetchGrowthAssignment('founder', 'founder_preview_signal_delta_gate').catch(() => null));
+          if (resolvedDelta) {
+            deltaExpRef.current = resolvedDelta;
+            setDeltaAssignment(resolvedDelta);
+          }
 
-        const resolvedOracleGap =
-          oracleGapExpRef.current ??
-          (await fetchGrowthAssignment('founder', 'founder_preview_oracle_gap_gate').catch(() => null));
-        if (resolvedOracleGap) {
-          oracleGapExpRef.current = resolvedOracleGap;
-          setOracleGapAssignment(resolvedOracleGap);
-        }
-
-        if (
-          data.oracle_gap &&
-          (resolvedOracleGap == null || resolvedOracleGap.variant_key === 'oracle_gap_cliffhanger') &&
-          !oracleGapTeaserTrackedRef.current
-        ) {
-          oracleGapTeaserTrackedRef.current = true;
-          void trackFunnelEventOnce('pythh_preview_oracle_gap_teaser', 'preview_oracle_gap_teaser_viewed', {
-            startup_id: startupId,
-            url,
-            current_god_score: data.oracle_gap.current_god_score,
-            has_top_gap: Boolean(data.oracle_gap.top_gap),
-            total_gaps: data.oracle_gap.total_gaps,
-          });
+          const resolvedOracleGap =
+            oracleGapExpRef.current ??
+            (await fetchGrowthAssignment('founder', 'founder_preview_oracle_gap_gate').catch(() => null));
           if (resolvedOracleGap) {
-            void trackGrowthEvent(resolvedOracleGap, 'preview_oracle_gap_teaser_viewed', {
+            oracleGapExpRef.current = resolvedOracleGap;
+            setOracleGapAssignment(resolvedOracleGap);
+          }
+
+          if (
+            data.oracle_gap &&
+            (resolvedOracleGap == null || resolvedOracleGap.variant_key === 'oracle_gap_cliffhanger') &&
+            !oracleGapTeaserTrackedRef.current
+          ) {
+            oracleGapTeaserTrackedRef.current = true;
+            void trackFunnelEventOnce('pythh_preview_oracle_gap_teaser', 'preview_oracle_gap_teaser_viewed', {
               startup_id: startupId,
               url,
-              ...data.oracle_gap,
+              current_god_score: data.oracle_gap.current_god_score,
+              has_top_gap: Boolean(data.oracle_gap.top_gap),
+              total_gaps: data.oracle_gap.total_gaps,
+            });
+            if (resolvedOracleGap) {
+              void trackGrowthEvent(resolvedOracleGap, 'preview_oracle_gap_teaser_viewed', {
+                startup_id: startupId,
+                url,
+                ...data.oracle_gap,
+              });
+            }
+          }
+
+          if (data.match_movement && !deltaTeaserTrackedRef.current) {
+            deltaTeaserTrackedRef.current = true;
+            void trackFunnelEventOnce('pythh_preview_delta_teaser', 'preview_delta_teaser_viewed', {
+              startup_id: startupId,
+              url,
+              moved_toward_count: data.match_movement.moved_toward_count,
+              moved_away_count: data.match_movement.moved_away_count,
+              match_count: data.match_movement.match_count,
+              signal_score_delta: data.match_movement.signal_score_delta,
+              source: data.match_movement.source,
+            });
+            void trackGrowthEvent(resolvedDelta, 'preview_delta_teaser_viewed', {
+              startup_id: startupId,
+              url,
+              ...data.match_movement,
             });
           }
-        }
 
-        if (
-          data.match_movement &&
-          !deltaTeaserTrackedRef.current
-        ) {
-          deltaTeaserTrackedRef.current = true;
-          void trackFunnelEventOnce('pythh_preview_delta_teaser', 'preview_delta_teaser_viewed', {
+          void trackFunnelEventOnce(`instant_matches_viewed:${startupId}`, 'instant_matches_viewed', {
             startup_id: startupId,
             url,
-            moved_toward_count: data.match_movement.moved_toward_count,
-            moved_away_count: data.match_movement.moved_away_count,
-            match_count: data.match_movement.match_count,
-            signal_score_delta: data.match_movement.signal_score_delta,
-            source: data.match_movement.source,
+            match_count: data.matches?.length ?? 0,
+            source: 'matches_preview',
+            investor_mix: investorMix,
           });
-          void trackGrowthEvent(resolvedDelta, 'preview_delta_teaser_viewed', {
-            startup_id: startupId,
-            url,
-            ...data.match_movement,
-          });
-        }
+          markFirstPreviewSeen();
 
-        void trackFunnelEventOnce(`instant_matches_viewed:${startupId}`, 'instant_matches_viewed', {
-          startup_id: startupId,
-          url,
-          match_count: data.matches?.length ?? 0,
-          source: 'matches_preview',
-        });
-        markFirstPreviewSeen();
-
-        if (!evidenceStripTrackedRef.current) {
-          evidenceStripTrackedRef.current = true;
-          void trackFunnelEventOnce('pythh_preview_evidence_strip', 'preview_evidence_strip_viewed', {
-            startup_id: startupId,
-            url,
-            total_in_network: data.total_matches ?? data.matches?.length ?? 0,
-            shown_count: Math.min(PREVIEW_LIMIT, data.matches?.length ?? 0),
-          });
+          if (!evidenceStripTrackedRef.current) {
+            evidenceStripTrackedRef.current = true;
+            void trackFunnelEventOnce('pythh_preview_evidence_strip', 'preview_evidence_strip_viewed', {
+              startup_id: startupId,
+              url,
+              total_in_network: data.total_matches ?? data.matches?.length ?? 0,
+              shown_count: Math.min(PREVIEW_LIMIT, data.matches?.length ?? 0),
+            });
+          }
         }
 
         for (const m of (data.matches || []).slice(0, PREVIEW_LIMIT)) {
@@ -236,17 +287,22 @@ export default function InstantMatchPreview({ url }: Props) {
           if (invId) recordMatchViewOnce(startupId, invId, 'instant_match_preview');
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Preview failed');
+        if (!cancelled && !isMixRefetch) {
+          setError(e instanceof Error ? e.message : 'Preview failed');
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setMixLoading(false);
+        }
       }
     }
 
-    void run();
+    void loadPreview();
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [startupId, investorMix, url]);
 
   useEffect(() => {
     const el = pricingStripRef.current;
@@ -380,7 +436,46 @@ export default function InstantMatchPreview({ url }: Props) {
         </h1>
         <p className="text-sm text-zinc-400">
           {total.toLocaleString()} matches in network · showing top {visible.length} ranked by your signals
+          {preview.shortlist_mix &&
+            investorMix === 'balanced' &&
+            typeof preview.shortlist_mix.vc_count === 'number' &&
+            typeof preview.shortlist_mix.angel_count === 'number' && (
+              <>
+                {' '}
+                · {preview.shortlist_mix.vc_count} VCs · {preview.shortlist_mix.angel_count} angels
+              </>
+            )}
         </p>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+        {INVESTOR_MIX_OPTIONS.map((opt) => {
+          const active = investorMix === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              disabled={mixLoading}
+              onClick={() => {
+                if (opt.id === investorMix) return;
+                setInvestorMix(opt.id);
+                void trackFunnelEvent('preview_investor_mix_changed', {
+                  mix: opt.id,
+                  startup_id: preview.startup?.id,
+                  source: 'instant_match_preview',
+                });
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                active
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                  : 'text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+        {mixLoading && <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
       </div>
 
       <div className="mb-8 rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-zinc-900/60 p-5 text-center sm:text-left">
@@ -437,6 +532,17 @@ export default function InstantMatchPreview({ url }: Props) {
                   {i === 0 && (
                     <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                       Top match
+                    </span>
+                  )}
+                  {m.investor_class && (
+                    <span
+                      className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                        m.investor_class === 'angel'
+                          ? 'bg-violet-500/10 text-violet-300 border-violet-500/30'
+                          : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'
+                      }`}
+                    >
+                      {m.investor_class === 'angel' ? 'Angel' : 'VC'}
                     </span>
                   )}
                   <span className="text-white font-medium truncate">

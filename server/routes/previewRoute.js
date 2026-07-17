@@ -17,7 +17,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
 );
 
-const { dedupeInvestorMatchesByFirm } = require('../../lib/dedupeInvestorMatchesByFirm');
+const {
+  buildMixedInvestorShortlist,
+  defaultPreviewMixOptions,
+  normalizeMixParam,
+  annotateMatchesWithInvestorClass,
+} = require('../../lib/mixedInvestorShortlist');
 const { logPreviewLoaded, recordFunnelEvent } = require('../lib/funnelTelemetry');
 const { getPreviewMatchDelta } = require('../lib/previewMatchDelta');
 const { buildPreviewOracleGap } = require('../lib/previewOracleGap');
@@ -505,7 +510,16 @@ router.get('/:startupId', async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .eq('startup_id', startupId);
 
-    // 3. Fetch a wide slice, then dedupe by VC firm (one partner per firm), keep top 10 for preview UI
+    const mixParam = normalizeMixParam(req.query.investor_class || req.query.investor_mix);
+    const previewMix = defaultPreviewMixOptions(startup, 10);
+    const mixOptions = {
+      total: previewMix.total,
+      mix: mixParam === 'balanced' ? previewMix.mix : mixParam,
+      vcSlots: previewMix.vcSlots,
+      angelSlots: previewMix.angelSlots,
+    };
+
+    // 3. Fetch a wide slice, then mix angels + VCs (one partner per firm), keep top 10 for preview UI
     const { data: matchRows, error: mErr } = await supabase
       .from('startup_investor_matches')
       .select(`
@@ -517,6 +531,9 @@ router.get('/:startupId', async (req, res) => {
           name,
           firm,
           title,
+          type,
+          is_individual,
+          capital_type,
           sectors,
           stage,
           check_size_min,
@@ -565,11 +582,15 @@ router.get('/:startupId', async (req, res) => {
       })
       .filter((m) => m.investor && (m.investor.id || m.investor_id));
 
-    let matches = dedupeInvestorMatchesByFirm(mapped, 10);
+    let matches = annotateMatchesWithInvestorClass(
+      buildMixedInvestorShortlist(mapped, mixOptions)
+    );
     let suggestedInvestorFallback = false;
     if (matches.length === 0) {
       const suggested = await buildSuggestedInvestorMatches(startup);
-      matches = dedupeInvestorMatchesByFirm(suggested, 5);
+      matches = annotateMatchesWithInvestorClass(
+        buildMixedInvestorShortlist(suggested, { ...mixOptions, total: 5 })
+      );
       if (matches.length > 0) suggestedInvestorFallback = true;
     }
 
@@ -627,6 +648,13 @@ router.get('/:startupId', async (req, res) => {
       },
       total_matches: totalMatches || 0,
       matches,
+      shortlist_mix: {
+        mode: mixOptions.mix,
+        vc_slots: mixOptions.vcSlots,
+        angel_slots: mixOptions.angelSlots,
+        vc_count: matches.filter((m) => m.investor_class === 'vc').length,
+        angel_count: matches.filter((m) => m.investor_class === 'angel').length,
+      },
       match_movement: matchMovement,
       oracle_gap: oracleGap,
       suggested_investor_fallback: suggestedInvestorFallback,

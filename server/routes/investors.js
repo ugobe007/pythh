@@ -3,6 +3,7 @@
  *
  * Query params:
  *   stage   early | mid | late | angel | partner | all  (default: all)
+ *   class   all | vc | angel | balanced  (default: all) — capital type filter
  *   sector  optional sector substring / canonical match
  *   limit   1–100 (default 25)
  *   offset  pagination offset (default 0)
@@ -18,6 +19,7 @@ const {
   getInvestorStageProfile,
 } = require('../../lib/stageInvestorFit');
 const { scorePartnerAngelInvestor } = require('../../lib/partnerAngelInvestors');
+const { investorMatchesClassFilter, getInvestorClass } = require('../../lib/investorClass');
 const { getCanonicalSector } = require('../lib/sectorTaxonomy');
 const {
   createMagicLinkToken,
@@ -97,6 +99,7 @@ const PROFILE_COLS =
   'id, name, email, firm, title, type, sectors, stage, check_size_min, check_size_max, geography_focus, investment_thesis, status';
 
 const VALID_STAGES = new Set(['all', 'early', 'mid', 'late', 'angel', 'angels', 'partner', 'partners', 'growth']);
+const VALID_CLASSES = new Set(['all', 'vc', 'vcs', 'angel', 'angels', 'balanced', 'both']);
 
 function normalizeSectorFilter(raw) {
   const s = String(raw || '').trim();
@@ -146,11 +149,13 @@ function shapeInvestor(row) {
     is_angel: profile.isAngel,
     is_partner_angel: partner.isPartnerAngel,
     partner_angel_score: partner.score,
+    investor_class: getInvestorClass(row),
   };
 }
 
 router.get('/', async (req, res) => {
   const stageParam = String(req.query.stage || 'all').toLowerCase().trim();
+  const classParam = String(req.query.class || req.query.investor_class || 'all').toLowerCase().trim();
   const sectorParam = normalizeSectorFilter(req.query.sector);
   const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '25'), 10) || 25));
   const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
@@ -160,6 +165,13 @@ router.get('/', async (req, res) => {
     return res.status(400).json({
       error: 'Invalid stage',
       allowed: ['all', 'early', 'mid', 'late', 'angel', 'partner', 'growth'],
+    });
+  }
+
+  if (!VALID_CLASSES.has(classParam)) {
+    return res.status(400).json({
+      error: 'Invalid class',
+      allowed: ['all', 'vc', 'angel', 'balanced'],
     });
   }
 
@@ -192,6 +204,10 @@ router.get('/', async (req, res) => {
     if (stageFilter !== 'all') {
       rows = rows.filter((inv) => investorMatchesStageFilter(inv, stageFilter));
     }
+    const classFilter = classParam === 'both' ? 'balanced' : classParam;
+    if (classFilter !== 'all' && classFilter !== 'balanced') {
+      rows = rows.filter((inv) => investorMatchesClassFilter(inv, classFilter));
+    }
     if (sectorParam) {
       rows = rows.filter((inv) => investorMatchesSector(inv, sectorParam));
     }
@@ -207,6 +223,7 @@ router.get('/', async (req, res) => {
       limit,
       offset,
       stage: stageFilter,
+      class: classFilter,
       sector: sectorParam || null,
     });
   } catch (err) {
