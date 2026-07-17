@@ -229,6 +229,14 @@ function main() {
           forbidden_actions: personaConfig.forbidden_actions,
         }
       : null,
+    cta_focus: personaConfig
+      ? {
+          doctrine: personaConfig.cta_doctrine?.principle,
+          review_questions: personaConfig.review_questions,
+          anti_patterns: personaConfig.cta_doctrine?.anti_patterns,
+          recommended_primary_framing: personaConfig.cta_doctrine?.primary_outcome_framing,
+        }
+      : null,
     mandate: 'active_not_passive',
     voice: {
       ratio: '40% picky/skeptical critique, 60% motivating actionable logic',

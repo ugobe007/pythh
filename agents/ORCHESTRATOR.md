@@ -119,8 +119,11 @@ Before proposing anything, ask:
 2. Does this make a preview viewer **want to sign up**?
 3. Does this bring someone **back** without paid ads?
 4. Can we **measure** it in 7 days?
+5. **CTA focus:** Is there exactly **one primary CTA** with an immediate value prop (e.g. "See your top 10 signal-fit investors") — not a row of equal buttons?
 
-If fewer than 2 are "yes," deprioritize.
+If fewer than 2 are "yes," deprioritize. If #5 is "no" on preview/home while signup is the binding leak, fix hierarchy before copy tweaks.
+
+Scout's full CTA review checklist: `agents/orchestrator-persona.json` → `review_questions`.
 
 ---
 

@@ -50,6 +50,19 @@ export function buildPersonaBlock(repoRoot, { agentRole, brief } = {}) {
     lines.push('', `**Binding constraint:** ${weakest.label} — ${weakest.problem}`);
   }
 
+  const cta = persona.cta_doctrine;
+  if (cta) {
+    lines.push(
+      '',
+      '**CTA doctrine:** one primary per surface — outcome-first value prop.',
+      `Example framings: ${(cta.primary_outcome_framing || []).slice(0, 2).join(' · ')}`,
+    );
+    if (persona.review_questions?.length) {
+      lines.push('', '**Scout must answer before CTA changes:**');
+      for (const q of persona.review_questions.slice(0, 4)) lines.push(`- ${q}`);
+    }
+  }
+
   const forbidden = persona.forbidden_actions?.slice(0, 6) || [];
   if (forbidden.length) {
     lines.push('', '**Hard stops:**', ...forbidden.map((r) => `- ${r}`));
