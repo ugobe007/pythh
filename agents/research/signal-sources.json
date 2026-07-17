@@ -24,6 +24,25 @@
     "product_opportunities"
   ],
   "competitor_watch": [
-    "Harmonic", "PitchBook", "Carta", "Affinity", "Visible", "Fundraise.com", "OpenVC"
+    {
+      "id": "startups_com",
+      "name": "Startups.com",
+      "priority": "P0",
+      "urls": [
+        "https://www.startups.com/investors/matching/start",
+        "https://www.startups.com/investors/matching",
+        "https://who-will-fund-me.startups.com/"
+      ],
+      "intel_file": "agents/research/competitors/startups-com-investor-matching.md",
+      "benchmark_metrics": ["cta_singularity", "value_before_paywall", "match_count_social_proof", "outreach_automation"],
+      "notes": "Single primary CTA 'See My Matches'; form-first intake; Pro $49/mo for outreach. Primary benchmark for Scout CTA doctrine."
+    },
+    { "id": "harmonic", "name": "Harmonic" },
+    { "id": "pitchbook", "name": "PitchBook" },
+    { "id": "carta", "name": "Carta" },
+    { "id": "affinity", "name": "Affinity" },
+    { "id": "visible", "name": "Visible" },
+    { "id": "fundraise_com", "name": "Fundraise.com" },
+    { "id": "openvc", "name": "OpenVC" }
   ]
 }

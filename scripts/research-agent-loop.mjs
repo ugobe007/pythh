@@ -47,12 +47,13 @@ North star: 100 signups/day (see agents/north-star.json). Focus on synthetic-tra
 Run this research cycle now:
 1. node scripts/research-snapshot.mjs --json && node scripts/conversion-funnel-snapshot.mjs --json
 2. Read agents/research/friction-taxonomy.json and agents/research/signal-sources.json
-3. Read agents/research/findings-registry.json
-4. Analyze RSS + internal startup_events for workflow friction, missing data, funding pain, skepticism patterns
-5. Consider 3–5 product/service ideas that create habit loops (not one-shot landing pages)
-6. Update agents/research/findings-registry.json with ranked findings (max 5 new)
-7. REQUIRED: Write agents/research/briefs/${date}-market-brief.md (1-page human brief — do not skip; daily report reads this file)
-8. Write reports/research-agent-${date}.json with signup_velocity, human_funnel_summary, top problems, market_opportunities, recommended_for_product_backlog, active_engagement_ideas
+3. Read agents/research/competitors/startups-com-investor-matching.md — benchmark Pythh preview CTA/funnel vs Startups.com; include competitor_benchmark in report
+4. Read agents/research/findings-registry.json
+5. Analyze RSS + internal startup_events for workflow friction, missing data, funding pain, skepticism patterns
+6. Consider 3–5 product/service ideas that create habit loops (not one-shot landing pages)
+7. Update agents/research/findings-registry.json with ranked findings (max 5 new)
+8. REQUIRED: Write agents/research/briefs/${date}-market-brief.md (1-page human brief — do not skip; daily report reads this file)
+9. Write reports/research-agent-${date}.json with signup_velocity, competitor_benchmark, human_funnel_summary, top problems, market_opportunities, recommended_for_product_backlog, active_engagement_ideas
 
 Hand off high-confidence items to Product Agent via handoff block in findings.`;
 

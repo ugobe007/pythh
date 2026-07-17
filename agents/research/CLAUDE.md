@@ -30,20 +30,22 @@ Use `agents/research/friction-taxonomy.json` to classify findings.
 1. Run `node scripts/research-snapshot.mjs --json` — external RSS + internal DB signals + signup velocity vs north star.
 2. Read `agents/research/findings-registry.json` — avoid duplicate findings; update status on prior items.
 3. Read `agents/research/signal-sources.json` — know what sources were scanned.
-4. Scan headlines and internal events for **friction keywords** and **founder/investor pain patterns**.
-5. Optionally use Web search (if available) for 1–2 `search_themes` — max 2 queries per run.
-6. Produce **3–7 findings** ranked by relevance to Pythh:
+4. Read **all files in `agents/research/competitors/`** — benchmark CTA, funnel, loops (P0: `startups-com-investor-matching.md`).
+5. Scan headlines and internal events for **friction keywords** and **founder/investor pain patterns**.
+6. Optionally use Web search (if available) for 1–2 `search_themes` — max 2 queries per run.
+7. Produce **3–7 findings** ranked by relevance to Pythh:
    - Each finding: problem, who feels it, evidence, Pythh opportunity, suggested product shape
-7. Update `findings-registry.json`:
+8. Update `findings-registry.json`:
    - Add new findings (`status: open`)
    - Promote strong ones with `product_opportunity_id` when ready for Product Agent backlog
    - Mark stale findings `archived` if no longer relevant
-8. Write `reports/research-agent-YYYY-MM-DD.json`:
+9. Write `reports/research-agent-YYYY-MM-DD.json`:
 
 ```json
 {
   "summary": "...",
   "signup_velocity": { "founder_per_day", "investor_per_day", "gap_to_100" },
+  "competitor_benchmark": { "primary": "startups_com", "gaps_vs_pythh": [], "recommended_experiments": [] },
   "top_founder_problems": [],
   "top_investor_problems": [],
   "market_opportunities": [],
@@ -53,7 +55,7 @@ Use `agents/research/friction-taxonomy.json` to classify findings.
 }
 ```
 
-9. Write `agents/research/briefs/YYYY-MM-DD-market-brief.md` — human-readable 1-page brief for the founder.
+10. Write `agents/research/briefs/YYYY-MM-DD-market-brief.md` — human-readable 1-page brief for the founder.
 
 ## Product ideas to consider
 

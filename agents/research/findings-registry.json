@@ -3,6 +3,33 @@
   "updated_at": "2026-06-27T00:00:00Z",
   "findings": [
     {
+      "id": "F-competitor-startups-com-01",
+      "type": "competitor",
+      "friction_category": "workflow_friction",
+      "audience": "founder",
+      "title": "Startups.com runs a singular outcome CTA funnel — Pythh must match clarity, beat on signal-fit",
+      "founder_problem": "Founders compare tools on speed-to-matches and clarity of next step. Startups.com offers one obvious action ('See My Matches') after a short form; fragmented CTAs feel amateur.",
+      "investor_problem": "N/A — founder-side acquisition benchmark.",
+      "evidence": {
+        "competitor": "Live browse 2026-07-17: startups.com/investors/matching/start — H1 'Raise Capital 10x Faster', form (raise amount, pitch, tags), single green CTA 'See My Matches'; optional deck upload; Pro $49/mo for 10k investors + outreach automation.",
+        "internal": "Pythh preview had 6+ competing CTAs until 2026-07-17 founder_preview_primary_cta ship.",
+        "strength": "validated (competitor live UI + internal before/after)"
+      },
+      "pythh_opportunity": "Match their CTA singularity (done) while beating their volume hype with picky evidence: 'See your top N signal-fit investors' + screened-out proof. URL-first preview beats their form-first path. Post-signup, compete on outreach drafts (their Pitch Builder) via PYTHIA intro loop.",
+      "suggested_product_shape": "Headline A/B vs speed outcome; optional deck upload AFTER url preview; social proof strip with honest network counts; gated outreach draft teaser.",
+      "signup_lever": "conversion",
+      "confidence": "high",
+      "status": "open",
+      "competitor_id": "startups_com",
+      "intel_file": "agents/research/competitors/startups-com-investor-matching.md",
+      "handoff": {
+        "suggested_opportunity_id": "compete_startups_com_cta",
+        "title": "Benchmark and beat Startups.com investor matching funnel",
+        "priority": "P0",
+        "domain": "growth"
+      }
+    },
+    {
       "id": "F-2026-0622-01",
       "type": "funnel",
       "friction_category": "missing_signals",

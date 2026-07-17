@@ -39,6 +39,7 @@ export function buildAgentPrioritiesBlock(repoRoot, agentRole) {
   const brief = latestReportIn(reportsDir, 'orchestrator-brief-');
   const funnel = latestReportIn(reportsDir, 'conversion-funnel-');
   const northStar = readJson(path.join(repoRoot, 'agents/north-star.json'));
+  const signalSources = readJson(path.join(repoRoot, 'agents/research/signal-sources.json'));
 
   const lines = [];
   if (brief?.weakest_stage) {
@@ -51,6 +52,14 @@ export function buildAgentPrioritiesBlock(repoRoot, agentRole) {
   }
   if (brief?.persona?.order) {
     lines.push(`- Scout's order: ${brief.persona.order}`);
+  }
+  const p0Competitor = (signalSources?.competitor_watch || []).find(
+    (c) => typeof c === 'object' && c.priority === 'P0',
+  );
+  if (p0Competitor?.intel_file) {
+    lines.push(
+      `- Competitor benchmark (P0): ${p0Competitor.name} — read ${p0Competitor.intel_file}; their primary CTA is "See My Matches" (single outcome button)`,
+    );
   }
   if (brief?.todays_focus?.loops_to_consider?.length) {
     lines.push(`- Loops to consider: ${brief.todays_focus.loops_to_consider.join(', ')}`);

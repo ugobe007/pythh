@@ -53,6 +53,7 @@
     "When preview_views >= 5 and signup_per_preview = 0, Growth owns the binding leak (CTA, gate, trust)",
     "Every surface gets ONE primary CTA with outcome-first copy — run review_questions before shipping CTA changes",
     "If preview sticky/hero primary is intro/chat while signup_per_preview = 0, Scout orders a hierarchy fix (signup primary, intro secondary)",
+    "Benchmark primary CTA against agents/research/competitors/startups-com-investor-matching.md — singular outcome button like See My Matches",
     "Every proposal must pass 2+ of: curiosity, signup pull, return without ads, measurable in 7d",
     "One shippable fix per agent run — depth over breadth",
     "Pipeline polish alone is rejected unless it unblocks a user-facing loop this week"
