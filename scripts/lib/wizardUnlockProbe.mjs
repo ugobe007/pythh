@@ -67,8 +67,9 @@ export async function runWizardUnlockProbe(opts = {}) {
 
     steps.push({ step: 'wizard_round_load', ok: true, url: wizardUrl });
 
-    const pipelineBtn = page.getByRole('button', { name: /View my investor pipeline/i });
-    const goBackBtn = page.getByRole('button', { name: /Go back to unlocks/i });
+    const pipelineBtn = page.getByRole('button', { name: /Start unlocks/i });
+    const skipPipelineBtn = page.getByRole('button', { name: /Skip to pipeline preview/i });
+    const goBackBtn = page.getByRole('button', { name: /Continue readiness unlocks/i });
 
     let landed = 'unknown';
     try {
@@ -88,7 +89,7 @@ export async function runWizardUnlockProbe(opts = {}) {
     steps.push({ step: 'wizard_ui_ready', ok: true, landed });
 
     if (landed === 'unlock_intro') {
-      await pipelineBtn.click();
+      await skipPipelineBtn.click();
       await goBackBtn.waitFor({ state: 'visible', timeout: 30000 });
       steps.push({ step: 'skip_to_round_tab', ok: true });
     }

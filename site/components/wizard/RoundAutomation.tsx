@@ -216,9 +216,13 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
           <div className="flex items-start gap-3 mb-4">
             <Lock size={16} className="flex-shrink-0 mt-0.5" style={{ color: "oklch(0.696 0.17 162.48)" }} />
             <div>
-              <p className="text-sm font-semibold mb-1" style={{ color: "oklch(0.88 0.005 264)" }}>Outreach package locked</p>
-              <p className="text-xs leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
-                {outreach.message || `Cross readiness ${gate.thresholds.outreach}+ to unlock personalized emails and your investment memo.`}
+              <p className="text-sm font-semibold mb-1" style={{ color: "oklch(0.88 0.005 264)" }}>Outreach preview locked</p>
+              <p className="text-xs leading-relaxed mb-2" style={{ color: "oklch(0.55 0.01 264)" }}>
+                {outreach.message || `Cross readiness ${gate.thresholds.outreach}+ to preview personalized emails and your investment memo.`}
+              </p>
+              <p className="text-[10px] leading-relaxed" style={{ color: "oklch(0.42 0.01 264)" }}>
+                Free — commit to 2 readiness unlocks (or prove 1). No subscription required for unlocks.
+                Paid PYTHIA automation is optional and comes later.
               </p>
             </div>
           </div>
@@ -246,7 +250,7 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
             className="w-full mt-4 py-2.5 rounded-lg text-xs font-semibold border disabled:opacity-60"
             style={{ color: "#22c55e", borderColor: "#22c55e40" }}
           >
-            {unlockNavigating ? "Opening unlocks…" : "Go back to unlocks →"}
+            {unlockNavigating ? "Opening unlocks…" : "Continue readiness unlocks →"}
           </button>
         </div>
       )}

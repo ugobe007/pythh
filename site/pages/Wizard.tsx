@@ -56,7 +56,40 @@ const API_BASE = "/api/wizard";
 type GapTaskWithStatus = GapTask & { existing_status?: string | null };
 
 function filterPendingGapTasks(tasks: GapTaskWithStatus[]): GapTask[] {
-  return tasks.filter((t) => !t.existing_status || t.existing_status === "pending");
+  return tasks.filter((t) => {
+    const s = t.existing_status;
+    return !s || s === "pending";
+  });
+}
+
+async function persistGapTaskAction(
+  startupId: string,
+  task: GapTask,
+  action: "skip" | "acknowledge",
+  deadline?: string,
+): Promise<boolean> {
+  const createRes = await fetch(`${API_BASE}/${startupId}/tasks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tasks: [task] }),
+  });
+  if (!createRes.ok) return false;
+
+  const created = await createRes.json();
+  let taskId = (created.tasks || [])[0]?.id as string | undefined;
+  if (!taskId) return false;
+
+  if (action === "skip") {
+    const skipRes = await fetch(`${API_BASE}/tasks/${taskId}/skip`, { method: "PUT" });
+    return skipRes.ok;
+  }
+
+  const ackRes = await fetch(`${API_BASE}/tasks/${taskId}/acknowledge`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deadline }),
+  });
+  return ackRes.ok;
 }
 
 function WizardLoading({ message }: { message: string }) {
@@ -96,6 +129,7 @@ export default function Wizard() {
   const [commitmentDoc, setCommitmentDoc] = useState<unknown>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [unlockSummary, setUnlockSummary] = useState<UnlockSummary | null>(null);
+  const [gapActionError, setGapActionError] = useState("");
   const [showWelcome, setShowWelcome] = useState(
     () => new URLSearchParams(window.location.search).get("welcome") === "1",
   );
@@ -130,9 +164,10 @@ export default function Wizard() {
     const explicitWizard =
       searchParams.get('tab') === 'round' ||
       searchParams.get('force_wizard') === '1' ||
+      searchParams.get('start_unlocks') === '1' ||
       searchParams.get('skip_unlocks') === '0';
     if (sessionStorage.getItem('pythia_skip_wizard_unlocks') === '1' && !explicitWizard) {
-      navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
+      navigate(`/activate?startup_id=${encodeURIComponent(startupId)}`);
     }
   }, [startupId, navigate]);
 
@@ -250,7 +285,7 @@ export default function Wizard() {
       if (!result.pending.length) {
         await loadDbTasks();
         setPhase("tabs");
-        setActiveTab("commitments");
+        setActiveTab(activeTab === "round" ? "commitments" : activeTab);
         return;
       }
 
@@ -277,9 +312,11 @@ export default function Wizard() {
 
   const resolveGapTask = useCallback(
     (taskKey: string) => {
+      setGapActionError("");
       setGapTasks((prev) => {
         const remaining = prev.filter((t) => t.task_key !== taskKey);
         if (remaining.length === 0) {
+          setPhase("loading");
           void finishGapFlow();
         }
         return remaining;
@@ -291,22 +328,12 @@ export default function Wizard() {
 
   const handleAcknowledgeConfirm = async (deadline: string) => {
     if (!acknowledgeTask || !startupId) return;
+    setGapActionError("");
     const taskKey = acknowledgeTask.task_key;
-    const createRes = await fetch(`${API_BASE}/${startupId}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tasks: [acknowledgeTask] }),
-    });
-    if (createRes.ok) {
-      const created = await createRes.json();
-      const taskId = (created.tasks || [])[0]?.id;
-      if (taskId) {
-        await fetch(`${API_BASE}/tasks/${taskId}/acknowledge`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deadline }),
-        });
-      }
+    const ok = await persistGapTaskAction(startupId, acknowledgeTask, "acknowledge", deadline);
+    if (!ok) {
+      setGapActionError("Could not save this unlock — please try again.");
+      return;
     }
     setAcknowledgeTask(null);
     resolveGapTask(taskKey);
@@ -314,17 +341,11 @@ export default function Wizard() {
 
   const handleSkip = async (task: GapTask) => {
     if (!startupId) return;
-    const createRes = await fetch(`${API_BASE}/${startupId}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tasks: [task] }),
-    });
-    if (createRes.ok) {
-      const created = await createRes.json();
-      const taskId = (created.tasks || [])[0]?.id;
-      if (taskId) {
-        await fetch(`${API_BASE}/tasks/${taskId}/skip`, { method: "PUT" });
-      }
+    setGapActionError("");
+    const ok = await persistGapTaskAction(startupId, task, "skip");
+    if (!ok) {
+      setGapActionError("Could not save — your progress was not recorded. Try again.");
+      return;
     }
     resolveGapTask(task.task_key);
   };
@@ -423,6 +444,21 @@ export default function Wizard() {
           <p className="text-xs mb-6 font-mono" style={{ color: "oklch(0.45 0.01 264)" }}>
             GOD {unlockSummary.current_god_score} → {unlockSummary.projected_god_score} if all unlocked
           </p>
+          <p className="text-xs mb-6 px-3 py-2 rounded-lg" style={{ color: "oklch(0.55 0.01 264)", backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}>
+            Free with your account — no subscription required to review and commit to unlocks.
+            A paid plan is only needed later if you want PYTHIA to send outreach automatically.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              allowWizardUnlockFlow();
+              void beginUnlockFlow();
+            }}
+            className="w-full py-3.5 rounded-xl text-sm font-semibold text-black mb-3"
+            style={{ background: "#22c55e" }}
+          >
+            Start unlocks →
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -430,26 +466,18 @@ export default function Wizard() {
               setActiveTab("round");
               setPhase("tabs");
             }}
-            className="w-full py-3.5 rounded-xl text-sm font-semibold text-black mb-3"
-            style={{ background: "#22c55e" }}
+            className="w-full py-3 rounded-xl text-sm font-medium mb-3"
+            style={{ color: "oklch(0.55 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}
           >
-            View my investor pipeline →
+            Skip to pipeline preview
           </button>
           <button
             type="button"
             onClick={() => navigate(`/activate?startup_id=${encodeURIComponent(startupId || "")}`)}
-            className="w-full py-3 rounded-xl text-sm font-medium mb-3"
-            style={{ color: "oklch(0.55 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}
-          >
-            Back to my full match list
-          </button>
-          <button
-            type="button"
-            onClick={() => void beginUnlockFlow()}
             className="w-full py-2.5 rounded-xl text-xs font-medium"
             style={{ color: "oklch(0.45 0.01 264)" }}
           >
-            Improve GOD score with readiness unlocks (optional)
+            Back to my full match list
           </button>
           <p className="text-[10px] mt-4" style={{ color: "oklch(0.35 0.01 264)" }}>
             Skip any unlock — only commit to what you&apos;ll actually prove
@@ -462,43 +490,21 @@ export default function Wizard() {
   if (phase === "gap_cards") {
     const currentTask = gapTasks[0];
     if (!currentTask) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
-          <p className="text-sm mb-4 text-center" style={{ color: "oklch(0.55 0.01 264)" }}>
-            Couldn&apos;t load your unlock cards. Try again.
-          </p>
-          <button
-            type="button"
-            onClick={() => void beginUnlockFlow()}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-black mb-3"
-            style={{ background: "#22c55e" }}
-          >
-            Load unlocks
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPhase("tabs");
-              setActiveTab("round");
-            }}
-            className="text-xs underline"
-            style={{ color: "oklch(0.45 0.01 264)" }}
-          >
-            Back to round
-          </button>
-        </div>
-      );
+      return <WizardLoading message="Saving your unlocks…" />;
     }
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
         <div className="flex items-center justify-between px-6 py-5">
           <button
             type="button"
-            onClick={() => navigate(`/activate`)}
+            onClick={() => {
+              setPhase("tabs");
+              setActiveTab("round");
+            }}
             className="flex items-center gap-1.5 text-xs"
             style={{ color: "oklch(0.45 0.01 264)" }}
           >
-            <ArrowLeft className="w-3 h-3" /> Back
+            <ArrowLeft className="w-3 h-3" /> Back to round
           </button>
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -516,7 +522,13 @@ export default function Wizard() {
           </h1>
         </div>
         <div className="flex-1 flex items-start justify-center px-4 pb-12">
-          <GapCard
+          <div className="w-full max-w-md">
+            {gapActionError && (
+              <p className="text-xs text-red-400 text-center mb-4 px-3 py-2 rounded-lg" style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid oklch(0.25 0.01 264)" }}>
+                {gapActionError}
+              </p>
+            )}
+            <GapCard
             task={currentTask}
             taskIndex={gapFlowResolved}
             totalTasks={gapFlowTotal || gapTasks.length}
@@ -525,6 +537,7 @@ export default function Wizard() {
             onSkip={() => handleSkip(currentTask)}
             isLast={gapTasks.length === 1}
           />
+          </div>
         </div>
         {acknowledgeTask && (
           <AcknowledgeModal
@@ -604,9 +617,14 @@ export default function Wizard() {
           <div className="space-y-4">
             {activeTasks.length === 0 && (
               <div className="text-center py-12 rounded-xl" style={{ border: "1px solid oklch(0.2 0.01 264)" }}>
-                <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>No commitments yet.</p>
-                <button type="button" onClick={() => void beginUnlockFlow()} className="mt-4 text-xs text-emerald-400 underline">
-                  Review unlocks
+                <p className="text-sm mb-2" style={{ color: "oklch(0.55 0.01 264)" }}>
+                  No unlock cards left — you&apos;ve reviewed everything Oracle flagged.
+                </p>
+                <p className="text-xs mb-4 px-4" style={{ color: "oklch(0.42 0.01 264)" }}>
+                  Open the Round tab to see what readiness items still block outreach. No subscription required.
+                </p>
+                <button type="button" onClick={() => setActiveTab("round")} className="text-xs text-emerald-400 underline">
+                  Go to Round tab →
                 </button>
               </div>
             )}

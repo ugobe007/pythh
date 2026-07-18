@@ -2785,8 +2785,8 @@ export default function Activate() {
   const handleActivatePipeline = () => {
     const sid = apiResult?.startup_id;
     if (sid) {
-      allowWizardUnlockFlow();
-      navigate(`/wizard/${sid}?tab=round&force_wizard=1`);
+    allowWizardUnlockFlow();
+    navigate(`/wizard/${sid}?tab=round&force_wizard=1&start_unlocks=1`);
       return;
     }
     const hasActivePlan =
@@ -2805,7 +2805,7 @@ export default function Activate() {
     const sid = apiResult?.startup_id ?? shareStartupId;
     if (!sid) return;
     allowWizardUnlockFlow();
-    navigate(`/wizard/${sid}?tab=round`);
+    navigate(`/wizard/${sid}?tab=round&force_wizard=1&start_unlocks=1`);
   };
 
   const handleRaisePlanAuthorized = () => {

@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 const TEST_URL = process.env.SMOKE_URL || 'stripe.com';
 
 test.describe('Wizard unlock funnel', () => {
-  test('Round tab → Go back to unlocks opens gap card 1', async ({ page, request, baseURL }) => {
+  test('Round tab → continue unlocks opens gap card 1', async ({ page, request, baseURL }) => {
     const origin = (baseURL || 'https://pythh.ai').replace(/\/$/, '');
     const url = TEST_URL.startsWith('http') ? TEST_URL : `https://${TEST_URL}`;
 
