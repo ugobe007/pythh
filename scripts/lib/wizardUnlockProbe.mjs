@@ -63,7 +63,7 @@ export async function runWizardUnlockProbe(opts = {}) {
     const page = await browser.newPage();
 
     const wizardUrl = `${base}/wizard/${startupId}?tab=round&force_wizard=1`;
-    await page.goto(wizardUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.goto(wizardUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     steps.push({ step: 'wizard_round_load', ok: true, url: wizardUrl });
 
@@ -73,10 +73,10 @@ export async function runWizardUnlockProbe(opts = {}) {
     let landed = 'unknown';
     try {
       await Promise.race([
-        pipelineBtn.waitFor({ state: 'visible', timeout: 35000 }).then(() => {
+        pipelineBtn.waitFor({ state: 'visible', timeout: 45000 }).then(() => {
           landed = 'unlock_intro';
         }),
-        goBackBtn.waitFor({ state: 'visible', timeout: 35000 }).then(() => {
+        goBackBtn.waitFor({ state: 'visible', timeout: 45000 }).then(() => {
           landed = 'round_tab';
         }),
       ]);
@@ -89,7 +89,7 @@ export async function runWizardUnlockProbe(opts = {}) {
 
     if (landed === 'unlock_intro') {
       await pipelineBtn.click();
-      await goBackBtn.waitFor({ state: 'visible', timeout: 20000 });
+      await goBackBtn.waitFor({ state: 'visible', timeout: 30000 });
       steps.push({ step: 'skip_to_round_tab', ok: true });
     }
 
@@ -98,8 +98,8 @@ export async function runWizardUnlockProbe(opts = {}) {
     const heading = page.getByRole('heading', { name: /What will you unlock/i });
     const unlockCard = page.getByRole('heading', { name: /Unlock:/i });
 
-    await heading.waitFor({ state: 'visible', timeout: 20000 });
-    await unlockCard.waitFor({ state: 'visible', timeout: 10000 });
+    await heading.waitFor({ state: 'visible', timeout: 30000 });
+    await unlockCard.waitFor({ state: 'visible', timeout: 15000 });
 
     const cardTitle = (await unlockCard.textContent())?.trim() || '';
     steps.push({

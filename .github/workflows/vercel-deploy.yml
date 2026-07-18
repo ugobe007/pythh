@@ -120,3 +120,11 @@ jobs:
         env:
           EXPECTED_SHA: ${{ github.sha }}
         run: npm run check:deploy-sha
+
+  wizard-e2e:
+    name: Wizard unlock E2E
+    needs: deploy
+    if: success()
+    uses: ./.github/workflows/wizard-e2e-reusable.yml
+    with:
+      expected_sha: ${{ github.sha }}

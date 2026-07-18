@@ -459,7 +459,7 @@ async function runProbe() {
     }
   }
 
-  await sleep(5000);
+  await sleep(8000);
 
   const sb = createClient(
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,

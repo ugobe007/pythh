@@ -84,4 +84,13 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Post-deploy smoke test
-        run: APP_URL=https://hot-honey.fly.dev SKIP_DEEP_HEALTH=1 node scripts/post-deploy-health-check.js
+        run: |
+          for i in $(seq 1 8); do
+            if APP_URL=https://hot-honey.fly.dev SKIP_DEEP_HEALTH=1 node scripts/post-deploy-health-check.js; then
+              exit 0
+            fi
+            echo "Post-deploy attempt $i/8 failed — waiting for Fly machine warm-up…"
+            sleep 20
+          done
+          echo "::error::Post-deploy smoke test failed after 8 attempts"
+          exit 1
