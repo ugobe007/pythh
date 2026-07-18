@@ -51,7 +51,30 @@ async function main() {
   })();
   const heartbeat = latestHeartbeatReport(reportsDir);
 
+  const latestWizardE2e = (() => {
+    if (!fs.existsSync(reportsDir)) return null;
+    const files = fs
+      .readdirSync(reportsDir)
+      .filter((f) => f.startsWith('wizard-unlock-e2e-') && f.endsWith('.json'))
+      .sort()
+      .reverse();
+    if (!files[0]) return null;
+    try {
+      return JSON.parse(fs.readFileSync(path.join(reportsDir, files[0]), 'utf8'));
+    } catch {
+      return null;
+    }
+  })();
+
   const checks = [
+    {
+      id: 'wizard_unlock_e2e',
+      ok: latestWizardE2e?.ok ?? null,
+      detail: latestWizardE2e?.ok
+        ? `Round→unlocks handoff OK (${latestWizardE2e.card_title?.slice(0, 40) || 'gap card visible'})`
+        : latestWizardE2e?.error ||
+          (latestWizardE2e ? 'wizard E2E failed' : 'no wizard-unlock-e2e report — run npm run test:wizard-e2e'),
+    },
     {
       id: 'heartbeat_required_stages',
       ok: heartbeat?.verification?.required_stages_ok ?? heartbeat?.ok ?? null,

@@ -90,7 +90,8 @@ export function runShipChecks(repoRoot, changed) {
   if (!needsCodeChecks) return { ok: true, skipped: true };
 
   const steps = [
-    ['npm run test:wizard-smoke', 'wizard smoke'],
+    ['npm run test:wizard-smoke', 'wizard API smoke'],
+    ['npm run test:wizard-e2e', 'wizard unlock E2E'],
     ['npm run check:server', 'server load check'],
   ];
 

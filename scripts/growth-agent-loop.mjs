@@ -47,8 +47,8 @@ Run this growth optimization cycle now:
 2. node scripts/growth-metrics-snapshot.mjs --json
 3. Read agents/growth/experiment-registry.json
 4. Analyze founder + investor signup AND pricing→checkout experiments; compare variant performance on HUMAN preview views only
-5. Run npm run funnel:heartbeat -- --no-fail and npm run test:wizard-smoke (note failures in report)
-6. Implement ONE funnel fix when warranted (hero routing, experiment allocation, CTA copy in site/)
+5. Run npm run funnel:heartbeat -- --no-fail, npm run test:wizard-smoke, and npm run test:wizard-e2e (note failures in report)
+6. Implement ONE funnel fix when warranted (hero routing, experiment allocation, CTA copy, wizard handoff in site/)
 7. Write reports/growth-agent-${new Date().toISOString().slice(0, 10)}.json with winners, losers, ONE concrete proposal, code_changes, active_engagement
 8. If a registry change is warranted, edit agents/growth/experiment-registry.json (new variants as draft only)
 

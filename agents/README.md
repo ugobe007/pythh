@@ -40,6 +40,8 @@ npm run orchestrator:brief              # weakest funnel stage + active mandate
 
 npm run conversion:funnel             # visitor→signup→use→pay snapshot
 npm run funnel:heartbeat              # synthetic E2E probe (pythh.ai)
+npm run test:wizard-e2e               # Playwright: Round → Go back to unlocks
+npm run check:deploy-sha              # prod pythh-build meta vs git HEAD
 ```
 
 **GitHub:** `.github/workflows/agents-autopilot-daily.yml` runs at 11:00 UTC (requires `ANTHROPIC_API_KEY` secret).
@@ -78,7 +80,8 @@ npm run pipeline:weekly-dashboard
 
 - `reports/orchestrator-brief-*.json` — daily weakest stage + active mandate
 - `reports/conversion-funnel-*.json` — full funnel + conversion rates
-- `reports/funnel-heartbeat-*.json` — synthetic stage verification
+- `reports/funnel-heartbeat-*.json` — synthetic stage verification (+ wizard unlock UI)
+- `reports/wizard-unlock-e2e-*.json` — Playwright Round→unlocks handoff
 - `reports/research-snapshot-*.json` / `research-agent-*.json`
 - `agents/research/briefs/*-market-brief.md`
 - `reports/product-metrics-*.json` / `product-agent-run-*.json`

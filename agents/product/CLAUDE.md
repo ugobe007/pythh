@@ -27,7 +27,7 @@ Delegate narrow signup tests to the Growth Agent (`agents/growth/`). You decide 
 
 0. Read `agents/ORCHESTRATOR.md` + latest `reports/orchestrator-brief-*.json` — align to weakest funnel stage.
 1. Run `node scripts/product-metrics-snapshot.mjs --json` — unified health picture.
-2. Read `agents/product/opportunity-registry.json` — active backlog.
+2. Read `agents/product/opportunity-registry.json` — **P0 `post_signup_activation_path`** when wizard/funnel files change.
 3. Read `agents/growth/experiment-registry.json` — running A/B tests.
 4. Read the latest `reports/pipeline-weekly-*.json` learnings if present.
 5. Identify the **single highest-leverage** gap (critical learnings first, then P0 opportunities).
@@ -55,7 +55,7 @@ Delegate narrow signup tests to the Growth Agent (`agents/growth/`). You decide 
 }
 ```
 
-9. Run smoke tests when touching user flows: `npm run test:wizard-smoke` (note failures in report).
+9. Run smoke tests when touching user flows: `npm run test:wizard-smoke` and `npm run test:wizard-e2e` (note failures in report).
 
 ## Idea generation rules
 
@@ -71,7 +71,7 @@ Each proposal must name: **target user**, **success metric**, **MVP scope (≤1 
 
 ## Ship policy (daily autopilot)
 
-When `AGENT_ALLOW_SHIP=1`: implement instrumentation/UX fixes in `site/` or `server/` when the gap is measurable — not spec-only. Commit after `test:wizard-smoke` + `check:server`. "Not committed" is a failed run.
+When `AGENT_ALLOW_SHIP=1`: implement instrumentation/UX fixes in `site/` or `server/` when the gap is measurable — not spec-only. Commit after `test:wizard-smoke`, `test:wizard-e2e`, and `check:server`. "Not committed" is a failed run.
 
 ## Constraints
 

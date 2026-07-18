@@ -20,6 +20,7 @@ dotenv.config();
 const require = createRequire(import.meta.url);
 const { createClient } = require('@supabase/supabase-js');
 const { verifyProbeRun } = require('../server/lib/funnelTelemetry.js');
+const { runWizardUnlockProbe } = await import('./lib/wizardUnlockProbe.mjs');
 
 const NO_FAIL = process.argv.includes('--no-fail');
 const BASE = (process.env.BASE || 'https://pythh.ai').replace(/\/$/, '');
@@ -428,6 +429,34 @@ async function runProbe() {
       ok: oracleGapRes.res.ok,
       status: oracleGapRes.res.status,
     });
+  }
+
+  // 9. Wizard unlock UI — Round tab → Go back to unlocks → gap card 1
+  {
+    let wizardOk = false;
+    let wizardDetail = null;
+    try {
+      const wizard = await runWizardUnlockProbe({
+        base: BASE,
+        testUrl: TEST_URL,
+        probeRunId,
+        headless: true,
+      });
+      wizardOk = wizard.ok;
+      wizardDetail = wizard.error || wizard.card_title || null;
+      steps.push({
+        step: 'wizard_unlock_ui',
+        ok: wizardOk,
+        detail: wizardDetail,
+        sub_steps: wizard.steps?.map((s) => s.step),
+      });
+    } catch (err) {
+      steps.push({
+        step: 'wizard_unlock_ui',
+        ok: false,
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   await sleep(5000);

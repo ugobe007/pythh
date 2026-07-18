@@ -29,8 +29,8 @@ Target ratio: ~40% critique/filter, ~60% actionable opportunity.
 2. Run `node scripts/growth-metrics-snapshot.mjs --json` — experiment variant counts.
 3. Read `agents/growth/experiment-registry.json` for active variants.
 4. Compare variant performance; flag underperformers (< -20% vs control over 7d).
-5. Run smoke tests: `npm run test:wizard-smoke` and `npm run funnel:heartbeat -- --no-fail`.
-6. Propose **one** concrete change — must include `active_engagement` (outbound | loop | instrumentation).
+5. Run npm run test:wizard-smoke + npm run test:wizard-e2e -- --no-fail and note failures in report.
+6. Propose **one** concrete change — must include active_engagement (outbound | loop | instrumentation).
 7. Write `reports/growth-agent-YYYY-MM-DD.json` with winners, losers, proposal, next_experiment, active_engagement.
 8. Weekly reallocation: `npm run growth:cycle` (hold unless organic thresholds met); `npm run growth:cycle:apply` to commit registry changes.
 9. New variants stay `"status": "draft"` until human approves.

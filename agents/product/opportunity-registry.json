@@ -1,7 +1,23 @@
 {
   "version": 1,
-  "updated_at": "2026-06-29T00:00:00Z",
+  "updated_at": "2026-07-18T00:00:00Z",
   "opportunities": [
+    {
+      "id": "post_signup_activation_path",
+      "domain": "product",
+      "priority": "P0",
+      "status": "validating",
+      "title": "Post-signup activation — wizard Round→unlocks handoff must pass E2E",
+      "problem": "Agents optimized preview→signup metrics while signed-in wizard UX regressed (dead Go back to unlocks, navigate no-remount, stale Vercel builds). API smoke stayed green.",
+      "hypothesis": "Playwright E2E + deploy SHA gate + required wizard_unlock_flow_started in heartbeat catches this class before founders do.",
+      "metric": "test:wizard_e2e_pass_rate",
+      "baseline": "0% E2E coverage; wizard_unlock_flow_started not probed",
+      "target": "100% daily E2E pass; prod SHA matches main within 15m of deploy",
+      "next_step": "Monitor wizard-funnel-e2e.yml + funnel heartbeat after deploy; product agent fixes any E2E failure before copy experiments.",
+      "spec": "agents/product/specs/post_signup_activation_path.md",
+      "finding_id": null,
+      "related_experiments": ["founder_hero_entry"]
+    },
     {
       "id": "funnel_truth_weakest_stage",
       "domain": "growth",

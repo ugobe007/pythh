@@ -378,6 +378,7 @@ async function verifyProbeRun(supabase, probeRunId, { sinceMinutes = 15 } = {}) 
     { id: 'return_visit_7d', store: 'ai_logs', operation: 'return_visit_7d', optional: true },
     { id: 'founder_activation_email_sent', store: 'ai_logs', operation: 'founder_activation_email_sent', optional: true },
     { id: 'wizard_outreach_preview_viewed', store: 'ai_logs', operation: 'wizard_outreach_preview_viewed', optional: true },
+    { id: 'wizard_unlock_flow_started', store: 'ai_logs', operation: 'wizard_unlock_flow_started', required: true },
   ];
 
   const { data: aiRows, error: aiErr } = await supabase

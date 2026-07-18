@@ -71,8 +71,9 @@ Daily autopilot runs with **ship enabled**. Agents must **implement and commit**
 | 1 | Read `reports/orchestrator-brief-*.json` — fix the **weakest human funnel stage** first |
 | 2 | Implement in `site/`, `server/`, `lib/`, or `scripts/` when possible (not spec-only) |
 | 3 | Run `npm run test:wizard-smoke` + `npm run check:server` after code edits |
-| 4 | `git commit` + `git push` when `--push` / `AGENT_ALLOW_PUSH=1` — list files in report `code_changes` |
-| 5 | Autopilot finalizes any leftover registry/spec diffs via `agent-autopilot-ship.mjs --push-main` |
+| 4 | Run `npm run test:wizard-e2e` when touching wizard/funnel/signup paths |
+| 5 | `git commit` + `git push` when `--push` / `AGENT_ALLOW_PUSH=1` — list files in report `code_changes` |
+| 6 | Autopilot finalizes any leftover registry/spec diffs via `agent-autopilot-ship.mjs --push-main` |
 
 **Never optimize on raw `url_submitted`** — 99%+ is `instant_submit` API noise. Use `human_funnel` only.
 
@@ -102,7 +103,7 @@ Ordered by binding funnel leak — read `reports/conversion-funnel-*.json` for l
 |----------|-------|------|--------|
 | 1 | Preview view | `preview_cliffhanger` | `instant_matches_viewed` / `preview_view_per_url` |
 | 2 | Signup | `preview_cliffhanger` | `founder_signup_started` / `signup_per_preview` |
-| 3 | Activation | `match_explain` | `match_intro_requested` / `intro_per_match_view` |
+| 3 | Activation | `match_explain` + `post_signup_activation_path` | `match_intro_requested` / `test:wizard-e2e` pass |
 | 4 | Return | `signal_delta` | `return_visit_7d` / `return_visit_per_preview` |
 | 5 | Awareness | `outbound_find_investors` | `page_view` + UTM-attributed `url_submitted` |
 | 6 | Pay | `pricing_oracle_bridge` | `pricing_viewed` → `checkout_started` |

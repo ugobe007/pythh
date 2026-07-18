@@ -106,10 +106,17 @@ jobs:
         run: |
           for i in $(seq 1 12); do
             if npm run check:deploy-cache; then
-              exit 0
+              break
             fi
             echo "Attempt $i: waiting for pythh.ai…"
             sleep 15
+            if [ "$i" -eq 12 ]; then
+              echo "::error::pythh.ai still broken after deploy"
+              exit 1
+            fi
           done
-          echo "::error::pythh.ai still broken after deploy"
-          exit 1
+
+      - name: Verify deploy SHA matches main
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: npm run check:deploy-sha

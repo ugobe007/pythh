@@ -50,13 +50,14 @@ Run this product improvement cycle now:
 2. node scripts/product-metrics-snapshot.mjs --json
 3. Read agents/product/opportunity-registry.json and agents/product/domains.json
 4. Read agents/growth/experiment-registry.json
-5. Pick the single highest-leverage gap — prioritize weakest orchestrator funnel stage (usually Visit→preview or Preview→signup)
+5. Pick the single highest-leverage gap — prioritize weakest orchestrator funnel stage OR post_signup_activation_path when wizard E2E is red
 6. IMPLEMENT one shippable fix in site/ or server/ when the gap is instrumentation or UX (not just a spec)
-   - Examples: hero→/matches routing, source-tagged events, preview gate CTA, human funnel filters
+   - Examples: hero→/matches routing, source-tagged events, preview gate CTA, human funnel filters, wizard Round→unlocks handoff
+   - If wizard/funnel UX: run npm run test:wizard-e2e and fix until green before shipping
    - If spec still needed: write agents/product/specs/<opportunity-id>.md
 7. Update opportunity-registry.json statuses/next_step (max one new opportunity)
 8. Write reports/product-agent-${date}.json with summary, decision, deliverable, code_changes, backlog_changes, active_engagement
-9. npm run test:wizard-smoke && npm run conversion:funnel (note results in report)
+9. npm run test:wizard-smoke && npm run test:wizard-e2e && npm run conversion:funnel (note results in report)
 
 Voice: picky + skeptical + motivating. No passive specs when code can fix the leak.
 
@@ -70,6 +71,14 @@ async function preflight() {
     env: process.env,
   });
   if (hb.status !== 0) console.warn('   ⚠️  funnel heartbeat reported gaps (agent may still proceed)');
+
+  console.log('📊 Preflight: wizard unlock E2E…');
+  const e2e = spawnSync(process.execPath, ['scripts/wizard-unlock-ui-probe.mjs', '--no-fail'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (e2e.status !== 0) console.warn('   ⚠️  wizard E2E reported failures (agent may still proceed)');
 
   console.log('📊 Preflight: product metrics snapshot…');
   const r = spawnSync(process.execPath, ['scripts/product-metrics-snapshot.mjs'], {
