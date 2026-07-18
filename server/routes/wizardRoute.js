@@ -24,7 +24,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { buildInvestorReadPayload } = require('../lib/investorReadService');
 const { enrichGapTasks, buildUnlockSummary } = require('../lib/taskUnlockCatalog');
-const { deriveGapTasks } = require('../lib/gapTaskDerivation');
+const { deriveGapTasks, TASK_CATALOG } = require('../lib/gapTaskDerivation');
 const { computeRoundReadiness, gateOutreachPayload } = require('../lib/readinessGateService');
 
 const supabase = createClient(
@@ -341,7 +341,22 @@ router.post('/:startupId/tasks', async (req, res) => {
       return res.status(500).json({ error: 'Failed to create tasks' });
     }
 
-    return res.json({ created: (data || []).length, tasks: data || [] });
+    let tasks = data || [];
+    if (tasks.length === 0 && rows.length > 0) {
+      const keys = rows.map((r) => r.task_key);
+      const { data: existing, error: fetchErr } = await supabase
+        .from('founder_commitment_tasks')
+        .select('*')
+        .eq('startup_id', startupId)
+        .in('task_key', keys);
+      if (fetchErr) {
+        console.error('[wizard] fetch existing tasks error:', fetchErr);
+        return res.status(500).json({ error: 'Failed to load tasks' });
+      }
+      tasks = existing || [];
+    }
+
+    return res.json({ created: tasks.length, tasks });
   } catch (err) {
     console.error('[wizard] create tasks error:', err);
     return res.status(500).json({ error: 'Server error' });
