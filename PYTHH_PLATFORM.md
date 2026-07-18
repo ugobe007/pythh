@@ -1,6 +1,9 @@
 # Pythh Signal Intelligence Platform
 ## Canonical Architecture Reference — v2
 
+> **Product vision (founder-facing north star):** see [docs/PYTHH_VISION.md](./docs/PYTHH_VISION.md) — autonomous capital formation, Oracle-centric, meetings-first.  
+> **This document** is the engineering reference for signal intelligence, scoring, and match infrastructure.
+
 > **Purpose:** This document is the single source of truth for the Pythh platform architecture.  
 > It describes every layer of the system, how they connect, and what each component produces.  
 > Use this for onboarding, engineering decisions, product design, and investor communication.

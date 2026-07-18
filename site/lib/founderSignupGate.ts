@@ -236,6 +236,16 @@ export async function trackFounderGateCompleted(
     ...getUtmParams(),
   });
 
+  if (startupId) {
+    trackFunnelEvent('raise_plan_authorized', {
+      startup_id: startupId,
+      url: ctx.url,
+      gated_action: gatedAction,
+      source: 'preview_gate_signup',
+      ...getUtmParams(),
+    });
+  }
+
   const completedPayload = {
     url: ctx.url,
     startup_id: startupId,

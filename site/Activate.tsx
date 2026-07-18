@@ -600,7 +600,7 @@ const SCAN_STEPS = [
   { label: "Scoring 5,000+ investors", detail: "Running 40-dimension thesis alignment model", duration: 2000 },
   { label: "Filtering by deployment timing", detail: "Cross-referencing fund cycles and LP updates", duration: 1600 },
   { label: "Ranking by signal strength", detail: "Weighting timing × fit × optics", duration: 1000 },
-  { label: "Preparing match report", detail: "Generating personalized investor briefs", duration: 800 },
+  { label: "Building your raise plan", detail: "Oracle analyzing readiness and qualifying investors", duration: 800 },
 ];
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
@@ -1268,7 +1268,7 @@ function ResultsStep({
             <div className="min-w-0">
               <p className="text-sm font-semibold truncate" style={{ color: "oklch(0.88 0.005 264)" }}>
                 {matchCount > 0
-                  ? <><span style={{ color: "#22d3ee" }}>{matchCount} investors</span> ranked for <span style={{ color: "oklch(0.75 0.005 264)" }}>{startupName}</span>{totalMatchCount > matchCount && <span style={{ color: "oklch(0.45 0.01 264)" }}> · {totalMatchCount.toLocaleString()} analyzed</span>}</>
+                  ? <><span style={{ color: "#22d3ee" }}>{matchCount} investors</span> qualified for <span style={{ color: "oklch(0.75 0.005 264)" }}>{startupName}</span>{totalMatchCount > matchCount && <span style={{ color: "oklch(0.45 0.01 264)" }}> · {totalMatchCount.toLocaleString()} analyzed</span>}</>
                   : <>Scoring investors for <span style={{ color: "#22d3ee" }}>{startupName}</span>…</>
                 }
               </p>
@@ -1344,7 +1344,7 @@ function ResultsStep({
         {/* Summary stats — inline row */}
         <div className="flex items-stretch mb-7 rounded-xl overflow-hidden" style={{ border: "1px solid oklch(0.2 0.01 264)", backgroundColor: "oklch(0.14 0.01 264)" }}>
           {[
-            { label: "Investors ranked",   value: String(matchCount),                                   color: "#22d3ee" },
+            { label: "Investors qualified",   value: String(matchCount),                                   color: "#22d3ee" },
             { label: "Top match score",    value: `${investors[0]?.matchScore ?? "—"}/100`,             color: "#eab308" },
             { label: "Super matches",      value: String(investors.filter(i => i.isSuperMatch).length), color: "#a855f7" },
           ].map((stat, i) => (
@@ -2166,14 +2166,29 @@ Worth a conversation?
   }, []);
 
   const handleApprove = (id: number) => {
+    const milestone = milestones.find((m) => m.id === id);
     setApprovedMeetings((prev) => [...prev, id]);
     setMilestones((prev) =>
       prev.map((m) => m.id === id ? { ...m, done: true, requiresApproval: false } : m)
     );
-    // Open pre-meeting brief if this milestone has one
-    const milestone = milestones.find((m) => m.id === id);
+    if (milestone?.type === "meeting") {
+      void trackFunnelEvent("meeting_approved", {
+        startup_id: apiResult?.startup_id ?? null,
+        investor_name: milestone.investor,
+        firm: milestone.firm,
+        source: "activate_pipeline",
+      });
+    }
     if (milestone?.meetingBrief) {
-      setTimeout(() => setActiveMeetingBrief(milestone), 600);
+      setTimeout(() => {
+        setActiveMeetingBrief(milestone);
+        void trackFunnelEvent("meeting_brief_viewed", {
+          startup_id: apiResult?.startup_id ?? null,
+          investor_name: milestone.investor,
+          firm: milestone.firm,
+          source: "activate_pipeline",
+        });
+      }, 600);
     }
   };
 

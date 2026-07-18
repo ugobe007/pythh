@@ -189,12 +189,12 @@ export default function FounderSignup() {
     }
   };
 
-  const headline = fromGate && gateLabel
-    ? `Start tracking — ${gateLabel}`
-    : 'Start tracking your investors';
+  const headline = fromGate
+    ? 'Start your autonomous raise'
+    : 'Start your autonomous raise';
   const subline = fromGate
-    ? 'Your shortlist is ready. One email to save matches, watch investor movement, and queue intros.'
-    : 'Free account — track fit scores, investor movement, and your outreach pipeline.';
+    ? 'Oracle has your analysis. One email to authorize your raise plan and begin closing readiness gaps.'
+    : 'Free account — Oracle tracks readiness, qualifies investors, and prepares outreach toward meetings.';
 
   return (
     <>
@@ -233,9 +233,9 @@ export default function FounderSignup() {
 
           <div className="grid gap-3 mb-6 text-left">
             {[
-              { icon: Target, label: 'Track your shortlist', detail: 'Fit scores refresh as market signals move.' },
-              { icon: Bell, label: 'Investor movement alerts', detail: 'See when top matches shift toward you.' },
-              { icon: Activity, label: 'Intro pipeline', detail: 'Queue warm intros from your ranked list.' },
+              { icon: Target, label: 'Your raise plan', detail: 'Readiness gaps, qualified investors, and recommended campaign.' },
+              { icon: Bell, label: 'Oracle progress updates', detail: 'Weekly summary of what Pythh completed and what needs your decision.' },
+              { icon: Activity, label: 'Meeting pipeline', detail: 'Outreach and scheduling toward qualified investor meetings.' },
             ].map(({ icon: Icon, label, detail }) => (
               <div
                 key={label}

@@ -37,12 +37,8 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
   { id: 'angel', label: 'Angels only' },
 ];
 
-function primarySignupLabel(total: number, shownCount: number): string {
-  const hidden = Math.max(total - shownCount, 0);
-  if (hidden > 0) {
-    return `Create free account — see all ${total.toLocaleString()} matches`;
-  }
-  return 'Create free account — save your shortlist';
+function primarySignupLabel(): string {
+  return 'Start my raise — free account';
 }
 
 type PreviewMatch = {
@@ -281,6 +277,13 @@ export default function InstantMatchPreview({ url }: Props) {
             source: 'matches_preview',
             investor_mix: investorMix,
           });
+          void trackFunnelEventOnce(`raise_plan_viewed:${startupId}`, 'raise_plan_viewed', {
+            startup_id: startupId,
+            url,
+            qualified_count: data.matches?.length ?? 0,
+            source: 'oracle_analysis_preview',
+            investor_mix: investorMix,
+          });
           markFirstPreviewSeen();
 
           if (!evidenceStripTrackedRef.current) {
@@ -405,8 +408,8 @@ export default function InstantMatchPreview({ url }: Props) {
     return (
       <div className="py-16 flex flex-col items-center gap-4 text-center">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-        <p className="text-lg text-white font-medium">Finding your investor matches…</p>
-        <p className="text-sm text-zinc-500">Usually 20–60 seconds</p>
+        <p className="text-lg text-white font-medium">Oracle is analyzing your company…</p>
+        <p className="text-sm text-zinc-500">Readiness, gaps, and qualified investors — usually 20–60 seconds</p>
       </div>
     );
   }
@@ -437,18 +440,22 @@ export default function InstantMatchPreview({ url }: Props) {
     ? buildOracleGapCopy(preview.oracle_gap, oracleGapAssignment)
     : null;
 
-  const primaryCta = primarySignupLabel(total, visible.length);
+  const primaryCta = primarySignupLabel();
   const topInvestor = investorFromMatch(visible[0] ?? {});
+  const readinessScore = preview.oracle_gap?.current_god_score;
 
   return (
     <div className="mb-16 pb-28">
       <div className="mb-8 text-center">
-        <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Instant preview</p>
+        <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Oracle · Initial analysis</p>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-          {startupName} — your investor shortlist
+          {startupName} — your raise plan
         </h1>
         <p className="text-sm text-zinc-400">
-          {total.toLocaleString()} matches in network · showing top {visible.length} ranked by your signals
+          {typeof readinessScore === 'number' && (
+            <>Readiness {readinessScore}/100 · </>
+          )}
+          {visible.length} qualified investors shown · {total.toLocaleString()} in capital graph
           {preview.shortlist_mix &&
             investorMix === 'balanced' &&
             typeof preview.shortlist_mix.vc_count === 'number' &&
@@ -493,12 +500,13 @@ export default function InstantMatchPreview({ url }: Props) {
 
       <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-center sm:text-left">
         <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl mx-auto sm:mx-0">
-          One free account saves this shortlist and opens your full ranked investor list.
+          Oracle analyzed your company and qualified these investors for outreach.
+          Start your raise to save your plan, close readiness gaps, and authorize campaigns toward meetings.
           {Math.max(total - visible.length, 0) > 0 && (
             <>
               {' '}
               <span className="text-zinc-500">
-                +{Math.max(total - visible.length, 0).toLocaleString()} more matches unlock after signup.
+                +{Math.max(total - visible.length, 0).toLocaleString()} more in your full qualified pipeline after signup.
               </span>
             </>
           )}
@@ -598,7 +606,7 @@ export default function InstantMatchPreview({ url }: Props) {
 
       {total > visible.length && (
         <p className="text-center text-xs text-zinc-500 mb-6">
-          +{(total - visible.length).toLocaleString()} more ranked investors in your full list after signup
+          +{(total - visible.length).toLocaleString()} more qualified investors in your pipeline after signup
         </p>
       )}
 
@@ -624,7 +632,7 @@ export default function InstantMatchPreview({ url }: Props) {
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left max-w-md">
-            {visible.length} of {total.toLocaleString()} matches shown · free account opens your full list
+            Oracle plan ready · {visible.length} of {total.toLocaleString()} qualified investors shown
           </p>
           <button
             type="button"

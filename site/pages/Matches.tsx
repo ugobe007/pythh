@@ -206,10 +206,10 @@ function MatchesUrlEntry({
           Free · No signup required
         </p>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
-          Find investors that match your startup
+          Oracle analyzes your company
         </h1>
         <p className="text-base mb-6 max-w-2xl" style={{ color: "oklch(0.58 0.01 264)" }}>
-          {hint || "Paste your startup URL — see your ranked investor shortlist in about a minute. Save, request intros, or export after a free account."}
+          {hint || "Paste your startup URL — see readiness gaps, qualified investors, and your recommended raise plan in about a minute."}
         </p>
         <form
           onSubmit={(e) => {
@@ -236,7 +236,7 @@ function MatchesUrlEntry({
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold whitespace-nowrap"
             style={{ backgroundColor: "#22c55e", color: "#000" }}
           >
-            Preview my matches
+            Analyze my company
             <ArrowRight size={16} />
           </button>
         </form>
@@ -630,15 +630,15 @@ export default function Matches() {
             <Flame size={22} style={{ color: "#22c55e" }} />
           </div>
           <h2 className="text-3xl font-bold text-white mb-4" style={{ letterSpacing: "-0.02em" }}>
-            Get your startup matched.
+            Start your autonomous raise.
           </h2>
           <p className="text-sm mb-8 max-w-md mx-auto" style={{ color: "oklch(0.55 0.01 264)" }}>
-            Submit your URL. PYTHIA computes your GOD score and finds your top investor matches
-            in seconds — ranked by timing, thesis fit, and sector alignment.
+            Submit your URL. Oracle analyzes readiness, qualifies investors, and builds your campaign plan —
+            toward qualified meetings, not just a list.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <StartupCTA href="/matches#preview-url" size="lg" showArrow arrowSize={16}>
-              Preview my matches
+              Analyze my company
             </StartupCTA>
             <Link href="/oracle">
               <span

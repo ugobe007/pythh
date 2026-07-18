@@ -475,10 +475,10 @@ function HeroSection({
                 <span className="block">{heroHeadline}</span>
               ) : (
                 <>
-                  <span className="block">Find investors that match your thesis.</span>
+                  <span className="block">You build the company.</span>
                   <span className="block">
-                    <span style={{ color: TEXT }}>Get </span>
-                    <span style={{ color: G_HOVER }}>funded</span>
+                    <span style={{ color: TEXT }}>Pythh runs the </span>
+                    <span style={{ color: G_HOVER }}>raise</span>
                     <span style={{ color: TEXT }}>.</span>
                   </span>
                 </>
@@ -491,8 +491,8 @@ function HeroSection({
             >
               {previewFirst ? heroSubline : (
                 <>
-                  Submit your URL. Pythh reads your signals, matches you to top investors
-                  and automates your funding round.
+                  Submit your URL. Oracle analyzes readiness, qualifies investors,
+                  and runs outreach toward qualified meetings.
                 </>
               )}
             </p>
@@ -1440,7 +1440,7 @@ function Footer() {
     { title: "Product", links: [
       { label: "How it works", href: "/oracle" },
       { label: "Find my investors", href: "/find-investors" },
-      { label: "Match preview", href: "/matches" },
+      { label: "Start your raise", href: "/matches" },
       { label: "Rankings", href: "/rankings" },
       { label: "Investors", href: "/investors" },
       { label: "Portfolio", href: "/portfolio" },
@@ -1537,7 +1537,7 @@ export default function Home() {
       <SharedNavbar
         activePath="/"
         variant="hero"
-        heroCta={{ label: "Find investors", targetId: "hero-cta" }}
+        heroCta={{ label: "Start my raise", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <SignalArtTeaser />

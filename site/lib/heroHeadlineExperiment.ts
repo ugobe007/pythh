@@ -19,16 +19,16 @@ export type HeroHeadlineCopy = {
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
-      headline: 'Find investors that match your signals.',
-      subline: 'Paste your URL — ranked shortlist in ~20 seconds. Free preview.',
-      cta: 'See my matches',
+      headline: 'You build the company. Pythh runs the raise.',
+      subline: 'Paste your URL — Oracle analyzes readiness, qualifies investors, and builds your raise plan in ~60 seconds.',
+      cta: 'Analyze my company',
     };
   }
   return {
-    headline: 'Find investors that match your thesis.',
+    headline: 'You build the company. Pythh runs the raise.',
     subline:
-      'Submit your URL. Pythh reads your signals, matches you to top investors and automates your funding round.',
-    cta: 'Find my investors',
+      'Submit your URL. Oracle analyzes your company, finds fit investors, and runs outreach toward qualified meetings.',
+    cta: 'Start my raise',
   };
 }
 
