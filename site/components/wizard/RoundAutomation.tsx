@@ -63,6 +63,8 @@ interface OutreachData {
 interface RoundAutomationProps {
   startupId: string;
   startupName?: string;
+  /** Switches wizard to gap_cards without a dead client-side navigate on the same route. */
+  onBeginUnlocks?: () => void;
 }
 
 function ReadinessMeter({ score, outreachAt, pipelineAt }: { score: number; outreachAt: number; pipelineAt: number }) {
@@ -87,7 +89,7 @@ function ReadinessMeter({ score, outreachAt, pipelineAt }: { score: number; outr
   );
 }
 
-export default function RoundAutomation({ startupId, startupName }: RoundAutomationProps) {
+export default function RoundAutomation({ startupId, startupName, onBeginUnlocks }: RoundAutomationProps) {
   const [, navigate] = useLocation();
   const [gate, setGate] = useState<RoundGate | null>(null);
   const [outreach, setOutreach] = useState<OutreachData | null>(null);
@@ -223,8 +225,12 @@ export default function RoundAutomation({ startupId, startupName }: RoundAutomat
           <button
             type="button"
             onClick={() => {
+              if (onBeginUnlocks) {
+                onBeginUnlocks();
+                return;
+              }
               allowWizardUnlockFlow();
-              navigate(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
+              window.location.assign(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
             }}
             className="w-full mt-4 py-2.5 rounded-lg text-xs font-semibold border"
             style={{ color: "#22c55e", borderColor: "#22c55e40" }}

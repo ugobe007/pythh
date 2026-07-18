@@ -13,6 +13,7 @@ import ProofSubmitCard from "@/components/wizard/ProofSubmitCard";
 import CommitmentDocument from "@/components/wizard/CommitmentDocument";
 import RoundAutomation from "@/components/wizard/RoundAutomation";
 import WizardActivationBanner from "@/components/wizard/WizardActivationBanner";
+import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
 import { trackFunnelEvent } from "@/lib/matchEngagement";
 
 interface DbTask {
@@ -187,6 +188,47 @@ export default function Wizard() {
       setPhase("error");
     }
   }, [startupId, loadDbTasks]);
+
+  /** In-app unlock entry — must not rely on navigate() alone (same /wizard route won't remount). */
+  const beginUnlockFlow = useCallback(async () => {
+    allowWizardUnlockFlow();
+    setCurrentGapIndex(0);
+
+    if (gapTasks.length > 0) {
+      setPhase("gap_cards");
+      return;
+    }
+
+    if (!startupId) return;
+    setPhase("loading");
+    try {
+      const res = await fetch(`${API_BASE}/${startupId}/gaps`);
+      if (!res.ok) throw new Error("Failed to load gaps");
+      const data = await res.json();
+
+      setGodScore(data.god_score);
+      setStartupName(data.startup_name || "");
+      if (data.unlock_summary) setUnlockSummary(data.unlock_summary);
+
+      const pending = (data.gap_tasks || []).filter(
+        (t: GapTask & { existing_status?: string | null }) =>
+          !t.existing_status || t.existing_status === "pending",
+      );
+
+      if (!pending.length) {
+        await loadDbTasks();
+        setPhase("tabs");
+        setActiveTab("commitments");
+        return;
+      }
+
+      setGapTasks(pending);
+      setPhase("gap_cards");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
+      setPhase("error");
+    }
+  }, [gapTasks, startupId, loadDbTasks]);
 
   useEffect(() => {
     loadGaps();
@@ -384,6 +426,9 @@ export default function Wizard() {
 
   if (phase === "gap_cards") {
     const currentTask = gapTasks[currentGapIndex];
+    if (!currentTask) {
+      return <WizardLoading message="Loading your unlocks…" />;
+    }
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
         <div className="flex items-center justify-between px-6 py-5">
@@ -500,7 +545,7 @@ export default function Wizard() {
             {activeTasks.length === 0 && (
               <div className="text-center py-12 rounded-xl" style={{ border: "1px solid oklch(0.2 0.01 264)" }}>
                 <p className="text-sm" style={{ color: "oklch(0.55 0.01 264)" }}>No commitments yet.</p>
-                <button type="button" onClick={() => { setPhase("gap_cards"); setCurrentGapIndex(0); }} className="mt-4 text-xs text-emerald-400 underline">
+                <button type="button" onClick={() => void beginUnlockFlow()} className="mt-4 text-xs text-emerald-400 underline">
                   Review unlocks
                 </button>
               </div>
@@ -577,7 +622,11 @@ export default function Wizard() {
         )}
 
         {activeTab === "round" && startupId && (
-          <RoundAutomation startupId={startupId} startupName={startupName} />
+          <RoundAutomation
+            startupId={startupId}
+            startupName={startupName}
+            onBeginUnlocks={() => void beginUnlockFlow()}
+          />
         )}
       </div>
     </div>
