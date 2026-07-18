@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
 import {
   ArrowRight,
   Sparkles,
@@ -405,7 +406,10 @@ export default function InvestorReadStep({ startupId, startupName, onSeeMatches 
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"
-            onClick={() => navigate(`/wizard/${startupId}`)}
+            onClick={() => {
+              allowWizardUnlockFlow();
+              navigate(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
+            }}
             className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl text-sm font-semibold transition-all"
             style={{ backgroundColor: GREEN, color: "#0a0a0a" }}
           >

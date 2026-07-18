@@ -53,6 +53,12 @@ interface UnlockSummary {
 
 const API_BASE = "/api/wizard";
 
+type GapTaskWithStatus = GapTask & { existing_status?: string | null };
+
+function filterPendingGapTasks(tasks: GapTaskWithStatus[]): GapTask[] {
+  return tasks.filter((t) => !t.existing_status || t.existing_status === "pending");
+}
+
 function WizardLoading({ message }: { message: string }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
@@ -79,7 +85,8 @@ export default function Wizard() {
   const [phase, setPhase] = useState<WizardPhase>("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [gapTasks, setGapTasks] = useState<GapTask[]>([]);
-  const [currentGapIndex, setCurrentGapIndex] = useState(0);
+  const [gapFlowTotal, setGapFlowTotal] = useState(0);
+  const [gapFlowResolved, setGapFlowResolved] = useState(0);
   const [acknowledgeTask, setAcknowledgeTask] = useState<GapTask | null>(null);
   const [godScore, setGodScore] = useState<number | null>(null);
   const [startupName, setStartupName] = useState("");
@@ -93,8 +100,6 @@ export default function Wizard() {
     () => new URLSearchParams(window.location.search).get("welcome") === "1",
   );
   const outreachPreviewTrackedRef = useRef(false);
-  const gapTasksRef = useRef<GapTask[]>([]);
-  gapTasksRef.current = gapTasks;
 
   const loadDbTasks = useCallback(async () => {
     if (!startupId) return;
@@ -105,7 +110,7 @@ export default function Wizard() {
     }
   }, [startupId]);
 
-  const generateDocument = async () => {
+  const generateDocument = useCallback(async () => {
     if (!startupId) return;
     setDocLoading(true);
     try {
@@ -117,7 +122,7 @@ export default function Wizard() {
     } finally {
       setDocLoading(false);
     }
-  };
+  }, [startupId]);
 
   useEffect(() => {
     if (!startupId) return;
@@ -130,6 +135,34 @@ export default function Wizard() {
       navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
     }
   }, [startupId, navigate]);
+
+  const finishGapFlow = useCallback(async () => {
+    await loadDbTasks();
+    await generateDocument();
+    setPhase("tabs");
+    setActiveTab("commitments");
+  }, [loadDbTasks, generateDocument]);
+
+  const fetchPendingGaps = useCallback(async () => {
+    if (!startupId) return null;
+    const res = await fetch(`${API_BASE}/${startupId}/gaps`);
+    if (!res.ok) throw new Error("Failed to load gaps");
+    const data = await res.json();
+    const pending = filterPendingGapTasks(data.gap_tasks || []);
+    return {
+      pending,
+      godScore: data.god_score as number,
+      startupName: (data.startup_name as string) || "",
+      unlockSummary: (data.unlock_summary as UnlockSummary | null) ?? null,
+    };
+  }, [startupId]);
+
+  const enterGapCards = useCallback((pending: GapTask[]) => {
+    setGapTasks(pending);
+    setGapFlowTotal(pending.length);
+    setGapFlowResolved(0);
+    setPhase("gap_cards");
+  }, []);
 
   const loadGaps = useCallback(async () => {
     if (!startupId) return;
@@ -158,10 +191,7 @@ export default function Wizard() {
         return;
       }
 
-      const pending = data.gap_tasks.filter(
-        (t: GapTask & { existing_status?: string | null }) =>
-          !t.existing_status || t.existing_status === "pending",
-      );
+      const pending = filterPendingGapTasks(data.gap_tasks || []);
 
       if (!pending.length) {
         await loadDbTasks();
@@ -170,7 +200,8 @@ export default function Wizard() {
       }
 
       setGapTasks(pending);
-      setCurrentGapIndex(0);
+      setGapFlowTotal(pending.length);
+      setGapFlowResolved(0);
 
       if (forceWizard && searchParams.get("tab") === "round") {
         void loadDbTasks();
@@ -187,7 +218,7 @@ export default function Wizard() {
       }
 
       if (forceWizard && startUnlocks) {
-        setPhase("gap_cards");
+        enterGapCards(pending);
         return;
       }
 
@@ -196,53 +227,39 @@ export default function Wizard() {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setPhase("error");
     }
-  }, [startupId, loadDbTasks]);
+  }, [startupId, loadDbTasks, enterGapCards]);
 
-  /** In-app unlock entry — must not rely on navigate() alone (same /wizard route won't remount). */
+  /** In-app unlock entry — always refetch pending gaps (never reuse stale cache after ack/skip). */
   const beginUnlockFlow = useCallback(async () => {
     allowWizardUnlockFlow();
-    setCurrentGapIndex(0);
     void trackFunnelEvent("wizard_unlock_flow_started", {
       startup_id: startupId,
       source: activeTab === "round" ? "round_locked" : "commitments_empty",
     });
 
-    const cached = gapTasksRef.current;
-    if (cached.length > 0 && cached[0]) {
-      setPhase("gap_cards");
-      return;
-    }
-
     if (!startupId) return;
     setPhase("loading");
     try {
-      const res = await fetch(`${API_BASE}/${startupId}/gaps`);
-      if (!res.ok) throw new Error("Failed to load gaps");
-      const data = await res.json();
+      const result = await fetchPendingGaps();
+      if (!result) return;
 
-      setGodScore(data.god_score);
-      setStartupName(data.startup_name || "");
-      if (data.unlock_summary) setUnlockSummary(data.unlock_summary);
+      setGodScore(result.godScore);
+      setStartupName(result.startupName);
+      if (result.unlockSummary) setUnlockSummary(result.unlockSummary);
 
-      const pending = (data.gap_tasks || []).filter(
-        (t: GapTask & { existing_status?: string | null }) =>
-          !t.existing_status || t.existing_status === "pending",
-      );
-
-      if (!pending.length) {
+      if (!result.pending.length) {
         await loadDbTasks();
         setPhase("tabs");
         setActiveTab("commitments");
         return;
       }
 
-      setGapTasks(pending);
-      setPhase("gap_cards");
+      enterGapCards(result.pending);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setPhase("error");
     }
-  }, [startupId, loadDbTasks, activeTab]);
+  }, [startupId, loadDbTasks, activeTab, fetchPendingGaps, enterGapCards]);
 
   useEffect(() => {
     loadGaps();
@@ -258,19 +275,23 @@ export default function Wizard() {
     }
   }, [activeTab, startupId, showWelcome]);
 
-  const advanceGap = async () => {
-    const next = currentGapIndex + 1;
-    if (next >= gapTasks.length) {
-      await loadDbTasks();
-      await generateDocument();
-      setPhase("tabs");
-    } else {
-      setCurrentGapIndex(next);
-    }
-  };
+  const resolveGapTask = useCallback(
+    (taskKey: string) => {
+      setGapTasks((prev) => {
+        const remaining = prev.filter((t) => t.task_key !== taskKey);
+        if (remaining.length === 0) {
+          void finishGapFlow();
+        }
+        return remaining;
+      });
+      setGapFlowResolved((n) => n + 1);
+    },
+    [finishGapFlow],
+  );
 
   const handleAcknowledgeConfirm = async (deadline: string) => {
     if (!acknowledgeTask || !startupId) return;
+    const taskKey = acknowledgeTask.task_key;
     const createRes = await fetch(`${API_BASE}/${startupId}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -288,7 +309,7 @@ export default function Wizard() {
       }
     }
     setAcknowledgeTask(null);
-    advanceGap();
+    resolveGapTask(taskKey);
   };
 
   const handleSkip = async (task: GapTask) => {
@@ -305,7 +326,7 @@ export default function Wizard() {
         await fetch(`${API_BASE}/tasks/${taskId}/skip`, { method: "PUT" });
       }
     }
-    advanceGap();
+    resolveGapTask(task.task_key);
   };
 
   const loadDocument = useCallback(async () => {
@@ -322,7 +343,7 @@ export default function Wizard() {
     } finally {
       setDocLoading(false);
     }
-  }, [startupId]);
+  }, [startupId, generateDocument]);
 
   useEffect(() => {
     if (phase !== "tabs") return;
@@ -424,7 +445,7 @@ export default function Wizard() {
           </button>
           <button
             type="button"
-            onClick={() => setPhase("gap_cards")}
+            onClick={() => void beginUnlockFlow()}
             className="w-full py-2.5 rounded-xl text-xs font-medium"
             style={{ color: "oklch(0.45 0.01 264)" }}
           >
@@ -439,7 +460,7 @@ export default function Wizard() {
   }
 
   if (phase === "gap_cards") {
-    const currentTask = gapTasks[currentGapIndex];
+    const currentTask = gapTasks[0];
     if (!currentTask) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
@@ -486,7 +507,7 @@ export default function Wizard() {
           <span className="text-xs font-mono" style={{ color: "oklch(0.38 0.01 264)" }}>GOD {godScore ?? "—"}/100</span>
         </div>
         <div className="px-6 mb-10">
-          <ProgressBar current={currentGapIndex} total={gapTasks.length} />
+          <ProgressBar current={gapFlowResolved} total={gapFlowTotal || gapTasks.length} />
         </div>
         <div className="text-center px-6 mb-10">
           <p className="text-xs mb-2" style={{ color: "oklch(0.45 0.01 264)" }}>Surface your advantages</p>
@@ -497,12 +518,12 @@ export default function Wizard() {
         <div className="flex-1 flex items-start justify-center px-4 pb-12">
           <GapCard
             task={currentTask}
-            taskIndex={currentGapIndex}
-            totalTasks={gapTasks.length}
+            taskIndex={gapFlowResolved}
+            totalTasks={gapFlowTotal || gapTasks.length}
             godScore={godScore}
             onAcknowledge={() => setAcknowledgeTask(currentTask)}
             onSkip={() => handleSkip(currentTask)}
-            isLast={currentGapIndex === gapTasks.length - 1}
+            isLast={gapTasks.length === 1}
           />
         </div>
         {acknowledgeTask && (

@@ -108,6 +108,53 @@ export async function runWizardUnlockProbe(opts = {}) {
       card_title: cardTitle.slice(0, 80),
     });
 
+    // Skip first card — re-enter from round tab must not show the same card again.
+    await page.getByRole('button', { name: /Not prioritizing this unlock/i }).click();
+    await page.waitForTimeout(800);
+
+    const secondCard = page.getByRole('heading', { name: /Unlock:/i });
+    await secondCard.waitFor({ state: 'visible', timeout: 15000 });
+    const cardTitle2 = (await secondCard.textContent())?.trim() || '';
+    steps.push({
+      step: 'gap_card_advanced',
+      ok: Boolean(cardTitle2 && cardTitle2 !== cardTitle),
+      first_card: cardTitle.slice(0, 60),
+      second_card: cardTitle2.slice(0, 60),
+    });
+
+    if (!cardTitle2 || cardTitle2 === cardTitle) {
+      return {
+        ok: false,
+        base,
+        startupId,
+        steps,
+        error: 'gap cards did not advance after skip (unlock loop)',
+      };
+    }
+
+    await page.goto(wizardUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await goBackBtn.waitFor({ state: 'visible', timeout: 30000 });
+    await goBackBtn.click();
+    await heading.waitFor({ state: 'visible', timeout: 30000 });
+    await unlockCard.waitFor({ state: 'visible', timeout: 15000 });
+    const cardTitleAfterReentry = (await unlockCard.textContent())?.trim() || '';
+    steps.push({
+      step: 'gap_cards_no_reloop',
+      ok: cardTitleAfterReentry === cardTitle2,
+      expected: cardTitle2.slice(0, 60),
+      actual: cardTitleAfterReentry.slice(0, 60),
+    });
+
+    if (cardTitleAfterReentry !== cardTitle2) {
+      return {
+        ok: false,
+        base,
+        startupId,
+        steps,
+        error: 'go back to unlocks showed already-resolved card (unlock loop)',
+      };
+    }
+
     // Mirror client event for heartbeat verification (UI also fires on click when deployed)
     if (probeRunId) {
       const { res } = await fetchJson(base, '/api/analytics/flush', {
