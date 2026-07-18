@@ -2121,7 +2121,8 @@ async function getArtTeaserEdition() {
   });
 
   let stale = false;
-  if (!row?.svg) {
+  // Teaser is metadata-only — do not require svg on listArtEditions rows (select omits svg).
+  if (!row?.edition_date) {
     row = await loadLatestArtEditionResolved({
       loadArtEditions: listArtEditions,
       repoRoot: ART_REPO_ROOT,
@@ -2129,7 +2130,7 @@ async function getArtTeaserEdition() {
     stale = true;
   }
 
-  if (!row?.svg) {
+  if (!row?.edition_date) {
     throw new Error('No art edition available');
   }
 

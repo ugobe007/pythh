@@ -128,12 +128,20 @@ async function loadArtEditionResolved(editionDate, { loadArtEdition, repoRoot = 
   return enrichArtRowFromFilesystem(localRowFromMeta(editionDate, local, repoRoot), repoRoot);
 }
 
-/** Most recent edition from DB + local JSON merge. */
+/** Most recent edition from DB + local JSON merge. Falls back to local-only if DB list fails. */
 async function loadLatestArtEditionResolved({ loadArtEditions, repoRoot = repoRootFromHere(), limit = 1 } = {}) {
   if (!loadArtEditions) return null;
-  const rows = await listArtEditionsMerged(loadArtEditions, { limit: Math.max(limit, 5), repoRoot });
-  const first = rows[0];
-  return first ? enrichArtRowFromFilesystem(first, repoRoot) : null;
+  try {
+    const rows = await listArtEditionsMerged(loadArtEditions, { limit: Math.max(limit, 5), repoRoot });
+    const first = rows[0];
+    return first ? enrichArtRowFromFilesystem(first, repoRoot) : null;
+  } catch (err) {
+    for (const date of listLocalArtEditionDates(repoRoot)) {
+      const local = readLocalArtEditionMeta(date, repoRoot);
+      if (local) return enrichArtRowFromFilesystem(localRowFromMeta(date, local, repoRoot), repoRoot);
+    }
+    return null;
+  }
 }
 
 module.exports = {
