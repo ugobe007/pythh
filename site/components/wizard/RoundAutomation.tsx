@@ -64,7 +64,7 @@ interface RoundAutomationProps {
   startupId: string;
   startupName?: string;
   /** Switches wizard to gap_cards without a dead client-side navigate on the same route. */
-  onBeginUnlocks?: () => void;
+  onBeginUnlocks?: () => void | Promise<void>;
 }
 
 function ReadinessMeter({ score, outreachAt, pipelineAt }: { score: number; outreachAt: number; pipelineAt: number }) {
@@ -95,6 +95,7 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
   const [outreach, setOutreach] = useState<OutreachData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
+  const [unlockNavigating, setUnlockNavigating] = useState(false);
   const [activateError, setActivateError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -113,6 +114,22 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleGoBackToUnlocks = async () => {
+    setUnlockNavigating(true);
+    try {
+      allowWizardUnlockFlow();
+      if (onBeginUnlocks) {
+        await onBeginUnlocks();
+        return;
+      }
+      window.location.assign(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
+    } catch {
+      window.location.assign(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
+    } finally {
+      setUnlockNavigating(false);
+    }
+  };
 
   const handleActivateRound = async () => {
     setActivating(true);
@@ -224,18 +241,12 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
           )}
           <button
             type="button"
-            onClick={() => {
-              if (onBeginUnlocks) {
-                onBeginUnlocks();
-                return;
-              }
-              allowWizardUnlockFlow();
-              window.location.assign(`/wizard/${startupId}?force_wizard=1&start_unlocks=1`);
-            }}
-            className="w-full mt-4 py-2.5 rounded-lg text-xs font-semibold border"
+            disabled={unlockNavigating}
+            onClick={() => void handleGoBackToUnlocks()}
+            className="w-full mt-4 py-2.5 rounded-lg text-xs font-semibold border disabled:opacity-60"
             style={{ color: "#22c55e", borderColor: "#22c55e40" }}
           >
-            Go back to unlocks →
+            {unlockNavigating ? "Opening unlocks…" : "Go back to unlocks →"}
           </button>
         </div>
       )}

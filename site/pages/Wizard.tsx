@@ -93,6 +93,8 @@ export default function Wizard() {
     () => new URLSearchParams(window.location.search).get("welcome") === "1",
   );
   const outreachPreviewTrackedRef = useRef(false);
+  const gapTasksRef = useRef<GapTask[]>([]);
+  gapTasksRef.current = gapTasks;
 
   const loadDbTasks = useCallback(async () => {
     if (!startupId) return;
@@ -170,8 +172,15 @@ export default function Wizard() {
       setGapTasks(pending);
       setCurrentGapIndex(0);
 
+      if (forceWizard && searchParams.get("tab") === "round") {
+        void loadDbTasks();
+        setActiveTab("round");
+        setPhase("tabs");
+        return;
+      }
+
       if (skipUnlockFlow) {
-        await loadDbTasks();
+        void loadDbTasks();
         if (searchParams.get("tab") === "round") setActiveTab("round");
         setPhase("tabs");
         return;
@@ -193,8 +202,13 @@ export default function Wizard() {
   const beginUnlockFlow = useCallback(async () => {
     allowWizardUnlockFlow();
     setCurrentGapIndex(0);
+    void trackFunnelEvent("wizard_unlock_flow_started", {
+      startup_id: startupId,
+      source: activeTab === "round" ? "round_locked" : "commitments_empty",
+    });
 
-    if (gapTasks.length > 0) {
+    const cached = gapTasksRef.current;
+    if (cached.length > 0 && cached[0]) {
       setPhase("gap_cards");
       return;
     }
@@ -228,7 +242,7 @@ export default function Wizard() {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setPhase("error");
     }
-  }, [gapTasks, startupId, loadDbTasks]);
+  }, [startupId, loadDbTasks, activeTab]);
 
   useEffect(() => {
     loadGaps();
@@ -390,8 +404,8 @@ export default function Wizard() {
           </p>
           <button
             type="button"
-            onClick={async () => {
-              await loadDbTasks();
+            onClick={() => {
+              void loadDbTasks();
               setActiveTab("round");
               setPhase("tabs");
             }}
@@ -427,7 +441,32 @@ export default function Wizard() {
   if (phase === "gap_cards") {
     const currentTask = gapTasks[currentGapIndex];
     if (!currentTask) {
-      return <WizardLoading message="Loading your unlocks…" />;
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
+          <p className="text-sm mb-4 text-center" style={{ color: "oklch(0.55 0.01 264)" }}>
+            Couldn&apos;t load your unlock cards. Try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => void beginUnlockFlow()}
+            className="px-4 py-2 rounded-lg text-xs font-semibold text-black mb-3"
+            style={{ background: "#22c55e" }}
+          >
+            Load unlocks
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPhase("tabs");
+              setActiveTab("round");
+            }}
+            className="text-xs underline"
+            style={{ color: "oklch(0.45 0.01 264)" }}
+          >
+            Back to round
+          </button>
+        </div>
+      );
     }
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: "oklch(0.13 0.01 264)" }}>
@@ -625,7 +664,7 @@ export default function Wizard() {
           <RoundAutomation
             startupId={startupId}
             startupName={startupName}
-            onBeginUnlocks={() => void beginUnlockFlow()}
+            onBeginUnlocks={beginUnlockFlow}
           />
         )}
       </div>
