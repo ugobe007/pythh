@@ -26,6 +26,7 @@ const { buildInvestorReadPayload } = require('../lib/investorReadService');
 const { enrichGapTasks, buildUnlockSummary } = require('../lib/taskUnlockCatalog');
 const { deriveGapTasks, TASK_CATALOG } = require('../lib/gapTaskDerivation');
 const { computeRoundReadiness, gateOutreachPayload } = require('../lib/readinessGateService');
+const { buildRaisePlan } = require('../lib/raisePlanService');
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -53,6 +54,24 @@ async function fetchMatchCount(startupId) {
     .eq('status', 'suggested');
   if (error) return 0;
   return count || 0;
+}
+
+async function fetchQualifiedMatchStats(startupId) {
+  const [{ count: identified, error: e1 }, { count: qualified, error: e2 }] = await Promise.all([
+    supabase
+      .from('startup_investor_matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('startup_id', startupId)
+      .eq('status', 'suggested'),
+    supabase
+      .from('startup_investor_matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('startup_id', startupId)
+      .eq('status', 'suggested')
+      .gte('match_score', 70),
+  ]);
+  if (e1 || e2) return { identified: 0, qualified: 0 };
+  return { identified: identified || 0, qualified: qualified || 0 };
 }
 
 /**
@@ -269,6 +288,46 @@ router.get('/:startupId/gaps', async (req, res) => {
     });
   } catch (err) {
     console.error('[wizard] gaps error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * GET /:startupId/raise-plan
+ * Oracle raise plan — campaign, readiness gaps, decision queue.
+ */
+router.get('/:startupId/raise-plan', async (req, res) => {
+  const { startupId } = req.params;
+  if (!validateUuid(startupId)) return res.status(400).json({ error: 'Invalid startup ID' });
+
+  try {
+    const { data: startup, error } = await supabase
+      .from('startup_uploads')
+      .select('id, name, website, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage, raise_amount')
+      .eq('id', startupId)
+      .maybeSingle();
+
+    if (error || !startup) return res.status(404).json({ error: 'Startup not found' });
+
+    const rawTasks = deriveGapTasks(startup);
+    const matchStats = await fetchQualifiedMatchStats(startupId);
+    const tasks = enrichGapTasks(rawTasks, startup, matchStats.identified);
+
+    const { data: existingTasks } = await supabase
+      .from('founder_commitment_tasks')
+      .select('task_key, status')
+      .eq('startup_id', startupId);
+
+    const existingMap = new Map((existingTasks || []).map(t => [t.task_key, t]));
+    const enrichedTasks = tasks.map(t => ({
+      ...t,
+      existing_status: existingMap.get(t.task_key)?.status || null,
+    }));
+
+    const plan = buildRaisePlan(startup, enrichedTasks, matchStats);
+    return res.json(plan);
+  } catch (err) {
+    console.error('[wizard] raise-plan error:', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });

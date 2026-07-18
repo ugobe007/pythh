@@ -368,6 +368,37 @@
       "promotion_note": "DRAFT 2026-07-16 — shipped in site/ (report-only). Promote to running once match_explain_intro_clicked / match_explain_viewed > 8% over 7d and match_intro_requested moves off 0."
     },
     {
+      "id": "founder_raise_plan_authorize",
+      "audience": "founder",
+      "name": "Oracle raise plan authorization (post-signup)",
+      "status": "running",
+      "parent_experiment": "founder_hero_entry",
+      "applies_when": "variant_key=matches_preview",
+      "hypothesis": "After preview signup, founders who see a full Oracle raise plan (campaign, gaps, autonomy) and explicitly authorize it will convert better to outreach and wizard unlocks than landing directly on match results. Primary metric is raise_plan_authorized — not signup alone.",
+      "loops": ["oracle_activation", "preview_cliffhanger"],
+      "variants": [
+        {
+          "key": "raise_plan_gate",
+          "traffic_pct": 100,
+          "schema": {
+            "post_signup_screen": "oracle_raise_plan",
+            "autonomy_options": ["observe", "prepare", "execute"],
+            "requires_explicit_authorize": true
+          },
+          "copy": {
+            "headline": "Oracle · Your raise plan",
+            "cta": "Authorize plan",
+            "subline": "Oracle continues working on readiness and campaign prep while you review"
+          }
+        }
+      ],
+      "metrics": {
+        "primary": "raise_plan_authorized",
+        "secondary": ["raise_plan_viewed", "decision_approved", "outreach_authorized", "founder_signup_completed"]
+      },
+      "promotion_note": "Shipped 2026-07-18 — Phase 2 Oracle UX; welcome=1 routes through /activate raise-plan before results."
+    },
+    {
       "id": "pricing_oracle_cta",
       "audience": "founder",
       "name": "Oracle pricing page CTA",

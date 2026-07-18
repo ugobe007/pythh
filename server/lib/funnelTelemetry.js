@@ -30,6 +30,10 @@ const FUNNEL_OPERATIONS = [
   /** Oracle-centric raise funnel (see docs/PYTHH_VISION.md) */
   'raise_plan_viewed',
   'raise_plan_authorized',
+  'autonomy_level_set',
+  'decision_card_viewed',
+  'decision_approved',
+  'decision_deferred',
   'outreach_authorized',
   'meeting_request_ready',
   'meeting_approved',

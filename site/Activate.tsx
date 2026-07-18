@@ -11,6 +11,9 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { inferInvestorEmails, getPrimaryVariants, confidenceLabel, type InvestorEmailProfile } from "@/lib/emailInference";
 import InvestorReadStep from "@/components/InvestorReadStep";
+import OracleRaisePlan from "@/components/OracleRaisePlan";
+import OracleDecisionQueue from "@/components/OracleDecisionQueue";
+import { isRaisePlanAuthorized } from "@/lib/oracleRaisePlan";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
 import { createFounderAccount, fetchInstantResults, sendFounderWelcomeEmail } from "@/lib/founderAccount";
 import { normalizeWhyYouMatch } from "@/lib/normalizeWhyYouMatch";
@@ -77,7 +80,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Step = "entry" | "scanning" | "investor-read" | "results" | "pipeline";
+type Step = "entry" | "scanning" | "investor-read" | "raise-plan" | "results" | "pipeline";
 
 interface MatchedInvestor {
   id: number;
@@ -217,6 +220,10 @@ interface ApiResult {
 function getShareStartupIdFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search);
   return params.get("sid") || params.get("startup_id");
+}
+
+function isWelcomeReturnFromUrl(): boolean {
+  return new URLSearchParams(window.location.search).get("welcome") === "1";
 }
 
 function buildResultsShareUrl(startupId: string): string {
@@ -1077,6 +1084,7 @@ function ResultsStep({
   isSharedView = false,
   onRunOwnScan,
   onViewInvestorRead,
+  onOpenWizard,
 }: {
   url: string;
   onActivate: () => void;
@@ -1086,6 +1094,7 @@ function ResultsStep({
   isSharedView?: boolean;
   onRunOwnScan?: () => void;
   onViewInvestorRead?: () => void;
+  onOpenWizard?: () => void;
 }) {
   const [expanded, setExpanded] = useState<number | null>(1);
   const [refreshing, setRefreshing] = useState(false);
@@ -1340,6 +1349,10 @@ function ResultsStep({
       )}
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+
+        {!isSharedView && startupId && isRaisePlanAuthorized(startupId) && (
+          <OracleDecisionQueue startupId={startupId} onOpenWizard={onOpenWizard} />
+        )}
 
         {/* Summary stats — inline row */}
         <div className="flex items-stretch mb-7 rounded-xl overflow-hidden" style={{ border: "1px solid oklch(0.2 0.01 264)", backgroundColor: "oklch(0.14 0.01 264)" }}>
@@ -2556,11 +2569,16 @@ export default function Activate() {
           gen_in_progress: false,
         });
         setIsSharedView(!new URLSearchParams(window.location.search).has("pipeline"));
-        setStep(
-          new URLSearchParams(window.location.search).get("pipeline") === "1"
-            ? "pipeline"
-            : "results",
-        );
+        const params = new URLSearchParams(window.location.search);
+        const isPipeline = params.get("pipeline") === "1";
+        const isWelcome = params.get("welcome") === "1";
+        if (isPipeline) {
+          setStep("pipeline");
+        } else if (isWelcome && !isRaisePlanAuthorized(shareStartupId)) {
+          setStep("raise-plan");
+        } else {
+          setStep("results");
+        }
       } catch {
         if (!cancelled) {
           setSharedLoadError("Could not load shared results");
@@ -2634,7 +2652,7 @@ export default function Activate() {
             navigate(postSignupPath.includes("?") ? `${postSignupPath}&welcome=1` : `${postSignupPath}?welcome=1`);
             return;
           }
-          setStep("results");
+          navigate(`/activate?startup_id=${encodeURIComponent(existingStartupId)}&welcome=1`);
           return;
         }
       }
@@ -2783,6 +2801,24 @@ export default function Activate() {
     setStep("pipeline");
   };
 
+  const handleOpenWizard = () => {
+    const sid = apiResult?.startup_id ?? shareStartupId;
+    if (!sid) return;
+    allowWizardUnlockFlow();
+    navigate(`/wizard/${sid}?tab=round`);
+  };
+
+  const handleRaisePlanAuthorized = () => {
+    const sid = shareStartupId ?? apiResult?.startup_id;
+    if (sid) {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("welcome");
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `/activate?${qs}` : `/activate?startup_id=${encodeURIComponent(sid)}`);
+    }
+    setStep("results");
+  };
+
   return (
     <div style={{ backgroundColor: "oklch(0.13 0.01 264)", minHeight: "100vh" }}>
       {/* Back to home */}
@@ -2833,7 +2869,21 @@ export default function Activate() {
         <InvestorReadStep
           startupId={apiResult.startup_id}
           startupName={apiResult.startup?.name || url.replace(/https?:\/\//, "").replace(/\/.*/, "")}
-          onSeeMatches={() => setStep("results")}
+          onSeeMatches={() => {
+            const sid = apiResult.startup_id;
+            if (sid && isWelcomeReturnFromUrl() && !isRaisePlanAuthorized(sid)) {
+              setStep("raise-plan");
+            } else {
+              setStep("results");
+            }
+          }}
+        />
+      )}
+      {step === "raise-plan" && !loadingShared && (shareStartupId || apiResult?.startup_id) && (
+        <OracleRaisePlan
+          startupId={shareStartupId ?? apiResult!.startup_id!}
+          onAuthorized={handleRaisePlanAuthorized}
+          onOpenWizard={handleOpenWizard}
         />
       )}
       {step === "results" && !loadingShared && (
@@ -2846,6 +2896,7 @@ export default function Activate() {
           isSharedView={isSharedView}
           onRunOwnScan={handleRunOwnScan}
           onViewInvestorRead={() => setStep("investor-read")}
+          onOpenWizard={handleOpenWizard}
         />
       )}
       {step === "pipeline" && <PipelineStep url={url} highlightInvestor={prefilledInvestor?.name} apiResult={apiResult} />}
