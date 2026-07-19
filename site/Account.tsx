@@ -47,6 +47,7 @@ import {
   markOAuthHandoffFromRedirect,
   readPostLoginPath,
 } from "@/lib/supabaseOAuth";
+import { planPriceLabel, SCOUT_PLAN, ORACLE_PLAN, formatCampaignLimit } from "@/lib/pricingPlans";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -732,7 +733,7 @@ export default function Account() {
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <h2 className="font-display font-bold text-xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-                        PYTHIA Oracle
+                        PYTHIA {subscription.plan === "scout" ? "Scout" : "Oracle"}
                       </h2>
                       {status && (
                         <span
@@ -760,24 +761,29 @@ export default function Account() {
                       )}
                     </div>
                     <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>
-                      Full pipeline automation — investor matching, outreach &amp; meeting booking
+                      {formatCampaignLimit(subscription.plan === "scout" ? SCOUT_PLAN : ORACLE_PLAN)}
                     </p>
                   </div>
                 </div>
 
                 {/* Price display */}
                 <div className="text-right flex-shrink-0">
-                  <p className="font-display font-bold text-2xl" style={{ color: "oklch(0.97 0.005 264)" }}>
-                    {subscription.billingCycle === "annual" ? "$249" : "$299"}
-                    <span className="text-sm font-normal ml-1" style={{ color: "oklch(0.45 0.01 264)" }}>
-                      /mo
-                    </span>
-                  </p>
-                  <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
-                    {subscription.billingCycle === "annual"
-                      ? "Billed annually · $2,988/yr"
-                      : "Billed monthly"}
-                  </p>
+                  {(() => {
+                    const pricing = planPriceLabel(subscription.plan, subscription.billingCycle);
+                    return (
+                      <>
+                        <p className="font-display font-bold text-2xl" style={{ color: "oklch(0.97 0.005 264)" }}>
+                          {pricing.perMonth}
+                          <span className="text-sm font-normal ml-1" style={{ color: "oklch(0.45 0.01 264)" }}>
+                            /mo
+                          </span>
+                        </p>
+                        <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
+                          {pricing.billed}
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

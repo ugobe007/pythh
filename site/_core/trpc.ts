@@ -54,9 +54,9 @@ export const adminProcedure = t.procedure.use(requireUser).use(requireAdmin);
 
 /**
  * Plans that include PYTHIA outreach agent services.
- * SCOUT ($29) gets searches + matches only — no outreach until Oracle+.
+ * Scout: 1 active campaign · Oracle/Pantheon: full automation.
  */
-const OUTREACH_PLANS = new Set(["oracle", "pantheon"]);
+const OUTREACH_PLANS = new Set(["scout", "oracle", "pantheon"]);
 
 const requireOutreachPlan = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) {
@@ -71,7 +71,7 @@ const requireOutreachPlan = t.middleware(async ({ ctx, next }) => {
     throw new TRPCError({
       code: "FORBIDDEN",
       message:
-        "PYTHIA outreach agent requires an Oracle or Pantheon subscription. Upgrade at pythh.ai/pricing.",
+        "PYTHIA outreach agent requires a Scout or Oracle subscription. Upgrade at pythh.ai/pricing.",
     });
   }
   return next({ ctx: { ...ctx, user: ctx.user } });

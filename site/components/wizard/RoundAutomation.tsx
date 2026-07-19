@@ -351,12 +351,16 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
                 style={{ background: "oklch(0.696 0.17 162.48)", color: "#0a0a0a" }}
               >
                 <Sparkles size={14} />
-                Start Oracle free trial — automate outreach
+                Start Scout trial — $19/mo · 1 campaign
                 <ArrowRight size={14} />
               </span>
             </Link>
             <p className="text-[10px] text-center" style={{ color: "oklch(0.42 0.01 264)" }}>
-              7-day trial · cancel anytime · manual outreach above stays free
+              7-day trial ·{" "}
+              <Link href="/pricing" className="underline" style={{ color: "oklch(0.696 0.17 162.48)" }}>
+                Oracle $49/mo · 5 campaigns
+              </Link>
+              {" "}· manual copy above stays free
             </p>
           </div>
         )}

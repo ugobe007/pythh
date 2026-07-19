@@ -19,6 +19,7 @@ import {
   upsertSubscription,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
+import { checkoutAmountLabel } from "./lib/pricingPlans";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ function billingCycleFromInterval(
 async function recordCheckoutCompletedFunnel(
   session: Stripe.Checkout.Session,
   billingCycle: "monthly" | "annual",
+  plan: string,
 ): Promise<void> {
   const sbUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const sbKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -53,7 +55,7 @@ async function recordCheckoutCompletedFunnel(
       status: "success",
       output: {
         source: "stripe_webhook",
-        plan: "oracle",
+        plan,
         billing_cycle: billingCycle,
         session_id: session.id,
       },
@@ -112,6 +114,12 @@ export async function handleCheckoutSessionCompleted(
   const cpe = stripeSub.current_period_end;
   const currentPeriodEnd = cpe ? cpe * 1000 : undefined;
 
+  const planFromMeta =
+    (session.metadata?.plan as string | undefined) ||
+    (stripeSub.metadata?.plan as string | undefined) ||
+    "oracle";
+  const plan = planFromMeta === "scout" ? "scout" : "oracle";
+
   const customerId =
     typeof session.customer === "string"
       ? session.customer
@@ -121,27 +129,27 @@ export async function handleCheckoutSessionCompleted(
     userId: user.id,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscriptionId,
-    plan: "oracle",
+    plan,
     billingCycle,
     status: "active",
     currentPeriodEnd,
   });
 
-  await recordCheckoutCompletedFunnel(session, billingCycle);
+  await recordCheckoutCompletedFunnel(session, billingCycle, plan);
 
   console.log(
-    `[Webhook] Oracle plan provisioned for userId=${user.id} (${billingCycle})`
+    `[Webhook] ${plan} plan provisioned for userId=${user.id} (${billingCycle})`
   );
 
-  // Notify the site owner of the new Oracle plan subscriber
   const cycleLabel = billingCycle === "annual" ? "Annual" : "Monthly";
-  const amountLabel = billingCycle === "annual" ? "$2,988/yr" : "$299/mo";
+  const amountLabel = checkoutAmountLabel(plan as "scout" | "oracle", billingCycle);
+  const planTitle = plan === "scout" ? "Scout" : "Oracle";
   await notifyOwner(
     [
-      `New Oracle subscriber — ${cycleLabel}`,
+      `New ${planTitle} subscriber — ${cycleLabel}`,
       `Name: ${user.name ?? "(unknown)"}`,
       `Email: ${user.email ?? "(unknown)"}`,
-      `Plan: Oracle ${cycleLabel} (${amountLabel})`,
+      `Plan: ${planTitle} ${cycleLabel} (${amountLabel})`,
       `Stripe Customer: ${customerId}`,
       `Subscription: ${subscriptionId}`,
     ].join("\n")

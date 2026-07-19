@@ -33,6 +33,7 @@ import { TRPCError } from "@trpc/server";
 import { ENV } from "./env";
 import { outreachRouter } from "./outreachRouter";
 import { artRouter } from "./artRouter";
+import { getCheckoutPlan, formatCampaignLimit } from "./lib/pricingPlans";
 
 // Lazily initialise Stripe so the server still starts without the key set.
 function getStripe() {
@@ -713,16 +714,21 @@ export const appRouter = router({
     createCheckoutSession: protectedProcedure
       .input(
         z.object({
+          plan: z.enum(["scout", "oracle"]).default("oracle"),
           billingCycle: z.enum(["monthly", "annual"]),
           origin: z.string().url(),
         })
       )
       .mutation(async ({ input, ctx }) => {
         const stripe = getStripe();
+        const planConfig = getCheckoutPlan(input.plan);
 
-        // Annual: $249/mo billed as $2,988/year; Monthly: $299/mo
-        const unitAmount = input.billingCycle === "annual" ? 298800 : 29900;
+        const unitAmount =
+          input.billingCycle === "annual"
+            ? planConfig.annualCents!
+            : planConfig.monthlyCents!;
         const interval = input.billingCycle === "annual" ? "year" : "month";
+        const planLabel = planConfig.name;
 
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ["card"],
@@ -732,11 +738,11 @@ export const appRouter = router({
               price_data: {
                 currency: "usd",
                 product_data: {
-                  name: "PYTHIA Oracle Plan",
+                  name: `PYTHIA ${planLabel} Plan`,
                   description:
                     input.billingCycle === "annual"
-                      ? "Full PYTHIA pipeline automation — billed annually (save 17%)"
-                      : "Full PYTHIA pipeline automation — billed monthly",
+                      ? `${formatCampaignLimit(planConfig)} — billed annually (save 17%)`
+                      : `${formatCampaignLimit(planConfig)} — billed monthly`,
                 },
                 unit_amount: unitAmount,
                 recurring: { interval },
@@ -744,21 +750,17 @@ export const appRouter = router({
               quantity: 1,
             },
           ],
-          success_url: `${input.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+          success_url: `${input.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}&plan=${input.plan}`,
           cancel_url: `${input.origin}/checkout/cancel`,
           allow_promotion_codes: true,
           billing_address_collection: "auto",
-          // 7-day free trial for all new Oracle plan subscribers.
-          // Stripe will not charge the card until the trial ends.
           subscription_data: {
-            trial_period_days: 7,
-            metadata: { plan: "oracle", billingCycle: input.billingCycle },
+            trial_period_days: planConfig.trialDays,
+            metadata: { plan: input.plan, billingCycle: input.billingCycle },
           },
-          // client_reference_id lets the webhook look up the Manus user
           client_reference_id: ctx.user.openId,
-          // Pre-fill customer email for a smoother checkout experience
           customer_email: ctx.user.email ?? undefined,
-          metadata: { plan: "oracle", billingCycle: input.billingCycle },
+          metadata: { plan: input.plan, billingCycle: input.billingCycle },
         });
 
         if (!session.url) throw new Error("Stripe did not return a checkout URL.");
@@ -793,8 +795,8 @@ export const appRouter = router({
         // Tier-aware access:
         //   Admin       → unlimited
         //   Oracle/Pantheon → unlimited
-        //   Scout ($29) → unlimited searches + matches (no outreach — gated in outreachRouter)
-        //   No plan     → 3 free trial searches, then upgrade prompt
+        //   Scout ($19) → 1 outreach campaign + unlimited matches
+        //   Oracle ($49) → 5 campaigns + full automation
         const FREE_TRIAL_LIMIT = 3;
         const PAID_PLANS = new Set(["oracle", "pantheon", "scout"]);
 
@@ -811,7 +813,7 @@ export const appRouter = router({
           if (usageCount >= FREE_TRIAL_LIMIT) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: `Free trial limit reached (${FREE_TRIAL_LIMIT} searches). Upgrade to SCOUT ($29/mo) for more matches, or Oracle ($299/mo) for the full PYTHIA outreach agent.`,
+              message: `Free trial limit reached (${FREE_TRIAL_LIMIT} searches). Upgrade to Scout ($19/mo, 1 campaign) or Oracle ($49/mo, 5 campaigns).`,
             });
           }
         } else if (!isAdmin && activePlan && !PAID_PLANS.has(activePlan)) {

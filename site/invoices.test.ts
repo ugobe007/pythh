@@ -217,6 +217,7 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
         retrieve: vi.fn().mockResolvedValue({
           id: "sub_123",
           current_period_end: 1_800_000_000,
+          metadata: { plan: "oracle" },
           items: {
             data: [{ price: { recurring: { interval: "month" } } }],
           },
@@ -228,6 +229,7 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
       client_reference_id: "open-1",
       subscription: "sub_123",
       customer: "cus_abc",
+      metadata: { plan: "oracle" },
     } as unknown as Stripe.Checkout.Session;
 
     await handleCheckoutSessionCompleted(fakeSession, fakeStripe);
@@ -238,7 +240,7 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
     expect(message).toContain("Monthly");
     expect(message).toContain("Alice");
     expect(message).toContain("alice@example.com");
-    expect(message).toContain("$299/mo");
+    expect(message).toContain("$49/mo");
   });
 
   it("does not throw if notifyOwner rejects (non-critical)", async () => {
@@ -299,6 +301,6 @@ describe("handleCheckoutSessionCompleted — notifyOwner", () => {
 
     const message = mockNotifyOwner.mock.calls[0][0] as string;
     expect(message).toContain("Annual");
-    expect(message).toContain("$2,988/yr");
+    expect(message).toContain("$492/yr");
   });
 });
