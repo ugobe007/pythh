@@ -2783,9 +2783,13 @@ export default function Activate() {
   };
 
   const handleActivatePipeline = () => {
-    const sid = apiResult?.startup_id ?? shareStartupId;
+    const sid =
+      apiResult?.startup_id ??
+      shareStartupId ??
+      (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("pythia_startup_id") : null);
     if (sid) {
-      navigate(`/activate?startup_id=${encodeURIComponent(sid)}`);
+      allowWizardUnlockFlow();
+      navigate(`/wizard/${sid}?tab=round&force_wizard=1`);
       return;
     }
     const hasActivePlan =
