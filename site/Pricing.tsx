@@ -133,8 +133,6 @@ function PricingCard({
   oracleCtaLabel?: string;
   isAuthenticated: boolean;
 }) {
-  const price = billing === "annual" ? plan.annualPrice : plan.monthlyPrice;
-
   return (
     <div
       className="border p-5 flex flex-col h-full relative"
@@ -173,25 +171,27 @@ function PricingCard({
       </div>
 
       <div className="mb-5">
-        {price !== null ? (
-          <div className="flex items-baseline gap-1">
-            <span className="font-display font-bold text-3xl tabular-nums" style={{ color: TEXT }}>
-              ${price}
-            </span>
-            <span className="text-sm font-mono" style={{ color: DIM }}>/mo</span>
-          </div>
+        {plan.monthlyPrice != null ? (
+          <>
+            <div className="flex items-baseline gap-1">
+              <span className="font-display font-bold text-3xl tabular-nums" style={{ color: TEXT }}>
+                ${plan.monthlyPrice}
+              </span>
+              <span className="text-sm font-mono" style={{ color: DIM }}>/month</span>
+            </div>
+            {billing === "annual" && plan.annualPrice != null && (
+              <p className="text-[11px] font-mono mt-1" style={{ color: G }}>
+                ${plan.annualCents! / 100}/yr billed annually (${plan.annualPrice}/mo effective)
+              </p>
+            )}
+            {billing === "monthly" && plan.trialDays > 0 && (
+              <p className="text-[11px] font-mono mt-1" style={{ color: DIM }}>
+                {plan.trialDays}-day free trial · cancel anytime
+              </p>
+            )}
+          </>
         ) : (
           <span className="font-display font-bold text-2xl" style={{ color: TEXT }}>Custom</span>
-        )}
-        {billing === "annual" && price != null && plan.monthlyPrice != null && (
-          <p className="text-[11px] font-mono mt-1" style={{ color: G }}>
-            Save ${(plan.monthlyPrice - price) * 12}/yr · 7-day free trial
-          </p>
-        )}
-        {billing === "monthly" && plan.trialDays > 0 && (
-          <p className="text-[11px] font-mono mt-1" style={{ color: DIM }}>
-            {plan.trialDays}-day free trial · cancel anytime
-          </p>
         )}
       </div>
 
@@ -220,7 +220,7 @@ function PricingCard({
 }
 
 export default function Pricing() {
-  const [billing, setBilling] = useState<BillingCycle>("annual");
+  const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [showFullTable, setShowFullTable] = useState(false);
   const [pricingExp, setPricingExp] = useState<GrowthAssignment | null>(null);
   const [oracleCtaLabel, setOracleCtaLabel] = useState("Start 7-day free trial");
@@ -324,8 +324,13 @@ export default function Pricing() {
                 PYTHIA finds thesis-fit investors, writes personalized outreach, sends follow-ups, and tracks replies —
                 so you spend time in meetings, not in Gmail.
               </p>
-              <p className="text-sm font-mono" style={{ color: G }}>
-                Less than one hour of a junior BD hire · 7-day trial on Scout &amp; Oracle
+              <p className="text-sm font-mono mb-1" style={{ color: G }}>
+                Scout <span style={{ color: TEXT }}>$19/mo</span>
+                <span style={{ color: DIM }}> · </span>
+                Oracle <span style={{ color: GOLD }}>$49/mo</span>
+              </p>
+              <p className="text-xs font-mono" style={{ color: DIM }}>
+                7-day free trial on paid plans · save 17% on annual billing
               </p>
             </div>
           </div>
@@ -393,11 +398,18 @@ export default function Pricing() {
                 </p>
                 <p className="text-xs mb-2" style={{ color: DIM }}>{plan.headline}</p>
                 {plan.monthlyPrice != null ? (
-                  <div className="flex items-baseline gap-1 mb-3">
-                    <span className="font-display font-bold text-2xl tabular-nums" style={{ color: TEXT }}>
-                      ${billing === "annual" ? plan.annualPrice : plan.monthlyPrice}
-                    </span>
-                    <span className="text-xs font-mono" style={{ color: DIM }}>/mo</span>
+                  <div className="mb-3">
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-display font-bold text-2xl tabular-nums" style={{ color: TEXT }}>
+                        ${plan.monthlyPrice}
+                      </span>
+                      <span className="text-xs font-mono" style={{ color: DIM }}>/month</span>
+                    </div>
+                    {billing === "annual" && plan.annualPrice != null && (
+                      <p className="text-[10px] font-mono mt-1" style={{ color: G }}>
+                        ${plan.annualCents! / 100}/yr
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="font-display font-bold text-xl mb-3" style={{ color: TEXT }}>Custom</p>
