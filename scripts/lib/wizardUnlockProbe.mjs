@@ -67,36 +67,23 @@ export async function runWizardUnlockProbe(opts = {}) {
 
     steps.push({ step: 'wizard_round_load', ok: true, url: wizardUrl });
 
-    const pipelineBtn = page.getByRole('button', { name: /Start unlocks/i });
-    const skipPipelineBtn = page.getByRole('button', { name: /Skip to pipeline preview/i });
-    const goBackBtn = page.getByRole('button', { name: /Continue readiness unlocks/i });
+    const goBackBtn = page.getByRole('button', { name: /Optional: improve readiness score/i });
 
     let landed = 'unknown';
     try {
-      await Promise.race([
-        pipelineBtn.waitFor({ state: 'visible', timeout: 45000 }).then(() => {
-          landed = 'unlock_intro';
-        }),
-        goBackBtn.waitFor({ state: 'visible', timeout: 45000 }).then(() => {
-          landed = 'round_tab';
-        }),
-      ]);
+      await goBackBtn.waitFor({ state: 'visible', timeout: 45000 }).then(() => {
+        landed = 'round_tab';
+      });
     } catch {
-      steps.push({ step: 'wizard_ui_ready', ok: false, detail: 'neither pipeline nor go-back button appeared' });
+      steps.push({ step: 'wizard_ui_ready', ok: false, detail: 'round tab did not load' });
       return { ok: false, base, startupId, steps, error: 'wizard UI did not load' };
     }
 
     steps.push({ step: 'wizard_ui_ready', ok: true, landed });
 
-    if (landed === 'unlock_intro') {
-      await skipPipelineBtn.click();
-      await goBackBtn.waitFor({ state: 'visible', timeout: 30000 });
-      steps.push({ step: 'skip_to_round_tab', ok: true });
-    }
-
     await goBackBtn.click();
 
-    const heading = page.getByRole('heading', { name: /What will you unlock/i });
+    const heading = page.getByRole('heading', { name: /Suggested improvements before outreach/i });
     const unlockCard = page.getByRole('heading', { name: /Unlock:/i });
 
     await heading.waitFor({ state: 'visible', timeout: 30000 });
@@ -110,7 +97,7 @@ export async function runWizardUnlockProbe(opts = {}) {
     });
 
     // Skip first card — re-enter from round tab must not show the same card again.
-    await page.getByRole('button', { name: /Not prioritizing this unlock/i }).click();
+    await page.getByRole('button', { name: /Skip this suggestion/i }).click();
     await page.waitForTimeout(800);
 
     const secondCard = page.getByRole('heading', { name: /Unlock:/i });

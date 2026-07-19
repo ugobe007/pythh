@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 const TEST_URL = process.env.SMOKE_URL || 'stripe.com';
 
 test.describe('Wizard unlock funnel', () => {
-  test('Round tab → continue unlocks opens gap card 1', async ({ page, request, baseURL }) => {
+  test('Round tab → optional readiness opens gap card 1', async ({ page, request, baseURL }) => {
     const origin = (baseURL || 'https://pythh.ai').replace(/\/$/, '');
     const url = TEST_URL.startsWith('http') ? TEST_URL : `https://${TEST_URL}`;
 
@@ -22,22 +22,13 @@ test.describe('Wizard unlock funnel', () => {
 
     await page.goto(`/wizard/${startupId}?tab=round&force_wizard=1`);
 
-    const pipelineBtn = page.getByRole('button', { name: /View my investor pipeline/i });
-    const goBackBtn = page.getByRole('button', { name: /Go back to unlocks/i });
+    const goBackBtn = page.getByRole('button', { name: /Optional: improve readiness score/i });
 
-    await Promise.race([
-      pipelineBtn.waitFor({ state: 'visible', timeout: 35000 }),
-      goBackBtn.waitFor({ state: 'visible', timeout: 35000 }),
-    ]);
-
-    if (await pipelineBtn.isVisible()) {
-      await pipelineBtn.click();
-      await expect(goBackBtn).toBeVisible({ timeout: 20000 });
-    }
+    await expect(goBackBtn).toBeVisible({ timeout: 35000 });
 
     await goBackBtn.click();
 
-    await expect(page.getByRole('heading', { name: /What will you unlock/i })).toBeVisible({
+    await expect(page.getByRole('heading', { name: /Suggested improvements before outreach/i })).toBeVisible({
       timeout: 20000,
     });
     await expect(page.getByRole('heading', { name: /Unlock:/i })).toBeVisible({ timeout: 10000 });

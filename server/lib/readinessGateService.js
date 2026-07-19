@@ -95,12 +95,12 @@ function computeRoundReadiness({ startup, tasks, doc, matchCount, topMatchScore 
   const pointsToOutreach = Math.max(0, OUTREACH_THRESHOLD - readinessScore);
   const pointsToPipeline = Math.max(0, PIPELINE_THRESHOLD - readinessScore);
 
-  let headline = 'Round locked — build readiness first';
+  let headline = 'Your investors are matched';
   let subline =
-    'Investors are matched, but outreach opens after you commit to unlocks and cross the readiness bar.';
+    'Review outreach drafts on the Round tab. Readiness improvements are optional — they help automated sends, not contacting investors.';
   if (status === 'building') {
-    headline = 'Round in progress — you\'re close';
-    subline = 'Complete the checklist below to unlock your outreach package.';
+    headline = 'Outreach drafts ready — readiness optional';
+    subline = 'Copy emails to your top matches now. Optional unlocks below improve automated PYTHIA sends.';
   } else if (status === 'outreach_ready') {
     headline = 'Outreach unlocked';
     subline = 'Your personalized emails and memo are ready. Copy and send — or activate PYTHIA to automate.';
@@ -143,10 +143,26 @@ function computeRoundReadiness({ startup, tasks, doc, matchCount, topMatchScore 
 
 /**
  * Redact outreach package when gate is not open.
+ * Founders with matches always get a reviewable preview (copy/send manually).
+ * PYTHIA auto-send stays gated on full outreach_ready.
  */
 function gateOutreachPayload(payload, gate) {
+  const hasMatches = (payload.investors || []).length > 0;
+
   if (gate.outreach_ready) {
-    return { ...payload, gate, locked: false };
+    return { ...payload, gate, locked: false, send_locked: false, preview_mode: 'full' };
+  }
+
+  if (hasMatches) {
+    return {
+      ...payload,
+      gate,
+      locked: false,
+      send_locked: true,
+      preview_mode: 'provisional',
+      message:
+        `Outreach drafts are ready to review and copy. Readiness is ${gate.readiness_score}/${gate.thresholds.outreach} — optional improvements help automated PYTHIA sends, not your ability to contact investors.`,
+    };
   }
 
   const investors = (payload.investors || []).slice(0, 3).map((inv) => ({
@@ -163,13 +179,15 @@ function gateOutreachPayload(payload, gate) {
     ...payload,
     gate,
     locked: true,
+    send_locked: true,
+    preview_mode: 'none',
     investors,
     email_drafts: [],
     memo_markdown: null,
     message:
-      gate.status === 'building'
+      gate.stats?.match_count > 0
         ? `Outreach unlocks at readiness ${gate.thresholds.outreach}+. You're at ${gate.readiness_score} — ${gate.points_to_outreach} pts to go.`
-        : 'Complete your unlock commitments to access outreach.',
+        : 'Run a match scan first — then outreach drafts appear here.',
   };
 }
 

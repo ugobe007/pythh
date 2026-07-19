@@ -85,7 +85,7 @@ export default function AcknowledgeModal({
             {taskTitle}
           </h3>
           <p className="text-sm mt-2" style={{ color: 'oklch(0.5 0.01 264)' }}>
-            You&apos;re choosing to surface this advantage publicly. Pick a deadline — we&apos;ll track proof and upgrade your readiness doc.
+            Step 1 of 2: pick a deadline for this readiness goal. Step 2 (later, in your Unlocks tab): submit proof using the field described on the card.
           </p>
           {(impactPoints || investorsUnlocked) && (
             <p className="text-xs font-mono mt-2" style={{ color: 'oklch(0.45 0.01 264)' }}>
@@ -155,7 +155,7 @@ export default function AcknowledgeModal({
           className="w-full py-3.5 rounded-xl font-semibold text-sm text-black transition-all duration-200 active:scale-[0.98]"
           style={{ background: '#22c55e' }}
         >
-          Lock in this unlock
+          Lock in deadline
         </button>
 
         <p className="text-center text-[11px] mt-3" style={{ color: 'oklch(0.35 0.01 264)' }}>

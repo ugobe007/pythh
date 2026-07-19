@@ -13,6 +13,7 @@ import ProofSubmitCard from "@/components/wizard/ProofSubmitCard";
 import CommitmentDocument from "@/components/wizard/CommitmentDocument";
 import RoundAutomation from "@/components/wizard/RoundAutomation";
 import WizardActivationBanner from "@/components/wizard/WizardActivationBanner";
+import GodScoreExplainer from "@/components/wizard/GodScoreExplainer";
 import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
 import { trackFunnelEvent } from "@/lib/matchEngagement";
 
@@ -52,6 +53,8 @@ interface UnlockSummary {
 }
 
 const API_BASE = "/api/wizard";
+/** Max optional readiness cards per session — rest are backlog, not a gate. */
+const MAX_UNLOCK_FLOW = 3;
 
 type GapTaskWithStatus = GapTask & { existing_status?: string | null };
 
@@ -120,6 +123,7 @@ export default function Wizard() {
   const [gapTasks, setGapTasks] = useState<GapTask[]>([]);
   const [gapFlowTotal, setGapFlowTotal] = useState(0);
   const [gapFlowResolved, setGapFlowResolved] = useState(0);
+  const [gapTotalAvailable, setGapTotalAvailable] = useState(0);
   const [acknowledgeTask, setAcknowledgeTask] = useState<GapTask | null>(null);
   const [godScore, setGodScore] = useState<number | null>(null);
   const [startupName, setStartupName] = useState("");
@@ -175,8 +179,15 @@ export default function Wizard() {
     await loadDbTasks();
     await generateDocument();
     setPhase("tabs");
-    setActiveTab("commitments");
+    setActiveTab("round");
   }, [loadDbTasks, generateDocument]);
+
+  const skipToOutreach = useCallback(async () => {
+    allowWizardUnlockFlow();
+    await loadDbTasks();
+    setPhase("tabs");
+    setActiveTab("round");
+  }, [loadDbTasks]);
 
   const fetchPendingGaps = useCallback(async () => {
     if (!startupId) return null;
@@ -192,10 +203,12 @@ export default function Wizard() {
     };
   }, [startupId]);
 
-  const enterGapCards = useCallback((pending: GapTask[]) => {
-    setGapTasks(pending);
-    setGapFlowTotal(pending.length);
+  const enterGapCards = useCallback((pending: GapTask[], totalAvailable?: number) => {
+    const capped = pending.slice(0, MAX_UNLOCK_FLOW);
+    setGapTasks(capped);
+    setGapFlowTotal(capped.length);
     setGapFlowResolved(0);
+    setGapTotalAvailable(totalAvailable ?? pending.length);
     setPhase("gap_cards");
   }, []);
 
@@ -252,12 +265,19 @@ export default function Wizard() {
         return;
       }
 
-      if (forceWizard && startUnlocks) {
-        enterGapCards(pending);
+      if (startUnlocks) {
+        enterGapCards(pending, pending.length);
         return;
       }
 
-      setPhase("unlock_intro");
+      // Default: investor outreach first — readiness cards are opt-in only
+      void loadDbTasks();
+      setActiveTab(
+        searchParams.get("tab") === "commitments" || searchParams.get("tab") === "document"
+          ? initialTabFromUrl()
+          : "round",
+      );
+      setPhase("tabs");
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setPhase("error");
@@ -289,7 +309,7 @@ export default function Wizard() {
         return;
       }
 
-      enterGapCards(result.pending);
+      enterGapCards(result.pending, result.pending.length);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setPhase("error");
@@ -515,10 +535,11 @@ export default function Wizard() {
         <div className="px-6 mb-10">
           <ProgressBar current={gapFlowResolved} total={gapFlowTotal || gapTasks.length} />
         </div>
-        <div className="text-center px-6 mb-10">
-          <p className="text-xs mb-2" style={{ color: "oklch(0.45 0.01 264)" }}>Surface your advantages</p>
+        <div className="text-center px-6 mb-6">
+          <GodScoreExplainer score={godScore} />
+          <p className="text-xs mb-2" style={{ color: "oklch(0.45 0.01 264)" }}>Optional readiness — skip anytime</p>
           <h1 className="text-2xl font-bold" style={{ color: "oklch(0.94 0.005 264)", letterSpacing: "-0.03em" }}>
-            What will you unlock?
+            Suggested improvements before outreach
           </h1>
         </div>
         <div className="flex-1 flex items-start justify-center px-4 pb-12">
@@ -532,9 +553,11 @@ export default function Wizard() {
             task={currentTask}
             taskIndex={gapFlowResolved}
             totalTasks={gapFlowTotal || gapTasks.length}
+            totalAvailable={gapTotalAvailable || undefined}
             godScore={godScore}
             onAcknowledge={() => setAcknowledgeTask(currentTask)}
             onSkip={() => handleSkip(currentTask)}
+            onSkipToOutreach={() => void skipToOutreach()}
             isLast={gapTasks.length === 1}
           />
           </div>
@@ -554,9 +577,9 @@ export default function Wizard() {
   }
 
   const tabConfig: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
-    { id: "commitments", label: "Unlocks", icon: <BookOpen className="w-3.5 h-3.5" /> },
+    { id: "round", label: "Outreach", icon: <Zap className="w-3.5 h-3.5" /> },
+    { id: "commitments", label: "Readiness", icon: <BookOpen className="w-3.5 h-3.5" /> },
     { id: "document", label: "Readiness Doc", icon: <FileText className="w-3.5 h-3.5" /> },
-    { id: "round", label: "Round", icon: <Zap className="w-3.5 h-3.5" /> },
   ];
 
   const activeTasks = dbTasks.filter((t) => t.status !== "skipped");
@@ -569,15 +592,16 @@ export default function Wizard() {
       </div>
       <div className="flex-1 px-4 py-8 max-w-2xl mx-auto w-full">
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-1">
+          <GodScoreExplainer score={godScore} compact />
+          <div className="flex items-center gap-2 mb-1 mt-3">
             <Sparkles className="w-4 h-4 text-emerald-400" />
             <h1 className="text-lg font-bold" style={{ color: "oklch(0.94 0.005 264)" }}>
-              {startupName ? `${startupName} — ` : ""}Your unlocks
+              {startupName ? `${startupName} — ` : ""}Investor outreach
             </h1>
           </div>
           <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
-            {completedCount}/{activeTasks.length} unlocks proved
-            {unlockSummary ? ` · GOD ${unlockSummary.current_god_score} → ${unlockSummary.projected_god_score} projected` : ""}
+            Matched investors and email drafts first · readiness improvements optional
+            {unlockSummary ? ` · GOD ${unlockSummary.current_god_score}/100` : ""}
           </p>
         </div>
 

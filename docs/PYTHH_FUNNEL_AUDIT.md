@@ -8,6 +8,8 @@
 
 ## Executive summary
 
+**2026-07-18 P0 — Unlock gauntlet regression:** Post-signup founders hit up to **12 mandatory-feeling “unlock” cards** before outreach, with unexplained GOD score jargon and no input fields on the card itself (deadline modal ≠ task completion). Outreach was **hard-gated** behind readiness score + 2 commitments. **Fix shipped:** outreach drafts always visible when matches exist; wizard defaults to **Outreach tab**; max **3 optional** readiness cards per session; GOD score explained in plain language.
+
 The live funnel **splits identity** between two products:
 
 | Layer | Current frame | Vision frame |
@@ -18,7 +20,26 @@ The live funnel **splits identity** between two products:
 | Paid (Oracle tier) | Pipeline automation + meetings | Primary outcome already stated — undermined by upstream copy |
 | Telemetry | Celebrates `instant_matches_viewed` | Should celebrate meetings pipeline stages |
 
-**Gap severity:** High on copy/metrics; Medium on UX structure; Low on underlying capability (much of the engine exists but is framed wrong).
+**Gap severity:** ~~High~~ Medium after P0 unlock fix — copy/metrics still need work; outreach no longer blocked by 12-card parade.
+
+### Correct funnel (after fix)
+
+```mermaid
+flowchart LR
+  A[Submit URL] --> B[Oracle analysis + matches]
+  B --> C[Signup / raise plan authorize]
+  C --> D[Match results + outreach drafts]
+  D --> E[Copy emails / contact investors]
+  E --> F[Optional: 3 readiness improvements]
+  F --> G[PYTHIA automation when ready]
+```
+
+| Step | User should understand | Was broken |
+|------|------------------------|------------|
+| GOD score | Investor readiness 0–100 | Unlabeled jargon |
+| Unlock card | Optional deadline + later proof | Felt mandatory; 12 cards; no proof field on card |
+| Outreach | Available with matches | Locked behind readiness bar |
+| PYTHIA | Paid automation, optional | Confused with unlock subscription |
 
 ```mermaid
 flowchart LR

@@ -44,9 +44,11 @@ interface GapCardProps {
   task: GapTask;
   taskIndex: number;
   totalTasks: number;
+  totalAvailable?: number;
   godScore?: number | null;
   onAcknowledge: () => void;
   onSkip: () => void;
+  onSkipToOutreach?: () => void;
   isLast: boolean;
 }
 
@@ -79,9 +81,11 @@ export default function GapCard({
   task,
   taskIndex,
   totalTasks,
+  totalAvailable,
   godScore,
   onAcknowledge,
   onSkip,
+  onSkipToOutreach,
   isLast,
 }: GapCardProps) {
   const colors = COMPONENT_COLORS[task.component] || COMPONENT_COLORS.team;
@@ -101,6 +105,9 @@ export default function GapCard({
         </span>
         <span className="text-xs font-mono" style={{ color: 'oklch(0.38 0.01 264)' }}>
           {taskIndex + 1} of {totalTasks}
+          {totalAvailable != null && totalAvailable > totalTasks
+            ? ` (${totalAvailable} total — optional)`
+            : ''}
         </span>
       </div>
 
@@ -152,9 +159,21 @@ export default function GapCard({
         >
           {task.title}
         </h2>
-        <p className="text-sm leading-relaxed" style={{ color: 'oklch(0.55 0.01 264)' }}>
+        <p className="text-sm leading-relaxed mb-3" style={{ color: 'oklch(0.55 0.01 264)' }}>
           {task.description}
         </p>
+        {task.proof_label && (
+          <div
+            className="rounded-lg px-3 py-2.5 text-xs"
+            style={{ background: 'oklch(0.11 0.01 264)', border: '1px solid oklch(0.2 0.01 264)' }}
+          >
+            <p className="font-semibold mb-0.5" style={{ color: '#22d3ee' }}>When you prove this later, you&apos;ll provide:</p>
+            <p style={{ color: 'oklch(0.6 0.01 264)' }}>{task.proof_label}</p>
+            <p className="mt-1.5" style={{ color: 'oklch(0.42 0.01 264)' }}>
+              Right now you&apos;re only picking a deadline — not filling this in yet.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Partner objection → removed */}
@@ -196,7 +215,7 @@ export default function GapCard({
           style={{ background: '#22c55e' }}
         >
           <CheckCircle className="w-4 h-4" />
-          Unlock this — set my deadline
+          Commit to this — pick a deadline
         </button>
 
         <button
@@ -206,13 +225,24 @@ export default function GapCard({
           style={{ color: 'oklch(0.42 0.01 264)', border: '1px solid oklch(0.22 0.01 264)' }}
         >
           <SkipForward className="w-3.5 h-3.5" />
-          Not prioritizing this unlock
+          Skip this suggestion
         </button>
+
+        {onSkipToOutreach && (
+          <button
+            type="button"
+            onClick={onSkipToOutreach}
+            className="w-full py-2.5 rounded-xl text-xs font-semibold"
+            style={{ color: '#22d3ee', border: '1px solid #22d3ee40' }}
+          >
+            Skip all → go to my investor outreach →
+          </button>
+        )}
       </div>
 
       {isLast && (
         <p className="text-center text-xs mt-4" style={{ color: 'oklch(0.35 0.01 264)' }}>
-          Last unlock — next you&apos;ll see your provisional readiness doc
+          Last of today&apos;s suggestions — next you&apos;ll see outreach drafts for your matches
         </p>
       )}
     </div>
