@@ -17,6 +17,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
+import { SCOUT_PLAN, ORACLE_PLAN } from "@/lib/pricingPlans";
 import OutreachPackage from "@/components/wizard/OutreachPackage";
 import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
 
@@ -351,14 +352,14 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
                 style={{ background: "oklch(0.696 0.17 162.48)", color: "#0a0a0a" }}
               >
                 <Sparkles size={14} />
-                Start Scout trial — $19/mo · 1 campaign
+                Start Scout trial — $19/mo · {SCOUT_PLAN.outreachCampaigns} campaigns
                 <ArrowRight size={14} />
               </span>
             </Link>
             <p className="text-[10px] text-center" style={{ color: "oklch(0.42 0.01 264)" }}>
-              7-day trial ·{" "}
+              14-day trial ·{" "}
               <Link href="/pricing" className="underline" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                Oracle $49/mo · 5 campaigns
+                Oracle $49/mo · {ORACLE_PLAN.outreachCampaigns} campaigns
               </Link>
               {" "}· manual copy above stays free
             </p>

@@ -70,14 +70,13 @@ export default function CheckoutSuccess() {
           className="font-display font-bold text-4xl mb-3 leading-tight"
           style={{ color: "oklch(0.97 0.005 264)" }}
         >
-          Your 7-day trial<br />
+          Your 14-day trial<br />
           <span style={{ color: "oklch(0.696 0.17 162.48)" }}>has started.</span>
         </h1>
 
         <p className="text-base leading-relaxed mb-4" style={{ color: "oklch(0.55 0.01 264)" }}>
-          Welcome to the Oracle plan. PYTHIA will begin identifying and reaching
-          out to investors on your behalf. You won't be charged until your
-          7-day trial ends.
+          PYTHIA will begin identifying and reaching out to investors on your behalf.
+          You won&apos;t be charged until your 14-day trial ends.
         </p>
 
         {/* Trial notice badge */}
@@ -90,7 +89,7 @@ export default function CheckoutSuccess() {
           }}
         >
           <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "oklch(0.696 0.17 162.48)" }} />
-          Cancel anytime before day 7 — no charge
+          Cancel anytime before day 14 — no charge
         </div>
 
         {/* Steps */}

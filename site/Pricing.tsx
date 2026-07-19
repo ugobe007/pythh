@@ -24,6 +24,9 @@ import {
   FOUNDER_PLANS,
   PRICING_FEATURE_ROWS,
   formatCampaignLimit,
+  estimatedMonthlyTouches,
+  SCOUT_PLAN,
+  ORACLE_PLAN,
   type PaidPlanId,
   type PricingPlanConfig,
 } from "@/lib/pricingPlans";
@@ -168,6 +171,9 @@ function PricingCard({
         }}
       >
         {formatCampaignLimit(plan)}
+        {typeof estimatedMonthlyTouches(plan) === "number" && (
+          <> · ~{estimatedMonthlyTouches(plan)} touches/mo</>
+        )}
       </div>
 
       <div className="mb-5">
@@ -223,7 +229,7 @@ export default function Pricing() {
   const [billing, setBilling] = useState<BillingCycle>("monthly");
   const [showFullTable, setShowFullTable] = useState(false);
   const [pricingExp, setPricingExp] = useState<GrowthAssignment | null>(null);
-  const [oracleCtaLabel, setOracleCtaLabel] = useState("Start 7-day free trial");
+  const [oracleCtaLabel, setOracleCtaLabel] = useState("Start 14-day free trial");
   const [checkingOutPlan, setCheckingOutPlan] = useState<PaidPlanId | null>(null);
   const { isAuthenticated } = useAuth();
 
@@ -294,7 +300,7 @@ export default function Pricing() {
         <title>Pricing — Pythh.ai</title>
         <meta
           name="description"
-          content="Scout from $19/mo with 1 PYTHIA outreach campaign. Oracle $49/mo with 5 campaigns. 7-day free trial on paid plans."
+          content="Scout $19/mo — 3 PYTHIA campaigns (150 touches/mo). Oracle $49/mo — 10 campaigns. 14-day free trial."
         />
         <meta property="og:title" content="Pricing — Pythh.ai" />
         <meta
@@ -330,7 +336,7 @@ export default function Pricing() {
                 Oracle <span style={{ color: GOLD }}>$49/mo</span>
               </p>
               <p className="text-xs font-mono" style={{ color: DIM }}>
-                7-day free trial on paid plans · save 17% on annual billing
+                14-day free trial · save 17% on annual billing
               </p>
             </div>
           </div>
@@ -339,9 +345,21 @@ export default function Pricing() {
         {/* Value anchors */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-10">
           {[
-            { icon: Target, title: "Campaigns, not credits", body: "Each plan includes real PYTHIA outreach campaigns — automated sends to matched investors, not a search quota." },
-            { icon: Zap, title: "Copy free, automate when ready", body: "Manual email drafts stay free forever. Upgrade when you want PYTHIA to send and follow up for you." },
-            { icon: TrendingUp, title: "Built for outcomes", body: "We price for founder velocity: get to investor conversations faster, not for enterprise shelfware." },
+            {
+              icon: Target,
+              title: "Scout = 150 automated touches/mo",
+              body: `${SCOUT_PLAN.outreachCampaigns} campaigns × ${SCOUT_PLAN.investorsPerCampaign} investors — PYTHIA writes, sends, and follows up for $19. One reply pays for the year.`,
+            },
+            {
+              icon: Zap,
+              title: "Oracle = parallel round segments",
+              body: `Run ${ORACLE_PLAN.outreachCampaigns} campaigns at once — seed + angels + strategics, each with unlimited investors and smart 5-touch sequences.`,
+            },
+            {
+              icon: TrendingUp,
+              title: "Copy free, automate when ready",
+              body: "Manual email drafts stay free on Outreach. Subscribe when you want PYTHIA to send, follow up, and track replies for you.",
+            },
           ].map(({ icon: Icon, title, body }) => (
             <div key={title} className="border p-4" style={{ borderColor: BORDER, backgroundColor: CARD }}>
               <Icon size={16} className="mb-2" style={{ color: G }} />
@@ -502,7 +520,7 @@ export default function Pricing() {
             },
             {
               q: "Can I start on Scout and upgrade?",
-              a: "Yes. Scout gives you one active campaign to prove the pipeline. When you're ready to run multiple segments or a larger round, upgrade to Oracle for five concurrent campaigns.",
+              a: `Yes. Scout includes ${SCOUT_PLAN.outreachCampaigns} active campaigns (${estimatedMonthlyTouches(SCOUT_PLAN)} automated touches/mo). Upgrade to Oracle when you need ${ORACLE_PLAN.outreachCampaigns} parallel campaigns, private investor profiles, and meeting prep.`,
             },
             {
               q: "Does PYTHIA send emails for me?",

@@ -33,7 +33,7 @@ import { TRPCError } from "@trpc/server";
 import { ENV } from "./env";
 import { outreachRouter } from "./outreachRouter";
 import { artRouter } from "./artRouter";
-import { getCheckoutPlan, formatCampaignLimit } from "./lib/pricingPlans";
+import { getCheckoutPlan, formatCampaignLimit, SCOUT_PLAN, ORACLE_PLAN } from "./lib/pricingPlans";
 
 // Lazily initialise Stripe so the server still starts without the key set.
 function getStripe() {
@@ -423,14 +423,14 @@ export const appRouter = router({
         })
       )
       .query(async ({ input, ctx }) => {
-        // Determine if the caller has an active Oracle subscription
+        // Determine if the caller has paid founder access (Scout+)
         let isOracle = false;
         if (ctx.user) {
           const sub = await getSubscriptionByUserId(ctx.user.id);
           isOracle =
             !!sub &&
             (sub.status === "active" || sub.status === "trialing" || sub.status === "paused") &&
-            sub.plan === "oracle";
+            (sub.plan === "scout" || sub.plan === "oracle" || sub.plan === "pantheon");
         }
 
         const { rows, total } = await getInvestorRankings({
@@ -485,7 +485,7 @@ export const appRouter = router({
             isOracle =
               !!sub &&
               (sub.status === "active" || sub.status === "trialing" || sub.status === "paused") &&
-              sub.plan === "oracle";
+              (sub.plan === "oracle" || sub.plan === "pantheon");
           }
           if (!isOracle) {
             throw new TRPCError({ code: "FORBIDDEN", message: "Oracle plan required to view this investor profile." });
@@ -795,8 +795,8 @@ export const appRouter = router({
         // Tier-aware access:
         //   Admin       → unlimited
         //   Oracle/Pantheon → unlimited
-        //   Scout ($19) → 1 outreach campaign + unlimited matches
-        //   Oracle ($49) → 5 campaigns + full automation
+        //   Scout ($19) → 3 outreach campaigns · 50 investors each
+        //   Oracle ($49) → 10 campaigns + full automation
         const FREE_TRIAL_LIMIT = 3;
         const PAID_PLANS = new Set(["oracle", "pantheon", "scout"]);
 
@@ -813,7 +813,7 @@ export const appRouter = router({
           if (usageCount >= FREE_TRIAL_LIMIT) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: `Free trial limit reached (${FREE_TRIAL_LIMIT} searches). Upgrade to Scout ($19/mo, 1 campaign) or Oracle ($49/mo, 5 campaigns).`,
+              message: `Free trial limit reached (${FREE_TRIAL_LIMIT} searches). Upgrade to Scout ($19/mo, ${SCOUT_PLAN.outreachCampaigns} campaigns) or Oracle ($49/mo, ${ORACLE_PLAN.outreachCampaigns} campaigns).`,
             });
           }
         } else if (!isAdmin && activePlan && !PAID_PLANS.has(activePlan)) {
@@ -906,7 +906,7 @@ export const appRouter = router({
         }
 
         // ── Step 3: Bridge real matches → pythh_investors by firm name ────────────
-        const isOracleTier = isAdmin || activePlan === "oracle" || activePlan === "pantheon";
+        const isOracleTier = isAdmin || activePlan === "scout" || activePlan === "oracle" || activePlan === "pantheon";
         const { rows: pythhInvestors } = await getInvestorRankings({ limit: 100, offset: 0, isOracle: isOracleTier });
         const pythhByFirm = new Map(pythhInvestors.map((inv) => [inv.firm.toLowerCase().trim(), inv]));
 

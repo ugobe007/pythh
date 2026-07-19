@@ -201,7 +201,7 @@ describe("investors.getRankings", () => {
     expect(overlap).toHaveLength(0);
   });
 
-  it("returns isOracle false for paused subscription on a non-oracle plan", async () => {
+  it("returns isOracle true for active Scout subscribers (full rankings)", async () => {
     const { getSubscriptionByUserId } = await import("./db");
     vi.mocked(getSubscriptionByUserId).mockResolvedValueOnce({
       id: 2,
@@ -219,7 +219,7 @@ describe("investors.getRankings", () => {
 
     const caller = makeCaller({ id: 99, openId: "oid_99", name: "Scout User", email: "scout@test.com", role: "user" });
     const result = await caller.investors.getRankings({});
-    expect(result.isOracle).toBe(false);
+    expect(result.isOracle).toBe(true);
   });
 
   it("returns isOracle true for trialing Oracle subscribers", async () => {

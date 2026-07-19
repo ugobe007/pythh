@@ -54,7 +54,7 @@ export const adminProcedure = t.procedure.use(requireUser).use(requireAdmin);
 
 /**
  * Plans that include PYTHIA outreach agent services.
- * Scout: 1 active campaign · Oracle/Pantheon: full automation.
+ * Scout: 3 campaigns · Oracle: 10 campaigns · Pantheon: unlimited.
  */
 const OUTREACH_PLANS = new Set(["scout", "oracle", "pantheon"]);
 
