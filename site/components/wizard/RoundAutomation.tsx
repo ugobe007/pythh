@@ -19,7 +19,10 @@ import {
 } from "lucide-react";
 import { SCOUT_PLAN, ORACLE_PLAN } from "@/lib/pricingPlans";
 import OutreachPackage from "@/components/wizard/OutreachPackage";
+import CampaignQuotaBanner, { type CampaignQuota } from "@/components/wizard/CampaignQuotaBanner";
 import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { trackFunnelEvent } from "@/lib/matchEngagement";
 
 const API = "/api/wizard";
 
@@ -52,6 +55,11 @@ interface RoundGate {
   };
 }
 
+interface RoundStatusResponse extends RoundGate {
+  campaign_quota?: CampaignQuota;
+  startup_name?: string;
+}
+
 interface OutreachData {
   startup_name?: string;
   website?: string | null;
@@ -79,7 +87,9 @@ function scrollToDrafts() {
 
 export default function RoundAutomation({ startupId, startupName, startupWebsite, onBeginUnlocks }: RoundAutomationProps) {
   const [, navigate] = useLocation();
-  const [gate, setGate] = useState<RoundGate | null>(null);
+  const { user } = useAuth();
+  const founderEmail = user?.email ?? undefined;
+  const [status, setStatus] = useState<RoundStatusResponse | null>(null);
   const [outreach, setOutreach] = useState<OutreachData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState(false);
@@ -89,20 +99,24 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
 
   const load = useCallback(async () => {
     try {
+      const emailQs = founderEmail ? `?founder_email=${encodeURIComponent(founderEmail)}` : "";
       const [statusRes, outreachRes] = await Promise.all([
-        fetch(`${API}/${startupId}/round-status`),
+        fetch(`${API}/${startupId}/round-status${emailQs}`),
         fetch(`${API}/${startupId}/outreach-package`),
       ]);
-      if (statusRes.ok) setGate(await statusRes.json());
+      if (statusRes.ok) setStatus(await statusRes.json());
       if (outreachRes.ok) setOutreach(await outreachRes.json());
     } finally {
       setLoading(false);
     }
-  }, [startupId]);
+  }, [startupId, founderEmail]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const gate = status;
+  const quota = status?.campaign_quota ?? null;
 
   const handleGoBackToUnlocks = async () => {
     setUnlockNavigating(true);
@@ -124,10 +138,25 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
     setActivating(true);
     setActivateError(null);
     try {
-      const res = await fetch(`${API}/${startupId}/activate-round`, { method: "POST" });
+      const res = await fetch(`${API}/${startupId}/activate-round`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ founder_email: founderEmail }),
+      });
       const data = await res.json();
+      if (data.campaign_quota) {
+        setStatus((prev) => (prev ? { ...prev, campaign_quota: data.campaign_quota } : prev));
+      }
       if (!res.ok) {
         setActivateError(data.message || data.error || "Could not activate round");
+        if (res.status === 402 || res.status === 403) {
+          void trackFunnelEvent("campaign_limit_hit", {
+            startup_id: startupId,
+            plan: data.campaign_quota?.plan,
+            active_count: data.campaign_quota?.active_count,
+            upgrade_plan: data.campaign_quota?.upgrade_plan,
+          });
+        }
         return;
       }
       navigate(data.activate_url || `/activate?sid=${startupId}&pipeline=1`);
@@ -297,6 +326,18 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
         )}
       </div>
 
+      {/* Campaign quota + upgrade path */}
+      <CampaignQuotaBanner
+        quota={quota}
+        onUpgradeClick={() => {
+          void trackFunnelEvent("pricing_cta_clicked", {
+            source: "outreach_campaign_quota",
+            startup_id: startupId,
+            plan: quota?.plan,
+          });
+        }}
+      />
+
       {/* Step 4 — Automate (paid) */}
       <div
         className="rounded-xl p-5"
@@ -333,7 +374,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             Track pipeline
             <ArrowRight size={14} />
           </button>
-        ) : gate.pipeline_ready ? (
+        ) : gate.pipeline_ready && quota?.can_activate !== false ? (
           <button
             type="button"
             onClick={handleActivateRound}
@@ -344,6 +385,28 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             {activating ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             {activating ? "Activating…" : "Activate PYTHIA round"}
           </button>
+        ) : gate.pipeline_ready && quota?.at_limit ? (
+          <Link href="/pricing">
+            <span
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
+              style={{ background: "oklch(0.769 0.188 70.08)", color: "#0a0a0a" }}
+            >
+              <Sparkles size={14} />
+              Upgrade to Oracle — {ORACLE_PLAN.outreachCampaigns} campaigns
+              <ArrowRight size={14} />
+            </span>
+          </Link>
+        ) : gate.pipeline_ready && quota?.plan === "none" ? (
+          <Link href="/pricing">
+            <span
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
+              style={{ background: "#22c55e", color: "#0a0a0a" }}
+            >
+              <Sparkles size={14} />
+              Subscribe to activate PYTHIA
+              <ArrowRight size={14} />
+            </span>
+          </Link>
         ) : (
           <div className="space-y-2">
             <Link href="/pricing">

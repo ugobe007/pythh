@@ -28,6 +28,7 @@ const { deriveGapTasks, TASK_CATALOG } = require('../lib/gapTaskDerivation');
 const { computeRoundReadiness, gateOutreachPayload } = require('../lib/readinessGateService');
 const { buildRaisePlan } = require('../lib/raisePlanService');
 const { isNonInvestorAggregator } = require('../../lib/investorAggregatorBlocklist');
+const { buildCampaignQuota } = require('../lib/campaignQuotaService');
 
 function isOutreachEligibleInvestor(investor, startup) {
   if (!investor?.name) return false;
@@ -822,10 +823,15 @@ router.get('/:startupId/round-status', async (req, res) => {
   try {
     const { startup, gate } = await loadRoundContext(startupId);
     if (!startup) return res.status(404).json({ error: 'Startup not found' });
+
+    const founderEmail = req.query.founder_email || req.headers['x-founder-email'];
+    const campaign_quota = await buildCampaignQuota(supabase, { startupId, founderEmail });
+
     return res.json({
       startup_id: startupId,
       startup_name: startup.name,
       ...gate,
+      campaign_quota,
     });
   } catch (err) {
     console.error('[wizard] round-status error:', err);
@@ -845,12 +851,26 @@ router.post('/:startupId/activate-round', async (req, res) => {
     const { startup, doc, gate } = await loadRoundContext(startupId);
     if (!startup) return res.status(404).json({ error: 'Startup not found' });
 
+    const founderEmail = req.body?.founder_email || req.headers['x-founder-email'];
+    const campaign_quota = await buildCampaignQuota(supabase, { startupId, founderEmail });
+
     if (gate.pipeline_active) {
       return res.json({
         ok: true,
         already_active: true,
         round_activated_at: gate.round_activated_at,
         activate_url: `/activate?sid=${startupId}&pipeline=1`,
+        campaign_quota,
+      });
+    }
+
+    if (!campaign_quota.can_activate) {
+      const status = campaign_quota.plan === 'none' ? 402 : 403;
+      return res.status(status).json({
+        error: campaign_quota.plan === 'none' ? 'Subscription required' : 'Campaign limit reached',
+        campaign_quota,
+        upgrade_url: '/pricing',
+        message: campaign_quota.message,
       });
     }
 
@@ -892,6 +912,7 @@ router.post('/:startupId/activate-round', async (req, res) => {
       startup_id: startupId,
       activate_url: `/activate?sid=${startupId}&pipeline=1`,
       message: 'PYTHIA round activated. Open Activate to track your pipeline.',
+      campaign_quota: await buildCampaignQuota(supabase, { startupId, founderEmail }),
     });
   } catch (err) {
     console.error('[wizard] activate-round error:', err);
