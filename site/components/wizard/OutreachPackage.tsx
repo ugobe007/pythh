@@ -31,10 +31,12 @@ interface EmailDraft {
 interface OutreachPackageProps {
   startupName: string;
   startupWebsite?: string | null;
+  startupId?: string;
   investors: InvestorMatch[];
   emailDrafts: EmailDraft[];
   memoMarkdown: string | null;
   isProvisional: boolean;
+  sectionId?: string;
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -65,8 +67,8 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function EmailCard({ draft }: { draft: EmailDraft }) {
-  const [expanded, setExpanded] = useState(false);
+function EmailCard({ draft, defaultExpanded = false }: { draft: EmailDraft; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
 
@@ -217,10 +219,12 @@ function MemoSection({ markdown }: { markdown: string }) {
 export default function OutreachPackage({
   startupName,
   startupWebsite,
+  startupId,
   investors,
   emailDrafts,
   memoMarkdown,
   isProvisional,
+  sectionId = 'outreach-drafts',
 }: OutreachPackageProps) {
   if (investors.length === 0) {
     return (
@@ -236,7 +240,7 @@ export default function OutreachPackage({
   }
 
   return (
-    <div className="space-y-6">
+    <div id={sectionId} className="space-y-6 scroll-mt-24">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between mb-1">
@@ -244,7 +248,7 @@ export default function OutreachPackage({
             className="text-base font-bold text-white"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           >
-            Outreach Package
+            Step 1 · Your email drafts
           </h3>
           {isProvisional && (
             <span
@@ -255,28 +259,40 @@ export default function OutreachPackage({
             </span>
           )}
         </div>
-        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-          {emailDrafts.length} personalized emails for{' '}
-          <span className="font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>{startupName}</span>
-          {startupWebsite ? (
-            <> ({startupWebsite.replace(/^https?:\/\//, '')})</>
-          ) : null}
-          {' '}— copy and send directly.
+        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+          {emailDrafts.length} drafts for{' '}
+          <span className="font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>{startupName}</span>
+          {startupWebsite ? <> ({startupWebsite.replace(/^https?:\/\//, '')})</> : null}.
+          Tap your top match → <span className="text-emerald-400">Copy full email</span> → send from Gmail/Outlook.
         </p>
       </div>
 
       {/* Email drafts */}
       <div className="space-y-2">
-        {emailDrafts.map(draft => (
-          <EmailCard key={draft.investor_id} draft={draft} />
+        {emailDrafts.map((draft, i) => (
+          <EmailCard key={draft.investor_id} draft={draft} defaultExpanded={i === 0} />
         ))}
       </div>
 
-      {/* Investment memo */}
-      {memoMarkdown && <MemoSection markdown={memoMarkdown} />}
+      {memoMarkdown && (
+        <>
+          <p className="text-[10px] font-semibold tracking-widest pt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            STEP 2 · INVESTMENT MEMO (optional attachment)
+          </p>
+          <MemoSection markdown={memoMarkdown} />
+        </>
+      )}
 
-      <p className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.2)' }}>
-        Emails are personalized to each investor's thesis and match score. Review before sending.
+      <p className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>
+        Step 3: Track responses from your{' '}
+        {startupId ? (
+          <a href={`/activate?startup_id=${encodeURIComponent(startupId)}`} className="underline" style={{ color: '#22d3ee' }}>
+            investor match list
+          </a>
+        ) : (
+          <span>investor match list</span>
+        )}
+        {' '}· or automate outreach with Oracle below.
       </p>
     </div>
   );

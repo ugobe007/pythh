@@ -635,7 +635,7 @@ export default function Wizard() {
             </h1>
           </div>
           <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
-            Matched investors and email drafts first · readiness improvements optional
+            Copy & send emails below · readiness & automation are optional
             {unlockSummary ? ` · GOD ${unlockSummary.current_god_score}/100` : ""}
           </p>
         </div>
@@ -687,10 +687,10 @@ export default function Wizard() {
                   No unlock cards left — you&apos;ve reviewed everything Oracle flagged.
                 </p>
                 <p className="text-xs mb-4 px-4" style={{ color: "oklch(0.42 0.01 264)" }}>
-                  Open the Round tab to see what readiness items still block outreach. No subscription required.
+                  Open Outreach to copy email drafts to your top matches. No subscription required.
                 </p>
                 <button type="button" onClick={() => setActiveTab("round")} className="text-xs text-emerald-400 underline">
-                  Go to Round tab →
+                  Go to Outreach tab →
                 </button>
               </div>
             )}

@@ -27,6 +27,18 @@ const { enrichGapTasks, buildUnlockSummary } = require('../lib/taskUnlockCatalog
 const { deriveGapTasks, TASK_CATALOG } = require('../lib/gapTaskDerivation');
 const { computeRoundReadiness, gateOutreachPayload } = require('../lib/readinessGateService');
 const { buildRaisePlan } = require('../lib/raisePlanService');
+const { isNonInvestorAggregator } = require('../../lib/investorAggregatorBlocklist');
+
+function isOutreachEligibleInvestor(investor, startup) {
+  if (!investor?.name) return false;
+  if (isNonInvestorAggregator(investor)) return false;
+  const name = String(investor.name).toLowerCase().trim();
+  const firm = String(investor.firm || '').toLowerCase().trim();
+  if (firm && name && firm === name) return false;
+  const startupName = String(startup?.name || '').toLowerCase().trim();
+  if (startupName && (name === startupName || firm === startupName)) return false;
+  return true;
+}
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -932,7 +944,7 @@ router.get('/:startupId/outreach-package', async (req, res) => {
     const topMatches = [];
     for (const row of (matchRows || [])) {
       const investor = Array.isArray(row.investors) ? row.investors[0] : row.investors;
-      if (!investor) continue;
+      if (!investor || !isOutreachEligibleInvestor(investor, startup)) continue;
       const firmKey = (investor.firm || investor.name || '').toLowerCase().trim();
       if (firmSeen.has(firmKey)) continue;
       firmSeen.add(firmKey);
