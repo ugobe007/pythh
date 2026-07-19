@@ -6,6 +6,8 @@ import { fetchGrowthAssignment, trackGrowthEvent, type GrowthAssignment } from '
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 import { getUtmParams } from '@/lib/funnelAttribution';
 
+import { pinActiveStartup } from '@/lib/activeStartupContext';
+
 export type FounderGatedAction = 'save' | 'intro' | 'export' | 'delta' | 'oracle_gap';
 
 const POST_SIGNUP_PATH_KEY = 'pythia_post_signup_path';
@@ -124,7 +126,7 @@ export function persistFounderGateContext(
   investor?: GatedInvestorContext | null,
 ) {
   sessionStorage.setItem('pythia_url', url);
-  sessionStorage.setItem('pythia_startup_id', startupId);
+  pinActiveStartup(startupId, url);
   sessionStorage.setItem(GATED_ACTION_KEY, action);
   sessionStorage.setItem(GATE_PENDING_KEY, '1');
   primePreviewSignupDestination(startupId, action);

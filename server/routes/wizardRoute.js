@@ -243,7 +243,7 @@ router.get('/:startupId/gaps', async (req, res) => {
   try {
     const { data: startup, error } = await supabase
       .from('startup_uploads')
-      .select('id, name, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage, website, pitch, description, tagline, raise_amount')
+      .select('id, name, website, company_domain, total_god_score, team_score, traction_score, market_score, product_score, vision_score, sectors, stage, pitch, description, tagline, raise_amount')
       .eq('id', startupId)
       .maybeSingle();
 
@@ -272,6 +272,8 @@ router.get('/:startupId/gaps', async (req, res) => {
     return res.json({
       startup_id: startupId,
       startup_name: startup.name || 'Unnamed Startup',
+      website: startup.website || null,
+      company_domain: startup.company_domain || null,
       god_score: startup.total_god_score,
       score_components: {
         team: startup.team_score,
@@ -899,7 +901,7 @@ router.get('/:startupId/outreach-package', async (req, res) => {
 
     const { data: startup } = await supabase
       .from('startup_uploads')
-      .select('id, name, website, sectors, stage, pitch, description, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .select('id, name, website, company_domain, sectors, stage, pitch, description, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
       .eq('id', startupId)
       .maybeSingle();
 
@@ -982,6 +984,8 @@ router.get('/:startupId/outreach-package', async (req, res) => {
     const fullPayload = {
       startup_id: startupId,
       startup_name: startup.name,
+      website: startup.website || null,
+      company_domain: startup.company_domain || null,
       is_provisional: doc?.is_provisional ?? true,
       investors: topMatches.map(m => ({
         id: m.investor.id,

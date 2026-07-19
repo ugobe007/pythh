@@ -51,6 +51,7 @@ interface RoundGate {
 
 interface OutreachData {
   startup_name?: string;
+  website?: string | null;
   investors?: Parameters<typeof OutreachPackage>[0]["investors"];
   email_drafts?: Parameters<typeof OutreachPackage>[0]["emailDrafts"];
   memo_markdown?: string | null;
@@ -65,6 +66,7 @@ interface OutreachData {
 interface RoundAutomationProps {
   startupId: string;
   startupName?: string;
+  startupWebsite?: string | null;
   /** Switches wizard to gap_cards without a dead client-side navigate on the same route. */
   onBeginUnlocks?: () => void | Promise<void>;
 }
@@ -91,7 +93,7 @@ function ReadinessMeter({ score, outreachAt, pipelineAt }: { score: number; outr
   );
 }
 
-export default function RoundAutomation({ startupId, startupName, onBeginUnlocks }: RoundAutomationProps) {
+export default function RoundAutomation({ startupId, startupName, startupWebsite, onBeginUnlocks }: RoundAutomationProps) {
   const [, navigate] = useLocation();
   const [gate, setGate] = useState<RoundGate | null>(null);
   const [outreach, setOutreach] = useState<OutreachData | null>(null);
@@ -169,7 +171,8 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
     );
   }
 
-  const displayName = startupName || outreach?.startup_name || "your startup";
+  const displayName = outreach?.startup_name || startupName || "your startup";
+  const displayWebsite = outreach?.website || startupWebsite || null;
 
   return (
     <div className="space-y-6">
@@ -248,6 +251,7 @@ export default function RoundAutomation({ startupId, startupName, onBeginUnlocks
       {outreach && !outreach.locked && outreach.investors && outreach.investors.length > 0 && (
         <OutreachPackage
           startupName={displayName}
+          startupWebsite={displayWebsite}
           investors={outreach.investors}
           emailDrafts={outreach.email_drafts || []}
           memoMarkdown={outreach.memo_markdown || null}

@@ -15,6 +15,13 @@ import RoundAutomation from "@/components/wizard/RoundAutomation";
 import WizardActivationBanner from "@/components/wizard/WizardActivationBanner";
 import GodScoreExplainer from "@/components/wizard/GodScoreExplainer";
 import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
+import {
+  domainsMatch,
+  extractDomain,
+  getPinnedStartupUrl,
+  pinActiveStartup,
+  resolveStartupIdForUrl,
+} from "@/lib/activeStartupContext";
 import { trackFunnelEvent } from "@/lib/matchEngagement";
 
 interface DbTask {
@@ -127,6 +134,8 @@ export default function Wizard() {
   const [acknowledgeTask, setAcknowledgeTask] = useState<GapTask | null>(null);
   const [godScore, setGodScore] = useState<number | null>(null);
   const [startupName, setStartupName] = useState("");
+  const [startupWebsite, setStartupWebsite] = useState<string | null>(null);
+  const [startupMismatch, setStartupMismatch] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTabFromUrl);
   const [dbTasks, setDbTasks] = useState<DbTask[]>([]);
   const [proofTask, setProofTask] = useState<DbTask | null>(null);
@@ -231,6 +240,7 @@ export default function Wizard() {
 
       setGodScore(data.god_score);
       setStartupName(data.startup_name || "");
+      setStartupWebsite((data.website as string) || null);
       if (data.unlock_summary) setUnlockSummary(data.unlock_summary);
 
       if (!data.gap_tasks?.length) {
@@ -319,6 +329,31 @@ export default function Wizard() {
   useEffect(() => {
     loadGaps();
   }, [loadGaps]);
+
+  /** Redirect if wizard startup_id doesn't match the URL the founder scanned. */
+  useEffect(() => {
+    if (!startupId || !startupWebsite) return;
+    const pinnedUrl = getPinnedStartupUrl();
+    if (!pinnedUrl || domainsMatch(startupWebsite, pinnedUrl)) {
+      setStartupMismatch(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const correctId = await resolveStartupIdForUrl(pinnedUrl);
+      if (cancelled) return;
+      const pinnedDomain = extractDomain(pinnedUrl);
+      const loadedDomain = extractDomain(startupWebsite);
+      setStartupMismatch(
+        `Outreach was loaded for ${startupName || loadedDomain} (${loadedDomain}), but your scan is ${pinnedDomain}.`,
+      );
+      if (correctId && correctId !== startupId) {
+        navigate(`/wizard/${correctId}?tab=round&force_wizard=1`);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [startupId, startupWebsite, startupName, navigate]);
 
   useEffect(() => {
     if (activeTab === "round" && startupId && !outreachPreviewTrackedRef.current) {
@@ -605,6 +640,13 @@ export default function Wizard() {
           </p>
         </div>
 
+        {startupMismatch && (
+          <div className="mb-4 rounded-xl px-4 py-3 text-xs" style={{ backgroundColor: "oklch(0.16 0.01 264)", border: "1px solid #f9731640", color: "oklch(0.65 0.01 264)" }}>
+            {startupMismatch}{' '}
+            <Link href="/activate" className="underline" style={{ color: "#22d3ee" }}>Return to your match list</Link>
+          </div>
+        )}
+
         {showWelcome && (
           <WizardActivationBanner
             startupName={startupName}
@@ -727,6 +769,7 @@ export default function Wizard() {
           <RoundAutomation
             startupId={startupId}
             startupName={startupName}
+            startupWebsite={startupWebsite}
             onBeginUnlocks={beginUnlockFlow}
           />
         )}

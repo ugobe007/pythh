@@ -28,6 +28,11 @@ import {
   type GatedInvestorContext,
 } from "@/lib/founderSignupGate";
 import {
+  clearActiveStartupPin,
+  pinActiveStartup,
+  resolveOutreachStartupId,
+} from "@/lib/activeStartupContext";
+import {
   recordMatchEngagement,
   recordMatchViewOnce,
   trackFunnelEvent,
@@ -2568,6 +2573,9 @@ export default function Activate() {
           is_new: false,
           gen_in_progress: false,
         });
+        if (data.startup_id && data.startup) {
+          pinActiveStartup(data.startup_id, data.startup.website, data.startup.name);
+        }
         setIsSharedView(!new URLSearchParams(window.location.search).has("pipeline"));
         const params = new URLSearchParams(window.location.search);
         const isPipeline = params.get("pipeline") === "1";
@@ -2605,6 +2613,7 @@ export default function Activate() {
     setUrl(submittedUrl);
     sessionStorage.setItem("pythia_url", submittedUrl);
     sessionStorage.setItem("pythia_email", submittedEmail);
+    clearActiveStartupPin();
     trackFunnelEvent("url_submitted", { url: submittedUrl, source: "activate", ...getUtmParams() });
 
     const existingStartupId = sessionStorage.getItem("pythia_startup_id");
@@ -2683,10 +2692,14 @@ export default function Activate() {
   const handleScanComplete = (result: ApiResult) => {
     const capturedEmail = sessionStorage.getItem("pythia_email");
     setApiResult(result);
-    sessionStorage.removeItem("pythia_url");
     sessionStorage.removeItem("pythia_email");
 
     if (result.startup_id) {
+      pinActiveStartup(
+        result.startup_id,
+        result.startup?.website ?? url,
+        result.startup?.name ?? undefined,
+      );
       void trackFunnelEventOnce(`instant_matches_viewed:${result.startup_id}`, 'instant_matches_viewed', {
         startup_id: result.startup_id,
         url,
@@ -2783,10 +2796,11 @@ export default function Activate() {
   };
 
   const handleActivatePipeline = () => {
-    const sid =
-      apiResult?.startup_id ??
-      shareStartupId ??
-      (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("pythia_startup_id") : null);
+    const sid = resolveOutreachStartupId({
+      apiStartupId: apiResult?.startup_id ?? null,
+      urlStartupId: shareStartupId,
+      apiWebsite: apiResult?.startup?.website ?? url,
+    });
     if (sid) {
       allowWizardUnlockFlow();
       navigate(`/wizard/${sid}?tab=round&force_wizard=1`);

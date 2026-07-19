@@ -30,6 +30,7 @@ interface EmailDraft {
 
 interface OutreachPackageProps {
   startupName: string;
+  startupWebsite?: string | null;
   investors: InvestorMatch[];
   emailDrafts: EmailDraft[];
   memoMarkdown: string | null;
@@ -215,6 +216,7 @@ function MemoSection({ markdown }: { markdown: string }) {
 
 export default function OutreachPackage({
   startupName,
+  startupWebsite,
   investors,
   emailDrafts,
   memoMarkdown,
@@ -254,7 +256,12 @@ export default function OutreachPackage({
           )}
         </div>
         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-          {emailDrafts.length} personalized emails for {startupName} — copy and send directly.
+          {emailDrafts.length} personalized emails for{' '}
+          <span className="font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>{startupName}</span>
+          {startupWebsite ? (
+            <> ({startupWebsite.replace(/^https?:\/\//, '')})</>
+          ) : null}
+          {' '}— copy and send directly.
         </p>
       </div>
 
