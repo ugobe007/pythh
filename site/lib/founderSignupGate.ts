@@ -273,3 +273,12 @@ export function consumePostSignupPath(): string | null {
   if (path) sessionStorage.removeItem(POST_SIGNUP_PATH_KEY);
   return path;
 }
+
+/** OAuth return target after Google/GitHub on founder gate signup. */
+export function buildFounderGateOAuthReturnPath(startupId?: string | null, url?: string | null): string {
+  const params = new URLSearchParams();
+  if (startupId) params.set('startup_id', startupId);
+  if (url) params.set('url', url);
+  const qs = params.toString();
+  return `/signup/founder${qs ? `?${qs}` : ''}`;
+}

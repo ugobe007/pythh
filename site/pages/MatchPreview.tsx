@@ -10,6 +10,7 @@ import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce } from '@/l
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { trackFounderGateStarted, type GatedInvestorContext } from '@/lib/founderSignupGate';
+import { pinActiveStartup } from '@/lib/activeStartupContext';
 import { getUtmParams, trackReturnVisitIfEligible } from '@/lib/funnelAttribution';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
@@ -128,8 +129,9 @@ export default function MatchPreview() {
       return;
     }
     if (startupUrl) sessionStorage.setItem('pythia_url', startupUrl);
+    pinActiveStartup(startup.id, startupUrl, startup.name);
     await trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id, investor });
-    navigate('/signup/founder');
+    navigate(`/signup/founder?startup_id=${encodeURIComponent(startup.id)}`);
   };
 
   const openPeterPanel = (investor?: GatedInvestorContext | null) => {

@@ -74,6 +74,7 @@ export default function Login() {
   const params = new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : "",
   );
+  const secondSearch = params.get("reason") === "second_search";
   const finishingOAuth =
     params.has("code") ||
     (typeof window !== "undefined" && window.location.hash.includes("access_token=")) ||
@@ -150,7 +151,9 @@ export default function Login() {
             Sign in to PYTHH
           </h1>
           <p className="text-sm text-center" style={{ color: "oklch(0.55 0.01 264)" }}>
-            Continue with Google or GitHub — same as the classic pythh.ai login
+            {secondSearch
+              ? "Sign in to run another startup search — your first preview was free."
+              : "Continue with Google or GitHub — same as the classic pythh.ai login"}
           </p>
         </div>
 

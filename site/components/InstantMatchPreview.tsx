@@ -23,6 +23,8 @@ import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
 import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
 import MatchExplainBlock from '@/components/MatchExplainBlock';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
+import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
+import { pinActiveStartup } from '@/lib/activeStartupContext';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
@@ -38,7 +40,7 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
 ];
 
 function primarySignupLabel(): string {
-  return 'Start my raise — free account';
+  return 'Save my shortlist — free';
 }
 
 type PreviewMatch = {
@@ -285,6 +287,10 @@ export default function InstantMatchPreview({ url }: Props) {
             investor_mix: investorMix,
           });
           markFirstPreviewSeen();
+          recordAnonymousPreview(url);
+          if (data.startup?.id) {
+            pinActiveStartup(data.startup.id, url, data.startup.name ?? null);
+          }
 
           if (!evidenceStripTrackedRef.current) {
             evidenceStripTrackedRef.current = true;
