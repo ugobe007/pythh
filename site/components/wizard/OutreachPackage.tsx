@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, Mail, User } from 'lucide-react';
+import { resolveInvestorLinkedInUrl } from '@/lib/normalizeLinkedInUrl';
 
 interface InvestorMatch {
   id: string;
@@ -71,6 +72,11 @@ function EmailCard({ draft, defaultExpanded = false }: { draft: EmailDraft; defa
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
+  const linkedInHref = resolveInvestorLinkedInUrl({
+    linkedinUrl: draft.investor_linkedin,
+    name: draft.investor_name,
+    firm: draft.investor_firm,
+  });
 
   const copy = (text: string, setter: (v: boolean) => void) => {
     navigator.clipboard.writeText(text);
@@ -150,9 +156,9 @@ function EmailCard({ draft, defaultExpanded = false }: { draft: EmailDraft; defa
             className="px-4 py-3 flex gap-2"
             style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
           >
-            {draft.investor_linkedin && (
+            {linkedInHref && (
               <a
-                href={draft.investor_linkedin}
+                href={linkedInHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition"

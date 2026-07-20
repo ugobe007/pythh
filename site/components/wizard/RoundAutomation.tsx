@@ -15,6 +15,8 @@ import {
   Mail,
   Send,
   Sparkles,
+  Target,
+  TrendingUp,
   Zap,
 } from "lucide-react";
 import { SCOUT_PLAN, ORACLE_PLAN } from "@/lib/pricingPlans";
@@ -83,6 +85,32 @@ interface RoundAutomationProps {
 
 function scrollToDrafts() {
   document.getElementById("outreach-drafts")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function readinessBarColor(score: number): string {
+  if (score >= 60) return "#22c55e";
+  if (score >= 52) return "#22d3ee";
+  if (score >= 40) return "#facc15";
+  return "#fb923c";
+}
+
+function readinessPitch(score: number, pointsToPipeline: number): { headline: string; body: string } {
+  if (score >= 60) {
+    return {
+      headline: "You're ready for automated PYTHIA sends",
+      body: "Your story is strong enough to attach to every auto-sequence. Activate below when you're ready to scale beyond manual copy & send.",
+    };
+  }
+  if (score >= 52) {
+    return {
+      headline: "Almost there — one more push unlocks full automation",
+      body: `At 60+, PYTHIA runs follow-ups and meeting prep with your readiness doc attached. You're ${pointsToPipeline} pts away.`,
+    };
+  }
+  return {
+    headline: "Investors reply to proof, not promises",
+    body: "Closing a few gaps in your story makes cold emails land harder — and unlocks PYTHIA auto-sends with your readiness doc attached at 52+.",
+  };
 }
 
 export default function RoundAutomation({ startupId, startupName, startupWebsite, onBeginUnlocks }: RoundAutomationProps) {
@@ -190,6 +218,12 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
   const displayName = outreach?.startup_name || startupName || "your startup";
   const displayWebsite = outreach?.website || startupWebsite || null;
   const hasDrafts = Boolean(outreach && !outreach.locked && (outreach.email_drafts?.length ?? 0) > 0);
+  const readinessScore = gate.readiness_score;
+  const readinessColor = readinessBarColor(readinessScore);
+  const readinessCopy = readinessPitch(readinessScore, gate.points_to_pipeline);
+  const unmetCount = gate.requirements.filter((r) => !r.met).length;
+  const pipelineThreshold = gate.thresholds.pipeline;
+  const outreachThreshold = gate.thresholds.outreach;
 
   return (
     <div className="space-y-6">
@@ -272,56 +306,168 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
         />
       )}
 
-      {/* Optional readiness — collapsed by default */}
+      {/* Optional readiness — sell the upside, not a checklist chore */}
       <div
         className="rounded-xl overflow-hidden"
-        style={{ backgroundColor: "oklch(0.12 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+        style={{
+          background: `linear-gradient(135deg, oklch(0.14 0.02 280) 0%, oklch(0.12 0.01 264) 100%)`,
+          border: `1px solid ${readinessScore >= outreachThreshold ? "oklch(0.696 0.17 162.48 / 0.35)" : "oklch(0.22 0.02 280 / 0.5)"}`,
+        }}
       >
-        <button
-          type="button"
-          onClick={() => setShowReadinessDetails((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-left"
-        >
-          <div>
-            <p className="text-xs font-semibold" style={{ color: "oklch(0.65 0.01 264)" }}>
-              Optional · Improve readiness ({gate.readiness_score}/100)
-            </p>
-            <p className="text-[10px] mt-0.5" style={{ color: "oklch(0.42 0.01 264)" }}>
-              Not required to send emails manually · helps automated PYTHIA later
-            </p>
+        <div className="px-5 pt-5 pb-4">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold tracking-widest mb-1.5" style={{ color: "#a855f7" }}>
+                OPTIONAL · BOOST REPLY RATE
+              </p>
+              <p className="text-sm font-semibold leading-snug mb-1.5" style={{ color: "oklch(0.94 0.005 264)" }}>
+                {readinessCopy.headline}
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: "oklch(0.58 0.01 264)" }}>
+                {readinessCopy.body}
+              </p>
+            </div>
+            <div className="flex flex-col items-center shrink-0">
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center font-mono text-lg font-bold"
+                style={{
+                  color: readinessColor,
+                  border: `2px solid ${readinessColor}55`,
+                  background: `${readinessColor}12`,
+                }}
+              >
+                {readinessScore}
+              </div>
+              <span className="text-[9px] mt-1 tracking-wide" style={{ color: "oklch(0.42 0.01 264)" }}>
+                READINESS
+              </span>
+            </div>
           </div>
-          {showReadinessDetails ? (
-            <ChevronUp size={16} style={{ color: "oklch(0.45 0.01 264)" }} />
-          ) : (
-            <ChevronDown size={16} style={{ color: "oklch(0.45 0.01 264)" }} />
-          )}
-        </button>
+
+          <div className="mb-4">
+            <div className="flex justify-between text-[10px] mb-1.5" style={{ color: "oklch(0.45 0.01 264)" }}>
+              <span>Manual emails work now</span>
+              <span>
+                {readinessScore >= pipelineThreshold
+                  ? "PYTHIA automation unlocked"
+                  : readinessScore >= outreachThreshold
+                    ? `${gate.points_to_pipeline} pts to full automation`
+                    : `${gate.points_to_outreach} pts to attach readiness doc`}
+              </span>
+            </div>
+            <div className="relative h-2 rounded-full overflow-hidden" style={{ backgroundColor: "oklch(0.18 0.01 264)" }}>
+              <div
+                className="absolute inset-y-0 left-0 rounded-full transition-all"
+                style={{ width: `${readinessScore}%`, backgroundColor: readinessColor }}
+              />
+              <div
+                className="absolute top-0 bottom-0 w-px"
+                style={{ left: `${outreachThreshold}%`, backgroundColor: "oklch(0.55 0.01 264)" }}
+                title={`${outreachThreshold} — readiness doc on auto-sends`}
+              />
+              <div
+                className="absolute top-0 bottom-0 w-px"
+                style={{ left: `${pipelineThreshold}%`, backgroundColor: "oklch(0.696 0.17 162.48)" }}
+                title={`${pipelineThreshold} — full PYTHIA automation`}
+              />
+            </div>
+            <div className="relative mt-1 h-3">
+              <span className="absolute left-0 text-[9px]" style={{ color: "oklch(0.38 0.01 264)" }}>0</span>
+              <span
+                className="absolute text-[9px] -translate-x-1/2"
+                style={{ left: `${outreachThreshold}%`, color: "oklch(0.48 0.01 264)" }}
+              >
+                {outreachThreshold} doc
+              </span>
+              <span
+                className="absolute text-[9px] -translate-x-1/2"
+                style={{ left: `${pipelineThreshold}%`, color: "oklch(0.696 0.17 162.48)" }}
+              >
+                {pipelineThreshold} auto
+              </span>
+              <span className="absolute right-0 text-[9px]" style={{ color: "oklch(0.38 0.01 264)" }}>100</span>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-2 mb-4">
+            {[
+              { icon: Target, label: "Proof beats pitch", detail: "Proved unlocks = credibility in every email" },
+              { icon: TrendingUp, label: "Higher reply rate", detail: "Gaps closed → investors see a fundable story" },
+              { icon: Sparkles, label: "PYTHIA at 52+", detail: "Readiness doc auto-attached to sequences" },
+            ].map(({ icon: Icon, label, detail }) => (
+              <div
+                key={label}
+                className="rounded-lg px-3 py-2.5"
+                style={{ backgroundColor: "oklch(0.11 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon size={11} style={{ color: "#a855f7" }} />
+                  <span className="text-[10px] font-semibold" style={{ color: "oklch(0.78 0.01 264)" }}>{label}</span>
+                </div>
+                <p className="text-[10px] leading-snug" style={{ color: "oklch(0.48 0.01 264)" }}>{detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowReadinessDetails((v) => !v)}
+            className="w-full flex items-center justify-between py-2 text-left"
+          >
+            <span className="text-xs" style={{ color: "oklch(0.55 0.01 264)" }}>
+              {unmetCount > 0
+                ? `${unmetCount} gap${unmetCount === 1 ? "" : "s"} to close · up to +${gate.points_to_outreach} pts`
+                : "All readiness checks passed"}
+            </span>
+            {showReadinessDetails ? (
+              <ChevronUp size={14} style={{ color: "oklch(0.45 0.01 264)" }} />
+            ) : (
+              <ChevronDown size={14} style={{ color: "oklch(0.45 0.01 264)" }} />
+            )}
+          </button>
+        </div>
+
         {showReadinessDetails && (
-          <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid oklch(0.18 0.01 264)" }}>
+          <div className="px-5 pb-5 space-y-3" style={{ borderTop: "1px solid oklch(0.18 0.01 264)" }}>
             {gate.requirements.map((req) => (
               <div key={req.id} className="flex items-start gap-2.5 pt-3 first:pt-3">
                 {req.met ? (
                   <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#22c55e" }} />
                 ) : (
-                  <Circle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "oklch(0.35 0.01 264)" }} />
+                  <Circle size={14} className="flex-shrink-0 mt-0.5" style={{ color: "#a855f7" }} />
                 )}
                 <div>
-                  <p className="text-xs" style={{ color: req.met ? "oklch(0.75 0.01 264)" : "oklch(0.5 0.01 264)" }}>{req.label}</p>
+                  <p className="text-xs font-medium" style={{ color: req.met ? "oklch(0.75 0.01 264)" : "oklch(0.82 0.01 264)" }}>
+                    {req.label}
+                  </p>
                   {!req.met && req.hint && (
-                    <p className="text-[10px] mt-0.5" style={{ color: "oklch(0.38 0.01 264)" }}>{req.hint}</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "oklch(0.48 0.01 264)" }}>{req.hint}</p>
                   )}
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {!gate.pipeline_ready && (
+          <div className="px-5 pb-5">
             <button
               type="button"
               disabled={unlockNavigating}
               onClick={() => void handleGoBackToUnlocks()}
-              className="text-xs underline disabled:opacity-60"
-              style={{ color: "oklch(0.696 0.17 162.48)" }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition disabled:opacity-60"
+              style={{
+                color: "#a855f7",
+                border: "1px solid #a855f740",
+                background: "oklch(0.696 0.17 280 / 0.08)",
+              }}
             >
-              {unlockNavigating ? "Opening…" : "Review optional readiness suggestions →"}
+              {unlockNavigating ? "Opening…" : "Close gaps → strengthen my story"}
+              <ArrowRight size={14} />
             </button>
+            <p className="text-[10px] text-center mt-2" style={{ color: "oklch(0.4 0.01 264)" }}>
+              Free · not required to copy & send emails above
+            </p>
           </div>
         )}
       </div>
@@ -358,7 +504,9 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
             ? "Your round is live. PYTHIA tracks responses and preps meeting briefs."
             : gate.pipeline_ready
               ? "You're ready — activate to send sequences automatically and track replies."
-              : "Manual copy & send is free above. Oracle plan automates outreach, follow-ups, and meeting prep."}
+              : quota?.plan === "none"
+                ? `Copy & send above is free. Scout automates ${SCOUT_PLAN.outreachCampaigns} campaigns (~${SCOUT_PLAN.outreachCampaigns! * (SCOUT_PLAN.investorsPerCampaign as number)} touches/mo) with follow-ups and reply tracking.`
+                : "Manual copy & send is free above. Scout or Oracle automates outreach, follow-ups, and meeting prep."}
         </p>
 
         {activateError && <p className="text-xs text-red-400 mb-3">{activateError}</p>}

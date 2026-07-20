@@ -4,7 +4,7 @@
 
 import { Link } from "wouter";
 import { ArrowRight, Sparkles, Zap } from "lucide-react";
-import { ORACLE_PLAN, SCOUT_PLAN } from "@/lib/pricingPlans";
+import { ORACLE_PLAN } from "@/lib/pricingPlans";
 
 export interface CampaignQuota {
   plan: string;
@@ -34,32 +34,8 @@ export default function CampaignQuotaBanner({ quota, onUpgradeClick }: Props) {
   const planLabel =
     quota.plan === "oracle" ? "Oracle" : quota.plan === "scout" ? "Scout" : "Free";
 
-  if (quota.plan === "none") {
-    return (
-      <div
-        className="rounded-xl p-4 mb-4"
-        style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.08)", border: "1px solid oklch(0.696 0.17 162.48 / 0.3)" }}
-      >
-        <p className="text-xs font-semibold mb-1" style={{ color: "#22d3ee" }}>
-          Automate outreach with PYTHIA
-        </p>
-        <p className="text-xs leading-relaxed mb-3" style={{ color: "oklch(0.55 0.01 264)" }}>
-          {quota.message ||
-            `Scout includes ${SCOUT_PLAN.outreachCampaigns} campaigns (~${SCOUT_PLAN.outreachCampaigns! * (SCOUT_PLAN.investorsPerCampaign as number)} automated touches/mo). Start your 14-day trial.`}
-        </p>
-        <Link href="/pricing" onClick={onUpgradeClick}>
-          <span
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold"
-            style={{ background: "#22c55e", color: "#0a0a0a" }}
-          >
-            <Sparkles size={14} />
-            Start Scout trial — $19/mo
-            <ArrowRight size={14} />
-          </span>
-        </Link>
-      </div>
-    );
-  }
+  // Free/manual mode — Step 4 below owns the single automation CTA (avoid duplicate Scout buttons).
+  if (quota.plan === "none") return null;
 
   return (
     <div

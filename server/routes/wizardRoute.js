@@ -28,6 +28,7 @@ const { deriveGapTasks, TASK_CATALOG } = require('../lib/gapTaskDerivation');
 const { computeRoundReadiness, gateOutreachPayload } = require('../lib/readinessGateService');
 const { buildRaisePlan } = require('../lib/raisePlanService');
 const { isNonInvestorAggregator } = require('../../lib/investorAggregatorBlocklist');
+const { resolveInvestorLinkedInUrl } = require('../../lib/normalizeLinkedInUrl');
 const { buildCampaignQuota } = require('../lib/campaignQuotaService');
 
 function isOutreachEligibleInvestor(investor, startup) {
@@ -1004,7 +1005,11 @@ router.get('/:startupId/outreach-package', async (req, res) => {
         investor_name: inv.name,
         investor_firm: inv.firm,
         investor_title: inv.title,
-        investor_linkedin: inv.linkedin_url,
+        investor_linkedin: resolveInvestorLinkedInUrl({
+          linkedinUrl: inv.linkedin_url,
+          name: inv.name,
+          firm: inv.firm,
+        }) || null,
         match_score: match.match_score,
         subject: `${startupName} — ${stage} in ${sector} | Investor Introduction`,
         body: buildColdEmail(startup, inv, doc, match, { stage, sector, raiseStr, godScore }),
@@ -1027,7 +1032,11 @@ router.get('/:startupId/outreach-package', async (req, res) => {
         title: m.investor.title,
         match_score: m.match_score,
         why_you_match: m.why_you_match,
-        linkedin_url: m.investor.linkedin_url,
+        linkedin_url: resolveInvestorLinkedInUrl({
+          linkedinUrl: m.investor.linkedin_url,
+          name: m.investor.name,
+          firm: m.investor.firm,
+        }) || null,
       })),
       email_drafts: emailDrafts,
       memo_markdown: memoMarkdown,
