@@ -14,6 +14,7 @@ import { recordMatchViewOnce, trackFunnelEvent, trackFunnelEventOnce, recordMatc
 import { formatInvestorDisplayLabel } from '@/lib/formatInvestorDisplay';
 import {
   postSignupPathForAction,
+  allowWizardUnlockFlow,
   primePreviewSignupDestination,
   trackFounderGateStarted,
   type FounderGatedAction,
@@ -29,7 +30,7 @@ import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } fro
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
-const PREVIEW_LIMIT = 10;
+const PREVIEW_LIMIT = 5;
 
 type InvestorMix = 'balanced' | 'vc' | 'angel';
 
@@ -350,7 +351,11 @@ export default function InstantMatchPreview({ url }: Props) {
     if (!preview?.startup?.id) return;
 
     if (isAuthenticated) {
-      primePreviewSignupDestination(preview.startup.id, action);
+      if (action === 'oracle_gap') {
+        allowWizardUnlockFlow();
+      } else {
+        primePreviewSignupDestination(preview.startup.id, action);
+      }
       const post = postSignupPathForAction(action, preview.startup.id);
       navigate(post.includes('?') ? `${post}&welcome=1` : `${post}?welcome=1`);
       return;
@@ -414,8 +419,8 @@ export default function InstantMatchPreview({ url }: Props) {
     return (
       <div className="py-16 flex flex-col items-center gap-4 text-center">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-        <p className="text-lg text-white font-medium">Oracle is analyzing your company…</p>
-        <p className="text-sm text-zinc-500">Readiness, gaps, and qualified investors — usually 20–60 seconds</p>
+        <p className="text-lg text-white font-medium">Finding your top investor matches…</p>
+        <p className="text-sm text-zinc-500">Analyzing your startup against our capital graph — usually 20–60 seconds</p>
       </div>
     );
   }
@@ -426,10 +431,10 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="text-red-300 text-sm mb-4">{error || 'Preview unavailable'}</p>
         <button
           type="button"
-          onClick={() => navigate('/activate')}
+          onClick={() => window.location.reload()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm"
         >
-          Continue to full analysis <ArrowRight className="w-4 h-4" />
+          Try again <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     );
@@ -452,16 +457,13 @@ export default function InstantMatchPreview({ url }: Props) {
 
   return (
     <div className="mb-16 pb-28">
-      <div className="mb-8 text-center">
-        <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Oracle · Initial analysis</p>
+      <div className="mb-6 text-center">
+        <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Investor matches</p>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-          {startupName} — your raise plan
+          {startupName} — your top {visible.length} matches
         </h1>
         <p className="text-sm text-zinc-400">
-          {typeof readinessScore === 'number' && (
-            <>Readiness {readinessScore}/100 · </>
-          )}
-          {visible.length} qualified investors shown · {total.toLocaleString()} in capital graph
+          {total.toLocaleString()} qualified investors in the capital graph
           {preview.shortlist_mix &&
             investorMix === 'balanced' &&
             typeof preview.shortlist_mix.vc_count === 'number' &&
@@ -504,39 +506,7 @@ export default function InstantMatchPreview({ url }: Props) {
         {mixLoading && <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
       </div>
 
-      <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-center sm:text-left">
-        <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl mx-auto sm:mx-0">
-          Oracle analyzed your company and qualified these investors for outreach.
-          Start your raise to save your plan, close readiness gaps, and authorize campaigns toward meetings.
-          {Math.max(total - visible.length, 0) > 0 && (
-            <>
-              {' '}
-              <span className="text-zinc-500">
-                +{Math.max(total - visible.length, 0).toLocaleString()} more in your full qualified pipeline after signup.
-              </span>
-            </>
-          )}
-        </p>
-      </div>
-
-      <PreviewOracleProofStrip />
-
-      <PreviewEvidenceStrip
-        totalInNetwork={total}
-        shownCount={visible.length}
-        startupName={startupName}
-      />
-
-      <PeterIntroStrip
-        className="mb-6 border-zinc-800 bg-zinc-900/40"
-        onAskPeter={() => {
-          setPeterInvestor(topInvestor);
-          setPeterPanelOpen(true);
-        }}
-        variant="secondary"
-      />
-
-      <div className="space-y-3 mb-8">
+      <div className="space-y-3 mb-6">
         {visible.map((m, i) => {
           const inv = m.investor;
           const gatedInvestor = investorFromMatch(m);
@@ -611,14 +581,45 @@ export default function InstantMatchPreview({ url }: Props) {
       </div>
 
       {total > visible.length && (
-        <p className="text-center text-xs text-zinc-500 mb-6">
-          +{(total - visible.length).toLocaleString()} more qualified investors in your pipeline after signup
+        <p className="text-center text-xs text-zinc-500 mb-8">
+          +{(total - visible.length).toLocaleString()} more qualified investors — save your shortlist free to unlock the full list
         </p>
       )}
 
+      <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-center sm:text-left">
+        <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl mx-auto sm:mx-0">
+          These investors are ranked by sector fit, stage, and signal alignment with {startupName}.
+          {typeof readinessScore === 'number' && (
+            <> Readiness score: {readinessScore}/100.</>
+          )}
+          {' '}Create a free account to save your shortlist, track intros, and close readiness gaps.
+        </p>
+      </div>
+
       {showOracleGapTeaser && preview.oracle_gap && oracleGapCopy && (
-        <PreviewOracleGapTeaser gap={preview.oracle_gap} copy={oracleGapCopy} />
+        <PreviewOracleGapTeaser
+          gap={preview.oracle_gap}
+          copy={oracleGapCopy}
+          onGapClick={() => void handleSignup('oracle_gap')}
+        />
       )}
+
+      <PreviewOracleProofStrip />
+
+      <PreviewEvidenceStrip
+        totalInNetwork={total}
+        shownCount={visible.length}
+        startupName={startupName}
+      />
+
+      <PeterIntroStrip
+        className="mb-6 border-zinc-800 bg-zinc-900/40"
+        onAskPeter={() => {
+          setPeterInvestor(topInvestor);
+          setPeterPanelOpen(true);
+        }}
+        variant="secondary"
+      />
 
       {preview.startup?.id && (
         <div className="flex justify-center">
@@ -638,7 +639,7 @@ export default function InstantMatchPreview({ url }: Props) {
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left max-w-md">
-            Oracle plan ready · {visible.length} of {total.toLocaleString()} qualified investors shown
+            {visible.length} top matches shown · {total.toLocaleString()} in your qualified pipeline
           </p>
           <button
             type="button"

@@ -2549,6 +2549,23 @@ export default function Activate() {
     captureUtmFromUrl();
   }, []);
 
+  /** Cold URL searches should preview matches first — not the assessment wizard. */
+  useEffect(() => {
+    if (shareStartupId || prefilledInvestor) return;
+    if (peekFounderGatePending().pending) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("startup_id") || params.get("sid")) return;
+    if (params.get("welcome") === "1" || params.get("pipeline") === "1") return;
+
+    const sharedUrl = params.get("startup");
+    const storedUrl = sessionStorage.getItem("pythia_url");
+    const targetUrl = sharedUrl || storedUrl;
+    if (targetUrl) {
+      navigate(`/matches?url=${encodeURIComponent(targetUrl)}`);
+    }
+  }, [navigate, shareStartupId, prefilledInvestor]);
+
   useEffect(() => {
     if (!shareStartupId) return;
 

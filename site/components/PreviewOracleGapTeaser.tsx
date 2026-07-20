@@ -41,6 +41,8 @@ type Props = {
   /** When false, show Oracle insight only — no competing signup button. */
   showActions?: boolean;
   onUnlock?: () => void;
+  /** Click the top-gap row → wizard / signup to improve GOD score. */
+  onGapClick?: () => void;
   onTrial?: () => void;
 };
 
@@ -71,8 +73,8 @@ function defaultCopy(gap: OracleGapPayload) {
     picky: top.partner_objection
       ? `Partners screening you: ${top.partner_objection}`
       : `Oracle flagged a ${gap.weakest_component_label || 'signal'} gap — ${top.title}.`,
-    cta: 'Create free account — see all matches',
-    footer: 'Free account · full shortlist saved · readiness unlocks optional later.',
+    cta: 'Close this gap — improve GOD score',
+    footer: 'Tap the unlock below to start closing this gap — free account saves your full gap map.',
     trial_cta: '',
   };
 }
@@ -95,6 +97,7 @@ export default function PreviewOracleGapTeaser({
   copy,
   showActions = false,
   onUnlock,
+  onGapClick,
   onTrial,
 }: Props) {
   const text = copy?.headline
@@ -135,17 +138,37 @@ export default function PreviewOracleGapTeaser({
       <p className="text-sm text-zinc-300 leading-relaxed mb-4">{text.picky}</p>
 
       {gap.top_gap?.title && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-zinc-700/80 bg-zinc-950/60 px-3 py-2.5">
-          <Lock className="w-3.5 h-3.5 text-violet-400 mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-white">{gap.top_gap.title}</p>
-            {gap.investors_unlocked_if_top_fix != null && (
-              <p className="text-[11px] text-zinc-500 mt-0.5 font-mono">
-                ~{gap.investors_unlocked_if_top_fix} investors unlocked · +{gap.god_points_if_top_fix ?? gap.top_gap.impact_points} GOD
-              </p>
-            )}
+        onGapClick ? (
+          <button
+            type="button"
+            onClick={onGapClick}
+            className="mb-4 w-full flex items-start gap-2 rounded-lg border border-violet-500/45 bg-zinc-950/60 px-3 py-2.5 text-left transition hover:border-violet-400/70 hover:bg-violet-500/10 group cursor-pointer"
+          >
+            <Lock className="w-3.5 h-3.5 text-violet-400 mt-0.5 shrink-0 group-hover:text-violet-300" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-white group-hover:text-violet-50">{gap.top_gap.title}</p>
+              {gap.investors_unlocked_if_top_fix != null && (
+                <p className="text-[11px] text-zinc-500 mt-0.5 font-mono">
+                  ~{gap.investors_unlocked_if_top_fix} investors unlocked · +{gap.god_points_if_top_fix ?? gap.top_gap.impact_points} GOD
+                </p>
+              )}
+              <p className="text-[11px] text-violet-400/90 mt-1.5 font-medium">Tap to close this gap →</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-violet-500/70 mt-0.5 shrink-0 group-hover:text-violet-300 group-hover:translate-x-0.5 transition" />
+          </button>
+        ) : (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-zinc-700/80 bg-zinc-950/60 px-3 py-2.5">
+            <Lock className="w-3.5 h-3.5 text-violet-400 mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-white">{gap.top_gap.title}</p>
+              {gap.investors_unlocked_if_top_fix != null && (
+                <p className="text-[11px] text-zinc-500 mt-0.5 font-mono">
+                  ~{gap.investors_unlocked_if_top_fix} investors unlocked · +{gap.god_points_if_top_fix ?? gap.top_gap.impact_points} GOD
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {showActions && onUnlock ? (
@@ -170,7 +193,9 @@ export default function PreviewOracleGapTeaser({
         </div>
       ) : (
         <p className="text-[11px] text-zinc-500">
-          {text.footer || 'Use the green button below to create your free account and see your full match list.'}
+          {onGapClick
+            ? (text.footer || 'Tap the unlock above to start closing your top GOD gap.')
+            : (text.footer || 'Use the green button below to create your free account and see your full match list.')}
         </p>
       )}
       {showActions && text.footer ? (

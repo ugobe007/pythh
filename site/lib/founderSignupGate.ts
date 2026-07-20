@@ -72,7 +72,7 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   intro: 'track intros to your top matches',
   export: 'export and track your match list',
   delta: 'see which investors moved toward you',
-  oracle_gap: 'see your full match list and investor movement',
+  oracle_gap: 'close your top GOD gap and unlock more investors',
 };
 
 /** Where founders land immediately after preview-gate signup — matches first, wizard optional. */
@@ -86,6 +86,9 @@ export function postSignupPathForAction(
   startupId: string,
 ): string {
   if (!startupId) return '/account';
+  if (action === 'oracle_gap') {
+    return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1`;
+  }
   const normalized = normalizePreviewGateAction(action);
   const base = `/activate?startup_id=${encodeURIComponent(startupId)}`;
   if (normalized === 'intro' || normalized === 'export') {
@@ -103,7 +106,11 @@ export function clearFounderGatePending() {
 
 /** Set post-signup destination immediately so nothing can route to wizard unlock loop. */
 export function primePreviewSignupDestination(startupId: string, action: FounderGatedAction | null) {
-  sessionStorage.setItem(SKIP_WIZARD_UNLOCKS_KEY, '1');
+  if (action === 'oracle_gap') {
+    allowWizardUnlockFlow();
+  } else {
+    sessionStorage.setItem(SKIP_WIZARD_UNLOCKS_KEY, '1');
+  }
   sessionStorage.setItem(
     POST_SIGNUP_PATH_KEY,
     postSignupPathForAction(action, startupId),

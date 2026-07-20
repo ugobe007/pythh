@@ -333,11 +333,6 @@ function HeroSection({
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
-    const entry = founderExperiment?.schema?.entry as string | undefined;
-    if (entry === "url") {
-      navigate("/activate");
-      return;
-    }
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);
   };
 
