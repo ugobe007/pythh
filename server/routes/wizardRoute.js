@@ -30,6 +30,7 @@ const { buildRaisePlan } = require('../lib/raisePlanService');
 const { isNonInvestorAggregator } = require('../../lib/investorAggregatorBlocklist');
 const { resolveInvestorLinkedInUrl } = require('../../lib/normalizeLinkedInUrl');
 const { buildCampaignQuota } = require('../lib/campaignQuotaService');
+const { buildColdEmail, buildOutreachSubject } = require('../../lib/outreachEmailCopy');
 
 function isOutreachEligibleInvestor(investor, startup) {
   if (!investor?.name) return false;
@@ -995,10 +996,6 @@ router.get('/:startupId/outreach-package', async (req, res) => {
       const startupName = startup.name || 'our startup';
       const sector = (startup.sectors || [])[0] || 'tech';
       const stage = startup.stage ? { 0: 'pre-seed', 1: 'seed', 2: 'Series A' }[startup.stage] || 'early-stage' : 'early-stage';
-      const godScore = startup.total_god_score || '—';
-      const raise = doc?.content?.offer?.raise_amount;
-      const raiseStr = raise ? ` We're raising $${Number(raise).toLocaleString()}.` : '';
-      const matchWhy = match.why_you_match || `Your portfolio and thesis align closely with ${startupName}`;
 
       return {
         investor_id: inv.id,
@@ -1011,8 +1008,8 @@ router.get('/:startupId/outreach-package', async (req, res) => {
           firm: inv.firm,
         }) || null,
         match_score: match.match_score,
-        subject: `${startupName} — ${stage} in ${sector} | Investor Introduction`,
-        body: buildColdEmail(startup, inv, doc, match, { stage, sector, raiseStr, godScore }),
+        subject: buildOutreachSubject(startupName, sector, stage),
+        body: buildColdEmail(startup, inv, doc, match, { stage, sector }),
       };
     });
 
@@ -1048,33 +1045,6 @@ router.get('/:startupId/outreach-package', async (req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 });
-
-function buildColdEmail(startup, investor, doc, match, { stage, sector, raiseStr, godScore }) {
-  const name = startup.name || 'our company';
-  const pitch = startup.pitch || startup.description || startup.tagline || `building in ${sector}`;
-  const commitments = doc?.content?.commitments || [];
-  const completedCount = commitments.filter(c => c.status === 'completed').length;
-  const acknowledgedCount = commitments.filter(c => c.status === 'acknowledged').length;
-  const progressLine = (completedCount + acknowledgedCount) > 0
-    ? `We've completed ${completedCount} verified milestones and committed to ${acknowledgedCount} more with specific deadlines.`
-    : '';
-
-  return `Hi ${investor.name || 'there'},
-
-I'm reaching out because ${investor.firm || 'your firm'} has a strong track record in ${sector}, and I believe ${name} is directly aligned with your thesis.
-
-${pitch.substring(0, 250)}${pitch.length > 250 ? '...' : ''}
-
-We're ${stage} and${raiseStr} Our pythh investor readiness score is ${godScore}/100, placing us in the top tier of our cohort.${progressLine ? ' ' + progressLine : ''}
-
-${match.why_you_match ? `Why we match: ${match.why_you_match}` : ''}
-
-I'd love a 20-minute call to share more. I've attached a brief investment memo below.
-
-Best,
-[Your Name]
-${startup.website || ''}`.trim();
-}
 
 function buildInvestmentMemo(startup, doc, topMatches) {
   const content = doc?.content || {};
