@@ -23,7 +23,7 @@ export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
       headline: 'You build the company. Pythh runs the raise.',
       subline: 'Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings.',
       cta: 'Automate your raise',
-      secondaryCta: 'Let Pythh book investor meetings',
+      secondaryCta: 'Start booking investor meetings',
     };
   }
   return {
@@ -31,7 +31,7 @@ export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
     subline:
       'Submit your URL. Oracle analyzes your company, contacts fit investors, and runs outreach toward qualified meetings.',
     cta: 'Automate your raise',
-    secondaryCta: 'Let Pythh book investor meetings',
+    secondaryCta: 'Start booking investor meetings',
   };
 }
 

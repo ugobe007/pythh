@@ -1562,7 +1562,7 @@ export default function Home() {
         activePath="/"
         variant="hero"
         heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
-        heroSecondaryCta={{ label: "Let Pythh book investor meetings", targetId: "hero-cta" }}
+        heroSecondaryCta={{ label: "Start booking investor meetings", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <SignalArtTeaser />
