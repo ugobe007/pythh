@@ -176,10 +176,10 @@
             "gate_actions": ["save", "intro", "export"]
           },
           "copy": {
-            "headline": "Find investors that match your signals.",
+            "headline": "You build the company. Pythh runs the raise.",
             "cta": "Automate your raise",
             "secondary_cta": "Start booking investor meetings",
-            "subline": "Paste your URL — ranked shortlist in ~20 seconds. Free preview."
+            "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings."
           }
         }
       ],
@@ -204,8 +204,8 @@
           "traffic_pct": 34,
           "schema": { "framing": "control", "benchmark_arm": "pythh_baseline" },
           "copy": {
-            "headline": "Find investors that match your signals.",
-            "subline": "Paste your URL — ranked shortlist in ~20 seconds. Free preview.",
+            "headline": "You build the company. Pythh runs the raise.",
+            "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings.",
             "cta": "Automate your raise",
             "secondary_cta": "Start booking investor meetings"
           }
@@ -215,8 +215,8 @@
           "traffic_pct": 33,
           "schema": { "framing": "speed", "benchmark_arm": "startups_com_10x_mirror" },
           "copy": {
-            "headline": "Raise capital faster with signal-fit investors.",
-            "subline": "Paste your URL — see who matches your signals in ~20 seconds, not a generic investor dump.",
+            "headline": "Raise faster — Pythh runs your outreach.",
+            "subline": "Paste your URL — qualified investors, automated outreach, meetings on your calendar.",
             "cta": "Automate your raise",
             "secondary_cta": "Start booking investor meetings"
           }
@@ -226,8 +226,8 @@
           "traffic_pct": 33,
           "schema": { "framing": "immediate_outcome", "benchmark_arm": "see_my_matches_parity" },
           "copy": {
-            "headline": "See your signal-fit investors in 60 seconds.",
-            "subline": "Top ranked matches plus thesis evidence — free preview before you create an account.",
+            "headline": "Investor meetings — without living in your inbox.",
+            "subline": "Paste your URL — top matches, outreach drafts, and pipeline automation in ~60 seconds.",
             "cta": "Automate your raise",
             "secondary_cta": "Start booking investor meetings"
           }
