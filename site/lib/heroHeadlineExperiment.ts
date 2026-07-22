@@ -21,14 +21,14 @@ export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
     return {
       headline: 'You build the company. Pythh runs the raise.',
       subline: 'Paste your URL — Oracle analyzes readiness, qualifies investors, and builds your raise plan in ~60 seconds.',
-      cta: 'Analyze my company',
+      cta: 'Automate your investment pipeline',
     };
   }
   return {
     headline: 'You build the company. Pythh runs the raise.',
     subline:
       'Submit your URL. Oracle analyzes your company, finds fit investors, and runs outreach toward qualified meetings.',
-    cta: 'Start my raise',
+    cta: 'Automate your investment pipeline',
   };
 }
 

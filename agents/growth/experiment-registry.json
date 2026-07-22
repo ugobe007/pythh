@@ -160,7 +160,7 @@
           },
           "copy": {
             "headline": "Find investors that match your thesis.",
-            "cta": "Submit your startup URL",
+            "cta": "Automate your investment pipeline",
             "subline": "Pythh reads your site and maps investors in ~20 seconds."
           }
         },
@@ -176,7 +176,7 @@
           },
           "copy": {
             "headline": "Find investors that match your signals.",
-            "cta": "See my matches",
+            "cta": "Automate your investment pipeline",
             "subline": "Paste your URL — ranked shortlist in ~20 seconds. Free preview."
           }
         }
@@ -204,7 +204,7 @@
           "copy": {
             "headline": "Find investors that match your signals.",
             "subline": "Paste your URL — ranked shortlist in ~20 seconds. Free preview.",
-            "cta": "See my matches"
+            "cta": "Automate your investment pipeline"
           }
         },
         {
@@ -214,7 +214,7 @@
           "copy": {
             "headline": "Raise capital faster with signal-fit investors.",
             "subline": "Paste your URL — see who matches your signals in ~20 seconds, not a generic investor dump.",
-            "cta": "See my matches"
+            "cta": "Automate your investment pipeline"
           }
         },
         {
@@ -224,7 +224,7 @@
           "copy": {
             "headline": "See your signal-fit investors in 60 seconds.",
             "subline": "Top ranked matches plus thesis evidence — free preview before you create an account.",
-            "cta": "See my matches"
+            "cta": "Automate your investment pipeline"
           }
         }
       ],

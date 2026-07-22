@@ -1543,7 +1543,7 @@ export default function Home() {
       <SharedNavbar
         activePath="/"
         variant="hero"
-        heroCta={{ label: "Start my raise", targetId: "hero-cta" }}
+        heroCta={{ label: "Automate your investment pipeline", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <SignalArtTeaser />
