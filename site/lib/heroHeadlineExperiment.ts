@@ -14,21 +14,24 @@ export type HeroHeadlineCopy = {
   headline: string;
   subline: string;
   cta: string;
+  secondaryCta: string;
 };
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
       headline: 'You build the company. Pythh runs the raise.',
-      subline: 'Paste your URL — Oracle analyzes readiness, qualifies investors, and builds your raise plan in ~60 seconds.',
-      cta: 'Automate your investment pipeline',
+      subline: 'Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings.',
+      cta: 'Automate your raise',
+      secondaryCta: 'Let Pythh book investor meetings',
     };
   }
   return {
     headline: 'You build the company. Pythh runs the raise.',
     subline:
-      'Submit your URL. Oracle analyzes your company, finds fit investors, and runs outreach toward qualified meetings.',
-    cta: 'Automate your investment pipeline',
+      'Submit your URL. Oracle analyzes your company, contacts fit investors, and runs outreach toward qualified meetings.',
+    cta: 'Automate your raise',
+    secondaryCta: 'Let Pythh book investor meetings',
   };
 }
 
@@ -40,10 +43,18 @@ export function mergeHeroHeadlineCopy(
   const base = (entryAssignment?.copy ?? {}) as Partial<HeroHeadlineCopy>;
   const overlay = (headlineAssignment?.copy ?? {}) as Partial<HeroHeadlineCopy>;
   const defaults = defaultHeroCopy(previewFirst);
+  const baseCopy = base as Partial<HeroHeadlineCopy & { secondary_cta?: string }>;
+  const overlayCopy = overlay as Partial<HeroHeadlineCopy & { secondary_cta?: string }>;
   return {
-    headline: overlay.headline || base.headline || defaults.headline,
-    subline: overlay.subline || base.subline || defaults.subline,
-    cta: overlay.cta || base.cta || defaults.cta,
+    headline: overlayCopy.headline || baseCopy.headline || defaults.headline,
+    subline: overlayCopy.subline || baseCopy.subline || defaults.subline,
+    cta: overlayCopy.cta || baseCopy.cta || defaults.cta,
+    secondaryCta:
+      overlayCopy.secondaryCta ||
+      overlayCopy.secondary_cta ||
+      baseCopy.secondaryCta ||
+      baseCopy.secondary_cta ||
+      defaults.secondaryCta,
   };
 }
 

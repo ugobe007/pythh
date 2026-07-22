@@ -343,7 +343,7 @@ function HeroSection({
   const investorCount = platformStats?.investors ?? 0;
   const entry = founderExperiment?.schema?.entry as string | undefined;
   const previewFirst = entry === 'url_with_preview';
-  const { headline: heroHeadline, subline: heroSubline, cta: heroCta } = mergeHeroHeadlineCopy(
+  const { headline: heroHeadline, subline: heroSubline, cta: heroCta, secondaryCta: heroSecondaryCta } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
   );
@@ -503,13 +503,31 @@ function HeroSection({
               )}
             </p>
 
-            <a
-              href="/portfolio"
-              className="inline-flex items-center gap-2 text-sm font-semibold mb-5 transition-colors"
-              style={{ color: G }}
-            >
-              See the Oracle&apos;s track record <ArrowRight size={14} />
-            </a>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start gap-3 mb-5">
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('hero-cta');
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                style={{
+                  color: AMBER,
+                  border: '1px solid oklch(0.769 0.188 70.08 / 0.45)',
+                  background: 'oklch(0.769 0.188 70.08 / 0.08)',
+                }}
+              >
+                {heroSecondaryCta}
+                <ArrowRight size={14} />
+              </button>
+              <a
+                href="/portfolio"
+                className="inline-flex items-center gap-2 text-sm font-medium py-2.5 transition-colors"
+                style={{ color: DIM }}
+              >
+                See track record
+              </a>
+            </div>
 
             <p className="text-xs leading-relaxed" style={{ color: DIM }}>
               {platformStatsReady && startupCount > 0 ? (
@@ -1543,7 +1561,8 @@ export default function Home() {
       <SharedNavbar
         activePath="/"
         variant="hero"
-        heroCta={{ label: "Automate your investment pipeline", targetId: "hero-cta" }}
+        heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
+        heroSecondaryCta={{ label: "Let Pythh book investor meetings", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <SignalArtTeaser />
