@@ -282,6 +282,31 @@ function SignalBar({ value, max = 10, color = "emerald" }: { value: number; max?
 
 // HeroResultsPreview moved to components/HeroResultsPreview.saved.tsx (re-enable when needed)
 
+// ─── Live match — below hero so it doesn't compete with CTAs ────────────────
+
+function LiveMatchHighlight() {
+  const { matches, loading } = useRecentMatches(1);
+  const latestMatch = matches[0] ?? null;
+  if (!loading && !latestMatch) return null;
+
+  return (
+    <section
+      className="border-b"
+      style={{ borderColor: "oklch(0.14 0.01 264)", backgroundColor: "oklch(0.085 0.01 264)" }}
+    >
+      <div className="container max-w-xl mx-auto px-6 py-6">
+        <p
+          className="text-[10px] font-mono font-semibold tracking-widest uppercase mb-3 text-center"
+          style={{ color: DIM }}
+        >
+          Latest match in the network
+        </p>
+        <LatestMatchPanel match={latestMatch} loading={loading} size="default" />
+      </div>
+    </section>
+  );
+}
+
 // ─── Hero Section ─────────────────────────────────────────────────────────────
 
 
@@ -296,6 +321,7 @@ function HeroSection({
 }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState(false);
+  const urlInputRef = useRef<HTMLInputElement>(null);
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
@@ -338,99 +364,23 @@ function HeroSection({
 
   const matchCount = platformStats?.matches ?? 0;
   const matchesNew7d = platformStats?.matches_new_7d ?? 0;
-  const signalCount = platformStats?.signals ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
-  const entry = founderExperiment?.schema?.entry as string | undefined;
-  const previewFirst = entry === 'url_with_preview';
   const { headline: heroHeadline, subline: heroSubline, cta: heroCta, secondaryCta: heroSecondaryCta } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
   );
-  const formLabel = previewFirst ? 'Your startup URL' : 'Submit your startup URL';
-  const { matches: recentMatches, loading: recentLoading } = useRecentMatches(1);
-  const latestMatch = recentMatches[0] ?? null;
+  const primaryCta = heroCta || 'Automate your raise';
+  const secondaryCtaLabel = heroSecondaryCta || 'Start booking investor meetings';
 
-  const urlForm = () => (
-    <form
-      id="hero-cta"
-      onSubmit={handleSubmit}
-      className="w-full rounded-xl"
-      style={{
-        background: CARD,
-        border: `1px solid ${error ? "rgba(248,113,113,0.6)" : BORDER}`,
-        padding: "1.25rem 1.25rem 1.1rem",
-      }}
-    >
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <p className="text-[10px] font-mono font-semibold tracking-widest uppercase" style={{ color: G }}>
-          {formLabel}
-        </p>
-        <span
-          className="text-[10px] font-mono px-2 py-0.5 rounded-full"
-          style={{ color: AMBER, border: "1px solid oklch(0.769 0.188 70.08 / 0.35)", background: "oklch(0.769 0.188 70.08 / 0.08)" }}
-        >
-          ~20 sec
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div
-          className="flex items-center gap-3 px-4 py-3.5 rounded-lg min-w-0 transition-all"
-          style={{
-            backgroundColor: "oklch(0.09 0.01 264)",
-            border: `1px solid ${error ? "rgba(248,113,113,0.5)" : BORDER}`,
-          }}
-        >
-          <ExternalLink size={15} className="flex-shrink-0" style={{ color: error ? "#f87171" : DIM }} />
-          <input
-            type="text"
-            placeholder="your-startup.com"
-            value={url}
-            onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-            className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:opacity-40"
-            style={{ color: TEXT }}
-          />
-        </div>
-        <button
-          type="submit"
-          className="inline-flex items-center justify-center gap-2 w-full px-6 py-3.5 rounded-lg text-sm font-semibold font-mono transition-all"
-          style={{
-            background: "transparent",
-            color: G,
-            border: `1px solid ${G_BORDER}`,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = G_SUBTLE;
-            e.currentTarget.style.borderColor = G;
-            e.currentTarget.style.color = G_HOVER;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.borderColor = G_BORDER;
-            e.currentTarget.style.color = G;
-          }}
-        >
-          {heroCta}
-          <ArrowRight size={15} />
-        </button>
-      </div>
-
-      {error && (
-        <p className="text-xs mt-3" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
-      )}
-      <p className="text-[10px] mt-3 text-center" style={{ color: DIM }}>
-        No credit card · Preview free ·{' '}
-        <Link href="/signup/founder" className="underline hover:no-underline" style={{ color: G }}>
-          Sign up free
-        </Link>
-      </p>
-    </form>
-  );
+  const focusUrlInput = () => {
+    urlInputRef.current?.focus();
+    urlInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   return (
     <section
-      className="relative pt-16 pb-12 lg:pb-16 overflow-hidden"
+      className="relative pt-16 pb-14 lg:pb-16 overflow-hidden"
       style={{
         backgroundColor: PAGE,
         backgroundImage:
@@ -446,121 +396,134 @@ function HeroSection({
         }}
       />
 
-      <div className="container relative z-10 max-w-[1180px] mx-auto px-6 py-8 lg:py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 xl:gap-14 items-center">
+      <div className="container relative z-10 max-w-3xl mx-auto px-6 py-8 lg:py-12 text-center">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-5">
+          <span
+            className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase px-3 py-1.5 rounded-full"
+            style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
+            Investor Intelligence · Live
+          </span>
+          {platformStatsReady && matchCount > 0 && (
+            <p className="text-sm font-bold font-mono" style={{ color: G }}>
+              {formatMatchFull(matchCount)}+ investor matches
+              {matchesNew7d > 0 && (
+                <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>
+                  · {formatVelocitySub(matchesNew7d)}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
 
-          {/* Left — pitch; min-w-0 keeps headline inside the grid column */}
-          <div className="flex flex-col justify-center text-left w-full min-w-0 max-w-[560px] mx-auto lg:mx-0 lg:ml-auto lg:pr-6 xl:pr-10 order-2 lg:order-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
-              <span
-                className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase px-3 py-1.5 rounded-full"
-                style={{ color: G, border: `1px solid ${G_BORDER}`, background: G_SUBTLE }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
-                Investor Intelligence · Live
-              </span>
-              <p className="text-sm font-bold font-mono" style={{ color: G }}>
-                {platformStatsReady && matchCount > 0 ? (
-                  <>
-                    {formatMatchFull(matchCount)}+ investor matches
-                    <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>
-                      {matchesNew7d > 0 ? `· ${formatVelocitySub(matchesNew7d)}` : "· updated daily"}
-                    </span>
-                  </>
-                ) : (
-                  <span className="inline-block h-4 w-40 rounded animate-pulse" style={{ backgroundColor: G_SUBTLE }} />
-                )}
-              </p>
-            </div>
+        <h1
+          className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
+          style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
+        >
+          {heroHeadline}
+        </h1>
 
-            <h1
-              className="font-display font-bold leading-[1.12] mb-4"
-              style={{ fontSize: "clamp(2rem, 3.4vw, 3.35rem)", color: TEXT, letterSpacing: "-0.04em" }}
+        <p
+          className="text-base sm:text-lg leading-relaxed mb-8 mx-auto max-w-[46ch]"
+          style={{ color: MUTED }}
+        >
+          {heroSubline}
+        </p>
+
+        <form
+          id="hero-cta"
+          onSubmit={handleSubmit}
+          className="w-full max-w-lg mx-auto"
+        >
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 mb-5">
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-950/25"
+              style={{
+                backgroundColor: G,
+                color: "oklch(0.1 0.01 162)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = G_HOVER;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = G;
+              }}
             >
-              {previewFirst ? (
-                <span className="block">{heroHeadline}</span>
-              ) : (
+              {primaryCta}
+              <ArrowRight size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={focusUrlInput}
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-sm font-semibold transition-colors"
+              style={{
+                color: AMBER,
+                border: "1px solid oklch(0.769 0.188 70.08 / 0.45)",
+                background: "oklch(0.769 0.188 70.08 / 0.08)",
+              }}
+            >
+              {secondaryCtaLabel}
+              <ArrowRight size={16} />
+            </button>
+          </div>
+
+          <div
+            className="flex items-center gap-3 px-4 py-3.5 rounded-xl min-w-0 text-left transition-all"
+            style={{
+              backgroundColor: CARD,
+              border: `1px solid ${error ? "rgba(248,113,113,0.5)" : BORDER}`,
+            }}
+          >
+            <ExternalLink size={15} className="flex-shrink-0" style={{ color: error ? "#f87171" : DIM }} />
+            <input
+              ref={urlInputRef}
+              type="text"
+              placeholder="your-startup.com"
+              value={url}
+              onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
+              className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:opacity-40"
+              style={{ color: TEXT }}
+              aria-label="Your startup URL"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
+          )}
+          <p className="text-[10px] mt-3" style={{ color: DIM }}>
+            No credit card · Preview free · ~20 sec ·{' '}
+            <Link href="/signup/founder" className="underline hover:no-underline" style={{ color: G }}>
+              Sign up free
+            </Link>
+          </p>
+        </form>
+
+        <p className="text-xs leading-relaxed mt-8 mx-auto max-w-[52ch]" style={{ color: DIM }}>
+          {platformStatsReady && startupCount > 0 ? (
+            <>
+              {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped
+              {portfolioMetrics?.verified_funded_picks != null && (
                 <>
-                  <span className="block">You build the company.</span>
-                  <span className="block">
-                    <span style={{ color: TEXT }}>Pythh runs the </span>
-                    <span style={{ color: G_HOVER }}>raise</span>
-                    <span style={{ color: TEXT }}>.</span>
+                  {" · "}
+                  <span style={{ color: G }}>
+                    {portfolioMetrics.verified_funded_picks} verified funded
+                    {portfolioMetrics.verified_funded_rate_pct != null
+                      ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
+                      : ""}
                   </span>
                 </>
               )}
-            </h1>
-
-            <p
-              className="text-base sm:text-lg leading-relaxed mb-5 max-w-[52ch]"
-              style={{ color: MUTED }}
-            >
-              {previewFirst ? heroSubline : (
-                <>
-                  Submit your URL. Oracle analyzes readiness, qualifies investors,
-                  and runs outreach toward qualified meetings.
-                </>
-              )}
-            </p>
-
-            <div className="flex flex-col sm:flex-row sm:flex-wrap items-start gap-3 mb-5">
-              <button
-                type="button"
-                onClick={() => {
-                  const el = document.getElementById('hero-cta');
-                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-                style={{
-                  color: AMBER,
-                  border: '1px solid oklch(0.769 0.188 70.08 / 0.45)',
-                  background: 'oklch(0.769 0.188 70.08 / 0.08)',
-                }}
-              >
-                {heroSecondaryCta}
-                <ArrowRight size={14} />
-              </button>
-              <a
-                href="/portfolio"
-                className="inline-flex items-center gap-2 text-sm font-medium py-2.5 transition-colors"
-                style={{ color: DIM }}
-              >
+              {" · "}
+              <a href="/portfolio" className="underline hover:no-underline" style={{ color: G }}>
                 See track record
               </a>
-            </div>
-
-            <p className="text-xs leading-relaxed" style={{ color: DIM }}>
-              {platformStatsReady && startupCount > 0 ? (
-                <>
-                  {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped · {formatMatchFull(matchCount)}+ pre-computed matches
-                  {matchesNew7d > 0 && (
-                    <span style={{ color: G }}> · {formatVelocitySub(matchesNew7d)}</span>
-                  )}
-                  {portfolioMetrics?.verified_funded_picks != null && (
-                    <>
-                      {" · "}
-                      <span style={{ color: G }}>
-                        {portfolioMetrics.verified_funded_picks} verified funded
-                        {portfolioMetrics.verified_funded_rate_pct != null
-                          ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
-                          : ""}
-                      </span>
-                    </>
-                  )}
-                </>
-              ) : (
-                <span className="inline-block h-3 w-56 max-w-full rounded animate-pulse" style={{ backgroundColor: "oklch(0.2 0.01 264)" }} />
-              )}
-            </p>
-          </div>
-
-          {/* Right — CTA + live match */}
-          <div className="flex flex-col justify-center gap-3.5 w-full min-w-0 max-w-[500px] mx-auto lg:mx-0 lg:mr-auto lg:pl-6 xl:pl-10 order-1 lg:order-2">
-            {urlForm()}
-            <LatestMatchPanel match={latestMatch} loading={recentLoading} size="hero" />
-          </div>
-
-        </div>
+            </>
+          ) : (
+            <span className="inline-block h-3 w-56 max-w-full rounded animate-pulse mx-auto" style={{ backgroundColor: "oklch(0.2 0.01 264)" }} />
+          )}
+        </p>
       </div>
     </section>
   );
@@ -1565,6 +1528,7 @@ export default function Home() {
         heroSecondaryCta={{ label: "Start booking investor meetings", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
+      <LiveMatchHighlight />
       <SignalArtTeaser />
       <HowItWorksSection />
       <TermSheetSection />
