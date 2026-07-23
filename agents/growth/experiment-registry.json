@@ -161,7 +161,6 @@
           "copy": {
             "headline": "Find investors that match your thesis.",
             "cta": "Automate your raise",
-            "secondary_cta": "Start booking investor meetings",
             "subline": "Pythh reads your site and maps investors in ~20 seconds."
           }
         },
@@ -178,7 +177,6 @@
           "copy": {
             "headline": "You build the company. Pythh runs the raise.",
             "cta": "Automate your raise",
-            "secondary_cta": "Start booking investor meetings",
             "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf."
           }
         }
@@ -206,8 +204,7 @@
           "copy": {
             "headline": "You build the company. Pythh runs the raise.",
             "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf.",
-            "cta": "Automate your raise",
-            "secondary_cta": "Start booking investor meetings"
+            "cta": "Automate your raise"
           }
         },
         {
@@ -217,8 +214,7 @@
           "copy": {
             "headline": "Raise faster — Pythh runs your outreach.",
             "subline": "Paste your URL — qualified investors, automated outreach, meetings on your calendar.",
-            "cta": "Automate your raise",
-            "secondary_cta": "Start booking investor meetings"
+            "cta": "Automate your raise"
           }
         },
         {
@@ -228,8 +224,7 @@
           "copy": {
             "headline": "Investor meetings — without living in your inbox.",
             "subline": "Paste your URL — top matches, outreach drafts, and pipeline automation in ~60 seconds.",
-            "cta": "Automate your raise",
-            "secondary_cta": "Start booking investor meetings"
+            "cta": "Automate your raise"
           }
         }
       ],

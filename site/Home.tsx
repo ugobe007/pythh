@@ -29,6 +29,7 @@ import {
   mergeHeroHeadlineCopy,
   trackHeroHeadlineExposure,
   trackHeroUrlSubmitted,
+  HERO_PRIMARY_CTA,
 } from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -366,11 +367,10 @@ function HeroSection({
   const matchesNew7d = platformStats?.matches_new_7d ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
-  const { headline: heroHeadline, subline: heroSubline, cta: heroCta } = mergeHeroHeadlineCopy(
+  const { headline: heroHeadline, subline: heroSubline } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
   );
-  const primaryCta = heroCta || 'Automate your raise';
 
   return (
     <section
@@ -464,7 +464,7 @@ function HeroSection({
               e.currentTarget.style.backgroundColor = G;
             }}
           >
-            {primaryCta}
+            {HERO_PRIMARY_CTA}
             <ArrowRight size={16} />
           </button>
 
@@ -1500,11 +1500,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: PAGE }}>
-      <SharedNavbar
-        activePath="/"
-        variant="hero"
-        heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
-      />
+      <SharedNavbar activePath="/" variant="hero" />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <LiveMatchHighlight />
       <SignalArtTeaser />

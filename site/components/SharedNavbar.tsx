@@ -171,11 +171,11 @@ export default function SharedNavbar({
                   >
                     {heroCta.label}
                   </button>
-                ) : (
+                ) : !isHero ? (
                   <StartupCTA href="/matches" size="sm" className="px-4 py-1.5">
                     Preview matches
                   </StartupCTA>
-                )}
+                ) : null}
               </>
             )}
           </div>
@@ -249,11 +249,11 @@ export default function SharedNavbar({
                       >
                         {heroCta.label}
                       </button>
-                    ) : (
+                    ) : !isHero ? (
                       <StartupCTA href="/matches" size="sm" className="text-left">
                         Preview matches
                       </StartupCTA>
-                    )}
+                    ) : null}
                   </>
                 )}
               </div>

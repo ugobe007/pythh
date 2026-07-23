@@ -14,24 +14,23 @@ export type HeroHeadlineCopy = {
   headline: string;
   subline: string;
   cta: string;
-  secondaryCta: string;
 };
+
+export const HERO_PRIMARY_CTA = 'Automate your raise';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
       headline: 'You build the company. Pythh runs the raise.',
       subline: 'Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf.',
-      cta: 'Automate your raise',
-      secondaryCta: 'Start booking investor meetings',
+      cta: HERO_PRIMARY_CTA,
     };
   }
   return {
     headline: 'You build the company. Pythh runs the raise.',
     subline:
       'Submit your URL. Oracle analyzes your company, contacts fit investors, and runs outreach toward qualified meetings.',
-    cta: 'Automate your raise',
-    secondaryCta: 'Start booking investor meetings',
+    cta: HERO_PRIMARY_CTA,
   };
 }
 
@@ -43,18 +42,13 @@ export function mergeHeroHeadlineCopy(
   const base = (entryAssignment?.copy ?? {}) as Partial<HeroHeadlineCopy>;
   const overlay = (headlineAssignment?.copy ?? {}) as Partial<HeroHeadlineCopy>;
   const defaults = defaultHeroCopy(previewFirst);
-  const baseCopy = base as Partial<HeroHeadlineCopy & { secondary_cta?: string }>;
-  const overlayCopy = overlay as Partial<HeroHeadlineCopy & { secondary_cta?: string }>;
+  const baseCopy = base as Partial<HeroHeadlineCopy>;
+  const overlayCopy = overlay as Partial<HeroHeadlineCopy>;
   return {
     headline: overlayCopy.headline || baseCopy.headline || defaults.headline,
     subline: overlayCopy.subline || baseCopy.subline || defaults.subline,
-    cta: overlayCopy.cta || baseCopy.cta || defaults.cta,
-    secondaryCta:
-      overlayCopy.secondaryCta ||
-      overlayCopy.secondary_cta ||
-      baseCopy.secondaryCta ||
-      baseCopy.secondary_cta ||
-      defaults.secondaryCta,
+    // CTA label is fixed — experiment copy must not override (avoids stale "See my matches" from DB).
+    cta: HERO_PRIMARY_CTA,
   };
 }
 

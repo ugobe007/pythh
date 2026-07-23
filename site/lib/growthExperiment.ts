@@ -12,7 +12,7 @@ export interface GrowthAssignment {
   copy: Record<string, unknown>;
 }
 
-const STORAGE_KEY = 'pyth_growth_assignment';
+const STORAGE_KEY = 'pyth_growth_assignment_v2';
 
 function getAnonId(): string {
   const key = 'pyth_anon_id';
