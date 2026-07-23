@@ -179,7 +179,7 @@
             "headline": "You build the company. Pythh runs the raise.",
             "cta": "Automate your raise",
             "secondary_cta": "Start booking investor meetings",
-            "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings."
+            "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf."
           }
         }
       ],
@@ -205,7 +205,7 @@
           "schema": { "framing": "control", "benchmark_arm": "pythh_baseline" },
           "copy": {
             "headline": "You build the company. Pythh runs the raise.",
-            "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings.",
+            "subline": "Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf.",
             "cta": "Automate your raise",
             "secondary_cta": "Start booking investor meetings"
           }
