@@ -21,12 +21,10 @@ export default function SharedNavbar({
   activePath,
   variant = "default",
   heroCta,
-  heroSecondaryCta,
 }: {
   activePath?: string;
   variant?: "default" | "hero";
   heroCta?: { label: string; targetId: string };
-  heroSecondaryCta?: { label: string; targetId: string };
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -163,33 +161,16 @@ export default function SharedNavbar({
                   Sign in
                 </button>
                 {heroCta ? (
-                  <>
-                    {heroSecondaryCta ? (
-                      <button
-                        onClick={() => {
-                          const el = document.getElementById(heroSecondaryCta.targetId);
-                          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                        }}
-                        className="hidden lg:inline-flex text-sm font-medium px-3 py-1.5 rounded-md transition-all"
-                        style={{
-                          color: "oklch(0.769 0.188 70.08)",
-                          border: "1px solid oklch(0.769 0.188 70.08 / 0.4)",
-                        }}
-                      >
-                        {heroSecondaryCta.label}
-                      </button>
-                    ) : null}
-                    <button
-                      onClick={() => {
-                        const el = document.getElementById(heroCta.targetId);
-                        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      }}
-                      className="text-sm font-semibold px-4 py-1.5 rounded-md transition-all"
-                      style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
-                    >
-                      {heroCta.label}
-                    </button>
-                  </>
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById(heroCta.targetId);
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className="text-sm font-semibold px-4 py-1.5 rounded-md transition-all"
+                    style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "oklch(0.1 0.01 162)" }}
+                  >
+                    {heroCta.label}
+                  </button>
                 ) : (
                   <StartupCTA href="/matches" size="sm" className="px-4 py-1.5">
                     Preview matches

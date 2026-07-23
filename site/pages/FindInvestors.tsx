@@ -122,22 +122,9 @@ export default function FindInvestors() {
         <h1 className="text-3xl sm:text-5xl font-bold text-white leading-tight mb-4">
           {heroCopy.headline}
         </h1>
-        <p className="text-lg text-zinc-400 mb-4 max-w-2xl leading-relaxed">
+        <p className="text-lg text-zinc-400 mb-8 max-w-2xl leading-relaxed">
           {heroCopy.subline}
         </p>
-        <button
-          type="button"
-          onClick={() => document.getElementById('find-investors-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-          className="inline-flex items-center gap-2 mb-8 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-          style={{
-            color: 'oklch(0.769 0.188 70.08)',
-            border: '1px solid oklch(0.769 0.188 70.08 / 0.45)',
-            background: 'oklch(0.769 0.188 70.08 / 0.08)',
-          }}
-        >
-          {heroCopy.secondaryCta}
-          <ArrowRight className="w-4 h-4" />
-        </button>
 
         {spotlight?.featured_sector && typeof spotlight.god70_plus === 'number' && (
           <div

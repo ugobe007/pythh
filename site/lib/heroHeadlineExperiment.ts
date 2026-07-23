@@ -21,7 +21,7 @@ export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
       headline: 'You build the company. Pythh runs the raise.',
-      subline: 'Paste your URL — Oracle qualifies investors, runs outreach, and moves you toward booked meetings.',
+      subline: 'Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf.',
       cta: 'Automate your raise',
       secondaryCta: 'Start booking investor meetings',
     };

@@ -366,17 +366,11 @@ function HeroSection({
   const matchesNew7d = platformStats?.matches_new_7d ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
-  const { headline: heroHeadline, subline: heroSubline, cta: heroCta, secondaryCta: heroSecondaryCta } = mergeHeroHeadlineCopy(
+  const { headline: heroHeadline, subline: heroSubline, cta: heroCta } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
   );
   const primaryCta = heroCta || 'Automate your raise';
-  const secondaryCtaLabel = heroSecondaryCta || 'Start booking investor meetings';
-
-  const focusUrlInput = () => {
-    urlInputRef.current?.focus();
-    urlInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
 
   return (
     <section
@@ -436,41 +430,8 @@ function HeroSection({
           onSubmit={handleSubmit}
           className="w-full max-w-lg mx-auto"
         >
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 mb-5">
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-950/25"
-              style={{
-                backgroundColor: G,
-                color: "oklch(0.1 0.01 162)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = G_HOVER;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = G;
-              }}
-            >
-              {primaryCta}
-              <ArrowRight size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={focusUrlInput}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-lg text-sm font-semibold transition-colors"
-              style={{
-                color: AMBER,
-                border: "1px solid oklch(0.769 0.188 70.08 / 0.45)",
-                background: "oklch(0.769 0.188 70.08 / 0.08)",
-              }}
-            >
-              {secondaryCtaLabel}
-              <ArrowRight size={16} />
-            </button>
-          </div>
-
           <div
-            className="flex items-center gap-3 px-4 py-3.5 rounded-xl min-w-0 text-left transition-all"
+            className="flex items-center gap-3 px-4 py-3.5 rounded-xl min-w-0 text-left transition-all mb-4"
             style={{
               backgroundColor: CARD,
               border: `1px solid ${error ? "rgba(248,113,113,0.5)" : BORDER}`,
@@ -488,6 +449,24 @@ function HeroSection({
               aria-label="Your startup URL"
             />
           </div>
+
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center gap-2 w-full px-7 py-3.5 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-950/25"
+            style={{
+              backgroundColor: G,
+              color: "oklch(0.1 0.01 162)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = G_HOVER;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = G;
+            }}
+          >
+            {primaryCta}
+            <ArrowRight size={16} />
+          </button>
 
           {error && (
             <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
@@ -1525,7 +1504,6 @@ export default function Home() {
         activePath="/"
         variant="hero"
         heroCta={{ label: "Automate your raise", targetId: "hero-cta" }}
-        heroSecondaryCta={{ label: "Start booking investor meetings", targetId: "hero-cta" }}
       />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <LiveMatchHighlight />
