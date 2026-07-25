@@ -99,7 +99,8 @@ export default function FounderSignup() {
         return;
       }
       if (startupId) {
-        navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
+        const post = postSignupPathForAction('save', startupId);
+        navigate(`${post}&welcome=1`);
         return;
       }
       navigate('/account?welcome=1');
@@ -206,7 +207,8 @@ export default function FounderSignup() {
         return;
       }
       if (startupId) {
-        navigate(`/activate?startup_id=${encodeURIComponent(startupId)}&welcome=1`);
+        const post = postSignupPathForAction('save', startupId);
+        navigate(`${post}&welcome=1`);
         return;
       }
       if (url) {
@@ -221,11 +223,11 @@ export default function FounderSignup() {
     }
   };
 
-  const headline = fromGate ? 'Save your investor matches' : 'Start your autonomous raise';
+  const headline = fromGate ? 'Continue to investor outreach' : 'Start your autonomous raise';
   const subline = fromGate
     ? gateLabel
-      ? `One click to ${gateLabel}. We'll attach your shortlist to your account — manual copy & send stays free.`
-      : "Continue with Google or GitHub — we'll save your ranked investors and open outreach drafts."
+      ? `Create your account to ${gateLabel}. Your outreach drafts open next; signal improvements remain optional.`
+      : "Create your account to save these matches and open investor outreach."
     : 'Free account — Oracle tracks readiness, qualifies investors, and prepares outreach toward meetings.';
 
   if (authLoading || (isAuthenticated && !oauthHandledRef.current && (isOAuthHandoffActive() || fromGate))) {
@@ -282,9 +284,9 @@ export default function FounderSignup() {
           {fromGate && (
             <div className="grid gap-3 mb-6 text-left">
               {[
-                { icon: Target, label: 'Your shortlist saved', detail: 'Track intros, exports, and outreach from one place.' },
-                { icon: Bell, label: 'Match movement alerts', detail: 'See when investors move toward or away from your thesis.' },
-                { icon: Activity, label: 'Outreach drafts unlocked', detail: 'Copy emails now — automate later with Scout if you want.' },
+                { icon: Target, label: 'Your matches saved', detail: 'Keep the three investors you just reviewed.' },
+                { icon: Activity, label: 'Outreach opens next', detail: 'Review investor-specific email drafts immediately.' },
+                { icon: Bell, label: 'Improve signals later', detail: 'Readiness guidance stays available after signup, but never blocks outreach.' },
               ].map(({ icon: Icon, label, detail }) => (
                 <div
                   key={label}

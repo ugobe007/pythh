@@ -32,11 +32,6 @@ import {
   HERO_PRIMARY_CTA,
 } from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
-import { useAuth } from "@/_core/hooks/useAuth";
-import {
-  buildLoginRedirectForSearch,
-  shouldPromptSignInForNewSearch,
-} from "@/lib/anonymousPreviewSession";
 import {
   ArrowRight,
   ExternalLink,
@@ -345,7 +340,6 @@ function HeroSection({
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     loadHeroExperiments()
@@ -371,11 +365,6 @@ function HeroSection({
     }
     setError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
-    if (!isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
-      sessionStorage.setItem("pythia_url", normalized);
-      navigate(buildLoginRedirectForSearch(normalized));
-      return;
-    }
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
@@ -460,10 +449,10 @@ function HeroSection({
             <input
               ref={urlInputRef}
               type="text"
-              placeholder="your-startup.com"
+              placeholder="Enter your startup website"
               value={url}
               onChange={(e) => { setUrl(e.target.value); if (error) setError(false); }}
-              className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:opacity-40"
+              className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-zinc-400 placeholder:opacity-100"
               style={{ color: TEXT }}
               aria-label="Your startup URL"
             />

@@ -21,11 +21,6 @@ import InstantMatchPreview from "@/components/InstantMatchPreview";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import { fetchGrowthAssignment } from "@/lib/growthExperiment";
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
-import { useAuth } from "@/_core/hooks/useAuth";
-import {
-  buildLoginRedirectForSearch,
-  shouldPromptSignInForNewSearch,
-} from "@/lib/anonymousPreviewSession";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -263,7 +258,6 @@ function MatchesUrlEntry({
 
 export default function Matches() {
   const [location, navigate] = useLocation();
-  const { isAuthenticated } = useAuth();
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [missingUrlParam, setMissingUrlParam] = useState(false);
@@ -297,11 +291,6 @@ export default function Matches() {
       return;
     }
     setUrlEntryError(false);
-    if (!isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
-      sessionStorage.setItem("pythia_url", normalized);
-      navigate(buildLoginRedirectForSearch(normalized));
-      return;
-    }
     const assignment = await fetchGrowthAssignment('founder').catch(() => null);
     trackUrlSubmitted(normalized, 'matches_landing', assignment);
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);

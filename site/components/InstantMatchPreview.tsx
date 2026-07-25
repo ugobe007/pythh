@@ -30,7 +30,7 @@ import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } fro
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
-const PREVIEW_LIMIT = 5;
+const PREVIEW_LIMIT = 3;
 
 type InvestorMix = 'balanced' | 'vc' | 'angel';
 
@@ -41,7 +41,7 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
 ];
 
 function primarySignupLabel(): string {
-  return 'Save my shortlist — free';
+  return 'Create free account & continue';
 }
 
 type PreviewMatch = {
@@ -476,40 +476,9 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
-        {INVESTOR_MIX_OPTIONS.map((opt) => {
-          const active = investorMix === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              disabled={mixLoading}
-              onClick={() => {
-                if (opt.id === investorMix) return;
-                setInvestorMix(opt.id);
-                void trackFunnelEvent('preview_investor_mix_changed', {
-                  mix: opt.id,
-                  startup_id: preview.startup?.id,
-                  source: 'instant_match_preview',
-                });
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                active
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
-                  : 'text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-              }`}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-        {mixLoading && <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />}
-      </div>
-
       <div className="space-y-3 mb-6">
         {visible.map((m, i) => {
           const inv = m.investor;
-          const gatedInvestor = investorFromMatch(m);
           return (
             <div
               key={inv?.id || i}
@@ -542,37 +511,15 @@ export default function InstantMatchPreview({ url }: Props) {
                     {formatInvestorDisplayLabel(inv?.name, inv?.firm)}
                   </span>
                 </div>
-                {m.why_you_match && (
-                  <p className="text-xs text-zinc-400 mt-1 line-clamp-2 sm:hidden">
-                    {normalizeWhyYouMatch(m.why_you_match)}
-                  </p>
-                )}
-                {preview.startup?.id && (
-                  <MatchExplainBlock
-                    startupId={preview.startup.id}
-                    investorId={inv?.id || m.investor_id}
-                    investorName={inv?.name}
-                    whyYouMatch={m.why_you_match}
-                    matchScore={m.match_score}
-                    rank={i}
-                    source="instant_match_preview"
-                    onIntro={gatedInvestor ? () => void handleGate('intro', gatedInvestor) : undefined}
-                    introLabel={i === 0 ? `Ask for a warm intro to ${inv?.name?.split(' ')[0] || 'this partner'} →` : undefined}
-                  />
-                )}
+                <p className="text-xs text-zinc-400 mt-1 line-clamp-2">
+                  {m.why_you_match
+                    ? normalizeWhyYouMatch(m.why_you_match)
+                    : 'Aligned by sector, stage, and investment thesis.'}
+                </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 {typeof m.match_score === 'number' && (
                   <span className="text-sm font-mono text-cyan-400">{Math.round(m.match_score)}% fit</span>
-                )}
-                {gatedInvestor && (
-                  <button
-                    type="button"
-                    onClick={() => void handleGate('intro', gatedInvestor)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-400 border border-zinc-700 hover:border-zinc-500 hover:text-zinc-200 whitespace-nowrap"
-                  >
-                    {i === 0 ? 'Intro help' : 'Intro'}
-                  </button>
                 )}
               </div>
             </div>
@@ -582,56 +529,16 @@ export default function InstantMatchPreview({ url }: Props) {
 
       {total > visible.length && (
         <p className="text-center text-xs text-zinc-500 mb-8">
-          +{(total - visible.length).toLocaleString()} more qualified investors — save your shortlist free to unlock the full list
+          +{(total - visible.length).toLocaleString()} more qualified investors available after signup
         </p>
       )}
 
-      <div className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-center sm:text-left">
-        <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl mx-auto sm:mx-0">
-          These investors are ranked by sector fit, stage, and signal alignment with {startupName}.
-          {typeof readinessScore === 'number' && (
-            <> Readiness score: {readinessScore}/100.</>
-          )}
-          {' '}Create a free account to save your shortlist, track intros, and close readiness gaps.
+      <div className="mb-8 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-center">
+        <p className="text-sm font-medium text-white mb-1">Next: save these matches and open outreach</p>
+        <p className="text-xs text-zinc-400">
+          Signal improvement guidance becomes available after signup and will not block this shortlist.
         </p>
       </div>
-
-      {showOracleGapTeaser && preview.oracle_gap && oracleGapCopy && (
-        <PreviewOracleGapTeaser
-          gap={preview.oracle_gap}
-          copy={oracleGapCopy}
-          onGapClick={() => void handleSignup('oracle_gap')}
-        />
-      )}
-
-      <PreviewOracleProofStrip />
-
-      <PreviewEvidenceStrip
-        totalInNetwork={total}
-        shownCount={visible.length}
-        startupName={startupName}
-      />
-
-      <PeterIntroStrip
-        className="mb-6 border-zinc-800 bg-zinc-900/40"
-        onAskPeter={() => {
-          setPeterInvestor(topInvestor);
-          setPeterPanelOpen(true);
-        }}
-        variant="secondary"
-      />
-
-      {preview.startup?.id && (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => navigate(`/matches/preview/${preview.startup!.id}`)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 underline-offset-2 hover:underline"
-          >
-            Share preview link
-          </button>
-        </div>
-      )}
 
       <div
         ref={pricingStripRef}
@@ -639,30 +546,28 @@ export default function InstantMatchPreview({ url }: Props) {
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left max-w-md">
-            {visible.length} top matches shown · {total.toLocaleString()} in your qualified pipeline
+            Step 3 of 3 · choose whether to continue
           </p>
-          <button
-            type="button"
-            onClick={() => void handleSignup('save')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
-          >
-            {primaryCta}
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="w-full sm:w-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="px-3 py-2 text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              Not now
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSignup('save')}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
+            >
+              {isAuthenticated ? 'Start investor outreach' : primaryCta}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {preview.startup?.id && (
-        <PeterIntroPanel
-          open={peterPanelOpen}
-          onClose={() => setPeterPanelOpen(false)}
-          startupId={preview.startup.id}
-          startupName={startupName}
-          startupUrl={url}
-          investor={peterInvestor}
-          source="instant_match_preview"
-        />
-      )}
     </div>
   );
 }

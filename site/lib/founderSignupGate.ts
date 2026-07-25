@@ -75,7 +75,7 @@ export const FOUNDER_GATE_ACTION_LABELS: Record<FounderGatedAction, string> = {
   oracle_gap: 'close your top GOD gap and unlock more investors',
 };
 
-/** Where founders land immediately after preview-gate signup — matches first, wizard optional. */
+/** Where founders land after preview-gate signup — outreach first, readiness optional. */
 export function normalizePreviewGateAction(action: FounderGatedAction | null): FounderGatedAction {
   if (action === 'oracle_gap' || action === 'delta') return 'save';
   return action ?? 'save';
@@ -89,12 +89,7 @@ export function postSignupPathForAction(
   if (action === 'oracle_gap') {
     return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&start_unlocks=1`;
   }
-  const normalized = normalizePreviewGateAction(action);
-  const base = `/activate?startup_id=${encodeURIComponent(startupId)}`;
-  if (normalized === 'intro' || normalized === 'export') {
-    return `${base}&pipeline=1`;
-  }
-  return base;
+  return `/wizard/${encodeURIComponent(startupId)}?force_wizard=1&tab=round`;
 }
 
 export function clearFounderGatePending() {
