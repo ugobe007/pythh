@@ -140,6 +140,7 @@ interface SignalTrackRecord {
   stepped_up_after_flag: number;
   caught_early_unicorns: number;
   median_lead_months: number | null;
+  lead_time_definition?: string;
   marquee: {
     name: string;
     first_flag_date: string | null;
@@ -648,16 +649,20 @@ export default function Portfolio() {
                   {analytics.signal.median_lead_months != null ? `${analytics.signal.median_lead_months}mo` : "—"}
                 </div>
                 <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Median lead time</div>
-                <div className="text-[10px] font-mono" style={{ color: DIM }}>before today&apos;s valuation</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>flag → first verified $1B round</div>
               </div>
               <div>
                 <div className="font-display font-bold text-2xl md:text-3xl tabular-nums" style={{ color: G }}>
                   {analytics.signal.caught_early_unicorns}
                 </div>
-                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Caught pre-markup</div>
-                <div className="text-[10px] font-mono" style={{ color: DIM }}>unicorns up since flag</div>
+                <div className="text-xs font-medium mb-0.5" style={{ color: "oklch(0.85 0.005 264)" }}>Flagged before $1B</div>
+                <div className="text-[10px] font-mono" style={{ color: DIM }}>subsequently crossed $1B</div>
               </div>
             </div>
+            <p className="text-[10px] font-mono mb-5 leading-relaxed" style={{ color: DIM }}>
+              {analytics.signal.lead_time_definition ??
+                "Lead time measures the timestamped portfolio entry to the first subsequent press-verified round at or above $1B."}
+            </p>
             {analytics.signal.marquee.length > 0 && (
               <div className="pt-4 border-t" style={{ borderColor: BORDER }}>
                 <div className="text-[10px] font-mono uppercase tracking-widest mb-2" style={{ color: DIM }}>Marquee picks · flagged → today</div>

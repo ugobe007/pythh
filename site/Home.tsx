@@ -138,7 +138,9 @@ interface SignalProof {
   unicorns_now: number;
   tier_500m_now: number;
   unicorn_hit_rate_pct: number;
+  caught_early_unicorns: number;
   median_lead_months: number | null;
+  lead_time_definition?: string;
   marquee: { name: string; current_valuation_usd: number }[];
 }
 
@@ -158,9 +160,9 @@ function SignalProofBar() {
   const proof = useSignalProof();
   if (!proof || !proof.unicorns_now) return null;
   const stats = [
-    { value: `${proof.unicorns_now}`, label: "unicorns flagged", sub: "now worth $1B+", color: CYAN },
-    { value: `${proof.unicorn_hit_rate_pct}%`, label: "unicorn hit rate", sub: `${proof.flagged} companies flagged`, color: CYAN },
-    { value: proof.median_lead_months != null ? `${proof.median_lead_months}mo` : "—", label: "median lead time", sub: "before today's valuation", color: G },
+    { value: `${proof.flagged}`, label: "trackable picks", sub: "with verified valuations", color: CYAN },
+    { value: `${proof.caught_early_unicorns}`, label: "flagged before $1B", sub: "subsequently crossed $1B", color: CYAN },
+    { value: proof.median_lead_months != null ? `${proof.median_lead_months}mo` : "—", label: "median lead to $1B", sub: "flag → first verified $1B round", color: G },
     { value: `${proof.tier_500m_now}`, label: "flagged ≥ $500M", sub: "and climbing", color: G },
   ];
   return (
@@ -191,6 +193,13 @@ function SignalProofBar() {
             ))}
           </p>
         )}
+        <p className="text-[10px] font-mono mt-3 leading-relaxed" style={{ color: DIM }}>
+          Lead time measures the timestamped Pythh entry to the first subsequent press-verified round at or above $1B;
+          only companies flagged below $1B before that crossing are included.{" "}
+          <a href="/methodology" className="underline hover:no-underline" style={{ color: G }}>
+            Review methodology
+          </a>
+        </p>
       </div>
     </section>
   );
@@ -995,6 +1004,7 @@ function AgentIntroSection() {
 
 function LiveSignalsSection() {
   const { ref, isVisible } = useIntersectionObserver();
+  const proof = useSignalProof();
   const [activeSector, setActiveSector] = useState("All");
   const filtered = activeSector === "All" ? INVESTOR_SIGNALS : INVESTOR_SIGNALS.filter((s) => s.sector === activeSector);
 
@@ -1012,7 +1022,10 @@ function LiveSignalsSection() {
               Real-time signal intelligence.
             </h2>
             <p className="text-base max-w-lg" style={{ color: "oklch(0.6 0.01 264)" }}>
-              PYTHIA monitors 40+ behavioral dimensions — from LP updates to check-size changes — 6 to 18 months before major funding events.
+              PYTHIA monitors 40+ behavioral dimensions, from LP updates to check-size changes.
+              {proof?.median_lead_months != null && proof.caught_early_unicorns > 0
+                ? ` In the public portfolio, ${proof.caught_early_unicorns} companies were flagged below $1B before a subsequent verified unicorn round, with a ${proof.median_lead_months}-month median lead.`
+                : " Measured lead-time results are published in the portfolio track record."}
             </p>
           </div>
           <FilterTabs
@@ -1110,7 +1123,7 @@ function ScienceSection() {
               Math, not magic.
             </h2>
             <p className="text-lg leading-relaxed mb-6" style={{ color: "oklch(0.6 0.01 264)" }}>
-              A single data point is noise. A sequence of signals is a pattern. PYTHIA detects patterns across 40+ behavioral dimensions — 6 to 18 months before major funding events.
+              A single data point is noise. A sequence of signals is a pattern. PYTHIA tests those patterns against timestamped portfolio entries and subsequent verified funding outcomes.
             </p>
             <p className="text-base leading-relaxed" style={{ color: "oklch(0.55 0.01 264)" }}>
               Her scoring engine combines timing intelligence, thesis alignment, and peer-weighted optics into a single, actionable signal — so she knows exactly who to approach and when.

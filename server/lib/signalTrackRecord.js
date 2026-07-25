@@ -44,12 +44,20 @@ async function computeSignalTrackRecord(supabase) {
   if (posRes.error) throw new Error(posRes.error.message);
   if (evRes.error) throw new Error(evRes.error.message);
 
-  // Latest plausible verified round per startup → current market valuation.
+  // Verified rounds per startup support both latest valuation and a dated
+  // first crossing of the $1B threshold.
   const currentByStartup = new Map();
+  const eventsByStartup = new Map();
   for (const e of evRes.data || []) {
     const pm = Number(e.post_money_usd);
     if (pm > 0 && pm <= MAX_PLAUSIBLE_VALUATION_USD) {
       currentByStartup.set(e.startup_id, Math.max(currentByStartup.get(e.startup_id) || 0, pm));
+      const eventMs = new Date(e.event_date).getTime();
+      if (Number.isFinite(eventMs)) {
+        const events = eventsByStartup.get(e.startup_id) || [];
+        events.push({ post_money_usd: pm, event_date: e.event_date, event_ms: eventMs });
+        eventsByStartup.set(e.startup_id, events);
+      }
     }
   }
 
@@ -63,13 +71,21 @@ async function computeSignalTrackRecord(supabase) {
     );
     if (!(current > 0)) continue;
     const flagVal = Number(p.entry_valuation_usd) || 0;
+    const flagMs = p.entry_date ? new Date(p.entry_date).getTime() : NaN;
+    const firstUnicornEvent = (eventsByStartup.get(p.startup_id) || [])
+      .filter((e) => e.post_money_usd >= TIER_1B && Number.isFinite(flagMs) && e.event_ms >= flagMs)
+      .sort((a, b) => a.event_ms - b.event_ms)[0] || null;
     records.push({
       startup_id: p.startup_id,
       status: p.status,
       first_flag_date: p.entry_date || null,
       first_flag_valuation_usd: flagVal,
       current_valuation_usd: current,
-      lead_months: monthsBetween(p.entry_date, now),
+      age_since_flag_months: monthsBetween(p.entry_date, now),
+      first_unicorn_event_date: firstUnicornEvent?.event_date || null,
+      lead_months_to_unicorn: firstUnicornEvent
+        ? monthsBetween(p.entry_date, firstUnicornEvent.event_ms)
+        : null,
       stepped_up: flagVal > 0 && current > flagVal * 1.05,
       multiple: flagVal > 0 ? current / flagVal : null,
     });
@@ -80,7 +96,9 @@ async function computeSignalTrackRecord(supabase) {
   const tier500 = records.filter((r) => r.current_valuation_usd >= TIER_500M);
   const tier100 = records.filter((r) => r.current_valuation_usd >= TIER_100M);
   const steppedUp = records.filter((r) => r.stepped_up);
-  const caughtEarlyUnicorns = unicorns.filter((r) => r.stepped_up);
+  const caughtEarlyUnicorns = unicorns.filter(
+    (r) => r.first_flag_valuation_usd < TIER_1B && r.lead_months_to_unicorn != null
+  );
 
   // Marquee proof: biggest current valuations with a REAL sourced entry (not the $12M
   // placeholder) and a believable multiple (≤ cap) — keeps the proof sheet bulletproof.
@@ -101,11 +119,15 @@ async function computeSignalTrackRecord(supabase) {
     first_flag_valuation_usd: round(m.first_flag_valuation_usd),
     current_valuation_usd: round(m.current_valuation_usd),
     multiple: m.multiple != null ? round(m.multiple, 2) : null,
-    lead_months: m.lead_months,
+    first_unicorn_event_date: m.first_unicorn_event_date,
+    lead_months: m.lead_months_to_unicorn,
     status: m.status,
   }));
 
-  const leadMonths = unicorns.map((r) => r.lead_months).filter((n) => n != null).sort((a, b) => a - b);
+  const leadMonths = caughtEarlyUnicorns
+    .map((r) => r.lead_months_to_unicorn)
+    .filter((n) => n != null)
+    .sort((a, b) => a - b);
   const medianLeadMonths = leadMonths.length ? leadMonths[Math.floor(leadMonths.length / 2)] : null;
 
   return {
@@ -117,8 +139,9 @@ async function computeSignalTrackRecord(supabase) {
     stepped_up_after_flag: steppedUp.length, // appreciated since we flagged them (real foresight)
     caught_early_unicorns: caughtEarlyUnicorns.length, // ≥$1B now AND appreciated since flag
     median_lead_months: medianLeadMonths,
+    lead_time_definition: 'First Pythh flag to the first subsequent press-verified funding round at or above $1B; median includes only companies flagged below $1B before that crossing.',
     marquee,
-    note: `The Oracle has flagged ${flagged} companies now trackable by a verified valuation; ${unicorns.length} are worth ≥ $1B today (${flagged ? round((unicorns.length / flagged) * 100, 1) : 0}% unicorn hit rate) and ${tier500.length} ≥ $500M. ${caughtEarlyUnicorns.length} of the unicorns appreciated AFTER we first flagged them — timestamped foresight, not hindsight. First-flag dates trace to the upload timestamp; current valuations to press-verified rounds.`,
+    note: `The Oracle has flagged ${flagged} companies now trackable by a verified valuation; ${unicorns.length} are worth ≥ $1B today and ${tier500.length} ≥ $500M. ${caughtEarlyUnicorns.length} were flagged below $1B before a subsequent press-verified round crossed $1B. First-flag dates trace to timestamped portfolio entries; milestone dates and valuations trace to verified funding rounds.`,
   };
 }
 

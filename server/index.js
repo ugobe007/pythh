@@ -1689,6 +1689,7 @@ app.get('/api/signal-proof', async (req, res) => {
       unicorn_hit_rate_pct: s.unicorn_hit_rate_pct,
       median_lead_months: s.median_lead_months,
       caught_early_unicorns: s.caught_early_unicorns,
+      lead_time_definition: s.lead_time_definition,
       marquee: (s.marquee || []).slice(0, 6).map((m) => ({ name: m.name, current_valuation_usd: m.current_valuation_usd })),
     });
   } catch (err) {
