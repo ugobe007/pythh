@@ -51,7 +51,11 @@ function applyCleanPortfolioMetrics(metrics, positions = [], outcomeEvents = [])
 
   const exits = clean.filter((p) => {
     const event = firstVerifiedExitById.get(p.id);
-    return event && event.eventMs >= entryMsById.get(p.id);
+    return (
+      ['exited', 'acquired', 'ipo'].includes(p.status) &&
+      event &&
+      event.eventMs >= entryMsById.get(p.id)
+    );
   });
   const wins = new Set([...fundedIds, ...exits.map((p) => p.id)]);
   const total = clean.length;

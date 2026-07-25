@@ -105,6 +105,7 @@ async function computeSignalTrackRecord(supabase) {
   // placeholder) and a believable multiple (≤ cap) — keeps the proof sheet bulletproof.
   const marqueeRaw = [...tier500]
     .filter((r) => r.lead_months_to_unicorn != null)
+    .filter((r) => r.first_flag_valuation_usd > 0 && r.first_flag_valuation_usd < TIER_1B)
     .filter((r) => r.first_flag_valuation_usd > 0 && r.first_flag_valuation_usd !== SEED_PLACEHOLDER_USD)
     .filter((r) => r.multiple == null || r.multiple <= PER_POSITION_MOIC_CAP)
     .sort((a, b) => b.current_valuation_usd - a.current_valuation_usd)
