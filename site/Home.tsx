@@ -114,7 +114,9 @@ function usePlatformStats() {
 
 interface PortfolioHeadlineMetrics {
   all_picks?: number;
+  excluded_picks?: number;
   quarantined_picks?: number;
+  entered_late_picks?: number;
   verified_funded_picks?: number;
   verified_funded_rate_pct?: number;
   funded_picks?: number;
@@ -143,7 +145,13 @@ interface SignalProof {
   caught_early_unicorns: number;
   median_lead_months: number | null;
   lead_time_definition?: string;
-  marquee: { name: string; current_valuation_usd: number }[];
+  marquee: {
+    startup_id: string;
+    name: string;
+    current_valuation_usd: number;
+    first_flag_valuation_usd?: number;
+    lead_months?: number | null;
+  }[];
 }
 
 function useSignalProof() {
@@ -708,20 +716,19 @@ function InvestorStrip() {
 // ─── Portfolio Teaser ─────────────────────────────────────────────────────────
 
 interface PortfolioPick {
-  id: string;
   startup_id: string;
-  startup_name: string;
-  primary_sector?: string | null;
-  current_god_score?: number;
-  entry_god_score: number;
-  status: string;
-  moic?: number | null;
+  name: string;
+  current_valuation_usd?: number | null;
+  first_flag_valuation_usd?: number | null;
+  lead_months?: number | null;
 }
 
 interface PortfolioMetrics {
   all_picks?: number;
   total_picks: number;
+  excluded_picks?: number;
   quarantined_picks?: number;
+  entered_late_picks?: number;
   active_picks: number;
   successful_exits?: number;
   acquisitions?: number;
@@ -740,12 +747,12 @@ function PortfolioTeaser() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/portfolio?sort=god&limit=8&status=active&lite=1").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/signal-proof").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/portfolio/metrics").then((r) => (r.ok ? r.json() : null)),
     ])
-      .then(([listData, metricsData]) => {
-        const entries = (listData?.entries ?? []) as PortfolioPick[];
-        setPicks(entries.filter((e) => e.status === "active").slice(0, 4));
+      .then(([proofData, metricsData]) => {
+        const entries = (proofData?.marquee ?? []) as PortfolioPick[];
+        setPicks(entries.filter((e) => e.startup_id && e.current_valuation_usd && e.lead_months != null).slice(0, 4));
         setMetrics(metricsData?.metrics ?? null);
       })
       .catch(() => {});
@@ -767,13 +774,13 @@ function PortfolioTeaser() {
               </span>
             </div>
             <h2 className="font-display font-bold text-2xl lg:text-3xl text-white mb-2">
-              {metrics ? `${metrics.total_picks} audit-ready picks. Outcomes tracked in public.` : "The Oracle's Picks"}
+              {metrics ? `${metrics.total_picks} forward-test picks. Outcomes tracked in public.` : "The Oracle's Picks"}
             </h2>
             <p className="text-sm leading-relaxed max-w-xl" style={{ color: "oklch(0.55 0.01 264)" }}>
               Pythh used its scoring system to allocate virtual capital across {metrics?.all_picks ?? metrics?.total_picks ?? 114} startup candidates.
               No real money was invested. We track subsequent funding rounds and acquisitions against
               the original selections as a public, forward-looking test of signal quality.
-              {metrics?.quarantined_picks ? ` ${metrics.quarantined_picks} ambiguous records are quarantined and excluded from every headline result.` : ""}
+              {metrics?.excluded_picks ? ` Headline results exclude ${metrics.excluded_picks} records: ${metrics.quarantined_picks ?? 0} ambiguous entities and ${metrics.entered_late_picks ?? 0} selections logged after an outcome was already knowable.` : ""}
             </p>
           </div>
           {metrics && (
@@ -782,7 +789,7 @@ function PortfolioTeaser() {
                 { n: metrics.verified_funded_picks ?? 0, l: "verified funded", highlight: true },
                 { n: metrics.acquisitions ?? metrics.successful_exits ?? 0, l: "acquired", highlight: true },
                 { n: metrics.funded_picks ?? 0, l: "funding detected" },
-                { n: metrics.total_picks, l: "audit-ready picks" },
+                { n: metrics.total_picks, l: "forward-test picks" },
               ].map(({ n, l, highlight }) => (
                 <div key={l} className="text-center lg:text-right">
                   <div
@@ -801,9 +808,12 @@ function PortfolioTeaser() {
         {picks.length > 0 ? (
           <div className={`grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 transition-all duration-700 delay-150 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             {picks.map((pick) => {
-              const god = pick.current_god_score ?? pick.entry_god_score;
+              const current = Number(pick.current_valuation_usd) || 0;
+              const valuation = current >= 1_000_000_000
+                ? `$${(current / 1_000_000_000).toFixed(current % 1_000_000_000 === 0 ? 0 : 1)}B`
+                : `$${Math.round(current / 1_000_000)}M`;
               return (
-                <Link key={pick.id} href={`/portfolio/${pick.startup_id}`}>
+                <Link key={pick.startup_id} href={`/portfolio/${pick.startup_id}`}>
                   <div
                     className="p-4 rounded-xl h-full cursor-pointer transition-all"
                     style={{ backgroundColor: "oklch(0.15 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
@@ -811,13 +821,15 @@ function PortfolioTeaser() {
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "oklch(0.22 0.01 264)"; }}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <span className="text-sm font-semibold text-white truncate">{pick.startup_name}</span>
-                      <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: godScoreColor(god) }}>{god}</span>
+                      <span className="text-sm font-semibold text-white truncate">{pick.name}</span>
+                      <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: G }}>{valuation}</span>
                     </div>
                     <p className="text-xs truncate mb-3" style={{ color: "oklch(0.45 0.01 264)" }}>
-                      {pick.primary_sector ?? "Multi-sector"}
+                      Press-verified valuation
                     </p>
-                    <span className="text-[10px] font-mono uppercase" style={{ color: G }}>Active pick</span>
+                    <span className="text-[10px] font-mono uppercase" style={{ color: G }}>
+                      Flagged before milestone{pick.lead_months != null ? ` · ${pick.lead_months}mo lead` : ""}
+                    </span>
                   </div>
                 </Link>
               );

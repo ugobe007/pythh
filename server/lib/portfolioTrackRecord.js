@@ -23,13 +23,19 @@ function roundPct(num, den) {
 }
 
 function applyCleanPortfolioMetrics(metrics, positions = [], fundingEvents = []) {
-  const clean = positions.filter((p) => !p.entity_quarantined);
+  const clean = positions.filter((p) => !p.entity_quarantined && !p.entered_late);
   const cleanIds = new Set(clean.map((p) => p.id).filter(Boolean));
+  const entryMsById = new Map(
+    clean.map((p) => [p.id, p.entry_date ? new Date(p.entry_date).getTime() : NaN])
+  );
   const fundedIds = new Set();
   const verifiedFundedIds = new Set();
 
   for (const event of fundingEvents) {
     if (!event.portfolio_id || !cleanIds.has(event.portfolio_id)) continue;
+    const eventMs = event.event_date ? new Date(event.event_date).getTime() : NaN;
+    const entryMs = entryMsById.get(event.portfolio_id);
+    if (!Number.isFinite(eventMs) || !Number.isFinite(entryMs) || eventMs < entryMs) continue;
     fundedIds.add(event.portfolio_id);
     if (event.verified) verifiedFundedIds.add(event.portfolio_id);
   }
@@ -42,7 +48,9 @@ function applyCleanPortfolioMetrics(metrics, positions = [], fundingEvents = [])
     ...metrics,
     all_picks: positions.length,
     total_picks: total,
-    quarantined_picks: positions.length - total,
+    excluded_picks: positions.length - total,
+    quarantined_picks: positions.filter((p) => p.entity_quarantined).length,
+    entered_late_picks: positions.filter((p) => p.entered_late).length,
     active_picks: clean.filter((p) => p.status === 'active').length,
     successful_exits: exits.length,
     acquisitions: clean.filter((p) => p.status === 'acquired').length,

@@ -104,6 +104,7 @@ async function computeSignalTrackRecord(supabase) {
   // Marquee proof: biggest current valuations with a REAL sourced entry (not the $12M
   // placeholder) and a believable multiple (≤ cap) — keeps the proof sheet bulletproof.
   const marqueeRaw = [...tier500]
+    .filter((r) => r.lead_months_to_unicorn != null)
     .filter((r) => r.first_flag_valuation_usd > 0 && r.first_flag_valuation_usd !== SEED_PLACEHOLDER_USD)
     .filter((r) => r.multiple == null || r.multiple <= PER_POSITION_MOIC_CAP)
     .sort((a, b) => b.current_valuation_usd - a.current_valuation_usd)
@@ -115,6 +116,7 @@ async function computeSignalTrackRecord(supabase) {
     for (const r of names || []) nameMap.set(r.id, r.name);
   }
   const marquee = marqueeRaw.map((m) => ({
+    startup_id: m.startup_id,
     name: nameMap.get(m.startup_id) || 'Unknown',
     first_flag_date: m.first_flag_date ? m.first_flag_date.slice(0, 10) : null,
     first_flag_valuation_usd: round(m.first_flag_valuation_usd),

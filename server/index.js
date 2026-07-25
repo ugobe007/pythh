@@ -1690,7 +1690,13 @@ app.get('/api/signal-proof', async (req, res) => {
       median_lead_months: s.median_lead_months,
       caught_early_unicorns: s.caught_early_unicorns,
       lead_time_definition: s.lead_time_definition,
-      marquee: (s.marquee || []).slice(0, 6).map((m) => ({ name: m.name, current_valuation_usd: m.current_valuation_usd })),
+      marquee: (s.marquee || []).slice(0, 6).map((m) => ({
+        startup_id: m.startup_id,
+        name: m.name,
+        current_valuation_usd: m.current_valuation_usd,
+        first_flag_valuation_usd: m.first_flag_valuation_usd,
+        lead_months: m.lead_months,
+      })),
     });
   } catch (err) {
     console.error('[signal-proof]', err.message);
@@ -9825,10 +9831,13 @@ app.get('/api/portfolio', async (req, res) => {
     const status = req.query.status || null;
     const sort = String(req.query.sort || 'god').toLowerCase();
     const lite = req.query.lite === '1' || req.query.lite === 'true';
+    const excludeQuarantined =
+      req.query.exclude_quarantined === '1' || req.query.exclude_quarantined === 'true';
 
     let query = supabase.from('portfolio_health').select('*').limit(limit);
 
     if (status) query = query.eq('status', status);
+    if (excludeQuarantined) query = query.eq('entity_quarantined', false);
 
     if (sort === 'health') {
       query = query
@@ -9868,8 +9877,8 @@ app.get('/api/portfolio/metrics', async (req, res) => {
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
-      supabase.from('virtual_portfolio').select('id, status, entity_quarantined, virtual_check_usd'),
-      supabase.from('portfolio_events').select('portfolio_id, verified').eq('event_type', 'funding_round'),
+      supabase.from('virtual_portfolio').select('id, status, entry_date, entity_quarantined, entered_late, virtual_check_usd'),
+      supabase.from('portfolio_events').select('portfolio_id, event_date, verified').eq('event_type', 'funding_round'),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
     if (positionsRes.error) return res.status(500).json({ error: positionsRes.error.message });

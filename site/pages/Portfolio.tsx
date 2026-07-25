@@ -53,7 +53,9 @@ interface PortfolioEntry {
 interface PortfolioMetrics {
   all_picks?: number;
   total_picks: number;
+  excluded_picks?: number;
   quarantined_picks?: number;
+  entered_late_picks?: number;
   active_picks: number;
   successful_exits: number;
   acquisitions: number;
@@ -524,9 +526,9 @@ export default function Portfolio() {
         },
         {
           value: String(metrics.total_picks ?? 0),
-          label: "Audit-ready picks",
-          sub: metrics.quarantined_picks
-            ? `${metrics.all_picks ?? metrics.total_picks} selected · ${metrics.quarantined_picks} excluded`
+          label: "Forward-test picks",
+          sub: metrics.excluded_picks
+            ? `${metrics.all_picks ?? metrics.total_picks} selected · ${metrics.excluded_picks} excluded`
             : `${metrics.active_picks ?? 0} active`,
         },
         {
