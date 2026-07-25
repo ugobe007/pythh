@@ -21,6 +21,7 @@ import InstantMatchPreview from "@/components/InstantMatchPreview";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import { fetchGrowthAssignment } from "@/lib/growthExperiment";
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
+import { useAuth } from "@/_core/hooks/useAuth";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -258,6 +259,7 @@ function MatchesUrlEntry({
 
 export default function Matches() {
   const [location, navigate] = useLocation();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [missingUrlParam, setMissingUrlParam] = useState(false);
@@ -284,6 +286,11 @@ export default function Matches() {
     }
   }, [location]);
 
+  useEffect(() => {
+    if (authLoading || isAuthenticated || !previewUrl) return;
+    navigate(`/signup/founder?intent=matches&url=${encodeURIComponent(previewUrl)}`);
+  }, [authLoading, isAuthenticated, navigate, previewUrl]);
+
   const submitPreviewUrl = async (raw: string) => {
     const normalized = normalizePreviewUrl(raw);
     if (!normalized) {
@@ -293,7 +300,11 @@ export default function Matches() {
     setUrlEntryError(false);
     const assignment = await fetchGrowthAssignment('founder').catch(() => null);
     trackUrlSubmitted(normalized, 'matches_landing', assignment);
-    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
+    navigate(
+      isAuthenticated
+        ? `/matches?url=${encodeURIComponent(normalized)}`
+        : `/signup/founder?intent=matches&url=${encodeURIComponent(normalized)}`,
+    );
   };
 
   const { data: stats, isLoading } = trpc.matches.getStats.useQuery(undefined, {
@@ -322,7 +333,7 @@ export default function Matches() {
           content={
             previewUrl
               ? 'Live investor shortlist ranked by sector fit, stage, and thesis alignment. Request intros with a free account.'
-              : `Paste your startup URL and see ranked investor matches in ~60 seconds. ${total > 0 ? `${total.toLocaleString()} active matches` : 'Thousands of matches'} in the Pythh network — free, no signup required.`
+              : `Paste your startup URL and see ranked investor matches in ~60 seconds. ${total > 0 ? `${total.toLocaleString()} active matches` : 'Thousands of matches'} in the Pythh network — free account required.`
           }
         />
         <meta

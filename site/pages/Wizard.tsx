@@ -627,7 +627,6 @@ export default function Wizard() {
       </div>
       <div className="flex-1 px-4 py-8 max-w-2xl mx-auto w-full">
         <div className="mb-6">
-          <GodScoreExplainer score={godScore} compact />
           <div className="flex items-center gap-2 mb-1 mt-3">
             <Sparkles className="w-4 h-4 text-emerald-400" />
             <h1 className="text-lg font-bold" style={{ color: "oklch(0.94 0.005 264)" }}>
@@ -635,8 +634,7 @@ export default function Wizard() {
             </h1>
           </div>
           <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>
-            Copy & send emails below · readiness & automation are optional
-            {unlockSummary ? ` · GOD ${unlockSummary.current_god_score}/100` : ""}
+            Your personalized drafts are ready to copy and send.
           </p>
         </div>
 
@@ -647,7 +645,7 @@ export default function Wizard() {
           </div>
         )}
 
-        {showWelcome && (
+        {showWelcome && activeTab !== "round" && (
           <WizardActivationBanner
             startupName={startupName}
             gapCount={unlockSummary?.total_tasks ?? gapTasks.length}
@@ -659,7 +657,7 @@ export default function Wizard() {
           />
         )}
 
-        <div
+        {activeTab !== "round" && <div
           className="flex gap-0.5 mb-6 rounded-xl p-1"
           style={{ backgroundColor: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.2 0.01 264)" }}
         >
@@ -677,7 +675,7 @@ export default function Wizard() {
               {tab.label}
             </button>
           ))}
-        </div>
+        </div>}
 
         {activeTab === "commitments" && (
           <div className="space-y-4">

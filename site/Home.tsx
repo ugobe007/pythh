@@ -32,6 +32,7 @@ import {
   HERO_PRIMARY_CTA,
 } from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   ArrowRight,
   ExternalLink,
@@ -340,6 +341,7 @@ function HeroSection({
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     loadHeroExperiments()
@@ -368,7 +370,11 @@ function HeroSection({
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
-    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
+    navigate(
+      isAuthenticated
+        ? `/matches?url=${encodeURIComponent(normalized)}`
+        : `/signup/founder?intent=matches&url=${encodeURIComponent(normalized)}`,
+    );
   };
 
   const matchCount = platformStats?.matches ?? 0;

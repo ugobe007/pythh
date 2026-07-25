@@ -254,7 +254,7 @@ export default function OutreachPackage({
             className="text-base font-bold text-white"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           >
-            Step 1 · Your email drafts
+            Your outreach drafts
           </h3>
           {isProvisional && (
             <span
@@ -289,17 +289,6 @@ export default function OutreachPackage({
         </>
       )}
 
-      <p className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.35)' }}>
-        Step 3: Track responses from your{' '}
-        {startupId ? (
-          <a href={`/activate?startup_id=${encodeURIComponent(startupId)}`} className="underline" style={{ color: '#22d3ee' }}>
-            investor match list
-          </a>
-        ) : (
-          <span>investor match list</span>
-        )}
-        {' '}· or automate outreach with Oracle below.
-      </p>
     </div>
   );
 }

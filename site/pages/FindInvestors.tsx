@@ -17,6 +17,7 @@ import {
   trackHeroUrlSubmitted,
 } from '@/lib/heroHeadlineExperiment';
 import type { GrowthAssignment } from '@/lib/growthExperiment';
+import { useAuth } from '@/_core/hooks/useAuth';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -35,6 +36,7 @@ type ThesisSpotlight = {
 
 export default function FindInvestors() {
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [spotlight, setSpotlight] = useState<ThesisSpotlight | null>(null);
@@ -79,7 +81,11 @@ export default function FindInvestors() {
     setError(false);
     trackUrlSubmitted(normalized, 'find_investors_landing', entryExperiment);
     trackHeroUrlSubmitted(normalized, 'find_investors_landing', headlineExperiment);
-    navigate(`/matches?url=${encodeURIComponent(normalized)}`);
+    navigate(
+      isAuthenticated
+        ? `/matches?url=${encodeURIComponent(normalized)}`
+        : `/signup/founder?intent=matches&url=${encodeURIComponent(normalized)}`,
+    );
   };
 
   return (
@@ -91,7 +97,7 @@ export default function FindInvestors() {
         <title>Find investors for your startup — free match preview — Pythh</title>
         <meta
           name="description"
-          content="First-time founder? No investor network? Paste your startup URL and see ranked VC and angel matches in ~60 seconds — free, no signup."
+          content="First-time founder? No investor network? Paste your startup URL and create a free account to see ranked VC and angel matches in ~60 seconds."
         />
         <meta
           name="keywords"

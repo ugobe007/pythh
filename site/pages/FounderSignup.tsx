@@ -49,6 +49,7 @@ export default function FounderSignup() {
       readQueryParam('startupId'),
   );
   const fromGate = gate.pending && Boolean(gate.action);
+  const fromMatchGate = readQueryParam('intent') === 'matches' && Boolean(url);
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
   const oauthReturnPath = buildFounderGateOAuthReturnPath(startupId, url);
@@ -101,6 +102,10 @@ export default function FounderSignup() {
       if (startupId) {
         const post = postSignupPathForAction('save', startupId);
         navigate(`${post}&welcome=1`);
+        return;
+      }
+      if (url) {
+        navigate(`/matches?url=${encodeURIComponent(url)}`);
         return;
       }
       navigate('/account?welcome=1');
@@ -223,8 +228,14 @@ export default function FounderSignup() {
     }
   };
 
-  const headline = fromGate ? 'Continue to investor outreach' : 'Start your autonomous raise';
-  const subline = fromGate
+  const headline = fromMatchGate
+    ? 'See your top five investor matches'
+    : fromGate
+      ? 'Continue to investor outreach'
+      : 'Start your autonomous raise';
+  const subline = fromMatchGate
+    ? 'Create your free account to view your matches. No credit card required.'
+    : fromGate
     ? gateLabel
       ? `Create your account to ${gateLabel}. Your outreach drafts open next; signal improvements remain optional.`
       : "Create your account to save these matches and open investor outreach."
@@ -268,7 +279,7 @@ export default function FounderSignup() {
             {subline}
           </p>
 
-          {fromGate && url && (
+          {(fromGate || fromMatchGate) && url && (
             <div
               className="mb-4 px-4 py-3 rounded-lg text-xs text-center"
               style={{
@@ -277,16 +288,16 @@ export default function FounderSignup() {
                 color: 'oklch(0.85 0.05 162.48)',
               }}
             >
-              Matches loaded for {url.replace(/^https?:\/\//, '').split('/')[0]}
+              Analyzing {url.replace(/^https?:\/\//, '').split('/')[0]}
             </div>
           )}
 
-          {fromGate && (
+          {(fromGate || fromMatchGate) && (
             <div className="grid gap-3 mb-6 text-left">
               {[
-                { icon: Target, label: 'Your matches saved', detail: 'Keep the five investors you just reviewed.' },
-                { icon: Activity, label: 'Outreach opens next', detail: 'Review investor-specific email drafts immediately.' },
-                { icon: Bell, label: 'Improve signals later', detail: 'Readiness guidance stays available after signup, but never blocks outreach.' },
+                { icon: Target, label: 'Five investor matches', detail: 'Ranked for your startup, stage, and sector.' },
+                { icon: Activity, label: 'Outreach drafts included', detail: 'Open investor-specific emails after reviewing your matches.' },
+                { icon: Bell, label: 'Free account', detail: 'Improve signals or add automation later, only if you want to.' },
               ].map(({ icon: Icon, label, detail }) => (
                 <div
                   key={label}
@@ -303,7 +314,7 @@ export default function FounderSignup() {
             </div>
           )}
 
-          {!fromGate && (
+          {!fromGate && !fromMatchGate && (
             <div className="grid gap-3 mb-6 text-left">
               {[
                 { icon: Target, label: 'Your raise plan', detail: 'Readiness gaps, qualified investors, and recommended campaign.' },
@@ -376,7 +387,7 @@ export default function FounderSignup() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    {fromGate ? 'Continue with email' : 'Sign up with email'}
+                    {fromGate || fromMatchGate ? 'Continue with email' : 'Sign up with email'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -391,7 +402,7 @@ export default function FounderSignup() {
             <span className="flex items-center gap-1.5">
               <CheckCircle2 size={11} style={{ color: 'oklch(0.696 0.17 162.48)' }} /> Free to copy & send
             </span>
-            {fromGate && (
+            {(fromGate || fromMatchGate) && (
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 size={11} style={{ color: 'oklch(0.696 0.17 162.48)' }} /> Matches stay saved
               </span>

@@ -229,7 +229,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
     <div className="space-y-6">
       {/* Clear workflow — what to do NOW */}
       <div
-        className="rounded-xl p-5"
+        className="hidden rounded-xl p-5"
         style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.08)", border: "1px solid oklch(0.696 0.17 162.48 / 0.3)" }}
       >
         <p className="text-[10px] font-semibold tracking-widest mb-3" style={{ color: "#22c55e" }}>
@@ -301,14 +301,42 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
           startupWebsite={displayWebsite}
           investors={outreach.investors!}
           emailDrafts={outreach.email_drafts || []}
-          memoMarkdown={outreach.memo_markdown || null}
+          memoMarkdown={null}
           isProvisional={outreach.is_provisional ?? true}
         />
       )}
 
-      {/* Optional readiness — sell the upside, not a checklist chore */}
+      {hasDrafts && (
+        <div className="grid sm:grid-cols-2 gap-3 pt-2">
+          <button
+            type="button"
+            disabled={unlockNavigating}
+            onClick={() => void handleGoBackToUnlocks()}
+            className="rounded-xl px-4 py-4 text-left transition disabled:opacity-60"
+            style={{ background: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
+          >
+            <span className="block text-[10px] font-semibold tracking-widest mb-1" style={{ color: "#a855f7" }}>OPTIONAL</span>
+            <span className="block text-sm font-semibold" style={{ color: "oklch(0.9 0.005 264)" }}>
+              Improve my signals →
+            </span>
+          </button>
+          <Link href={gate.pipeline_active ? `/activate?sid=${startupId}&pipeline=1` : "/pricing"}>
+            <span
+              className="block rounded-xl px-4 py-4 text-left transition"
+              style={{ background: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
+            >
+              <span className="block text-[10px] font-semibold tracking-widest mb-1 text-emerald-400">OPTIONAL</span>
+              <span className="block text-sm font-semibold" style={{ color: "oklch(0.9 0.005 264)" }}>
+                {gate.pipeline_active ? "Track automated outreach →" : "Automate outreach →"}
+              </span>
+            </span>
+          </Link>
+        </div>
+      )}
+
+      {/* Detailed readiness remains available from the optional action above. */}
       <div
-        className="rounded-xl overflow-hidden"
+        className="hidden rounded-xl overflow-hidden"
         style={{
           background: `linear-gradient(135deg, oklch(0.14 0.02 280) 0%, oklch(0.12 0.01 264) 100%)`,
           border: `1px solid ${readinessScore >= outreachThreshold ? "oklch(0.696 0.17 162.48 / 0.35)" : "oklch(0.22 0.02 280 / 0.5)"}`,
@@ -473,20 +501,22 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
       </div>
 
       {/* Campaign quota + upgrade path */}
-      <CampaignQuotaBanner
-        quota={quota}
-        onUpgradeClick={() => {
-          void trackFunnelEvent("pricing_cta_clicked", {
-            source: "outreach_campaign_quota",
-            startup_id: startupId,
-            plan: quota?.plan,
-          });
-        }}
-      />
+      <div className="hidden">
+        <CampaignQuotaBanner
+          quota={quota}
+          onUpgradeClick={() => {
+            void trackFunnelEvent("pricing_cta_clicked", {
+              source: "outreach_campaign_quota",
+              startup_id: startupId,
+              plan: quota?.plan,
+            });
+          }}
+        />
+      </div>
 
       {/* Step 4 — Automate (paid) */}
       <div
-        className="rounded-xl p-5"
+        className="hidden rounded-xl p-5"
         style={{
           backgroundColor: gate.pipeline_ready || gate.pipeline_active ? "oklch(0.696 0.17 162.48 / 0.06)" : "oklch(0.12 0.01 264)",
           border: `1px solid ${gate.pipeline_ready || gate.pipeline_active ? "oklch(0.696 0.17 162.48 / 0.25)" : "oklch(0.2 0.01 264)"}`,

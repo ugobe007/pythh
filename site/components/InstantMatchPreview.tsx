@@ -534,9 +534,9 @@ export default function InstantMatchPreview({ url }: Props) {
       )}
 
       <div className="mb-8 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-center">
-        <p className="text-sm font-medium text-white mb-1">Next: save these matches and open outreach</p>
+        <p className="text-sm font-medium text-white mb-1">Your five matches are ready</p>
         <p className="text-xs text-zinc-400">
-          Signal improvement guidance becomes available after signup and will not block this shortlist.
+          Open personalized outreach drafts next. Signal improvements remain optional.
         </p>
       </div>
 
@@ -546,7 +546,7 @@ export default function InstantMatchPreview({ url }: Props) {
       >
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-400 text-center sm:text-left max-w-md">
-            Step 3 of 3 · choose whether to continue
+            {isAuthenticated ? 'Five matches saved to your Pythh account' : 'Create a free account to save these matches'}
           </p>
           <div className="w-full sm:w-auto flex items-center gap-3">
             <button
@@ -561,7 +561,7 @@ export default function InstantMatchPreview({ url }: Props) {
               onClick={() => void handleSignup('save')}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
             >
-              {isAuthenticated ? 'Start investor outreach' : primaryCta}
+              {isAuthenticated ? 'Open my outreach drafts' : primaryCta}
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
