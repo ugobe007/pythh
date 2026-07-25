@@ -119,6 +119,7 @@ interface PortfolioHeadlineMetrics {
   total_picks?: number;
   active_picks?: number;
   successful_exits?: number;
+  acquisitions?: number;
 }
 
 function usePortfolioHeadlineMetrics() {
@@ -485,26 +486,26 @@ function HeroSection({
           {platformStatsReady && startupCount > 0 ? (
             <>
               {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped
-              {portfolioMetrics?.verified_funded_picks != null && (
-                <>
-                  {" · "}
-                  <span style={{ color: G }}>
-                    {portfolioMetrics.verified_funded_picks} verified funded
-                    {portfolioMetrics.verified_funded_rate_pct != null
-                      ? ` (${portfolioMetrics.verified_funded_rate_pct}%)`
-                      : ""}
-                  </span>
-                </>
-              )}
-              {" · "}
-              <a href="/portfolio" className="underline hover:no-underline" style={{ color: G }}>
-                See track record
-              </a>
             </>
           ) : (
             <span className="inline-block h-3 w-56 max-w-full rounded animate-pulse mx-auto" style={{ backgroundColor: "oklch(0.2 0.01 264)" }} />
           )}
         </p>
+        {portfolioMetrics?.total_picks != null && portfolioMetrics.verified_funded_picks != null && (
+          <a
+            href="/portfolio"
+            className="inline-flex flex-wrap items-center justify-center gap-x-1.5 text-xs mt-3 underline hover:no-underline"
+            style={{ color: G }}
+          >
+            <span>Public proof:</span>
+            <span>{portfolioMetrics.total_picks} virtual picks</span>
+            <span aria-hidden>·</span>
+            <span>{portfolioMetrics.verified_funded_picks} verified funded</span>
+            <span aria-hidden>·</span>
+            <span>{portfolioMetrics.acquisitions ?? portfolioMetrics.successful_exits ?? 0} acquired</span>
+            <ArrowRight size={12} aria-hidden />
+          </a>
+        )}
         {platformStatsReady && startupCount > 0 && investorCount > 0 && (
           <p className="text-[10px] leading-relaxed mt-2 mx-auto max-w-[62ch]" style={{ color: DIM }}>
             Live platform totals: scored companies · mapped investor profiles · pre-computed startup–investor pairings.
@@ -1477,11 +1478,11 @@ export default function Home() {
       <SharedNavbar activePath="/" variant="hero" />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <LiveMatchHighlight />
+      <PortfolioTeaser />
       <HowItWorksSection />
       <ReadinessMemoSection />
       <SignalProofBar />
       <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
-      <PortfolioTeaser />
       <GODScoreSection />
       <AgentIntroSection />
       <LiveSignalsSection />
