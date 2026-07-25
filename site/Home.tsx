@@ -46,7 +46,6 @@ import {
   Target,
   CheckCircle2,
   Zap,
-  Shield,
   ChevronRight,
   Database,
   FileText,
@@ -452,16 +451,19 @@ function HeroSection({
 
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 w-full px-7 py-3.5 rounded-lg text-sm font-semibold transition-all shadow-lg shadow-emerald-950/25"
+            className="inline-flex items-center justify-center gap-2 w-full px-7 py-3.5 rounded-lg text-sm font-semibold transition-colors"
             style={{
-              backgroundColor: G,
-              color: "oklch(0.1 0.01 162)",
+              backgroundColor: "transparent",
+              border: `1px solid ${G}`,
+              color: G,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = G_HOVER;
+              e.currentTarget.style.borderColor = G_HOVER;
+              e.currentTarget.style.color = G_HOVER;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = G;
+              e.currentTarget.style.borderColor = G;
+              e.currentTarget.style.color = G;
             }}
           >
             {HERO_PRIMARY_CTA}
@@ -527,8 +529,8 @@ const HOW_IT_WORKS_STEPS = [
     num: "03",
     icon: FileText,
     accent: G_HOVER,
-    title: "Build your term sheet",
-    body: "Acknowledge tasks, set deadlines, submit proof. Your commitment doc becomes an investment memo — ready to send to matched investors.",
+    title: "Build your investor memo",
+    body: "Acknowledge tasks, set deadlines, and submit proof. Your readiness plan becomes an investor-ready memo for matched investors.",
   },
 ] as const;
 
@@ -558,7 +560,7 @@ function HowItWorksSection() {
   );
 }
 
-function TermSheetSection() {
+function ReadinessMemoSection() {
   const [, navigate] = useLocation();
   const commitments = [
     { task: "Add a technical co-founder", status: "completed", impact: "+18 GOD pts", component: "Team" },
@@ -584,13 +586,13 @@ function TermSheetSection() {
             New — Commitment Wizard
           </span>
           <h2 className="font-display font-bold text-2xl sm:text-3xl leading-tight mb-4" style={{ color: TEXT, letterSpacing: "-0.03em" }}>
-            Pythh builds your term sheet — aligned with your investor profiles.
+            Turn readiness gaps into an investor-ready memo.
           </h2>
           <p className="text-sm leading-relaxed mb-4" style={{ color: MUTED }}>
-            After matching, the wizard analyzes your GOD score gaps and gives you a prioritized list of what to fix. You acknowledge each task, set a deadline, and submit proof.
+            After matching, the wizard explains your Grit, Opportunity, and Determination score gaps and gives you a prioritized list of what to fix. You acknowledge each task, set a deadline, and submit proof.
           </p>
           <p className="text-sm leading-relaxed mb-6" style={{ color: MUTED }}>
-            When tasks are complete, your commitment document upgrades from provisional to a full investment memo you can send to matched investors.
+            As you complete the work, your readiness document becomes a concise investment memo tailored to the theses of your matched investors.
           </p>
           <button
             type="button"
@@ -654,8 +656,8 @@ function InvestorStrip() {
           </div>
 
           <p className="flex-1 text-sm leading-relaxed" style={{ color: "oklch(0.58 0.01 264)" }}>
-            Automate dealflow and portfolio management: query 11,000+ scored startups,
-            pick up to 10 for a tracked virtual portfolio, and connect MCP for agent-native
+            Automate dealflow and portfolio management: query the live scored-startup network,
+            select companies for a tracked virtual portfolio, and connect MCP for agent-native
             workflow. Sync to Carta, Smartsheet, and Standard Metrics — coming soon.
           </p>
 
@@ -957,7 +959,7 @@ function AgentIntroSection() {
               PYTHIA is the oracle at the core of Pythh — named for the high priestess of Delphi who saw the future before anyone else. She runs your entire fundraising pipeline — from identifying the right investors to booking confirmed meetings — without you lifting a finger.
             </p>
             <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
-              She reads your startup, maps your thesis against 5,000+ investors, drafts personalized outreach, follows up intelligently, and only surfaces a meeting request when an investor says yes. Your one job: approve and show up.
+              She reads your startup, maps your thesis against the tracked investor network, drafts personalized outreach, and prepares follow-ups. Nothing is sent without your approval.
             </p>
 
             <InlineMeta
@@ -1117,60 +1119,6 @@ function ScienceSection() {
   );
 }
 
-// ─── Testimonials ─────────────────────────────────────────────────────────────
-
-function TestimonialsSection() {
-  const testimonials = [
-    {
-      quote: "I submitted my URL on a Monday. By Wednesday, PYTHIA had already booked two investor calls. I didn't write a single email.",
-      author: "Sarah M.",
-      role: "Founder, Series A — AI Infrastructure",
-    },
-    {
-      quote: "The meeting brief PYTHIA sent before my Sequoia call was better than anything I'd prepared myself. She knew their portfolio gaps before I did.",
-      author: "James K.",
-      role: "Co-founder, Seed — Climate Tech",
-    },
-    {
-      quote: "I used to spend 40% of my time on investor research and outreach. PYTHIA does all of it. I just show up to meetings now.",
-      author: "Priya R.",
-      role: "CEO, Pre-seed — FinTech",
-    },
-  ];
-
-  return (
-    <section className="py-24 border-t" style={{ backgroundColor: "oklch(0.15 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}>
-      <div className="container">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-px w-8" style={{ backgroundColor: "oklch(0.769 0.188 70.08)" }} />
-          <span className="section-label">FOUNDER SIGNAL</span>
-        </div>
-        <h2 className="font-display font-bold mb-12" style={{ fontSize: "clamp(1.75rem, 3.5vw, 2.5rem)", color: "oklch(0.97 0.005 264)" }}>
-          Founders who let PYTHIA run the pipeline.
-        </h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
-            <div key={i} className="rounded-xl p-6 border" style={{ backgroundColor: "oklch(0.16 0.01 264)", borderColor: "oklch(0.25 0.01 264)" }}>
-              <div className="mb-4">{[...Array(5)].map((_, j) => <span key={j} style={{ color: "oklch(0.769 0.188 70.08)" }}>★</span>)}</div>
-              <blockquote className="text-sm leading-relaxed mb-6 italic" style={{ color: "oklch(0.75 0.005 264)" }}>"{t.quote}"</blockquote>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-mono-data"
-                  style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.15)", color: "oklch(0.696 0.17 162.48)", border: "1px solid oklch(0.696 0.17 162.48 / 0.3)" }}>
-                  {t.author.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-xs font-semibold" style={{ color: "oklch(0.85 0.005 264)" }}>{t.author}</p>
-                  <p className="text-xs" style={{ color: "oklch(0.5 0.01 264)" }}>{t.role}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ─── Newsletter ───────────────────────────────────────────────────────────────
 
 function NewsletterSection() {
@@ -1197,7 +1145,7 @@ function NewsletterSection() {
             <span style={{ color: "oklch(0.769 0.188 70.08)" }}>before the noise.</span>
           </h2>
           <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
-            Join 12,000+ founders receiving our weekly breakdown of VC thesis shifts, hidden capital flows, and the investors PYTHIA is watching right now.
+            Get a weekly breakdown of VC thesis shifts, hidden capital flows, and the investors PYTHIA is watching right now.
           </p>
           {submitted ? (
             <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-xl border"
@@ -1473,10 +1421,9 @@ function Footer() {
           <p className="text-xs" style={{ color: "oklch(0.35 0.01 264)" }}>
             © 2026 Pythh Capital. All rights reserved. Signals reflect investor intent and timing based on observed behavior. No guarantees. Just math.
           </p>
-          <div className="flex items-center gap-1">
-            <Shield size={12} style={{ color: "oklch(0.35 0.01 264)" }} />
-            <span className="text-xs" style={{ color: "oklch(0.35 0.01 264)" }}>SOC 2 Type II Compliant</span>
-          </div>
+          <a href="/privacy" className="text-xs underline hover:no-underline" style={{ color: "oklch(0.52 0.01 264)" }}>
+            Privacy and data practices
+          </a>
         </div>
       </div>
     </footer>
@@ -1503,18 +1450,17 @@ export default function Home() {
       <SharedNavbar activePath="/" variant="hero" />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <LiveMatchHighlight />
-      <SignalArtTeaser />
       <HowItWorksSection />
-      <TermSheetSection />
+      <ReadinessMemoSection />
       <SignalProofBar />
-      <InvestorStrip />
       <TrackRecordStrip platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <PortfolioTeaser />
       <GODScoreSection />
       <AgentIntroSection />
       <LiveSignalsSection />
       <ScienceSection />
-      <TestimonialsSection />
+      <InvestorStrip />
+      <SignalArtTeaser />
       <NewsletterSection />
       <Footer />
     </div>

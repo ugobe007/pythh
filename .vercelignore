@@ -1,9 +1,15 @@
 .git
 node_modules
+**/node_modules
+dist
+**/dist
 reports
 data
 .venv
 __pycache__
 *.log
+logs
+*.tar.gz
+playwright-report
 agent-transcripts
 .cursor

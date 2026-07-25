@@ -181,7 +181,14 @@ export default function SharedNavbar({
           </div>
 
           {/* Mobile toggle */}
-          <button className="md:hidden p-2" style={{ color: "oklch(0.6 0.01 264)" }} onClick={() => setMenuOpen(!menuOpen)}>
+          <button
+            type="button"
+            className="md:hidden p-2"
+            style={{ color: "oklch(0.68 0.01 264)" }}
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={menuOpen}
+          >
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>

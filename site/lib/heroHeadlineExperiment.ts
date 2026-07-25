@@ -16,20 +16,22 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'Automate your raise';
+export const HERO_PRIMARY_CTA = 'See my matches';
+
+const TRUSTED_HERO_SUBLINE =
+  'Paste your URL to preview investor matches and fundraising-readiness gaps. Nothing is sent without your approval.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
       headline: 'You build the company. Pythh runs the raise.',
-      subline: 'Paste your URL — Oracle qualifies investors, runs outreach, and books meetings on your behalf.',
+      subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
     headline: 'You build the company. Pythh runs the raise.',
-    subline:
-      'Submit your URL. Oracle analyzes your company, contacts fit investors, and runs outreach toward qualified meetings.',
+    subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };
 }
@@ -46,7 +48,9 @@ export function mergeHeroHeadlineCopy(
   const overlayCopy = overlay as Partial<HeroHeadlineCopy>;
   return {
     headline: overlayCopy.headline || baseCopy.headline || defaults.headline,
-    subline: overlayCopy.subline || baseCopy.subline || defaults.subline,
+    // Keep the expectation-setting copy stable; stale experiments must not
+    // reintroduce claims that outreach happens before founder approval.
+    subline: TRUSTED_HERO_SUBLINE,
     // CTA label is fixed — experiment copy must not override (avoids stale "See my matches" from DB).
     cta: HERO_PRIMARY_CTA,
   };
