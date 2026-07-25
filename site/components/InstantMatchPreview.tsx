@@ -30,7 +30,7 @@ import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } fro
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 
-const PREVIEW_LIMIT = 3;
+const PREVIEW_LIMIT = 5;
 
 type InvestorMix = 'balanced' | 'vc' | 'angel';
 

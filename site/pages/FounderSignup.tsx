@@ -284,7 +284,7 @@ export default function FounderSignup() {
           {fromGate && (
             <div className="grid gap-3 mb-6 text-left">
               {[
-                { icon: Target, label: 'Your matches saved', detail: 'Keep the three investors you just reviewed.' },
+                { icon: Target, label: 'Your matches saved', detail: 'Keep the five investors you just reviewed.' },
                 { icon: Activity, label: 'Outreach opens next', detail: 'Review investor-specific email drafts immediately.' },
                 { icon: Bell, label: 'Improve signals later', detail: 'Readiness guidance stays available after signup, but never blocks outreach.' },
               ].map(({ icon: Icon, label, detail }) => (
