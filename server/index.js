@@ -9853,20 +9853,32 @@ app.get('/api/portfolio', async (req, res) => {
 });
 
 // GET /api/portfolio/metrics — headline stats from portfolio_metrics view
-const { enrichPortfolioMetrics, computeTrackRecord } = require('./lib/portfolioTrackRecord');
+const {
+  enrichPortfolioMetrics,
+  applyCleanPortfolioMetrics,
+  computeTrackRecord,
+} = require('./lib/portfolioTrackRecord');
 
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const [metricsRes, trackRecord, totalEv, fundingEv, productEv] = await Promise.all([
+    const [metricsRes, trackRecord, totalEv, fundingEv, productEv, positionsRes, fundingRowsRes] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
       computeTrackRecord(supabase),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
+      supabase.from('virtual_portfolio').select('id, status, entity_quarantined, virtual_check_usd'),
+      supabase.from('portfolio_events').select('portfolio_id, verified').eq('event_type', 'funding_round'),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
-    const metrics = enrichPortfolioMetrics(metricsRes.data || {});
+    if (positionsRes.error) return res.status(500).json({ error: positionsRes.error.message });
+    if (fundingRowsRes.error) return res.status(500).json({ error: fundingRowsRes.error.message });
+    const metrics = applyCleanPortfolioMetrics(
+      enrichPortfolioMetrics(metricsRes.data || {}),
+      positionsRes.data || [],
+      fundingRowsRes.data || []
+    );
     metrics.verified_avg_moic = trackRecord?.oracle?.verified_avg_moic ?? null;
     metrics.headline_avg_moic = metrics.avg_moic;
     metrics.total_events = totalEv.count ?? 0;

@@ -34,7 +34,7 @@ async function computeSignalTrackRecord(supabase) {
   const [posRes, evRes] = await Promise.all([
     supabase
       .from('virtual_portfolio')
-      .select('startup_id, status, entry_date, entry_valuation_usd, current_valuation_usd, exit_valuation_usd'),
+      .select('startup_id, status, entry_date, entry_valuation_usd, current_valuation_usd, exit_valuation_usd, entity_quarantined'),
     supabase
       .from('portfolio_events')
       .select('startup_id, post_money_usd, event_date, verified')
@@ -64,6 +64,7 @@ async function computeSignalTrackRecord(supabase) {
   const now = Date.now();
   const records = [];
   for (const p of posRes.data || []) {
+    if (p.entity_quarantined) continue;
     const current = Math.max(
       currentByStartup.get(p.startup_id) || 0,
       Number(p.exit_valuation_usd) > 0 && Number(p.exit_valuation_usd) <= MAX_PLAUSIBLE_VALUATION_USD ? Number(p.exit_valuation_usd) : 0,

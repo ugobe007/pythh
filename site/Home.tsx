@@ -113,6 +113,8 @@ function usePlatformStats() {
 }
 
 interface PortfolioHeadlineMetrics {
+  all_picks?: number;
+  quarantined_picks?: number;
   verified_funded_picks?: number;
   verified_funded_rate_pct?: number;
   funded_picks?: number;
@@ -507,7 +509,7 @@ function HeroSection({
             style={{ color: G }}
           >
             <span>Public proof:</span>
-            <span>{portfolioMetrics.total_picks} virtual picks</span>
+            <span>{portfolioMetrics.all_picks ?? portfolioMetrics.total_picks} virtual picks</span>
             <span aria-hidden>·</span>
             <span>{portfolioMetrics.verified_funded_picks} verified funded</span>
             <span aria-hidden>·</span>
@@ -717,7 +719,9 @@ interface PortfolioPick {
 }
 
 interface PortfolioMetrics {
+  all_picks?: number;
   total_picks: number;
+  quarantined_picks?: number;
   active_picks: number;
   successful_exits?: number;
   acquisitions?: number;
@@ -763,12 +767,13 @@ function PortfolioTeaser() {
               </span>
             </div>
             <h2 className="font-display font-bold text-2xl lg:text-3xl text-white mb-2">
-              {metrics ? `${metrics.total_picks} algorithm-selected startups. Outcomes tracked in public.` : "The Oracle's Picks"}
+              {metrics ? `${metrics.total_picks} audit-ready picks. Outcomes tracked in public.` : "The Oracle's Picks"}
             </h2>
             <p className="text-sm leading-relaxed max-w-xl" style={{ color: "oklch(0.55 0.01 264)" }}>
-              Pythh used its scoring system to allocate virtual capital across startup candidates.
+              Pythh used its scoring system to allocate virtual capital across {metrics?.all_picks ?? metrics?.total_picks ?? 114} startup candidates.
               No real money was invested. We track subsequent funding rounds and acquisitions against
               the original selections as a public, forward-looking test of signal quality.
+              {metrics?.quarantined_picks ? ` ${metrics.quarantined_picks} ambiguous records are quarantined and excluded from every headline result.` : ""}
             </p>
           </div>
           {metrics && (
@@ -777,7 +782,7 @@ function PortfolioTeaser() {
                 { n: metrics.verified_funded_picks ?? 0, l: "verified funded", highlight: true },
                 { n: metrics.acquisitions ?? metrics.successful_exits ?? 0, l: "acquired", highlight: true },
                 { n: metrics.funded_picks ?? 0, l: "funding detected" },
-                { n: metrics.total_picks, l: "virtual picks" },
+                { n: metrics.total_picks, l: "audit-ready picks" },
               ].map(({ n, l, highlight }) => (
                 <div key={l} className="text-center lg:text-right">
                   <div

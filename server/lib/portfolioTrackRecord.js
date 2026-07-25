@@ -22,6 +22,43 @@ function roundPct(num, den) {
   return Math.round((1000 * num) / den) / 10;
 }
 
+function applyCleanPortfolioMetrics(metrics, positions = [], fundingEvents = []) {
+  const clean = positions.filter((p) => !p.entity_quarantined);
+  const cleanIds = new Set(clean.map((p) => p.id).filter(Boolean));
+  const fundedIds = new Set();
+  const verifiedFundedIds = new Set();
+
+  for (const event of fundingEvents) {
+    if (!event.portfolio_id || !cleanIds.has(event.portfolio_id)) continue;
+    fundedIds.add(event.portfolio_id);
+    if (event.verified) verifiedFundedIds.add(event.portfolio_id);
+  }
+
+  const exits = clean.filter((p) => ['exited', 'acquired', 'ipo'].includes(p.status));
+  const wins = new Set([...fundedIds, ...exits.map((p) => p.id)]);
+  const total = clean.length;
+
+  return {
+    ...metrics,
+    all_picks: positions.length,
+    total_picks: total,
+    quarantined_picks: positions.length - total,
+    active_picks: clean.filter((p) => p.status === 'active').length,
+    successful_exits: exits.length,
+    acquisitions: clean.filter((p) => p.status === 'acquired').length,
+    ipos: clean.filter((p) => p.status === 'ipo').length,
+    funded_picks: fundedIds.size,
+    funded_rate_pct: roundPct(fundedIds.size, total),
+    verified_funded_picks: verifiedFundedIds.size,
+    verified_funded_rate_pct: roundPct(verifiedFundedIds.size, total),
+    win_rate_pct: roundPct(wins.size, total),
+    total_virtual_deployed_usd: clean.reduce(
+      (sum, p) => sum + (Number(p.virtual_check_usd) || 0),
+      0
+    ),
+  };
+}
+
 function enrichPortfolioMetrics(metrics) {
   if (!metrics || typeof metrics !== 'object') return metrics || {};
   const total = Number(metrics.total_picks) || 0;
@@ -213,5 +250,6 @@ async function computeTrackRecord(supabase) {
 module.exports = {
   GOD_TIERS,
   enrichPortfolioMetrics,
+  applyCleanPortfolioMetrics,
   computeTrackRecord,
 };
