@@ -710,10 +710,13 @@ interface PortfolioMetrics {
   total_picks: number;
   active_picks: number;
   successful_exits?: number;
+  acquisitions?: number;
   funded_picks?: number;
   funded_rate_pct?: number;
   verified_funded_picks?: number;
+  verified_funded_rate_pct?: number;
   avg_moic: number | null;
+  computed_at?: string;
 }
 
 function PortfolioTeaser() {
@@ -746,25 +749,25 @@ function PortfolioTeaser() {
             <div className="flex items-center gap-2 mb-2">
               <Target size={14} style={{ color: "oklch(0.696 0.17 162.48)" }} />
               <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "oklch(0.696 0.17 162.48)" }}>
-                Virtual portfolio
+                Public proof · Virtual portfolio
               </span>
             </div>
             <h2 className="font-display font-bold text-2xl lg:text-3xl text-white mb-2">
-              The Oracle's Picks
+              {metrics ? `${metrics.total_picks} algorithm-selected startups. Outcomes tracked in public.` : "The Oracle's Picks"}
             </h2>
             <p className="text-sm leading-relaxed max-w-xl" style={{ color: "oklch(0.55 0.01 264)" }}>
-              Every startup crossing GOD 70 enters the Pythh virtual fund. We track funding rounds,
-              acquisitions, and score momentum — proof the signal engine finds winners, not hype.
+              Pythh used its scoring system to allocate virtual capital across startup candidates.
+              No real money was invested. We track subsequent funding rounds and acquisitions against
+              the original selections as a public, forward-looking test of signal quality.
             </p>
           </div>
           {metrics && (
             <div className="flex flex-wrap gap-6 lg:gap-8">
               {[
-                { n: metrics.verified_funded_picks ?? 0, l: "verified", highlight: true },
-                { n: metrics.funded_picks ?? 0, l: "signals" },
-                { n: metrics.successful_exits ?? 0, l: "exited" },
-                { n: metrics.active_picks, l: "active" },
-                { n: metrics.total_picks, l: "total picks" },
+                { n: metrics.verified_funded_picks ?? 0, l: "verified funded", highlight: true },
+                { n: metrics.acquisitions ?? metrics.successful_exits ?? 0, l: "acquired", highlight: true },
+                { n: metrics.funded_picks ?? 0, l: "funding detected" },
+                { n: metrics.total_picks, l: "virtual picks" },
               ].map(({ n, l, highlight }) => (
                 <div key={l} className="text-center lg:text-right">
                   <div
@@ -821,8 +824,11 @@ function PortfolioTeaser() {
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.78 0.17 162.48)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "oklch(0.696 0.17 162.48)"; }}
           >
-            View full portfolio <ArrowRight size={14} />
+            Audit all portfolio picks <ArrowRight size={14} />
           </a>
+          <p className="text-[10px] mt-2" style={{ color: DIM }}>
+            Funding and acquisition outcomes are linked to public evidence and update as new events are verified.
+          </p>
         </div>
       </div>
     </section>
