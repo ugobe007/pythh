@@ -9871,22 +9871,22 @@ const {
 app.get('/api/portfolio/metrics', async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const [metricsRes, trackRecord, totalEv, fundingEv, productEv, positionsRes, fundingRowsRes] = await Promise.all([
+    const [metricsRes, trackRecord, totalEv, fundingEv, productEv, positionsRes, outcomeRowsRes] = await Promise.all([
       supabase.from('portfolio_metrics').select('*').maybeSingle(),
       computeTrackRecord(supabase),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'funding_round'),
       supabase.from('portfolio_events').select('*', { count: 'exact', head: true }).eq('event_type', 'product_launch'),
       supabase.from('virtual_portfolio').select('id, status, entry_date, entity_quarantined, entered_late, virtual_check_usd'),
-      supabase.from('portfolio_events').select('portfolio_id, event_date, verified').eq('event_type', 'funding_round'),
+      supabase.from('portfolio_events').select('portfolio_id, event_type, event_date, verified').in('event_type', ['funding_round', 'acquisition', 'ipo']),
     ]);
     if (metricsRes.error) return res.status(500).json({ error: metricsRes.error.message });
     if (positionsRes.error) return res.status(500).json({ error: positionsRes.error.message });
-    if (fundingRowsRes.error) return res.status(500).json({ error: fundingRowsRes.error.message });
+    if (outcomeRowsRes.error) return res.status(500).json({ error: outcomeRowsRes.error.message });
     const metrics = applyCleanPortfolioMetrics(
       enrichPortfolioMetrics(metricsRes.data || {}),
       positionsRes.data || [],
-      fundingRowsRes.data || []
+      outcomeRowsRes.data || []
     );
     metrics.verified_avg_moic = trackRecord?.oracle?.verified_avg_moic ?? null;
     metrics.headline_avg_moic = metrics.avg_moic;

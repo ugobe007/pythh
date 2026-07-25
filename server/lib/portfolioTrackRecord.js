@@ -22,8 +22,8 @@ function roundPct(num, den) {
   return Math.round((1000 * num) / den) / 10;
 }
 
-function applyCleanPortfolioMetrics(metrics, positions = [], fundingEvents = []) {
-  const clean = positions.filter((p) => !p.entity_quarantined && !p.entered_late);
+function applyCleanPortfolioMetrics(metrics, positions = [], outcomeEvents = []) {
+  const clean = positions.filter((p) => !p.entity_quarantined);
   const cleanIds = new Set(clean.map((p) => p.id).filter(Boolean));
   const entryMsById = new Map(
     clean.map((p) => [p.id, p.entry_date ? new Date(p.entry_date).getTime() : NaN])
@@ -31,16 +31,28 @@ function applyCleanPortfolioMetrics(metrics, positions = [], fundingEvents = [])
   const fundedIds = new Set();
   const verifiedFundedIds = new Set();
 
-  for (const event of fundingEvents) {
+  const firstVerifiedExitById = new Map();
+  for (const event of outcomeEvents) {
     if (!event.portfolio_id || !cleanIds.has(event.portfolio_id)) continue;
     const eventMs = event.event_date ? new Date(event.event_date).getTime() : NaN;
     const entryMs = entryMsById.get(event.portfolio_id);
-    if (!Number.isFinite(eventMs) || !Number.isFinite(entryMs) || eventMs < entryMs) continue;
-    fundedIds.add(event.portfolio_id);
-    if (event.verified) verifiedFundedIds.add(event.portfolio_id);
+    if (!Number.isFinite(eventMs) || !Number.isFinite(entryMs)) continue;
+    if (event.event_type === 'funding_round' && eventMs >= entryMs) {
+      fundedIds.add(event.portfolio_id);
+      if (event.verified) verifiedFundedIds.add(event.portfolio_id);
+    }
+    if (event.verified && ['acquisition', 'ipo'].includes(event.event_type)) {
+      const prior = firstVerifiedExitById.get(event.portfolio_id);
+      if (!prior || eventMs < prior.eventMs) {
+        firstVerifiedExitById.set(event.portfolio_id, { eventMs, eventType: event.event_type });
+      }
+    }
   }
 
-  const exits = clean.filter((p) => ['exited', 'acquired', 'ipo'].includes(p.status));
+  const exits = clean.filter((p) => {
+    const event = firstVerifiedExitById.get(p.id);
+    return event && event.eventMs >= entryMsById.get(p.id);
+  });
   const wins = new Set([...fundedIds, ...exits.map((p) => p.id)]);
   const total = clean.length;
 
@@ -53,8 +65,8 @@ function applyCleanPortfolioMetrics(metrics, positions = [], fundingEvents = [])
     entered_late_picks: positions.filter((p) => p.entered_late).length,
     active_picks: clean.filter((p) => p.status === 'active').length,
     successful_exits: exits.length,
-    acquisitions: clean.filter((p) => p.status === 'acquired').length,
-    ipos: clean.filter((p) => p.status === 'ipo').length,
+    acquisitions: exits.filter((p) => firstVerifiedExitById.get(p.id)?.eventType === 'acquisition').length,
+    ipos: exits.filter((p) => firstVerifiedExitById.get(p.id)?.eventType === 'ipo').length,
     funded_picks: fundedIds.size,
     funded_rate_pct: roundPct(fundedIds.size, total),
     verified_funded_picks: verifiedFundedIds.size,

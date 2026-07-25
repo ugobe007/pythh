@@ -780,7 +780,7 @@ function PortfolioTeaser() {
               Pythh used its scoring system to allocate virtual capital across {metrics?.all_picks ?? metrics?.total_picks ?? 114} startup candidates.
               No real money was invested. We track subsequent funding rounds and acquisitions against
               the original selections as a public, forward-looking test of signal quality.
-              {metrics?.excluded_picks ? ` Headline results exclude ${metrics.excluded_picks} records: ${metrics.quarantined_picks ?? 0} ambiguous entities and ${metrics.entered_late_picks ?? 0} selections logged after an outcome was already knowable.` : ""}
+              {metrics?.excluded_picks ? ` Headline results exclude ${metrics.excluded_picks} ambiguous entity records. Funding and exit outcomes count only when their earliest verified event follows the timestamped Pythh entry.` : ""}
             </p>
           </div>
           {metrics && (
