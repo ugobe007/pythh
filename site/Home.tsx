@@ -400,7 +400,7 @@ function HeroSection({
           </span>
           {platformStatsReady && matchCount > 0 && (
             <p className="text-sm font-bold font-mono" style={{ color: G }}>
-              {formatMatchFull(matchCount)}+ investor matches
+              {formatMatchFull(matchCount)}+ pre-computed matches
               {matchesNew7d > 0 && (
                 <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>
                   · {formatVelocitySub(matchesNew7d)}
@@ -505,6 +505,11 @@ function HeroSection({
             <span className="inline-block h-3 w-56 max-w-full rounded animate-pulse mx-auto" style={{ backgroundColor: "oklch(0.2 0.01 264)" }} />
           )}
         </p>
+        {platformStatsReady && startupCount > 0 && investorCount > 0 && (
+          <p className="text-[10px] leading-relaxed mt-2 mx-auto max-w-[62ch]" style={{ color: DIM }}>
+            Live platform totals: scored companies · mapped investor profiles · pre-computed startup–investor pairings.
+          </p>
+        )}
       </div>
     </section>
   );
@@ -1015,8 +1020,22 @@ function LiveSignalsSection() {
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: "oklch(0.25 0.01 264)" }}>
           <div className="grid gap-4 px-6 py-3 border-b"
             style={{ gridTemplateColumns: "1fr 100px 60px 60px 60px 80px", backgroundColor: "oklch(0.17 0.01 264)", borderColor: "oklch(0.22 0.01 264)" }}>
-            {["INVESTOR / FIRM", "SIGNAL", "Δ", "GOD", "VC++", ""].map((h) => (
-              <span key={h} className="section-label">{h}</span>
+            {[
+              { label: "INVESTOR / FIRM" },
+              { label: "SIGNAL", title: "Investor deployment timing, scored from 0 to 10" },
+              { label: "Δ", title: "Recent change in the investor's signal score" },
+              { label: "GOD", title: "Investment-readiness score of the matched opportunity" },
+              { label: "VC++", title: "Investor optics based on network and portfolio signals" },
+              { label: "" },
+            ].map(({ label, title }, index) => (
+              <span
+                key={`${label}-${index}`}
+                className="section-label"
+                title={title}
+                aria-label={title ? `${label}: ${title}` : undefined}
+              >
+                {label}
+              </span>
             ))}
           </div>
           {filtered.map((inv, i) => (
@@ -1043,8 +1062,10 @@ function LiveSignalsSection() {
               </div>
             </div>
           ))}
-          <div className="px-6 py-4 flex items-center justify-between" style={{ backgroundColor: "oklch(0.17 0.01 264)" }}>
-            <p className="text-xs" style={{ color: "oklch(0.45 0.01 264)" }}>Signal = timing · GOD = investment readiness · VC++ = investor optics</p>
+          <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ backgroundColor: "oklch(0.17 0.01 264)" }}>
+            <p className="text-xs leading-relaxed" style={{ color: MUTED }}>
+              Signal = deployment timing (0–10) · Δ = recent movement · GOD = opportunity readiness · VC++ = investor network optics
+            </p>
             <a href="/investors" className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>
               See full rankings <ChevronRight size={12} />
             </a>
@@ -1458,7 +1479,6 @@ export default function Home() {
       <GODScoreSection />
       <AgentIntroSection />
       <LiveSignalsSection />
-      <ScienceSection />
       <InvestorStrip />
       <SignalArtTeaser />
       <NewsletterSection />
