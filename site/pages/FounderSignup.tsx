@@ -52,7 +52,10 @@ export default function FounderSignup() {
   const fromMatchGate = readQueryParam('intent') === 'matches' && Boolean(url);
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
-  const oauthReturnPath = buildFounderGateOAuthReturnPath(startupId, url);
+  const oauthReturnPath =
+    fromMatchGate && url
+      ? `/matches?url=${encodeURIComponent(url)}`
+      : buildFounderGateOAuthReturnPath(startupId, url);
 
   const [email, setEmail] = useState(() => sessionStorage.getItem('pythia_email') || '');
   const [error, setError] = useState('');
@@ -229,12 +232,12 @@ export default function FounderSignup() {
   };
 
   const headline = fromMatchGate
-    ? 'See your top five investor matches'
+    ? 'Your five investor matches are ready'
     : fromGate
       ? 'Continue to investor outreach'
       : 'Start your autonomous raise';
   const subline = fromMatchGate
-    ? 'Create your free account to view your matches. No credit card required.'
+    ? 'Sign in once to view and save them. Your free account also includes five personalized outreach drafts.'
     : fromGate
     ? gateLabel
       ? `Create your account to ${gateLabel}. Your outreach drafts open next; signal improvements remain optional.`
@@ -288,11 +291,11 @@ export default function FounderSignup() {
                 color: 'oklch(0.85 0.05 162.48)',
               }}
             >
-              Analyzing {url.replace(/^https?:\/\//, '').split('/')[0]}
+              Matches ready for {url.replace(/^https?:\/\//, '').split('/')[0]}
             </div>
           )}
 
-          {(fromGate || fromMatchGate) && (
+          {fromGate && !fromMatchGate && (
             <div className="grid gap-3 mb-6 text-left">
               {[
                 { icon: Target, label: 'Five investor matches', detail: 'Ranked for your startup, stage, and sector.' },

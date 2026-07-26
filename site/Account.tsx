@@ -362,7 +362,7 @@ function AdminAccountPanel({ userName }: { userName: string | null }) {
         <Link href="/admin/outreach">
           <button
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all"
-            style={{ backgroundColor: "oklch(0.55 0.2 25)", color: "#fff", border: "1px solid oklch(0.65 0.2 25)" }}
+            style={{ backgroundColor: "oklch(0.696 0.17 162.48)", color: "#05110c", border: "1px solid oklch(0.76 0.16 162.48)" }}
           >
             <Send size={15} />
             Outreach
