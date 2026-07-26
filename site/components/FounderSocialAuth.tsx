@@ -9,7 +9,6 @@ import {
   buildSupabaseOAuthRedirectUrl,
   clearStaleOAuthKeys,
   markOAuthHandoff,
-  waitForPkceVerifier,
 } from '@/lib/supabaseOAuth';
 
 type Provider = 'google' | 'github';
@@ -49,7 +48,6 @@ export default function FounderSocialAuth({ returnPath, disabled, onError }: Fou
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error('OAuth redirect URL missing');
       markOAuthHandoff();
-      await waitForPkceVerifier(2000);
       window.location.href = data.url;
     } catch (err) {
       const msg = err instanceof Error ? err.message : `Failed to sign in with ${provider}`;

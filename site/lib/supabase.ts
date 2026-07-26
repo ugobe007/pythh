@@ -30,7 +30,8 @@ function getSyncCredentials(): { url: string; key: string } | null {
 }
 
 const authConfig = {
-  flowType: "pkce" as const,
+  // One browser return avoids the PKCE callback racing the application session.
+  flowType: "implicit" as const,
   persistSession: true,
   autoRefreshToken: true,
   detectSessionInUrl: true,

@@ -9,7 +9,6 @@ import {
   clearStaleOAuthKeys,
   isOAuthHandoffActive,
   markOAuthHandoff,
-  waitForPkceVerifier,
 } from "@/lib/supabaseOAuth";
 
 function getPostLoginPath(): string {
@@ -110,7 +109,6 @@ export default function Login() {
       if (oauthErr) throw oauthErr;
       if (!data?.url) throw new Error("OAuth redirect URL missing");
       markOAuthHandoff();
-      await waitForPkceVerifier(2000);
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to sign in with ${provider}`);

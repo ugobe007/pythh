@@ -386,19 +386,14 @@ export function isOAuthHandoffActive(): boolean {
   return true;
 }
 
-/**
- * Redirect target for Supabase OAuth (must be in Supabase redirect allow list).
- * Complete OAuth on the server so the provider code exchange and Pythh session
- * cookie are created before the founder returns to the application. The SPA
- * bridge remains only as a fallback when the server cannot exchange the code.
- */
+/** Redirect target for the single-return browser OAuth flow. */
 export function buildSupabaseOAuthRedirectUrl(returnPath?: string): string {
   const next = returnPath && returnPath.startsWith("/") ? returnPath : "/account";
   if (typeof sessionStorage !== "undefined") {
     sessionStorage.setItem("pythh_post_login", next);
   }
   persistOAuthStartCookies(next);
-  return `${window.location.origin}/api/auth/supabase/callback?next=${encodeURIComponent(next)}`;
+  return `${window.location.origin}/account?next=${encodeURIComponent(next)}`;
 }
 
 export function readPostLoginPath(): string {
