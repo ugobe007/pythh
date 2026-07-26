@@ -41,13 +41,11 @@ export function mergeHeroHeadlineCopy(
   headlineAssignment: GrowthAssignment | null,
 ): HeroHeadlineCopy {
   const previewFirst = entryAssignment?.schema?.entry === 'url_with_preview';
-  const base = (entryAssignment?.copy ?? {}) as Partial<HeroHeadlineCopy>;
-  const overlay = (headlineAssignment?.copy ?? {}) as Partial<HeroHeadlineCopy>;
   const defaults = defaultHeroCopy(previewFirst);
-  const baseCopy = base as Partial<HeroHeadlineCopy>;
-  const overlayCopy = overlay as Partial<HeroHeadlineCopy>;
   return {
-    headline: overlayCopy.headline || baseCopy.headline || defaults.headline,
+    // Keep the public promise stable. Historical growth experiments remain
+    // useful for attribution, but must not overwrite the approved homepage.
+    headline: defaults.headline,
     // Keep the expectation-setting copy stable; stale experiments must not
     // reintroduce claims that outreach happens before founder approval.
     subline: TRUSTED_HERO_SUBLINE,
