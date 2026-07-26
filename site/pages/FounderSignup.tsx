@@ -52,7 +52,10 @@ export default function FounderSignup() {
   // OAuth providers and older callbacks can drop the optional `intent` query
   // parameter. A URL without a saved-startup action is sufficient to resume
   // the pre-match signup flow.
-  const fromMatchGate = Boolean(url) && !startupId && !fromGate;
+  // A URL-only signup always belongs to the pre-match funnel. Ignore any
+  // older gated action left in sessionStorage; it must not skip founders
+  // directly into outreach after Google returns.
+  const fromMatchGate = Boolean(url) && !startupId;
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
   const oauthReturnPath =
