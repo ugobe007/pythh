@@ -49,7 +49,10 @@ export default function FounderSignup() {
       readQueryParam('startupId'),
   );
   const fromGate = gate.pending && Boolean(gate.action);
-  const fromMatchGate = readQueryParam('intent') === 'matches' && Boolean(url);
+  // OAuth providers and older callbacks can drop the optional `intent` query
+  // parameter. A URL without a saved-startup action is sufficient to resume
+  // the pre-match signup flow.
+  const fromMatchGate = Boolean(url) && !startupId && !fromGate;
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
   const oauthReturnPath =
@@ -66,7 +69,7 @@ export default function FounderSignup() {
     const pendingGate = peekFounderGatePending();
     if (!isOAuthHandoffActive() && !pendingGate.pending) {
       oauthHandledRef.current = true;
-      navigate('/account');
+      navigate(url ? `/matches?url=${encodeURIComponent(url)}` : '/account');
       return;
     }
 
