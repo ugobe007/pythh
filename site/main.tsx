@@ -59,8 +59,9 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-function mountApp() {
-  void Promise.all([bootstrapSupabase(), bootstrapOAuthFromHash()]);
+async function mountApp() {
+  await bootstrapSupabase();
+  await bootstrapOAuthFromHash();
 
   createRoot(document.getElementById("root")!).render(
     <HelmetProvider>

@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { TRPCClientError } from "@trpc/client";
 import { trpc } from "@/lib/trpc";
-import { supabase, hasValidSupabaseCredentials } from "@/lib/supabase";
+import {
+  supabase,
+  bootstrapSupabase,
+  hasValidSupabaseCredentials,
+} from "@/lib/supabase";
 import {
   clearOAuthHandoff,
   completeSupabaseOAuthIfNeeded,
@@ -61,31 +65,40 @@ export function OAuthSessionBridge() {
   const syncSession = trpc.auth.syncSupabaseSession.useMutation();
 
   useEffect(() => {
-    if (!supabase || !hasValidSupabaseCredentials()) return;
+    let cancelled = false;
 
-    const shouldRun =
-      hasOAuthReturnInUrl() ||
-      isOAuthHandoffActive() ||
-      new URLSearchParams(window.location.search).has("oauth_handoff");
+    const completeHandoff = async () => {
+      const ready = await bootstrapSupabase();
+      if (cancelled || !ready || !supabase || !hasValidSupabaseCredentials()) return;
 
-    if (!shouldRun) return;
-    if (inflight.current) return;
-    inflight.current = true;
-    markOAuthHandoff();
+      const shouldRun =
+        hasOAuthReturnInUrl() ||
+        isOAuthHandoffActive() ||
+        new URLSearchParams(window.location.search).has("oauth_handoff");
 
-    const sync = async (input: { access_token: string }) => {
-      const result = await syncSession.mutateAsync(input);
-      return { user: result.user };
-    };
+      if (!shouldRun || inflight.current) return;
+      inflight.current = true;
+      markOAuthHandoff();
 
-    void finishOAuth(sync, utils)
-      .catch((err) => {
+      const sync = async (input: { access_token: string }) => {
+        const result = await syncSession.mutateAsync(input);
+        return { user: result.user };
+      };
+
+      try {
+        await finishOAuth(sync, utils);
+      } catch (err) {
         publishOAuthError(trpcMessage(err));
         clearOAuthHandoff();
-      })
-      .finally(() => {
+      } finally {
         inflight.current = false;
-      });
+      }
+    };
+
+    void completeHandoff();
+    return () => {
+      cancelled = true;
+    };
   }, [syncSession, utils]);
 
   return null;
