@@ -22,6 +22,7 @@ import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import { fetchGrowthAssignment } from "@/lib/growthExperiment";
 import { getUtmParams, trackReturnVisitIfEligible, trackUrlSubmitted } from "@/lib/funnelAttribution";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { isOAuthHandoffActive } from "@/lib/supabaseOAuth";
 // ─── Shared nav ───────────────────────────────────────────────────────────────
 
 
@@ -288,6 +289,9 @@ export default function Matches() {
 
   useEffect(() => {
     if (authLoading || isAuthenticated || !previewUrl) return;
+    // The OAuth callback may arrive before auth.me observes the newly-set
+    // session cookie. Never bounce an active handoff back to the signup panel.
+    if (isOAuthHandoffActive()) return;
     navigate(`/signup/founder?intent=matches&url=${encodeURIComponent(previewUrl)}`);
   }, [authLoading, isAuthenticated, navigate, previewUrl]);
 

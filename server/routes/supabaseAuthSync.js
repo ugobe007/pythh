@@ -130,6 +130,15 @@ async function establishPythhSession(req, res, accessToken) {
 }
 
 function mountSupabaseAuthSync(app) {
+  function oauthBridgePath(nextPath) {
+    if (nextPath === '/account') return '/account?oauth_handoff=1';
+    const params = new URLSearchParams({
+      oauth_handoff: '1',
+      next: nextPath,
+    });
+    return `/account?${params.toString()}`;
+  }
+
   /** Primary OAuth return URL — exchange PKCE code on server, set cookie, redirect. */
   app.get('/api/auth/supabase/callback', async (req, res) => {
     const oauthErr =
@@ -188,7 +197,10 @@ function mountSupabaseAuthSync(app) {
         if (!error && data?.session?.access_token) {
           await establishPythhSession(req, res, data.session.access_token);
           clearPkceCookie(res, req);
-          return res.redirect(302, nextPath);
+          // Let the account bridge confirm auth.me before entering a protected
+          // destination. Going straight to /matches can race the first session
+          // read and bounce the founder back to the signup screen.
+          return res.redirect(302, oauthBridgePath(nextPath));
         }
         console.error(
           '[auth/supabase/callback] server exchange:',
