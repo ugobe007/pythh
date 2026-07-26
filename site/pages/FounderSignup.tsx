@@ -55,7 +55,8 @@ export default function FounderSignup() {
   // A URL-only signup always belongs to the pre-match funnel. Ignore any
   // older gated action left in sessionStorage; it must not skip founders
   // directly into outreach after Google returns.
-  const fromMatchGate = Boolean(url) && !startupId;
+  const fromMatchGate =
+    readQueryParam('intent') === 'matches' || (Boolean(url) && !startupId);
   const gateAction = gate.action as FounderGatedAction | null;
   const gateLabel = gateAction ? FOUNDER_GATE_ACTION_LABELS[gateAction] : null;
   const oauthReturnPath =
@@ -81,6 +82,15 @@ export default function FounderSignup() {
       const pendingGate = peekFounderGatePending();
       const userEmail = user?.email ?? sessionStorage.getItem('pythia_email') ?? '';
       if (userEmail) sessionStorage.setItem('pythia_email', userEmail);
+
+      // The explicit pre-match funnel always wins over a saved startup action.
+      // URL analysis may already have created a startupId, but that must not
+      // skip the founder directly into outreach after authentication.
+      if (fromMatchGate && url) {
+        if (pendingGate.pending) consumeFounderGatePending();
+        navigate(`/matches?url=${encodeURIComponent(url)}`);
+        return;
+      }
 
       if (pendingGate.pending && startupId) {
         const { action: consumedAction } = consumeFounderGatePending();
@@ -121,7 +131,7 @@ export default function FounderSignup() {
     };
 
     void finishAuth();
-  }, [authLoading, isAuthenticated, navigate, startupId, url, gateAction, user?.email]);
+  }, [authLoading, isAuthenticated, navigate, startupId, url, gateAction, fromMatchGate, user?.email]);
 
   const trackDirectSignup = async () => {
     if (startedRef.current) return;
