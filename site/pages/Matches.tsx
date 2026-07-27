@@ -261,10 +261,18 @@ function MatchesUrlEntry({
 export default function Matches() {
   const [location, navigate] = useLocation();
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [missingUrlParam, setMissingUrlParam] = useState(false);
-  const [urlEntryError, setUrlEntryError] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(
+    () => readMatchesSearchState().highlightId,
+  );
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    () => readMatchesSearchState().previewUrl,
+  );
+  const [missingUrlParam, setMissingUrlParam] = useState(
+    () => readMatchesSearchState().missingUrlParam,
+  );
+  const [urlEntryError, setUrlEntryError] = useState(
+    () => readMatchesSearchState().missingUrlParam,
+  );
 
   useEffect(() => {
     const state = readMatchesSearchState();
@@ -320,6 +328,31 @@ export default function Matches() {
   const topScore = stats?.topScore ?? 1650;
   const recentCount = stats?.recentCount ?? 0;
   const sectors = stats?.sectors ?? [];
+
+  if (
+    previewUrl &&
+    (authLoading || (!isAuthenticated && isOAuthHandoffActive()))
+  ) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ backgroundColor: "oklch(0.09 0.01 264)", color: "oklch(0.9 0.01 264)" }}
+      >
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto mb-6 h-12 w-12 rounded-full border-2 border-zinc-800 border-t-emerald-400 animate-spin" />
+          <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">
+            Preparing your shortlist
+          </p>
+          <h1 className="text-2xl font-bold text-white mb-2">
+            Confirming your account
+          </h1>
+          <p className="text-sm text-zinc-500">
+            Your five investor matches will open automatically.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -54,8 +54,49 @@ type PreviewMatch = {
     name?: string;
     firm?: string | null;
     sectors?: string[] | null;
+    stage?: string | string[] | null;
+    check_size_min?: number | null;
+    check_size_max?: number | null;
+    investor_tier?: string | null;
   };
 };
+
+function formatCheckSize(value?: number | null): string | null {
+  if (value == null || !Number.isFinite(Number(value))) return null;
+  const amount = Number(value);
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1 })}M`;
+  if (amount >= 1_000) return `$${Math.round(amount / 1_000).toLocaleString()}K`;
+  return `$${amount.toLocaleString()}`;
+}
+
+function investorBriefing(match: PreviewMatch): {
+  focus: string;
+  stage: string;
+  check: string;
+  lead: string;
+} {
+  const investor = match.investor;
+  const sectors = Array.isArray(investor?.sectors)
+    ? investor.sectors.filter(Boolean).slice(0, 3).join(', ')
+    : '';
+  const stage = Array.isArray(investor?.stage)
+    ? investor.stage.filter(Boolean).join(', ')
+    : String(investor?.stage || '');
+  const min = formatCheckSize(investor?.check_size_min);
+  const max = formatCheckSize(investor?.check_size_max);
+  const check = min && max ? `${min}–${max}` : min || max || 'Confirm before outreach';
+  const why = normalizeWhyYouMatch(match.why_you_match);
+  const lead = why
+    ? why.split(/\s*[·•]\s*|\n+/).filter(Boolean)[0]
+    : 'Lead with the strongest evidence connecting your company to their thesis.';
+
+  return {
+    focus: sectors || 'Broad technology investor',
+    stage: stage || 'Confirm current stage preference',
+    check,
+    lead,
+  };
+}
 
 type ShortlistMix = {
   mode?: string;
@@ -479,17 +520,19 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="space-y-3 mb-6">
         {visible.map((m, i) => {
           const inv = m.investor;
+          const briefing = investorBriefing(m);
           return (
             <div
               key={inv?.id || i}
-              className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center gap-3 ${
+              className={`p-5 rounded-xl border ${
                 i === 0
                   ? 'border-emerald-500/40 bg-emerald-500/5'
                   : 'border-zinc-800 bg-zinc-900/40'
               }`}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono text-zinc-500">#{i + 1}</span>
                   {i === 0 && (
                     <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
@@ -510,17 +553,44 @@ export default function InstantMatchPreview({ url }: Props) {
                   <span className="text-white font-medium truncate">
                     {formatInvestorDisplayLabel(inv?.name, inv?.firm)}
                   </span>
+                  </div>
                 </div>
-                <p className="text-xs text-zinc-400 mt-1 line-clamp-2">
-                  {m.why_you_match
-                    ? normalizeWhyYouMatch(m.why_you_match)
-                    : 'Aligned by sector, stage, and investment thesis.'}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
                 {typeof m.match_score === 'number' && (
                   <span className="text-sm font-mono text-cyan-400">{Math.round(m.match_score)}% fit</span>
                 )}
+              </div>
+
+              <MatchExplainBlock
+                startupId={preview.startup?.id || startupId || 'preview'}
+                investorId={m.investor_id || inv?.id}
+                investorName={formatInvestorDisplayLabel(inv?.name, inv?.firm)}
+                whyYouMatch={
+                  m.why_you_match ||
+                  'Aligned by sector, stage, and investment thesis.'
+                }
+                matchScore={m.match_score}
+                rank={i}
+                source="instant_match_preview"
+              />
+
+              <div className="mt-4 pt-4 border-t border-zinc-800/80">
+                <p className="text-[10px] uppercase tracking-[1.5px] text-zinc-500 mb-3">
+                  Founder briefing
+                </p>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-[10px] text-zinc-600 mb-1">Investment focus</p>
+                    <p className="text-xs text-zinc-300">{briefing.focus}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-600 mb-1">Stage · typical check</p>
+                    <p className="text-xs text-zinc-300">{briefing.stage} · {briefing.check}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-600 mb-1">What to lead with</p>
+                    <p className="text-xs text-zinc-300 line-clamp-2">{briefing.lead}</p>
+                  </div>
+                </div>
               </div>
             </div>
           );
