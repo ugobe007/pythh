@@ -31,6 +31,7 @@ import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
+import PitchEventRecommendations from '@/components/PitchEventRecommendations';
 
 const PREVIEW_LIMIT = 5;
 
@@ -746,6 +747,13 @@ export default function InstantMatchPreview({ url }: Props) {
           +{(total - visible.length).toLocaleString()} more qualified investors available as you build your shortlist
         </p>
       )}
+
+      <PitchEventRecommendations
+        startupId={preview.startup?.id || startupId || undefined}
+        startupName={startupName}
+        sectors={preview.startup?.sectors}
+        stage={preview.startup?.stage}
+      />
 
       <div className="mb-8 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-center">
         <p className="text-sm font-medium text-white mb-1">Your five matches are ready</p>
