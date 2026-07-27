@@ -22,6 +22,7 @@ import {
   tierColor, tierLabel, moicColor, deltaColor, godScoreColor, signalScoreColor,
 } from "@/lib/designTokens";
 import { parseDate, fetchJson } from "@/lib/dataFetch";
+import { safeExternalUrl } from "@/lib/safeUrl";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PortfolioEntry {
@@ -310,9 +311,9 @@ export default function PortfolioDetail() {
                   : { text: "" },
               ]}
             />
-            {entry.website && (
+            {safeExternalUrl(entry.website) && (
               <a
-                href={entry.website}
+                href={safeExternalUrl(entry.website)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs font-mono transition-colors"

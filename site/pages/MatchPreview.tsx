@@ -14,6 +14,7 @@ import { pinActiveStartup } from '@/lib/activeStartupContext';
 import { getUtmParams, trackReturnVisitIfEligible } from '@/lib/funnelAttribution';
 import PreviewEmailCapture from '@/components/PreviewEmailCapture';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
+import { founderSignupPath } from '@/lib/safeUrl';
 
 interface Investor {
   id: string;
@@ -130,8 +131,8 @@ export default function MatchPreview() {
     }
     if (startupUrl) sessionStorage.setItem('pythia_url', startupUrl);
     pinActiveStartup(startup.id, startupUrl, startup.name);
-    await trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id, investor });
-    navigate(`/signup/founder?startup_id=${encodeURIComponent(startup.id)}`);
+    void trackFounderGateStarted(action, { url: startupUrl, startupId: startup.id, investor });
+    navigate(founderSignupPath({ startupId: startup.id, url: startupUrl }));
   };
 
   const openPeterPanel = (investor?: GatedInvestorContext | null) => {

@@ -17,6 +17,7 @@ import {
   tierColor, tierLabel, moicColor, signalScoreColor,
 } from "@/lib/designTokens";
 import { parseDate, fetchJson } from "@/lib/dataFetch";
+import { safeExternalUrl } from "@/lib/safeUrl";
 
 type HealthTier = "core" | "watch" | "review" | "exited";
 
@@ -362,9 +363,9 @@ function PortfolioRow({ entry }: { entry: PortfolioEntry }) {
             )}
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
-            {entry.website && (
+            {safeExternalUrl(entry.website) && (
               <a
-                href={entry.website}
+                href={safeExternalUrl(entry.website)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 transition-colors"

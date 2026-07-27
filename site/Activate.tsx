@@ -17,6 +17,7 @@ import { isRaisePlanAuthorized } from "@/lib/oracleRaisePlan";
 import { downloadInvestorProfilesMarkdown } from "@/lib/investorProfilesExport";
 import { createFounderAccount, fetchInstantResults, sendFounderWelcomeEmail } from "@/lib/founderAccount";
 import { normalizeWhyYouMatch } from "@/lib/normalizeWhyYouMatch";
+import { activatePath } from "@/lib/safeUrl";
 import {
   consumeFounderGatePending,
   consumePostSignupPath,
@@ -233,7 +234,7 @@ function isWelcomeReturnFromUrl(): boolean {
 
 function buildResultsShareUrl(startupId: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://pythh.ai";
-  return `${origin}/activate?sid=${encodeURIComponent(startupId)}`;
+  return `${origin}${activatePath(startupId)}`;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {

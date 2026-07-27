@@ -165,7 +165,7 @@ export function LatestMatchSnippet({
   const style = size === "hero" ? heroCardStyle : cardStyle;
   return (
     <Link
-      href={`/matches?highlight=${encodeURIComponent(match.match_id)}`}
+      href={match.startup_id ? `/startup/${encodeURIComponent(match.startup_id)}` : "/rankings"}
       className="block rounded-xl transition-all group"
       style={style}
     >
@@ -204,7 +204,7 @@ export function LatestMatchSnippet({
         className="text-[10px] font-mono mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
         style={{ color: G }}
       >
-        View on matches <ArrowRight size={11} />
+        View startup <ArrowRight size={11} />
       </p>
     </Link>
   );

@@ -25,6 +25,7 @@ import CampaignQuotaBanner, { type CampaignQuota } from "@/components/wizard/Cam
 import { allowWizardUnlockFlow } from "@/lib/founderSignupGate";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trackFunnelEvent } from "@/lib/matchEngagement";
+import { activatePath } from "@/lib/safeUrl";
 
 const API = "/api/wizard";
 
@@ -187,7 +188,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
         }
         return;
       }
-      navigate(data.activate_url || `/activate?sid=${startupId}&pipeline=1`);
+      navigate(data.activate_url || activatePath(startupId, { pipeline: true }));
     } catch {
       setActivateError("Activation failed — try again");
     } finally {
@@ -320,7 +321,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
               Improve my signals →
             </span>
           </button>
-          <Link href={gate.pipeline_active ? `/activate?sid=${startupId}&pipeline=1` : "/pricing"}>
+          <Link href={gate.pipeline_active ? activatePath(startupId, { pipeline: true }) : "/pricing"}>
             <span
               className="block rounded-xl px-4 py-4 text-left transition"
               style={{ background: "oklch(0.14 0.01 264)", border: "1px solid oklch(0.22 0.01 264)" }}
@@ -544,7 +545,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
         {gate.pipeline_active ? (
           <button
             type="button"
-            onClick={() => navigate(`/activate?sid=${startupId}&pipeline=1`)}
+            onClick={() => navigate(activatePath(startupId, { pipeline: true }))}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
             style={{ background: "#22c55e", color: "#0a0a0a" }}
           >

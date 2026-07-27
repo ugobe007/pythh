@@ -29,6 +29,7 @@ import { pinActiveStartup } from '@/lib/activeStartupContext';
 import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
+import { founderSignupPath } from '@/lib/safeUrl';
 
 const PREVIEW_LIMIT = 5;
 
@@ -448,7 +449,7 @@ export default function InstantMatchPreview({ url }: Props) {
     return () => observer.disconnect();
   }, [preview?.startup?.id]);
 
-  const handleSignup = async (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
+  const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
 
     if (isAuthenticated) {
@@ -469,14 +470,14 @@ export default function InstantMatchPreview({ url }: Props) {
           ? deltaExpRef.current
           : null;
 
-    await trackFounderGateStarted(
+    void trackFounderGateStarted(
       action,
       { url, startupId: preview.startup.id, investor },
       founderExpRef.current,
       gateCtaRef.current,
       previewGateAssignment,
     );
-    navigate(`/signup/founder?startup_id=${encodeURIComponent(preview.startup.id)}`);
+    navigate(founderSignupPath({ startupId: preview.startup.id, url }));
   };
 
   const handleGate = async (action: FounderGatedAction, investor?: GatedInvestorContext | null) => {
@@ -506,7 +507,7 @@ export default function InstantMatchPreview({ url }: Props) {
       setPeterPanelOpen(true);
       return;
     }
-    await handleSignup(action, investor);
+    handleSignup(action, investor);
   };
 
   const investorFromMatch = (m: PreviewMatch): GatedInvestorContext | null => {

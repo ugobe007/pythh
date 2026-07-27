@@ -861,7 +861,7 @@ router.post('/:startupId/activate-round', async (req, res) => {
         ok: true,
         already_active: true,
         round_activated_at: gate.round_activated_at,
-        activate_url: `/activate?sid=${startupId}&pipeline=1`,
+        activate_url: `/activate?startup_id=${encodeURIComponent(startupId)}&pipeline=1`,
         campaign_quota,
       });
     }
@@ -912,7 +912,7 @@ router.post('/:startupId/activate-round', async (req, res) => {
       ok: true,
       round_activated_at: activatedAt,
       startup_id: startupId,
-      activate_url: `/activate?sid=${startupId}&pipeline=1`,
+      activate_url: `/activate?startup_id=${encodeURIComponent(startupId)}&pipeline=1`,
       message: 'PYTHIA round activated. Open Activate to track your pipeline.',
       campaign_quota: await buildCampaignQuota(supabase, { startupId, founderEmail }),
     });

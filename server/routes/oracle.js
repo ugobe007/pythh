@@ -1681,7 +1681,7 @@ router.get('/milestones/check', async (req, res) => {
         description: 'You completed the full Oracle assessment',
         icon: '🏆',
         reward_text: 'Unlocked: AI Insights & Weekly Digests',
-        reward_action_url: '/app/oracle/dashboard',
+        reward_action_url: '/oracle',
       });
       if (milestone) newMilestones.push(milestone);
     }
@@ -1828,7 +1828,7 @@ router.get('/email/track/click/:email_send_id', async (req, res) => {
     const { url, type, label } = req.query;
 
     if (!url) {
-      return res.redirect('/app/oracle/dashboard');
+      return res.redirect('/oracle');
     }
 
     // Record click (non-blocking)
@@ -1843,7 +1843,7 @@ router.get('/email/track/click/:email_send_id', async (req, res) => {
     res.redirect(url);
   } catch (error) {
     console.error('[Email Tracking] Click tracking error:', error);
-    res.redirect(req.query.url || '/app/oracle/dashboard');
+    res.redirect(req.query.url || '/oracle');
   }
 });
 

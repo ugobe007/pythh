@@ -14,6 +14,7 @@ import {
   G, CYAN, AMBER, MUTED, DIM, BORDER, PAGE,
   godScoreColor,
 } from "@/lib/designTokens";
+import { safeExternalUrl } from "@/lib/safeUrl";
 
 interface StartupProfile {
   id: string;
@@ -85,9 +86,7 @@ export default function StartupDetail() {
     );
   }
 
-  const websiteUrl = startup.website
-    ? (startup.website.startsWith("http") ? startup.website : `https://${startup.website}`)
-    : null;
+  const websiteUrl = safeExternalUrl(startup.website);
   const summary = startup.description || startup.pitch || null;
 
   return (

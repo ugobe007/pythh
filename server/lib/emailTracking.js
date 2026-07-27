@@ -77,7 +77,7 @@ router.get('/email/track/click/:email_send_id', async (req, res) => {
   } catch (error) {
     console.error('[Email Tracking] Click tracking error:', error);
     // Redirect anyway
-    res.redirect(req.query.url || '/app/oracle/dashboard');
+    res.redirect(req.query.url || '/oracle');
   }
 });
 
@@ -276,7 +276,7 @@ function buildEmailWithTracking(emailSendId, content) {
   const trackingPixelUrl = generateTrackingPixel(emailSendId);
   const dashboardUrl = generateTrackableLink(
     emailSendId,
-    'https://pythh.ai/app/oracle/dashboard',
+    'https://pythh.ai/oracle',
     'cta',
     'View Oracle Dashboard'
   );

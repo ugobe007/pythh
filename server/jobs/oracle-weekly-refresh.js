@@ -193,7 +193,7 @@ async function refreshSession(session) {
       message: `We've analyzed your latest data and generated ${insightsToSave.length} new insights to help you make progress this week.`,
       priority: 'medium',
       category: 'coaching',
-      action_url: `/app/oracle/dashboard/${sessionId}`,
+      action_url: `/oracle?session_id=${encodeURIComponent(sessionId)}`,
       related_session_id: sessionId,
       created_at: new Date().toISOString()
     },
@@ -204,7 +204,7 @@ async function refreshSession(session) {
       message: notificationMessage,
       priority: 'medium',
       category: 'coaching',
-      action_url: `/app/oracle/dashboard/${sessionId}`,
+      action_url: `/oracle?session_id=${encodeURIComponent(sessionId)}`,
       related_session_id: sessionId,
       related_insight_id: insightsToSave[0]?.id,
       created_at: new Date().toISOString()
