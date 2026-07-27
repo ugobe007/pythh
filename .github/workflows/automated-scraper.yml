@@ -1,8 +1,8 @@
 name: Automated Startup Discovery
 
 on:
-  schedule:
-    - cron: '0 */12 * * *'
+  # Closed-corpus mode (July 2026): automated discovery is intentionally paused.
+  # Keep the manual trigger so an operator can run a controlled discovery batch later.
   workflow_dispatch:
     inputs:
       run_type:

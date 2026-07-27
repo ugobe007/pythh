@@ -1,4 +1,4 @@
-# Startup enrichment: entity gate → URL resolve → qualified enrich (replaces no-url-only cron).
+# Closed-corpus startup enrichment: improve existing rows without promoting newly discovered companies.
 name: Startup Enrichment Batch
 
 on:
@@ -17,7 +17,6 @@ jobs:
     with:
       run: >-
         node scripts/cron/startup-data-tightening.js
-        --run-entity-gate
         --sparse-limit=200
         --sparse-html-only
         --sparse-god-score-below=100

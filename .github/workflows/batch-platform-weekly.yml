@@ -3,7 +3,8 @@ name: Platform Weekly Batch
 
 on:
   schedule:
-    - cron: '0 2 * * 0'   # Sunday — full match regen
+    - cron: '0 2 1 * *'   # First of month — full match regen
+    - cron: '0 3 * * 0'   # Sunday — compact signal score history snapshot
     - cron: '0 2 * * 3'   # Wednesday — social signals fetcher
     - cron: '0 6 * * 1'   # Monday — pipeline weekly runbook (dashboard + enrichment)
     - cron: '0 7 * * 1'   # Monday — portfolio signal refresh
@@ -17,6 +18,7 @@ on:
         type: choice
         options:
           - match-regen-full
+          - signal-score-snapshot
           - social-signals
           - portfolio-signal-refresh
           - portfolio-verify-funding
@@ -30,12 +32,20 @@ concurrency:
 
 jobs:
   match-regen-full:
-    if: github.event.schedule == '0 2 * * 0' || github.event.inputs.job == 'match-regen-full'
+    if: github.event.schedule == '0 2 1 * *' || github.event.inputs.job == 'match-regen-full'
     uses: ./.github/workflows/reusable-node-batch.yml
     secrets: inherit
     with:
       run: node match-regenerator.js --full
       timeout_minutes: 150
+
+  signal-score-snapshot:
+    if: github.event.schedule == '0 3 * * 0' || github.event.inputs.job == 'signal-score-snapshot'
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/cron/snapshot-signal-scores.mjs --apply
+      timeout_minutes: 30
 
   social-signals:
     if: github.event.schedule == '0 2 * * 3' || github.event.inputs.job == 'social-signals'
