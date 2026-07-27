@@ -9,7 +9,6 @@ import StartupCTA from "@/components/design/StartupCTA";
 const NAV_LINKS = [
   { label: "How it works", href: "/oracle" },
   { label: "Rankings",     href: "/rankings" },
-  { label: "Matches",      href: "/matches" },
   { label: "Investors",    href: "/investors" },
   { label: "Portfolio",    href: "/portfolio" },
   { label: "Platform",     href: "/platform" },

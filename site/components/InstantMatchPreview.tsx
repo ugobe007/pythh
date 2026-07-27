@@ -105,13 +105,73 @@ type ShortlistMix = {
 };
 
 type PreviewPayload = {
-  startup?: { id?: string; name?: string; god_score?: number };
+  startup?: {
+    id?: string;
+    name?: string;
+    god_score?: number;
+    sectors?: string[] | null;
+    stage?: string | null;
+  };
   total_matches?: number;
   matches?: PreviewMatch[];
   shortlist_mix?: ShortlistMix | null;
   match_movement?: MatchMovement | null;
   oracle_gap?: OracleGapPayload | null;
 };
+
+function investorSignalPriorities(
+  match: PreviewMatch,
+  startup?: PreviewPayload['startup'],
+): { label: string; detail: string; priority: 'Highest' | 'High' | 'Important' }[] {
+  const investor = match.investor;
+  const investorSectors = Array.isArray(investor?.sectors)
+    ? investor.sectors.filter(Boolean)
+    : [];
+  const startupSectors = Array.isArray(startup?.sectors)
+    ? startup.sectors.filter(Boolean)
+    : [];
+  const sharedSectors = investorSectors.filter((sector) =>
+    startupSectors.some((startupSector) =>
+      startupSector.toLowerCase().includes(sector.toLowerCase()) ||
+      sector.toLowerCase().includes(startupSector.toLowerCase()),
+    ),
+  );
+  const stage = Array.isArray(investor?.stage)
+    ? investor.stage.filter(Boolean).join(', ')
+    : String(investor?.stage || startup?.stage || '');
+  const min = formatCheckSize(investor?.check_size_min);
+  const max = formatCheckSize(investor?.check_size_max);
+  const check = min && max ? `${min}–${max}` : min || max;
+  const why = normalizeWhyYouMatch(match.why_you_match);
+
+  return [
+    {
+      label: 'Thesis relevance',
+      detail: sharedSectors.length
+        ? `Show specific proof in ${sharedSectors.slice(0, 2).join(' and ')}.`
+        : investorSectors.length
+          ? `Connect the company directly to ${investorSectors.slice(0, 2).join(' and ')}.`
+          : 'Make the sector and customer use case immediately legible.',
+      priority: 'Highest',
+    },
+    {
+      label: 'Stage evidence',
+      detail: stage
+        ? `Demonstrate the milestones expected for ${stage}.`
+        : 'Lead with traction, product readiness, and the next fundable milestone.',
+      priority: 'High',
+    },
+    {
+      label: check ? 'Round fit' : 'Conviction signal',
+      detail: check
+        ? `Frame the raise and use of funds against a typical ${check} check.`
+        : why
+          ? why.split(/\s*[·•]\s*|\n+/).filter(Boolean)[0]
+          : 'Use one measurable proof point that makes the timing credible.',
+      priority: 'Important',
+    },
+  ];
+}
 
 interface Props {
   url: string;
@@ -517,10 +577,22 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       </div>
 
+      <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/35 p-4">
+        <p className="text-[10px] uppercase tracking-[1.5px] text-emerald-400 mb-3">
+          How to use this shortlist
+        </p>
+        <div className="grid sm:grid-cols-3 gap-3 text-xs">
+          <p className="text-zinc-400"><span className="text-white font-semibold">1. Read the fit.</span> Understand why the investor surfaced.</p>
+          <p className="text-zinc-400"><span className="text-white font-semibold">2. Check their signals.</span> See what evidence they are likely screening.</p>
+          <p className="text-zinc-400"><span className="text-white font-semibold">3. Tailor outreach.</span> Lead with the strongest relevant proof.</p>
+        </div>
+      </div>
+
       <div className="space-y-3 mb-6">
         {visible.map((m, i) => {
           const inv = m.investor;
           const briefing = investorBriefing(m);
+          const signalPriorities = investorSignalPriorities(m, preview.startup);
           return (
             <div
               key={inv?.id || i}
@@ -590,6 +662,35 @@ export default function InstantMatchPreview({ url }: Props) {
                     <p className="text-[10px] text-zinc-600 mb-1">What to lead with</p>
                     <p className="text-xs text-zinc-300 line-clamp-2">{briefing.lead}</p>
                   </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-zinc-800/80">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-zinc-500">
+                    Investor signal priorities
+                  </p>
+                  <p className="text-[10px] text-zinc-600">
+                    Inferred from thesis and match evidence
+                  </p>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {signalPriorities.map((signal) => (
+                    <div
+                      key={signal.label}
+                      className="rounded-lg border border-zinc-800 bg-zinc-950/45 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <p className="text-xs font-medium text-white">{signal.label}</p>
+                        <span className="text-[9px] uppercase tracking-wide text-emerald-400">
+                          {signal.priority}
+                        </span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-zinc-400">
+                        {signal.detail}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
