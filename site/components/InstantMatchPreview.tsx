@@ -559,6 +559,18 @@ export default function InstantMatchPreview({ url }: Props) {
 
   return (
     <div className="mb-16 pb-28">
+      <div className="grid grid-cols-3 gap-2 mb-7" aria-label="Match workflow progress">
+        {[
+          ['1', 'URL submitted'],
+          ['2', 'Account created'],
+          ['3', 'Five matches'],
+        ].map(([step, label]) => (
+          <div key={step} className="text-center">
+            <div className="h-1 rounded-full mb-2 bg-emerald-500" />
+            <p className="text-[10px] text-emerald-300">{step}. {label}</p>
+          </div>
+        ))}
+      </div>
       <div className="mb-6 text-center">
         <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Investor matches</p>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -629,7 +641,7 @@ export default function InstantMatchPreview({ url }: Props) {
                   </div>
                 </div>
                 {typeof m.match_score === 'number' && (
-                  <span className="text-sm font-mono text-cyan-400">{Math.round(m.match_score)}% fit</span>
+                  <span className="text-sm font-mono text-cyan-400">{Math.round(m.match_score)}% match</span>
                 )}
               </div>
 
@@ -701,7 +713,7 @@ export default function InstantMatchPreview({ url }: Props) {
 
       {total > visible.length && (
         <p className="text-center text-xs text-zinc-500 mb-8">
-          +{(total - visible.length).toLocaleString()} more qualified investors available after signup
+          +{(total - visible.length).toLocaleString()} more qualified investors available as you build your shortlist
         </p>
       )}
 

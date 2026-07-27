@@ -48,6 +48,7 @@ import {
   readPostLoginPath,
 } from "@/lib/supabaseOAuth";
 import { planPriceLabel, SCOUT_PLAN, ORACLE_PLAN, formatCampaignLimit } from "@/lib/pricingPlans";
+import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -458,7 +459,16 @@ export default function Account() {
       setOauthBusy(false);
       clearOAuthHandoff();
       const next = readPostLoginPath();
-      if (next && next !== "/account") navigate(next);
+      if (next && next !== "/account") {
+        if (next.startsWith("/matches")) {
+          void trackFunnelEventOnce("founder_auth_completed:oauth:matches", "founder_auth_completed", {
+            source: "pre_match_gate",
+            method: "oauth",
+            destination: "/matches",
+          });
+        }
+        navigate(next);
+      }
     }
   }, [isAuthenticated, navigate]);
 

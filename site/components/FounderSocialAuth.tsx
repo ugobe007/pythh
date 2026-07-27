@@ -17,9 +17,10 @@ interface FounderSocialAuthProps {
   returnPath: string;
   disabled?: boolean;
   onError?: (message: string) => void;
+  onStart?: (provider: Provider) => void;
 }
 
-export default function FounderSocialAuth({ returnPath, disabled, onError }: FounderSocialAuthProps) {
+export default function FounderSocialAuth({ returnPath, disabled, onError, onStart }: FounderSocialAuthProps) {
   const [oauthReady, setOauthReady] = useState(() => hasValidSupabaseCredentials());
   const [loading, setLoading] = useState<Provider | null>(null);
 
@@ -36,6 +37,7 @@ export default function FounderSocialAuth({ returnPath, disabled, onError }: Fou
     }
     setLoading(provider);
     clearStaleOAuthKeys();
+    onStart?.(provider);
     try {
       const redirectTo = buildSupabaseOAuthRedirectUrl(returnPath);
       const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({

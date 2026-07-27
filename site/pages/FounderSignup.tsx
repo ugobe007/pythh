@@ -24,7 +24,7 @@ import {
 import { isOAuthHandoffActive } from '@/lib/supabaseOAuth';
 import { sendFounderWelcomeEmail, sendFounderSignupInviteEmail } from '@/lib/founderAccount';
 import { fetchGrowthAssignment, trackGrowthEvent } from '@/lib/growthExperiment';
-import { trackFunnelEvent } from '@/lib/matchEngagement';
+import { trackFunnelEvent, trackFunnelEventOnce } from '@/lib/matchEngagement';
 
 function readQueryParam(key: string): string {
   if (typeof window === 'undefined') return '';
@@ -69,6 +69,14 @@ export default function FounderSignup() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    void trackFunnelEventOnce(`founder_signup_viewed:${fromMatchGate ? 'matches' : fromGate ? 'gate' : 'direct'}`, 'founder_signup_viewed', {
+      source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
+      startup_id: startupId || undefined,
+      url: url || undefined,
+    });
+  }, [fromGate, fromMatchGate, startupId, url]);
+
+  useEffect(() => {
     if (authLoading || !isAuthenticated || oauthHandledRef.current) return;
     const pendingGate = peekFounderGatePending();
     if (!isOAuthHandoffActive() && !pendingGate.pending) {
@@ -82,6 +90,12 @@ export default function FounderSignup() {
       const pendingGate = peekFounderGatePending();
       const userEmail = user?.email ?? sessionStorage.getItem('pythia_email') ?? '';
       if (userEmail) sessionStorage.setItem('pythia_email', userEmail);
+      void trackFunnelEvent('founder_auth_completed', {
+        source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
+        method: 'oauth',
+        startup_id: startupId || undefined,
+        url: url || undefined,
+      });
 
       // The explicit pre-match funnel always wins over a saved startup action.
       // URL analysis may already have created a startupId, but that must not
@@ -163,15 +177,29 @@ export default function FounderSignup() {
 
     setSubmitting(true);
     try {
+      void trackFunnelEvent('founder_auth_started', {
+        source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
+        method: 'email',
+        startup_id: startupId || undefined,
+        url: url || undefined,
+      });
       if (!fromGate) await trackDirectSignup();
 
       await loginMutation.mutateAsync({ email: trimmed });
       sessionStorage.setItem('pythia_email', trimmed);
+      void trackFunnelEvent('founder_auth_completed', {
+        source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
+        method: 'email',
+        startup_id: startupId || undefined,
+        url: url || undefined,
+      });
 
-      const { action: consumedAction } = consumeFounderGatePending();
+      const { action: consumedAction } = fromMatchGate
+        ? { action: null }
+        : consumeFounderGatePending();
       const resolvedAction = consumedAction ?? gateAction;
 
-      if (fromGate || resolvedAction) {
+      if (!fromMatchGate && (fromGate || resolvedAction)) {
         await trackFounderGateCompleted({
           url: url || '',
           email: trimmed,
@@ -225,6 +253,14 @@ export default function FounderSignup() {
         }
       }
 
+      // The URL-to-matches funnel always returns to its shortlist. Ignore any
+      // stale destination left by an older session.
+      if (fromMatchGate && url) {
+        consumePostSignupPath();
+        navigate(`/matches?url=${encodeURIComponent(url)}`);
+        return;
+      }
+
       const postPath = consumePostSignupPath();
       if (postPath) {
         navigate(postPath.includes('?') ? `${postPath}&welcome=1` : `${postPath}?welcome=1`);
@@ -248,17 +284,17 @@ export default function FounderSignup() {
   };
 
   const headline = fromMatchGate
-    ? 'Your five investor matches are ready'
+    ? 'Your investor shortlist is ready'
     : fromGate
       ? 'Continue to investor outreach'
-      : 'Start your autonomous raise';
+      : 'Find investors who fit your startup';
   const subline = fromMatchGate
-    ? 'Sign in once to view and save them. Your free account also includes five personalized outreach drafts.'
+    ? 'Create a free account to reveal five matched investors and save your results. No credit card required.'
     : fromGate
     ? gateLabel
       ? `Create your account to ${gateLabel}. Your outreach drafts open next; signal improvements remain optional.`
       : "Create your account to save these matches and open investor outreach."
-    : 'Free account — Oracle tracks readiness, qualifies investors, and prepares outreach toward meetings.';
+    : 'Create a free account to find five matched investors and save your results. No credit card required.';
 
   if (authLoading || (isAuthenticated && !oauthHandledRef.current && (isOAuthHandoffActive() || fromGate))) {
     return (
@@ -288,6 +324,25 @@ export default function FounderSignup() {
         style={{ backgroundColor: 'oklch(0.13 0.01 264)' }}
       >
         <div className="w-full max-w-md">
+          {fromMatchGate && (
+            <div className="grid grid-cols-3 gap-2 mb-7" aria-label="Signup progress">
+              {[
+                ['1', 'URL submitted'],
+                ['2', 'Create account'],
+                ['3', 'View matches'],
+              ].map(([step, label], index) => (
+                <div key={step} className="text-center">
+                  <div
+                    className="h-1 rounded-full mb-2"
+                    style={{ backgroundColor: index <= 1 ? 'oklch(0.696 0.17 162.48)' : 'oklch(0.25 0.01 264)' }}
+                  />
+                  <p className="text-[10px]" style={{ color: index <= 1 ? 'oklch(0.75 0.08 162.48)' : 'oklch(0.45 0.01 264)' }}>
+                    {step}. {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
           <h1
             className="font-display font-bold text-2xl sm:text-3xl mb-3 text-center"
             style={{ color: 'oklch(0.97 0.005 264)' }}
@@ -307,7 +362,7 @@ export default function FounderSignup() {
                 color: 'oklch(0.85 0.05 162.48)',
               }}
             >
-              Matches ready for {url.replace(/^https?:\/\//, '').split('/')[0]}
+              Analysis complete · Five matches ready for {url.replace(/^https?:\/\//, '').split('/')[0]}
             </div>
           )}
 
@@ -336,9 +391,9 @@ export default function FounderSignup() {
           {!fromGate && !fromMatchGate && (
             <div className="grid gap-3 mb-6 text-left">
               {[
-                { icon: Target, label: 'Your raise plan', detail: 'Readiness gaps, qualified investors, and recommended campaign.' },
-                { icon: Bell, label: 'Oracle progress updates', detail: 'Weekly summary of what Pythh completed and what needs your decision.' },
-                { icon: Activity, label: 'Meeting pipeline', detail: 'Outreach and scheduling toward qualified investor meetings.' },
+                { icon: Target, label: 'Five investor matches', detail: 'Ranked for your startup, stage, sector, and thesis.' },
+                { icon: Activity, label: 'Why each investor fits', detail: 'See the evidence and signals that matter to each investor.' },
+                { icon: Bell, label: 'Five outreach drafts', detail: 'Personalized emails you can copy and send for free.' },
               ].map(({ icon: Icon, label, detail }) => (
                 <div
                   key={label}
@@ -363,6 +418,14 @@ export default function FounderSignup() {
               returnPath={oauthReturnPath}
               disabled={submitting}
               onError={setError}
+              onStart={(provider) => {
+                void trackFunnelEvent('founder_auth_started', {
+                  source: fromMatchGate ? 'pre_match_gate' : fromGate ? 'post_match_gate' : 'direct',
+                  method: provider,
+                  startup_id: startupId || undefined,
+                  url: url || undefined,
+                });
+              }}
             />
 
             <div className="flex items-center gap-3 my-5">
@@ -397,9 +460,9 @@ export default function FounderSignup() {
                 disabled={submitting || !email.trim().includes('@')}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition-all disabled:opacity-60"
                 style={{
-                  backgroundColor: 'oklch(0.696 0.17 162.48 / 0.15)',
-                  color: 'oklch(0.696 0.17 162.48)',
-                  border: '1px solid oklch(0.696 0.17 162.48 / 0.35)',
+                  backgroundColor: 'oklch(0.696 0.17 162.48)',
+                  color: 'oklch(0.12 0.02 162.48)',
+                  border: '1px solid oklch(0.696 0.17 162.48)',
                 }}
               >
                 {submitting ? (

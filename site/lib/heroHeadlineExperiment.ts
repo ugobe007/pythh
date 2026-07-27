@@ -16,21 +16,21 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'See my matches';
+export const HERO_PRIMARY_CTA = 'See my five matches';
 
 const TRUSTED_HERO_SUBLINE =
-  'Paste your URL to preview investor matches and fundraising-readiness gaps. Nothing is sent without your approval.';
+  'Paste your startup URL. Create a free account to reveal five matched investors and save your results.';
 
 export function defaultHeroCopy(previewFirst: boolean): HeroHeadlineCopy {
   if (previewFirst) {
     return {
-      headline: 'You build the company. Pythh runs the raise.',
+      headline: 'Find five investors who fit your startup.',
       subline: TRUSTED_HERO_SUBLINE,
       cta: HERO_PRIMARY_CTA,
     };
   }
   return {
-    headline: 'You build the company. Pythh runs the raise.',
+    headline: 'Find five investors who fit your startup.',
     subline: TRUSTED_HERO_SUBLINE,
     cta: HERO_PRIMARY_CTA,
   };

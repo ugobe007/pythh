@@ -205,13 +205,13 @@ function MatchesUrlEntry({
         }}
       >
         <p className="text-[11px] uppercase tracking-[2px] mb-3" style={{ color: "#22c55e" }}>
-          Free · No signup required
+          Five matches · Free account
         </p>
         <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 leading-tight">
-          Oracle analyzes your company
+          Find five investors who fit your startup
         </h1>
         <p className="text-base mb-6 max-w-2xl" style={{ color: "oklch(0.58 0.01 264)" }}>
-          {hint || "Paste your startup URL — see readiness gaps, qualified investors, and your recommended raise plan in about a minute."}
+          {hint || "Paste your startup URL. Pythh ranks investors by sector, stage, thesis, and the signals they care about."}
         </p>
         <form
           onSubmit={(e) => {
@@ -238,7 +238,7 @@ function MatchesUrlEntry({
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold whitespace-nowrap"
             style={{ backgroundColor: "#22c55e", color: "#000" }}
           >
-            Analyze my company
+            See my five matches
             <ArrowRight size={16} />
           </button>
         </form>
@@ -248,7 +248,7 @@ function MatchesUrlEntry({
           </p>
         )}
         <p className="text-[11px] mt-4" style={{ color: "oklch(0.45 0.01 264)" }}>
-          No credit card · Results in ~60 seconds
+          Free account · No credit card · Results in ~60 seconds
           {networkTotal != null && networkTotal > 0 ? ` · ${networkTotal.toLocaleString()} matches in network` : ''}
         </p>
       </div>
@@ -303,15 +303,16 @@ export default function Matches() {
     navigate(`/signup/founder?intent=matches&url=${encodeURIComponent(previewUrl)}`);
   }, [authLoading, isAuthenticated, navigate, previewUrl]);
 
-  const submitPreviewUrl = async (raw: string) => {
+  const submitPreviewUrl = (raw: string) => {
     const normalized = normalizePreviewUrl(raw);
     if (!normalized) {
       setUrlEntryError(true);
       return;
     }
     setUrlEntryError(false);
-    const assignment = await fetchGrowthAssignment('founder').catch(() => null);
-    trackUrlSubmitted(normalized, 'matches_landing', assignment);
+    void fetchGrowthAssignment('founder')
+      .catch(() => null)
+      .then((assignment) => trackUrlSubmitted(normalized, 'matches_landing', assignment));
     navigate(
       isAuthenticated
         ? `/matches?url=${encodeURIComponent(normalized)}`
@@ -678,15 +679,15 @@ export default function Matches() {
             <Flame size={22} style={{ color: "#22c55e" }} />
           </div>
           <h2 className="text-3xl font-bold text-white mb-4" style={{ letterSpacing: "-0.02em" }}>
-            Start your autonomous raise.
+            Find the investors who fit.
           </h2>
           <p className="text-sm mb-8 max-w-md mx-auto" style={{ color: "oklch(0.55 0.01 264)" }}>
-            Submit your URL. Oracle analyzes readiness, qualifies investors, and builds your campaign plan —
-            toward qualified meetings, not just a list.
+            Submit your startup URL to see five ranked matches, why each investor fits,
+            and the signals they care about.
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <StartupCTA href="/matches#preview-url" size="lg" showArrow arrowSize={16}>
-              Analyze my company
+              See my five matches
             </StartupCTA>
             <Link href="/oracle">
               <span

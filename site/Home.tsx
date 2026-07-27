@@ -468,17 +468,17 @@ function HeroSection({
             type="submit"
             className="inline-flex items-center justify-center gap-2 w-full px-7 py-3.5 rounded-lg text-sm font-semibold transition-colors"
             style={{
-              backgroundColor: "transparent",
+              backgroundColor: G,
               border: `1px solid ${G}`,
-              color: G,
+              color: "oklch(0.1 0.02 162.48)",
             }}
             onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = G_HOVER;
               e.currentTarget.style.borderColor = G_HOVER;
-              e.currentTarget.style.color = G_HOVER;
             }}
             onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = G;
               e.currentTarget.style.borderColor = G;
-              e.currentTarget.style.color = G;
             }}
           >
             {HERO_PRIMARY_CTA}
@@ -489,10 +489,7 @@ function HeroSection({
             <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
           )}
           <p className="text-[10px] mt-3" style={{ color: DIM }}>
-            No credit card · Preview free · ~20 sec ·{' '}
-            <Link href="/signup/founder" className="underline hover:no-underline" style={{ color: G }}>
-              Sign up free
-            </Link>
+            Free account · No credit card · Results in about 60 seconds
           </p>
         </form>
 
