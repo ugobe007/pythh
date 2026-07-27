@@ -371,7 +371,7 @@ export default function FounderSignup() {
               {[
                 { icon: Target, label: 'Five investor matches', detail: 'Ranked for your startup, stage, and sector.' },
                 { icon: Activity, label: 'Outreach drafts included', detail: 'Open investor-specific emails after reviewing your matches.' },
-                { icon: Bell, label: 'Free account', detail: 'Improve signals or add automation later, only if you want to.' },
+                { icon: Bell, label: 'Free account', detail: 'Improve matches with more data later, only if you want to.' },
               ].map(({ icon: Icon, label, detail }) => (
                 <div
                   key={label}

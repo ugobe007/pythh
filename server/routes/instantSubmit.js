@@ -2679,6 +2679,179 @@ router.post('/submit', async (req, res) => {
 });
 
 /**
+ * GET /api/instant/improve?startup_id=...
+ * Return the founder-editable match inputs and the fields Pythh could not
+ * confidently infer from public sources.
+ */
+router.get('/improve', async (req, res) => {
+  const startupId = String(req.query?.startup_id || '').trim();
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(startupId)) return res.status(400).json({ error: 'Invalid startup_id' });
+
+  const { data: startup, error } = await supabase
+    .from('startup_uploads')
+    .select('*')
+    .eq('id', startupId)
+    .maybeSingle();
+  if (error || !startup) return res.status(404).json({ error: 'Startup not found' });
+
+  const extracted = startup.extracted_data || {};
+  const founders = Array.isArray(extracted.founders)
+    ? extracted.founders
+    : Array.isArray(startup.founders)
+      ? startup.founders
+      : [];
+  const completeness = calculateCompleteness(startup);
+
+  return res.json({
+    startup_id: startupId,
+    startup_name: startup.name,
+    website: startup.website,
+    completeness,
+    profile: {
+      founders: founders.map((founder) =>
+        typeof founder === 'string'
+          ? { name: founder, linkedin_url: '' }
+          : {
+              name: String(founder?.name || '').trim(),
+              linkedin_url: String(founder?.linkedin_url || founder?.linkedin || '').trim(),
+            },
+      ),
+      company_linkedin: extracted.company_linkedin || extracted.linkedin_url || '',
+      funding_raised:
+        extracted.funding_amount != null
+          ? Number(extracted.funding_amount)
+          : startup.total_funding_usd != null
+            ? Number(startup.total_funding_usd)
+            : '',
+      target_raise:
+        startup.raise_amount != null
+          ? Number(startup.raise_amount)
+          : extracted.target_raise != null
+            ? Number(extracted.target_raise)
+            : '',
+      funding_stage:
+        extracted.funding_stage ||
+        ({ 1: 'pre-seed', 2: 'seed', 3: 'series-a', 4: 'series-b' }[Number(startup.stage)] || ''),
+      team_size: startup.team_size != null ? Number(startup.team_size) : extracted.team_size != null ? Number(extracted.team_size) : '',
+      customer_count:
+        startup.customer_count != null
+          ? Number(startup.customer_count)
+          : extracted.customer_count != null
+            ? Number(extracted.customer_count)
+            : '',
+      mrr: startup.mrr != null ? Number(startup.mrr) : extracted.mrr != null ? Number(extracted.mrr) : '',
+      description: startup.description || extracted.description || '',
+      has_technical_cofounder:
+        startup.has_technical_cofounder ?? extracted.has_technical_cofounder ?? null,
+      deck_filename: startup.deck_filename || null,
+    },
+  });
+});
+
+/**
+ * POST /api/instant/improve
+ * Save founder-provided evidence. The client calls /rescore immediately after
+ * this response so the same match engine ranks a fresh shortlist.
+ */
+router.post('/improve', express.json(), async (req, res) => {
+  const startupId = String(req.body?.startup_id || '').trim();
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRe.test(startupId)) return res.status(400).json({ error: 'Invalid startup_id' });
+
+  const { data: startup, error } = await supabase
+    .from('startup_uploads')
+    .select('*')
+    .eq('id', startupId)
+    .maybeSingle();
+  if (error || !startup) return res.status(404).json({ error: 'Startup not found' });
+
+  const cleanNumber = (value, max = 1_000_000_000_000) => {
+    if (value === '' || value == null) return null;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 && number <= max ? number : null;
+  };
+  const cleanLinkedIn = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+      const parsed = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+      return /(^|\.)linkedin\.com$/i.test(parsed.hostname) ? parsed.toString() : '';
+    } catch {
+      return '';
+    }
+  };
+  const founders = (Array.isArray(req.body?.founders) ? req.body.founders : [])
+    .slice(0, 6)
+    .map((founder) => ({
+      name: String(founder?.name || '').trim().slice(0, 120),
+      linkedin_url: cleanLinkedIn(founder?.linkedin_url),
+    }))
+    .filter((founder) => founder.name);
+
+  const fundingRaised = cleanNumber(req.body?.funding_raised);
+  const targetRaise = cleanNumber(req.body?.target_raise);
+  const teamSize = cleanNumber(req.body?.team_size, 100_000);
+  const customerCount = cleanNumber(req.body?.customer_count, 1_000_000_000);
+  const mrr = cleanNumber(req.body?.mrr);
+  const description = String(req.body?.description || '').trim().slice(0, 4000);
+  const fundingStage = ['pre-seed', 'seed', 'series-a', 'series-b', 'series-c-plus'].includes(req.body?.funding_stage)
+    ? req.body.funding_stage
+    : '';
+  const stageNumber = { 'pre-seed': 1, seed: 2, 'series-a': 3, 'series-b': 4, 'series-c-plus': 5 }[fundingStage];
+  const companyLinkedin = cleanLinkedIn(req.body?.company_linkedin);
+  const hasTechnicalCofounder =
+    typeof req.body?.has_technical_cofounder === 'boolean'
+      ? req.body.has_technical_cofounder
+      : null;
+
+  const extracted = {
+    ...(startup.extracted_data || {}),
+    ...(founders.length ? { founders, founders_count: founders.length } : {}),
+    ...(companyLinkedin ? { company_linkedin: companyLinkedin } : {}),
+    ...(fundingRaised != null ? { funding_amount: fundingRaised, previous_funding: fundingRaised, funding_raised_confirmed: true } : {}),
+    ...(targetRaise != null ? { target_raise: targetRaise } : {}),
+    ...(fundingStage ? { funding_stage: fundingStage } : {}),
+    ...(teamSize != null ? { team_size: teamSize } : {}),
+    ...(customerCount != null ? { customer_count: customerCount } : {}),
+    ...(mrr != null ? { mrr } : {}),
+    ...(description ? { description } : {}),
+    ...(hasTechnicalCofounder != null ? { has_technical_cofounder: hasTechnicalCofounder } : {}),
+    founder_enriched_at: new Date().toISOString(),
+    founder_enrichment_source: 'improve_matches',
+  };
+
+  const updates = {
+    extracted_data: extracted,
+    ...(targetRaise != null ? { raise_amount: targetRaise } : {}),
+    ...(stageNumber ? { stage: stageNumber } : {}),
+    ...(teamSize != null ? { team_size: teamSize } : {}),
+    ...(customerCount != null ? { customer_count: customerCount } : {}),
+    ...(mrr != null ? { mrr } : {}),
+    ...(description ? { description } : {}),
+    ...(hasTechnicalCofounder != null ? { has_technical_cofounder: hasTechnicalCofounder } : {}),
+    updated_at: new Date().toISOString(),
+  };
+  updates.data_completeness = calculateCompleteness({ ...startup, ...updates }).percentage;
+
+  const { error: updateError } = await supabase
+    .from('startup_uploads')
+    .update(updates)
+    .eq('id', startupId);
+  if (updateError) {
+    console.error('[improve-matches] update failed:', updateError.message);
+    return res.status(500).json({ error: 'Could not save match inputs' });
+  }
+
+  return res.json({
+    ok: true,
+    startup_id: startupId,
+    data_completeness: updates.data_completeness,
+    saved_fields: Object.keys(updates),
+  });
+});
+
+/**
  * POST /api/instant/rescore
  * Re-scores a startup's GOD score from current DB fields, writes the new
  * score columns back to startup_uploads, then re-generates top investor matches.

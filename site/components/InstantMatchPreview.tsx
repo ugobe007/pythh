@@ -30,6 +30,7 @@ import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } fro
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
 import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 import { founderSignupPath } from '@/lib/safeUrl';
+import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 
 const PREVIEW_LIMIT = 5;
 
@@ -184,6 +185,11 @@ export default function InstantMatchPreview({ url }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
+  const [improveMatchesOpen, setImproveMatchesOpen] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('improve') === '1',
+  );
+  const refreshed =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('refreshed') === '1';
   const [startupId, setStartupId] = useState<string | null>(null);
   const [investorMix, setInvestorMix] = useState<InvestorMix>('balanced');
   const [mixLoading, setMixLoading] = useState(false);
@@ -590,6 +596,13 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       </div>
 
+      {refreshed && (
+        <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
+          <p className="text-sm font-semibold text-emerald-300">Matches refreshed with your new data</p>
+          <p className="mt-1 text-xs text-zinc-400">The shortlist below has been reranked by the match engine.</p>
+        </div>
+      )}
+
       <div className="mb-6 rounded-xl border border-zinc-800 bg-zinc-900/35 p-4">
         <p className="text-[10px] uppercase tracking-[1.5px] text-emerald-400 mb-3">
           How to use this shortlist
@@ -600,6 +613,23 @@ export default function InstantMatchPreview({ url }: Props) {
           <p className="text-zinc-400"><span className="text-white font-semibold">3. Tailor outreach.</span> Lead with the strongest relevant proof.</p>
         </div>
       </div>
+
+      {isAuthenticated && preview.startup?.id && (
+        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-[1.5px] text-emerald-400">Optional · Improve matches</p>
+            <p className="mt-1 text-sm font-medium text-white">Add missing founder, funding, traction, or deck data.</p>
+            <p className="mt-1 text-xs text-zinc-500">Then rerun the match engine for a more informed shortlist.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setImproveMatchesOpen(true)}
+            className="shrink-0 rounded-lg border border-emerald-500/40 px-4 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10"
+          >
+            Improve matches →
+          </button>
+        </div>
+      )}
 
       <div className="space-y-3 mb-6">
         {visible.map((m, i) => {
@@ -720,7 +750,7 @@ export default function InstantMatchPreview({ url }: Props) {
       <div className="mb-8 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-center">
         <p className="text-sm font-medium text-white mb-1">Your five matches are ready</p>
         <p className="text-xs text-zinc-400">
-          Open personalized outreach drafts next. Signal improvements remain optional.
+          Open personalized outreach drafts next. Adding data to improve matches remains optional.
         </p>
       </div>
 
@@ -751,6 +781,15 @@ export default function InstantMatchPreview({ url }: Props) {
           </div>
         </div>
       </div>
+
+      {improveMatchesOpen && preview.startup?.id && (
+        <ImproveMatchesPanel
+          startupId={preview.startup.id}
+          startupUrl={url}
+          currentGodScore={preview.startup.god_score}
+          onClose={() => setImproveMatchesOpen(false)}
+        />
+      )}
 
     </div>
   );

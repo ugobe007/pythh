@@ -150,6 +150,11 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
   const handleGoBackToUnlocks = async () => {
     setUnlockNavigating(true);
     try {
+      const website = startupWebsite || outreach?.website;
+      if (website) {
+        navigate(`/matches?url=${encodeURIComponent(website)}&improve=1`);
+        return;
+      }
       allowWizardUnlockFlow();
       if (onBeginUnlocks) {
         await onBeginUnlocks();
@@ -318,7 +323,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
           >
             <span className="block text-[10px] font-semibold tracking-widest mb-1" style={{ color: "#a855f7" }}>OPTIONAL</span>
             <span className="block text-sm font-semibold" style={{ color: "oklch(0.9 0.005 264)" }}>
-              Improve my signals →
+              Improve matches →
             </span>
           </button>
           <Link href={gate.pipeline_active ? activatePath(startupId, { pipeline: true }) : "/pricing"}>
@@ -491,7 +496,7 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
                 background: "oklch(0.696 0.17 280 / 0.08)",
               }}
             >
-              {unlockNavigating ? "Opening…" : "Close gaps → strengthen my story"}
+              {unlockNavigating ? "Opening…" : "Improve matches with more data"}
               <ArrowRight size={14} />
             </button>
             <p className="text-[10px] text-center mt-2" style={{ color: "oklch(0.4 0.01 264)" }}>
