@@ -23,6 +23,7 @@ import dotenv from 'dotenv';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 dotenv.config({ path: path.join(root, '.env') });
 dotenv.config({ path: path.join(root, '.env.local'), override: false });
+dotenv.config({ path: path.join(root, '.env.save'), override: false, quiet: true });
 
 const APPLY = process.argv.includes('--apply');
 const limitArg = process.argv.find((value) => value.startsWith('--limit='));
@@ -38,7 +39,10 @@ const approved = organizations.filter(
   (group) => group.verification_status === 'source_backed' && group.source_url,
 );
 
-const url = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+const flyConfigPath = path.join(root, 'fly.toml');
+const flyConfig = fs.existsSync(flyConfigPath) ? fs.readFileSync(flyConfigPath, 'utf8') : '';
+const flySupabaseUrl = flyConfig.match(/^\s*SUPABASE_URL\s*=\s*["']([^"']+)/m)?.[1] || '';
+const url = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || flySupabaseUrl).trim();
 const key = String(
   process.env.SUPABASE_SERVICE_KEY ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
