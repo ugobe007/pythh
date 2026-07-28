@@ -32,6 +32,7 @@ import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import PitchEventRecommendations from '@/components/PitchEventRecommendations';
+import AngelGroupRecommendations from '@/components/AngelGroupRecommendations';
 
 const PREVIEW_LIMIT = 5;
 
@@ -114,6 +115,7 @@ type PreviewPayload = {
     god_score?: number;
     sectors?: string[] | null;
     stage?: string | null;
+    state?: string | null;
   };
   total_matches?: number;
   matches?: PreviewMatch[];
@@ -753,6 +755,14 @@ export default function InstantMatchPreview({ url }: Props) {
         startupName={startupName}
         sectors={preview.startup?.sectors}
         stage={preview.startup?.stage}
+      />
+
+      <AngelGroupRecommendations
+        startupId={preview.startup?.id || startupId || undefined}
+        startupName={startupName}
+        sectors={preview.startup?.sectors}
+        stage={preview.startup?.stage}
+        state={preview.startup?.state}
       />
 
       <div className="mb-8 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-center">

@@ -6763,6 +6763,8 @@ const growthRouter = require('./routes/growth')(getSupabaseClient);
 app.use('/api/matches', matchesRouter);
 const pitchEventsRouter = require('./routes/pitchEvents');
 app.use('/api/pitch-events', pitchEventsRouter);
+const angelIntelligenceRouter = require('./routes/angelIntelligence');
+app.use('/api/angel-intelligence', angelIntelligenceRouter);
 const introConciergeRouter = require('./routes/introConcierge');
 app.use('/api/intro', introConciergeRouter);
 app.use('/api/growth', growthRouter);
