@@ -243,6 +243,8 @@
     "intel:sync-investors": "node scripts/sync-vc-intelligence-to-investors.mjs --apply",
     "intel:thesis-refresh": "node scripts/refresh-firm-thesis-from-investments.mjs --apply",
     "intel:signal-events": "node scripts/emit-investor-signal-events.mjs --apply",
+    "intel:angels": "node scripts/intelligence/angel-intelligence-monitor.mjs",
+    "intel:angels:apply": "node scripts/intelligence/angel-intelligence-monitor.mjs --apply",
     "intel:partners-sync": "node scripts/sync-investor-partners-json.mjs --apply",
     "intel:faith-backfill": "npx tsx scripts/backfill-faith-signals.ts --limit 50",
     "dq:investors:quarantine": "node scripts/investor-data-quality-gate.js --quarantine --execute",

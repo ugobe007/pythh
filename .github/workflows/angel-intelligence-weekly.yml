@@ -1,0 +1,23 @@
+name: Angel Intelligence Weekly
+
+on:
+  schedule:
+    - cron: '15 6 * * 2'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Maximum approved source pages to check'
+        required: false
+        default: '30'
+
+concurrency:
+  group: angel-intelligence-weekly
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    uses: ./.github/workflows/reusable-node-batch.yml
+    secrets: inherit
+    with:
+      run: node scripts/intelligence/angel-intelligence-monitor.mjs --apply --limit=${{ inputs.limit || '30' }}
+      timeout_minutes: 60
