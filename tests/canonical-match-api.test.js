@@ -50,6 +50,28 @@ describe('buildPreviewMatchList', () => {
       assert.ok(m.investor_class === 'angel' || m.investor_class === 'vc');
     }
   });
+
+  it('excludes investors that target the wrong funding lifecycle', () => {
+    const rows = [
+      {
+        investor_id: 'preseed-only',
+        match_score: 95,
+        investors: { id: 'preseed-only', name: 'Preseed Fund', firm: 'Preseed Fund', type: 'VC', stage: ['Pre-Seed'] },
+      },
+      {
+        investor_id: 'seed',
+        match_score: 80,
+        investors: { id: 'seed', name: 'Seed Fund', firm: 'Seed Fund', type: 'VC', stage: ['Seed'] },
+      },
+    ];
+    const result = buildPreviewMatchList(rows, {
+      mix: 'all',
+      total: 5,
+      startup: { funding_stage: 'seed' },
+    });
+    assert.deepEqual(result.map((match) => match.investor_id), ['seed']);
+    assert.equal(result[0].funding_lifecycle_fit.level, 'exact');
+  });
 });
 
 describe('resolvePreviewMixOptions', () => {

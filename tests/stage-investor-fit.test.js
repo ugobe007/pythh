@@ -21,6 +21,13 @@ describe('getStartupStageBand', () => {
     assert.equal(getStartupStageBand(2), 'mid');
     assert.equal(getStartupStageBand(4), 'late');
   });
+
+  it('prefers explicit funding lifecycle data on startup objects', () => {
+    assert.equal(
+      getStartupStageBand({ stage: 2, extracted_data: { funding_stage: 'pre-seed' } }),
+      'early',
+    );
+  });
 });
 
 describe('getInvestorStageProfile', () => {
