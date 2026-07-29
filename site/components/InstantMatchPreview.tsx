@@ -52,6 +52,16 @@ type PreviewMatch = {
   investor_id?: string;
   match_score?: number;
   why_you_match?: string | null;
+  fitness_score?: number;
+  fitness_confidence?: 'high' | 'medium' | 'building';
+  fitness_factors?: string[];
+  fitness_components?: {
+    alignment?: number;
+    lifecycle?: number;
+    reachability?: number;
+    profile?: number;
+    behavior?: number | null;
+  };
   investor_class?: 'angel' | 'vc';
   funding_lifecycle_fit?: {
     eligible?: boolean;
@@ -732,10 +742,34 @@ export default function InstantMatchPreview({ url }: Props) {
                   </span>
                   </div>
                 </div>
-                {typeof m.match_score === 'number' && (
-                  <span className="text-sm font-mono text-cyan-400">{Math.round(m.match_score)}% match</span>
+                {typeof (m.fitness_score ?? m.match_score) === 'number' && (
+                  <div className="text-right shrink-0">
+                    <span className="block text-sm font-mono font-semibold text-emerald-400">
+                      {Math.round(m.fitness_score ?? m.match_score ?? 0)} Fitness
+                    </span>
+                    <span className="block text-[9px] uppercase tracking-wide text-zinc-600">
+                      {m.fitness_confidence === 'high'
+                        ? 'High confidence'
+                        : m.fitness_confidence === 'medium'
+                          ? 'Verified signals'
+                          : 'Fitness building'}
+                    </span>
+                  </div>
                 )}
               </div>
+
+              {Array.isArray(m.fitness_factors) && m.fitness_factors.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {m.fitness_factors.slice(0, 3).map((factor) => (
+                    <span
+                      key={factor}
+                      className="text-[10px] px-2 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 text-emerald-200/80"
+                    >
+                      {factor}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               <MatchExplainBlock
                 startupId={preview.startup?.id || startupId || 'preview'}

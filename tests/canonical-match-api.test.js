@@ -24,6 +24,8 @@ describe('shapeMatchForApi', () => {
     assert.equal(typeof out.why_you_match, 'string');
     assert.match(out.why_you_match, /Stage match/);
     assert.equal(out.investor_class, 'vc');
+    assert.equal(typeof out.fitness_score, 'number');
+    assert.equal(out.fitness_methodology_version, 'fitness_v1');
   });
 
   it('coerces investor firm and name to strings', () => {

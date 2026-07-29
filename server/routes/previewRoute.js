@@ -547,7 +547,13 @@ router.get('/:startupId', async (req, res) => {
           investor_tier,
           twitter_url,
           linkedin_url,
-          photo_url
+          photo_url,
+          email,
+          email_best_guess,
+          email_status,
+          email_has_mx,
+          investment_thesis,
+          notable_investments
         )
       `)
       .eq('startup_id', startupId)
