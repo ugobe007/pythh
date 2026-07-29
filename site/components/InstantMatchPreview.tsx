@@ -53,6 +53,12 @@ type PreviewMatch = {
   match_score?: number;
   why_you_match?: string | null;
   investor_class?: 'angel' | 'vc';
+  funding_lifecycle_fit?: {
+    eligible?: boolean;
+    level?: 'exact' | 'compatible' | 'inferred' | 'unknown';
+    startupStage?: string | null;
+    investorStages?: string[];
+  } | null;
   investor?: {
     id?: string;
     name?: string;
@@ -106,6 +112,8 @@ type ShortlistMix = {
   mode?: string;
   vc_count?: number;
   angel_count?: number;
+  funding_stage?: string | null;
+  lifecycle_filtered?: boolean;
 };
 
 type PreviewPayload = {
@@ -617,6 +625,46 @@ export default function InstantMatchPreview({ url }: Props) {
         </div>
       </div>
 
+      <div className={`mb-6 rounded-xl border p-4 ${
+        preview.shortlist_mix?.funding_stage
+          ? 'border-emerald-500/25 bg-emerald-500/5'
+          : 'border-amber-500/25 bg-amber-500/5'
+      }`}>
+        <p className={`text-[10px] uppercase tracking-[1.5px] ${
+          preview.shortlist_mix?.funding_stage ? 'text-emerald-400' : 'text-amber-300'
+        }`}>
+          Funding lifecycle
+        </p>
+        {preview.shortlist_mix?.funding_stage ? (
+          <>
+            <p className="mt-1 text-sm font-medium text-white">
+              Matched for a {preview.shortlist_mix.funding_stage.replace(/-/g, ' ')} round
+            </p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Investors targeting this exact stage are prioritized before inferred early-stage fallbacks.
+            </p>
+          </>
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="mt-1 text-sm font-medium text-white">Your current round is not confirmed.</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Pythh used available early-stage signals. Confirm pre-seed or seed to remove lifecycle mismatches.
+              </p>
+            </div>
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => setImproveMatchesOpen(true)}
+                className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
+              >
+                Confirm my round
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {isAuthenticated && preview.startup?.id && (
         <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -666,6 +714,17 @@ export default function InstantMatchPreview({ url }: Props) {
                       }`}
                     >
                       {m.investor_class === 'angel' ? 'Angel' : 'VC'}
+                    </span>
+                  )}
+                  {m.funding_lifecycle_fit?.level && (
+                    <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${
+                      m.funding_lifecycle_fit.level === 'exact'
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    }`}>
+                      {m.funding_lifecycle_fit.level === 'exact'
+                        ? `${(m.funding_lifecycle_fit.startupStage || 'Stage').replace(/-/g, ' ')} fit`
+                        : 'Stage inferred'}
                     </span>
                   )}
                   <span className="text-white font-medium truncate">
