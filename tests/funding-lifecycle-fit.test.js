@@ -16,6 +16,10 @@ describe('funding lifecycle normalization', () => {
       'pre-seed',
     );
   });
+
+  it('does not treat a default numeric stage as founder-confirmed funding status', () => {
+    assert.equal(getStartupFundingStage({ stage: 1 }), null);
+  });
 });
 
 describe('funding lifecycle eligibility', () => {
