@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Building2, CalendarClock, MapPin } from 'lucide-react';
+import { ArrowUpRight, Building2, CalendarClock, MapPin, RefreshCw } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
@@ -31,6 +31,19 @@ export default function AngelGroupRecommendations({
   state?: string | null;
 }) {
   const [groups, setGroups] = useState<AngelGroup[]>([]);
+  const [rotation, setRotation] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    try {
+      const storageKey = `pythh:angel-rotation:${startupId || startupName}`;
+      const previousRotation = Number.parseInt(sessionStorage.getItem(storageKey) || '-1', 10);
+      const nextRotation = Number.isFinite(previousRotation) ? previousRotation + 1 : 0;
+      sessionStorage.setItem(storageKey, String(nextRotation));
+      return nextRotation;
+    } catch {
+      return 0;
+    }
+  });
+  const [isRotating, setIsRotating] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams({
@@ -38,23 +51,49 @@ export default function AngelGroupRecommendations({
       stage: stage || '',
       state: state || '',
       limit: '3',
+      rotation: String(rotation),
+      seed: startupId || startupName,
     });
+    setIsRotating(true);
     fetch(apiUrl(`/api/angel-intelligence/recommendations?${params}`))
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((payload) => setGroups(Array.isArray(payload?.recommendations) ? payload.recommendations : []))
-      .catch(() => setGroups([]));
-  }, [sectors, stage, state]);
+      .catch(() => setGroups([]))
+      .finally(() => setIsRotating(false));
+  }, [rotation, sectors, stage, state, startupId, startupName]);
 
   if (!groups.length) return null;
 
   return (
     <section className="mb-8 rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-5">
-      <div className="mb-5">
-        <p className="text-[10px] uppercase tracking-[1.5px] text-cyan-400">Angel intelligence</p>
-        <h2 className="mt-1 text-lg font-semibold text-white">Organized angel capital for {startupName}</h2>
-        <p className="mt-1 text-xs text-zinc-400">
-          Source-backed groups with structured founder application or screening processes.
-        </p>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[1.5px] text-cyan-400">Angel intelligence</p>
+          <h2 className="mt-1 text-lg font-semibold text-white">Organized angel capital for {startupName}</h2>
+          <p className="mt-1 text-xs text-zinc-400">
+            Source-backed groups with structured founder application or screening processes.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={isRotating}
+          onClick={() => {
+            setRotation((current) => {
+              const next = current + 1;
+              try {
+                sessionStorage.setItem(`pythh:angel-rotation:${startupId || startupName}`, String(next));
+              } catch {
+                // Rotation still works when browser storage is unavailable.
+              }
+              return next;
+            });
+            void trackFunnelEvent('angel_groups_rotated', { startup_id: startupId });
+          }}
+          className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:cursor-wait disabled:opacity-60"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isRotating ? 'animate-spin' : ''}`} />
+          Show different groups
+        </button>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
         {groups.map((group) => (
