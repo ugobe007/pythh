@@ -16,7 +16,7 @@ const path = require('path');
 const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
+const { extractPdfText } = require('../lib/pdfTextExtractor');
 const { extractInferenceData } = require('../../lib/inference-extractor');
 const { calculateCompleteness } = require('../services/dataCompletenessService');
 const { calculateGodScoreColumnsFromStartup: calculateGODScore } = require('../scoring/hotGodFromStartupRow');
@@ -66,8 +66,7 @@ router.post('/upload', upload.single('deck'), async (req, res) => {
     }
 
     // 2. Extract text from PDF
-    const pdfData = await pdfParse(file.buffer);
-    const text = (pdfData.text || '').trim();
+    const text = await extractPdfText(file.buffer);
     if (text.length < 50) {
       return res.status(400).json({ error: 'PDF appears empty or could not extract enough text.' });
     }
