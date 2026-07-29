@@ -62,6 +62,17 @@ interface PlatformStats {
   computed_at?: string;
 }
 
+interface DailySnapshotData {
+  date?: string;
+  editorial?: { text?: string } | string;
+  signalsThatMatter?: {
+    coverage?: number;
+    leading?: { label?: string; avg?: number; pct?: number; blurb?: string };
+  } | null;
+  moneyMoves?: Array<{ company?: string; amount?: string; stage?: string | null }>;
+  vcNews?: Array<{ title?: string; source?: string }>;
+}
+
 function formatMatchCompact(n: number): string {
   if (n >= 1_000_000) {
     const m = n / 1_000_000;
@@ -1175,9 +1186,20 @@ function NewsletterSection() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) setSubmitted(true);
+    if (!email) return;
+    try {
+      const response = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!response.ok) throw new Error("subscribe_failed");
+      setSubmitted(true);
+    } catch {
+      toast.error("We could not save your email. Please try again.");
+    }
   };
 
   return (
@@ -1195,13 +1217,13 @@ function NewsletterSection() {
             <span style={{ color: "oklch(0.769 0.188 70.08)" }}>before the noise.</span>
           </h2>
           <p className="text-base leading-relaxed mb-8" style={{ color: "oklch(0.6 0.01 264)" }}>
-            Get a weekly breakdown of VC thesis shifts, hidden capital flows, and the investors PYTHIA is watching right now.
+            A daily snapshot of funding shifts, startup signals, and the investors PYTHIA is watching right now.
           </p>
           {submitted ? (
             <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-xl border"
               style={{ backgroundColor: "oklch(0.696 0.17 162.48 / 0.1)", borderColor: "oklch(0.696 0.17 162.48 / 0.3)" }}>
               <Zap size={16} style={{ color: "oklch(0.696 0.17 162.48)" }} />
-              <span className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>You're in. First signal drops this week.</span>
+              <span className="text-sm font-medium" style={{ color: "oklch(0.696 0.17 162.48)" }}>You're in. Your next Daily Signal is on the way.</span>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
@@ -1221,6 +1243,91 @@ function NewsletterSection() {
             </form>
           )}
           <p className="text-xs mt-4" style={{ color: "oklch(0.45 0.01 264)" }}>No spam. Unsubscribe anytime.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DailyCapitalSnapshot() {
+  const [snapshot, setSnapshot] = useState<DailySnapshotData | null>(null);
+
+  useEffect(() => {
+    fetch("/api/newsletter/today")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setSnapshot(data))
+      .catch(() => setSnapshot(null));
+  }, []);
+
+  const editorial = typeof snapshot?.editorial === "string"
+    ? snapshot.editorial
+    : snapshot?.editorial?.text;
+  const leading = snapshot?.signalsThatMatter?.leading;
+  const moneyMove = snapshot?.moneyMoves?.[0];
+  const marketNote = snapshot?.vcNews?.[0];
+  const observations = [
+    leading?.label
+      ? {
+          label: "SIGNAL TREND",
+          title: leading.label,
+          detail: leading.blurb || `${Math.round(leading.pct ?? leading.avg ?? 0)}% signal strength across tracked startups.`,
+        }
+      : null,
+    moneyMove?.company
+      ? {
+          label: "CAPITAL MOVE",
+          title: `${moneyMove.company}${moneyMove.amount ? ` · ${moneyMove.amount}` : ""}`,
+          detail: moneyMove.stage ? `${moneyMove.stage} financing activity worth tracking.` : "New financing activity worth tracking.",
+        }
+      : null,
+    marketNote?.title
+      ? {
+          label: "INVESTOR WATCH",
+          title: marketNote.title,
+          detail: marketNote.source ? `Reported by ${marketNote.source}.` : "A shift founders should factor into investor targeting.",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; title: string; detail: string }>;
+
+  return (
+    <section className="py-20" style={{ backgroundColor: "oklch(0.105 0.01 264)" }}>
+      <div className="container">
+        <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${G_BORDER}`, background: "linear-gradient(135deg, oklch(0.15 0.02 162) 0%, oklch(0.12 0.01 264) 55%)" }}>
+          <div className="px-6 py-5 sm:px-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
+            <div>
+              <p className="text-[11px] font-bold tracking-[0.2em] mb-1" style={{ color: G }}>PYTHH CAPITAL SNAPSHOT</p>
+              <h2 className="text-2xl sm:text-3xl font-display font-bold" style={{ color: TEXT }}>What the market is telling founders today</h2>
+            </div>
+            <span className="text-xs font-mono" style={{ color: MUTED }}>{snapshot?.date || "TODAY"} · DAILY</span>
+          </div>
+          <div className="p-6 sm:p-8">
+            <p className="max-w-4xl text-base sm:text-lg leading-relaxed mb-7" style={{ color: "oklch(0.78 0.01 264)" }}>
+              {editorial || "Pythh is compiling today’s capital movements, investor behavior, and startup signals."}
+            </p>
+            <div className="grid md:grid-cols-3 gap-3 mb-7">
+              {(observations.length ? observations : [
+                { label: "SIGNAL TREND", title: "Evidence is beating narrative", detail: "Founders with current customer, team, and traction proof earn stronger investor fit." },
+                { label: "CAPITAL MOVE", title: "Stage discipline matters", detail: "Target investors whose current check size and lifecycle focus match your round." },
+                { label: "INVESTOR WATCH", title: "Reachability changes quickly", detail: "Recent activity and warm paths matter as much as thesis alignment." },
+              ]).map((item) => (
+                <div key={item.label} className="rounded-xl p-4" style={{ backgroundColor: CARD, border: `1px solid ${BORDER}` }}>
+                  <p className="text-[10px] font-semibold tracking-widest mb-2" style={{ color: CYAN }}>{item.label}</p>
+                  <p className="text-sm font-semibold mb-1.5" style={{ color: TEXT }}>{item.title}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: MUTED }}>{item.detail}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+              <p className="text-sm" style={{ color: MUTED }}>
+                Founder action: refresh your evidence, confirm your round stage, and contact the five investors with the strongest current fit.
+              </p>
+              <Link href="/newsletter">
+                <span className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold whitespace-nowrap" style={{ backgroundColor: G, color: "#04130d" }}>
+                  Read today’s brief <ArrowRight size={15} />
+                </span>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1500,6 +1607,7 @@ export default function Home() {
       <SharedNavbar activePath="/" variant="hero" />
       <HeroSection platformStats={platformStats} platformStatsReady={platformStatsReady} portfolioMetrics={portfolioMetrics} />
       <LiveMatchHighlight />
+      <DailyCapitalSnapshot />
       <PortfolioTeaser />
       <HowItWorksSection />
       <ReadinessMemoSection />

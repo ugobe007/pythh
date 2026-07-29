@@ -230,6 +230,8 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
   const unmetCount = gate.requirements.filter((r) => !r.met).length;
   const pipelineThreshold = gate.thresholds.pipeline;
   const outreachThreshold = gate.thresholds.outreach;
+  const completedRequirements = gate.requirements.filter((requirement) => requirement.met).length;
+  const nextRequirements = gate.requirements.filter((requirement) => !requirement.met).slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -339,6 +341,121 @@ export default function RoundAutomation({ startupId, startupName, startupWebsite
           </Link>
         </div>
       )}
+
+      <section
+        className="rounded-2xl overflow-hidden"
+        style={{ background: "linear-gradient(145deg, oklch(0.145 0.025 162), oklch(0.115 0.01 264) 58%)", border: "1px solid oklch(0.696 0.17 162.48 / 0.38)" }}
+      >
+        <div className="p-5 sm:p-6" style={{ borderBottom: "1px solid oklch(0.23 0.02 162)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.18em] mb-2 text-emerald-400">OUTREACH ACTIVATION</p>
+              <h3 className="text-xl font-semibold mb-1" style={{ color: "oklch(0.96 0.005 264)" }}>
+                Turn your matches into investor meetings
+              </h3>
+              <p className="text-sm leading-relaxed max-w-2xl" style={{ color: "oklch(0.62 0.01 264)" }}>
+                Pythh will guide the preparation, prioritize your best-fit investors, and track the campaign after activation.
+              </p>
+            </div>
+            <div className="shrink-0 rounded-xl px-4 py-3 text-center" style={{ backgroundColor: "oklch(0.1 0.01 264)", border: "1px solid oklch(0.25 0.02 162)" }}>
+              <p className="text-xl font-mono font-bold" style={{ color: readinessColor }}>{readinessScore}/100</p>
+              <p className="text-[9px] tracking-widest" style={{ color: "oklch(0.48 0.01 264)" }}>MEETING READINESS</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6 grid md:grid-cols-3 gap-3">
+          {[
+            {
+              step: "1",
+              title: "Confirm your round",
+              body: "Funding stage, target amount, timing, geography, and sectors shape who Pythh contacts.",
+              complete: gate.stats.match_count >= 5,
+            },
+            {
+              step: "2",
+              title: "Strengthen your evidence",
+              body: nextRequirements.length
+                ? `Complete ${nextRequirements.length} priority prompt${nextRequirements.length === 1 ? "" : "s"} before the first automated sequence.`
+                : "Your core evidence checks are complete.",
+              complete: nextRequirements.length === 0,
+            },
+            {
+              step: "3",
+              title: "Activate outreach",
+              body: gate.pipeline_active
+                ? "Your campaign is active and ready to track."
+                : "Launch a focused sequence to your best-fit, reachable investors.",
+              complete: gate.pipeline_active,
+            },
+          ].map((item) => (
+            <div key={item.step} className="rounded-xl p-4" style={{ backgroundColor: "oklch(0.105 0.01 264)", border: `1px solid ${item.complete ? "oklch(0.696 0.17 162.48 / 0.35)" : "oklch(0.22 0.01 264)"}` }}>
+              <div className="flex items-center gap-2 mb-2">
+                {item.complete ? <CheckCircle2 size={16} className="text-emerald-400" /> : <span className="w-4 h-4 rounded-full text-[9px] flex items-center justify-center font-mono" style={{ border: "1px solid #34d399", color: "#34d399" }}>{item.step}</span>}
+                <p className="text-sm font-semibold" style={{ color: "oklch(0.9 0.005 264)" }}>{item.title}</p>
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: "oklch(0.52 0.01 264)" }}>{item.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="px-5 sm:px-6 pb-6">
+          {nextRequirements.length > 0 && (
+            <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: "oklch(0.12 0.012 264)", border: "1px solid oklch(0.22 0.01 264)" }}>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <p className="text-xs font-semibold" style={{ color: "oklch(0.82 0.01 264)" }}>Guided prompts to improve meeting readiness</p>
+                <span className="text-[10px] font-mono" style={{ color: "oklch(0.48 0.01 264)" }}>{completedRequirements}/{gate.requirements.length} complete</span>
+              </div>
+              <div className="space-y-3">
+                {nextRequirements.map((requirement, index) => (
+                  <div key={requirement.id} className="flex items-start gap-3">
+                    <span className="text-xs font-mono mt-0.5 text-emerald-400">{index + 1}.</span>
+                    <div>
+                      <p className="text-xs font-medium" style={{ color: "oklch(0.82 0.01 264)" }}>{requirement.label}</p>
+                      {requirement.hint && <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "oklch(0.5 0.01 264)" }}>{requirement.hint}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={unlockNavigating}
+                onClick={() => void handleGoBackToUnlocks()}
+                className="mt-4 w-full py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+                style={{ backgroundColor: "#34d399", color: "#052e22" }}
+              >
+                {unlockNavigating ? "Opening guided prompts…" : "Improve my outreach plan →"}
+              </button>
+            </div>
+          )}
+
+          {activateError && (
+            <p className="text-xs mb-3 rounded-lg px-3 py-2" style={{ color: "#fbbf24", backgroundColor: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.2)" }}>
+              {activateError}
+            </p>
+          )}
+
+          {gate.pipeline_active ? (
+            <button type="button" onClick={() => navigate(activatePath(startupId, { pipeline: true }))} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold" style={{ backgroundColor: "#34d399", color: "#052e22" }}>
+              Track active outreach <ArrowRight size={15} />
+            </button>
+          ) : gate.pipeline_ready && quota?.can_activate !== false ? (
+            <button type="button" onClick={handleActivateRound} disabled={activating} className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ backgroundColor: "#34d399", color: "#052e22" }}>
+              {activating ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {activating ? "Activating outreach…" : "Activate my outreach program"}
+            </button>
+          ) : (
+            <Link href={quota?.plan === "none" ? "/pricing" : `/matches?url=${encodeURIComponent(displayWebsite || "")}&improve=1`}>
+              <span className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold" style={{ backgroundColor: "#34d399", color: "#052e22" }}>
+                {quota?.plan === "none" ? "Choose outreach automation →" : "Complete readiness prompts →"}
+              </span>
+            </Link>
+          )}
+          <p className="text-[10px] text-center mt-2" style={{ color: "oklch(0.43 0.01 264)" }}>
+            Your five manual drafts remain available while you improve and activate.
+          </p>
+        </div>
+      </section>
 
       {/* Detailed readiness remains available from the optional action above. */}
       <div
