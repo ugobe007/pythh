@@ -72,6 +72,8 @@ async function mountApp() {
       </trpc.Provider>
     </HelmetProvider>,
   );
+  // A successful mount proves the current deployment assets are coherent.
+  sessionStorage.removeItem("pythh_asset_recovery");
 }
 
 void mountApp();

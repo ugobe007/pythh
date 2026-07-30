@@ -81,6 +81,35 @@
           .catch(function () {});
       })();
     </script>
+    <script>
+      // Recover once when an open tab references a chunk removed by a new deploy.
+      // Missing assets must return 404 (see vercel.json), never the SPA HTML shell.
+      (function () {
+        var retryKey = "pythh_asset_recovery";
+        function recover() {
+          if (sessionStorage.getItem(retryKey)) return;
+          sessionStorage.setItem(retryKey, "1");
+          var url = new URL(window.location.href);
+          url.searchParams.set("_asset_refresh", Date.now().toString());
+          window.location.replace(url.toString());
+        }
+        window.addEventListener("vite:preloadError", function (event) {
+          event.preventDefault();
+          recover();
+        });
+        window.addEventListener("error", function (event) {
+          var message = String(event && event.message || "");
+          var target = event && event.target;
+          var source = target && (target.src || target.href) || "";
+          if (
+            /JavaScript MIME|module script|dynamically imported module|Failed to fetch/i.test(message) ||
+            /\/assets\/.*\.js(?:\?|$)/i.test(source)
+          ) {
+            recover();
+          }
+        }, true);
+      })();
+    </script>
   </head>
   <body>
     <div id="root">
