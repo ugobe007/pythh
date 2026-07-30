@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, FileText, Loader2, Plus, RefreshCw, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowRight, CheckCircle2, FileText, Loader2, Plus, RefreshCw, UploadCloud, X } from 'lucide-react';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
 
 type FounderInput = { name: string; linkedin_url: string };
@@ -92,6 +92,7 @@ export default function ImproveMatchesPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ godScore?: number; matchCount?: number } | null>(null);
+  const deckInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,11 +132,6 @@ export default function ImproveMatchesPanel({
     [payload],
   );
   const needsFounders = missing.has('founders') || profile.founders.some((founder) => !founder.linkedin_url);
-  const needsDescription = missing.has('description') || !profile.description;
-  const needsFunding = profile.funding_raised === '';
-  const needsTeamSize = profile.team_size === '';
-  const needsCustomers = profile.customer_count === '';
-  const needsMrr = profile.mrr === '';
 
   const updateFounder = (index: number, field: keyof FounderInput, value: string) => {
     setProfile((previous) => ({
@@ -144,6 +140,22 @@ export default function ImproveMatchesPanel({
         founderIndex === index ? { ...founder, [field]: value } : founder,
       ),
     }));
+  };
+
+  const selectDeck = (file: File | null) => {
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Please choose a PDF pitch deck.');
+      setDeck(null);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Deck must be 10 MB or smaller.');
+      setDeck(null);
+      return;
+    }
+    setError('');
+    setDeck(file);
   };
 
   const runAgain = async () => {
@@ -266,124 +278,145 @@ export default function ImproveMatchesPanel({
                 </div>
               </div>
 
-              {needsFounders && (
-                <section>
+              <section>
+                <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-white">Founders</h3>
-                  <p className="mt-1 text-xs text-zinc-500">Names and LinkedIn profiles improve team and thesis matching.</p>
-                  <div className="mt-3 space-y-3">
-                    {profile.founders.map((founder, index) => (
-                      <div key={index} className="grid gap-3 sm:grid-cols-2">
-                        <input
-                          value={founder.name}
-                          onChange={(event) => updateFounder(index, 'name', event.target.value)}
-                          placeholder="Founder name"
-                          className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
-                        />
-                        <input
-                          value={founder.linkedin_url}
-                          onChange={(event) => updateFounder(index, 'linkedin_url', event.target.value)}
-                          placeholder="linkedin.com/in/..."
-                          className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  {profile.founders.length < 6 && (
-                    <button
-                      type="button"
-                      onClick={() => setProfile((previous) => ({ ...previous, founders: [...previous.founders, { name: '', linkedin_url: '' }] }))}
-                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400"
-                    >
-                      <Plus size={13} /> Add another founder
-                    </button>
-                  )}
-                </section>
-              )}
-
-              <section className="grid gap-4 sm:grid-cols-2">
-                {!profile.company_linkedin && (
-                  <label className="block sm:col-span-2">
-                    <span className="block text-xs font-medium text-zinc-300 mb-2">Company LinkedIn</span>
-                    <input
-                      value={profile.company_linkedin}
-                      onChange={(event) => setProfile((previous) => ({ ...previous, company_linkedin: event.target.value }))}
-                      placeholder="linkedin.com/company/..."
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
-                    />
-                  </label>
-                )}
-                {needsFunding && <NumberField label="Raised to date" prefix="$" value={profile.funding_raised} onChange={(value) => setProfile((previous) => ({ ...previous, funding_raised: value }))} />}
-                {profile.target_raise === '' && <NumberField label="Current target raise" prefix="$" value={profile.target_raise} onChange={(value) => setProfile((previous) => ({ ...previous, target_raise: value }))} />}
-                {!profile.funding_stage && (
-                  <label className="block">
-                    <span className="block text-xs font-medium text-zinc-300 mb-2">Current fundraising stage</span>
-                    <select
-                      value={profile.funding_stage}
-                      onChange={(event) => setProfile((previous) => ({ ...previous, funding_stage: event.target.value }))}
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none"
-                    >
-                      <option value="">Select stage</option>
-                      <option value="pre-seed">Pre-seed</option>
-                      <option value="seed">Seed</option>
-                      <option value="series-a">Series A</option>
-                      <option value="series-b">Series B</option>
-                      <option value="series-c-plus">Series C+</option>
-                    </select>
-                  </label>
-                )}
-                {needsTeamSize && <NumberField label="Current team size" value={profile.team_size} onChange={(value) => setProfile((previous) => ({ ...previous, team_size: value }))} />}
-                {needsCustomers && <NumberField label="Customers or paying organizations" value={profile.customer_count} onChange={(value) => setProfile((previous) => ({ ...previous, customer_count: value }))} />}
-                {needsMrr && <NumberField label="Monthly recurring revenue" prefix="$" value={profile.mrr} onChange={(value) => setProfile((previous) => ({ ...previous, mrr: value }))} hint="Enter 0 if pre-revenue." />}
-                {profile.has_technical_cofounder == null && (
-                  <label className="block">
-                    <span className="block text-xs font-medium text-zinc-300 mb-2">Technical co-founder?</span>
-                    <select
-                      value=""
-                      onChange={(event) => setProfile((previous) => ({ ...previous, has_technical_cofounder: event.target.value === 'yes' }))}
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none"
-                    >
-                      <option value="" disabled>Select one</option>
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </select>
-                  </label>
+                  {needsFounders && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">Needs details</span>}
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">Names and LinkedIn profiles improve team and thesis matching.</p>
+                <div className="mt-3 space-y-3">
+                  {profile.founders.map((founder, index) => (
+                    <div key={index} className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        value={founder.name}
+                        onChange={(event) => updateFounder(index, 'name', event.target.value)}
+                        placeholder="Founder name"
+                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
+                      />
+                      <input
+                        value={founder.linkedin_url}
+                        onChange={(event) => updateFounder(index, 'linkedin_url', event.target.value)}
+                        placeholder="linkedin.com/in/..."
+                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {profile.founders.length < 6 && (
+                  <button
+                    type="button"
+                    onClick={() => setProfile((previous) => ({ ...previous, founders: [...previous.founders, { name: '', linkedin_url: '' }] }))}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400"
+                  >
+                    <Plus size={13} /> Add another founder
+                  </button>
                 )}
               </section>
 
-              {needsDescription && (
-                <label className="block">
-                  <span className="block text-xs font-medium text-zinc-300 mb-2">What does the company do?</span>
-                  <textarea
-                    rows={4}
-                    value={profile.description}
-                    onChange={(event) => setProfile((previous) => ({ ...previous, description: event.target.value }))}
-                    placeholder="Describe the customer, problem, product, and why now."
-                    className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
-                  />
-                </label>
-              )}
-
-              {!profile.deck_filename && (
-                <label className="block rounded-xl border border-dashed border-zinc-700 bg-zinc-900/30 p-4">
-                  <span className="flex items-center gap-2 text-sm font-medium text-white"><FileText size={16} className="text-emerald-400" /> Company deck (optional)</span>
-                  <span className="mt-1 block text-xs text-zinc-500">Upload a PDF up to 10 MB. Pythh extracts evidence; it is not sent to investors.</span>
+              <section className="grid gap-4 sm:grid-cols-2">
+                <label className="block sm:col-span-2">
+                  <span className="block text-xs font-medium text-zinc-300 mb-2">Company LinkedIn</span>
                   <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] || null;
-                      if (file && file.size > 10 * 1024 * 1024) {
-                        setError('Deck must be 10 MB or smaller.');
-                        setDeck(null);
-                        return;
-                      }
-                      setError('');
-                      setDeck(file);
-                    }}
-                    className="mt-3 block w-full text-xs text-zinc-400 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-500 file:px-3 file:py-2 file:font-semibold file:text-zinc-950"
+                    value={profile.company_linkedin}
+                    onChange={(event) => setProfile((previous) => ({ ...previous, company_linkedin: event.target.value }))}
+                    placeholder="linkedin.com/company/..."
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
                   />
                 </label>
-              )}
+                <NumberField label="Raised to date" prefix="$" value={profile.funding_raised} onChange={(value) => setProfile((previous) => ({ ...previous, funding_raised: value }))} />
+                <NumberField label="Current target raise" prefix="$" value={profile.target_raise} onChange={(value) => setProfile((previous) => ({ ...previous, target_raise: value }))} />
+                <label className="block">
+                  <span className="block text-xs font-medium text-zinc-300 mb-2">Current fundraising stage</span>
+                  <select
+                    value={profile.funding_stage}
+                    onChange={(event) => setProfile((previous) => ({ ...previous, funding_stage: event.target.value }))}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="">Select stage</option>
+                    <option value="pre-seed">Pre-seed</option>
+                    <option value="seed">Seed</option>
+                    <option value="series-a">Series A</option>
+                    <option value="series-b">Series B</option>
+                    <option value="series-c-plus">Series C+</option>
+                  </select>
+                </label>
+                <NumberField label="Current team size" value={profile.team_size} onChange={(value) => setProfile((previous) => ({ ...previous, team_size: value }))} />
+                <NumberField label="Customers or paying organizations" value={profile.customer_count} onChange={(value) => setProfile((previous) => ({ ...previous, customer_count: value }))} />
+                <NumberField label="Monthly recurring revenue" prefix="$" value={profile.mrr} onChange={(value) => setProfile((previous) => ({ ...previous, mrr: value }))} hint="Enter 0 if pre-revenue." />
+                <label className="block">
+                  <span className="block text-xs font-medium text-zinc-300 mb-2">Technical co-founder?</span>
+                  <select
+                    value={profile.has_technical_cofounder == null ? '' : profile.has_technical_cofounder ? 'yes' : 'no'}
+                    onChange={(event) => setProfile((previous) => ({
+                      ...previous,
+                      has_technical_cofounder: event.target.value === '' ? null : event.target.value === 'yes',
+                    }))}
+                    className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="">Select one</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+              </section>
+
+              <label className="block">
+                <span className="block text-xs font-medium text-zinc-300 mb-2">What does the company do?</span>
+                <textarea
+                  rows={4}
+                  value={profile.description}
+                  onChange={(event) => setProfile((previous) => ({ ...previous, description: event.target.value }))}
+                  placeholder="Describe the customer, problem, product, and why now."
+                  className="w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-500/60"
+                />
+              </label>
+
+              <section className="rounded-xl border border-dashed border-emerald-500/35 bg-emerald-500/5 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <span className="flex items-center gap-2 text-sm font-medium text-white">
+                      <FileText size={16} className="text-emerald-400" /> Pitch deck
+                    </span>
+                    <span className="mt-1 block text-xs text-zinc-400">
+                      Upload a PDF up to 10 MB. Pythh extracts evidence; it is never sent without your approval.
+                    </span>
+                    {(deck || profile.deck_filename) && (
+                      <span className="mt-2 block max-w-sm truncate text-xs font-medium text-emerald-300">
+                        {deck ? `Selected: ${deck.name}` : `Current deck: ${profile.deck_filename}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <input
+                      ref={deckInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      onChange={(event) => selectDeck(event.target.files?.[0] || null)}
+                      className="sr-only"
+                    />
+                    {deck && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeck(null);
+                          if (deckInputRef.current) deckInputRef.current.value = '';
+                        }}
+                        className="rounded-lg border border-zinc-700 px-3 py-2.5 text-xs font-medium text-zinc-300 hover:border-zinc-600 hover:text-white"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deckInputRef.current?.click()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
+                    >
+                      <UploadCloud size={15} />
+                      {profile.deck_filename || deck ? 'Replace deck' : 'Upload deck'}
+                    </button>
+                  </div>
+                </div>
+              </section>
 
               {error && <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">{error}</p>}
 
