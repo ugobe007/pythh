@@ -44,6 +44,16 @@ async function countSignalScores() {
   return c ?? 0;
 }
 
+async function countUniqueFundedStartups() {
+  const { data, error } = await sb.rpc('exec_sql_rows', {
+    sql_query: `SELECT COUNT(DISTINCT startup_id)::bigint AS n
+      FROM public.funding_outcomes
+      WHERE outcome_type = 'funded' AND startup_id IS NOT NULL`,
+  });
+  if (error) throw new Error(`funded startups count: ${errMsg(error)}`);
+  return Number(data?.[0]?.n ?? 0);
+}
+
 /** Full COUNT(*) on 3.7M+ match rows hits statement timeout — use reltuples (~1% error). */
 async function countMatchesTotal() {
   const { count: exact, error } = await sb
@@ -65,7 +75,7 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
   console.log('📊 Refreshing platform_stats_cache (full-table counts)…');
   const t0 = Date.now();
 
-  const [startups, startups_total, investors, matches, matches_new_7d, matches_new_30d, signals] =
+  const [startups, startups_total, investors, matches, matches_new_7d, matches_new_30d, signals, funded_startups] =
     await Promise.all([
       count('startup_uploads', (q) => q.eq('status', 'approved')),
       count('startup_uploads'),
@@ -74,6 +84,7 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
       count('startup_investor_matches', (q) => q.gte('created_at', daysAgoIso(7))),
       count('startup_investor_matches', (q) => q.gte('created_at', daysAgoIso(30))),
       countSignalScores(),
+      countUniqueFundedStartups(),
     ]);
 
   const row = {
@@ -85,12 +96,14 @@ export async function refreshPlatformStatsCache({ source = 'refresh-platform-sta
     matches_new_7d,
     matches_new_30d,
     signals,
+    funded_startups,
     updated_at: new Date().toISOString(),
     refresh_source: source,
   };
 
   console.log(`   startups ${startups.toLocaleString()} · investors ${investors.toLocaleString()}`);
   console.log(`   matches ${matches.toLocaleString()} · 7d ${matches_new_7d.toLocaleString()} · signals ${signals.toLocaleString()}`);
+  console.log(`   funded startups ${funded_startups.toLocaleString()} (unique tracked outcomes)`);
   console.log(`   elapsed ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
   if (!APPLY) {

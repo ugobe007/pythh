@@ -456,8 +456,8 @@ function HeroSection({
               },
               {
                 value: fundedStartupCount.toLocaleString(),
-                label: "Verified funded",
-                sub: "press-confirmed tracked startups",
+                label: "Startups funded",
+                sub: "unique tracked funding outcomes",
                 color: GOLD,
                 href: "/portfolio",
               },

@@ -23,6 +23,7 @@ const STATEMENTS = [
   matches_new_7d bigint NOT NULL DEFAULT 0,
   matches_new_30d bigint NOT NULL DEFAULT 0,
   signals bigint NOT NULL DEFAULT 0,
+  funded_startups bigint NOT NULL DEFAULT 0,
   updated_at timestamptz NOT NULL DEFAULT now(),
   refresh_source text
 )`,
@@ -49,6 +50,7 @@ AS $$
         'matches_new_7d', c.matches_new_7d,
         'matches_new_30d', c.matches_new_30d,
         'signals', c.signals,
+        'funded_startups', c.funded_startups,
         'computed_at', c.updated_at,
         'source', COALESCE(c.refresh_source, 'cache')
       )
@@ -63,6 +65,7 @@ AS $$
       'matches_new_7d', 0,
       'matches_new_30d', 0,
       'signals', 0,
+      'funded_startups', 0,
       'computed_at', NOW(),
       'source', 'empty'
     )
