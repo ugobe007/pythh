@@ -16,7 +16,7 @@ export type HeroHeadlineCopy = {
   cta: string;
 };
 
-export const HERO_PRIMARY_CTA = 'See my five matches';
+export const HERO_PRIMARY_CTA = 'Find my best investors';
 
 const TRUSTED_HERO_SUBLINE =
   'Paste your startup URL. Create a free account to reveal five matched investors and save your results.';

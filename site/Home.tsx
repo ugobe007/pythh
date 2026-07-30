@@ -90,9 +90,9 @@ function formatMatchFull(n: number): string {
 
 function formatVelocitySub(n: number): string {
   if (n <= 0) return "";
-  if (n >= 1_000_000) return `${formatMatchCompact(n)} scored this week`;
-  if (n >= 1_000) return `${Math.round(n / 1000)}K scored this week`;
-  return `${n.toLocaleString()} scored this week`;
+  if (n >= 1_000_000) return `${formatMatchCompact(n)} new this week`;
+  if (n >= 1_000) return `${Math.round(n / 1000)}K new this week`;
+  return `${n.toLocaleString()} new this week`;
 }
 
 function usePlatformStats() {
@@ -438,15 +438,16 @@ function HeroSection({
             items={[
               {
                 value: investorCount.toLocaleString(),
-                label: "Investors mapped",
-                sub: "active profiles",
-                color: CYAN,
+                label: "Investors in Pythh",
+                sub: "angels, VCs & funds",
+                color: G,
+                featured: true,
               },
               {
                 value: startupCount.toLocaleString(),
-                label: "Startups scored",
-                sub: "approved companies",
-                color: G,
+                label: "Startups tracked",
+                sub: "company profiles",
+                color: TEXT,
               },
               {
                 value: formatMatchFull(matchCount),
@@ -457,7 +458,10 @@ function HeroSection({
               {
                 value: fundedStartupCount.toLocaleString(),
                 label: "Startups funded",
-                sub: "unique tracked funding outcomes",
+                sub:
+                  startupCount > 0
+                    ? `${Math.round((fundedStartupCount / startupCount) * 100)}% of tracked startups`
+                    : "unique tracked outcomes",
                 color: GOLD,
                 href: "/portfolio",
               },
@@ -536,7 +540,7 @@ function HeroSection({
             <p className="text-xs mt-3 text-left" style={{ color: "#f87171" }}>Enter your startup URL to continue.</p>
           )}
           <p className="text-[10px] mt-3" style={{ color: DIM }}>
-            Free account · No credit card · Results in about 60 seconds
+            Get 5 ranked investor matches in about 60 seconds · Free account · No credit card
           </p>
         </form>
         </div>
@@ -555,7 +559,7 @@ function HeroSection({
         )}
         {platformStatsReady && startupCount > 0 && investorCount > 0 && (
           <p className="text-[10px] leading-relaxed mt-2 mx-auto max-w-[62ch]" style={{ color: DIM }}>
-            Live platform totals: scored companies · mapped investor profiles · pre-computed startup–investor pairings.
+            Live platform totals: tracked companies · investor profiles · pre-computed startup–investor pairings.
           </p>
         )}
       </div>

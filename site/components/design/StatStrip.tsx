@@ -9,6 +9,8 @@ export interface StatStripItem {
   suffix?: string;
   /** Override value color (e.g. multi-accent home strip) */
   color?: string;
+  /** Give the primary proof point stronger visual weight. */
+  featured?: boolean;
 }
 
 export default function StatStrip({
@@ -45,7 +47,7 @@ export default function StatStrip({
         const inner = (
           <>
             <div
-              className={`font-display font-bold ${valueSize} tabular-nums mb-1`}
+              className={`font-display font-bold ${s.featured ? "text-2xl md:text-3xl" : valueSize} tabular-nums mb-1`}
               style={{ color: valueColor, lineHeight: 1, letterSpacing: "-0.02em" }}
             >
               {s.value}
@@ -62,7 +64,18 @@ export default function StatStrip({
           </>
         );
         return (
-          <div key={s.label} className="px-4 py-2 text-center first:pl-0">
+          <div
+            key={s.label}
+            className={`px-4 py-3 text-center ${s.featured ? "rounded-lg ring-1 ring-inset" : ""}`}
+            style={
+              s.featured
+                ? {
+                    backgroundColor: "oklch(0.696 0.17 162.48 / 0.09)",
+                    boxShadow: "inset 0 0 0 1px oklch(0.696 0.17 162.48 / 0.28)",
+                  }
+                : undefined
+            }
+          >
             {s.href ? (
               <a href={s.href} className="block transition-opacity hover:opacity-90">
                 {inner}
