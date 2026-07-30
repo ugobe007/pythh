@@ -1589,6 +1589,7 @@ function normalizePlatformStatsPayload(raw, source) {
     matches_new_7d: Number(o.matches_new_7d ?? 0) || 0,
     matches_new_30d: Number(o.matches_new_30d ?? 0) || 0,
     signals: Number(o.signals ?? 0) || 0,
+    funded_startups: Number(o.funded_startups ?? o.verified_funded_picks ?? 0) || 0,
     computed_at: o.computed_at || new Date().toISOString(),
     source,
   };
@@ -1606,15 +1607,28 @@ app.get('/api/platform-stats', async (req, res) => {
     const supabase = getSupabaseClient();
 
     // 1) DB cache table (refreshed after match regen / weekly dashboard — no 3.7M scan)
-    const { data: cacheRow, error: cacheErr } = await supabase
-      .from('platform_stats_cache')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
+    const [
+      { data: cacheRow, error: cacheErr },
+      { data: portfolioMetrics },
+    ] = await Promise.all([
+      supabase
+        .from('platform_stats_cache')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle(),
+      supabase
+        .from('portfolio_metrics')
+        .select('verified_funded_picks')
+        .maybeSingle(),
+    ]);
 
     if (!cacheErr && cacheRow && Number(cacheRow.matches) > 0) {
       const payload = normalizePlatformStatsPayload(
-        { ...cacheRow, computed_at: cacheRow.updated_at },
+        {
+          ...cacheRow,
+          computed_at: cacheRow.updated_at,
+          funded_startups: portfolioMetrics?.verified_funded_picks,
+        },
         cacheRow.refresh_source || 'cache-table',
       );
       platformStatsCache = { payload, at: now };
@@ -1628,7 +1642,13 @@ app.get('/api/platform-stats', async (req, res) => {
     const fromRpc = rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData);
     const matchesRpc = fromRpc ? Number(rpcData.matches ?? 0) || 0 : 0;
     if (!rpcErr && fromRpc && matchesRpc > 0) {
-      const payload = normalizePlatformStatsPayload(rpcData, rpcData.source || 'rpc');
+      const payload = normalizePlatformStatsPayload(
+        {
+          ...rpcData,
+          funded_startups: portfolioMetrics?.verified_funded_picks,
+        },
+        rpcData.source || 'rpc',
+      );
       platformStatsCache = { payload, at: now };
       return res
         .set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
@@ -1655,6 +1675,7 @@ app.get('/api/platform-stats', async (req, res) => {
         matches_new_7d: mat7.count ?? 0,
         matches_new_30d: mat30.count ?? 0,
         signals: sig.count ?? 0,
+        funded_startups: portfolioMetrics?.verified_funded_picks ?? 0,
         computed_at: new Date().toISOString(),
       },
       'count',

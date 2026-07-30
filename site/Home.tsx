@@ -59,6 +59,7 @@ interface PlatformStats {
   matches_new_7d?: number;
   matches_new_30d?: number;
   signals?: number;
+  funded_startups?: number;
   computed_at?: string;
 }
 
@@ -110,6 +111,7 @@ function usePlatformStats() {
           matches_new_7d: Number(d.matches_new_7d) || 0,
           matches_new_30d: Number(d.matches_new_30d) || 0,
           signals: Number(d.signals) || 0,
+          funded_startups: Number(d.funded_startups) || 0,
           computed_at: typeof d.computed_at === "string" ? d.computed_at : undefined,
         });
       })
@@ -392,6 +394,8 @@ function HeroSection({
   const matchesNew7d = platformStats?.matches_new_7d ?? 0;
   const startupCount = platformStats?.startups ?? 0;
   const investorCount = platformStats?.investors ?? 0;
+  const fundedStartupCount =
+    platformStats?.funded_startups ?? portfolioMetrics?.verified_funded_picks ?? 0;
   const { headline: heroHeadline, subline: heroSubline } = mergeHeroHeadlineCopy(
     founderExperiment,
     headlineExperiment,
@@ -415,7 +419,7 @@ function HeroSection({
         }}
       />
 
-      <div className="container relative z-10 max-w-3xl mx-auto px-6 py-8 lg:py-12 text-center">
+      <div className="container relative z-10 max-w-5xl mx-auto px-6 py-8 lg:py-12 text-center">
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 mb-5">
           <span
             className="inline-flex items-center gap-2 text-[11px] font-mono font-semibold tracking-widest uppercase px-3 py-1.5 rounded-full"
@@ -424,18 +428,50 @@ function HeroSection({
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: G }} />
             Investor Intelligence · Live
           </span>
-          {platformStatsReady && matchCount > 0 && (
-            <p className="text-sm font-bold font-mono" style={{ color: G }}>
-              {formatMatchFull(matchCount)}+ pre-computed matches
-              {matchesNew7d > 0 && (
-                <span className="text-xs font-normal ml-2 hidden sm:inline" style={{ color: DIM }}>
-                  · {formatVelocitySub(matchesNew7d)}
-                </span>
-              )}
-            </p>
-          )}
         </div>
 
+        {platformStatsReady && startupCount > 0 ? (
+          <StatStrip
+            cols={4}
+            compact
+            className="mb-9"
+            items={[
+              {
+                value: investorCount.toLocaleString(),
+                label: "Investors mapped",
+                sub: "active profiles",
+                color: CYAN,
+              },
+              {
+                value: startupCount.toLocaleString(),
+                label: "Startups scored",
+                sub: "approved companies",
+                color: G,
+              },
+              {
+                value: formatMatchFull(matchCount),
+                label: "Investor matches",
+                sub: matchesNew7d > 0 ? formatVelocitySub(matchesNew7d) : "pre-computed pairings",
+                color: AMBER,
+              },
+              {
+                value: fundedStartupCount.toLocaleString(),
+                label: "Verified funded",
+                sub: "press-confirmed tracked startups",
+                color: GOLD,
+                href: "/portfolio",
+              },
+            ]}
+          />
+        ) : (
+          <div
+            className="h-24 rounded-lg animate-pulse mb-9"
+            style={{ backgroundColor: "oklch(0.14 0.01 264)", border: `1px solid ${BORDER}` }}
+            aria-label="Loading live platform statistics"
+          />
+        )}
+
+        <div className="max-w-3xl mx-auto">
         <h1
           className="font-display font-bold leading-[1.12] mb-4 mx-auto max-w-[22ch]"
           style={{ fontSize: "clamp(2.25rem, 5vw, 3.5rem)", color: TEXT, letterSpacing: "-0.04em" }}
@@ -503,16 +539,7 @@ function HeroSection({
             Free account · No credit card · Results in about 60 seconds
           </p>
         </form>
-
-        <p className="text-xs leading-relaxed mt-8 mx-auto max-w-[52ch]" style={{ color: DIM }}>
-          {platformStatsReady && startupCount > 0 ? (
-            <>
-              {startupCount.toLocaleString()}+ startups scored · {investorCount.toLocaleString()}+ investors mapped
-            </>
-          ) : (
-            <span className="inline-block h-3 w-56 max-w-full rounded animate-pulse mx-auto" style={{ backgroundColor: "oklch(0.2 0.01 264)" }} />
-          )}
-        </p>
+        </div>
         {portfolioMetrics?.total_picks != null && portfolioMetrics.verified_funded_picks != null && (
           <a
             href="/portfolio"
@@ -521,8 +548,6 @@ function HeroSection({
           >
             <span>Public proof:</span>
             <span>{portfolioMetrics.all_picks ?? portfolioMetrics.total_picks} virtual picks</span>
-            <span aria-hidden>·</span>
-            <span>{portfolioMetrics.verified_funded_picks} verified funded</span>
             <span aria-hidden>·</span>
             <span>{portfolioMetrics.acquisitions ?? portfolioMetrics.successful_exits ?? 0} acquired</span>
             <ArrowRight size={12} aria-hidden />

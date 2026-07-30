@@ -15,6 +15,7 @@ export type PlatformStats = {
   matches_new_7d?: number;
   matches_new_30d?: number;
   signals?: number;
+  funded_startups?: number;
   computed_at?: string;
   source?: string;
 };
@@ -32,6 +33,7 @@ function normalizeRpcPayload(data: unknown): PlatformStats | null {
       matches_new_7d: Number(o.matches_new_7d ?? 0) || 0,
       matches_new_30d: Number(o.matches_new_30d ?? 0) || 0,
       signals: Number(o.signals ?? 0) || 0,
+      funded_startups: Number(o.funded_startups ?? 0) || 0,
       computed_at: typeof o.computed_at === 'string' ? o.computed_at : undefined,
       source: typeof o.source === 'string' ? o.source : undefined,
     };
