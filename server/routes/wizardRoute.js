@@ -836,7 +836,7 @@ router.get('/:startupId/round-status', async (req, res) => {
 
     return res.json({
       startup_id: startupId,
-      startup_name: startup.name,
+      startup_name: startup.extracted_data?.display_name || startup.name,
       ...gate,
       campaign_quota,
     });

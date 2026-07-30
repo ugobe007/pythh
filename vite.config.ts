@@ -90,15 +90,6 @@ export default defineConfig({
     target: 'es2020',
     chunkSizeWarningLimit: 1000,
     emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        // A stable, non-cached entry prevents an older HTML shell from requesting
-        // a deleted content-hashed entry after a production deployment.
-        entryFileNames: 'assets/index.js',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]',
-      },
-    },
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist'],

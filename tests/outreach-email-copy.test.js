@@ -155,17 +155,19 @@ describe('investor fit details', () => {
         name: 'Orbital AI',
         sectors: ['Robotics'],
         extracted_data: {
-          value_proposition: 'A cross-OEM memory and intelligence platform for physical AI deployments.',
+          value_proposition: 'The Reality Engine is a visual memory and intelligence platform for physical AI deployments.',
         },
       },
       {
         firm: 'Boost VC',
-        investment_thesis: 'Backing frontier physical AI and technical infrastructure.',
+        sectors: ['Robotics'],
+        investment_thesis: 'Backing sci-fi-scale frontier technologies.',
       },
       { why_you_match: ['Sector: Robotics'] },
     );
-    assert.match(line, /physical AI/i);
-    assert.match(line, /infrastructure/i);
+    assert.match(line, /sci-fi-scale frontier technologies/i);
+    assert.match(line, /Reality Engine/i);
+    assert.match(line, /robots, cameras, sensors, and machines/i);
     assert.doesNotMatch(line, /invests in Robotics at/i);
   });
 
