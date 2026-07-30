@@ -12,7 +12,7 @@ const {
 describe('buildStageRaiseLine', () => {
   it('does not leave a dangling "and" when raise is missing', () => {
     assert.equal(buildStageRaiseLine('seed', null), "We're raising a seed round.");
-    assert.equal(buildStageRaiseLine(1, undefined), "We're raising a seed round.");
+    assert.equal(buildStageRaiseLine(1, undefined), "We're raising a pre-seed round.");
   });
 
   it('combines stage and raise cleanly', () => {
@@ -64,7 +64,8 @@ describe('buildColdEmail', () => {
     const body = buildColdEmail(
       {
         name: 'OrbitalAi',
-        pitch: 'Orbital AI is the cloud control plane for deployed robots; ARIA is the on-robot edge agent.',
+        pitch: 'from first deploy to production scale.',
+        description: 'Orbital AI is the cloud control plane for deployed robots; ARIA is the on-robot edge agent.',
         website: 'https://orbital-ai.io',
         stage: 1,
         sectors: ['Robotics'],
@@ -82,7 +83,7 @@ describe('buildColdEmail', () => {
           'Conviction: thesis match',
         ],
       },
-      { sector: 'Robotics', stage: 'seed' },
+      { sector: 'Robotics', stage: 'pre-seed' },
     );
 
     assert.match(body, /^Hi team at Accel,/m);
@@ -95,5 +96,8 @@ describe('buildColdEmail', () => {
     assert.match(body, /Bob Christopher/);
     assert.match(body, /send the deck/i);
     assert.doesNotMatch(body, /quick walkthrough/i);
+    assert.doesNotMatch(body, /^from first deploy/im);
+    assert.doesNotMatch(body, /rollout plan/i);
+    assert.match(body, /raising a pre-seed round/i);
   });
 });

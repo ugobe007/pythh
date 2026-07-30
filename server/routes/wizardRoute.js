@@ -995,7 +995,9 @@ router.get('/:startupId/outreach-package', async (req, res) => {
       const inv = match.investor;
       const startupName = startup.name || 'our startup';
       const sector = (startup.sectors || [])[0] || 'tech';
-      const stage = startup.stage ? { 0: 'pre-seed', 1: 'seed', 2: 'Series A' }[startup.stage] || 'early-stage' : 'early-stage';
+      const stage = startup.stage
+        ? { 1: 'pre-seed', 2: 'seed', 3: 'Series A', 4: 'Series B', 5: 'Series C+' }[startup.stage] || 'early-stage'
+        : 'early-stage';
 
       return {
         investor_id: inv.id,
