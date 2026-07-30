@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, CalendarDays, MapPin, Ticket } from 'lucide-react';
+import { ArrowUpRight, Bookmark, CalendarDays, MapPin, Ticket } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
+import { isFounderOpportunitySaved, toggleSavedFounderOpportunity } from '@/lib/savedFounderOpportunities';
 
 type PitchEvent = {
   slug: string;
@@ -30,6 +31,7 @@ export default function PitchEventRecommendations({
   stage?: string | null;
 }) {
   const [events, setEvents] = useState<PitchEvent[]>([]);
+  const [savedSlugs, setSavedSlugs] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const params = new URLSearchParams({
@@ -42,6 +44,10 @@ export default function PitchEventRecommendations({
       .then((payload) => setEvents(Array.isArray(payload?.recommendations) ? payload.recommendations : []))
       .catch(() => setEvents([]));
   }, [sectors, stage]);
+
+  useEffect(() => {
+    setSavedSlugs(new Set(events.filter((event) => isFounderOpportunitySaved('pitch_event', event.slug)).map((event) => event.slug)));
+  }, [events]);
 
   if (!events.length) return null;
 
@@ -65,19 +71,51 @@ export default function PitchEventRecommendations({
               <p className="flex gap-2"><MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-400" />{event.location} · {event.format}</p>
               <p className="flex gap-2"><Ticket className="h-3.5 w-3.5 shrink-0 text-emerald-400" />{event.application_fee_label}</p>
             </div>
-            <a
-              href={event.application_url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => void trackFunnelEvent('pitch_event_apply_clicked', {
-                startup_id: startupId,
-                event_slug: event.slug,
-                organizer: event.organizer,
-              })}
-              className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
-            >
-              View & apply <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
+            <div className="mt-5 grid grid-cols-[auto_1fr] gap-2">
+              <button
+                type="button"
+                aria-label={savedSlugs.has(event.slug) ? `Remove ${event.name} from saved opportunities` : `Save ${event.name}`}
+                onClick={() => {
+                  const result = toggleSavedFounderOpportunity({
+                    type: 'pitch_event',
+                    slug: event.slug,
+                    name: event.name,
+                    organizer: event.organizer,
+                    location: `${event.location} · ${event.format}`,
+                    schedule: event.schedule_label,
+                    applicationUrl: event.application_url,
+                    why: event.why_this_event,
+                    startupId,
+                  });
+                  setSavedSlugs((current) => {
+                    const next = new Set(current);
+                    result.saved ? next.add(event.slug) : next.delete(event.slug);
+                    return next;
+                  });
+                  void trackFunnelEvent('pitch_event_saved', { startup_id: startupId, event_slug: event.slug, saved: result.saved });
+                }}
+                className={`inline-flex items-center justify-center rounded-lg border px-3 ${
+                  savedSlugs.has(event.slug)
+                    ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                    : 'border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-300'
+                }`}
+              >
+                <Bookmark className={`h-4 w-4 ${savedSlugs.has(event.slug) ? 'fill-current' : ''}`} />
+              </button>
+              <a
+                href={event.application_url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => void trackFunnelEvent('pitch_event_apply_clicked', {
+                  startup_id: startupId,
+                  event_slug: event.slug,
+                  organizer: event.organizer,
+                })}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+              >
+                View & apply <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
           </article>
         ))}
       </div>

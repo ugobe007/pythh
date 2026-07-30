@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowUpRight, Building2, CalendarClock, MapPin, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, Bookmark, Building2, CalendarClock, MapPin, RefreshCw } from 'lucide-react';
 import { apiUrl } from '@/lib/apiConfig';
 import { trackFunnelEvent } from '@/lib/matchEngagement';
+import { isFounderOpportunitySaved, toggleSavedFounderOpportunity } from '@/lib/savedFounderOpportunities';
 
 type AngelGroup = {
   slug: string;
@@ -44,6 +45,7 @@ export default function AngelGroupRecommendations({
     }
   });
   const [isRotating, setIsRotating] = useState(false);
+  const [savedSlugs, setSavedSlugs] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const params = new URLSearchParams({
@@ -61,6 +63,10 @@ export default function AngelGroupRecommendations({
       .catch(() => setGroups([]))
       .finally(() => setIsRotating(false));
   }, [rotation, sectors, stage, state, startupId, startupName]);
+
+  useEffect(() => {
+    setSavedSlugs(new Set(groups.filter((group) => isFounderOpportunitySaved('angel_group', group.slug)).map((group) => group.slug)));
+  }, [groups]);
 
   if (!groups.length) return null;
 
@@ -113,18 +119,49 @@ export default function AngelGroupRecommendations({
               <p className="text-[10px] uppercase tracking-wide text-zinc-500">Before applying</p>
               <p className="mt-1 text-[11px] text-zinc-400">{group.founder_preparation[0]}</p>
             </div>
-            <a
-              href={group.application_url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => void trackFunnelEvent('angel_group_apply_clicked', {
-                startup_id: startupId,
-                angel_group_slug: group.slug,
-              })}
-              className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
-            >
-              View application process <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
+            <div className="mt-5 grid grid-cols-[auto_1fr] gap-2">
+              <button
+                type="button"
+                aria-label={savedSlugs.has(group.slug) ? `Remove ${group.name} from saved opportunities` : `Save ${group.name}`}
+                onClick={() => {
+                  const result = toggleSavedFounderOpportunity({
+                    type: 'angel_group',
+                    slug: group.slug,
+                    name: group.name,
+                    location: [group.city, group.state].filter(Boolean).join(', '),
+                    schedule: group.meeting_frequency || 'Schedule with organizer',
+                    applicationUrl: group.application_url,
+                    why: group.why_this_group,
+                    startupId,
+                  });
+                  setSavedSlugs((current) => {
+                    const next = new Set(current);
+                    result.saved ? next.add(group.slug) : next.delete(group.slug);
+                    return next;
+                  });
+                  void trackFunnelEvent('angel_group_saved', { startup_id: startupId, angel_group_slug: group.slug, saved: result.saved });
+                }}
+                className={`inline-flex items-center justify-center rounded-lg border px-3 ${
+                  savedSlugs.has(group.slug)
+                    ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+                    : 'border-zinc-700 text-zinc-400 hover:border-emerald-500/50 hover:text-emerald-300'
+                }`}
+              >
+                <Bookmark className={`h-4 w-4 ${savedSlugs.has(group.slug) ? 'fill-current' : ''}`} />
+              </button>
+              <a
+                href={group.application_url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => void trackFunnelEvent('angel_group_apply_clicked', {
+                  startup_id: startupId,
+                  angel_group_slug: group.slug,
+                })}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
+              >
+                View application process <ArrowUpRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
           </article>
         ))}
       </div>

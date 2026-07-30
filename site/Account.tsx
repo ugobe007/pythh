@@ -38,6 +38,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import CancelConfirmModal from "@/components/CancelConfirmModal";
 import FounderOnboardingHub from "@/components/FounderOnboardingHub";
+import SavedFounderOpportunities from "@/components/SavedFounderOpportunities";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import {
@@ -394,6 +395,7 @@ function NoSubscription({ userName, welcome }: { userName: string | null; welcom
       className="py-12"
     >
       <FounderOnboardingHub userName={userName} welcome={welcome} />
+      <SavedFounderOpportunities />
     </motion.div>
   );
 }

@@ -11,12 +11,12 @@ const {
 
 describe('buildStageRaiseLine', () => {
   it('does not leave a dangling "and" when raise is missing', () => {
-    assert.equal(buildStageRaiseLine('seed', null), "We're seed-stage.");
-    assert.equal(buildStageRaiseLine(1, undefined), "We're seed-stage.");
+    assert.equal(buildStageRaiseLine('seed', null), "We're raising a seed round.");
+    assert.equal(buildStageRaiseLine(1, undefined), "We're raising a seed round.");
   });
 
   it('combines stage and raise cleanly', () => {
-    assert.equal(buildStageRaiseLine('seed', 2000000), "We're seed-stage and raising $2,000,000.");
+    assert.equal(buildStageRaiseLine('seed', 2000000), "We're raising $2,000,000 in a seed round.");
   });
 });
 
@@ -27,7 +27,7 @@ describe('humanizeWhyYouMatchForOutreach', () => {
       { startupName: 'OrbitalAi', sector: 'Robotics', stage: 'seed', firm: 'Accel' },
     );
     assert.match(out, /Accel/);
-    assert.match(out, /seed practice/i);
+    assert.match(out, /seed/i);
     assert.match(out, /Robotics/i);
     assert.doesNotMatch(out, /Investor Tier/i);
     assert.doesNotMatch(out, /Why we match/i);
@@ -68,6 +68,8 @@ describe('buildColdEmail', () => {
         website: 'https://orbital-ai.io',
         stage: 1,
         sectors: ['Robotics'],
+        extracted_data: { founders: [{ name: 'Bob Christopher' }] },
+        deck_filename: 'orbital-ai-deck.pdf',
       },
       { name: 'Alchemist Accelerator', firm: 'Accel' },
       { content: { commitments: [] } },
@@ -89,6 +91,9 @@ describe('buildColdEmail', () => {
     assert.doesNotMatch(body, /pythh/i);
     assert.doesNotMatch(body, /Why we match:/i);
     assert.doesNotMatch(body, /Investor Tier/i);
-    assert.match(body, /20 minutes/i);
+    assert.match(body, /20-minute/i);
+    assert.match(body, /Bob Christopher/);
+    assert.match(body, /send the deck/i);
+    assert.doesNotMatch(body, /quick walkthrough/i);
   });
 });

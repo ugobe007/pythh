@@ -936,7 +936,7 @@ router.get('/:startupId/outreach-package', async (req, res) => {
 
     const { data: startup } = await supabase
       .from('startup_uploads')
-      .select('id, name, website, company_domain, sectors, stage, pitch, description, tagline, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
+      .select('id, name, website, company_domain, sectors, stage, pitch, description, tagline, founders, extracted_data, deck_filename, raise_amount, customer_count, mrr, team_size, total_god_score, team_score, traction_score, market_score, product_score, vision_score')
       .eq('id', startupId)
       .maybeSingle();
 
