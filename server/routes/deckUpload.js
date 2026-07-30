@@ -81,8 +81,8 @@ router.post('/upload', upload.single('deck'), async (req, res) => {
     const merged = {
       name: inferenceData.name || startup.name,
       tagline: inferenceData.tagline || existing.tagline,
-      description: inferenceData.product_description || inferenceData.value_proposition || existing.description,
-      pitch: inferenceData.pitch || inferenceData.value_proposition || existing.pitch,
+      description: inferenceData.value_proposition || inferenceData.product_description || inferenceData.solution || existing.description,
+      pitch: inferenceData.value_proposition || inferenceData.product_description || inferenceData.solution || existing.pitch,
       problem: inferenceData.problem,
       solution: inferenceData.solution,
       sectors: inferenceData.sectors?.length ? inferenceData.sectors : (existing.sectors || ['Technology']),
@@ -101,6 +101,13 @@ router.post('/upload', upload.single('deck'), async (req, res) => {
       extracted_data: {
         ...existing,
         ...inferenceData,
+        // Keep the deck's strategic narrative available to matching and outreach.
+        value_proposition: inferenceData.value_proposition || existing.value_proposition || null,
+        product_description: inferenceData.product_description || existing.product_description || null,
+        solution: inferenceData.solution || existing.solution || null,
+        why_now: inferenceData.why_now || existing.why_now || null,
+        vision_statement: inferenceData.vision_statement || existing.vision_statement || null,
+        contrarian_insight: inferenceData.contrarian_insight || existing.contrarian_insight || null,
         data_tier: dataTier,
         deck_scored_at: new Date().toISOString(),
         source: 'deck_upload'

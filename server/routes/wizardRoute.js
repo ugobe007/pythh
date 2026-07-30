@@ -30,7 +30,12 @@ const { buildRaisePlan } = require('../lib/raisePlanService');
 const { isNonInvestorAggregator } = require('../../lib/investorAggregatorBlocklist');
 const { resolveInvestorLinkedInUrl } = require('../../lib/normalizeLinkedInUrl');
 const { buildCampaignQuota } = require('../lib/campaignQuotaService');
-const { buildColdEmail, buildOutreachSubject } = require('../../lib/outreachEmailCopy');
+const {
+  buildColdEmail,
+  buildOutreachSubject,
+  buildInvestorFitLine,
+  buildRoundFitNote,
+} = require('../../lib/outreachEmailCopy');
 
 function isOutreachEligibleInvestor(investor, startup) {
   if (!investor?.name) return false;
@@ -956,7 +961,7 @@ router.get('/:startupId/outreach-package', async (req, res) => {
       .from('startup_investor_matches')
       .select(`
         investor_id, match_score, why_you_match,
-        investors ( id, name, firm, title, sectors, stage, linkedin_url, twitter_url, photo_url, investor_tier )
+        investors ( id, name, firm, title, sectors, stage, linkedin_url, twitter_url, photo_url, investor_tier, investment_thesis, bio, notable_investments, portfolio_companies, check_size_min, check_size_max )
       `)
       .eq('startup_id', startupId)
       .order('match_score', { ascending: false })
@@ -1010,7 +1015,7 @@ router.get('/:startupId/outreach-package', async (req, res) => {
           firm: inv.firm,
         }) || null,
         match_score: match.match_score,
-        subject: buildOutreachSubject(startupName, sector, stage),
+        subject: buildOutreachSubject(startupName, sector, stage, startup),
         body: buildColdEmail(startup, inv, doc, match, { stage, sector }),
       };
     });
@@ -1031,6 +1036,18 @@ router.get('/:startupId/outreach-package', async (req, res) => {
         title: m.investor.title,
         match_score: m.match_score,
         why_you_match: m.why_you_match,
+        fit_summary: buildInvestorFitLine(startup, m.investor, m, {
+          sector: (startup.sectors || [])[0] || 'technology',
+          stage: startup.stage,
+        }),
+        round_fit_note: buildRoundFitNote(
+          startup,
+          m.investor,
+          doc?.content?.offer?.raise_amount || startup.raise_amount,
+        ) || null,
+        investment_thesis: m.investor.investment_thesis || null,
+        check_size_min: m.investor.check_size_min || null,
+        check_size_max: m.investor.check_size_max || null,
         linkedin_url: resolveInvestorLinkedInUrl({
           linkedinUrl: m.investor.linkedin_url,
           name: m.investor.name,

@@ -7,6 +7,9 @@ const {
   buildStageRaiseLine,
   humanizeWhyYouMatchForOutreach,
   outreachInvestorGreeting,
+  buildInvestorFitLine,
+  buildRoundFitNote,
+  buildOutreachSubject,
 } = require('../lib/outreachEmailCopy');
 
 describe('buildStageRaiseLine', () => {
@@ -60,6 +63,36 @@ describe('outreachInvestorGreeting', () => {
 });
 
 describe('buildColdEmail', () => {
+  it('uses deck intelligence instead of reducing a company to generic website copy', () => {
+    const body = buildColdEmail(
+      {
+        name: 'Orbital AI',
+        description: 'Orbital AI is the cloud control plane for deployed robots.',
+        website: 'https://orbital-ai.io',
+        stage: 2,
+        sectors: ['Robotics', 'AI/ML'],
+        extracted_data: {
+          value_proposition: 'Orbital AI is the visual memory layer for robotics: a full-stack data platform that uses cameras to observe, control, manage, and optimize robot performance.',
+          founders: [{ name: 'Bob Christopher' }],
+        },
+        deck_filename: 'orbital-ai-deck.pdf',
+      },
+      {
+        name: 'Adam Draper',
+        firm: 'Boost VC',
+        investment_thesis: 'We back frontier physical AI, robotics, and infrastructure companies.',
+      },
+      { content: { offer: { raise_amount: 5000000 }, commitments: [] } },
+      { why_you_match: ['Sector: Robotics', 'Stage: seed'] },
+      { sector: 'Robotics', stage: 'seed' },
+    );
+
+    assert.match(body, /visual memory layer for robotics/i);
+    assert.match(body, /cameras to observe, control, manage, and optimize robot performance/i);
+    assert.match(body, /physical AI.*Boost VC's stated investment thesis/i);
+    assert.doesNotMatch(body, /cloud control plane/i);
+  });
+
   it('produces readable copy without pythh score or raw tags', () => {
     const body = buildColdEmail(
       {
@@ -99,5 +132,50 @@ describe('buildColdEmail', () => {
     assert.doesNotMatch(body, /^from first deploy/im);
     assert.doesNotMatch(body, /rollout plan/i);
     assert.match(body, /raising a pre-seed round/i);
+  });
+});
+
+describe('buildOutreachSubject', () => {
+  it('uses the founder-defined category when deck intelligence identifies visual memory', () => {
+    assert.equal(
+      buildOutreachSubject('Orbital AI', 'Robotics', 'seed', {
+        extracted_data: {
+          value_proposition: 'The visual memory layer for robotics and intelligent machines.',
+        },
+      }),
+      'Orbital AI — visual memory for robotics',
+    );
+  });
+});
+
+describe('investor fit details', () => {
+  it('explains thesis overlap beyond a sector label', () => {
+    const line = buildInvestorFitLine(
+      {
+        name: 'Orbital AI',
+        sectors: ['Robotics'],
+        extracted_data: {
+          value_proposition: 'A cross-OEM memory and intelligence platform for physical AI deployments.',
+        },
+      },
+      {
+        firm: 'Boost VC',
+        investment_thesis: 'Backing frontier physical AI and technical infrastructure.',
+      },
+      { why_you_match: ['Sector: Robotics'] },
+    );
+    assert.match(line, /physical AI/i);
+    assert.match(line, /infrastructure/i);
+    assert.doesNotMatch(line, /invests in Robotics at/i);
+  });
+
+  it('flags a round that exceeds the recorded maximum check', () => {
+    assert.match(
+      buildRoundFitNote(
+        { name: 'Orbital AI', raise_amount: 5000000 },
+        { firm: 'Boost VC', check_size_max: 1000000 },
+      ),
+      /participant rather than sole lead/i,
+    );
   });
 });

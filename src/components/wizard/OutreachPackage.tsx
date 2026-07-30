@@ -15,6 +15,8 @@ interface InvestorMatch {
   title: string;
   match_score: number;
   why_you_match: string;
+  fit_summary?: string;
+  round_fit_note?: string | null;
   linkedin_url?: string;
 }
 
@@ -35,6 +37,23 @@ interface OutreachPackageProps {
   emailDrafts: EmailDraft[];
   memoMarkdown: string | null;
   isProvisional: boolean;
+}
+
+function InvestorFitContext({ investor }: { investor: InvestorMatch }) {
+  if (!investor.fit_summary && !investor.round_fit_note) return null;
+  return (
+    <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-3">
+      <p className="text-[11px] font-semibold tracking-wide uppercase text-emerald-400 mb-1">
+        Why this investor fits
+      </p>
+      {investor.fit_summary && (
+        <p className="text-sm leading-relaxed text-zinc-300">{investor.fit_summary}</p>
+      )}
+      {investor.round_fit_note && (
+        <p className="mt-2 text-xs leading-relaxed text-amber-300">{investor.round_fit_note}</p>
+      )}
+    </div>
+  );
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -65,7 +84,7 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function EmailCard({ draft }: { draft: EmailDraft }) {
+function EmailCard({ draft, investor }: { draft: EmailDraft; investor?: InvestorMatch }) {
   const [expanded, setExpanded] = useState(false);
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
@@ -111,6 +130,11 @@ function EmailCard({ draft }: { draft: EmailDraft }) {
 
       {expanded && (
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          {investor && (
+            <div className="px-4 pt-4">
+              <InvestorFitContext investor={investor} />
+            </div>
+          )}
           {/* Subject line */}
           <div className="px-4 pt-3 pb-2">
             <div className="flex items-center justify-between mb-1">
@@ -267,7 +291,11 @@ export default function OutreachPackage({
       {/* Email drafts */}
       <div className="space-y-2">
         {emailDrafts.map(draft => (
-          <EmailCard key={draft.investor_id} draft={draft} />
+          <EmailCard
+            key={draft.investor_id}
+            draft={draft}
+            investor={investors.find((item) => item.id === draft.investor_id)}
+          />
         ))}
       </div>
 
