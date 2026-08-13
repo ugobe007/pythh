@@ -2,14 +2,14 @@
 /**
  * Peter — founder outreach with thesis-fit investor matches.
  *
- * 1. Score startups against investor universe (same 6-component model as outreach-agent)
+ * 1. Load each startup's canonical recorded matches
  * 2. Find founder email via Hunter.io (personal only — no info@)
  * 3. Validate deliverability via ZeroBounce (when ZEROBOUNCE_API_KEY is set)
- * 4. Send detailed match dossier via Resend (Peter / pythia@pythh.ai)
+ * 4. Send the top-three preview and invite the founder to automate their raise
  *
  * Usage:
  *   node scripts/peter-founder-outreach.mjs --dry-run --limit=5
- *   node scripts/peter-founder-outreach.mjs --limit=20
+ *   node scripts/peter-founder-outreach.mjs --send --limit=20
  *   node scripts/peter-founder-outreach.mjs --limit=20 --scan=400
  *   node scripts/peter-founder-outreach.mjs --min-god=65 --min-match=45
  *   node scripts/peter-founder-outreach.mjs --startup-id=<uuid> --dry-run
@@ -27,7 +27,7 @@ import { loadOutreachBlockedStartups, isOutreachBlocked } from '../lib/portfolio
 config();
 
 const require = createRequire(import.meta.url);
-const { rankInvestorsForStartup } = require('../lib/outreachMatch.js');
+const { TOP_MATCH_COUNT, uniqueTopMatches, unsubscribeUrl } = require('../lib/founderTopMatchesAgent.js');
 const { isFirstPeterFounderContact } = require('../lib/peterOutreachHelpers.js');
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const {
@@ -66,7 +66,8 @@ const LIMIT = parseInt(flag('--limit') ?? '20', 10);
 const SCAN = parseInt(flag('--scan') ?? String(Math.max(LIMIT * 15, 200)), 10);
 const MIN_GOD = parseInt(flag('--min-god') ?? '55', 10);
 const MIN_MATCH = parseInt(flag('--min-match') ?? '40', 10);
-const DRY_RUN = has('--dry-run');
+const SEND = has('--send');
+const DRY_RUN = !SEND || has('--dry-run');
 const DRAFT_ONLY = has('--draft-only');
 const TEST_TO = flag('--test-to');
 const STARTUP_ID = flag('--startup-id');
@@ -76,6 +77,7 @@ const DELAY_MS = parseInt(flag('--delay') ?? '2000', 10);
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 const RESEND_KEY = process.env.RESEND_API_KEY;
+const EMAIL_SECRET = process.env.EMAIL_SECRET;
 const FROM = TEST_TO
   ? (process.env.OUTREACH_TEST_FROM || 'onboarding@resend.dev')
   : getOutreachFromAddress();
@@ -88,8 +90,12 @@ if (!hasHunterIo()) {
   console.error('Missing HUNTER_API_KEY — add to .env');
   process.exit(1);
 }
-if (!DRY_RUN && !DRAFT_ONLY && !RESEND_KEY) {
+if (SEND && !DRAFT_ONLY && !RESEND_KEY) {
   console.error('Missing RESEND_API_KEY');
+  process.exit(1);
+}
+if (SEND && !DRAFT_ONLY && !EMAIL_SECRET) {
+  console.error('Missing EMAIL_SECRET — required for one-click unsubscribe links');
   process.exit(1);
 }
 
@@ -111,16 +117,24 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function loadInvestorPool() {
+async function loadCanonicalTopMatches(startupId) {
   const { data, error } = await db
-    .from('investors')
-    .select(INVESTOR_SELECT)
-    .neq('entity_gate', 'junk')
-    .neq('status', 'inactive')
-    .order('investor_score', { ascending: false, nullsFirst: false })
-    .limit(1200);
+    .from('startup_investor_matches')
+    .select(`investor_id, match_score, why_you_match, reasoning, investors (${INVESTOR_SELECT})`)
+    .eq('startup_id', startupId)
+    .order('match_score', { ascending: false })
+    .limit(30);
   if (error) throw error;
-  return data ?? [];
+  return uniqueTopMatches(data, TOP_MATCH_COUNT);
+}
+
+async function isSuppressed(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  const [{ data: global }, { data: prospect }] = await Promise.all([
+    db.from('email_unsubscribes').select('email').eq('email', normalized).maybeSingle(),
+    db.from('pythh_prospecting_log').select('id').eq('email', normalized).not('unsubscribed_at', 'is', null).limit(1),
+  ]);
+  return Boolean(global || prospect?.length);
 }
 
 async function alreadyContacted(email) {
@@ -175,7 +189,7 @@ async function logSent({ email, startup, subject, html, text, resendId, contact 
   });
 }
 
-async function sendResend({ to, subject, html, text }) {
+async function sendResend({ to, subject, html, text, unsubscribe }) {
   const recipient = TEST_TO || to;
   if (DRY_RUN) {
     console.log(`    [dry-run] → ${recipient}`);
@@ -193,6 +207,10 @@ async function sendResend({ to, subject, html, text }) {
       subject,
       html,
       text,
+      headers: unsubscribe ? {
+        'List-Unsubscribe': `<${unsubscribe}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      } : undefined,
     }),
     signal: AbortSignal.timeout(30_000),
   });
@@ -212,12 +230,13 @@ function buildEmail(startup, matches, contact, { isFirstContact = true } = {}) {
   });
   const subject = founderSubject({ startupName, count: matches.length });
   const utm = { source: 'peter', medium: 'email', campaign: CAMPAIGN };
-  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact });
-  const text = buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact });
-  return { subject, html, text, startupName };
+  const unsubscribe = unsubscribeUrl(contact.email, EMAIL_SECRET, 'https://pythh.ai');
+  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact, unsubscribe });
+  const text = buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact, unsubscribe });
+  return { subject, html, text, startupName, unsubscribe };
 }
 
-function buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact = true }) {
+function buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact = true, unsubscribe }) {
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
   const opening = founderOpening({ greeting, startupName, count: matches.length, isFirstContact });
@@ -268,21 +287,23 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirs
   <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
   <p style="color:#475569;font-size:12px;margin-top:16px;font-style:italic;">${founderFootnote()}</p>
   <div style="background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:24px;text-align:center;margin-top:24px;">
-    <div style="font-size:13px;font-weight:700;color:#c4b5fd;margin-bottom:8px;">${founderCtaTitle()}</div>
-    <p style="color:#64748b;font-size:13px;">${founderCtaBody()}</p>
-    <a href="${activateUrl}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">${founderCtaText().split('\n')[0]}</a>
+    <div style="font-size:13px;font-weight:700;color:#6ee7b7;margin-bottom:8px;">Automate your raise with Pythh</div>
+    <p style="color:#94a3b8;font-size:13px;">Claim ${startupName}, see the complete ranked list, and let Pythh prepare personalized investor outreach and follow-ups.</p>
+    <a href="${activateUrl}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#22c55e;color:#03130b;text-decoration:none;border-radius:8px;font-size:13px;font-weight:700;">Claim my matches and automate outreach</a>
   </div>
   <p style="color:#334155;font-size:11px;text-align:center;margin-top:24px;">${founderEmailSignoff()}</p>
+  ${unsubscribe ? `<p style="color:#475569;font-size:10px;text-align:center;margin-top:12px;">Not raising? <a href="${unsubscribe}" style="color:#64748b;">Unsubscribe from founder match emails</a>.</p>` : ''}
 </div></body></html>`;
 }
 
-function buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact = true }) {
+function buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact = true, unsubscribe }) {
   const opening = founderOpeningText({ greeting, startupName, count: matches.length, isFirstContact });
   const rows = matches.map((m, i) => {
     const reason = m.match_reason ? m.match_reason.split('.')[0] : defaultMatchReason();
     return `  ${i + 1}. ${m.name} (${m.firm}) — match ${m.match_score}\n     ${reason}`;
   }).join('\n');
-  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\n${founderCtaText({ encodedUrl: startup.website ? encodeURIComponent(startup.website) : '', utm })}\n\n${founderEmailSignoff()}`;
+  const activateUrl = founderCtaPrimaryUrl(startup.website ? encodeURIComponent(startup.website) : '', utm);
+  return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\nClaim your matches and automate investor outreach: ${activateUrl}\n\n${founderEmailSignoff()}${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
 }
 
 async function main() {
@@ -292,9 +313,6 @@ async function main() {
   console.log(`   validation: ${hasZeroBounce() ? 'ZeroBounce on (valid only)' : 'ZeroBounce off — set ZEROBOUNCE_API_KEY'}`);
   if (TEST_TO) console.log(`   ⚠️  TEST MODE — all mail → ${TEST_TO}\n`);
   else console.log('');
-
-  const investorPool = await loadInvestorPool();
-  console.log(`   investor pool: ${investorPool.length}`);
 
   const { blockedIds, reasons } = await loadOutreachBlockedStartups(db);
   if (blockedIds.size) console.log(`   portfolio blocklist: ${blockedIds.size} startups\n`);
@@ -365,16 +383,19 @@ async function main() {
       skipped++;
       continue;
     }
+    if (await isSuppressed(contact.email)) {
+      console.log('⏭ unsubscribed/suppressed');
+      skipped++;
+      continue;
+    }
     if (!TEST_TO && await alreadyContacted(contact.email)) {
       console.log(`⏭ already contacted`);
       skipped++;
       continue;
     }
 
-    const ranked = rankInvestorsForStartup(startup, investorPool, {
-      limit: 8,
-      minScore: MIN_MATCH,
-    });
+    const ranked = (await loadCanonicalTopMatches(startup.id))
+      .filter((match) => match.match_score >= MIN_MATCH);
     if (ranked.length < 3) {
       console.log(`⏭ only ${ranked.length} matches`);
       skipped++;
@@ -382,7 +403,7 @@ async function main() {
     }
 
     const isFirstContact = TEST_TO || (await isFirstPeterFounderContact(db, contact.email));
-    const { subject, html, text, startupName } = buildEmail(startup, ranked, contact, { isFirstContact });
+    const { subject, html, text, startupName, unsubscribe } = buildEmail(startup, ranked, contact, { isFirstContact });
     const zbTag = contact.zeroBounceStatus ? `, zb:${contact.zeroBounceStatus}` : '';
     console.log(`\n   ${contact.email} (${contact.source}${zbTag}, ${ranked.length} matches)`);
     if (DRY_RUN) {
@@ -392,7 +413,7 @@ async function main() {
       continue;
     }
 
-    const result = await sendResend({ to: contact.email, subject, html, text });
+    const result = await sendResend({ to: contact.email, subject, html, text, unsubscribe });
     if (!result.ok) {
       console.log(`   ✗ send failed: ${result.error}`);
       skipped++;
