@@ -42,32 +42,25 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
   { id: 'angel', label: 'Angels only' },
 ];
 
-function MatchWorkflowGuide({ startupName, shortlistSize, onStartOutreach }: {
+function MatchWorkflowGuide({ startupName }: {
   startupName: string;
-  shortlistSize: number;
-  onStartOutreach: () => void;
 }) {
   const steps = [
     ['1', 'Company analyzed', 'Complete'],
-    ['2', 'Confirm your shortlist', 'Now'],
+    ['2', 'Understand your best matches', 'Now'],
     ['3', 'Start investor outreach', 'Next'],
   ];
   return (
-    <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6">
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-400">Your fundraising workflow</p>
-          <h2 className="mb-1 text-lg font-bold text-white">Choose who {startupName} should contact first</h2>
-          <p className="text-xs text-zinc-400">Review the fit and signals below, then start outreach. Improving company data remains optional.</p>
-        </div>
-        <button type="button" onClick={onStartOutreach} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-5 py-3 text-sm font-semibold text-black hover:bg-emerald-400">
-          Create outreach for top {shortlistSize}<ArrowRight className="h-4 w-4" />
-        </button>
+    <section className="mb-8 rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-lg shadow-black/20 sm:p-6">
+      <div className="mb-5">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-300">Your fundraising workflow</p>
+        <h2 className="mb-1 text-lg font-bold text-white">See why these investors fit {startupName}</h2>
+        <p className="text-sm text-zinc-300">Review each investor’s fit, check size, and priorities. Your personalized outreach is the next step.</p>
       </div>
       <div className="grid gap-2 md:grid-cols-3">
         {steps.map(([number, title, state]) => (
-          <div key={number} className={`rounded-xl border p-3 ${state === 'Now' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-950/35'}`}>
-            <p className={`mb-1 text-[10px] uppercase tracking-wide ${state === 'Now' ? 'text-emerald-400' : 'text-zinc-500'}`}>{number} · {state}</p>
+          <div key={number} className={`rounded-xl border p-3 ${state === 'Now' ? 'border-emerald-400/70 bg-emerald-950/60' : 'border-zinc-700 bg-zinc-950'}`}>
+            <p className={`mb-1 text-[10px] uppercase tracking-wide ${state === 'Now' ? 'text-emerald-300' : 'text-zinc-400'}`}>{number} · {state}</p>
             <p className="text-sm font-semibold text-white">{title}</p>
           </div>
         ))}
@@ -595,7 +588,7 @@ export default function InstantMatchPreview({ url }: Props) {
         </p>
       </div>
 
-      <MatchWorkflowGuide startupName={startupName} shortlistSize={visible.length} onStartOutreach={() => void handleSignup('outreach')} />
+      <MatchWorkflowGuide startupName={startupName} />
 
       {refreshed && (
         <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
@@ -655,23 +648,6 @@ export default function InstantMatchPreview({ url }: Props) {
         )}
       </div>
 
-      {isAuthenticated && preview.startup?.id && (
-        <div className="mb-6 flex flex-col gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[10px] uppercase tracking-[1.5px] text-emerald-400">Optional · Improve matches</p>
-            <p className="mt-1 text-sm font-medium text-white">Add missing founder, funding, traction, or deck data.</p>
-            <p className="mt-1 text-xs text-zinc-500">Then rerun the match engine for a more informed shortlist.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setImproveMatchesOpen(true)}
-            className="shrink-0 rounded-lg border border-emerald-500/40 px-4 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10"
-          >
-            Improve matches →
-          </button>
-        </div>
-      )}
-
       <div className="space-y-3 mb-6">
         {visible.map((m, i) => {
           const inv = m.investor;
@@ -682,8 +658,8 @@ export default function InstantMatchPreview({ url }: Props) {
               key={inv?.id || i}
               className={`p-5 rounded-xl border ${
                 i === 0
-                  ? 'border-emerald-500/40 bg-emerald-500/5'
-                  : 'border-zinc-800 bg-zinc-900/40'
+                  ? 'border-emerald-400/70 bg-[#0d1f1a] shadow-lg shadow-emerald-950/20'
+                  : 'border-zinc-700 bg-zinc-900 shadow-lg shadow-black/20'
               }`}
             >
               <div className="flex items-start justify-between gap-4">
@@ -727,7 +703,7 @@ export default function InstantMatchPreview({ url }: Props) {
                     <span className="block text-sm font-mono font-semibold text-emerald-400">
                       {Math.round(m.fitness_score ?? m.match_score ?? 0)} Fitness
                     </span>
-                    <span className="block text-[9px] uppercase tracking-wide text-zinc-600">
+                    <span className="block text-[9px] uppercase tracking-wide text-zinc-400">
                       {m.fitness_confidence === 'high'
                         ? 'High confidence'
                         : m.fitness_confidence === 'medium'
@@ -764,32 +740,32 @@ export default function InstantMatchPreview({ url }: Props) {
                 source="instant_match_preview"
               />
 
-              <div className="mt-4 pt-4 border-t border-zinc-800/80">
-                <p className="text-[10px] uppercase tracking-[1.5px] text-zinc-500 mb-3">
+              <div className="mt-4 border-t border-zinc-700 pt-4">
+                <p className="mb-3 text-[10px] uppercase tracking-[1.5px] text-zinc-400">
                   Founder briefing
                 </p>
                 <div className="grid sm:grid-cols-3 gap-3">
                   <div>
-                    <p className="text-[10px] text-zinc-600 mb-1">Investment focus</p>
-                    <p className="text-xs text-zinc-300">{briefing.focus}</p>
+                    <p className="mb-1 text-[10px] text-zinc-400">Investment focus</p>
+                    <p className="text-sm text-zinc-200">{briefing.focus}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-zinc-600 mb-1">Stage · typical check</p>
-                    <p className="text-xs text-zinc-300">{briefing.stage} · {briefing.check}</p>
+                    <p className="mb-1 text-[10px] text-zinc-400">Stage · typical check</p>
+                    <p className="text-sm text-zinc-200">{briefing.stage} · {briefing.check}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-zinc-600 mb-1">What to lead with</p>
-                    <p className="text-xs text-zinc-300 line-clamp-2">{briefing.lead}</p>
+                    <p className="mb-1 text-[10px] text-zinc-400">What to lead with</p>
+                    <p className="text-sm text-zinc-200 line-clamp-2">{briefing.lead}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-zinc-800/80">
+              <div className="mt-4 border-t border-zinc-700 pt-4">
                 <div className="flex items-center justify-between gap-3 mb-3">
-                  <p className="text-[10px] uppercase tracking-[1.5px] text-zinc-500">
+                  <p className="text-[10px] uppercase tracking-[1.5px] text-zinc-400">
                     Investor signal priorities
                   </p>
-                  <p className="text-[10px] text-zinc-600">
+                  <p className="text-[10px] text-zinc-400">
                     Inferred from thesis and match evidence
                   </p>
                 </div>
@@ -797,7 +773,7 @@ export default function InstantMatchPreview({ url }: Props) {
                   {signalPriorities.map((signal) => (
                     <div
                       key={signal.label}
-                      className="rounded-lg border border-zinc-800 bg-zinc-950/45 p-3"
+                      className="rounded-lg border border-zinc-600 bg-zinc-950 p-3"
                     >
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <p className="text-xs font-medium text-white">{signal.label}</p>
@@ -821,6 +797,28 @@ export default function InstantMatchPreview({ url }: Props) {
         <p className="text-center text-xs text-zinc-500 mb-8">
           +{(total - visible.length).toLocaleString()} more qualified investors available as you build your shortlist
         </p>
+      )}
+
+      <section className="mb-8 rounded-2xl border border-emerald-400/70 bg-emerald-950/70 p-5 shadow-lg shadow-emerald-950/30 sm:p-6">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-300">Next · Start investor outreach</p>
+        <h2 className="text-xl font-bold text-white">Turn these matches into personalized investor emails.</h2>
+        <p className="mt-2 text-sm text-zinc-200">Pythh prepares the investor context and outreach drafts. Review them, make any edits, and send.</p>
+        <button type="button" onClick={() => void handleSignup('outreach')} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-400 px-5 py-3.5 text-sm font-bold text-zinc-950 hover:bg-emerald-300 sm:w-auto">
+          Prepare outreach for my top {visible.length}<ArrowRight className="h-4 w-4" />
+        </button>
+      </section>
+
+      {isAuthenticated && preview.startup?.id && (
+        <div className="mb-8 flex flex-col gap-3 rounded-xl border border-cyan-700 bg-cyan-950/40 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-[1.5px] text-cyan-300">Optional · Improve future matches</p>
+            <p className="mt-1 text-sm font-medium text-white">Give Oracle missing founder, funding, traction, or deck data.</p>
+            <p className="mt-1 text-xs text-zinc-300">Oracle can use it to rerank your next investor list. This does not block outreach.</p>
+          </div>
+          <button type="button" onClick={() => setImproveMatchesOpen(true)} className="shrink-0 rounded-lg border border-cyan-500 bg-cyan-950 px-4 py-2.5 text-sm font-semibold text-cyan-200 hover:bg-cyan-900">
+            Improve future matches →
+          </button>
+        </div>
       )}
 
       <PitchEventRecommendations

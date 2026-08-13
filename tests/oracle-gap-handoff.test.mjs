@@ -7,9 +7,9 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8');
 test('matches use the Analyze → Shortlist → Outreach workflow', async () => {
   const preview = await read('site/components/InstantMatchPreview.tsx');
   assert.match(preview, /Company analyzed/);
-  assert.match(preview, /Confirm your shortlist/);
+  assert.match(preview, /Understand your best matches/);
   assert.match(preview, /Start investor outreach/);
-  assert.match(preview, /Create outreach for top/);
+  assert.match(preview, /Prepare outreach for my top/);
   assert.match(preview, /handleSignup\('outreach'\)/);
   assert.doesNotMatch(preview, /Step 2 complete/);
   assert.doesNotMatch(preview, /\['2', 'Account created'\]/);
