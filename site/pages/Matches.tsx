@@ -387,7 +387,7 @@ export default function Matches() {
 
       <SharedNavbar activePath="/matches" />
 
-      <main className="container pt-24 pb-20 max-w-5xl">
+      <main className="container pt-24 pb-20 max-w-7xl px-4 sm:px-6">
 
         {previewUrl ? (
           <InstantMatchPreview url={previewUrl} />

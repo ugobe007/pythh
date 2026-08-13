@@ -20,15 +20,13 @@ import {
   type FounderGatedAction,
   type GatedInvestorContext,
 } from '@/lib/founderSignupGate';
-import PreviewOracleProofStrip from '@/components/PreviewOracleProofStrip';
-import PreviewEvidenceStrip from '@/components/PreviewEvidenceStrip';
 import MatchExplainBlock from '@/components/MatchExplainBlock';
 import { normalizeWhyYouMatch } from '@/lib/normalizeWhyYouMatch';
 import { recordAnonymousPreview } from '@/lib/anonymousPreviewSession';
 import { pinActiveStartup } from '@/lib/activeStartupContext';
-import PreviewOracleGapTeaser, { buildOracleGapCopy, type OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
+import type { OracleGapPayload } from '@/components/PreviewOracleGapTeaser';
 import type { MatchMovement } from '@/components/PreviewSignalDeltaTeaser';
-import PeterIntroPanel, { PeterIntroStrip } from '@/components/PeterIntroPanel';
+import PeterIntroPanel from '@/components/PeterIntroPanel';
 import { founderSignupPath } from '@/lib/safeUrl';
 import ImproveMatchesPanel from '@/components/ImproveMatchesPanel';
 import PitchEventRecommendations from '@/components/PitchEventRecommendations';
@@ -44,8 +42,38 @@ const INVESTOR_MIX_OPTIONS: { id: InvestorMix; label: string }[] = [
   { id: 'angel', label: 'Angels only' },
 ];
 
-function primarySignupLabel(): string {
-  return 'Create free account & continue';
+function MatchWorkflowGuide({ startupName, shortlistSize, onStartOutreach }: {
+  startupName: string;
+  shortlistSize: number;
+  onStartOutreach: () => void;
+}) {
+  const steps = [
+    ['1', 'Company analyzed', 'Complete'],
+    ['2', 'Confirm your shortlist', 'Now'],
+    ['3', 'Start investor outreach', 'Next'],
+  ];
+  return (
+    <section className="mb-8 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 sm:p-6">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-emerald-400">Your fundraising workflow</p>
+          <h2 className="mb-1 text-lg font-bold text-white">Choose who {startupName} should contact first</h2>
+          <p className="text-xs text-zinc-400">Review the fit and signals below, then start outreach. Improving company data remains optional.</p>
+        </div>
+        <button type="button" onClick={onStartOutreach} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-5 py-3 text-sm font-semibold text-black hover:bg-emerald-400">
+          Create outreach for top {shortlistSize}<ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        {steps.map(([number, title, state]) => (
+          <div key={number} className={`rounded-xl border p-3 ${state === 'Now' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-zinc-800 bg-zinc-950/35'}`}>
+            <p className={`mb-1 text-[10px] uppercase tracking-wide ${state === 'Now' ? 'text-emerald-400' : 'text-zinc-500'}`}>{number} · {state}</p>
+            <p className="text-sm font-semibold text-white">{title}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 type PreviewMatch = {
@@ -221,8 +249,6 @@ export default function InstantMatchPreview({ url }: Props) {
   const deltaTeaserTrackedRef = useRef(false);
   const oracleGapTeaserTrackedRef = useRef(false);
   const evidenceStripTrackedRef = useRef(false);
-  const pricingStripRef = useRef<HTMLDivElement | null>(null);
-  const pricingStripTrackedRef = useRef(false);
   const [deltaAssignment, setDeltaAssignment] = useState<GrowthAssignment | null>(null);
   const [oracleGapAssignment, setOracleGapAssignment] = useState<GrowthAssignment | null>(null);
   const [gateCopy, setGateCopy] = useState({
@@ -294,7 +320,7 @@ export default function InstantMatchPreview({ url }: Props) {
 
         let id = submitJson.startup_id || submitJson.id;
         if (!id && submitJson.status === 'queued') {
-          for (let i = 0; i < 8 && !cancelled; i++) {
+          for (let i = 0; i < 30 && !cancelled; i++) {
             await new Promise((r) => setTimeout(r, 2000));
             const retry = await fetch(apiUrl('/api/instant/submit'), {
               method: 'POST',
@@ -303,6 +329,9 @@ export default function InstantMatchPreview({ url }: Props) {
               body: JSON.stringify({ url, source: 'matches_preview' }),
             });
             const retryJson = await retry.json().catch(() => ({}));
+            if (!retry.ok && retry.status !== 202) {
+              throw new Error(retryJson.message || retryJson.error || 'Could not analyze startup URL');
+            }
             id = retryJson.startup_id || retryJson.id;
             if (id) break;
           }
@@ -455,27 +484,6 @@ export default function InstantMatchPreview({ url }: Props) {
     };
   }, [startupId, investorMix, url]);
 
-  useEffect(() => {
-    const el = pricingStripRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (pricingStripTrackedRef.current) return;
-        const visible = entries.some((e) => e.isIntersecting);
-        if (!visible) return;
-        pricingStripTrackedRef.current = true;
-        void trackFunnelEventOnce('pythh_preview_pricing_strip', 'pricing_strip_viewed', {
-          path: '/matches',
-          source: 'preview_sticky',
-          startup_id: preview?.startup?.id,
-        });
-      },
-      { threshold: 0.35 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [preview?.startup?.id]);
-
   const handleSignup = (action: FounderGatedAction = 'save', investor?: GatedInvestorContext | null) => {
     if (!preview?.startup?.id) return;
 
@@ -537,13 +545,6 @@ export default function InstantMatchPreview({ url }: Props) {
     handleSignup(action, investor);
   };
 
-  const investorFromMatch = (m: PreviewMatch): GatedInvestorContext | null => {
-    const id = m.investor_id || m.investor?.id;
-    const name = m.investor?.name;
-    if (!id || !name) return null;
-    return { id, name, firm: m.investor?.firm };
-  };
-
   if (loading) {
     return (
       <div className="py-16 flex flex-col items-center gap-4 text-center">
@@ -573,31 +574,8 @@ export default function InstantMatchPreview({ url }: Props) {
   const visible = matches.slice(0, PREVIEW_LIMIT);
   const total = preview.total_matches ?? matches.length;
   const startupName = preview.startup?.name || 'Your startup';
-  const showOracleGapTeaser =
-    Boolean(preview.oracle_gap) &&
-    (oracleGapAssignment == null || oracleGapAssignment.variant_key === 'oracle_gap_cliffhanger');
-  const oracleGapCopy = preview.oracle_gap
-    ? buildOracleGapCopy(preview.oracle_gap, oracleGapAssignment)
-    : null;
-
-  const primaryCta = primarySignupLabel();
-  const topInvestor = investorFromMatch(visible[0] ?? {});
-  const readinessScore = preview.oracle_gap?.current_god_score;
-
   return (
-    <div className="mb-16 pb-28">
-      <div className="grid grid-cols-3 gap-2 mb-7" aria-label="Match workflow progress">
-        {[
-          ['1', 'URL submitted'],
-          ['2', 'Account created'],
-          ['3', 'Five matches'],
-        ].map(([step, label]) => (
-          <div key={step} className="text-center">
-            <div className="h-1 rounded-full mb-2 bg-emerald-500" />
-            <p className="text-[10px] text-emerald-300">{step}. {label}</p>
-          </div>
-        ))}
-      </div>
+    <div className="mb-16">
       <div className="mb-6 text-center">
         <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-3">Investor matches</p>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -616,6 +594,8 @@ export default function InstantMatchPreview({ url }: Props) {
             )}
         </p>
       </div>
+
+      <MatchWorkflowGuide startupName={startupName} shortlistSize={visible.length} onStartOutreach={() => void handleSignup('outreach')} />
 
       {refreshed && (
         <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center">
@@ -857,41 +837,6 @@ export default function InstantMatchPreview({ url }: Props) {
         stage={preview.startup?.stage}
         state={preview.startup?.state}
       />
-
-      <div className="mb-8 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-center">
-        <p className="text-sm font-medium text-white mb-1">Your five matches are ready</p>
-        <p className="text-xs text-zinc-400">
-          Open personalized outreach drafts next. Adding data to improve matches remains optional.
-        </p>
-      </div>
-
-      <div
-        ref={pricingStripRef}
-        className="fixed bottom-0 inset-x-0 z-40 border-t border-emerald-500/20 bg-zinc-950/95 backdrop-blur-md px-4 py-3"
-      >
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-zinc-400 text-center sm:text-left max-w-md">
-            {isAuthenticated ? 'Five matches saved to your Pythh account' : 'Create a free account to save these matches'}
-          </p>
-          <div className="w-full sm:w-auto flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="px-3 py-2 text-xs text-zinc-500 hover:text-zinc-300"
-            >
-              Not now
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSignup('save')}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shadow-lg shadow-emerald-900/30"
-            >
-              {isAuthenticated ? 'Open my outreach drafts' : primaryCta}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
 
       {improveMatchesOpen && preview.startup?.id && (
         <ImproveMatchesPanel

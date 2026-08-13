@@ -24,6 +24,7 @@ const log = require('../logger').forComponent('instant-submit');
 const { createClient } = require('@supabase/supabase-js');
 const { logInstantSubmitFunnel } = require('../lib/funnelTelemetry');
 const { normalizeUrl, generateLookupVariants } = require('../utils/urlNormalizer');
+const { validateStartupUrl } = require('../utils/startupUrlValidation');
 const { 
   normalizeSectors, 
   expandRelatedSectors,
@@ -46,14 +47,9 @@ const SUPABASE_SERVICE_KEY =
 // =============================================================================
 // URL scraping (separate from GOD mapping — see server/scoring/hotGodFromStartupRow.js)
 // =============================================================================
-let scrapeAndScoreStartup;
-try {
-  const scraping = require('../services/urlScrapingService.ts');
-  scrapeAndScoreStartup = scraping.scrapeAndScoreStartup;
-} catch (e) {
-  console.warn('[instantSubmit] urlScrapingService.ts not available. Using stub.');
-  scrapeAndScoreStartup = () => Promise.resolve({ data: null });
-}
+// The service is TypeScript/ESM. Load it lazily through a CommonJS-safe bridge
+// so router startup never waits on TypeScript module initialization.
+const { scrapeAndScoreStartup } = require('../services/urlScrapingServiceLoader');
 const { extractInferenceData, reconcileSectors, resolveStartupSectors, inferSectorsFromIdentity } = require('../../lib/inference-extractor');
 const { quickEnrich, isDataSparse } = require('../services/inferenceService');
 const axios = require('axios');
@@ -2072,6 +2068,13 @@ router.post('/submit', async (req, res) => {
     
     // FAULT TOLERANT INPUT PARSING
     const inputRaw = String(urlRaw).trim();
+    const urlValidation = validateStartupUrl(inputRaw);
+    if (!urlValidation.valid) {
+      return res.status(400).json({
+        error: 'Invalid URL',
+        message: 'Please enter a valid company website (e.g., stripe.com)',
+      });
+    }
     const companyName = extractCompanyName(inputRaw);
     domain = extractDomain(inputRaw);
     const urlNormalized = normalizeUrl(inputRaw);

@@ -1,0 +1,14 @@
+{
+  "startups": 60154,
+  "startups_total": 86835,
+  "investors": 8047,
+  "matches": 3785830,
+  "matches_new_7d": 38571,
+  "matches_new_30d": 177437,
+  "signals": 9237,
+  "startups_funded": 32545,
+  "computed_at": "2026-08-13T03:26:37.149Z",
+  "source": "refresh-platform-stats-cache.mjs",
+  "generated_at": "2026-08-13T03:26:37.149Z",
+  "max_age_hours": 14
+}

@@ -15,6 +15,7 @@ import {
   mergeHeroHeadlineCopy,
   trackHeroHeadlineExposure,
   trackHeroUrlSubmitted,
+  HERO_PRIMARY_CTA,
 } from '@/lib/heroHeadlineExperiment';
 import type { GrowthAssignment } from '@/lib/growthExperiment';
 import { useAuth } from '@/_core/hooks/useAuth';
@@ -110,7 +111,7 @@ export default function FindInvestors() {
 
       <SharedNavbar activePath="/find-investors" />
 
-      <main className="container max-w-3xl pt-28 pb-24 px-4">
+      <main className="container max-w-7xl pt-28 pb-24 px-4 sm:px-6">
         <p className="text-[11px] uppercase tracking-[2px] text-emerald-400 mb-4">
           No warm intro required
         </p>
@@ -172,9 +173,22 @@ export default function FindInvestors() {
             />
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-lg text-sm font-semibold transition-colors"
+              style={{
+                backgroundColor: 'transparent',
+                border: '1px solid oklch(0.696 0.17 162.48)',
+                color: 'oklch(0.696 0.17 162.48)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'oklch(0.78 0.17 162.48)';
+                e.currentTarget.style.color = 'oklch(0.78 0.17 162.48)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'oklch(0.696 0.17 162.48)';
+                e.currentTarget.style.color = 'oklch(0.696 0.17 162.48)';
+              }}
             >
-              {heroCopy.cta}
+              {HERO_PRIMARY_CTA}
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
