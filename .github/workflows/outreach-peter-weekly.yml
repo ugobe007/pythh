@@ -94,6 +94,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_SECRET: ${{ secrets.EMAIL_SECRET }}
           HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
           ZEROBOUNCE_API_KEY: ${{ secrets.ZEROBOUNCE_API_KEY }}
           OUTREACH_USE_PYTHH_DOMAIN: 'true'

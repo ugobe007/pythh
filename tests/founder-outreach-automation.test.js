@@ -10,7 +10,10 @@ test('scheduled founder outreach explicitly enables sending and preserves the ca
   assert.match(workflow, /cron: '0 13 \* \* \*'/);
   assert.match(workflow, /ARGS="\$ARGS --send"/);
   assert.match(workflow, /default: '20'/);
-  assert.match(workflow, /EMAIL_SECRET: \$\{\{ secrets\.EMAIL_SECRET \}\}/);
+  assert.match(
+    workflow,
+    /Peter founder outreach[\s\S]*EMAIL_SECRET: \$\{\{ secrets\.EMAIL_SECRET \}\}[\s\S]*HUNTER_API_KEY/
+  );
 });
 
 test('local scheduler explicitly enables founder sends outside draft mode', async () => {
