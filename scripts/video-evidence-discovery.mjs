@@ -20,7 +20,11 @@ const WRITE = argv.includes('--write');
 const ENTITY_TYPE = flag('--entity-type');
 const ENTITY_ID = flag('--entity-id');
 const LIMIT = Math.min(50, Math.max(1, Number.parseInt(flag('--limit') || '10', 10)));
+const OFFSET = Math.max(0, Number.parseInt(flag('--offset') || '0', 10));
 const MIN_CONFIDENCE = Number.parseFloat(flag('--min-confidence') || '0.75');
+const MAX_WRITES = Math.min(250, Math.max(1, Number.parseInt(flag('--max-writes') || '50', 10)));
+const MAX_YOUTUBE_UNITS = Math.min(10000, Math.max(100, Number.parseInt(flag('--max-youtube-units') || '1000', 10)));
+const WARN_STORAGE_MB = Math.max(1, Number.parseFloat(flag('--warn-storage-mb') || '100'));
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -38,14 +42,14 @@ function domainFromUrl(value) {
 
 async function loadEntities() {
   if (ENTITY_TYPE === 'startup') {
-    let query = db.from('startup_uploads').select('id,name,website,company_website,status').eq('status', 'approved').not('name', 'is', null).limit(LIMIT);
+    let query = db.from('startup_uploads').select('id,name,website,company_website,status').eq('status', 'approved').not('name', 'is', null).order('id').range(OFFSET, OFFSET + LIMIT - 1);
     if (ENTITY_ID) query = query.eq('id', ENTITY_ID);
     const { data, error } = await query;
     if (error) throw error;
     return (data || []).map((row) => ({ entityType:'startup', id:row.id, name:row.name, domain:domainFromUrl(row.website || row.company_website) }));
   }
   if (ENTITY_TYPE === 'investor') {
-    let query = db.from('investors').select('id,name,firm,url,status').not('firm', 'is', null).limit(LIMIT);
+    let query = db.from('investors').select('id,name,firm,url,status').not('firm', 'is', null).order('id').range(OFFSET, OFFSET + LIMIT - 1);
     if (ENTITY_ID) query = query.eq('id', ENTITY_ID);
     const { data, error } = await query;
     if (error) throw error;
@@ -88,25 +92,40 @@ async function saveCandidate(entity, item, resolution, contentType) {
 
 async function main() {
   const entities = await loadEntities();
-  let accepted = 0, rejected = 0;
-  console.log(`Video evidence discovery · ${WRITE ? 'WRITE CANDIDATES' : 'DRY RUN'} · ${entities.length} ${ENTITY_TYPE}(s)`);
+  let accepted = 0, rejected = 0, searches = 0, writes = 0, estimatedBytes = 0;
+  console.log(`Video evidence discovery · ${WRITE ? 'WRITE CANDIDATES' : 'DRY RUN'} · ${entities.length} ${ENTITY_TYPE}(s) · offset ${OFFSET}`);
   for (const entity of entities) {
     const seen = new Set();
     for (const query of discoveryQueries(entity)) {
+      if ((searches + 1) * 100 > MAX_YOUTUBE_UNITS) {
+        console.warn(`STOP · YouTube search budget reached (${searches * 100}/${MAX_YOUTUBE_UNITS} units)`);
+        console.log(`Done · candidates ${accepted} · rejected ${rejected} · writes ${writes} · estimated metadata ${(estimatedBytes / 1048576).toFixed(3)} MB`);
+        return;
+      }
       const items = await youtubeSearch(query);
+      searches++;
       for (const item of items) {
         const videoId = item.id?.videoId;
         if (!videoId || seen.has(videoId)) continue;
         seen.add(videoId);
         const resolution = scoreVideoCandidate({ entityName:entity.name, entityDomain:entity.domain, title:item.snippet?.title, description:item.snippet?.description, channelTitle:item.snippet?.channelTitle, kind:entity.entityType });
         if (resolution.score < MIN_CONFIDENCE) { rejected++; continue; }
-        await saveCandidate(entity, item, resolution, classifyContent(entity.entityType, query));
+        if (WRITE && writes >= MAX_WRITES) {
+          console.warn(`STOP · write ceiling reached (${MAX_WRITES})`);
+          console.log(`Done · candidates ${accepted} · rejected ${rejected} · writes ${writes} · estimated metadata ${(estimatedBytes / 1048576).toFixed(3)} MB`);
+          return;
+        }
+        const row = await saveCandidate(entity, item, resolution, classifyContent(entity.entityType, query));
+        estimatedBytes += Buffer.byteLength(JSON.stringify(row), 'utf8') + 1024;
+        if (WRITE) writes++;
         accepted++;
         console.log(`→ ${entity.name}: ${item.snippet?.title} (${resolution.score})`);
       }
     }
   }
-  console.log(`Done · candidates ${accepted} · rejected ${rejected}`);
+  const estimatedMb = estimatedBytes / 1048576;
+  console.log(`Done · candidates ${accepted} · rejected ${rejected} · searches ${searches} (${searches * 100} quota units) · writes ${writes} · estimated metadata ${estimatedMb.toFixed(3)} MB`);
+  if (estimatedMb >= WARN_STORAGE_MB) console.warn(`WARNING · estimated batch growth exceeds ${WARN_STORAGE_MB} MB`);
 }
 
 main().catch((error) => { console.error(error.message || error); process.exit(1); });

@@ -15,6 +15,9 @@ test('requires exact entity identity plus video intent for high-confidence disco
   const commonName = scoreVideoCandidate({ entityName:'Soleil', entityDomain:'soleil.com', title:'Tom Ford Soleil product demo', description:'Cosmetics', channelTitle:'Beauty Reviews', kind:'startup' });
   assert.equal(commonName.score, 0);
   assert.deepEqual(commonName.reasons, ['ambiguous_single_token_without_channel_identity']);
+  const misleadingChannel = scoreVideoCandidate({ entityName:'Soleil', entityDomain:'soleil.com', title:'The Trio Miracle Oil By Soleil', description:'Beauty routine', channelTitle:'Soleil', kind:'startup' });
+  assert.equal(misleadingChannel.score, 0);
+  assert.deepEqual(misleadingChannel.reasons, ['ambiguous_single_token_without_content_intent']);
 });
 
 test('uses separate discovery intents for startups and investors', () => {
