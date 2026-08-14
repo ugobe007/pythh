@@ -116,8 +116,8 @@ async function main() {
     if (!email || seenFirms.has(firmKey) || classifyOutreachEmail(email, investor.name) !== 'personal' || isBlockedOutreachEmail(email) || !isCleanInvestorNameForFeed(investor.name, firm)) { skipped++; continue; }
     seenFirms.add(firmKey);
     if (await suppressed(email) || await contacted(investor.id, email)) { skipped++; continue; }
-    let validation = { ok:true, status:'skipped' };
-    if (hasZeroBounce()) validation = await validateEmail(email);
+    let validation = { ok:true, status: DRY_RUN ? 'dry-run-not-transmitted' : 'skipped' };
+    if (!DRY_RUN && hasZeroBounce()) validation = await validateEmail(email);
     if (!validation.ok) { console.log(`→ ${firm} skipped (${validation.reason})`); skipped++; continue; }
     const matches = await loadTopMatches(investor.id);
     if (matches.length !== TOP_STARTUP_COUNT) { console.log(`→ ${firm} skipped (${matches.length} canonical matches)`); skipped++; continue; }
