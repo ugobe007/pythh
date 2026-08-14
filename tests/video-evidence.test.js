@@ -1,10 +1,22 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { youtubeEmbedUrl, evidenceHash, validateSnippet, graphPredicates } = require('../lib/videoEvidence');
+const { youtubeEmbedUrl, evidenceHash, validateSnippet, graphPredicates, scoreVideoCandidate, discoveryQueries } = require('../lib/videoEvidence');
 
 test('builds source-hosted timestamped embeds instead of stored video files', () => {
   assert.equal(youtubeEmbedUrl('abcDEF_123', 42), 'https://www.youtube.com/embed/abcDEF_123?start=42');
   assert.equal(youtubeEmbedUrl('../bad', 0), null);
+});
+
+test('requires exact entity identity plus video intent for high-confidence discovery', () => {
+  const strong = scoreVideoCandidate({ entityName:'Acme Robotics', entityDomain:'acmerobotics.ai', title:'Acme Robotics product demo', description:'Founder walkthrough', channelTitle:'Acme Robotics', kind:'startup' });
+  assert.ok(strong.score >= 0.9);
+  const collision = scoreVideoCandidate({ entityName:'Acme Robotics', title:'Acme retail store tour', description:'Unrelated', channelTitle:'News', kind:'startup' });
+  assert.equal(collision.score, 0);
+});
+
+test('uses separate discovery intents for startups and investors', () => {
+  assert.match(discoveryQueries({ entityType:'startup', name:'Acme' })[0], /product demo/);
+  assert.match(discoveryQueries({ entityType:'investor', name:'Index' })[0], /investment thesis/);
 });
 
 test('enforces entity-specific evidence and short timestamp windows', () => {
