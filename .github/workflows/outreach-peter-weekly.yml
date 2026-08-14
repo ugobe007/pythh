@@ -1,10 +1,10 @@
-# Peter outreach — automated weekly email to founders (Tue) and VCs (Mon).
-name: Peter Outreach Weekly
+# Peter outreach — automated daily email to founders and weekly email to VCs.
+name: Peter Outreach
 
 on:
   schedule:
     - cron: '0 13 * * 1'   # Mon 13:00 UTC ≈ 8am ET — VC dealflow
-    - cron: '0 13 * * 2'   # Tue 13:00 UTC ≈ 8am ET — founder matches
+    - cron: '0 13 * * *'   # Daily 13:00 UTC — founder matches
   workflow_dispatch:
     inputs:
       mode:
@@ -81,7 +81,7 @@ jobs:
             echo "value=$INPUT_MODE" >> "$GITHUB_OUTPUT"
           elif [ "$SCHEDULE" = "0 13 * * 1" ]; then
             echo "value=vc" >> "$GITHUB_OUTPUT"
-          elif [ "$SCHEDULE" = "0 13 * * 2" ]; then
+          elif [ "$SCHEDULE" = "0 13 * * *" ]; then
             echo "value=startup" >> "$GITHUB_OUTPUT"
           else
             echo "value=startup" >> "$GITHUB_OUTPUT"

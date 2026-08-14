@@ -2,10 +2,10 @@
 /**
  * Pythh Outreach Scheduler
  *
- * Schedules the outreach agent to run automatically on a weekly cadence.
+ * Schedules the outreach agent to run automatically.
  * By default:
  *   - Monday  08:00 ET — VC mode   (10 startup leads per investor firm)
- *   - Tuesday 08:00 ET — Founder mode (peter-founder-outreach.mjs — Hunter + ZeroBounce)
+ *   - Daily   08:00 ET — Founder mode (peter-founder-outreach.mjs — Hunter + ZeroBounce)
  *
  * Usage:
  *   node scripts/cron/outreach-scheduler.js              # run once (based on --mode flag or both)
@@ -13,7 +13,7 @@
  *
  * Env:
  *   OUTREACH_VC_SCHEDULE       — cron expression (default: 0 8 * * 1  = Monday 8am)
- *   OUTREACH_STARTUP_SCHEDULE  — cron expression (default: 0 8 * * 2  = Tuesday 8am)
+ *   OUTREACH_STARTUP_SCHEDULE  — cron expression (default: 0 8 * * *  = daily at 8am)
  *   OUTREACH_SCAN              — startups to scan per founder run (default: 300)
  *   OUTREACH_LIMIT             — emails per run (default: 20)
  *   OUTREACH_TZ                — timezone (default: America/New_York)
@@ -36,7 +36,7 @@ const AGENT  = path.join(ROOT, "scripts", "outreach-agent.js");
 const FOUNDER_AGENT = path.join(ROOT, "scripts", "peter-founder-outreach.mjs");
 
 const VC_SCHEDULE      = process.env.OUTREACH_VC_SCHEDULE      ?? "0 8 * * 1";  // Monday
-const STARTUP_SCHEDULE = process.env.OUTREACH_STARTUP_SCHEDULE ?? "0 8 * * 2";  // Tuesday
+const STARTUP_SCHEDULE = process.env.OUTREACH_STARTUP_SCHEDULE ?? "0 8 * * *";  // Daily
 const LIMIT            = process.env.OUTREACH_LIMIT            ?? "20";
 const SCAN             = process.env.OUTREACH_SCAN             ?? "300";
 const TZ               = process.env.OUTREACH_TZ               ?? "America/New_York";
