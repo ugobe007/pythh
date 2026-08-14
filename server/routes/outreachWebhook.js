@@ -96,9 +96,18 @@ async function handleComplained(event, client) {
 
   if (msgId) {
     await client.from('investor_outreach').update({ status: 'unsubscribed' }).eq('resend_message_id', msgId);
+    await client
+      .from('pythh_prospecting_log')
+      .update({ status: 'unsubscribed', unsubscribed_at: new Date().toISOString() })
+      .eq('resend_message_id', msgId);
   }
   if (emailAddr) {
     await client.from('investors').update({ email_status: 'bounced' }).eq('email_best_guess', emailAddr);
+    await client.from('email_unsubscribes').upsert({
+      email: String(emailAddr).trim().toLowerCase(),
+      reason: 'resend_complaint',
+      unsubscribed_at: new Date().toISOString(),
+    }, { onConflict: 'email' });
   }
   console.log('[webhook] complaint:', msgId, emailAddr);
 }

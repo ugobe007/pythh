@@ -52,6 +52,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_SECRET: ${{ secrets.EMAIL_SECRET }}
           OUTREACH_USE_PYTHH_DOMAIN: 'true'
           EMAIL_FROM: 'Peter at Pythh <pythia@pythh.ai>'
           SITE_URL: https://pythh.ai
@@ -101,7 +102,11 @@ jobs:
           LIMIT="${{ github.event.inputs.limit || '20' }}"
           SCAN="${{ github.event.inputs.scan || '300' }}"
           ARGS="--limit ${LIMIT} --scan ${SCAN}"
-          if [ "${{ github.event.inputs.draft_only }}" = "true" ]; then ARGS="$ARGS --draft-only"; fi
+          if [ "${{ github.event.inputs.draft_only }}" = "true" ]; then
+            ARGS="$ARGS --draft-only"
+          else
+            ARGS="$ARGS --send"
+          fi
           node scripts/peter-founder-outreach.mjs $ARGS
 
       - name: Peter outreach (VCs)

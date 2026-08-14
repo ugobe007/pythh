@@ -48,7 +48,7 @@ function runMode(mode) {
   const sendMode = DRAFT_ONLY ? "draft-only" : "live";
   const script = mode === "startup" ? FOUNDER_AGENT : AGENT;
   const args = mode === "startup"
-    ? [script, "--limit", LIMIT, "--scan", SCAN]
+    ? [script, "--limit", LIMIT, "--scan", SCAN, ...(DRAFT_ONLY ? [] : ["--send"])]
     : [AGENT, "--mode", mode, "--limit", LIMIT];
   if (DRAFT_ONLY) args.push("--draft-only");
 
