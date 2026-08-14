@@ -28,6 +28,7 @@ import { isUuidString } from '../lib/isUuid';
 import { apiUrl } from '../lib/apiConfig';
 import { PYTHH_MARKETING_BG } from '../lib/pythhMarketingTheme';
 import { recordMatchViewOnce } from '../lib/matchEngagement';
+import { ProfileVideoEvidence } from '../components/VideoEvidence';
 import { Briefcase, TrendingUp, Clock, Award, Users, Target, Zap, ChevronLeft } from 'lucide-react';
 
 /** Stroke-only surfaces — cyan accent, no fill (pythh public UI) */
@@ -555,6 +556,8 @@ export default function InvestorProfile() {
             <span className="text-zinc-500 text-xs">Observed since {investor.observedSince}</span>
           </p>
         </section>
+
+        <ProfileVideoEvidence entityType="investor" entityId={id || ''} title="Investor in their own words" />
 
         {/* ═══════════════════════════════════════════════════════════════
             🎯 SIGNALS THIS INVESTOR RESPONDS TO — Top priority for founders

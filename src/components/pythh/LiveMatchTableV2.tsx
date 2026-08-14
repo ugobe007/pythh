@@ -20,6 +20,8 @@ import { RADAR_THRESHOLDS } from '@/lib/radar-view-model';
 import { UnlockButton } from './UnlockButton';
 import { MaturityStrip } from './MaturityStrip';
 import { recordMatchIntro, recordMatchViewOnce } from '@/lib/matchEngagement';
+import { VideoEvidenceLink } from '@/components/VideoEvidence';
+import { useVideoEvidenceMap } from '@/services/videoEvidenceService';
 
 // -----------------------------------------------------------------------------
 // PROPS (View Model Based)
@@ -151,6 +153,11 @@ export function LiveMatchTable({
 
   const relevantUnlocked = showUnlocked ? unlockedRows : [];
   const relevantLocked = showLocked ? lockedRows : [];
+  const visibleInvestorIds = [
+    ...relevantUnlocked.slice(0, 5),
+    ...relevantLocked.slice(0, 5),
+  ].map((row) => row.investorId);
+  const investorVideoEvidence = useVideoEvidenceMap('investor', visibleInvestorIds);
 
   // Loading: show skeleton rows instead of spinner
   if (loading && relevantUnlocked.length === 0 && relevantLocked.length === 0) {
@@ -230,6 +237,7 @@ export function LiveMatchTable({
           startupTagline={startupTagline}
           startupSectors={startupSectors}
           startupId={startupId}
+          videoEvidence={investorVideoEvidence[row.investorId]}
         />
       ))}
 
@@ -247,6 +255,7 @@ export function LiveMatchTable({
           startupTagline={startupTagline}
           startupSectors={startupSectors}
           startupId={startupId}
+          videoEvidence={investorVideoEvidence[row.investorId]}
         />
       ))}
 
@@ -276,9 +285,10 @@ interface RadarTableRowProps {
   startupTagline?: string | null;
   startupSectors?: string[];
   startupId?: string | null;
+  videoEvidence?: import('@/services/videoEvidenceService').VideoEvidenceSnippet[];
 }
 
-function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex, startupName, startupTagline, startupSectors, startupId }: RadarTableRowProps) {
+function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowIndex, startupName, startupTagline, startupSectors, startupId, videoEvidence }: RadarTableRowProps) {
   const [copied, setCopied] = useState(false);
   const handleCopyIntro = useCallback(() => {
     const name = startupName || 'Our startup';
@@ -322,6 +332,7 @@ function RadarTableRow({ row, isPending, onUnlock, onView, unlocksDisabled, rowI
                 Warming up
               </span>
             )}
+            <VideoEvidenceLink snippets={videoEvidence} />
           </div>
           {row.entity.context && (
             <div className="text-xs text-zinc-500 truncate">{row.entity.context}</div>

@@ -12,6 +12,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { WatchButton } from '../components/WatchButton';
 import { fetchPreviewReport, fetchTimeoutSignal } from '@/lib/apiConfig';
+import { VideoEvidenceLink } from '../components/VideoEvidence';
+import { useVideoEvidenceMap, type VideoEvidenceSnippet } from '../services/videoEvidenceService';
 
 const SITE_URL = 'https://pythh.ai';
 
@@ -115,7 +117,7 @@ function buildLinkedInShareUrl(previewUrl: string): string {
 
 // ─── Investor Card ────────────────────────────────────────────────────────────
 
-function InvestorCard({ match, rank, blurred }: { match: Match; rank: number; blurred?: boolean }) {
+function InvestorCard({ match, rank, blurred, videoEvidence }: { match: Match; rank: number; blurred?: boolean; videoEvidence?: VideoEvidenceSnippet[] }) {
   const { investor, match_score } = match;
   const sectors = formatSectors(investor.sectors);
   const checkSize = formatCheckSize(investor.check_size_min, investor.check_size_max);
@@ -190,6 +192,7 @@ function InvestorCard({ match, rank, blurred }: { match: Match; rank: number; bl
           "{match.why_you_match}"
         </p>
       )}
+      {!blurred && <div className="mt-3"><VideoEvidenceLink snippets={videoEvidence} /></div>}
     </div>
   );
 }
@@ -220,6 +223,8 @@ export default function MatchPreviewPage() {
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const investorIds = data?.matches.slice(0, 5).map((match) => match.investor.id) || [];
+  const investorVideoEvidence = useVideoEvidenceMap('investor', investorIds);
 
   useEffect(() => {
     if (!startupId) return;
@@ -376,7 +381,7 @@ export default function MatchPreviewPage() {
           {/* Visible matches */}
           <div className="space-y-3">
             {visibleMatches.map((match, i) => (
-              <InvestorCard key={match.investor.id} match={match} rank={i + 1} />
+              <InvestorCard key={match.investor.id} match={match} rank={i + 1} videoEvidence={investorVideoEvidence[match.investor.id]} />
             ))}
           </div>
 

@@ -10,6 +10,7 @@ import PythhUnifiedNav from '../components/PythhUnifiedNav';
 import { apiUrl } from '../lib/apiConfig';
 import { supabase } from '../lib/supabase';
 import { sanitizeSignalSentence } from '../lib/stripHtml';
+import { ProfileVideoEvidence } from '../components/VideoEvidence';
 
 const SESSION_KEY = 'pythh_investor_session';
 
@@ -255,6 +256,10 @@ export default function InvestorStartupDetailPage() {
               </p>
             </div>
           )}
+
+          <div className="mt-6 pt-6 border-t border-zinc-800">
+            <ProfileVideoEvidence entityType="startup" entityId={id || ''} title="Startup demos and interviews" />
+          </div>
 
           {startup.recent_activity && startup.recent_activity.length > 0 && (
             <div className="mt-6 pt-6 border-t border-zinc-800">

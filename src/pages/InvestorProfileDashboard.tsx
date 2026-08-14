@@ -45,6 +45,8 @@ import {
   type ObservatorySummary,
 } from '../services/investorObservatoryService';
 import { findMatchesForInvestor } from '../lib/matchingService';
+import { VideoEvidenceLink } from '../components/VideoEvidence';
+import { useVideoEvidenceMap } from '../services/videoEvidenceService';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -160,6 +162,7 @@ export default function InvestorProfileDashboard() {
   const [qualityDrift, setQualityDrift] = useState<QualityDriftWeek[]>([]);
   const [qualityStatus, setQualityStatus] = useState<{ current_score: number; trend: string; strong_percentage: number; active_percentage: number } | null>(null);
   const [startupMatches, setStartupMatches] = useState<StartupMatch[]>([]);
+  const startupVideoEvidence = useVideoEvidenceMap('startup', startupMatches.map((match) => match.startup.id));
   const [loading, setLoading] = useState(true);
 
   // Load all data
@@ -631,6 +634,7 @@ export default function InvestorProfileDashboard() {
                     {m.reasons.length > 0 && (
                       <p className="text-[11px] text-zinc-700 mt-0.5 truncate">{m.reasons[0]}</p>
                     )}
+                    <VideoEvidenceLink snippets={startupVideoEvidence[m.startup.id]} />
                   </div>
                   <span className={`text-xs tabular-nums text-right self-center ${qualityColor(m.startup.total_god_score)}`}>
                     {m.startup.total_god_score}
