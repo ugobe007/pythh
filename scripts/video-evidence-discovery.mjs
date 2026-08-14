@@ -24,8 +24,8 @@ const OFFSET = Math.max(0, Number.parseInt(flag('--offset') || '0', 10));
 const MIN_CONFIDENCE = Number.parseFloat(flag('--min-confidence') || '0.75');
 const MAX_WRITES = Math.min(250, Math.max(1, Number.parseInt(flag('--max-writes') || '50', 10)));
 const MAX_YOUTUBE_UNITS = Math.min(10000, Math.max(100, Number.parseInt(flag('--max-youtube-units') || '1000', 10)));
-const WARN_STORAGE_MB = Math.max(1, Number.parseFloat(flag('--warn-storage-mb') || '100'));
-const HARD_STORAGE_MB = Math.max(WARN_STORAGE_MB, Number.parseFloat(flag('--hard-storage-mb') || '250'));
+const WARN_STORAGE_MB = Math.max(1, Number.parseFloat(flag('--warn-storage-mb') || '25'));
+const HARD_STORAGE_MB = Math.max(WARN_STORAGE_MB, Number.parseFloat(flag('--hard-storage-mb') || '50'));
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
