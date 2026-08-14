@@ -20,4 +20,6 @@ test('selects exactly three unique approved startups from canonical matches', ()
 test('dry runs never transmit investor emails to ZeroBounce', () => {
   const source = readFileSync(require.resolve('../scripts/peter-investor-outreach.mjs'), 'utf8');
   assert.match(source, /if \(!DRY_RUN && hasZeroBounce\(\)\) validation = await validateEmail\(email\)/);
+  assert.match(source, /\.eq\('email_status', 'verified'\)/);
+  assert.doesNotMatch(source, /\['verified', 'inferred'\]/);
 });

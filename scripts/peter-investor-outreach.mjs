@@ -101,7 +101,7 @@ async function sendEmail(to, bundle) {
 async function main() {
   console.log(`\nPeter investor top-three outreach · ${DRY_RUN ? 'DRY RUN' : 'SEND'} · limit ${LIMIT}`);
   let query = db.from('investors').select('id, name, firm, email_best_guess, email_status, investor_score, status')
-    .not('email_best_guess', 'is', null).in('email_status', ['verified', 'inferred'])
+    .not('email_best_guess', 'is', null).eq('email_status', 'verified')
     .order('investor_score', { ascending:false, nullsFirst:false }).limit(SCAN);
   if (INVESTOR_ID) query = query.eq('id', INVESTOR_ID);
   const { data: investors, error } = await query;
