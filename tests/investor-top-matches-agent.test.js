@@ -22,4 +22,6 @@ test('dry runs never transmit investor emails to ZeroBounce', () => {
   assert.match(source, /if \(!DRY_RUN && hasZeroBounce\(\)\) validation = await validateEmail\(email\)/);
   assert.match(source, /\.eq\('email_status', 'verified'\)/);
   assert.doesNotMatch(source, /\['verified', 'inferred'\]/);
+  assert.doesNotMatch(source, /GOD Score|Investor Tier|Stage fit:/);
+  assert.match(source, /Review the 3 matches/);
 });
