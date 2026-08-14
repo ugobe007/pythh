@@ -25,6 +25,7 @@ const MIN_CONFIDENCE = Number.parseFloat(flag('--min-confidence') || '0.75');
 const MAX_WRITES = Math.min(250, Math.max(1, Number.parseInt(flag('--max-writes') || '50', 10)));
 const MAX_YOUTUBE_UNITS = Math.min(10000, Math.max(100, Number.parseInt(flag('--max-youtube-units') || '1000', 10)));
 const WARN_STORAGE_MB = Math.max(1, Number.parseFloat(flag('--warn-storage-mb') || '100'));
+const HARD_STORAGE_MB = Math.max(WARN_STORAGE_MB, Number.parseFloat(flag('--hard-storage-mb') || '250'));
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -34,6 +35,27 @@ if (!YOUTUBE_API_KEY) throw new Error('Missing YOUTUBE_API_KEY');
 if (ENTITY_TYPE && !['startup', 'investor'].includes(ENTITY_TYPE)) throw new Error('entity-type must be startup or investor');
 
 const db = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession:false } });
+
+async function storageHealth() {
+  if (!process.env.DATABASE_URL) return null;
+  try {
+    const { Client } = await import('pg');
+    const client = new Client({ connectionString:process.env.DATABASE_URL, ssl:{ rejectUnauthorized:false } });
+    await client.connect();
+    const { rows } = await client.query(`
+      select
+        (select count(*)::int from public.profile_video_sources) as source_rows,
+        (select count(*)::int from public.profile_video_snippets) as snippet_rows,
+        (pg_total_relation_size('public.profile_video_sources') +
+         pg_total_relation_size('public.profile_video_snippets'))::bigint as total_bytes
+    `);
+    await client.end();
+    return rows[0] || null;
+  } catch (error) {
+    console.warn(`Storage monitor unavailable: ${error.message}`);
+    return null;
+  }
+}
 
 function domainFromUrl(value) {
   try { return new URL(/^https?:\/\//i.test(value || '') ? value : `https://${value}`).hostname.replace(/^www\./, ''); }
@@ -91,6 +113,13 @@ async function saveCandidate(entity, item, resolution, contentType) {
 }
 
 async function main() {
+  const before = await storageHealth();
+  if (before) {
+    const beforeMb = Number(before.total_bytes) / 1048576;
+    console.log(`Storage · ${before.source_rows} sources · ${before.snippet_rows} snippets · ${beforeMb.toFixed(3)} MB`);
+    if (beforeMb >= HARD_STORAGE_MB) throw new Error(`HARD STOP: video evidence storage is ${beforeMb.toFixed(1)} MB (limit ${HARD_STORAGE_MB} MB)`);
+    if (beforeMb >= WARN_STORAGE_MB) console.warn(`WARNING · video evidence storage exceeds ${WARN_STORAGE_MB} MB`);
+  }
   const entities = await loadEntities();
   let accepted = 0, rejected = 0, searches = 0, writes = 0, estimatedBytes = 0;
   console.log(`Video evidence discovery · ${WRITE ? 'WRITE CANDIDATES' : 'DRY RUN'} · ${entities.length} ${ENTITY_TYPE}(s) · offset ${OFFSET}`);
@@ -126,6 +155,8 @@ async function main() {
   const estimatedMb = estimatedBytes / 1048576;
   console.log(`Done · candidates ${accepted} · rejected ${rejected} · searches ${searches} (${searches * 100} quota units) · writes ${writes} · estimated metadata ${estimatedMb.toFixed(3)} MB`);
   if (estimatedMb >= WARN_STORAGE_MB) console.warn(`WARNING · estimated batch growth exceeds ${WARN_STORAGE_MB} MB`);
+  const after = await storageHealth();
+  if (after) console.log(`Storage after · ${after.source_rows} sources · ${after.snippet_rows} snippets · ${(Number(after.total_bytes) / 1048576).toFixed(3)} MB`);
 }
 
 main().catch((error) => { console.error(error.message || error); process.exit(1); });
