@@ -17,6 +17,7 @@
 
 import { config } from 'dotenv';
 import { createRequire } from 'module';
+import { writeFile } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
 import { resolveFounderContact } from '../lib/resolveFounderContact.mjs';
 import { hasHunterIo } from '../lib/hunterIo.mjs';
@@ -28,14 +29,11 @@ config();
 
 const require = createRequire(import.meta.url);
 const { TOP_MATCH_COUNT, uniqueTopMatches, unsubscribeUrl } = require('../lib/founderTopMatchesAgent.js');
-const { isFirstPeterFounderContact } = require('../lib/peterOutreachHelpers.js');
 const { isValidStartupName } = require('../lib/startupNameValidator');
 const {
   defaultMatchReason,
   founderSubject,
   founderHeadline,
-  founderOpening,
-  founderOpeningText,
   founderAlignmentTagline,
   founderTableLabel,
   founderScoreLabel,
@@ -71,6 +69,7 @@ const DRY_RUN = !SEND || has('--dry-run');
 const DRAFT_ONLY = has('--draft-only');
 const TEST_TO = flag('--test-to');
 const STARTUP_ID = flag('--startup-id');
+const PREVIEW_OUT = flag('--preview-out');
 const CAMPAIGN = flag('--campaign') ?? `peter-founder-${new Date().toISOString().slice(0, 7)}`;
 const DELAY_MS = parseInt(flag('--delay') ?? '2000', 10);
 
@@ -221,7 +220,7 @@ async function sendResend({ to, subject, html, text, unsubscribe }) {
   return { ok: true, id: data.id, recipient };
 }
 
-function buildEmail(startup, matches, contact, { isFirstContact = true } = {}) {
+function buildEmail(startup, matches, contact) {
   const startupName = (startup.name || startup.website || 'your startup').trim();
   const greeting = contactOutreachGreeting({
     email: contact.email,
@@ -231,18 +230,18 @@ function buildEmail(startup, matches, contact, { isFirstContact = true } = {}) {
   const subject = founderSubject({ startupName, count: matches.length });
   const utm = { source: 'peter', medium: 'email', campaign: CAMPAIGN };
   const unsubscribe = unsubscribeUrl(contact.email, EMAIL_SECRET, 'https://pythh.ai');
-  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact, unsubscribe });
-  const text = buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact, unsubscribe });
+  const html = buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubscribe });
+  const text = buildStartupText({ startup, matches, greeting, startupName, utm, unsubscribe });
   return { subject, html, text, startupName, unsubscribe };
 }
 
-function buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirstContact = true, unsubscribe }) {
+function buildStartupHtml({ startup, matches, greeting, startupName, utm, unsubscribe }) {
   const godScore = startup.total_god_score ?? 0;
   const color = scoreColor(godScore);
-  const opening = founderOpening({ greeting, startupName, count: matches.length, isFirstContact });
   const headline = founderHeadline({ startupName, count: matches.length });
   const encodedUrl = startup.website ? encodeURIComponent(startup.website) : '';
   const activateUrl = founderCtaPrimaryUrl(encodedUrl, utm);
+  const opening = `${greeting} My name is Peter with Pythh. We automate your capital raise by matching you with investors that align with your thesis, team, and timing. On that note, I found ${matches.length} investor matches for ${startupName}. <a href="${activateUrl}" style="color:#6ee7b7;font-weight:600;">Check them out</a>. We use math, not magic.`;
 
   const rows = matches.map((m, i) => {
     const score = m.match_score ?? 0;
@@ -296,13 +295,13 @@ function buildStartupHtml({ startup, matches, greeting, startupName, utm, isFirs
 </div></body></html>`;
 }
 
-function buildStartupText({ startup, matches, greeting, startupName, utm, isFirstContact = true, unsubscribe }) {
-  const opening = founderOpeningText({ greeting, startupName, count: matches.length, isFirstContact });
+function buildStartupText({ startup, matches, greeting, startupName, utm, unsubscribe }) {
+  const activateUrl = founderCtaPrimaryUrl(startup.website ? encodeURIComponent(startup.website) : '', utm);
+  const opening = `${greeting} My name is Peter with Pythh. We automate your capital raise by matching you with investors that align with your thesis, team, and timing. On that note, I found ${matches.length} investor matches for ${startupName}. Check them out: ${activateUrl}. We use math, not magic.`;
   const rows = matches.map((m, i) => {
     const reason = m.match_reason ? m.match_reason.split('.')[0] : defaultMatchReason();
     return `  ${i + 1}. ${m.name} (${m.firm}) — match ${m.match_score}\n     ${reason}`;
   }).join('\n');
-  const activateUrl = founderCtaPrimaryUrl(startup.website ? encodeURIComponent(startup.website) : '', utm);
   return `${founderHeadline({ startupName, count: matches.length })}\n\n${opening}\n\n${rows}\n\nClaim your matches and automate investor outreach: ${activateUrl}\n\n${founderEmailSignoff()}${unsubscribe ? `\n\nUnsubscribe: ${unsubscribe}` : ''}`;
 }
 
@@ -402,12 +401,15 @@ async function main() {
       continue;
     }
 
-    const isFirstContact = TEST_TO || (await isFirstPeterFounderContact(db, contact.email));
-    const { subject, html, text, startupName, unsubscribe } = buildEmail(startup, ranked, contact, { isFirstContact });
+    const { subject, html, text, startupName, unsubscribe } = buildEmail(startup, ranked, contact);
     const zbTag = contact.zeroBounceStatus ? `, zb:${contact.zeroBounceStatus}` : '';
     console.log(`\n   ${contact.email} (${contact.source}${zbTag}, ${ranked.length} matches)`);
     if (DRY_RUN) {
       console.log(`   subject: ${subject}`);
+      if (PREVIEW_OUT) {
+        await writeFile(PREVIEW_OUT, html, 'utf8');
+        console.log(`   preview: ${PREVIEW_OUT}`);
+      }
       sent++;
       await sleep(DELAY_MS);
       continue;
