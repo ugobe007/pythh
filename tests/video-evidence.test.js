@@ -29,6 +29,9 @@ test('requires exact entity identity plus video intent for high-confidence disco
   assert.ok(verifiedSingleName.score >= 0.9);
   const numericCollision = scoreVideoCandidate({ entityName:'B Capital', entityDomain:'b.capital', title:'A $1B capital investment in Noblesville', description:'Local news', channelTitle:'News 8', kind:'investor' });
   assert.equal(numericCollision.score, 0);
+  const officialAlias = scoreVideoCandidate({ entityName:'Greylock Partners', entityDomain:'greylock.com', title:'Greylock founder interview on AI', description:'Investment discussion', channelTitle:'Greylock', channelDescription:'Venture capital insights from https://greylock.com', kind:'investor' });
+  assert.ok(officialAlias.score >= 0.9);
+  assert.ok(officialAlias.reasons.includes('official_channel_domain'));
 });
 
 test('uses separate discovery intents for startups and investors', () => {

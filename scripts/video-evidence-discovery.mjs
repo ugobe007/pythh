@@ -88,6 +88,24 @@ async function youtubeSearch(query) {
   return data.items || [];
 }
 
+async function youtubeChannel(channelId, cache) {
+  if (!channelId) return {};
+  if (cache.has(channelId)) return cache.get(channelId);
+  const params = new URLSearchParams({ part:'snippet,brandingSettings', id:channelId, key:YOUTUBE_API_KEY });
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params}`, { signal:AbortSignal.timeout(20000) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`YouTube channel ${response.status}: ${data.error?.message || 'request failed'}`);
+  const item = data.items?.[0] || {};
+  const channel = {
+    id:channelId,
+    title:item.snippet?.title || null,
+    description:item.snippet?.description || null,
+    customUrl:item.snippet?.customUrl || null,
+  };
+  cache.set(channelId, channel);
+  return channel;
+}
+
 function classifyContent(entityType, query) {
   if (entityType === 'startup') return /demo/i.test(query) ? 'demo' : 'founder_interview';
   return /thesis|invest/i.test(query) ? 'investment_thesis' : 'investor_interview';
@@ -103,7 +121,7 @@ async function saveCandidate(entity, item, resolution, contentType) {
     thumbnail_url:snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || null,
     published_at:snippet.publishedAt || null, content_type:contentType, rights_status:'embed_only',
     resolution_status:'candidate', resolution_confidence:resolution.score,
-    metadata:{ resolution_reasons:resolution.reasons }, last_refreshed_at:new Date().toISOString(),
+    metadata:{ resolution_reasons:resolution.reasons, channel_id:item.snippet?.channelId || null, channel_domain_verified:resolution.reasons.includes('official_channel_domain') }, last_refreshed_at:new Date().toISOString(),
     refresh_due_at:new Date(Date.now() + 30 * 86400000).toISOString(), updated_at:new Date().toISOString(),
   };
   if (!WRITE) return row;
@@ -125,6 +143,7 @@ async function main() {
   console.log(`Video evidence discovery · ${WRITE ? 'WRITE CANDIDATES' : 'DRY RUN'} · ${entities.length} ${ENTITY_TYPE}(s) · offset ${OFFSET}`);
   for (const entity of entities) {
     const seen = new Set();
+    const channelCache = new Map();
     for (const query of discoveryQueries(entity)) {
       if ((searches + 1) * 100 > MAX_YOUTUBE_UNITS) {
         console.warn(`STOP · YouTube search budget reached (${searches * 100}/${MAX_YOUTUBE_UNITS} units)`);
@@ -137,7 +156,8 @@ async function main() {
         const videoId = item.id?.videoId;
         if (!videoId || seen.has(videoId)) continue;
         seen.add(videoId);
-        const resolution = scoreVideoCandidate({ entityName:entity.name, entityDomain:entity.domain, title:item.snippet?.title, description:item.snippet?.description, channelTitle:item.snippet?.channelTitle, kind:entity.entityType });
+        const channel = await youtubeChannel(item.snippet?.channelId, channelCache);
+        const resolution = scoreVideoCandidate({ entityName:entity.name, entityDomain:entity.domain, title:item.snippet?.title, description:item.snippet?.description, channelTitle:channel.title || item.snippet?.channelTitle, channelDescription:channel.description, channelCustomUrl:channel.customUrl, kind:entity.entityType });
         if (resolution.score < MIN_CONFIDENCE) { rejected++; continue; }
         if (WRITE && writes >= MAX_WRITES) {
           console.warn(`STOP · write ceiling reached (${MAX_WRITES})`);
