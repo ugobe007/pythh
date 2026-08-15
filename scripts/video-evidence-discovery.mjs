@@ -81,7 +81,7 @@ async function loadEntities() {
 }
 
 async function youtubeSearch(query) {
-  const params = new URLSearchParams({ part:'snippet', type:'video', videoCaption:'closedCaption', maxResults:'8', q:query, key:YOUTUBE_API_KEY });
+  const params = new URLSearchParams({ part:'snippet', type:'video', maxResults:'8', q:query, key:YOUTUBE_API_KEY });
   const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`, { signal:AbortSignal.timeout(20000) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`YouTube search ${response.status}: ${data.error?.message || 'request failed'}`);
