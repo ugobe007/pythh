@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 
 config();
 const require = createRequire(import.meta.url);
-const { evidenceHash, validateSnippet } = require('../lib/videoEvidence');
+const { evidenceHash, normalizeConfidence, validateSnippet } = require('../lib/videoEvidence');
 
 const argv = process.argv.slice(2);
 const flag = (name) => {
@@ -97,7 +97,7 @@ Return JSON only:
 }
 
 function acceptedSnippets(source, result) {
-  if (result.identity_match !== true || Number(result.identity_confidence) < 0.9) return [];
+  if (result.identity_match !== true || normalizeConfidence(result.identity_confidence) < 0.9) return [];
   return (Array.isArray(result.snippets) ? result.snippets : []).slice(0, 3).flatMap((raw) => {
     const snippet = {
       entityType:source.entity_type,
@@ -106,8 +106,9 @@ function acceptedSnippets(source, result) {
       endSeconds:Number(raw.end_seconds),
       excerpt:String(raw.transcript_excerpt || '').trim(),
     };
-    if (Number(raw.confidence) < 0.85 || !validateSnippet(snippet).ok) return [];
-    return [{ ...snippet, normalizedClaim:raw.normalized_claim || {}, confidence:Number(raw.confidence) }];
+    const confidence = normalizeConfidence(raw.confidence);
+    if (confidence < 0.85 || !validateSnippet(snippet).ok) return [];
+    return [{ ...snippet, normalizedClaim:raw.normalized_claim || {}, confidence }];
   });
 }
 
@@ -115,7 +116,7 @@ async function rejectSource(source, result) {
   if (!WRITE) return;
   const { error } = await db.from('profile_video_sources').update({
     resolution_status:'rejected',
-    metadata:{ ...(source.metadata || {}), verification:{ identity_match:false, confidence:Number(result.identity_confidence) || 0, reason:result.identity_reason || 'identity_not_verified', model:MODEL } },
+    metadata:{ ...(source.metadata || {}), verification:{ identity_match:false, confidence:normalizeConfidence(result.identity_confidence), reason:result.identity_reason || 'identity_not_verified', model:MODEL } },
     updated_at:new Date().toISOString(),
   }).eq('id', source.id);
   if (error) throw error;
@@ -144,7 +145,7 @@ async function publish(source, result, snippets) {
   }
   const { error } = await db.from('profile_video_sources').update({
     resolution_status:'verified',
-    metadata:{ ...(source.metadata || {}), verification:{ identity_match:true, confidence:Number(result.identity_confidence), reason:result.identity_reason || '', model:MODEL } },
+    metadata:{ ...(source.metadata || {}), verification:{ identity_match:true, confidence:normalizeConfidence(result.identity_confidence), reason:result.identity_reason || '', model:MODEL } },
     updated_at:new Date().toISOString(),
   }).eq('id', source.id);
   if (error) throw error;
@@ -161,10 +162,10 @@ async function main() {
     try {
       const result = await inspectVideo(source, entity);
       const snippets = acceptedSnippets(source, result);
-      if (result.identity_match !== true || Number(result.identity_confidence) < 0.9) {
+      if (result.identity_match !== true || normalizeConfidence(result.identity_confidence) < 0.9) {
         await rejectSource(source, result);
         rejected++;
-        console.log(`× ${source.title}: identity rejected (${Number(result.identity_confidence || 0).toFixed(2)})`);
+        console.log(`× ${source.title}: identity rejected (${normalizeConfidence(result.identity_confidence).toFixed(2)})`);
       } else if (!snippets.length) {
         deferred++;
         console.log(`· ${source.title}: identity matched, no evidence window passed`);
@@ -182,4 +183,3 @@ async function main() {
 }
 
 main().catch((error) => { console.error(error.message || error); process.exit(1); });
-

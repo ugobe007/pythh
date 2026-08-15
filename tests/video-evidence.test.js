@@ -1,10 +1,17 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { youtubeEmbedUrl, evidenceHash, validateSnippet, graphPredicates, scoreVideoCandidate, discoveryQueries } = require('../lib/videoEvidence');
+const { youtubeEmbedUrl, normalizeConfidence, evidenceHash, validateSnippet, graphPredicates, scoreVideoCandidate, discoveryQueries } = require('../lib/videoEvidence');
 
 test('builds source-hosted timestamped embeds instead of stored video files', () => {
   assert.equal(youtubeEmbedUrl('abcDEF_123', 42), 'https://www.youtube.com/embed/abcDEF_123?start=42');
   assert.equal(youtubeEmbedUrl('../bad', 0), null);
+});
+
+test('normalizes model confidence percentages before database writes', () => {
+  assert.equal(normalizeConfidence(95), 0.95);
+  assert.equal(normalizeConfidence(0.91), 0.91);
+  assert.equal(normalizeConfidence(150), 1);
+  assert.equal(normalizeConfidence('invalid'), 0);
 });
 
 test('requires exact entity identity plus video intent for high-confidence discovery', () => {
@@ -20,6 +27,8 @@ test('requires exact entity identity plus video intent for high-confidence disco
   assert.deepEqual(misleadingChannel.reasons, ['ambiguous_single_token_without_domain_evidence']);
   const verifiedSingleName = scoreVideoCandidate({ entityName:'Soleil', entityDomain:'soleil.ai', title:'Soleil product demo', description:'Learn more at soleil.ai', channelTitle:'Soleil', kind:'startup' });
   assert.ok(verifiedSingleName.score >= 0.9);
+  const numericCollision = scoreVideoCandidate({ entityName:'B Capital', entityDomain:'b.capital', title:'A $1B capital investment in Noblesville', description:'Local news', channelTitle:'News 8', kind:'investor' });
+  assert.equal(numericCollision.score, 0);
 });
 
 test('uses separate discovery intents for startups and investors', () => {
