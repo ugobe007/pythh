@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 
 config();
 const require = createRequire(import.meta.url);
-const { evidenceHash, normalizeConfidence, validateSnippet } = require('../lib/videoEvidence');
+const { evidenceHash, normalizeConfidence, normalizeBoolean, validateSnippet } = require('../lib/videoEvidence');
 
 const argv = process.argv.slice(2);
 const flag = (name) => {
@@ -86,7 +86,33 @@ Return JSON only:
     headers:{ 'x-goog-api-key':GEMINI_API_KEY, 'content-type':'application/json' },
     body:JSON.stringify({
       contents:[{ role:'user', parts:[{ file_data:{ file_uri:source.source_url } }, { text:prompt }] }],
-      generationConfig:{ responseMimeType:'application/json', temperature:0.1 },
+      generationConfig:{
+        responseMimeType:'application/json',
+        temperature:0.1,
+        responseSchema:{
+          type:'OBJECT',
+          required:['identity_match','identity_confidence','identity_reason','snippets'],
+          properties:{
+            identity_match:{ type:'BOOLEAN' },
+            identity_confidence:{ type:'NUMBER' },
+            identity_reason:{ type:'STRING' },
+            snippets:{
+              type:'ARRAY',
+              maxItems:3,
+              items:{
+                type:'OBJECT',
+                required:['start_seconds','end_seconds','evidence_type','transcript_excerpt','normalized_claim','confidence'],
+                properties:{
+                  start_seconds:{ type:'INTEGER' }, end_seconds:{ type:'INTEGER' },
+                  evidence_type:{ type:'STRING', enum:allowedTypes },
+                  transcript_excerpt:{ type:'STRING' }, normalized_claim:{ type:'OBJECT' },
+                  confidence:{ type:'NUMBER' },
+                },
+              },
+            },
+          },
+        },
+      },
     }),
     signal:AbortSignal.timeout(180000),
   });
@@ -97,7 +123,7 @@ Return JSON only:
 }
 
 function acceptedSnippets(source, result) {
-  if (result.identity_match !== true || normalizeConfidence(result.identity_confidence) < 0.9) return [];
+  if (!normalizeBoolean(result.identity_match) || normalizeConfidence(result.identity_confidence) < 0.9) return [];
   return (Array.isArray(result.snippets) ? result.snippets : []).slice(0, 3).flatMap((raw) => {
     const snippet = {
       entityType:source.entity_type,
@@ -162,7 +188,7 @@ async function main() {
     try {
       const result = await inspectVideo(source, entity);
       const snippets = acceptedSnippets(source, result);
-      if (result.identity_match !== true || normalizeConfidence(result.identity_confidence) < 0.9) {
+      if (!normalizeBoolean(result.identity_match) || normalizeConfidence(result.identity_confidence) < 0.9) {
         await rejectSource(source, result);
         rejected++;
         console.log(`× ${source.title}: identity rejected (${normalizeConfidence(result.identity_confidence).toFixed(2)})`);

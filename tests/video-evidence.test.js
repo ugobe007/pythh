@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { youtubeEmbedUrl, normalizeConfidence, evidenceHash, validateSnippet, graphPredicates, scoreVideoCandidate, discoveryQueries } = require('../lib/videoEvidence');
+const { youtubeEmbedUrl, normalizeConfidence, normalizeBoolean, evidenceHash, validateSnippet, graphPredicates, scoreVideoCandidate, discoveryQueries } = require('../lib/videoEvidence');
 
 test('builds source-hosted timestamped embeds instead of stored video files', () => {
   assert.equal(youtubeEmbedUrl('abcDEF_123', 42), 'https://www.youtube.com/embed/abcDEF_123?start=42');
@@ -12,6 +12,12 @@ test('normalizes model confidence percentages before database writes', () => {
   assert.equal(normalizeConfidence(0.91), 0.91);
   assert.equal(normalizeConfidence(150), 1);
   assert.equal(normalizeConfidence('invalid'), 0);
+});
+
+test('normalizes structured model booleans', () => {
+  assert.equal(normalizeBoolean(true), true);
+  assert.equal(normalizeBoolean('true'), true);
+  assert.equal(normalizeBoolean(false), false);
 });
 
 test('requires exact entity identity plus video intent for high-confidence discovery', () => {
