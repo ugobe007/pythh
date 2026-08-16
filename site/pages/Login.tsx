@@ -139,7 +139,10 @@ export default function Login() {
             <FounderSocialAuth
               returnPath={getPostLoginPath()}
               disabled={loginMutation.isPending}
-              onError={setError}
+              onError={(message) => {
+                setError(message);
+                setSocialLoading(false);
+              }}
               onStart={() => {
                 setError(null);
                 setSocialLoading(true);

@@ -84,11 +84,9 @@ export default function FounderSocialAuth({ returnPath, disabled, onError, onSta
     onStart?.(provider);
     try {
       const health = await fetchOAuthProviderHealth();
-      if (!health[provider]?.ready) {
+      if (provider === 'linkedin_oidc' && !health[provider]?.ready) {
         throw new Error(
-          provider === 'linkedin_oidc'
-            ? 'LinkedIn sign-in is misconfigured (invalid client ID). Use Google, GitHub, or email instead.'
-            : `${providerLabel(provider)} sign-in is unavailable right now.`,
+          'LinkedIn sign-in is misconfigured (invalid client ID). Use Google, GitHub, or email instead.',
         );
       }
       const redirectTo = buildSupabaseOAuthRedirectUrl(returnPath);
