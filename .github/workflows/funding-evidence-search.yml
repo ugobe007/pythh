@@ -1,0 +1,35 @@
+name: Funding Evidence Search
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Startups to search
+        required: false
+        default: '100'
+  schedule:
+    - cron: '7,37 * * * *'
+
+concurrency:
+  group: funding-evidence-search
+  cancel-in-progress: false
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Search and classify funding evidence
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BATCH_LIMIT: ${{ inputs.limit || '100' }}
+        run: node scripts/search-startup-funding-evidence.mjs --apply --limit="$BATCH_LIMIT" --delay=1200
