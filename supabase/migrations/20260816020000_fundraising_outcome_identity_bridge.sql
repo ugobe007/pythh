@@ -45,8 +45,8 @@ for each row execute function public.promote_verified_fundraising_outcome();
 
 create or replace view public.pythh_fundraising_movement as
 select startup_id, investor_id,
-  max(case event_type when 'outreach_sent' then 1 when 'reply_received' then 2 when 'meeting_confirmed' then 3 when 'diligence_started' then 4 when 'term_sheet_received' then 5 when 'capital_committed' then 6 else 0 end) as movement_stage,
-  max(occurred_at) as last_movement_at,
+  max(case when verified=1 then case event_type when 'outreach_sent' then 1 when 'reply_received' then 2 when 'meeting_confirmed' then 3 when 'diligence_started' then 4 when 'term_sheet_received' then 5 when 'capital_committed' then 6 else 0 end else 0 end) as movement_stage,
+  max(occurred_at) filter (where verified=1) as last_movement_at,
   count(*) filter (where verified=1) as verified_events,
   bool_or(event_type='capital_committed' and verified=1) as funded
 from public.pythh_fundraising_outcomes
