@@ -54,6 +54,7 @@ import MlAgent from "./pages/admin/MlAgent";
 import RssManager from "./pages/admin/RssManager";
 import Analytics from "./pages/admin/Analytics";
 import JunkStartups from "./pages/admin/JunkStartups";
+import FundraisingEvidence from "./pages/admin/FundraisingEvidence";
 import Pythiam from "./pages/Pythiam";
 import { OAuthSessionBridge } from "./components/OAuthSessionBridge";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -98,6 +99,7 @@ function Router() {
       <Route path={"/calendar"}><Redirect to="/admin/calendar" /></Route>
       <Route path={"/admin/outreach"} component={Outreach} />
       <Route path={"/admin/calendar"} component={Calendar} />
+      <Route path={"/admin/fundraising-evidence"} component={FundraisingEvidence} />
       <Route path={"/portfolio"} component={Portfolio} />
       <Route path={"/portfolio/:startupId"} component={PortfolioDetail} />
       <Route path={"/startup/:startupId"} component={StartupDetail} />

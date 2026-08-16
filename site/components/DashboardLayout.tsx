@@ -49,6 +49,7 @@ const NAV = [
     links: [
       { label: "Outreach",        href: "/admin/outreach" },
       { label: "Meeting Pipeline",href: "/admin/calendar" },
+      { label: "Evidence Review", href: "/admin/fundraising-evidence" },
     ],
   },
   {
