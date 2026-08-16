@@ -1,6 +1,6 @@
 # Pythh Fundraising Outcome Ledger
 
-Status: implemented in code; database migration not deployed.
+Status: migration applied to the linked Pythh database on 2026-08-15; application changes require deployment.
 
 ## Purpose
 
@@ -29,6 +29,9 @@ The ledger records actual fundraising transitions separately from match scores. 
 | PYTHIA creates meeting choices | `meeting_proposed` | verified system action |
 | Founder selects a meeting slot | `meeting_confirmed` | unverified founder report |
 | Founder declines a meeting | `meeting_declined` | unverified founder report |
+| Signed Resend inbound webhook is attributed to an outreach email | `reply_received` | verified |
+| Trusted calendar callback confirms a meeting | `meeting_confirmed` | verified |
+| Founder submits diligence, term-sheet, or capital evidence | corresponding event | pending review |
 
 The outreach modal reads per-run counts from `outreach.fundraisingMetrics` and gives confirmed meetings the primary visual emphasis.
 
@@ -41,12 +44,16 @@ The outreach modal reads per-run counts from `outreach.fundraisingMetrics` and g
 5. Verify the metrics endpoint is scoped to the authenticated user and requested run.
 6. Deploy the application code only after the migration is present.
 
+## Provider configuration required
+
+- Configure Resend to send `email.received` events to `/api/outreach/webhook` and preserve `In-Reply-To` headers. A `reply+<outreachEmailId>@…` alias is also supported when an inbound domain is configured.
+- Set `PYTHH_CALENDAR_WEBHOOK_SECRET` and configure the calendar integration to call `/api/outreach/calendar/webhook` with `meeting_id`, `provider_event_id`, and `confirmed_time_ms`.
+
 ## Next instrumentation gates
 
-1. Record `reply_received` only from a verified inbound provider callback linked to an existing outreach email.
-2. Upgrade `meeting_confirmed` to verified only from a calendar/provider confirmation.
-3. Add founder-authorized, evidence-bearing paths for diligence, term sheets, and committed capital.
-4. Measure conversion by cohort and source after sufficient verified observations exist.
+1. Review submitted diligence, term-sheet, and capital evidence and add a service-only verification action.
+2. Measure conversion by cohort and source after sufficient verified observations exist.
+3. Backfill graph outcomes only from verified ledger rows with canonical startup and investor IDs.
 
 ## Graph boundary
 

@@ -622,6 +622,32 @@ describe("outreach fundraising outcomes", () => {
       meetingsConfirmed: 2,
     });
   });
+
+  it("requires evidence when recording diligence, term sheet, or capital progress", async () => {
+    const caller = makeCaller(AUTHED_USER);
+    await expect(caller.outreach.recordFundraisingEvidence({
+      runId: "run-1",
+      eventType: "diligence_started",
+      idempotencyKey: "evidence-123",
+    })).rejects.toThrow();
+  });
+
+  it("records committed capital with an amount as pending verification", async () => {
+    const caller = makeCaller(AUTHED_USER);
+    await expect(caller.outreach.recordFundraisingEvidence({
+      runId: "run-1",
+      eventType: "capital_committed",
+      idempotencyKey: "capital-1234",
+      evidenceUrl: "https://example.com/signed-document",
+      amountUsd: 750000,
+      investorFirm: "Conviction",
+    })).resolves.toMatchObject({ ok: true, verificationStatus: "pending_review" });
+    expect(recordFundraisingOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "capital_committed",
+      verified: false,
+      metadata: expect.objectContaining({ amount_usd: 750000, verification_status: "pending_review" }),
+    }));
+  });
 });
 
 // ─── getOutreachStatus ────────────────────────────────────────────────────────

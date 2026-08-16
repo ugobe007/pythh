@@ -821,6 +821,11 @@ export default function ActivatePythiaModal({
   const [sendingId, setSendingId] = useState<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showOutcomeForm, setShowOutcomeForm] = useState(false);
+  const [outcomeType, setOutcomeType] = useState<"diligence_started" | "term_sheet_received" | "capital_committed">("diligence_started");
+  const [outcomeEvidenceUrl, setOutcomeEvidenceUrl] = useState("");
+  const [outcomeNote, setOutcomeNote] = useState("");
+  const [outcomeAmount, setOutcomeAmount] = useState("");
 
   // ── tRPC utils (must be at top level, not inside callbacks) ──
   const utils = trpc.useUtils();
@@ -833,6 +838,7 @@ export default function ActivatePythiaModal({
   const updateEmail = trpc.outreach.updateEmail.useMutation();
   const approveEmail = trpc.outreach.approveEmail.useMutation();
   const sendEmail = trpc.outreach.sendEmail.useMutation();
+  const recordFundraisingEvidence = trpc.outreach.recordFundraisingEvidence.useMutation();
 
   // ── Load existing outreach status on open ──
   const { data: status } = trpc.outreach.getOutreachStatus.useQuery(
@@ -974,6 +980,27 @@ export default function ActivatePythiaModal({
     );
   };
 
+  const handleRecordOutcome = async () => {
+    try {
+      await recordFundraisingEvidence.mutateAsync({
+        runId,
+        eventType: outcomeType,
+        idempotencyKey: crypto.randomUUID(),
+        evidenceUrl: outcomeEvidenceUrl || undefined,
+        note: outcomeNote || undefined,
+        amountUsd: outcomeType === "capital_committed" && outcomeAmount ? Number(outcomeAmount) : undefined,
+      });
+      await utils.outreach.fundraisingMetrics.invalidate({ runId });
+      setOutcomeEvidenceUrl("");
+      setOutcomeNote("");
+      setOutcomeAmount("");
+      setShowOutcomeForm(false);
+      toast.success("Fundraising progress saved for verification");
+    } catch (error: any) {
+      toast.error(error?.message || "Could not save fundraising progress");
+    }
+  };
+
   if (!open) return null;
 
   const isGenerating = generateDeck.isPending || uploadDeck.isPending;
@@ -1031,6 +1058,47 @@ export default function ActivatePythiaModal({
           <X size={18} />
         </button>
       </div>
+
+      {step === 2 && (
+        <div className="px-6 py-3 border-b" style={{ borderColor: C.border, backgroundColor: C.bg }}>
+          {!showOutcomeForm ? (
+            <button className="text-xs font-semibold" style={{ color: C.emerald }} onClick={() => setShowOutcomeForm(true)}>
+              + Record diligence, term sheet, or committed capital
+            </button>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-5 items-end">
+              <label className="text-[10px] uppercase tracking-wider" style={{ color: C.dim }}>
+                Event
+                <select className="mt-1 w-full rounded-md px-2 py-2 text-xs" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }} value={outcomeType} onChange={(event) => setOutcomeType(event.target.value as typeof outcomeType)}>
+                  <option value="diligence_started">Diligence started</option>
+                  <option value="term_sheet_received">Term sheet received</option>
+                  <option value="capital_committed">Capital committed</option>
+                </select>
+              </label>
+              <label className="text-[10px] uppercase tracking-wider" style={{ color: C.dim }}>
+                Evidence URL
+                <input className="mt-1 w-full rounded-md px-2 py-2 text-xs" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }} value={outcomeEvidenceUrl} onChange={(event) => setOutcomeEvidenceUrl(event.target.value)} placeholder="https://…" />
+              </label>
+              <label className="text-[10px] uppercase tracking-wider" style={{ color: C.dim }}>
+                Note
+                <input className="mt-1 w-full rounded-md px-2 py-2 text-xs" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }} value={outcomeNote} onChange={(event) => setOutcomeNote(event.target.value)} placeholder="What happened?" />
+              </label>
+              {outcomeType === "capital_committed" && (
+                <label className="text-[10px] uppercase tracking-wider" style={{ color: C.dim }}>
+                  Amount USD
+                  <input type="number" min="1" className="mt-1 w-full rounded-md px-2 py-2 text-xs" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }} value={outcomeAmount} onChange={(event) => setOutcomeAmount(event.target.value)} />
+                </label>
+              )}
+              <div className="flex gap-2">
+                <button className="rounded-md px-3 py-2 text-xs font-semibold" style={{ background: C.emerald, color: C.bg }} disabled={recordFundraisingEvidence.isPending} onClick={() => void handleRecordOutcome()}>
+                  {recordFundraisingEvidence.isPending ? "Saving…" : "Save evidence"}
+                </button>
+                <button className="px-2 py-2 text-xs" style={{ color: C.dim }} onClick={() => setShowOutcomeForm(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 flex flex-col overflow-hidden">

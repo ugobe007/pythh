@@ -602,6 +602,43 @@ export const outreachRouter = router({
     .input(z.object({ runId: z.string().min(1).max(64) }))
     .query(async ({ input, ctx }) => getFundraisingOutcomeMetrics(ctx.user.id, input.runId)),
 
+  recordFundraisingEvidence: protectedProcedure
+    .input(z.object({
+      runId: z.string().min(1).max(64),
+      eventType: z.enum(["diligence_started", "term_sheet_received", "capital_committed"]),
+      idempotencyKey: z.string().min(8).max(120),
+      evidenceUrl: z.string().url().max(1000).optional(),
+      note: z.string().trim().min(8).max(2000).optional(),
+      amountUsd: z.number().int().positive().max(10_000_000_000).optional(),
+      investorFirm: z.string().trim().max(128).optional(),
+    }).superRefine((value, ctx) => {
+      if (!value.evidenceUrl && !value.note) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide an evidence URL or explanatory note" });
+      }
+      if (value.eventType === "capital_committed" && !value.amountUsd) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Committed capital requires amountUsd" });
+      }
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await recordFundraisingOutcome({
+        userId: ctx.user.id,
+        runId: input.runId,
+        eventType: input.eventType,
+        source: "founder_action",
+        verified: false,
+        idempotencyKey: `founder:evidence:${ctx.user.id}:${input.idempotencyKey}`,
+        metadata: {
+          evidence_url: input.evidenceUrl ?? null,
+          note: input.note ?? null,
+          amount_usd: input.amountUsd ?? null,
+          investor_firm: input.investorFirm ?? null,
+          verification_status: "pending_review",
+        },
+      });
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Outcome ledger unavailable" });
+      return { ok: true as const, duplicate: result.duplicate, verificationStatus: "pending_review" as const };
+    }),
+
   /**
    * Generate a PDF of the pitch deck and return it as a base64-encoded string.
    * The client decodes it and triggers a browser download.
