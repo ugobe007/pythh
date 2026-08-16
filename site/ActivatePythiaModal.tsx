@@ -839,6 +839,10 @@ export default function ActivatePythiaModal({
     { runId },
     { enabled: open, refetchOnWindowFocus: false }
   );
+  const { data: outcomeMetrics } = trpc.outreach.fundraisingMetrics.useQuery(
+    { runId },
+    { enabled: open, refetchOnWindowFocus: false },
+  );
 
   useEffect(() => {
     if (!status) return;
@@ -949,6 +953,7 @@ export default function ActivatePythiaModal({
     try {
       await sendEmail.mutateAsync({ emailId: id, runId, fromName: fromName || undefined, replyTo: replyTo || undefined });
       setEmails((prev) => prev.map((e) => (e.id === id ? { ...e, status: "sent", sentAt: Date.now() } : e)));
+      await utils.outreach.fundraisingMetrics.invalidate({ runId });
       toast.success("Email sent via PYTHIA");
     } catch (err: any) {
       toast.error(err?.message?.includes("Resend") ? "Email delivery failed — check your Resend API key" : "Send failed. Please try again.");
@@ -1002,6 +1007,19 @@ export default function ActivatePythiaModal({
           <div className="hidden sm:block">
             <StepIndicator step={step} total={3} />
           </div>
+          {outcomeMetrics && (
+            <div className="hidden lg:flex items-center gap-3 pl-4 border-l" style={{ borderColor: C.border }}>
+              <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: C.dim }}>
+                {outcomeMetrics.outreachSent} sent
+              </span>
+              <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: C.dim }}>
+                {outcomeMetrics.repliesReceived} replies
+              </span>
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={{ color: C.emerald }}>
+                {outcomeMetrics.meetingsConfirmed} meetings
+              </span>
+            </div>
+          )}
         </div>
         <button
           onClick={onClose}

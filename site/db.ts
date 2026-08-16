@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import {
   founderProfiles,
+  fundraisingOutcomes,
   InsertSubscription,
   InsertUser,
   investors,
@@ -730,6 +731,79 @@ export async function updateMeetingStatus(opts: {
   if (confirmedTime !== undefined) patch.confirmedTime = confirmedTime;
   if (calendarLink !== undefined) patch.calendarLink = calendarLink;
   await db.update(meetings).set(patch as never).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)));
+}
+
+export const FUNDRAISING_OUTCOME_TYPES = [
+  "outreach_sent",
+  "reply_received",
+  "meeting_proposed",
+  "meeting_confirmed",
+  "meeting_declined",
+  "diligence_started",
+  "term_sheet_received",
+  "capital_committed",
+] as const;
+
+export type FundraisingOutcomeType = (typeof FUNDRAISING_OUTCOME_TYPES)[number];
+
+/** Append a real fundraising transition once. Duplicate provider/user callbacks are harmless. */
+export async function recordFundraisingOutcome(opts: {
+  userId: number;
+  runId: string;
+  eventType: FundraisingOutcomeType;
+  source: "founder_action" | "pythia" | "resend" | "calendar" | "system";
+  idempotencyKey: string;
+  verified: boolean;
+  outreachEmailId?: number | null;
+  meetingId?: number | null;
+  occurredAt?: Date;
+  metadata?: Record<string, unknown>;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const key = opts.idempotencyKey.trim();
+  if (key.length < 8 || key.length > 240) throw new Error("Invalid fundraising outcome idempotency key");
+  const [inserted] = await db
+    .insert(fundraisingOutcomes)
+    .values({
+      userId: opts.userId,
+      runId: opts.runId,
+      eventType: opts.eventType,
+      source: opts.source,
+      verified: opts.verified ? 1 : 0,
+      idempotencyKey: key,
+      outreachEmailId: opts.outreachEmailId ?? null,
+      meetingId: opts.meetingId ?? null,
+      occurredAt: opts.occurredAt ?? new Date(),
+      metadata: opts.metadata ?? {},
+    })
+    .onConflictDoNothing({ target: fundraisingOutcomes.idempotencyKey })
+    .returning({ id: fundraisingOutcomes.id });
+  return inserted ? { id: inserted.id, duplicate: false } : { duplicate: true };
+}
+
+export async function getFundraisingOutcomeMetrics(userId: number, runId: string) {
+  const db = await getDb();
+  const empty = {
+    outreachSent: 0, repliesReceived: 0, meetingsProposed: 0, meetingsConfirmed: 0,
+    diligenceStarted: 0, termSheetsReceived: 0, capitalCommitted: 0,
+  };
+  if (!db) return empty;
+  const rows = await db
+    .select({ eventType: fundraisingOutcomes.eventType, n: count() })
+    .from(fundraisingOutcomes)
+    .where(and(eq(fundraisingOutcomes.userId, userId), eq(fundraisingOutcomes.runId, runId)))
+    .groupBy(fundraisingOutcomes.eventType);
+  const counts = new Map(rows.map((row) => [row.eventType, Number(row.n)]));
+  return {
+    outreachSent: counts.get("outreach_sent") ?? 0,
+    repliesReceived: counts.get("reply_received") ?? 0,
+    meetingsProposed: counts.get("meeting_proposed") ?? 0,
+    meetingsConfirmed: counts.get("meeting_confirmed") ?? 0,
+    diligenceStarted: counts.get("diligence_started") ?? 0,
+    termSheetsReceived: counts.get("term_sheet_received") ?? 0,
+    capitalCommitted: counts.get("capital_committed") ?? 0,
+  };
 }
 
 // ─── Admin aggregates ───────────────────────────────────────────────────────

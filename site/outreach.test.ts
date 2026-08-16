@@ -41,6 +41,20 @@ vi.mock("./db", async (importOriginal) => {
     getInvestorById: vi.fn(),
     getInvestorRankings: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
     getSubscriptionByUserId: vi.fn().mockResolvedValue(null),
+    createMeetingProposal: vi.fn(),
+    getMeetingByIdForUser: vi.fn(),
+    listMeetingsForOutreachEmail: vi.fn().mockResolvedValue([]),
+    updateMeetingStatus: vi.fn(),
+    recordFundraisingOutcome: vi.fn().mockResolvedValue({ id: 1, duplicate: false }),
+    getFundraisingOutcomeMetrics: vi.fn().mockResolvedValue({
+      outreachSent: 0,
+      repliesReceived: 0,
+      meetingsProposed: 0,
+      meetingsConfirmed: 0,
+      diligenceStarted: 0,
+      termSheetsReceived: 0,
+      capitalCommitted: 0,
+    }),
     upsertSubscription: vi.fn(),
     upsertPipelineFeedback: vi.fn(),
     getPipelineFeedbackByRunId: vi.fn().mockResolvedValue(null),
@@ -56,6 +70,11 @@ import {
   createOutreachEmail,
   updateOutreachEmailStatus,
   getOutreachEmailsByRunId,
+  createMeetingProposal,
+  getMeetingByIdForUser,
+  updateMeetingStatus,
+  getFundraisingOutcomeMetrics,
+  recordFundraisingOutcome,
 } from "./db";
 import { appRouter } from "./routers";
 import { getSubscriptionByUserId } from "./db";
@@ -500,6 +519,23 @@ describe("outreach.sendEmail", () => {
     );
     expect(result.success).toBe(true);
     expect(result.messageId).toBe("resend-msg-123");
+    expect(recordFundraisingOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "outreach_sent",
+        verified: true,
+        runId: "run-1",
+        outreachEmailId: 99,
+      }),
+    );
+  });
+
+  it("does not report a send failure when outcome telemetry is unavailable", async () => {
+    vi.mocked(recordFundraisingOutcome).mockRejectedValueOnce(new Error("ledger unavailable"));
+    const caller = makeCaller(AUTHED_USER);
+    await expect(caller.outreach.sendEmail({ emailId: 99, runId: "run-1" })).resolves.toMatchObject({
+      success: true,
+      messageId: "resend-msg-123",
+    });
   });
 
   it("throws INTERNAL_SERVER_ERROR when Resend returns an error", async () => {
@@ -516,6 +552,75 @@ describe("outreach.sendEmail", () => {
     await expect(
       caller.outreach.sendEmail({ emailId: 99, runId: "run-1" })
     ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+  });
+});
+
+describe("outreach fundraising outcomes", () => {
+  const SENT_EMAIL = {
+    id: 99,
+    investorName: "Sarah Guo",
+    investorFirm: "Conviction",
+    toEmail: null,
+    status: "sent",
+  };
+  const MEETING = {
+    id: 44,
+    runId: "run-1",
+    outreachEmailId: 99,
+    investorName: "Sarah Guo",
+    investorFirm: "Conviction",
+    proposedTimesJson: JSON.stringify([{ startMs: 1_800_000_000_000, label: "slot" }]),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getSubscriptionByUserId).mockResolvedValue(ORACLE_SUB as any);
+    vi.mocked(getOutreachEmailsByRunId).mockResolvedValue([SENT_EMAIL] as any);
+    vi.mocked(createMeetingProposal).mockResolvedValue({ ...MEETING, status: "proposed" } as any);
+    vi.mocked(getMeetingByIdForUser).mockResolvedValue(MEETING as any);
+    vi.mocked(updateMeetingStatus).mockResolvedValue(undefined as any);
+    vi.mocked(recordFundraisingOutcome).mockResolvedValue({ id: 1, duplicate: false } as any);
+    delete process.env.RESEND_API_KEY;
+  });
+
+  it("records a proposed meeting from an already-sent outreach email", async () => {
+    const caller = makeCaller(AUTHED_USER);
+    const result = await caller.outreach.proposeMeeting({ runId: "run-1", emailId: 99 });
+    expect(result.meetingId).toBe(44);
+    expect(recordFundraisingOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "meeting_proposed",
+      verified: true,
+      meetingId: 44,
+    }));
+  });
+
+  it("records founder-confirmed meetings without claiming provider verification", async () => {
+    const caller = makeCaller(AUTHED_USER);
+    await caller.outreach.confirmMeeting({ meetingId: 44, slotIndex: 0 });
+    expect(updateMeetingStatus).toHaveBeenCalledWith(expect.objectContaining({ status: "confirmed" }));
+    expect(recordFundraisingOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: "meeting_confirmed",
+      verified: false,
+      meetingId: 44,
+    }));
+  });
+
+  it("returns meeting-centered funnel metrics", async () => {
+    vi.mocked(getFundraisingOutcomeMetrics).mockResolvedValue({
+      outreachSent: 12,
+      repliesReceived: 4,
+      meetingsProposed: 3,
+      meetingsConfirmed: 2,
+      diligenceStarted: 1,
+      termSheetsReceived: 0,
+      capitalCommitted: 0,
+    });
+    const caller = makeCaller(AUTHED_USER);
+    await expect(caller.outreach.fundraisingMetrics({ runId: "run-1" })).resolves.toMatchObject({
+      outreachSent: 12,
+      repliesReceived: 4,
+      meetingsConfirmed: 2,
+    });
   });
 });
 

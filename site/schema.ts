@@ -2,7 +2,7 @@
  * Drizzle schema — Postgres (Supabase). Tables use `pythh_*` prefix + snake_case columns.
  * Apply: supabase/migrations/*_pythh_drizzle_postgres_tables.sql
  */
-import { bigint, integer, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { bigint, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 export const users = pgTable("pythh_users", {
   id: serial("id").primaryKey(),
@@ -166,6 +166,31 @@ export const meetings = pgTable("pythh_meetings", {
 });
 
 export type Meeting = typeof meetings.$inferSelect;
+
+export const fundraisingOutcomes = pgTable(
+  "pythh_fundraising_outcomes",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    runId: varchar("run_id", { length: 64 }).notNull(),
+    outreachEmailId: integer("outreach_email_id").references(() => outreachEmails.id, { onDelete: "set null" }),
+    meetingId: integer("meeting_id").references(() => meetings.id, { onDelete: "set null" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    source: varchar("source", { length: 32 }).notNull(),
+    verified: integer("verified").notNull().default(0),
+    idempotencyKey: varchar("idempotency_key", { length: 240 }).notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    idempotencyKeyUnique: uniqueIndex("uq_pythh_fundraising_outcomes_idempotency").on(table.idempotencyKey),
+  }),
+);
+
+export type FundraisingOutcome = typeof fundraisingOutcomes.$inferSelect;
 
 export const founderProfiles = pgTable("pythh_founder_profiles", {
   userId: integer("user_id")
