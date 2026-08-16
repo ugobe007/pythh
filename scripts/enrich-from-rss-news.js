@@ -629,8 +629,9 @@ async function main() {
       ...(sig.articles || []).slice(0, 5).map(a => a.title || ''),
       ...(sig.funding_events || []).slice(0, 3).map(ev => ev.source_title || ''),
     ].filter(Boolean).join(' ');
+    let inferred = null;
     if (eventText.length >= 30) {
-      const inferred = extractInferenceData(eventText, startup.website || '');
+      inferred = extractInferenceData(eventText, startup.website || '');
       if (inferred) {
         if (!mergedExtracted.funding_amount && inferred.funding_amount) mergedExtracted.funding_amount = inferred.funding_amount;
         if (!mergedExtracted.funding_stage && inferred.funding_stage) mergedExtracted.funding_stage = inferred.funding_stage;
@@ -674,7 +675,7 @@ async function main() {
             subject: ev.subject || null,
             object: ev.object || null,
             entities: ev.entities || [],
-            lead_investor: inferred.lead_investor || null,
+            lead_investor: inferred?.lead_investor || null,
             amount_raw: ev.amounts || null,
             stage: roundVal,
           },

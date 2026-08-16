@@ -18,6 +18,7 @@ BEGIN
   ), candidates AS (
     SELECT ii.id, u.startup_id FROM public.investor_investments ii JOIN _resolution_targets t USING(id)
     JOIN unique_domains u ON u.key = split_part(lower(regexp_replace(regexp_replace(ii.company_url, '^https?://', ''), '^www\.', '')), '/', 1)
+    WHERE nullif(btrim(ii.company_url), '') IS NOT NULL
   )
   UPDATE public.investor_investments ii SET startup_id=c.startup_id, startup_resolution_method='domain_exact',
     startup_resolution_confidence=1, startup_resolved_at=now(), updated_at=now()
@@ -76,17 +77,20 @@ BEGIN
     SELECT e.*,i.investor_id,s.startup_id FROM public.startup_events e
     JOIN unique_investors i ON i.key=lower(regexp_replace(e.subject, '[^a-z0-9]+', '', 'g'))
     JOIN unique_startups s ON s.key=lower(regexp_replace(e.object, '[^a-z0-9]+', '', 'g'))
-    WHERE e.event_type='INVESTMENT' AND e.source_url IS NOT NULL AND e.occurred_at IS NOT NULL
-    ORDER BY e.occurred_at DESC LIMIT greatest(p_limit,0)
+    WHERE e.event_type='INVESTMENT' AND nullif(btrim(e.source_url), '') IS NOT NULL AND e.occurred_at IS NOT NULL
+    ORDER BY e.occurred_at DESC
+  ), matched AS (
+    SELECT r.*, m.id match_id FROM resolved r JOIN LATERAL (
+      SELECT sim.id FROM public.startup_investor_matches sim
+      WHERE sim.startup_id=r.startup_id AND sim.investor_id=r.investor_id AND sim.created_at<r.occurred_at
+      ORDER BY sim.created_at DESC LIMIT 1
+    ) m ON true
+    LIMIT greatest(p_limit,0)
   )
-  SELECT m.id,r.startup_id,r.investor_id,'investment',r.occurred_at,r.source_url,
-    COALESCE(r.source_publisher,'startup_events'),'startup_event',r.id::text,'name_exact_unique',.95,
-    jsonb_build_object('event_id',r.event_id,'title',r.source_title,'subject',r.subject,'object',r.object,'entities',r.entities)
-  FROM resolved r JOIN LATERAL (
-    SELECT sim.id FROM public.startup_investor_matches sim
-    WHERE sim.startup_id=r.startup_id AND sim.investor_id=r.investor_id AND sim.created_at<r.occurred_at
-    ORDER BY sim.created_at DESC LIMIT 1
-  ) m ON true
+  SELECT match_id,startup_id,investor_id,'investment',occurred_at,source_url,
+    COALESCE(source_publisher,'startup_events'),'startup_event',id::text,'name_exact_unique',.95,
+    jsonb_build_object('event_id',event_id,'title',source_title,'subject',subject,'object',object,'entities',entities)
+  FROM matched
   ON CONFLICT(match_id,evidence_type,source_url,event_at) DO NOTHING;
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
   RETURN QUERY SELECT v_inserted,v_candidates;
