@@ -22,15 +22,26 @@ import {
   createPitchDeck,
   createOutreachEmail,
   getMeetingByIdForUser,
+  getFundraisingOutcomeMetrics,
   getOutreachEmailsByRunId,
   getPitchDeckById,
   getPitchDeckByRunId,
   listMeetingsForOutreachEmail,
+  recordFundraisingOutcome,
   updateMeetingStatus,
   updateOutreachEmailStatus,
   updatePitchDeckSlides,
   type Slide,
 } from "./db";
+
+async function recordOutcomeBestEffort(input: Parameters<typeof recordFundraisingOutcome>[0]) {
+  try {
+    return await recordFundraisingOutcome(input);
+  } catch (error) {
+    console.error("[fundraising-outcome] failed to record completed action", error);
+    return undefined;
+  }
+}
 
 // ─── Slide schema ─────────────────────────────────────────────────────────────
 
@@ -341,6 +352,7 @@ export const outreachRouter = router({
         body: input.body,
         toEmail: input.toEmail,
       });
+
       return { success: true };
     }),
 
@@ -422,6 +434,17 @@ export const outreachRouter = router({
         resendMessageId: messageId,
       });
 
+      await recordOutcomeBestEffort({
+        userId: ctx.user.id,
+        runId: input.runId,
+        eventType: "outreach_sent",
+        source: "resend",
+        verified: true,
+        outreachEmailId: email.id,
+        idempotencyKey: `resend:outreach_sent:${messageId || email.id}`,
+        metadata: { resend_message_id: messageId || null, investor_firm: email.investorFirm },
+      });
+
       return { success: true, messageId };
     }),
 
@@ -461,6 +484,19 @@ export const outreachRouter = router({
         investorFirm: email.investorFirm,
         proposedTimes: slots,
       });
+      if (row?.id) {
+        await recordOutcomeBestEffort({
+          userId: ctx.user.id,
+          runId: input.runId,
+          eventType: "meeting_proposed",
+          source: "pythia",
+          verified: true,
+          outreachEmailId: email.id,
+          meetingId: row.id,
+          idempotencyKey: `pythia:meeting_proposed:${row.id}`,
+          metadata: { investor_firm: email.investorFirm, slot_count: slots.length },
+        });
+      }
       const apiKey = process.env.RESEND_API_KEY;
       if (apiKey && email.toEmail) {
         const lines = slots.map((s, idx) => `${idx + 1}. ${s.label} (reply with ${idx + 1} to confirm)`).join("\n");
@@ -527,6 +563,18 @@ export const outreachRouter = router({
         status: "confirmed",
         confirmedTime: chosen.startMs,
       });
+      await recordOutcomeBestEffort({
+        userId: ctx.user.id,
+        runId: m.runId,
+        eventType: "meeting_confirmed",
+        source: "founder_action",
+        verified: false,
+        outreachEmailId: m.outreachEmailId,
+        meetingId: m.id,
+        occurredAt: new Date(chosen.startMs),
+        idempotencyKey: `founder:meeting_confirmed:${m.id}:${chosen.startMs}`,
+        metadata: { confirmed_time_ms: chosen.startMs, investor_firm: m.investorFirm },
+      });
       return { ok: true as const };
     }),
 
@@ -536,7 +584,59 @@ export const outreachRouter = router({
       const m = await getMeetingByIdForUser(ctx.user.id, input.meetingId);
       if (!m) throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found" });
       await updateMeetingStatus({ userId: ctx.user.id, meetingId: input.meetingId, status: "declined" });
+      await recordOutcomeBestEffort({
+        userId: ctx.user.id,
+        runId: m.runId,
+        eventType: "meeting_declined",
+        source: "founder_action",
+        verified: false,
+        outreachEmailId: m.outreachEmailId,
+        meetingId: m.id,
+        idempotencyKey: `founder:meeting_declined:${m.id}`,
+        metadata: { investor_firm: m.investorFirm },
+      });
       return { ok: true as const };
+    }),
+
+  fundraisingMetrics: protectedProcedure
+    .input(z.object({ runId: z.string().min(1).max(64) }))
+    .query(async ({ input, ctx }) => getFundraisingOutcomeMetrics(ctx.user.id, input.runId)),
+
+  recordFundraisingEvidence: protectedProcedure
+    .input(z.object({
+      runId: z.string().min(1).max(64),
+      eventType: z.enum(["diligence_started", "term_sheet_received", "capital_committed"]),
+      idempotencyKey: z.string().min(8).max(120),
+      evidenceUrl: z.string().url().max(1000).optional(),
+      note: z.string().trim().min(8).max(2000).optional(),
+      amountUsd: z.number().int().positive().max(10_000_000_000).optional(),
+      investorFirm: z.string().trim().max(128).optional(),
+    }).superRefine((value, ctx) => {
+      if (!value.evidenceUrl && !value.note) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide an evidence URL or explanatory note" });
+      }
+      if (value.eventType === "capital_committed" && !value.amountUsd) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Committed capital requires amountUsd" });
+      }
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await recordFundraisingOutcome({
+        userId: ctx.user.id,
+        runId: input.runId,
+        eventType: input.eventType,
+        source: "founder_action",
+        verified: false,
+        idempotencyKey: `founder:evidence:${ctx.user.id}:${input.idempotencyKey}`,
+        metadata: {
+          evidence_url: input.evidenceUrl ?? null,
+          note: input.note ?? null,
+          amount_usd: input.amountUsd ?? null,
+          investor_firm: input.investorFirm ?? null,
+          verification_status: "pending_review",
+        },
+      });
+      if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Outcome ledger unavailable" });
+      return { ok: true as const, duplicate: result.duplicate, verificationStatus: "pending_review" as const };
     }),
 
   /**
