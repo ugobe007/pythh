@@ -15,6 +15,10 @@ export default function FundraisingEvidence() {
 
   const decide = (outcomeId: number, decision: Decision) => {
     const reviewNote = notes[outcomeId]?.trim();
+    if (reviewNote && reviewNote.length < 8) {
+      alert("Review note must be at least 8 characters or left empty");
+      return;
+    }
     review.mutate({ outcomeId, decision, ...(reviewNote ? { reviewNote } : {}) });
   };
 
@@ -30,7 +34,7 @@ export default function FundraisingEvidence() {
 
       {pending.isLoading && <p className="text-sm">Loading pending evidence…</p>}
       {pending.error && <p className="text-sm text-red-400">Unable to load evidence: {pending.error.message}</p>}
-      {!pending.isLoading && (pending.data?.length ?? 0) === 0 && (
+      {!pending.isLoading && !pending.error && pending.data?.length === 0 && (
         <div className="rounded-lg border p-6 text-sm" style={{ borderColor: "oklch(0.22 0.01 264)" }}>No evidence is waiting for review.</div>
       )}
 
