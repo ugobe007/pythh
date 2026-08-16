@@ -555,6 +555,7 @@ function EmailPitchStep({
   onReplyToChange,
 }: {
   runId: string;
+  startupId?: string;
   emails: EmailDraft[];
   onApprove: (id: number) => void;
   onSend: (id: number) => void;
@@ -811,6 +812,7 @@ export default function ActivatePythiaModal({
   open,
   onClose,
   runId,
+  startupId,
   startupUrl,
   startupSummary,
   investors,
@@ -1142,6 +1144,7 @@ export default function ActivatePythiaModal({
           ) : (
             <EmailPitchStep
               runId={runId}
+              startupId={startupId}
               emails={emails}
               onApprove={handleApproveEmail}
               onSend={handleSendEmail}

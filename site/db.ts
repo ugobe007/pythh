@@ -542,16 +542,20 @@ export async function updateOutreachEmailStatus(opts: {
   subject?: string;
   body?: string;
   toEmail?: string;
+  startupId?: string | null;
+  investorId?: string | null;
 }) {
   const db = await getDb();
   if (!db) return;
-  const { id, userId, status, sentAt, resendMessageId, subject, body, toEmail } = opts;
+  const { id, userId, status, sentAt, resendMessageId, subject, body, toEmail, startupId, investorId } = opts;
   const patch: Record<string, unknown> = { status };
   if (sentAt !== undefined) patch.sentAt = sentAt;
   if (resendMessageId !== undefined) patch.resendMessageId = resendMessageId;
   if (subject !== undefined) patch.subject = subject;
   if (body !== undefined) patch.body = body;
   if (toEmail !== undefined) patch.toEmail = toEmail;
+  if (startupId !== undefined) patch.startupId = startupId;
+  if (investorId !== undefined) patch.investorId = investorId;
   await db
     .update(outreachEmails)
     .set(patch as any)

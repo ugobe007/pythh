@@ -853,7 +853,7 @@ export const appRouter = router({
         const sbClient = sbUrl && sbKey ? createClient(sbUrl, sbKey) : null;
 
         type RealMatch = {
-          investorUuid: string;
+          investorId: string;
           matchScore: number;
           matchReasons: string[];
           firmName: string;
@@ -891,7 +891,7 @@ export const appRouter = router({
                 ? `$${(checkMin / 1e6).toFixed(0)}–${(checkMax / 1e6).toFixed(0)}M`
                 : checkMin ? `$${(checkMin / 1e6).toFixed(0)}M+` : null;
               return {
-                investorUuid: row.investor_id as string,
+                investorId: row.investor_id as string,
                 matchScore: Math.round((row.score as number ?? 0) * 100) / 100,
                 matchReasons: Array.isArray(row.match_reasons) ? (row.match_reasons as string[]) : [],
                 firmName: (inv?.firm as string) ?? "",
@@ -939,7 +939,7 @@ export const appRouter = router({
         const { invokeLLM } = await import("./_core/llm");
 
         let enrichedMatches: Array<{
-          id: number; investorUuid: string | null; name: string; firm: string; sector: string[];
+          id: number; investorId: string | null; name: string; firm: string; sector: string[];
           stage: string; checkSize: string; geo: string;
           signalScore: number; recentActivity: string;
           matchScore: number; reason: string; godScore?: number | null;
@@ -989,7 +989,7 @@ export const appRouter = router({
             .map((m) => {
               const inv = investorMap.get(m.investorId)!;
               return {
-                id: inv.id, investorUuid: null, name: inv.name, firm: inv.firm,
+                id: inv.id, investorId: null, name: inv.name, firm: inv.firm,
                 sector: [inv.sector, inv.sector2].filter(Boolean) as string[],
                 stage: inv.stage ?? "Series A/B",
                 checkSize: inv.checkSize ?? "$5–20M",
@@ -1041,7 +1041,7 @@ export const appRouter = router({
           summary = narrative.summary;
 
           enrichedMatches = bridgedMatches.slice(0, 6).map(({ rm, pythh }) => ({
-            id: pythh.id, investorUuid: rm.investorUuid, name: pythh.name, firm: pythh.firm,
+            id: pythh.id, investorId: rm.investorId, name: pythh.name, firm: pythh.firm,
             sector: rm.sectors.length > 0 ? rm.sectors : [pythh.sector, pythh.sector2].filter(Boolean) as string[],
             stage: rm.stage ?? pythh.stage ?? "Series A/B",
             checkSize: rm.checkSize ?? pythh.checkSize ?? "$5–20M",

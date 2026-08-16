@@ -299,13 +299,29 @@ export const outreachRouter = router({
 
       // Get existing emails to avoid duplicates
       const existing = await getOutreachEmailsByRunId(ctx.user.id, runId);
-      const existingNames = new Set(existing.map((e) => `${e.investorName}::${e.investorFirm}`));
+      const existingMap = new Map(existing.map((e) => [`${e.investorName}::${e.investorFirm}`, e]));
 
       const results: Array<{ investorName: string; investorFirm: string; emailId: number }> = [];
 
       for (const inv of investors) {
         const key = `${inv.name}::${inv.firm}`;
-        if (existingNames.has(key)) continue;
+        const existingDraft = existingMap.get(key);
+        
+        // If draft exists but lacks canonical IDs and we now have them, update the row
+        if (existingDraft && (!existingDraft.startupId || !existingDraft.investorId) && (startupId || inv.investorId)) {
+          await updateOutreachEmailStatus({
+            id: existingDraft.id,
+            userId: ctx.user.id,
+            status: existingDraft.status,
+            startupId: startupId ?? existingDraft.startupId,
+            investorId: inv.investorId ?? existingDraft.investorId,
+          });
+          results.push({ investorName: inv.name, investorFirm: inv.firm, emailId: existingDraft.id });
+          continue;
+        }
+        
+        // Skip if already exists (with or without IDs)
+        if (existingDraft) continue;
 
         const { subject, body } = await llmGenerateEmailPitch({
           startupUrl,
