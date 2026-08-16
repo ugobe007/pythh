@@ -47,8 +47,9 @@ REVOKE ALL ON FUNCTION public.refresh_startup_match_outcome_classifications(uuid
 
 CREATE OR REPLACE FUNCTION public.refresh_match_outcome_classifications(p_limit integer DEFAULT 50000)
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE v_count bigint;
+DECLARE v_count bigint; v_updated bigint;
 BEGIN
+  -- Insert new classifications for matches not yet classified
   INSERT INTO public.match_outcome_classifications(match_id,classification,evidence_id,observation_window_days,classification_reason)
   SELECT m.id,
     CASE WHEN verified.id IS NOT NULL THEN 'verified_funding' WHEN pending.id IS NOT NULL THEN 'unresolved'
@@ -63,7 +64,20 @@ BEGIN
   LEFT JOIN LATERAL(SELECT e.id FROM public.match_validation_evidence e WHERE e.match_id=m.id AND e.review_status='pending' ORDER BY e.event_at LIMIT 1) pending ON true
   WHERE NOT EXISTS(SELECT 1 FROM public.match_outcome_classifications c WHERE c.match_id=m.id)
   ORDER BY m.created_at,m.id LIMIT greatest(p_limit,0) ON CONFLICT(match_id) DO NOTHING;
-  GET DIAGNOSTICS v_count=ROW_COUNT;RETURN v_count;
+  GET DIAGNOSTICS v_count=ROW_COUNT;
+  -- Update existing censored classifications that have now aged past the observation window
+  UPDATE public.match_outcome_classifications c SET
+    classification='no_observed_funding',
+    classification_reason='completed web search; no verified event observed in 365-day window',
+    observed_through=now(),
+    classified_at=now()
+  FROM public.startup_investor_matches m
+  LEFT JOIN public.funding_evidence_search_queue q ON q.startup_id=m.startup_id
+  WHERE c.match_id=m.id AND c.classification='censored'
+    AND q.status='complete' AND m.created_at<=now()-interval '365 days'
+  ORDER BY m.created_at,m.id LIMIT greatest(p_limit,0);
+  GET DIAGNOSTICS v_updated=ROW_COUNT;
+  RETURN v_count+v_updated;
 END $$;
 REVOKE ALL ON FUNCTION public.refresh_match_outcome_classifications(integer) FROM PUBLIC,anon,authenticated;
 
