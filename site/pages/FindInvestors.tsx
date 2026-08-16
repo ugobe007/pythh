@@ -18,6 +18,11 @@ import {
   HERO_PRIMARY_CTA,
 } from '@/lib/heroHeadlineExperiment';
 import type { GrowthAssignment } from '@/lib/growthExperiment';
+import {
+  buildLoginRedirectForSearch,
+  shouldPromptSignInForNewSearch,
+} from '@/lib/anonymousPreviewSession';
+import { useAuth } from '@/_core/hooks/useAuth';
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -36,6 +41,7 @@ type ThesisSpotlight = {
 
 export default function FindInvestors() {
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [spotlight, setSpotlight] = useState<ThesisSpotlight | null>(null);
@@ -78,6 +84,11 @@ export default function FindInvestors() {
       return;
     }
     setError(false);
+    if (!isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+      sessionStorage.setItem('pythia_url', normalized);
+      navigate(buildLoginRedirectForSearch(normalized));
+      return;
+    }
     trackUrlSubmitted(normalized, 'find_investors_landing', entryExperiment);
     trackHeroUrlSubmitted(normalized, 'find_investors_landing', headlineExperiment);
     navigate(`/matches?url=${encodeURIComponent(normalized)}`);

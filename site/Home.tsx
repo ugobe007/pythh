@@ -33,6 +33,11 @@ import {
 } from "@/lib/heroHeadlineExperiment";
 import { trackFunnelEventOnce } from "@/lib/matchEngagement";
 import {
+  buildLoginRedirectForSearch,
+  shouldPromptSignInForNewSearch,
+} from "@/lib/anonymousPreviewSession";
+import { useAuth } from "@/_core/hooks/useAuth";
+import {
   ArrowRight,
   ExternalLink,
   Mail,
@@ -353,6 +358,7 @@ function HeroSection({
   const [founderExperiment, setFounderExperiment] = useState<GrowthAssignment | null>(null);
   const [headlineExperiment, setHeadlineExperiment] = useState<GrowthAssignment | null>(null);
   const [, navigate] = useLocation();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     loadHeroExperiments()
@@ -378,6 +384,11 @@ function HeroSection({
     }
     setError(false);
     const normalized = url.trim().startsWith("http") ? url.trim() : `https://${url.trim()}`;
+    if (!isAuthenticated && shouldPromptSignInForNewSearch(normalized)) {
+      sessionStorage.setItem('pythia_url', normalized);
+      navigate(buildLoginRedirectForSearch(normalized));
+      return;
+    }
     sessionStorage.setItem("pythia_url", normalized);
     trackUrlSubmitted(normalized, "home_hero", founderExperiment);
     trackHeroUrlSubmitted(normalized, "home_hero", headlineExperiment);
