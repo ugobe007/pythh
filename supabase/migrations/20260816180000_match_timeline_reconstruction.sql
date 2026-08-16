@@ -62,6 +62,7 @@ BEGIN
     verified_by=CASE WHEN p_decision='verified' THEN p_reviewer ELSE NULL END
   WHERE id=p_evidence_id AND review_status='pending' RETURNING * INTO v_row;
   IF v_row.id IS NULL THEN RAISE EXCEPTION 'evidence not found or already reviewed'; END IF;
+  PERFORM refresh_startup_match_outcome_classifications(v_row.startup_id);
   RETURN v_row;
 END; $$;
 REVOKE ALL ON FUNCTION public.review_match_validation_evidence(uuid,text,uuid,text) FROM PUBLIC, anon, authenticated;
@@ -101,16 +102,18 @@ BEGIN
     JOIN unique_startups s ON s.key=lower(regexp_replace(e.object, '[^a-z0-9]+', '', 'g'))
     WHERE e.event_type='INVESTMENT' AND e.source_url IS NOT NULL AND e.occurred_at IS NOT NULL
       AND e.source_title !~* '\m(in talks|plans? to|may invest|considering|could invest|reportedly|rumou?r)\M'
-    ORDER BY e.occurred_at DESC LIMIT greatest(p_limit,0)
+  ), matched AS (
+    SELECT r.*,m.id AS match_id FROM resolved r JOIN LATERAL (
+      SELECT sim.id FROM public.startup_investor_matches sim
+      WHERE sim.startup_id=r.startup_id AND sim.investor_id=r.investor_id AND sim.created_at<r.occurred_at
+      ORDER BY sim.created_at DESC LIMIT 1
+    ) m ON true
+    ORDER BY r.occurred_at DESC LIMIT greatest(p_limit,0)
   )
-  SELECT m.id,r.startup_id,r.investor_id,'investment',r.occurred_at,r.source_url,
-    COALESCE(r.source_publisher,'startup_events'),'startup_event',r.id::text,'name_exact_unique',.95,
-    jsonb_build_object('event_id',r.event_id,'title',r.source_title,'subject',r.subject,'object',r.object,'entities',r.entities)
-  FROM resolved r JOIN LATERAL (
-    SELECT sim.id FROM public.startup_investor_matches sim
-    WHERE sim.startup_id=r.startup_id AND sim.investor_id=r.investor_id AND sim.created_at<r.occurred_at
-    ORDER BY sim.created_at DESC LIMIT 1
-  ) m ON true ON CONFLICT(match_id,evidence_type,source_url,event_at) DO NOTHING;
+  SELECT matched.match_id,matched.startup_id,matched.investor_id,'investment',matched.occurred_at,matched.source_url,
+    COALESCE(matched.source_publisher,'startup_events'),'startup_event',matched.id::text,'name_exact_unique',.95,
+    jsonb_build_object('event_id',matched.event_id,'title',matched.source_title,'subject',matched.subject,'object',matched.object,'entities',matched.entities)
+  FROM matched ON CONFLICT(match_id,evidence_type,source_url,event_at) DO NOTHING;
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
   RETURN QUERY SELECT v_inserted,v_candidates;
 END; $$;

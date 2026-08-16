@@ -26,7 +26,7 @@ async function directSourceUrl(value){
 
 if(seed){const {data,error}=await db.rpc('seed_funding_evidence_search_queue');if(error)throw new Error(error.message);console.log(`queue seeded: ${data}`);}
 const {data:jobs,error:jobError}=await db.from('funding_evidence_search_queue').select('startup_id,earliest_match_at,attempts')
-  .in('status',['pending','error']).order('priority',{ascending:false}).order('updated_at').limit(limit);
+  .in('status',['pending','processing','error']).order('priority',{ascending:false}).order('updated_at').limit(limit);
 if(jobError)throw new Error(jobError.message);
 const investorRows=[];
 for(let from=0;;from+=1000){const {data,error}=await db.from('investors').select('id,name').range(from,from+999);if(error)throw new Error(error.message);investorRows.push(...(data||[]));if(!data||data.length<1000)break;}
@@ -59,7 +59,7 @@ for(const job of jobs||[]){
       if(investor){
         const eventAt=`${event.event_date}T12:00:00Z`;
         const {data:match}=await db.from('startup_investor_matches').select('id').eq('startup_id',startup.id).eq('investor_id',investor.id).lt('created_at',eventAt).order('created_at',{ascending:false}).limit(1).maybeSingle();
-        if(match){pairs++;if(apply)await db.from('match_validation_evidence').upsert({match_id:match.id,startup_id:startup.id,investor_id:investor.id,evidence_type:'funding',event_at:eventAt,source_url:event.source_url,source_provider:'gemini_google_search',source_record_type:'web_search',source_record_id:`${startup.id}:${event.source_url}`,resolution_method:'name_exact_unique',resolution_confidence:.95,raw_payload:payload},{onConflict:'match_id,evidence_type,source_url,event_at',ignoreDuplicates:true});}
+        if(match){pairs++;if(apply){const {error:evError}=await db.from('match_validation_evidence').upsert({match_id:match.id,startup_id:startup.id,investor_id:investor.id,evidence_type:'funding',event_at:eventAt,source_url:event.source_url,source_provider:'gemini_google_search',source_record_type:'web_search',source_record_id:`${startup.id}:${event.source_url}`,resolution_method:'name_exact_unique',resolution_confidence:.95,raw_payload:payload},{onConflict:'match_id,evidence_type,source_url,event_at',ignoreDuplicates:true});if(evError)throw new Error(evError.message);}}
       }
     }
     if(apply){
