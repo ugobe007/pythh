@@ -47,6 +47,7 @@ jobs:
 
       - name: Run batch command
         env:
+          BATCH_COMMAND: ${{ inputs.run }}
           NODE_ENV: production
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
@@ -65,5 +66,5 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
         run: |
-          echo "Running: ${{ inputs.run }}"
-          ${{ inputs.run }}
+          echo "Running configured batch command."
+          bash -euo pipefail -c "$BATCH_COMMAND"
