@@ -499,6 +499,8 @@ export async function getPitchDeckById(userId: number, deckId: number) {
 export async function createOutreachEmail(opts: {
   userId: number;
   runId: string;
+  startupId?: string | null;
+  investorId?: string | null;
   investorName: string;
   investorFirm: string;
   toEmail?: string;
@@ -507,12 +509,14 @@ export async function createOutreachEmail(opts: {
 }) {
   const db = await getDb();
   if (!db) return undefined;
-  const { userId, runId, investorName, investorFirm, toEmail, subject, body } = opts;
+  const { userId, runId, startupId, investorId, investorName, investorFirm, toEmail, subject, body } = opts;
   const [inserted] = await db
     .insert(outreachEmails)
     .values({
       userId,
       runId,
+      startupId: startupId ?? null,
+      investorId: investorId ?? null,
       investorName,
       investorFirm,
       toEmail: toEmail ?? null,
@@ -572,6 +576,7 @@ export async function getOutreachEmailsByRunId(userId: number, runId: string) {
 export async function createPipelineRun(opts: {
   userId: number;
   runId: string;
+  startupId?: string | null;
   startupUrl: string;
   summary: string;
   matches: unknown[];
@@ -579,10 +584,11 @@ export async function createPipelineRun(opts: {
 }) {
   const db = await getDb();
   if (!db) return;
-  const { userId, runId, startupUrl, summary, matches, status = "completed" } = opts;
+  const { userId, runId, startupId, startupUrl, summary, matches, status = "completed" } = opts;
   await db.insert(pipelineRuns).values({
     userId,
     runId,
+    startupId: startupId ?? null,
     startupUrl,
     summary,
     matchedInvestorsJson: JSON.stringify(matches),
@@ -665,6 +671,8 @@ export async function upsertFounderProfile(
 export async function createMeetingProposal(opts: {
   userId: number;
   runId: string;
+  startupId?: string | null;
+  investorId?: string | null;
   outreachEmailId: number;
   investorName: string;
   investorFirm: string;
@@ -672,12 +680,14 @@ export async function createMeetingProposal(opts: {
 }) {
   const db = await getDb();
   if (!db) return undefined;
-  const { userId, runId, outreachEmailId, investorName, investorFirm, proposedTimes } = opts;
+  const { userId, runId, startupId, investorId, outreachEmailId, investorName, investorFirm, proposedTimes } = opts;
   const [inserted] = await db
     .insert(meetings)
     .values({
       userId,
       runId,
+      startupId: startupId ?? null,
+      investorId: investorId ?? null,
       outreachEmailId,
       investorName,
       investorFirm,
@@ -750,6 +760,8 @@ export type FundraisingOutcomeType = (typeof FUNDRAISING_OUTCOME_TYPES)[number];
 export async function recordFundraisingOutcome(opts: {
   userId: number;
   runId: string;
+  startupId?: string | null;
+  investorId?: string | null;
   eventType: FundraisingOutcomeType;
   source: "founder_action" | "pythia" | "resend" | "calendar" | "system";
   idempotencyKey: string;
@@ -768,6 +780,8 @@ export async function recordFundraisingOutcome(opts: {
     .values({
       userId: opts.userId,
       runId: opts.runId,
+      startupId: opts.startupId ?? null,
+      investorId: opts.investorId ?? null,
       eventType: opts.eventType,
       source: opts.source,
       verified: opts.verified ? 1 : 0,

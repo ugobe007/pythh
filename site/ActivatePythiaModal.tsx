@@ -41,6 +41,7 @@ interface Slide {
 }
 
 interface InvestorForEmail {
+  investorId?: string;
   name: string;
   firm: string;
   sector: string;
@@ -63,6 +64,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   runId: string;
+  startupId?: string;
   startupUrl: string;
   startupSummary?: string;
   investors: InvestorForEmail[];
@@ -540,6 +542,7 @@ function CopyButton({ text }: { text: string }) {
 
 function EmailPitchStep({
   runId,
+  startupId,
   emails,
   onApprove,
   onSend,
@@ -826,6 +829,7 @@ export default function ActivatePythiaModal({
   const [outcomeEvidenceUrl, setOutcomeEvidenceUrl] = useState("");
   const [outcomeNote, setOutcomeNote] = useState("");
   const [outcomeAmount, setOutcomeAmount] = useState("");
+  const [outcomeEmailId, setOutcomeEmailId] = useState<number | null>(null);
 
   // ── tRPC utils (must be at top level, not inside callbacks) ──
   const utils = trpc.useUtils();
@@ -928,9 +932,11 @@ export default function ActivatePythiaModal({
     try {
       await generateEmailPitch.mutateAsync({
         runId,
+        startupId,
         startupUrl,
         startupSummary,
         investors: investors.map((inv) => ({
+          investorId: inv.investorId,
           name: inv.name,
           firm: inv.firm,
           sector: inv.sector,
@@ -984,6 +990,7 @@ export default function ActivatePythiaModal({
     try {
       await recordFundraisingEvidence.mutateAsync({
         runId,
+        outreachEmailId: outcomeEmailId ?? 0,
         eventType: outcomeType,
         idempotencyKey: crypto.randomUUID(),
         evidenceUrl: outcomeEvidenceUrl || undefined,
@@ -1068,6 +1075,13 @@ export default function ActivatePythiaModal({
           ) : (
             <div className="grid gap-2 md:grid-cols-5 items-end">
               <label className="text-[10px] uppercase tracking-wider" style={{ color: C.dim }}>
+                Investor
+                <select className="mt-1 w-full rounded-md px-2 py-2 text-xs" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }} value={outcomeEmailId ?? ""} onChange={(event) => setOutcomeEmailId(Number(event.target.value) || null)}>
+                  <option value="">Select outreach target</option>
+                  {emails.map((email) => <option key={email.id} value={email.id}>{email.investorFirm} — {email.investorName}</option>)}
+                </select>
+              </label>
+              <label className="text-[10px] uppercase tracking-wider" style={{ color: C.dim }}>
                 Event
                 <select className="mt-1 w-full rounded-md px-2 py-2 text-xs" style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.text }} value={outcomeType} onChange={(event) => setOutcomeType(event.target.value as typeof outcomeType)}>
                   <option value="diligence_started">Diligence started</option>
@@ -1090,7 +1104,7 @@ export default function ActivatePythiaModal({
                 </label>
               )}
               <div className="flex gap-2">
-                <button className="rounded-md px-3 py-2 text-xs font-semibold" style={{ background: C.emerald, color: C.bg }} disabled={recordFundraisingEvidence.isPending} onClick={() => void handleRecordOutcome()}>
+                <button className="rounded-md px-3 py-2 text-xs font-semibold" style={{ background: C.emerald, color: C.bg }} disabled={recordFundraisingEvidence.isPending || !outcomeEmailId} onClick={() => void handleRecordOutcome()}>
                   {recordFundraisingEvidence.isPending ? "Saving…" : "Save evidence"}
                 </button>
                 <button className="px-2 py-2 text-xs" style={{ color: C.dim }} onClick={() => setShowOutcomeForm(false)}>Cancel</button>

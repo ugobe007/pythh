@@ -2,7 +2,7 @@
  * Drizzle schema — Postgres (Supabase). Tables use `pythh_*` prefix + snake_case columns.
  * Apply: supabase/migrations/*_pythh_drizzle_postgres_tables.sql
  */
-import { bigint, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { bigint, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, uuid, varchar } from "drizzle-orm/pg-core";
 
 export const users = pgTable("pythh_users", {
   id: serial("id").primaryKey(),
@@ -117,6 +117,8 @@ export const outreachEmails = pgTable("pythh_outreach_emails", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   runId: varchar("run_id", { length: 64 }).notNull(),
+  startupId: uuid("startup_id"),
+  investorId: uuid("investor_id"),
   investorName: varchar("investor_name", { length: 128 }).notNull(),
   investorFirm: varchar("investor_firm", { length: 128 }).notNull(),
   toEmail: varchar("to_email", { length: 256 }),
@@ -140,6 +142,7 @@ export const pipelineRuns = pgTable("pythh_pipeline_runs", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   runId: varchar("run_id", { length: 64 }).notNull().unique(),
+  startupId: uuid("startup_id"),
   startupUrl: varchar("startup_url", { length: 512 }).notNull(),
   summary: text("summary"),
   matchedInvestorsJson: text("matched_investors_json"),
@@ -155,6 +158,8 @@ export const meetings = pgTable("pythh_meetings", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   runId: varchar("run_id", { length: 64 }).notNull(),
+  startupId: uuid("startup_id"),
+  investorId: uuid("investor_id"),
   outreachEmailId: integer("outreach_email_id"),
   investorName: varchar("investor_name", { length: 128 }).notNull(),
   investorFirm: varchar("investor_firm", { length: 128 }).notNull(),
@@ -175,6 +180,8 @@ export const fundraisingOutcomes = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     runId: varchar("run_id", { length: 64 }).notNull(),
+    startupId: uuid("startup_id"),
+    investorId: uuid("investor_id"),
     outreachEmailId: integer("outreach_email_id").references(() => outreachEmails.id, { onDelete: "set null" }),
     meetingId: integer("meeting_id").references(() => meetings.id, { onDelete: "set null" }),
     eventType: varchar("event_type", { length: 32 }).notNull(),
