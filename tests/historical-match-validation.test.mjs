@@ -33,6 +33,7 @@ test('rejects evidence without canonical pair or source', () => {
 
 test('only creates negatives after an exposure-aware observation window', () => {
   assert.equal(validation.labelExposure({ positiveEvidenceCount: 0, matchCreatedAt: '2025-01-01', observedThrough: '2025-03-01' }).label, null);
-  assert.equal(validation.labelExposure({ positiveEvidenceCount: 0, matchCreatedAt: '2025-01-01', observedThrough: '2025-08-01' }).label, 0);
+  assert.equal(validation.labelExposure({ positiveEvidenceCount: 0, matchCreatedAt: '2025-01-01', observedThrough: '2025-08-01' }).label, null);
+  assert.equal(validation.labelExposure({ positiveEvidenceCount: 0, matchCreatedAt: '2025-01-01', observedThrough: '2026-01-02' }).label, 0);
   assert.equal(validation.labelExposure({ positiveEvidenceCount: 2, matchCreatedAt: '2025-01-01', observedThrough: '2025-01-02' }).label, 1);
 });
